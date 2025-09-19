@@ -4,11 +4,11 @@ package metrics
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	smfStats "github.com/ellanetworks/core/internal/smf/stats"
-	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -89,105 +89,134 @@ func RegisterSmfMetrics() {
 	prometheus.MustRegister(PduSessions)
 }
 
-func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnection) {
+type UPFMetrics struct {
+	bpfObjects atomic.Pointer[ebpf.BpfObjects]
+	registered atomic.Bool
+}
+
+func (m *UPFMetrics) get() *ebpf.BpfObjects { return m.bpfObjects.Load() }
+
+func (m *UPFMetrics) SetBpfObjects(bpfObjects *ebpf.BpfObjects) {
+	m.bpfObjects.Store(bpfObjects)
+}
+
+func (m *UPFMetrics) RegisterUPFMetrics(bpfObjects *ebpf.BpfObjects) {
+	// Always set the current source first.
+	m.SetBpfObjects(bpfObjects)
+
+	// Already registered? Nothing else to do.
+	if m.registered.Load() {
+		return
+	}
+
+	// Helper to safely read counters from the current objects.
+	val := func(f func(*ebpf.BpfObjects) uint64) float64 {
+		if o := m.get(); o != nil {
+			return float64(f(o))
+		}
+		return 0
+	}
+
 	// Metrics for the app_xdp_statistic (xdp_action)
 	UpfN3XdpAborted = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_n3_xdp_aborted",
 		Help: "The total number of aborted packets (n3)",
 	}, func() float64 {
-		return float64(stats.GetN3Aborted())
+		return val((*ebpf.BpfObjects).GetN3Aborted)
 	})
 
 	UpfN3XdpDrop = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_n3_xdp_drop",
 		Help: "The total number of dropped packets (n3)",
 	}, func() float64 {
-		return float64(stats.GetN3Drop())
+		return val((*ebpf.BpfObjects).GetN3Drop)
 	})
 
 	UpfN3XdpPass = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_n3_xdp_pass",
 		Help: "The total number of passed packets (n3)",
 	}, func() float64 {
-		return float64(stats.GetN3Pass())
+		return val((*ebpf.BpfObjects).GetN3Pass)
 	})
 
 	UpfN3XdpTx = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_n3_xdp_tx",
 		Help: "The total number of transmitted packets (n3)",
 	}, func() float64 {
-		return float64(stats.GetN3Tx())
+		return val((*ebpf.BpfObjects).GetN3Tx)
 	})
 
 	UpfN3XdpRedirect = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_n3_xdp_redirect",
 		Help: "The total number of redirected packets (n3)",
 	}, func() float64 {
-		return float64(stats.GetN3Redirect())
+		return val((*ebpf.BpfObjects).GetN3Redirect)
 	})
 
 	UpfN6XdpAborted = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_n6_xdp_aborted",
 		Help: "The total number of aborted packets (n6)",
 	}, func() float64 {
-		return float64(stats.GetN6Aborted())
+		return val((*ebpf.BpfObjects).GetN6Aborted)
 	})
 
 	UpfN6XdpDrop = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_n6_xdp_drop",
 		Help: "The total number of dropped packets (n6)",
 	}, func() float64 {
-		return float64(stats.GetN6Drop())
+		return val((*ebpf.BpfObjects).GetN6Drop)
 	})
 
 	UpfN6XdpPass = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_n6_xdp_pass",
 		Help: "The total number of passed packets (n6)",
 	}, func() float64 {
-		return float64(stats.GetN3Pass())
+		return val((*ebpf.BpfObjects).GetN3Pass)
 	})
 
 	UpfN6XdpTx = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_n6_xdp_tx",
 		Help: "The total number of transmitted packets (n6)",
 	}, func() float64 {
-		return float64(stats.GetN6Tx())
+		return val((*ebpf.BpfObjects).GetN6Tx)
 	})
 
 	UpfN6XdpRedirect = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_n6_xdp_redirect",
 		Help: "The total number of redirected packets (n6)",
 	}, func() float64 {
-		return float64(stats.GetN6Redirect())
+		return val((*ebpf.BpfObjects).GetN6Redirect)
 	})
 
 	UpfUplinkBytes = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_uplink_bytes",
 		Help: "The total number of uplink bytes going through the data plane (N3 -> N6). This value includes the Ethernet header.",
 	}, func() float64 {
-		uplinkBytes := stats.GetN3UplinkThroughputStats()
-		return float64(uplinkBytes)
+		return val((*ebpf.BpfObjects).GetN3UplinkThroughputStats)
 	})
 
 	UpfDownlinkBytes = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_downlink_bytes",
 		Help: "The total number of downlink bytes going through the data plane (N6 -> N3). This value includes the Ethernet header.",
 	}, func() float64 {
-		downlinkBytes := stats.GetN6DownlinkThroughputStats()
-		return float64(downlinkBytes)
+		return val((*ebpf.BpfObjects).GetN6DownlinkThroughputStats)
 	})
 
-	// Register metrics
-	prometheus.MustRegister(UpfN3XdpAborted)
-	prometheus.MustRegister(UpfN3XdpDrop)
-	prometheus.MustRegister(UpfN3XdpPass)
-	prometheus.MustRegister(UpfN3XdpTx)
-	prometheus.MustRegister(UpfN3XdpRedirect)
-	prometheus.MustRegister(UpfN6XdpAborted)
-	prometheus.MustRegister(UpfN6XdpDrop)
-	prometheus.MustRegister(UpfN6XdpPass)
-	prometheus.MustRegister(UpfN6XdpTx)
-	prometheus.MustRegister(UpfN6XdpRedirect)
-	prometheus.MustRegister(UpfUplinkBytes)
-	prometheus.MustRegister(UpfDownlinkBytes)
+	// Register metrics once
+	prometheus.MustRegister(
+		UpfN3XdpAborted,
+		UpfN3XdpDrop,
+		UpfN3XdpPass,
+		UpfN3XdpTx,
+		UpfN3XdpRedirect,
+		UpfN6XdpAborted,
+		UpfN6XdpDrop,
+		UpfN6XdpPass,
+		UpfN6XdpTx,
+		UpfN6XdpRedirect,
+		UpfUplinkBytes,
+		UpfDownlinkBytes,
+	)
+
+	m.registered.Store(true)
 }

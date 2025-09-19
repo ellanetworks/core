@@ -34,6 +34,7 @@ type UPF struct {
 	n3Link     link.Link
 	n6Link     link.Link
 	pfcpConn   *core.PfcpConnection
+	upfMetrics *metrics.UPFMetrics
 }
 
 func Start(ctx context.Context, n3Address string, n3Interface string, n6Interface string, xdpAttachMode string, masquerade bool) (*UPF, error) {
@@ -97,17 +98,15 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 	remoteNode := core.NewNodeAssociation(SmfNodeID, SmfAddress)
 	pfcpConn.SmfNodeAssociation = remoteNode
 
-	ForwardPlaneStats := ebpf.UpfXdpActionStatistic{
-		BpfObjects: bpfObjects,
-	}
-
-	metrics.RegisterUPFMetrics(ForwardPlaneStats, pfcpConn)
+	upfMetrics := &metrics.UPFMetrics{}
+	upfMetrics.RegisterUPFMetrics(bpfObjects)
 
 	upf := &UPF{
 		bpfObjects: bpfObjects,
 		n3Link:     n3Link,
 		n6Link:     n6Link,
 		pfcpConn:   pfcpConn,
+		upfMetrics: upfMetrics,
 	}
 
 	if masquerade {
@@ -146,6 +145,8 @@ func (u *UPF) Reload(masquerade bool) error {
 	}
 
 	u.pfcpConn.SetBPFObjects(newObjs)
+
+	u.upfMetrics.SetBpfObjects(newObjs)
 
 	newObjs.FarIDTracker = u.bpfObjects.FarIDTracker
 	newObjs.QerIDTracker = u.bpfObjects.QerIDTracker
