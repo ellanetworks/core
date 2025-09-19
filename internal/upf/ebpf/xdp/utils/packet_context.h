@@ -22,6 +22,7 @@
 #include <linux/types.h>
 #include <linux/udp.h>
 #include <linux/tcp.h>
+#include <linux/icmp.h>
 #include "xdp/utils/gtpu.h"
 
 /* Header cursor to keep track of current parsing position */
@@ -37,4 +38,5 @@ struct packet_context {
 	struct udphdr *udp;
 	struct tcphdr *tcp;
 	struct gtpuhdr *gtp;
+	struct icmphdr *icmp;
 };

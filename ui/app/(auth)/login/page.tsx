@@ -131,6 +131,7 @@ const LoginPage = () => {
 
           <TextField
             label="Email"
+            type="email"
             variant="outlined"
             margin="normal"
             value={email}

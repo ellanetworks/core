@@ -16,17 +16,20 @@
 
 #pragma once
 
-#include <bpf/bpf_endian.h>
 #include <linux/bpf.h>
+#include <linux/types.h>
+#include <bpf/bpf_endian.h>
+#include <bpf/bpf_helpers.h>
+#include <linux/icmp.h>
 #include <linux/if_ether.h>
 #include <linux/in.h>
 #include <linux/ip.h>
-#include <linux/types.h>
 #include <linux/udp.h>
 #include <linux/tcp.h>
 
 #include "xdp/utils/packet_context.h"
 #include "xdp/utils/trace.h"
+#include <sys/cdefs.h>
 
 #define ETH_P_IPV6_BE 0xDD86
 #define ETH_P_IP_BE 0x0008
@@ -45,11 +48,22 @@ static __always_inline int parse_ethernet(struct packet_context *ctx)
 /* 0x3FFF mask to check for fragment offset field */
 #define IP_FRAGMENTED 65343
 
-static __always_inline int parse_ip4(struct packet_context *ctx)
+static __always_inline struct iphdr *
+detect_ip4_header(struct packet_context *ctx)
 {
 	struct iphdr *ip4 = (struct iphdr *)ctx->data;
-	if ((const char *)(ip4 + 1) > ctx->data_end)
+	if ((const char *)(ip4 + 1) > ctx->data_end) {
+		return NULL;
+	}
+	return ip4;
+}
+
+static __always_inline int parse_ip4(struct packet_context *ctx)
+{
+	struct iphdr *ip4 = detect_ip4_header(ctx);
+	if (!ip4) {
 		return -1;
+	}
 
 	/* do not support fragmented packets as L4 headers may be missing */
 	// if (ip4->frag_off & IP_FRAGMENTED)
@@ -63,8 +77,9 @@ static __always_inline int parse_ip4(struct packet_context *ctx)
 static __always_inline int parse_ip6(struct packet_context *ctx)
 {
 	struct ipv6hdr *ip6 = (struct ipv6hdr *)ctx->data;
-	if ((const char *)(ip6 + 1) > ctx->data_end)
+	if ((const char *)(ip6 + 1) > ctx->data_end) {
 		return -1;
+	}
 
 	/* TODO: Add extention headers support */
 
@@ -73,28 +88,62 @@ static __always_inline int parse_ip6(struct packet_context *ctx)
 	return ip6->nexthdr;
 }
 
+static __always_inline struct udphdr *
+detect_udp_header(struct packet_context *ctx, int offset)
+{
+	struct udphdr *udp = (struct udphdr *)(ctx->data + offset);
+	if ((const char *)(udp + 1) > ctx->data_end) {
+		return NULL;
+	}
+	return udp;
+}
+
 static __always_inline int parse_udp(struct packet_context *ctx)
 {
-	struct udphdr *udp = (struct udphdr *)ctx->data;
-	if ((const char *)(udp + 1) > ctx->data_end)
+	struct udphdr *udp = detect_udp_header(ctx, 0);
+	if (!udp) {
 		return -1;
+	}
 
 	ctx->data += sizeof(*udp);
 	ctx->udp = udp;
 	return bpf_ntohs(udp->dest);
 }
 
+static __always_inline struct tcphdr *
+detect_tcp_header(struct packet_context *ctx, int offset)
+{
+	struct tcphdr *tcp = (struct tcphdr *)(ctx->data + offset);
+	if ((const char *)(tcp + 1) > ctx->data_end) {
+		return NULL;
+	}
+	return tcp;
+}
+
 static __always_inline int parse_tcp(struct packet_context *ctx)
 {
-	struct tcphdr *tcp = (struct tcphdr *)ctx->data;
-	if ((const char *)(tcp + 1) > ctx->data_end)
+	struct tcphdr *tcp = detect_tcp_header(ctx, 0);
+	if (!tcp) {
 		return -1;
+	}
 
 	// TODO: parse header lenght correctly (tcp options)
 
 	ctx->data += sizeof(*tcp);
 	ctx->tcp = tcp;
 	return bpf_ntohs(tcp->dest);
+}
+
+static __always_inline int parse_icmp(struct packet_context *ctx)
+{
+	struct icmphdr *icmp = (struct icmphdr *)ctx->data;
+	if ((const char *)(icmp + 1) > ctx->data_end) {
+		return -1;
+	}
+
+	ctx->data += sizeof(*icmp);
+	ctx->icmp = icmp;
+	return icmp->type;
 }
 
 static __always_inline int parse_l4(int ip_protocol, struct packet_context *ctx)
@@ -163,6 +212,7 @@ static __always_inline void context_reset(struct packet_context *ctx,
 	ctx->ip6 = 0;
 	ctx->udp = 0;
 	ctx->gtp = 0;
+	ctx->icmp = 0;
 }
 
 static __always_inline long context_reinit(struct packet_context *ctx,
