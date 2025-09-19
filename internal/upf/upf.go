@@ -124,7 +124,7 @@ func (u *UPF) Close() {
 	if err := u.n3Link.Close(); err != nil {
 		logger.UpfLog.Warn("Failed to detach eBPF from n3", zap.Error(err))
 	}
-	if err := u.bpfObjects.Close(); err != nil {
+	if err := u.bpfObjects.Shutdown(); err != nil {
 		logger.UpfLog.Warn("Failed to close BPF objects", zap.Error(err))
 	}
 	logger.UpfLog.Info("UPF resources released")
@@ -153,10 +153,7 @@ func (u *UPF) Reload(masquerade bool) error {
 	old := u.bpfObjects
 	u.bpfObjects = newObjs
 
-	err := ebpf.CloseAllObjects(
-		&old.N3EntrypointObjects,
-		&old.N6EntrypointObjects,
-	)
+	err := old.Close()
 	if err != nil {
 		logger.UpfLog.Warn("Failed to close old BPF objects", zap.Error(err))
 	}
