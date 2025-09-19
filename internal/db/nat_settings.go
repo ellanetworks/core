@@ -141,7 +141,6 @@ func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
 		return fmt.Errorf("failed to upsert NAT settings: %w", err)
 	}
 
-	logger.DBLog.Info("Updated NAT settings")
 	span.SetStatus(codes.Ok, "")
 	return nil
 }

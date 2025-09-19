@@ -118,6 +118,21 @@ func (u *UPF) Close() {
 	logger.UpfLog.Info("UPF resources released")
 }
 
+func (u *UPF) Reload(masquerade bool) error {
+	if err := u.bpfObjects.Close(); err != nil {
+		logger.UpfLog.Error("failed to close existing BPF objects", zap.Error(err))
+		return err
+	}
+
+	u.bpfObjects.Masquerade = masquerade
+	if err := u.bpfObjects.Load(); err != nil {
+		logger.UpfLog.Error("failed to reload BPF objects", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
 func StringToXDPAttachMode(Mode string) link.XDPAttachFlags {
 	switch Mode {
 	case "generic":

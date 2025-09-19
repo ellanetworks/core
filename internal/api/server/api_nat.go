@@ -32,7 +32,7 @@ func GetNATInfo(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateNATInfo(dbInstance *db.Database) http.Handler {
+func UpdateNATInfo(dbInstance *db.Database, upf UPFReloader) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var params UpdateNATInfoParams
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
@@ -42,6 +42,12 @@ func UpdateNATInfo(dbInstance *db.Database) http.Handler {
 
 		if err := dbInstance.UpdateNATSettings(r.Context(), params.Enabled); err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to update NAT settings", err, logger.APILog)
+			return
+		}
+
+		err := upf.Reload(params.Enabled)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to reload UPF with new NAT settings", err, logger.APILog)
 			return
 		}
 

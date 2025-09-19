@@ -52,6 +52,12 @@ func (dummyFS) Open(name string) (fs.File, error) {
 	return nil, fs.ErrNotExist
 }
 
+type FakeUPF struct{}
+
+func (f FakeUPF) Reload(natEnabled bool) error {
+	return nil
+}
+
 func setupServer(filepath string) (*httptest.Server, []byte, error) {
 	testdb, err := db.NewDatabase(filepath)
 	if err != nil {
@@ -69,7 +75,9 @@ func setupServer(filepath string) (*httptest.Server, []byte, error) {
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}
 	dummyfs := dummyFS{}
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, false, false, dummyfs, nil))
+	fakeUPF := FakeUPF{}
+
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeUPF, fakeKernel, jwtSecret, false, false, dummyfs, nil))
 
 	client := ts.Client()
 

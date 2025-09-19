@@ -10,7 +10,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, tracingEnabled bool, secureCookie bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
+type UPFReloader interface {
+	Reload(natEnabled bool) error
+}
+
+func NewHandler(dbInstance *db.Database, upf UPFReloader, kernel kernel.Kernel, jwtSecret []byte, tracingEnabled bool, secureCookie bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)
@@ -78,7 +82,7 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 
 	// NAT (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetNATInfo, jwtSecret, GetNATInfo(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, RequirePermission(PermUpdateNATInfo, jwtSecret, UpdateNATInfo(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, RequirePermission(PermUpdateNATInfo, jwtSecret, UpdateNATInfo(dbInstance, upf))).ServeHTTP)
 
 	// Radios (Authenticated)
 	mux.HandleFunc("GET /api/v1/radios", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListRadios, jwtSecret, ListRadios())).ServeHTTP)
