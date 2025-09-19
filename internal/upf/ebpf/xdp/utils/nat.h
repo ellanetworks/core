@@ -99,15 +99,17 @@ parse_icmp_packet_ref(struct five_tuple *key, struct packet_context *ctx)
 		ip4->saddr = nat_entry->src.saddr;
 		ctx->icmp->checksum = ipv4_csum_update_u32(
 			ctx->icmp->checksum, key->saddr, ip4->saddr);
-		udp->check = ipv4_csum_update_u32(udp->check, key->saddr,
-						  ip4->saddr);
 		udp->source = nat_entry->src.sport;
-		if (udp->source != key->sport) {
-			udp->check = ipv4_csum_update_u16(
-				udp->check, key->sport, udp->source);
+		if (udp->check != 0) {
+			udp->check = ipv4_csum_update_u32(udp->check, key->saddr,
+							  ip4->saddr);
+			if (udp->source != key->sport) {
+				udp->check = ipv4_csum_update_u16(
+					udp->check, key->sport, udp->source);
+			}
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, previous_udp_csum, udp->check);
 		}
-		ctx->icmp->checksum = ipv4_csum_update_u16(
-			ctx->icmp->checksum, previous_udp_csum, udp->check);
 		ip4->check = 0;
 		ip4->check = ipv4_csum(ip4, sizeof(*ip4));
 		break;
@@ -233,8 +235,10 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		}
 		orig.sport = ctx->udp->source;
 		orig.dport = ctx->udp->dest;
-		ctx->udp->check = ipv4_csum_update_u32(
-			ctx->udp->check, orig.saddr, ctx->ip4->saddr);
+		if (ctx->udp->check != 0) {
+			ctx->udp->check = ipv4_csum_update_u32(
+				ctx->udp->check, orig.saddr, ctx->ip4->saddr);
+		}
 		break;
 	case IPPROTO_ICMP:
 		if (!ctx->icmp) {
