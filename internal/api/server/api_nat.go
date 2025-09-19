@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -15,6 +16,10 @@ type GetNATInfoResponse struct {
 type UpdateNATInfoParams struct {
 	Enabled bool `json:"enabled"`
 }
+
+const (
+	UpdateNATSettingsAction = "update_nat_settings"
+)
 
 func GetNATInfo(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -34,6 +39,13 @@ func GetNATInfo(dbInstance *db.Database) http.Handler {
 
 func UpdateNATInfo(dbInstance *db.Database, upf UPFReloader) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value(contextKeyEmail)
+		email, ok := emailAny.(string)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			return
+		}
+
 		var params UpdateNATInfoParams
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
@@ -51,6 +63,13 @@ func UpdateNATInfo(dbInstance *db.Database, upf UPFReloader) http.Handler {
 			return
 		}
 
-		writeResponse(w, map[string]string{"message": "NAT settings updated successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(w, SuccessResponse{Message: "NAT settings updated successfully"}, http.StatusOK, logger.APILog)
+
+		logger.LogAuditEvent(
+			UpdateNATSettingsAction,
+			email,
+			getClientIP(r),
+			fmt.Sprintf("NAT settings updated: enabled=%t", params.Enabled),
+		)
 	})
 }

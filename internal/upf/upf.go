@@ -33,6 +33,7 @@ type UPF struct {
 	bpfObjects *ebpf.BpfObjects
 	n3Link     link.Link
 	n6Link     link.Link
+	pfcpConn   *core.PfcpConnection
 }
 
 func Start(ctx context.Context, n3Address string, n3Interface string, n6Interface string, xdpAttachMode string, masquerade bool) (*UPF, error) {
@@ -41,6 +42,13 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 	}
 
 	bpfObjects := ebpf.NewBpfObjects(FarMapSize, QerMapSize, masquerade)
+
+	err := ebpf.PinMaps()
+	if err != nil {
+		logger.UpfLog.Fatal("Creating BPF pin path failed", zap.Error(err))
+		return nil, err
+	}
+
 	if err := bpfObjects.Load(); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
 		return nil, err
@@ -51,6 +59,7 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 		logger.UpfLog.Fatal("Lookup network iface", zap.String("iface", n3Interface), zap.Error(err))
 		return nil, err
 	}
+
 	n3Link, err := link.AttachXDP(link.XDPOptions{
 		Program:   bpfObjects.UpfN3EntrypointFunc,
 		Interface: n3Iface.Index,
@@ -65,6 +74,7 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 		logger.UpfLog.Fatal("Lookup network iface", zap.String("iface", n6Interface), zap.Error(err))
 		return nil, err
 	}
+
 	n6Link, err := link.AttachXDP(link.XDPOptions{
 		Program:   bpfObjects.UpfN6EntrypointFunc,
 		Interface: n6Iface.Index,
@@ -90,12 +100,14 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 	ForwardPlaneStats := ebpf.UpfXdpActionStatistic{
 		BpfObjects: bpfObjects,
 	}
+
 	metrics.RegisterUPFMetrics(ForwardPlaneStats, pfcpConn)
 
 	upf := &UPF{
 		bpfObjects: bpfObjects,
 		n3Link:     n3Link,
 		n6Link:     n6Link,
+		pfcpConn:   pfcpConn,
 	}
 
 	if masquerade {
@@ -119,15 +131,34 @@ func (u *UPF) Close() {
 }
 
 func (u *UPF) Reload(masquerade bool) error {
-	if err := u.bpfObjects.Close(); err != nil {
-		logger.UpfLog.Error("failed to close existing BPF objects", zap.Error(err))
+	newObjs := ebpf.NewBpfObjects(FarMapSize, QerMapSize, masquerade)
+	if err := newObjs.Load(); err != nil {
+		return fmt.Errorf("reload: %w", err)
+	}
+
+	if err := u.n3Link.Update(newObjs.UpfN3EntrypointFunc); err != nil {
+		newObjs.Close()
+		return err
+	}
+	if err := u.n6Link.Update(newObjs.UpfN6EntrypointFunc); err != nil {
+		newObjs.Close()
 		return err
 	}
 
-	u.bpfObjects.Masquerade = masquerade
-	if err := u.bpfObjects.Load(); err != nil {
-		logger.UpfLog.Error("failed to reload BPF objects", zap.Error(err))
-		return err
+	u.pfcpConn.SetBPFObjects(newObjs)
+
+	newObjs.FarIDTracker = u.bpfObjects.FarIDTracker
+	newObjs.QerIDTracker = u.bpfObjects.QerIDTracker
+
+	old := u.bpfObjects
+	u.bpfObjects = newObjs
+
+	err := ebpf.CloseAllObjects(
+		&old.N3EntrypointObjects,
+		&old.N6EntrypointObjects,
+	)
+	if err != nil {
+		logger.UpfLog.Warn("Failed to close old BPF objects", zap.Error(err))
 	}
 
 	return nil

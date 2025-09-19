@@ -2,6 +2,7 @@ package ebpf
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 
@@ -21,6 +22,10 @@ import (
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3Entrypoint xdp/n3_bpf.c -- -I. -O2 -Wall -Werror -g
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N6Entrypoint xdp/n6_bpf.c -- -I. -O2 -Wall -Werror -g
 
+const (
+	PinPath = "/sys/fs/bpf/upf_pipeline"
+)
+
 type BpfObjects struct {
 	N3EntrypointObjects
 	N6EntrypointObjects
@@ -38,20 +43,22 @@ func NewBpfObjects(farMapSize uint32, qerMapSize uint32, masquerade bool) *BpfOb
 	}
 }
 
-func (bpfObjects *BpfObjects) Load() error {
-	pinPath := "/sys/fs/bpf/upf_pipeline"
-	if err := os.MkdirAll(pinPath, 0o750); err != nil {
-		logger.UpfLog.Info("failed to create bpf fs subpath", zap.Error(err))
-		return err
+func PinMaps() error {
+	if err := os.MkdirAll(PinPath, 0o750); err != nil {
+		return fmt.Errorf("failed to create bpf fs subpath: %w", err)
 	}
 
+	return nil
+}
+
+func (bpfObjects *BpfObjects) Load() error {
 	collectionOptions := ebpf.CollectionOptions{
 		Maps: ebpf.MapOptions{
 			// Pin the map to the BPF filesystem and configure the
 			// library to automatically re-write it in the BPF
 			// program, so it can be re-used if it already exists or
 			// create it if not
-			PinPath: pinPath,
+			PinPath: PinPath,
 		},
 	}
 
