@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -29,7 +30,9 @@ func TestCreatePolicy_Success(t *testing.T) {
 		PriorityLevel:   1,
 	}
 
-	err := clientObj.CreatePolicy(createPolicyOpts)
+	ctx := context.Background()
+
+	err := clientObj.CreatePolicy(ctx, createPolicyOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -55,7 +58,9 @@ func TestCreatePolicy_Failure(t *testing.T) {
 		PriorityLevel:   1,
 	}
 
-	err := clientObj.CreatePolicy(createPolicyOpts)
+	ctx := context.Background()
+
+	err := clientObj.CreatePolicy(ctx, createPolicyOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -79,7 +84,9 @@ func TestGetPolicy_Success(t *testing.T) {
 		Name: name,
 	}
 
-	policy, err := clientObj.GetPolicy(getRouteOpts)
+	ctx := context.Background()
+
+	policy, err := clientObj.GetPolicy(ctx, getRouteOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -106,7 +113,10 @@ func TestGetPolicy_Failure(t *testing.T) {
 	getPolicyOpts := &client.GetPolicyOptions{
 		Name: name,
 	}
-	_, err := clientObj.GetPolicy(getPolicyOpts)
+
+	ctx := context.Background()
+
+	_, err := clientObj.GetPolicy(ctx, getPolicyOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -129,7 +139,10 @@ func TestDeletePolicy_Success(t *testing.T) {
 	deletePolicyOpts := &client.DeletePolicyOptions{
 		Name: name,
 	}
-	err := clientObj.DeletePolicy(deletePolicyOpts)
+
+	ctx := context.Background()
+
+	err := clientObj.DeletePolicy(ctx, deletePolicyOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -153,7 +166,10 @@ func TestDeletePolicy_Failure(t *testing.T) {
 	deletePolicyOpts := &client.DeletePolicyOptions{
 		Name: name,
 	}
-	err := clientObj.DeletePolicy(deletePolicyOpts)
+
+	ctx := context.Background()
+
+	err := clientObj.DeletePolicy(ctx, deletePolicyOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -172,7 +188,9 @@ func TestListPolicies_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	policies, err := clientObj.ListPolicies()
+	ctx := context.Background()
+
+	policies, err := clientObj.ListPolicies(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -195,7 +213,9 @@ func TestListPolicies_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := clientObj.ListPolicies()
+	ctx := context.Background()
+
+	_, err := clientObj.ListPolicies(ctx)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

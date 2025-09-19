@@ -16,7 +16,7 @@ import {
 import * as yup from "yup";
 import { updateOperatorTracking } from "@/queries/operator";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditOperatorTrackingModalProps {
   open: boolean;
@@ -38,9 +38,9 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
   initialData,
 }) => {
   const router = useRouter();
-  const [cookies] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
 
@@ -77,16 +77,14 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     if (!validateTacs(formValues.supportedTacs)) return;
 
     setLoading(true);
     setAlert({ message: "" });
 
     try {
-      await updateOperatorTracking(
-        cookies.user_token,
-        formValues.supportedTacs,
-      );
+      await updateOperatorTracking(accessToken, formValues.supportedTacs);
       onClose();
       onSuccess();
     } catch (error: unknown) {

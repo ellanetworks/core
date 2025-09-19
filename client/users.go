@@ -44,8 +44,8 @@ type User struct {
 	RoleID RoleID `json:"role_id"`
 }
 
-func (c *Client) ListUsers() ([]*User, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) ListUsers(ctx context.Context) ([]*User, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/users",
@@ -61,7 +61,7 @@ func (c *Client) ListUsers() ([]*User, error) {
 	return users, nil
 }
 
-func (c *Client) CreateUser(opts *CreateUserOptions) error {
+func (c *Client) CreateUser(ctx context.Context, opts *CreateUserOptions) error {
 	payload := struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -79,7 +79,7 @@ func (c *Client) CreateUser(opts *CreateUserOptions) error {
 		return err
 	}
 
-	_, err = c.Requester.Do(context.Background(), &RequestOptions{
+	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
 		Path:   "api/v1/users",
@@ -91,8 +91,8 @@ func (c *Client) CreateUser(opts *CreateUserOptions) error {
 	return nil
 }
 
-func (c *Client) DeleteUser(opts *DeleteUserOptions) error {
-	_, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) DeleteUser(ctx context.Context, opts *DeleteUserOptions) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
 		Path:   "api/v1/users/" + opts.Email,
@@ -103,7 +103,7 @@ func (c *Client) DeleteUser(opts *DeleteUserOptions) error {
 	return nil
 }
 
-func (c *Client) CreateMyAPIToken(opts *CreateAPITokenOptions) (*CreateAPITokenResponse, error) {
+func (c *Client) CreateMyAPIToken(ctx context.Context, opts *CreateAPITokenOptions) (*CreateAPITokenResponse, error) {
 	payload := struct {
 		Name   string `json:"name"`
 		Expiry string `json:"expiry,omitempty"` // ISO 8601 format, optional
@@ -119,7 +119,7 @@ func (c *Client) CreateMyAPIToken(opts *CreateAPITokenOptions) (*CreateAPITokenR
 		return nil, err
 	}
 
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
 		Path:   "api/v1/users/me/api-tokens",
@@ -139,8 +139,8 @@ func (c *Client) CreateMyAPIToken(opts *CreateAPITokenOptions) (*CreateAPITokenR
 	return &tokenResponse, nil
 }
 
-func (c *Client) ListMyAPITokens() ([]*APIToken, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) ListMyAPITokens(ctx context.Context) ([]*APIToken, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/users/me/api-tokens",
@@ -159,8 +159,8 @@ func (c *Client) ListMyAPITokens() ([]*APIToken, error) {
 	return tokens, nil
 }
 
-func (c *Client) DeleteMyAPIToken(tokenID string) error {
-	_, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) DeleteMyAPIToken(ctx context.Context, tokenID string) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
 		Path:   "api/v1/users/me/api-tokens/" + tokenID,

@@ -13,8 +13,8 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { listRadios } from "@/queries/radios";
 import EmptyState from "@/components/EmptyState";
-import { useCookies } from "react-cookie";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface RadioData {
   id: string;
@@ -25,7 +25,7 @@ interface RadioData {
 const MAX_WIDTH = 1400;
 
 const Radio = () => {
-  const [cookies] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
   const [radios, setRadios] = useState<RadioData[]>([]);
   const [loading, setLoading] = useState(true);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
@@ -48,16 +48,17 @@ const Radio = () => {
   );
 
   const fetchRadios = useCallback(async () => {
+    if (!authReady || !accessToken) return;
     setLoading(true);
     try {
-      const data = await listRadios(cookies.user_token);
+      const data = await listRadios(accessToken);
       setRadios(data);
     } catch (error) {
       console.error("Error fetching radios:", error);
     } finally {
       setLoading(false);
     }
-  }, [cookies.user_token]);
+  }, [accessToken, authReady]);
 
   useEffect(() => {
     fetchRadios();

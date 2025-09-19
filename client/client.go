@@ -8,8 +8,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"path"
+	"time"
+
+	"golang.org/x/net/publicsuffix"
 )
 
 type Requester interface {
@@ -242,8 +246,15 @@ func newDefaultRequester(client *Client, opts *Config) (*defaultRequester, error
 		transport.TLSClientConfig = opts.TLSConfig
 	}
 
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	if err != nil {
+		return nil, fmt.Errorf("cannot create cookie jar: %w", err)
+	}
+
 	httpClient := &http.Client{
 		Transport: transport,
+		Jar:       jar,
+		Timeout:   15 * time.Second,
 	}
 
 	return &defaultRequester{

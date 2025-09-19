@@ -11,8 +11,8 @@ import {
   CardContent,
 } from "@mui/material";
 import { backup, restore } from "@/queries/backup";
-import { useCookies } from "react-cookie";
 import Grid from "@mui/material/Grid";
+import { useAuth } from "@/contexts/AuthContext";
 
 const MAX_WIDTH = 1400;
 
@@ -25,7 +25,7 @@ const headerStyles = {
 };
 
 const BackupRestore = () => {
-  const [cookies] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
@@ -35,8 +35,15 @@ const BackupRestore = () => {
     "Create and download a full backup of Ella Core, or restore from a .backup file. Take regular backups to ensure you can recover your data in case of a hardware failure or data loss.";
 
   const handleCreate = async () => {
+    if (!authReady || !accessToken) {
+      setAlert({
+        message: "Authentication not ready. Please try again later.",
+        severity: "error",
+      });
+      return;
+    }
     try {
-      const backupBlob = await backup(cookies.user_token);
+      const backupBlob = await backup(accessToken);
 
       const date = new Date();
       const formattedDate = `${date.getFullYear()}_${String(
@@ -68,10 +75,17 @@ const BackupRestore = () => {
   };
 
   const handleRestore = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!authReady || !accessToken) {
+      setAlert({
+        message: "Authentication not ready. Please try again later.",
+        severity: "error",
+      });
+      return;
+    }
     const file = event.target.files?.[0];
     if (!file) return;
     try {
-      await restore(cookies.user_token, file);
+      await restore(accessToken, file);
       setAlert({
         message: "Restore completed successfully!",
         severity: "success",
