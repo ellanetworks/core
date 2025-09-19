@@ -6,7 +6,7 @@ permissions:
 on:
   workflow_call:
 
-jobs:  
+jobs:
   go-unit-tests:
     runs-on: ubuntu-latest
     steps:
