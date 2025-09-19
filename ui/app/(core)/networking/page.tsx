@@ -121,7 +121,7 @@ export default function NetworkingPage() {
 
   const dnDescription = useMemo(
     () =>
-      "Manage the IP networks used by your subscribers. Data Network Names (DNNs) define connectivity per slice/DNN.",
+      "Manage the IP networks used by your subscribers. Data Network Names (DNNs) are used to identify different networks, and must be configured on the subscriber device to connect to the correct network.",
     [],
   );
 
@@ -252,7 +252,14 @@ export default function NetworkingPage() {
 
       {/* -------- Data Networks Tab -------- */}
       {tab === "data-networks" && (
-        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+        <Box
+          sx={{
+            width: "100%",
+            mt: 2,
+            maxWidth: MAX_WIDTH,
+            px: { xs: 2, sm: 4 },
+          }}
+        >
           <Collapse in={!!dnAlert.message}>
             <Alert
               severity={dnAlert.severity || "success"}
