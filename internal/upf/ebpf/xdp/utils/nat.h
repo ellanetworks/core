@@ -154,8 +154,8 @@ find_origin_for_icmp(struct five_tuple *key, struct packet_context *ctx)
 	case ICMP_ECHOREPLY:
 		key->type = ICMP_ECHO;
 		return bpf_map_lookup_elem(&nat_ct, key);
-	case ICMP_ADDRESSREPLY:
-		key->type = ICMP_ADDRESS;
+	case ICMP_TIMESTAMPREPLY:
+		key->type = ICMP_TIMESTAMP;
 		return bpf_map_lookup_elem(&nat_ct, key);
 	case ICMP_DEST_UNREACH:
 	case ICMP_TIME_EXCEEDED:
