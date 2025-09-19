@@ -74,62 +74,73 @@ const InitializePage = () => {
   return (
     <Box
       sx={{
-        height: "100vh",
+        minHeight: "100vh",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        padding: 2,
+        p: 2,
       }}
     >
       <Box
-        component="form"
-        onSubmit={handleSubmit}
         sx={{
-          width: 300,
+          width: "100%",
+          maxWidth: 360,
           display: "flex",
           flexDirection: "column",
           gap: 2,
           border: "1px solid",
           borderColor: "divider",
           borderRadius: 2,
-          padding: 3,
+          p: 3,
           boxShadow: 2,
         }}
       >
-        <Typography variant="h5">Initialize Ella Core</Typography>
-        <Typography variant="body1" sx={{ marginBottom: 2 }}>
-          Create the first user
-        </Typography>
+        <form onSubmit={handleSubmit} noValidate>
+          <Typography variant="h5" textAlign="center" gutterBottom>
+            Initialize Ella Core
+          </Typography>
+          <Typography variant="body1" sx={{ marginBottom: 2 }}>
+            Create the first user
+          </Typography>
 
-        {error && <Alert severity="error">{error}</Alert>}
+          {error && (
+            <Alert severity="error" sx={{ mb: 1 }}>
+              {error}
+            </Alert>
+          )}
 
-        <TextField
-          label="Email"
-          variant="outlined"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          fullWidth
-          required
-        />
-        <TextField
-          label="Password"
-          type="password"
-          variant="outlined"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          fullWidth
-          required
-        />
+          <TextField
+            label="Email"
+            type="email"
+            variant="outlined"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            fullWidth
+            margin="normal"
+            required
+          />
+          <TextField
+            label="Password"
+            type="password"
+            variant="outlined"
+            margin="normal"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            fullWidth
+            required
+          />
 
-        <Button
-          type="submit"
-          variant="contained"
-          color="success"
-          fullWidth
-          disabled={loading}
-        >
-          {loading ? <CircularProgress size={24} /> : "Create"}
-        </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            color="success"
+            fullWidth
+            sx={{ mt: 2 }}
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : "Create"}
+          </Button>
+        </form>
       </Box>
     </Box>
   );
