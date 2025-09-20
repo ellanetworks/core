@@ -5,6 +5,10 @@ import (
 	"go.uber.org/zap"
 )
 
+type UpfXdpActionStatistic struct {
+	BpfObjects *BpfObjects
+}
+
 type UpfN3Counters struct {
 	RxArp      uint64
 	RxIcmp     uint64
@@ -28,9 +32,9 @@ type UpfStatistic struct {
 
 // Getters for the upf_xdp_statistic (xdp_action)
 
-func (b *BpfObjects) getUpfN3XdpStatisticField(field uint32) uint64 {
+func (stat *UpfXdpActionStatistic) getUpfN3XdpStatisticField(field uint32) uint64 {
 	var statistics []N3EntrypointUpfStatistic
-	err := b.N3EntrypointObjects.UplinkStatistics.Lookup(uint32(0), &statistics)
+	err := stat.BpfObjects.N3EntrypointObjects.UplinkStatistics.Lookup(uint32(0), &statistics)
 	if err != nil {
 		logger.UpfLog.Info("Failed to fetch UPF N3 stats", zap.Error(err))
 		return 0
@@ -44,9 +48,9 @@ func (b *BpfObjects) getUpfN3XdpStatisticField(field uint32) uint64 {
 	return totalValue
 }
 
-func (b *BpfObjects) getUpfN6XdpStatisticField(field uint32) uint64 {
+func (stat *UpfXdpActionStatistic) getUpfN6XdpStatisticField(field uint32) uint64 {
 	var statistics []N6EntrypointUpfStatistic
-	err := b.N6EntrypointObjects.DownlinkStatistics.Lookup(uint32(0), &statistics)
+	err := stat.BpfObjects.N6EntrypointObjects.DownlinkStatistics.Lookup(uint32(0), &statistics)
 	if err != nil {
 		logger.UpfLog.Info("Failed to fetch UPF N6 stats", zap.Error(err))
 		return 0
@@ -60,45 +64,45 @@ func (b *BpfObjects) getUpfN6XdpStatisticField(field uint32) uint64 {
 	return totalValue
 }
 
-func (b *BpfObjects) GetN3Aborted() uint64 {
-	return b.getUpfN3XdpStatisticField(uint32(0))
+func (stat *UpfXdpActionStatistic) GetN3Aborted() uint64 {
+	return stat.getUpfN3XdpStatisticField(uint32(0))
 }
 
-func (b *BpfObjects) GetN3Drop() uint64 {
-	return b.getUpfN3XdpStatisticField(uint32(1))
+func (stat *UpfXdpActionStatistic) GetN3Drop() uint64 {
+	return stat.getUpfN3XdpStatisticField(uint32(1))
 }
 
-func (b *BpfObjects) GetN3Pass() uint64 {
-	return b.getUpfN3XdpStatisticField(uint32(2))
+func (stat *UpfXdpActionStatistic) GetN3Pass() uint64 {
+	return stat.getUpfN3XdpStatisticField(uint32(2))
 }
 
-func (b *BpfObjects) GetN3Tx() uint64 {
-	return b.getUpfN3XdpStatisticField(uint32(3))
+func (stat *UpfXdpActionStatistic) GetN3Tx() uint64 {
+	return stat.getUpfN3XdpStatisticField(uint32(3))
 }
 
-func (b *BpfObjects) GetN3Redirect() uint64 {
-	return b.getUpfN3XdpStatisticField(uint32(4))
+func (stat *UpfXdpActionStatistic) GetN3Redirect() uint64 {
+	return stat.getUpfN3XdpStatisticField(uint32(4))
 }
 
-func (b *BpfObjects) GetN6Aborted() uint64 {
-	return b.getUpfN6XdpStatisticField(uint32(0))
+func (stat *UpfXdpActionStatistic) GetN6Aborted() uint64 {
+	return stat.getUpfN6XdpStatisticField(uint32(0))
 }
 
-func (b *BpfObjects) GetN6Drop() uint64 {
-	return b.getUpfN6XdpStatisticField(uint32(1))
+func (stat *UpfXdpActionStatistic) GetN6Drop() uint64 {
+	return stat.getUpfN6XdpStatisticField(uint32(1))
 }
 
-func (b *BpfObjects) GetN6Tx() uint64 {
-	return b.getUpfN6XdpStatisticField(uint32(3))
+func (stat *UpfXdpActionStatistic) GetN6Tx() uint64 {
+	return stat.getUpfN3XdpStatisticField(uint32(3))
 }
 
-func (b *BpfObjects) GetN6Redirect() uint64 {
-	return b.getUpfN6XdpStatisticField(uint32(4))
+func (stat *UpfXdpActionStatistic) GetN6Redirect() uint64 {
+	return stat.getUpfN6XdpStatisticField(uint32(4))
 }
 
-func (b *BpfObjects) GetN3UplinkThroughputStats() uint64 {
+func (stat *UpfXdpActionStatistic) GetN3UplinkThroughputStats() uint64 {
 	var n3Statistics []N3EntrypointUpfStatistic
-	err := b.N3EntrypointMaps.UplinkStatistics.Lookup(uint32(0), &n3Statistics)
+	err := stat.BpfObjects.N3EntrypointMaps.UplinkStatistics.Lookup(uint32(0), &n3Statistics)
 	if err != nil {
 		logger.UpfLog.Info("Failed to fetch UPF N3 stats", zap.Error(err))
 		return 0
@@ -112,9 +116,9 @@ func (b *BpfObjects) GetN3UplinkThroughputStats() uint64 {
 	return totalValue
 }
 
-func (b *BpfObjects) GetN6DownlinkThroughputStats() uint64 {
+func (stat *UpfXdpActionStatistic) GetN6DownlinkThroughputStats() uint64 {
 	var n6Statistics []N6EntrypointUpfStatistic
-	err := b.N6EntrypointMaps.DownlinkStatistics.Lookup(uint32(0), &n6Statistics)
+	err := stat.BpfObjects.N6EntrypointMaps.DownlinkStatistics.Lookup(uint32(0), &n6Statistics)
 	if err != nil {
 		logger.UpfLog.Info("Failed to fetch UPF N6 stats", zap.Error(err))
 		return 0

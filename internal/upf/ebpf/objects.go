@@ -98,15 +98,11 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 }
 
 func (bpfObjects *BpfObjects) Close() error {
+	bpfObjects.unpinMaps()
 	return CloseAllObjects(
 		&bpfObjects.N3EntrypointObjects,
 		&bpfObjects.N6EntrypointObjects,
 	)
-}
-
-func (b *BpfObjects) Shutdown() error {
-	b.unpinMaps()
-	return b.Close()
 }
 
 func (bpfObjects *BpfObjects) unpinMaps() {

@@ -34,7 +34,8 @@ type UPF struct {
 	n3Link     link.Link
 	n6Link     link.Link
 	pfcpConn   *core.PfcpConnection
-	upfMetrics *metrics.UPFMetrics
+
+	gcCancel context.CancelFunc
 }
 
 func Start(ctx context.Context, n3Address string, n3Interface string, n6Interface string, xdpAttachMode string, masquerade bool) (*UPF, error) {
@@ -98,19 +99,21 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 	remoteNode := core.NewNodeAssociation(SmfNodeID, SmfAddress)
 	pfcpConn.SmfNodeAssociation = remoteNode
 
-	upfMetrics := &metrics.UPFMetrics{}
-	upfMetrics.RegisterUPFMetrics(bpfObjects)
+	ForwardPlaneStats := &ebpf.UpfXdpActionStatistic{
+		BpfObjects: bpfObjects,
+	}
+
+	metrics.RegisterUPFMetrics(ForwardPlaneStats)
 
 	upf := &UPF{
 		bpfObjects: bpfObjects,
 		n3Link:     n3Link,
 		n6Link:     n6Link,
 		pfcpConn:   pfcpConn,
-		upfMetrics: upfMetrics,
 	}
 
 	if masquerade {
-		go upf.collectCollectionTrackingGarbage(ctx)
+		upf.startGC()
 	}
 
 	return upf, nil
@@ -123,40 +126,32 @@ func (u *UPF) Close() {
 	if err := u.n3Link.Close(); err != nil {
 		logger.UpfLog.Warn("Failed to detach eBPF from n3", zap.Error(err))
 	}
-	if err := u.bpfObjects.Shutdown(); err != nil {
+	if err := u.bpfObjects.Close(); err != nil {
 		logger.UpfLog.Warn("Failed to close BPF objects", zap.Error(err))
 	}
 	logger.UpfLog.Info("UPF resources released")
 }
 
 func (u *UPF) Reload(masquerade bool) error {
-	newObjs := ebpf.NewBpfObjects(FarMapSize, QerMapSize, masquerade)
-	if err := newObjs.Load(); err != nil {
-		return fmt.Errorf("reload: %w", err)
-	}
+	u.bpfObjects.Masquerade = masquerade
 
-	if err := u.n3Link.Update(newObjs.UpfN3EntrypointFunc); err != nil {
-		_ = newObjs.Close()
-		return err
-	}
-	if err := u.n6Link.Update(newObjs.UpfN6EntrypointFunc); err != nil {
-		_ = newObjs.Close()
-		return err
-	}
-
-	u.pfcpConn.SetBPFObjects(newObjs)
-
-	u.upfMetrics.SetBpfObjects(newObjs)
-
-	newObjs.FarIDTracker = u.bpfObjects.FarIDTracker
-	newObjs.QerIDTracker = u.bpfObjects.QerIDTracker
-
-	old := u.bpfObjects
-	u.bpfObjects = newObjs
-
-	err := old.Close()
+	err := u.bpfObjects.Load()
 	if err != nil {
-		logger.UpfLog.Warn("Failed to close old BPF objects", zap.Error(err))
+		return fmt.Errorf("couldn't load BPF objects: %w", err)
+	}
+
+	if err := u.n3Link.Update(u.bpfObjects.UpfN3EntrypointFunc); err != nil {
+		return err
+	}
+
+	if err := u.n6Link.Update(u.bpfObjects.UpfN6EntrypointFunc); err != nil {
+		return err
+	}
+
+	if masquerade {
+		u.startGC()
+	} else {
+		u.stopGC()
 	}
 
 	return nil
@@ -172,6 +167,25 @@ func StringToXDPAttachMode(Mode string) link.XDPAttachFlags {
 		return link.XDPOffloadMode
 	default:
 		return link.XDPGenericMode
+	}
+}
+
+func (u *UPF) startGC() {
+	if u.gcCancel != nil {
+		return
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	u.gcCancel = cancel
+
+	go u.collectCollectionTrackingGarbage(ctx)
+}
+
+func (u *UPF) stopGC() {
+	if u.gcCancel != nil {
+		u.gcCancel()
+		u.gcCancel = nil
 	}
 }
 
