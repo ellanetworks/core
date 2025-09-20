@@ -13,7 +13,7 @@ interfaces:
   n3:
     name: "ens5"
   n6:
-    name: "ens6"
+    name: "ens3"
   api:
     name: "ens3"
     port: 5002

@@ -139,3 +139,52 @@ func TestLogin_RequestParameters(t *testing.T) {
 		t.Errorf("expected password %s, got: %s", password, payload["password"])
 	}
 }
+
+func TestRefresh_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"token": "refreshtoken"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+	clientObj.SetToken("oldtoken")
+
+	ctx := context.Background()
+
+	err := clientObj.Refresh(ctx)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	token := clientObj.GetToken()
+	if token != "refreshtoken" {
+		t.Errorf("expected token 'refreshtoken', got: %s", token)
+	}
+}
+
+func TestRefresh_RequesterError(t *testing.T) {
+	fake := &fakeRequester{
+		response: nil,
+		err:      errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+	clientObj.SetToken("oldtoken")
+
+	ctx := context.Background()
+
+	err := clientObj.Refresh(ctx)
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	if err.Error() != "requester error" {
+		t.Errorf("expected 'requester error', got: %v", err)
+	}
+}

@@ -27,6 +27,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListPolicies, PermReadPolicy,
 		PermListRoutes, PermReadRoute,
 		PermListRadios, PermReadRadio,
+		PermGetNATInfo,
 	},
 
 	RoleNetworkManager: {
@@ -37,6 +38,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListPolicies, PermCreatePolicy, PermUpdatePolicy, PermReadPolicy, PermDeletePolicy,
 		PermListRoutes, PermCreateRoute, PermReadRoute, PermDeleteRoute,
 		PermListRadios, PermReadRadio,
+		PermGetNATInfo, PermUpdateNATInfo,
 	},
 }
 
@@ -91,6 +93,10 @@ const (
 	PermCreateRoute = "route:create"
 	PermReadRoute   = "route:read"
 	PermDeleteRoute = "route:delete"
+
+	// NAT permissions
+	PermGetNATInfo    = "nat:get"
+	PermUpdateNATInfo = "nat:update"
 
 	// Radio permissions
 	PermListRadios = "radio:list"

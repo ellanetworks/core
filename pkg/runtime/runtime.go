@@ -85,8 +85,19 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	go sessions.CleanUp(ctx, dbInstance)
 
+	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)
+	if err != nil {
+		return fmt.Errorf("couldn't determine if NAT is enabled: %w", err)
+	}
+
+	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3.Address, cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name, cfg.XDP.AttachMode, isNATEnabled)
+	if err != nil {
+		return fmt.Errorf("couldn't start UPF: %w", err)
+	}
+
 	if err := api.Start(
 		dbInstance,
+		upfInstance,
 		cfg.Interfaces.API.Port,
 		scheme,
 		cfg.Interfaces.API.TLS.Cert,
@@ -112,10 +123,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	if err := udm.Start(dbInstance); err != nil {
 		return fmt.Errorf("couldn't start UDM: %w", err)
 	}
-	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3.Address, cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name, cfg.XDP.AttachMode, cfg.Interfaces.N6.Masquerade)
-	if err != nil {
-		return fmt.Errorf("couldn't start UPF: %w", err)
-	}
+
 	defer upfInstance.Close()
 	defer amf.Close()
 

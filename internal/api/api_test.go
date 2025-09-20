@@ -60,7 +60,7 @@ func TestStartServerStandup(t *testing.T) {
 
 	// Start the server in a separate goroutine.
 	dummyFS := dummyFS{}
-	if err := Start(testdb, port, scheme, certFile, keyFile, n3Interface, n6Interface, false, dummyFS, nil); err != nil {
+	if err := Start(testdb, nil, port, scheme, certFile, keyFile, n3Interface, n6Interface, false, dummyFS, nil); err != nil {
 		t.Fatalf("Start returned error: %v", err)
 	}
 

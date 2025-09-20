@@ -60,7 +60,7 @@ type ListDataNetworkResponse struct {
 }
 
 func listDataNetworks(url string, client *http.Client, token string) (int, *ListDataNetworkResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/data-networks", nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/data-networks", nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -82,7 +82,7 @@ func listDataNetworks(url string, client *http.Client, token string) (int, *List
 }
 
 func getDataNetwork(url string, client *http.Client, token string, name string) (int, *GetDataNetworkResponse, error) {
-	req, err := http.NewRequest("GET", url+"/api/v1/data-networks/"+name, nil)
+	req, err := http.NewRequest("GET", url+"/api/v1/networking/data-networks/"+name, nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -108,7 +108,7 @@ func createDataNetwork(url string, client *http.Client, token string, data *Crea
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/data-networks", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/networking/data-networks", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -134,7 +134,7 @@ func editDataNetwork(url string, client *http.Client, name string, token string,
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/data-networks/"+name, strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/networking/data-networks/"+name, strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -156,7 +156,7 @@ func editDataNetwork(url string, client *http.Client, name string, token string,
 }
 
 func deleteDataNetwork(url string, client *http.Client, token, name string) (int, *DeleteDataNetworkResponse, error) {
-	req, err := http.NewRequest("DELETE", url+"/api/v1/data-networks/"+name, nil)
+	req, err := http.NewRequest("DELETE", url+"/api/v1/networking/data-networks/"+name, nil)
 	if err != nil {
 		return 0, nil, err
 	}
