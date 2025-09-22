@@ -1,23 +1,39 @@
 import { HTTPStatus } from "@/queries/utils";
 
-export const listSubscriberLogs = async (
+export type APISubscriberLog = {
+  id: number;
+  timestamp: string;
+  imsi: string;
+  event: string;
+  details?: string;
+};
+
+export type ListSubscriberLogsResponse = {
+  items: APISubscriberLog[];
+  page: number;
+  per_page: number;
+  total_count: number;
+};
+
+export async function listSubscriberLogs(
   authToken: string,
   page: number,
   perPage: number,
-) => {
+): Promise<ListSubscriberLogsResponse> {
   const response = await fetch(
     `/api/v1/logs/subscriber?page=${page}&per_page=${perPage}`,
     {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + authToken,
+        Authorization: `Bearer ${authToken}`,
       },
     },
   );
-  let respData;
+
+  let json: { result: ListSubscriberLogsResponse; error?: string };
   try {
-    respData = await response.json();
+    json = await response.json();
   } catch {
     throw new Error(
       `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
@@ -26,12 +42,12 @@ export const listSubscriberLogs = async (
 
   if (!response.ok) {
     throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
     );
   }
 
-  return respData.result;
-};
+  return json.result;
+}
 
 export const getSubscriberLogRetentionPolicy = async (authToken: string) => {
   const response = await fetch(`/api/v1/logs/subscriber/retention`, {

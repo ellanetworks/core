@@ -28,7 +28,11 @@ import { getStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
 import { listSubscribers } from "@/queries/subscribers";
 import { listRadios } from "@/queries/radios";
-import { listSubscriberLogs } from "@/queries/subscriber_logs";
+import {
+  listSubscriberLogs,
+  type APISubscriberLog,
+  type ListSubscriberLogsResponse,
+} from "@/queries/subscriber_logs";
 
 const MAX_WIDTH = 1200;
 
@@ -147,20 +151,6 @@ function KpiCard({
 
   return CardInner;
 }
-
-type APISubscriberLog = {
-  id: number;
-  timestamp: string;
-  imsi: string;
-  event: string;
-};
-
-type ListSubscriberLogsResponse = {
-  items: APISubscriberLog[];
-  page: number;
-  per_page: number;
-  total_count: number;
-};
 
 const Dashboard = () => {
   const router = useRouter();
@@ -320,35 +310,33 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-  if (!authReady) return;
-  if (!accessToken) return;
+    if (!authReady) return;
+    if (!accessToken) return;
 
-  let mounted = true;
+    let mounted = true;
 
-  const fetchLogs = async () => {
-    try {
-      const res: ListSubscriberLogsResponse = await listSubscriberLogs(
-        accessToken,
-        1,
-        10,
-      );
+    const fetchLogs = async () => {
+      try {
+        const res: ListSubscriberLogsResponse = await listSubscriberLogs(
+          accessToken,
+          1,
+          10,
+        );
+        if (!mounted) return;
+        setSubscriberLogs(res.items ?? []);
+        setLogsError(null);
+      } catch (e) {
+        if (!mounted) return;
+        console.error("Error fetching subscriber logs:", e);
+        setLogsError("Failed to fetch subscriber logs.");
+      }
+    };
 
-      if (!mounted) return;
-
-      setSubscriberLogs(res.items ?? []);
-      setLogsError(null);
-    } catch (e) {
-      if (!mounted) return;
-      console.error("Error fetching subscriber logs:", e);
-      setLogsError("Failed to fetch subscriber logs.");
-    }
-  };
-
-  fetchLogs();
-  return () => {
-    mounted = false;
-  };
-}, [authReady, accessToken]);
+    fetchLogs();
+    return () => {
+      mounted = false;
+    };
+  }, [authReady, accessToken]);
 
   const ipChart = useMemo(() => {
     const alloc = allocatedIPs ?? 0;
