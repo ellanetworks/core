@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 type RoleID int
@@ -44,21 +45,31 @@ type User struct {
 	RoleID RoleID `json:"role_id"`
 }
 
-func (c *Client) ListUsers(ctx context.Context) ([]*User, error) {
+type ListUsersResponse struct {
+	Items      []User `json:"items"`
+	Page       int    `json:"page"`
+	PerPage    int    `json:"per_page"`
+	TotalCount int    `json:"total_count"`
+}
+
+func (c *Client) ListUsers(ctx context.Context, p *ListParams) ([]User, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/users",
+		Path:   fmt.Sprintf("api/v1/users?page=%d&per_page=%d", p.Page, p.PerPage),
 	})
 	if err != nil {
 		return nil, err
 	}
-	var users []*User
+
+	var users ListUsersResponse
+
 	err = resp.DecodeResult(&users)
 	if err != nil {
 		return nil, err
 	}
-	return users, nil
+
+	return users.Items, nil
 }
 
 func (c *Client) CreateUser(ctx context.Context, opts *CreateUserOptions) error {

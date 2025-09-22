@@ -64,7 +64,7 @@ func TestListUsers_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"email": "1234"}, {"email": "5678"}]`),
+			Result:     []byte(`{"items": [{"email": "1234"}, {"email": "5678"}], "page": 1, "per_page": 10, "total_count": 2}`),
 		},
 		err: nil,
 	}
@@ -74,7 +74,12 @@ func TestListUsers_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	users, err := clientObj.ListUsers(ctx)
+	listUsersParams := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	users, err := clientObj.ListUsers(ctx, listUsersParams)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -99,7 +104,12 @@ func TestListUsers_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	users, err := clientObj.ListUsers(ctx)
+	listUsersParams := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	users, err := clientObj.ListUsers(ctx, listUsersParams)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

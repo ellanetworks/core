@@ -24,7 +24,14 @@ type UpdateAuditLogsRetentionPolicyOptions struct {
 	Days int `json:"days"`
 }
 
-func (c *Client) ListAuditLogs(ctx context.Context) ([]*AuditLog, error) {
+type ListAuditLogsResponse struct {
+	Items      []AuditLog `json:"items"`
+	Page       int        `json:"page"`
+	PerPage    int        `json:"per_page"`
+	TotalCount int        `json:"total_count"`
+}
+
+func (c *Client) ListAuditLogs(ctx context.Context) ([]AuditLog, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
@@ -34,14 +41,14 @@ func (c *Client) ListAuditLogs(ctx context.Context) ([]*AuditLog, error) {
 		return nil, err
 	}
 
-	var auditLogs []*AuditLog
+	var auditLogs ListAuditLogsResponse
 
 	err = resp.DecodeResult(&auditLogs)
 	if err != nil {
 		return nil, err
 	}
 
-	return auditLogs, nil
+	return auditLogs.Items, nil
 }
 
 func (c *Client) GetAuditLogRetentionPolicy(ctx context.Context) (*GetAuditLogsRetentionPolicy, error) {

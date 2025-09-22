@@ -40,6 +40,13 @@ type Subscriber struct {
 	Status         SubscriberStatus `json:"status"`
 }
 
+type ListSubscribersResponse struct {
+	Items      []Subscriber `json:"items"`
+	Page       int          `json:"page"`
+	PerPage    int          `json:"per_page"`
+	TotalCount int          `json:"total_count"`
+}
+
 func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOptions) error {
 	payload := struct {
 		Imsi           string `json:"imsi"`
@@ -103,7 +110,7 @@ func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOpt
 	return nil
 }
 
-func (c *Client) ListSubscribers(ctx context.Context) ([]*Subscriber, error) {
+func (c *Client) ListSubscribers(ctx context.Context) ([]Subscriber, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
@@ -112,10 +119,13 @@ func (c *Client) ListSubscribers(ctx context.Context) ([]*Subscriber, error) {
 	if err != nil {
 		return nil, err
 	}
-	var subscribers []*Subscriber
+
+	var subscribers ListSubscribersResponse
+
 	err = resp.DecodeResult(&subscribers)
 	if err != nil {
 		return nil, err
 	}
-	return subscribers, nil
+
+	return subscribers.Items, nil
 }

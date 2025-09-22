@@ -176,7 +176,7 @@ func TestListSubscribers_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"imsi": "001010100000022", "policyName": "default"}]`),
+			Result:     []byte(`{"items": [{"imsi": "001010100000022", "policyName": "default"}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}

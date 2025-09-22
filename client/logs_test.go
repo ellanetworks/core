@@ -14,7 +14,7 @@ func TestListAuditLogs_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "level": "info", "actor": "admin@ellanetworks.com", "action": "login", "ip": "1.2.3.4", "details": "User logged in"}]`),
+			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "level": "info", "actor": "admin@ellanetworks.com", "action": "login", "ip": "1.2.3.4", "details": "User logged in"}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}
