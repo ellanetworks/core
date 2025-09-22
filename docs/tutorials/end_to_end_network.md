@@ -43,14 +43,12 @@ Create three LXD networks:
 ```shell
 lxc network create n2 ipv4.address=22.22.22.1/24
 lxc network create n3 ipv4.address=33.33.33.1/24
-lxc network create n6 ipv4.address=66.66.66.1/24
 ```
 
 Create three Multipass instances:
 
 ```shell
-multipass launch noble --name=ella-core --disk=10G --cpus 2 --network n2 --network n3 --network n6
-multipass launch noble --name=router --disk=10G --network n6
+multipass launch noble --name=ella-core --disk=10G --cpus 2 --network n2 --network n3
 multipass launch noble --name=radio --memory=6G --cpus 2 --disk=10G --network n2 --network n3
 ```
 
@@ -67,12 +65,9 @@ Name                    State             IPv4             Image
 ella-core               Running           10.194.229.47    Ubuntu 24.04 LTS
                                           22.22.22.71
                                           33.33.33.188
-                                          66.66.66.200
 radio                   Running           10.194.229.171   Ubuntu 24.04 LTS
                                           22.22.22.129
                                           33.33.33.129
-router                  Running           10.194.229.222   Ubuntu 24.04 LTS
-                                          66.66.66.173
 ```
 
 !!! note
@@ -129,11 +124,11 @@ You will be redirected to the dashboard.
 
 Ella Core is now initialized and ready to be used.
 
-### 2.5 Configure your private network
+### 2.4 Configure your private network
 
-Here, we will navigate through the Ella Core UI to create a subscriber and a route.
+Here, we will navigate through the Ella Core UI to create a subscriber.
 
-#### 2.5.1 Create a subscriber
+#### 2.4.1 Create a subscriber
 
 Navigate to the `Subscribers` page and click on the `Create` button.
 
@@ -146,62 +141,15 @@ Create a subscriber with the following parameters:
 
 After creating the subscriber, click on the `View` button to see the subscriber's details. Note the IMSI, Key, and OPC values. You will use these values later to configure the 5G radio simulator.
 
-#### 2.5.2 Create a route
-
-Navigate to the `Routes` page and click on the `Create` button.
-
-Create a route with the following parameters:
-
-- Destination: `default`
-- Gateway: `<router-ens4-ip>`
-- Interface: `n6`
-- Metric: `0`
-
-Replace the placeholder with the appropriate value.
-
-#### 2.5.3 Validate that no radio is connected
+#### 2.4.2 Validate that no radio is connected
 
 Navigate to the `Radios` page. You should see that no radio is connected.
 
-## 3. Configure the router
-
-Open a shell into the `router` Multipass instance:
-
-```shell
-multipass shell router
-```
-
-Enable IP forwarding:
-
-```shell
-sudo sysctl -w net.ipv4.ip_forward=1
-```
-
-Enable NAT for the `10.45.0.0/16` subnet by rewriting the source IP address of packets leaving the system to the IP address of the router's outgoing interface (`ens3`):
-
-```shell
-sudo iptables -t nat -A POSTROUTING -o ens3 -s 10.45.0.0/16 -j MASQUERADE
-```
-
-Add a route to the `ella-core` Multipass instance:
-
-```shell
-sudo ip route add 10.45.0.0/16 via <ella-core-ens6-ip> dev ens4
-```
-
-Replace the placeholder with the appropriate value.
-
-Exit the Multipass instance:
-
-```shell
-exit
-```
-
-## 4. Install a 5G Radio Simulator
+## 3. Install a 5G Radio Simulator
 
 In this section, we will install UERANSIM, a 5G radio and User Equipment (UE) simulator, and connect it to Ella Core.
 
-### 4.1 Install and start the UERANSIM 5G radio simulator
+### 3.1 Install and start the UERANSIM 5G radio simulator
 
 Connect to the `radio` Multipass instance:
 
@@ -273,7 +221,7 @@ In your browser, navigate to the Ella Core UI and click on the `Radios` tab. You
 
 ![Connected Radio](../images/connected_radio.png){ align=center }
 
-### 4.3 Start the UERANSIM 5G User Equipment (UE) simulator
+### 3.2 Start the UERANSIM 5G User Equipment (UE) simulator
 
 Open a new terminal window and connect to the `radio` Multipass instance:
 
@@ -400,7 +348,7 @@ This output indicates that the User Equipment has successfully connected to the 
 
 Leave the UE running.
 
-## 5. Validate the connection
+## 4. Validate the connection
 
 In your browser, navigate to the Ella Core UI and click on the `Subscribers` tab. You should see that the subscriber you created has been assigned an IP address. The IP address should match the IP address assigned to the UE.
 
@@ -492,12 +440,12 @@ You should see the HTML content of the Ella Core documentation website.
 
 You have successfully validated that the subscriber can communicate with the internet.
 
-## 6. Destroy the Tutorial Environment (Optional)
+## 5. Destroy the Tutorial Environment (Optional)
 
 When you are done with the tutorial, you can destroy the Multipass instances:
 
 ```shell
-multipass delete ella-core radio router --purge
+multipass delete ella-core radio --purge
 ```
 
 You can also delete the networks created with LXD:
@@ -505,5 +453,4 @@ You can also delete the networks created with LXD:
 ```shell
 lxc network delete n2
 lxc network delete n3
-lxc network delete n6
 ```

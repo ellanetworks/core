@@ -33,6 +33,7 @@ type Database struct {
 	retentionPoliciesTable string
 	apiTokensTable         string
 	sessionsTable          string
+	natSettingsTable       string
 	conn                   *sqlair.DB
 }
 
@@ -125,6 +126,9 @@ func NewDatabase(databasePath string) (*Database, error) {
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateAPITokensTable, APITokensTableName)); err != nil {
 		return nil, err
 	}
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateNATSettingsTable, NATSettingsTableName)); err != nil {
+		return nil, err
+	}
 
 	db := new(Database)
 	db.conn = sqlair.NewDB(sqlConnection)
@@ -140,6 +144,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.retentionPoliciesTable = LogRetentionPolicyTableName
 	db.apiTokensTable = APITokensTableName
 	db.sessionsTable = SessionsTableName
+	db.natSettingsTable = NATSettingsTableName
 
 	err = db.Initialize()
 	if err != nil {
@@ -152,6 +157,11 @@ func NewDatabase(databasePath string) (*Database, error) {
 }
 
 func (db *Database) Initialize() error {
+	err := db.InitializeNATSettings(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to initialize NAT settings: %w", err)
+	}
+
 	if !db.IsOperatorInitialized() {
 		initialOp, err := generateOperatorCode()
 		if err != nil {

@@ -2,7 +2,7 @@ import { HTTPStatus } from "@/queries/utils";
 import { Route } from "@/types/types";
 
 export const listRoutes = async (authToken: string): Promise<Route[]> => {
-  const response = await fetch(`/api/v1/routes`, {
+  const response = await fetch(`/api/v1/networking/routes`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -49,7 +49,7 @@ export const createRoute = async (
     metric: metric,
   };
 
-  const response = await fetch(`/api/v1/routes`, {
+  const response = await fetch(`/api/v1/networking/routes`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -76,7 +76,7 @@ export const createRoute = async (
 };
 
 export const deleteRoute = async (authToken: string, id: number) => {
-  const response = await fetch(`/api/v1/routes/${id}`, {
+  const response = await fetch(`/api/v1/networking/routes/${id}`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
