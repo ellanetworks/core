@@ -64,14 +64,6 @@ export type SubscriberLogRetentionPolicy = {
   days: number;
 };
 
-export type SubscriberLog = {
-  id: number;
-  timestamp: string;
-  imsi: string;
-  event: string;
-  details: string;
-};
-
 export const roleIDToLabel = (role: RoleID): string => {
   switch (role) {
     case RoleID.Admin:
