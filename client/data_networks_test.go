@@ -192,7 +192,12 @@ func TestListDataNetworks_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	dataNetworks, err := clientObj.ListDataNetworks(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	dataNetworks, err := clientObj.ListDataNetworks(ctx, params)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -217,7 +222,12 @@ func TestListDataNetworks_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := clientObj.ListDataNetworks(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	_, err := clientObj.ListDataNetworks(ctx, params)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

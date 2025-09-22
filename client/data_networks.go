@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 type CreateDataNetworkOptions struct {
@@ -98,11 +99,11 @@ func (c *Client) DeleteDataNetwork(ctx context.Context, opts *DeleteDataNetworkO
 	return nil
 }
 
-func (c *Client) ListDataNetworks(ctx context.Context) ([]DataNetwork, error) {
+func (c *Client) ListDataNetworks(ctx context.Context, p *ListParams) ([]DataNetwork, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/networking/data-networks",
+		Path:   fmt.Sprintf("api/v1/networking/data-networks?page=%d&per_page=%d", p.Page, p.PerPage),
 	})
 	if err != nil {
 		return nil, err

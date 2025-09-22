@@ -186,7 +186,12 @@ func TestListSubscribers_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	subscribers, err := clientObj.ListSubscribers(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	subscribers, err := clientObj.ListSubscribers(ctx, params)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -211,7 +216,12 @@ func TestListSubscribers_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := clientObj.ListSubscribers(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	_, err := clientObj.ListSubscribers(ctx, params)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

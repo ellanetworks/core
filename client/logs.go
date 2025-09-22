@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 type AuditLog struct {
@@ -31,11 +32,11 @@ type ListAuditLogsResponse struct {
 	TotalCount int        `json:"total_count"`
 }
 
-func (c *Client) ListAuditLogs(ctx context.Context) ([]AuditLog, error) {
+func (c *Client) ListAuditLogs(ctx context.Context, p *ListParams) ([]AuditLog, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/logs/audit",
+		Path:   fmt.Sprintf("api/v1/logs/audit?page=%d&per_page=%d", p.Page, p.PerPage),
 	})
 	if err != nil {
 		return nil, err

@@ -24,7 +24,12 @@ func TestListAuditLogs_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	auditLogs, err := clientObj.ListAuditLogs(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	auditLogs, err := clientObj.ListAuditLogs(ctx, params)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -77,7 +82,12 @@ func TestListAuditLogs_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := clientObj.ListAuditLogs(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	_, err := clientObj.ListAuditLogs(ctx, params)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

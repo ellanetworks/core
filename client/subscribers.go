@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 type CreateSubscriberOptions struct {
@@ -110,11 +111,11 @@ func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOpt
 	return nil
 }
 
-func (c *Client) ListSubscribers(ctx context.Context) ([]Subscriber, error) {
+func (c *Client) ListSubscribers(ctx context.Context, p *ListParams) ([]Subscriber, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/subscribers",
+		Path:   fmt.Sprintf("api/v1/subscribers?page=%d&per_page=%d", p.Page, p.PerPage),
 	})
 	if err != nil {
 		return nil, err
