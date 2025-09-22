@@ -75,9 +75,13 @@ func setupServer(filepath string) (*httptest.Server, []byte, error) {
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}
 	dummyfs := dummyFS{}
+<<<<<<< HEAD
 	fakeUPF := FakeUPF{}
 
 	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeUPF, fakeKernel, jwtSecret, false, false, dummyfs, nil))
+=======
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, false, false, dummyfs, nil))
+>>>>>>> origin/main
 
 	client := ts.Client()
 

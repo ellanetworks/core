@@ -10,11 +10,15 @@ import (
 	"go.uber.org/zap"
 )
 
+<<<<<<< HEAD
 type UPFReloader interface {
 	Reload(natEnabled bool) error
 }
 
 func NewHandler(dbInstance *db.Database, upf UPFReloader, kernel kernel.Kernel, jwtSecret []byte, tracingEnabled bool, secureCookie bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
+=======
+func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, tracingEnabled bool, secureCookie bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
+>>>>>>> origin/main
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)

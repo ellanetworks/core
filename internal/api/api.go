@@ -53,7 +53,11 @@ func Start(dbInstance *db.Database, upf server.UPFReloader, port int, scheme Sch
 
 	secureCookie := scheme == HTTPS
 
+<<<<<<< HEAD
 	router := server.NewHandler(dbInstance, upf, kernelInt, jwtSecret, tracingEnabled, secureCookie, embedFS, registerExtraRoutes)
+=======
+	router := server.NewHandler(dbInstance, kernelInt, jwtSecret, tracingEnabled, secureCookie, embedFS, registerExtraRoutes)
+>>>>>>> origin/main
 
 	// Start the HTTP server in a goroutine.
 	go func() {

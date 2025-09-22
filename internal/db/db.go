@@ -33,7 +33,10 @@ type Database struct {
 	retentionPoliciesTable string
 	apiTokensTable         string
 	sessionsTable          string
+<<<<<<< HEAD
 	natSettingsTable       string
+=======
+>>>>>>> origin/main
 	conn                   *sqlair.DB
 }
 
@@ -144,7 +147,10 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.retentionPoliciesTable = LogRetentionPolicyTableName
 	db.apiTokensTable = APITokensTableName
 	db.sessionsTable = SessionsTableName
+<<<<<<< HEAD
 	db.natSettingsTable = NATSettingsTableName
+=======
+>>>>>>> origin/main
 
 	err = db.Initialize()
 	if err != nil {

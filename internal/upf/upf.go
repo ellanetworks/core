@@ -44,6 +44,7 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 	}
 
 	bpfObjects := ebpf.NewBpfObjects(FarMapSize, QerMapSize, masquerade)
+<<<<<<< HEAD
 
 	err := ebpf.PinMaps()
 	if err != nil {
@@ -51,6 +52,8 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 		return nil, err
 	}
 
+=======
+>>>>>>> origin/main
 	if err := bpfObjects.Load(); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
 		return nil, err
@@ -116,6 +119,10 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 		upf.startGC()
 	}
 
+	if masquerade {
+		go upf.collectCollectionTrackingGarbage(ctx)
+	}
+
 	return upf, nil
 }
 
@@ -170,6 +177,7 @@ func StringToXDPAttachMode(Mode string) link.XDPAttachFlags {
 	}
 }
 
+<<<<<<< HEAD
 func (u *UPF) startGC() {
 	if u.gcCancel != nil {
 		return
@@ -189,6 +197,8 @@ func (u *UPF) stopGC() {
 	}
 }
 
+=======
+>>>>>>> origin/main
 func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 	var (
 		key     ebpf.N3EntrypointFiveTuple
