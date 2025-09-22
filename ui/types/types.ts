@@ -1,15 +1,3 @@
-export type DataNetworkStatus = {
-  sessions: number;
-};
-
-export type DataNetwork = {
-  name: string;
-  ipPool: string;
-  dns: string;
-  mtu: number;
-  status?: DataNetworkStatus;
-};
-
 export type Policy = {
   name: string;
   bitrateUp: string;

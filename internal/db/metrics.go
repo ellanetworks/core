@@ -18,7 +18,7 @@ func (db *Database) GetSize() (int64, error) {
 }
 
 func (db *Database) GetIPAddressesTotal() (int, error) {
-	dataNetworks, err := db.ListDataNetworks(context.Background())
+	dataNetworks, _, err := db.ListDataNetworksPage(context.Background(), 1, 1000)
 	if err != nil {
 		return 0, err
 	}

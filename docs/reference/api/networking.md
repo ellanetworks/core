@@ -23,7 +23,7 @@ None
     "result": [
         {
             "name": "internet",
-            "ip-pool": "172.250.0.0/24",
+            "ip_pool": "172.250.0.0/24",
             "dns": "8.8.8.8",
             "mtu": 1460,
             "status": {
@@ -45,7 +45,7 @@ This path creates a new Data Network.
 ### Parameters
 
 - `name` (string): The Name of the Data Network (dnn)
-- `ip-pool` (string): The IP pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
+- `ip_pool` (string): The IP pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
 - `dns` (string): The IP address of the DNS server of the data network. Example: `8.8.8.8`.
 - `mtu` (integer): The MTU of the data network. Must be an integer between 0 and 65535.
 
@@ -69,7 +69,7 @@ This path updates an existing data network.
 
 ### Parameters
 
-- `ip-pool` (string): The IP pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
+- `ip_pool` (string): The IP pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
 - `dns` (string): The IP address of the DNS server of the data network. Example: `8.8.8.8`.
 - `mtu` (integer): The MTU of the data network. Must be an integer between 0 and 65535.
 
@@ -101,7 +101,7 @@ None
 {
     "result": {
         "name": "internet",
-        "ip-pool": "0.0.0.0/24",
+        "ip_pool": "0.0.0.0/24",
         "dns": "8.8.8.8",
         "mtu": 1460,
         "status": {

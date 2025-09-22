@@ -23,9 +23,13 @@ func TestDataNetworksEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, err := database.ListDataNetworks(context.Background())
+	res, total, err := database.ListDataNetworksPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list data networks: %s", err)
+	}
+
+	if total != 1 {
+		t.Fatalf("Expected total count to be 1, but got %d", total)
 	}
 
 	if len(res) != 1 {
@@ -50,9 +54,13 @@ func TestDataNetworksEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't create data network: %s", err)
 	}
 
-	res, err = database.ListDataNetworks(context.Background())
+	res, total, err = database.ListDataNetworksPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list data networks: %s", err)
+	}
+
+	if total != 2 {
+		t.Fatalf("Expected total count to be 2, but got %d", total)
 	}
 
 	if len(res) != 2 {
@@ -72,9 +80,13 @@ func TestDataNetworksEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't delete data network: %s", err)
 	}
 
-	res, err = database.ListDataNetworks(context.Background())
+	res, total, err = database.ListDataNetworksPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list data networks: %s", err)
+	}
+
+	if total != 1 {
+		t.Fatalf("Expected total count to be 1 after deletion, but got %d", total)
 	}
 
 	if len(res) != 1 {

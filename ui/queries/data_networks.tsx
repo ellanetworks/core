@@ -1,20 +1,43 @@
 import { HTTPStatus } from "@/queries/utils";
-import { DataNetwork } from "@/types/types";
 
-export const listDataNetworks = async (
+export type DataNetworkStatus = {
+  sessions: number;
+};
+
+export type APIDataNetwork = {
+  name: string;
+  ip_pool: string;
+  dns: string;
+  mtu: number;
+  status?: DataNetworkStatus;
+};
+
+export type ListDataNetworksResponse = {
+  items: APIDataNetwork[];
+  page: number;
+  per_page: number;
+  total_count: number;
+};
+
+export async function listDataNetworks(
   authToken: string,
-): Promise<DataNetwork[]> => {
-  const response = await fetch(`/api/v1/networking/data-networks`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
+  page: number,
+  perPage: number,
+): Promise<ListDataNetworksResponse> {
+  const response = await fetch(
+    `/api/v1/networking/data-networks?page=${page}&per_page=${perPage}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + authToken,
+      },
     },
-  });
+  );
 
-  let respData;
+  let json: { result: ListDataNetworksResponse; error?: string };
   try {
-    respData = await response.json();
+    json = await response.json();
   } catch {
     throw new Error(
       `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
@@ -23,20 +46,12 @@ export const listDataNetworks = async (
 
   if (!response.ok) {
     throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
     );
   }
 
-  const transformed: DataNetwork[] = respData.result.map((p: any) => ({
-    name: p.name,
-    ipPool: p["ip-pool"],
-    dns: p.dns,
-    mtu: p.mtu,
-    status: p.status ? { sessions: p.status.sessions } : undefined,
-  }));
-
-  return transformed;
-};
+  return json.result;
+}
 
 export const createDataNetwork = async (
   authToken: string,
@@ -47,7 +62,7 @@ export const createDataNetwork = async (
 ) => {
   const policyData = {
     name: name,
-    "ip-pool": ipPool,
+    ip_pool: ipPool,
     dns: dns,
     mtu: mtu,
   };
@@ -87,7 +102,7 @@ export const updateDataNetwork = async (
 ) => {
   const policyData = {
     name: name,
-    "ip-pool": ipPool,
+    ip_pool: ipPool,
     dns: dns,
     mtu: mtu,
   };

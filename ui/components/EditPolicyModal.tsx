@@ -15,9 +15,12 @@ import {
   Collapse,
 } from "@mui/material";
 import { updatePolicy } from "@/queries/policies";
-import { listDataNetworks } from "@/queries/data_networks";
+import {
+  listDataNetworks,
+  type ListDataNetworksResponse,
+} from "@/queries/data_networks";
 import { useRouter } from "next/navigation";
-import { Policy, DataNetwork } from "@/types/types";
+import { Policy } from "@/types/types";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface EditPolicyModalProps {
@@ -34,6 +37,8 @@ type FormState = Omit<Policy, "bitrateUp" | "bitrateDown"> & {
   bitrateDownUnit: "Mbps" | "Gbps";
 };
 
+const PER_PAGE = 12;
+
 const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   open,
   onClose,
@@ -43,9 +48,12 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   const router = useRouter();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    router.push("/login");
-  }
+  useEffect(() => {
+    if (open && authReady && !accessToken) {
+      router.push("/login");
+    }
+  }, [open, authReady, accessToken, router]);
+
   const [formValues, setFormValues] = useState<FormState>({
     name: "",
     bitrateUpValue: 0,
@@ -63,66 +71,43 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   useEffect(() => {
-    if (!accessToken) return;
+    if (!open) return;
+    const [bitrateUpValueStr, bitrateUpUnit] = initialData.bitrateUp.split(" ");
+    const [bitrateDownValueStr, bitrateDownUnit] =
+      initialData.bitrateDown.split(" ");
+
+    setFormValues({
+      name: initialData.name,
+      bitrateUpValue: parseInt(bitrateUpValueStr, 10),
+      bitrateUpUnit: (bitrateUpUnit as "Mbps" | "Gbps") ?? "Mbps",
+      bitrateDownValue: parseInt(bitrateDownValueStr, 10),
+      bitrateDownUnit: (bitrateDownUnit as "Mbps" | "Gbps") ?? "Mbps",
+      fiveQi: initialData.fiveQi,
+      priorityLevel: initialData.priorityLevel,
+      dataNetworkName: initialData.dataNetworkName,
+    });
+    setErrors({});
+  }, [open, initialData]);
+
+  useEffect(() => {
     const fetchDataNetworks = async () => {
+      if (!open || !accessToken) return;
       try {
-        const policyData = await listDataNetworks(accessToken);
-        setDataNetworks(
-          policyData.map((dataNetwork: DataNetwork) => dataNetwork.name),
+        const res: ListDataNetworksResponse = await listDataNetworks(
+          accessToken,
+          1,
+          PER_PAGE,
         );
+        setDataNetworks((res.items ?? []).map((dn) => dn.name));
       } catch (error) {
         console.error("Failed to fetch data networks:", error);
       }
     };
+    fetchDataNetworks();
+  }, [open, accessToken]);
 
-    if (open) {
-      fetchDataNetworks();
-      const [bitrateUpValueStr, bitrateUpUnit] =
-        initialData.bitrateUp.split(" ");
-      const [bitrateDownValueStr, bitrateDownUnit] =
-        initialData.bitrateDown.split(" ");
-
-      setFormValues({
-        name: initialData.name,
-        bitrateUpValue: parseInt(bitrateUpValueStr, 10),
-        bitrateUpUnit: bitrateUpUnit as "Mbps" | "Gbps",
-        bitrateDownValue: parseInt(bitrateDownValueStr, 10),
-        bitrateDownUnit: bitrateDownUnit as "Mbps" | "Gbps",
-        fiveQi: initialData.fiveQi,
-        priorityLevel: initialData.priorityLevel,
-        dataNetworkName: initialData.dataNetworkName,
-      });
-
-      setErrors({});
-    }
-  }, [open, initialData, accessToken]);
-
-  useEffect(() => {
-    if (open) {
-      const [bitrateUpValueStr, bitrateUpUnit] =
-        initialData.bitrateUp.split(" ");
-      const [bitrateDownValueStr, bitrateDownUnit] =
-        initialData.bitrateDown.split(" ");
-
-      setFormValues({
-        name: initialData.name,
-        bitrateUpValue: parseInt(bitrateUpValueStr, 10),
-        bitrateUpUnit: bitrateUpUnit as "Mbps" | "Gbps",
-        bitrateDownValue: parseInt(bitrateDownValueStr, 10),
-        bitrateDownUnit: bitrateDownUnit as "Mbps" | "Gbps",
-        fiveQi: initialData.fiveQi,
-        priorityLevel: initialData.priorityLevel,
-        dataNetworkName: initialData.dataNetworkName,
-      });
-      setErrors({});
-    }
-  }, [open, initialData]);
-
-  const handleChange = (field: string, value: string | number) => {
-    setFormValues((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+  const handleChange = (field: keyof FormState, value: string | number) => {
+    setFormValues((prev) => ({ ...prev, [field]: value as never }));
   };
 
   const handleSubmit = async () => {
@@ -172,6 +157,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             {alert.message}
           </Alert>
         </Collapse>
+
         <TextField
           fullWidth
           label="Name"
@@ -179,22 +165,26 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           margin="normal"
           disabled
         />
+
         <FormControl fullWidth margin="normal">
-          <InputLabel id="demo-simple-select-label">Policy Name</InputLabel>
+          <InputLabel id="data-network-select-label">
+            Data Network Name
+          </InputLabel>
           <Select
+            labelId="data-network-select-label"
+            label="Data Network Name"
             value={formValues.dataNetworkName}
             onChange={(e) => handleChange("dataNetworkName", e.target.value)}
-            error={!!errors.policyName}
-            label={"Data Network Name"}
-            labelId="demo-simple-select-label"
+            error={!!errors.dataNetworkName}
           >
-            {dataNetworks.map((dataNetwork) => (
-              <MenuItem key={dataNetwork} value={dataNetwork}>
-                {dataNetwork}
+            {dataNetworks.map((name) => (
+              <MenuItem key={name} value={name}>
+                {name}
               </MenuItem>
             ))}
           </Select>
         </FormControl>
+
         <Box display="flex" gap={2}>
           <TextField
             label="Bitrate Up Value"
@@ -218,6 +208,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             <MenuItem value="Gbps">Gbps</MenuItem>
           </TextField>
         </Box>
+
         <Box display="flex" gap={2}>
           <TextField
             label="Bitrate Down Value"
@@ -241,6 +232,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             <MenuItem value="Gbps">Gbps</MenuItem>
           </TextField>
         </Box>
+
         <TextField
           fullWidth
           label="5QI"
@@ -251,6 +243,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           helperText={errors.fiveQi}
           margin="normal"
         />
+
         <TextField
           fullWidth
           label="Priority Level"
@@ -264,6 +257,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           margin="normal"
         />
       </DialogContent>
+
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
         <Button

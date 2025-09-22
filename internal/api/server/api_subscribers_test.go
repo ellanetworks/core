@@ -77,20 +77,26 @@ func listSubscribers(url string, client *http.Client, token string, page int, pe
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var subscriberResponse ListSubscriberResponse
+
 	if err := json.NewDecoder(res.Body).Decode(&subscriberResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &subscriberResponse, nil
 }
 

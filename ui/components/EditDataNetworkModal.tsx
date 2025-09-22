@@ -9,16 +9,15 @@ import {
   Alert,
   Collapse,
 } from "@mui/material";
-import { updateDataNetwork } from "@/queries/data_networks";
+import { updateDataNetwork, APIDataNetwork } from "@/queries/data_networks";
 import { useRouter } from "next/navigation";
-import { DataNetwork } from "@/types/types";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface EditDataNetworkModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: DataNetwork;
+  initialData: APIDataNetwork;
 }
 
 const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
@@ -43,7 +42,7 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
     if (open) {
       setFormValues({
         name: initialData.name,
-        ipPool: initialData.ipPool,
+        ip_pool: initialData.ip_pool,
         dns: initialData.dns,
         mtu: initialData.mtu,
       });
@@ -67,7 +66,7 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
       await updateDataNetwork(
         accessToken,
         formValues.name,
-        formValues.ipPool,
+        formValues.ip_pool,
         formValues.dns,
         formValues.mtu,
       );
@@ -110,7 +109,7 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
         <TextField
           fullWidth
           label="IP Pool"
-          value={formValues.ipPool}
+          value={formValues.ip_pool}
           onChange={(e) => handleChange("ipPool", e.target.value)}
           error={!!errors.ipPool}
           helperText={errors.ipPool}

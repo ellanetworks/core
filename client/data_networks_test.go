@@ -69,7 +69,7 @@ func TestGetDataNetwork_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"name": "my-data-network", "ip-pool": "1.2.3.0/24"}`),
+			Result:     []byte(`{"name": "my-data-network", "ip_pool": "1.2.3.0/24"}`),
 		},
 		err: nil,
 	}
@@ -182,7 +182,7 @@ func TestListDataNetworks_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"imsi": "001010100000022", "dataNetworkName": "default"}]`),
+			Result:     []byte(`{"items": [{"name": "data-network-1", "ip_pool": "1.2.3.0/24"}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}

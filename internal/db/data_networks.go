@@ -28,13 +28,13 @@ const QueryCreateDataNetworksTable = `
 )`
 
 const (
-	listDataNetworksStmt   = "SELECT &DataNetwork.* from %s"
-	getDataNetworkStmt     = "SELECT &DataNetwork.* from %s WHERE name==$DataNetwork.name"
-	getDataNetworkByIDStmt = "SELECT &DataNetwork.* FROM %s WHERE id==$DataNetwork.id"
-	createDataNetworkStmt  = "INSERT INTO %s (name, ipPool, dns, mtu) VALUES ($DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.dns, $DataNetwork.mtu)"
-	editDataNetworkStmt    = "UPDATE %s SET ipPool=$DataNetwork.ipPool, dns=$DataNetwork.dns, mtu=$DataNetwork.mtu WHERE name==$DataNetwork.name"
-	deleteDataNetworkStmt  = "DELETE FROM %s WHERE name==$DataNetwork.name"
-	getNumDataNetworksStmt = "SELECT COUNT(*) AS &NumDataNetworks.count FROM %s"
+	listDataNetworksPagedStmt = "SELECT &DataNetwork.* from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	getDataNetworkStmt        = "SELECT &DataNetwork.* from %s WHERE name==$DataNetwork.name"
+	getDataNetworkByIDStmt    = "SELECT &DataNetwork.* FROM %s WHERE id==$DataNetwork.id"
+	createDataNetworkStmt     = "INSERT INTO %s (name, ipPool, dns, mtu) VALUES ($DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.dns, $DataNetwork.mtu)"
+	editDataNetworkStmt       = "UPDATE %s SET ipPool=$DataNetwork.ipPool, dns=$DataNetwork.dns, mtu=$DataNetwork.mtu WHERE name==$DataNetwork.name"
+	deleteDataNetworkStmt     = "DELETE FROM %s WHERE name==$DataNetwork.name"
+	countDataNetworksStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 type DataNetwork struct {
@@ -45,46 +45,57 @@ type DataNetwork struct {
 	MTU    int32  `db:"mtu"`
 }
 
-type NumDataNetworks struct {
-	Count int `db:"count"`
-}
-
-func (db *Database) ListDataNetworks(ctx context.Context) ([]DataNetwork, error) {
+func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int) ([]DataNetwork, int, error) {
 	operation := "SELECT"
 	target := DataNetworksTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
+	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(listDataNetworksStmt, db.dataNetworksTable)
+	stmtStr := fmt.Sprintf(listDataNetworksPagedStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
+		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
+		attribute.Int("page", page),
+		attribute.Int("per_page", perPage),
 	)
 
-	q, err := sqlair.Prepare(stmt, DataNetwork{})
+	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, DataNetwork{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
+		return nil, 0, err
+	}
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
+	}
+
+	count, err := db.CountDataNetworks(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "count failed")
+		return nil, 0, err
 	}
 
 	var dataNetworks []DataNetwork
-	if err := db.conn.Query(ctx, q).GetAll(&dataNetworks); err != nil {
+
+	if err := db.conn.Query(ctx, stmt, args).GetAll(&dataNetworks); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, nil
+			return nil, count, nil
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
-		return nil, err
+		return nil, 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
-	return dataNetworks, nil
+	return dataNetworks, count, nil
 }
 
 func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwork, error) {
@@ -278,8 +289,7 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 	return nil
 }
 
-// NumDataNetworks returns data network count
-func (db *Database) NumDataNetworks(ctx context.Context) (int, error) {
+func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
 	operation := "SELECT"
 	target := DataNetworksTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -287,7 +297,7 @@ func (db *Database) NumDataNetworks(ctx context.Context) (int, error) {
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(getNumDataNetworksStmt, db.dataNetworksTable)
+	stmt := fmt.Sprintf(countDataNetworksStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmt),
@@ -295,8 +305,8 @@ func (db *Database) NumDataNetworks(ctx context.Context) (int, error) {
 		attribute.String("db.collection", target),
 	)
 
-	var result NumDataNetworks
-	q, err := sqlair.Prepare(stmt, NumDataNetworks{})
+	var result NumItems
+	q, err := sqlair.Prepare(stmt, NumItems{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
