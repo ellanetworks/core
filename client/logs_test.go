@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -21,7 +22,9 @@ func TestListAuditLogs_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	auditLogs, err := clientObj.ListAuditLogs()
+	ctx := context.Background()
+
+	auditLogs, err := clientObj.ListAuditLogs(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -72,7 +75,9 @@ func TestListAuditLogs_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := clientObj.ListAuditLogs()
+	ctx := context.Background()
+
+	_, err := clientObj.ListAuditLogs(ctx)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -91,7 +96,9 @@ func TestGetAuditLogRetentionPolicy_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	policy, err := clientObj.GetAuditLogRetentionPolicy()
+	ctx := context.Background()
+
+	policy, err := clientObj.GetAuditLogRetentionPolicy(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -114,7 +121,9 @@ func TestGetAuditLogRetentionPolicy_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := clientObj.GetAuditLogRetentionPolicy()
+	ctx := context.Background()
+
+	_, err := clientObj.GetAuditLogRetentionPolicy(ctx)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -136,7 +145,10 @@ func TestUpdateAuditLogRetentionPolicy_Success(t *testing.T) {
 	updateOpts := &client.UpdateAuditLogsRetentionPolicyOptions{
 		Days: 60,
 	}
-	err := clientObj.UpdateAuditLogRetentionPolicy(updateOpts)
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateAuditLogRetentionPolicy(ctx, updateOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -158,7 +170,10 @@ func TestUpdateAuditLogRetentionPolicy_Failure(t *testing.T) {
 	updateOpts := &client.UpdateAuditLogsRetentionPolicyOptions{
 		Days: -10,
 	}
-	err := clientObj.UpdateAuditLogRetentionPolicy(updateOpts)
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateAuditLogRetentionPolicy(ctx, updateOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

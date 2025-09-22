@@ -13,7 +13,7 @@ import {
 import * as yup from "yup";
 import { updateOperatorHomeNetwork } from "@/queries/operator";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditOperatorHomeNetworkModalProps {
   open: boolean;
@@ -35,9 +35,9 @@ const EditOperatorHomeNetworkModal: React.FC<
   EditOperatorHomeNetworkModalProps
 > = ({ open, onClose, onSuccess }) => {
   const router = useRouter();
-  const [cookies, ,] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
 
@@ -88,7 +88,7 @@ const EditOperatorHomeNetworkModal: React.FC<
 
   const handleSubmit = async () => {
     const isValid = await validate();
-    if (!isValid) {
+    if (!isValid || !accessToken) {
       return;
     }
 
@@ -96,10 +96,7 @@ const EditOperatorHomeNetworkModal: React.FC<
     setAlert({ message: "" });
 
     try {
-      await updateOperatorHomeNetwork(
-        cookies.user_token,
-        formValues.privateKey,
-      );
+      await updateOperatorHomeNetwork(accessToken, formValues.privateKey);
       onClose();
       onSuccess();
     } catch (error: unknown) {

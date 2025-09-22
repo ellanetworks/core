@@ -25,11 +25,11 @@ Data plane processing in Ella Core occurs between the **n3** and **n6** interfac
 
 ### Routing
 
-Ella Core currently relies on the kernel to make routing decisions for incoming network packets. Kernel routes can be configured using the [Routes API](../reference/api/routes.md) or the user interface.
+Ella Core currently relies on the kernel to make routing decisions for incoming network packets. Kernel routes can be configured using the [Networking API](../reference/api/networking.md) or the user interface.
 
-### NATing
+### NAT
 
-Ella Core currently does not support Network Address Translation (NAT). If a subscriber is assigned a private IP address, the subscriber's packets will not be translated to a public IP address when sent to the Internet. In the [End-to-End Network tutorial](../tutorials/end_to_end_network.md), we use an external router to enable NATting using the `iptables` command so that subscribers can use publicly routable addresses.
+Network Address Translation (NAT) simplifies networking as it lets subscribers use private IP addresses without requiring an external router. It uses Ella Core's N6 IP as the source for outbound traffic. Enabling NAT adds processing overhead and some niche protocols won't work (e.g., FTP active mode). You can enable NAT in Ella Core by navigating to the `Networking` page in the UI and enabling the `NAT` option or by using the [Networking API](../reference/api/networking.md).
 
 ### Performance
 

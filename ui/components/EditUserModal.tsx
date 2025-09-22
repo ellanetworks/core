@@ -16,8 +16,8 @@ import {
 } from "@mui/material";
 import { updateUser } from "@/queries/users";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
 import { RoleID, User, roleIDToLabel } from "@/types/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditUserModalProps {
   open: boolean;
@@ -38,11 +38,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   initialData,
 }) => {
   const router = useRouter();
-  const [cookies] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
-    router.push("/login");
-  }
+  if (!authReady || !accessToken) router.push("/login");
 
   const [formValues, setFormValues] = useState<FormValues>({
     email: "",
@@ -69,11 +67,12 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
 
     try {
-      await updateUser(cookies.user_token, formValues.email, formValues.role);
+      await updateUser(accessToken, formValues.email, formValues.role);
       onClose();
       onSuccess();
     } catch (error: unknown) {

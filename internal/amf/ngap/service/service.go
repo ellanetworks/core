@@ -8,6 +8,7 @@ package service
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -190,7 +191,7 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler NGAPHandler) 
 				logger.AmfLog.Warn("Received sctp notification but not handled", zap.Any("type", notification.Type()))
 			}
 		} else {
-			if info == nil || info.PPID != ngap.PPID {
+			if info == nil || networkToNativeEndianness32(info.PPID) != ngap.PPID {
 				logger.AmfLog.Warn("Received SCTP PPID != 60, discard this packet")
 				continue
 			}
@@ -198,4 +199,12 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler NGAPHandler) 
 			handler.HandleMessage(context.Background(), conn, buf[:n])
 		}
 	}
+}
+
+// Takes a uint32 in Network Byte Order and returns
+// in in Native Byte Order
+func networkToNativeEndianness32(value uint32) uint32 {
+	var b [4]byte
+	binary.BigEndian.PutUint32(b[:], value)
+	return binary.NativeEndian.Uint32(b[:])
 }

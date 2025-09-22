@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -28,7 +29,9 @@ func TestCreateRoute_Success(t *testing.T) {
 		Metric:      100,
 	}
 
-	err := clientObj.CreateRoute(createRouteOpts)
+	ctx := context.Background()
+
+	err := clientObj.CreateRoute(ctx, createRouteOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -53,7 +56,9 @@ func TestCreateRoute_Failure(t *testing.T) {
 		Metric:      100,
 	}
 
-	err := clientObj.CreateRoute(createRouteOpts)
+	ctx := context.Background()
+
+	err := clientObj.CreateRoute(ctx, createRouteOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -76,7 +81,10 @@ func TestGetRoute_Success(t *testing.T) {
 	getRouteOpts := &client.GetRouteOptions{
 		ID: id,
 	}
-	route, err := clientObj.GetRoute(getRouteOpts)
+
+	ctx := context.Background()
+
+	route, err := clientObj.GetRoute(ctx, getRouteOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -103,7 +111,10 @@ func TestGetRoute_Failure(t *testing.T) {
 	getRouteOpts := &client.GetRouteOptions{
 		ID: id,
 	}
-	_, err := clientObj.GetRoute(getRouteOpts)
+
+	ctx := context.Background()
+
+	_, err := clientObj.GetRoute(ctx, getRouteOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -126,7 +137,10 @@ func TestDeleteRoute_Success(t *testing.T) {
 	deleteRouteOpts := &client.DeleteRouteOptions{
 		ID: id,
 	}
-	err := clientObj.DeleteRoute(deleteRouteOpts)
+
+	ctx := context.Background()
+
+	err := clientObj.DeleteRoute(ctx, deleteRouteOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -149,7 +163,10 @@ func TestDeleteRoute_Failure(t *testing.T) {
 	deleteRouteOpts := &client.DeleteRouteOptions{
 		ID: id,
 	}
-	err := clientObj.DeleteRoute(deleteRouteOpts)
+
+	ctx := context.Background()
+
+	err := clientObj.DeleteRoute(ctx, deleteRouteOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -168,7 +185,9 @@ func TestListRoutes_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	routes, err := clientObj.ListRoutes()
+	ctx := context.Background()
+
+	routes, err := clientObj.ListRoutes(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -191,7 +210,9 @@ func TestListRoutes_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := clientObj.ListRoutes()
+	ctx := context.Background()
+
+	_, err := clientObj.ListRoutes(ctx)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 
 	"github.com/ellanetworks/core/internal/api/server"
@@ -51,6 +52,12 @@ func (dummyFS) Open(name string) (fs.File, error) {
 	return nil, fs.ErrNotExist
 }
 
+type FakeUPF struct{}
+
+func (f FakeUPF) Reload(natEnabled bool) error {
+	return nil
+}
+
 func setupServer(filepath string) (*httptest.Server, []byte, error) {
 	testdb, err := db.NewDatabase(filepath)
 	if err != nil {
@@ -68,7 +75,19 @@ func setupServer(filepath string) (*httptest.Server, []byte, error) {
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}
 	dummyfs := dummyFS{}
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, false, dummyfs, nil))
+	fakeUPF := FakeUPF{}
+
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeUPF, fakeKernel, jwtSecret, false, false, dummyfs, nil))
+
+	client := ts.Client()
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	client.Jar = jar
+
 	return ts, jwtSecret, nil
 }
 
@@ -91,16 +110,25 @@ func createFirstUserAndLogin(url string, client *http.Client) (string, error) {
 		Password: "password123",
 	}
 
-	statusCode, response, err := login(url, client, loginParams)
+	statusCode, _, err = login(url, client, loginParams)
 	if err != nil {
 		return "", fmt.Errorf("couldn't login: %s", err)
 	}
 
 	if statusCode != http.StatusOK {
-		return "", fmt.Errorf("expected status %d, got %d", http.StatusOK, statusCode)
+		return "", fmt.Errorf("expected login status %d, got %d", http.StatusOK, statusCode)
 	}
 
-	return response.Result.Token, nil
+	statusCode, refreshResponse, err := refresh(url, client)
+	if err != nil {
+		return "", fmt.Errorf("couldn't refresh: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		return "", fmt.Errorf("expected refresh status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	return refreshResponse.Result.Token, nil
 }
 
 func createUserAndLogin(url string, token string, email string, roleID RoleID, client *http.Client) (string, error) {
@@ -122,7 +150,7 @@ func createUserAndLogin(url string, token string, email string, roleID RoleID, c
 		Password: "password123",
 	}
 
-	statusCode, response, err := login(url, client, loginParams)
+	statusCode, _, err = login(url, client, loginParams)
 	if err != nil {
 		return "", fmt.Errorf("couldn't login: %s", err)
 	}
@@ -131,5 +159,18 @@ func createUserAndLogin(url string, token string, email string, roleID RoleID, c
 		return "", fmt.Errorf("expected status %d, got %d", http.StatusOK, statusCode)
 	}
 
-	return response.Result.Token, nil
+	statusCode, refreshResp, err := refresh(url, client)
+	if err != nil {
+		return "", fmt.Errorf("couldn't refresh: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		return "", fmt.Errorf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if refreshResp.Result.Token == "" {
+		return "", fmt.Errorf("expected non-empty token from refresh")
+	}
+
+	return refreshResp.Result.Token, nil
 }

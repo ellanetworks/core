@@ -62,7 +62,7 @@ type ListRouteResponse struct {
 }
 
 func listRoutes(url string, client *http.Client, token string) (int, *ListRouteResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/routes", nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/routes", nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -84,7 +84,7 @@ func listRoutes(url string, client *http.Client, token string) (int, *ListRouteR
 }
 
 func getRoute(url string, client *http.Client, token string, id int64) (int, *GetRouteResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/routes/%d", url, id), nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/networking/routes/%d", url, id), nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -110,7 +110,7 @@ func createRoute(url string, client *http.Client, token string, data *CreateRout
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/routes", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/networking/routes", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -132,7 +132,7 @@ func createRoute(url string, client *http.Client, token string, data *CreateRout
 }
 
 func deleteRoute(url string, client *http.Client, token string, id int64) (int, *DeleteRouteResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", fmt.Sprintf("%s/api/v1/routes/%d", url, id), nil)
+	req, err := http.NewRequestWithContext(context.Background(), "DELETE", fmt.Sprintf("%s/api/v1/networking/routes/%d", url, id), nil)
 	if err != nil {
 		return 0, nil, err
 	}

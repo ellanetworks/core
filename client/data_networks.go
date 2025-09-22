@@ -28,7 +28,7 @@ type DataNetwork struct {
 	Mtu    int32  `json:"mtu"`
 }
 
-func (c *Client) CreateDataNetwork(opts *CreateDataNetworkOptions) error {
+func (c *Client) CreateDataNetwork(ctx context.Context, opts *CreateDataNetworkOptions) error {
 	payload := struct {
 		Name   string `json:"name"`
 		IPPool string `json:"ip-pool"`
@@ -48,10 +48,10 @@ func (c *Client) CreateDataNetwork(opts *CreateDataNetworkOptions) error {
 		return err
 	}
 
-	_, err = c.Requester.Do(context.Background(), &RequestOptions{
+	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
-		Path:   "api/v1/data-networks",
+		Path:   "api/v1/networking/data-networks",
 		Body:   &body,
 	})
 	if err != nil {
@@ -60,11 +60,11 @@ func (c *Client) CreateDataNetwork(opts *CreateDataNetworkOptions) error {
 	return nil
 }
 
-func (c *Client) GetDataNetwork(opts *GetDataNetworkOptions) (*DataNetwork, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) GetDataNetwork(ctx context.Context, opts *GetDataNetworkOptions) (*DataNetwork, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/data-networks/" + opts.Name,
+		Path:   "api/v1/networking/data-networks/" + opts.Name,
 	})
 	if err != nil {
 		return nil, err
@@ -79,11 +79,11 @@ func (c *Client) GetDataNetwork(opts *GetDataNetworkOptions) (*DataNetwork, erro
 	return &dataNetworkResponse, nil
 }
 
-func (c *Client) DeleteDataNetwork(opts *DeleteDataNetworkOptions) error {
-	_, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) DeleteDataNetwork(ctx context.Context, opts *DeleteDataNetworkOptions) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/data-networks/" + opts.Name,
+		Path:   "api/v1/networking/data-networks/" + opts.Name,
 	})
 	if err != nil {
 		return err
@@ -91,11 +91,11 @@ func (c *Client) DeleteDataNetwork(opts *DeleteDataNetworkOptions) error {
 	return nil
 }
 
-func (c *Client) ListDataNetworks() ([]*DataNetwork, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) ListDataNetworks(ctx context.Context) ([]*DataNetwork, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/data-networks",
+		Path:   "api/v1/networking/data-networks",
 	})
 	if err != nil {
 		return nil, err

@@ -11,7 +11,7 @@ import {
 } from "@mui/material";
 import { updateUserPassword } from "@/queries/users";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditUserPasswordModalProps {
   open: boolean;
@@ -34,11 +34,8 @@ const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
   initialData,
 }) => {
   const router = useRouter();
-  const [cookies] = useCookies(["user_token"]);
-
-  if (!cookies.user_token) {
-    router.push("/login");
-  }
+  const { accessToken, authReady } = useAuth();
+  if (!authReady || !accessToken) router.push("/login");
 
   const [formValues, setFormValues] = useState<FormValues>({
     email: initialData.email,
@@ -67,12 +64,13 @@ const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
 
     try {
       await updateUserPassword(
-        cookies.user_token,
+        accessToken,
         formValues.email,
         formValues.password,
       );

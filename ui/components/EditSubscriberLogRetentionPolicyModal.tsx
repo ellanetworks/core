@@ -12,8 +12,8 @@ import {
 } from "@mui/material";
 import { updateSubscriberLogRetentionPolicy } from "@/queries/subscriber_logs";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
 import { SubscriberLogRetentionPolicy } from "@/types/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditSubscriberLogRetentionPolicyModalProps {
   open: boolean;
@@ -26,9 +26,9 @@ const EditSubscriberLogRetentionPolicyModal: React.FC<
   EditSubscriberLogRetentionPolicyModalProps
 > = ({ open, onClose, onSuccess, initialData }) => {
   const router = useRouter();
-  const [cookies, ,] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
 
@@ -54,14 +54,12 @@ const EditSubscriberLogRetentionPolicyModal: React.FC<
   };
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
 
     try {
-      await updateSubscriberLogRetentionPolicy(
-        cookies.user_token,
-        formValues.days,
-      );
+      await updateSubscriberLogRetentionPolicy(accessToken, formValues.days);
       onClose();
       onSuccess();
     } catch (error: unknown) {

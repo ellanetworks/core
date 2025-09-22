@@ -57,11 +57,10 @@ nav:
       - Authentication: reference/api/auth.md
       - Metrics: reference/api/metrics.md
       - Operator: reference/api/operator.md
-      - Data Networks: reference/api/data_networks.md
+      - Networking: reference/api/networking.md
       - Policies: reference/api/policies.md
       - Radios: reference/api/radios.md
       - Restore: reference/api/restore.md
-      - Routes: reference/api/routes.md
       - Status: reference/api/status.md
       - Subscribers: reference/api/subscribers.md
       - Logs: reference/api/logs.md

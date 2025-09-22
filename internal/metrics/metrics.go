@@ -8,7 +8,6 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	smfStats "github.com/ellanetworks/core/internal/smf/stats"
-	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -89,7 +88,7 @@ func RegisterSmfMetrics() {
 	prometheus.MustRegister(PduSessions)
 }
 
-func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnection) {
+func RegisterUPFMetrics(stats *ebpf.UpfXdpActionStatistic) {
 	// Metrics for the app_xdp_statistic (xdp_action)
 	UpfN3XdpAborted = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_n3_xdp_aborted",

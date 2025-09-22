@@ -33,21 +33,41 @@ import {
   AccountCircle as AccountCircleIcon,
   Person as PersonIcon,
   Storage as StorageIcon,
-  Cable as CableIcon,
   Lan as LanIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
-import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
 import Footer from "@/components/Footer";
+import { logout } from "@/queries/auth";
 
 const drawerWidth = 250;
+
+const drawerSelectedSx = {
+  // remove the filled background
+  "&.Mui-selected": { bgcolor: "transparent" },
+  "&.Mui-selected:hover": { bgcolor: "transparent" },
+
+  // make the label bold + underline
+  "&.Mui-selected .MuiListItemText-primary": {
+    fontWeight: 700,
+    textDecoration: "underline",
+    textDecorationColor: "primary.main",
+    textUnderlineOffset: "4px",
+    textDecorationThickness: "2px",
+  },
+
+  // on hover, show the underline even when not selected
+  "&:hover .MuiListItemText-primary": {
+    textDecorationColor: "primary.main",
+    textUnderlineOffset: "4px",
+  },
+};
 
 export default function DrawerLayout({
   children,
@@ -58,13 +78,7 @@ export default function DrawerLayout({
   const router = useRouter();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-
-  const [cookies, , removeCookie] = useCookies(["user_token"]);
-  if (!cookies.user_token) {
-    router.push("/login");
-  }
-
-  const { role } = useAuth();
+  const { role, setAuthData } = useAuth();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
@@ -83,11 +97,15 @@ export default function DrawerLayout({
     router.push("/profile");
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("user_token");
-    removeCookie("user_token", { path: "/" });
+  const handleLogout = async () => {
     handleAccountClose();
-    router.push("/login");
+    try {
+      await logout();
+    } catch {
+    } finally {
+      setAuthData(null);
+      router.replace("/login");
+    }
   };
 
   return (
@@ -175,6 +193,7 @@ export default function DrawerLayout({
                 href="/dashboard"
                 selected={pathname === "/dashboard"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <DashboardIcon color="primary" />
@@ -189,6 +208,7 @@ export default function DrawerLayout({
                 href="/events"
                 selected={pathname === "/events"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <FeedIcon color="primary" />
@@ -203,6 +223,7 @@ export default function DrawerLayout({
                 href="/operator"
                 selected={pathname === "/operator"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <SensorsIcon color="primary" />
@@ -217,6 +238,7 @@ export default function DrawerLayout({
                 href="/radios"
                 selected={pathname === "/radios"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <RouterIcon color="primary" />
@@ -228,14 +250,15 @@ export default function DrawerLayout({
             <ListItem disablePadding>
               <ListItemButton
                 component={Link}
-                href="/data-networks"
-                selected={pathname === "/data-networks"}
+                href="/networking"
+                selected={pathname === "/networking"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <LanIcon color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="Data Networks" />
+                <ListItemText primary="Networking" />
               </ListItemButton>
             </ListItem>
 
@@ -245,6 +268,7 @@ export default function DrawerLayout({
                 href="/policies"
                 selected={pathname === "/policies"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <TuneIcon color="primary" />
@@ -259,25 +283,12 @@ export default function DrawerLayout({
                 href="/subscribers"
                 selected={pathname === "/subscribers"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <GroupsIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Subscribers" />
-              </ListItemButton>
-            </ListItem>
-
-            <ListItem disablePadding>
-              <ListItemButton
-                component={Link}
-                href="/routes"
-                selected={pathname === "/routes"}
-                onClick={handleNavClick}
-              >
-                <ListItemIcon>
-                  <CableIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText primary="Routes" />
               </ListItemButton>
             </ListItem>
 
@@ -292,6 +303,7 @@ export default function DrawerLayout({
                     href="/users"
                     selected={pathname === "/users"}
                     onClick={handleNavClick}
+                    sx={drawerSelectedSx}
                   >
                     <ListItemIcon>
                       <AdminPanelSettingsIcon color="primary" />
@@ -306,6 +318,7 @@ export default function DrawerLayout({
                     href="/audit-logs"
                     selected={pathname === "/audit-logs"}
                     onClick={handleNavClick}
+                    sx={drawerSelectedSx}
                   >
                     <ListItemIcon>
                       <ReceiptLongIcon color="primary" />
@@ -320,6 +333,7 @@ export default function DrawerLayout({
                     href="/backup-restore"
                     selected={pathname === "/backup-restore"}
                     onClick={handleNavClick}
+                    sx={drawerSelectedSx}
                   >
                     <ListItemIcon>
                       <StorageIcon color="primary" />
