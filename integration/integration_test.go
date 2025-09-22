@@ -86,6 +86,13 @@ func configureEllaCore(ctx context.Context, opts *ConfigureEllaCoreOpts) (*clien
 		return nil, fmt.Errorf("failed to create data network: %v", err)
 	}
 
+	err = opts.client.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{
+		Enabled: false,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to disable NAT: %v", err)
+	}
+
 	createPolicyOpts := &client.CreatePolicyOptions{
 		Name:            testPolicyName,
 		BitrateUplink:   "200 Mbps",

@@ -62,8 +62,7 @@ type N3InterfaceYaml struct {
 }
 
 type N6InterfaceYaml struct {
-	Name       string `yaml:"name"`
-	Masquerade bool   `yaml:"masquerade"`
+	Name string `yaml:"name"`
 }
 
 type APIInterfaceYaml struct {
@@ -129,8 +128,7 @@ type N3Interface struct {
 }
 
 type N6Interface struct {
-	Name       string
-	Masquerade bool
+	Name string
 }
 
 type APIInterface struct {
@@ -342,7 +340,6 @@ func Validate(filePath string) (Config, error) {
 	config.Interfaces.N3.Name = c.Interfaces.N3.Name
 	config.Interfaces.N3.Address = n3Address
 	config.Interfaces.N6.Name = c.Interfaces.N6.Name
-	config.Interfaces.N6.Masquerade = c.Interfaces.N6.Masquerade
 	config.Interfaces.API.Name = c.Interfaces.API.Name
 	config.Interfaces.API.Port = c.Interfaces.API.Port
 	config.XDP.AttachMode = c.XDP.AttachMode
