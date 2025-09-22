@@ -1,9 +1,3 @@
-export enum RoleID {
-  Admin = 1,
-  ReadOnly = 2,
-  NetworkManager = 3,
-}
-
 export type DataNetworkStatus = {
   sessions: number;
 };
@@ -33,30 +27,12 @@ export type Route = {
   metric: number;
 };
 
-export type User = {
-  email: string;
-  roleID: RoleID;
-};
-
 export type AuditLogRetentionPolicy = {
   days: number;
 };
 
 export type SubscriberLogRetentionPolicy = {
   days: number;
-};
-
-export const roleIDToLabel = (role: RoleID): string => {
-  switch (role) {
-    case RoleID.Admin:
-      return "Admin";
-    case RoleID.NetworkManager:
-      return "Network Manager";
-    case RoleID.ReadOnly:
-      return "Read Only";
-    default:
-      return "Unknown";
-  }
 };
 
 export type APIToken = {

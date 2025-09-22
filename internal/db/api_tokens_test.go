@@ -32,10 +32,15 @@ func TestDBAPITokensEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't create user: %s", err)
 	}
 
-	res, err := database.ListUsers(context.Background())
+	res, total, err := database.ListUsersPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't list users: %s", err)
 	}
+
+	if total != 1 {
+		t.Fatalf("Expected total count to be 1, but got %d", total)
+	}
+
 	if len(res) != 1 {
 		t.Fatalf("One or more users weren't found in DB")
 	}

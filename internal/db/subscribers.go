@@ -36,7 +36,6 @@ const QueryCreateSubscribersTable = `
 )`
 
 const (
-	// listSubscribersStmt  = "SELECT &Subscriber.* from %s"
 	listSubscribersPagedStmt     = "SELECT &Subscriber.* from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getSubscriberStmt            = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
 	createSubscriberStmt         = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKey, opc, policyID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.policyID)"
@@ -90,21 +89,22 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 		Offset: (page - 1) * perPage,
 	}
 
-	var subs []Subscriber
-	if err := db.conn.Query(ctx, stmt, args).GetAll(&subs); err != nil {
-		if err == sql.ErrNoRows {
-			span.SetStatus(codes.Ok, "no rows")
-			return nil, 0, nil
-		}
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-		return nil, 0, err
-	}
-
 	count, err := db.CountSubscribers(ctx)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
+		return nil, 0, err
+	}
+
+	var subs []Subscriber
+
+	if err := db.conn.Query(ctx, stmt, args).GetAll(&subs); err != nil {
+		if err == sql.ErrNoRows {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, count, nil
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
 		return nil, 0, err
 	}
 

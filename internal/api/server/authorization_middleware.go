@@ -123,7 +123,7 @@ func RequirePermissionOrFirstUser(permission string, database *db.Database, jwtS
 
 		// 1) First-user bypass only for user creation POST
 		if permission == PermCreateUser && r.Method == http.MethodPost {
-			n, err := database.NumUsers(ctx)
+			n, err := database.CountUsers(ctx)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "Failed to count users", err, logger.APILog)
 				return

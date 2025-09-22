@@ -142,26 +142,27 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, page, perPage int) ([
 		Offset: (page - 1) * perPage,
 	}
 
-	var logs []AuditLog
-	if err := db.conn.Query(ctx, stmt, args).GetAll(&logs); err != nil {
-		if err == sql.ErrNoRows {
-			span.SetStatus(codes.Ok, "no rows")
-			return nil, 0, nil
-		}
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-		return nil, 0, err
-	}
-
-	totalCount, err := db.CountAuditLogs(ctx)
+	count, err := db.CountAuditLogs(ctx)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
 		return nil, 0, err
 	}
 
+	var logs []AuditLog
+
+	if err := db.conn.Query(ctx, stmt, args).GetAll(&logs); err != nil {
+		if err == sql.ErrNoRows {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, count, nil
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+		return nil, 0, err
+	}
+
 	span.SetStatus(codes.Ok, "")
-	return logs, totalCount, nil
+	return logs, count, nil
 }
 
 // DeleteOldAuditLogs removes logs older than the specified retention period in days.

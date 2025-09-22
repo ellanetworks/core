@@ -138,21 +138,22 @@ func (db *Database) ListSubscriberLogsPage(ctx context.Context, page, perPage in
 		Offset: (page - 1) * perPage,
 	}
 
-	var logs []SubscriberLog
-	if err := db.conn.Query(ctx, stmt, args).GetAll(&logs); err != nil {
-		if err == sql.ErrNoRows {
-			span.SetStatus(codes.Ok, "no rows")
-			return nil, 0, nil
-		}
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-		return nil, 0, err
-	}
-
 	count, err := db.CountSubscriberLogs(ctx)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
+		return nil, 0, err
+	}
+
+	var logs []SubscriberLog
+
+	if err := db.conn.Query(ctx, stmt, args).GetAll(&logs); err != nil {
+		if err == sql.ErrNoRows {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, count, nil
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
 		return nil, 0, err
 	}
 

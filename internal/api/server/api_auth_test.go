@@ -309,7 +309,7 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Perform API request with token", func(t *testing.T) {
-		statusCode, response, err := listUsers(ts.URL, client, APIToken)
+		statusCode, response, err := listUsers(ts.URL, client, APIToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
@@ -318,14 +318,14 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
 
-		if len(response.Result) != 1 {
-			t.Fatalf("expected 1 user, got %d", len(response.Result))
+		if len(response.Result.Items) != 1 {
+			t.Fatalf("expected 1 user, got %d", len(response.Result.Items))
 		}
 	})
 
 	t.Run("3. Try to perform API request with invalid token - should fail", func(t *testing.T) {
 		invalidToken := APIToken[:len(APIToken)-3] + "xyz"
-		statusCode, response, err := listUsers(ts.URL, client, invalidToken)
+		statusCode, response, err := listUsers(ts.URL, client, invalidToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list users with invalid token: %s", err)
 		}
@@ -350,7 +350,7 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5. Try to perform API request with deleted token - should fail", func(t *testing.T) {
-		statusCode, response, err := listUsers(ts.URL, client, APIToken)
+		statusCode, response, err := listUsers(ts.URL, client, APIToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list users with deleted token: %s", err)
 		}
@@ -470,7 +470,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Use ReadOnly user to list users - should fail", func(t *testing.T) {
-		statusCode, response, err := listUsers(ts.URL, client, readOnlyToken)
+		statusCode, response, err := listUsers(ts.URL, client, readOnlyToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
@@ -483,7 +483,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("7. Use Network Manager user to list users - should fail", func(t *testing.T) {
-		statusCode, response, err := listUsers(ts.URL, client, networkManagerToken)
+		statusCode, response, err := listUsers(ts.URL, client, networkManagerToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}

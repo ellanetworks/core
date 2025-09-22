@@ -25,10 +25,9 @@ import Grid from "@mui/material/Grid";
 import EditMyUserPasswordModal from "@/components/EditMyUserPasswordModal";
 import CreateAPITokenModal from "@/components/CreateAPITokenModal";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { getLoggedInUser } from "@/queries/users";
+import { getLoggedInUser, APIUser } from "@/queries/users";
 import { listAPITokens, deleteAPIToken } from "@/queries/api_tokens";
 import { useAuth } from "@/contexts/AuthContext";
-import { User } from "@/types/types";
 import { useRouter } from "next/navigation";
 import EmailIcon from "@mui/icons-material/Email";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -81,7 +80,7 @@ export default function Profile() {
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
 
-  const [loggedInUser, setLoggedInUser] = useState<User | null>(null);
+  const [loggedInUser, setLoggedInUser] = useState<APIUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [apiTokens, setAPITokens] = useState<APIToken[]>([]);
   const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
@@ -109,7 +108,7 @@ export default function Profile() {
     fetchUser();
   }, [fetchUser]);
 
-  const handleEditPasswordClick = (user: User | null) => {
+  const handleEditPasswordClick = (user: APIUser | null) => {
     if (!user) return;
     setEditPasswordModalOpen(true);
   };

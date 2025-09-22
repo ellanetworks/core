@@ -23,9 +23,13 @@ func TestDBUsersEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, err := database.ListUsers(context.Background())
+	res, total, err := database.ListUsersPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
+	}
+
+	if total != 0 {
+		t.Fatalf("Expected total count to be 0, but got %d", total)
 	}
 
 	if len(res) != 0 {
@@ -41,10 +45,15 @@ func TestDBUsersEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
-	res, err = database.ListUsers(context.Background())
+	res, total, err = database.ListUsersPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
+
+	if total != 1 {
+		t.Fatalf("Expected total count to be 1, but got %d", total)
+	}
+
 	if len(res) != 1 {
 		t.Fatalf("One or more users weren't found in DB")
 	}
@@ -60,7 +69,12 @@ func TestDBUsersEndToEnd(t *testing.T) {
 	if err = database.DeleteUser(context.Background(), user.Email); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
-	res, _ = database.ListUsers(context.Background())
+	res, total, _ = database.ListUsersPage(context.Background(), 1, 10)
+
+	if total != 0 {
+		t.Fatalf("Users weren't deleted from the DB properly")
+	}
+
 	if len(res) != 0 {
 		t.Fatalf("Users weren't deleted from the DB properly")
 	}

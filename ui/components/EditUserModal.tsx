@@ -14,16 +14,15 @@ import {
   MenuItem,
   SelectChangeEvent,
 } from "@mui/material";
-import { updateUser } from "@/queries/users";
+import { updateUser, RoleID, APIUser, roleIDToLabel } from "@/queries/users";
 import { useRouter } from "next/navigation";
-import { RoleID, User, roleIDToLabel } from "@/types/types";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface EditUserModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: User;
+  initialData: APIUser;
 }
 
 interface FormValues {
@@ -54,7 +53,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     if (open) {
       setFormValues({
         email: initialData.email,
-        role: initialData.roleID,
+        role: initialData.role_id,
       });
     }
   }, [open, initialData]);
