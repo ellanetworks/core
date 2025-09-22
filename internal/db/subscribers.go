@@ -453,13 +453,14 @@ func (db *Database) NumSubscribers(ctx context.Context) (int, error) {
 		attribute.String("db.collection", target),
 	)
 
-	var result NumSubscribers
 	q, err := sqlair.Prepare(stmt, NumSubscribers{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return 0, err
 	}
+
+	var result NumSubscribers
 
 	if err := db.conn.Query(ctx, q).Get(&result); err != nil {
 		span.RecordError(err)

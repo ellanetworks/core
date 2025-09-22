@@ -1,13 +1,20 @@
 import { HTTPStatus } from "@/queries/utils";
 
-export const listSubscriberLogs = async (authToken: string) => {
-  const response = await fetch(`/api/v1/logs/subscriber`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
+export const listSubscriberLogs = async (
+  authToken: string,
+  page: number,
+  perPage: number,
+) => {
+  const response = await fetch(
+    `/api/v1/logs/subscriber?page=${page}&per_page=${perPage}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + authToken,
+      },
     },
-  });
+  );
   let respData;
   try {
     respData = await response.json();

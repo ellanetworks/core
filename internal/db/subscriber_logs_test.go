@@ -25,9 +25,13 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, err := database.ListSubscriberLogs(context.Background())
+	res, total, err := database.ListSubscriberLogsPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list subscriber logs: %s", err)
+	}
+
+	if total != 0 {
+		t.Fatalf("Expected total count to be 0, but got %d", total)
 	}
 
 	if len(res) != 0 {
@@ -47,9 +51,13 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't insert subscriber log: %s", err)
 	}
 
-	res, err = database.ListSubscriberLogs(context.Background())
+	res, total, err = database.ListSubscriberLogsPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list subscriber logs: %s", err)
+	}
+
+	if total != 2 {
+		t.Fatalf("Expected total count to be 2, but got %d", total)
 	}
 
 	if len(res) != 2 {
@@ -65,9 +73,13 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't delete old subscriber logs: %s", err)
 	}
 
-	res, err = database.ListSubscriberLogs(context.Background())
+	res, total, err = database.ListSubscriberLogsPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list subscriber logs after deletion: %s", err)
+	}
+
+	if total != 0 {
+		t.Fatalf("Expected total count to be 0 after deletion, but got %d", total)
 	}
 
 	if len(res) != 0 {
@@ -118,10 +130,15 @@ func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	insert(boundary, "boundary_exact")
 	insert(fresh, "fresh")
 
-	logs, err := database.ListSubscriberLogs(ctx)
+	logs, total, err := database.ListSubscriberLogsPage(ctx, 1, 10)
 	if err != nil {
 		t.Fatalf("list before purge failed: %v", err)
 	}
+
+	if total != 3 {
+		t.Fatalf("expected total 3 logs before purge, got %d", total)
+	}
+
 	if got := len(logs); got != 3 {
 		t.Fatalf("expected 3 logs before purge, got %d", got)
 	}
@@ -131,10 +148,15 @@ func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	}
 
 	// Verify only newer + boundary remain.
-	logs, err = database.ListSubscriberLogs(ctx)
+	logs, total, err = database.ListSubscriberLogsPage(ctx, 1, 10)
 	if err != nil {
 		t.Fatalf("list after purge failed: %v", err)
 	}
+
+	if total != 2 {
+		t.Fatalf("expected total 2 logs after purge, got %d", total)
+	}
+
 	if got := len(logs); got != 2 {
 		t.Fatalf("expected 2 logs after purge, got %d", got)
 	}

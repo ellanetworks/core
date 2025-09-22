@@ -3,6 +3,7 @@ package server
 import (
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -45,4 +46,16 @@ func getClientIP(r *http.Request) string {
 		return r.RemoteAddr // as a fallback (may include port)
 	}
 	return ip
+}
+
+func atoiDefault(s string, def int) int {
+	if s == "" {
+		return def
+	}
+
+	if v, err := strconv.Atoi(s); err == nil {
+		return v
+	}
+
+	return def
 }

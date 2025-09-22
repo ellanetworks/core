@@ -11,8 +11,12 @@ import {
   Tooltip,
 } from "@mui/material";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
-import useMediaQuery from "@mui/material/useMediaQuery";
-import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
+import {
+  DataGrid,
+  GridColDef,
+  GridRenderCellParams,
+  GridPaginationModel,
+} from "@mui/x-data-grid";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
   listSubscriberLogs,
@@ -22,21 +26,37 @@ import { useAuth } from "@/contexts/AuthContext";
 import EditSubscriberLogRetentionPolicyModal from "@/components/EditSubscriberLogRetentionPolicyModal";
 import { SubscriberLogRetentionPolicy } from "@/types/types";
 import ViewLogModal from "@/components/ViewSubscriberLogModal";
+import type { LogRow } from "@/components/ViewSubscriberLogModal";
 
-interface SubscriberLogData {
-  id: string;
+type APISubscriberLog = {
+  id: number;
   timestamp: string;
   level: string;
   imsi: string;
   event: string;
   details: string;
-}
+};
+
+type ListSubscriberLogsResponse = {
+  items: APISubscriberLog[];
+  page: number;
+  per_page: number;
+  total_count: number;
+};
 
 const MAX_WIDTH = 1400;
 
 const Events: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
-  const [subscriberLogs, setSubscriberLogs] = useState<SubscriberLogData[]>([]);
+  const [rows, setRows] = useState<APISubscriberLog[]>([]);
+  const [rowCount, setRowCount] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+    page: 0, // DataGrid is 0-based
+    pageSize: 25,
+  });
+
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
@@ -44,22 +64,18 @@ const Events: React.FC = () => {
     message: "",
     severity: null,
   });
+
   const [isEditModalOpen, setEditModalOpen] = useState(false);
-
-  const theme = useTheme();
-  const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
-  const canEdit = role === "Admin";
-
-  const outerTheme = useTheme();
-  const gridTheme = useMemo(() => createTheme(outerTheme), [outerTheme]);
-
   const [retentionPolicy, setRetentionPolicy] =
     useState<SubscriberLogRetentionPolicy | null>(null);
 
   const [viewLogModalOpen, setViewLogModalOpen] = useState(false);
-  const [selectedRow, setSelectedRow] = useState<SubscriberLogData | null>(
-    null,
-  );
+  const [selectedRow, setSelectedRow] = useState<LogRow | null>(null);
+
+  const canEdit = role === "Admin";
+
+  const outerTheme = useTheme();
+  const gridTheme = useMemo(() => createTheme(outerTheme), [outerTheme]);
 
   const descriptionText =
     "Review subscriber events in Ella Core. These logs are useful for auditing and troubleshooting purposes.";
@@ -74,26 +90,60 @@ const Events: React.FC = () => {
     }
   }, [accessToken, authReady]);
 
-  const fetchSubscriberLogs = useCallback(async () => {
-    if (!authReady || !accessToken) return;
-    try {
-      const data = await listSubscriberLogs(accessToken);
-      setSubscriberLogs(data);
-    } catch (error) {
-      console.error("Error fetching subscriber logs:", error);
-    }
-  }, [accessToken, authReady]);
+  const fetchSubscriberLogs = useCallback(
+    async (pageZeroBased: number, pageSize: number) => {
+      if (!authReady || !accessToken) return;
+      setLoading(true);
+      try {
+        // API is 1-based; DataGrid is 0-based
+        const pageOneBased = pageZeroBased + 1;
+        const data: ListSubscriberLogsResponse = await listSubscriberLogs(
+          accessToken,
+          pageOneBased,
+          pageSize,
+        );
+        setRows(data.items);
+        setRowCount(data.total_count ?? 0);
+      } catch (error) {
+        console.error("Error fetching subscriber logs:", error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [accessToken, authReady],
+  );
 
   useEffect(() => {
-    fetchSubscriberLogs();
     fetchRetentionPolicy();
-  }, [fetchSubscriberLogs, fetchRetentionPolicy]);
+  }, [fetchRetentionPolicy]);
 
-  const columns: GridColDef<SubscriberLogData>[] = useMemo(() => {
+  useEffect(() => {
+    fetchSubscriberLogs(paginationModel.page, paginationModel.pageSize);
+  }, [fetchSubscriberLogs, paginationModel.page, paginationModel.pageSize]);
+
+  const columns: GridColDef<APISubscriberLog>[] = useMemo(() => {
     return [
-      { field: "timestamp", headerName: "Timestamp", flex: 1, minWidth: 220 },
-      { field: "imsi", headerName: "IMSI", flex: 1, minWidth: 220 },
-      { field: "event", headerName: "Event", flex: 1, minWidth: 200 },
+      {
+        field: "timestamp",
+        headerName: "Timestamp",
+        flex: 1,
+        minWidth: 220,
+        sortable: false,
+      },
+      {
+        field: "imsi",
+        headerName: "IMSI",
+        flex: 1,
+        minWidth: 220,
+        sortable: false,
+      },
+      {
+        field: "event",
+        headerName: "Event",
+        flex: 1,
+        minWidth: 200,
+        sortable: false,
+      },
       {
         field: "view",
         headerName: "",
@@ -102,14 +152,21 @@ const Events: React.FC = () => {
         width: 60,
         align: "center",
         headerAlign: "center",
-        renderCell: (params: GridRenderCellParams<SubscriberLogData>) => (
+        renderCell: (params: GridRenderCellParams<APISubscriberLog>) => (
           <Tooltip title="View details">
             <IconButton
               color="primary"
               size="small"
               onClick={(e) => {
                 e.stopPropagation();
-                setSelectedRow(params.row);
+                const r = params.row;
+                setSelectedRow({
+                  id: String(r.id), // <-- convert number -> string
+                  timestamp: r.timestamp,
+                  imsi: r.imsi,
+                  event: r.event,
+                  details: r.details,
+                });
                 setViewLogModalOpen(true);
               }}
               aria-label="View details"
@@ -184,18 +241,22 @@ const Events: React.FC = () => {
 
       <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
         <ThemeProvider theme={gridTheme}>
-          <DataGrid<SubscriberLogData>
-            rows={subscriberLogs}
-            showToolbar={true}
+          <DataGrid<APISubscriberLog>
+            rows={rows}
             columns={columns}
             getRowId={(row) => row.id}
-            initialState={{
-              sorting: { sortModel: [{ field: "timestamp", sort: "desc" }] },
-              pagination: { paginationModel: { pageSize: 25, page: 0 } },
-            }}
-            pageSizeOptions={[10, 25, 50, 100]}
+            loading={loading}
+            // ✨ server-side pagination wiring
+            paginationMode="server"
+            rowCount={rowCount}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            // optional simplifications
             disableRowSelectionOnClick
-            columnVisibilityModel={{ id: !isSmDown }}
+            disableColumnMenu
+            // remove client sorting if backend orders already
+            sortingMode="server"
+            pageSizeOptions={[10, 25, 50, 100]}
             sx={{
               width: "100%",
               border: 1,
