@@ -442,28 +442,30 @@ func TestRolesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Use ReadOnly user to list subscribers - should succeed", func(t *testing.T) {
-		statusCode, response, err := listSubscribers(ts.URL, client, readOnlyToken)
+		statusCode, response, err := listSubscribers(ts.URL, client, readOnlyToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list subscribers: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if len(response.Result) != 0 {
-			t.Fatalf("expected 0 subscriber, got %d", len(response.Result))
+
+		if len(response.Result.Items) != 0 {
+			t.Fatalf("expected 0 subscriber, got %d", len(response.Result.Items))
 		}
 	})
 
 	t.Run("5. Use Network Manager user to list subscribers - should succeed", func(t *testing.T) {
-		statusCode, response, err := listSubscribers(ts.URL, client, networkManagerToken)
+		statusCode, response, err := listSubscribers(ts.URL, client, networkManagerToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list subscribers: %s", err)
 		}
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if len(response.Result) != 0 {
-			t.Fatalf("expected 0 subscriber, got %d", len(response.Result))
+		if len(response.Result.Items) != 0 {
+			t.Fatalf("expected 0 subscriber, got %d", len(response.Result.Items))
 		}
 	})
 

@@ -1,20 +1,49 @@
 import { HTTPStatus } from "@/queries/utils";
-import { Subscriber } from "@/types/types";
 
-export const listSubscribers = async (
+export type SubscriberSession = {
+  ipAddress: string;
+};
+
+export type SubscriberStatus = {
+  registered?: boolean;
+  sessions?: SubscriberSession[];
+};
+
+export type APISubscriber = {
+  imsi: string;
+  opc: string;
+  sequenceNumber: string;
+  key: string;
+  policyName: string;
+  status: SubscriberStatus;
+};
+
+export type ListSubscribersResponse = {
+  items: APISubscriber[];
+  page: number;
+  per_page: number;
+  total_count: number;
+};
+
+export async function listSubscribers(
   authToken: string,
-): Promise<Subscriber[]> => {
-  const response = await fetch(`/api/v1/subscribers`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
+  page: number,
+  perPage: number,
+): Promise<ListSubscribersResponse> {
+  const response = await fetch(
+    `/api/v1/subscribers?page=${page}&per_page=${perPage}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + authToken,
+      },
     },
-  });
+  );
 
-  let respData;
+  let json: { result: ListSubscribersResponse; error?: string };
   try {
-    respData = await response.json();
+    json = await response.json();
   } catch {
     throw new Error(
       `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
@@ -23,26 +52,17 @@ export const listSubscribers = async (
 
   if (!response.ok) {
     throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${
-        respData?.error || "Unknown error"
-      }`,
+      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
     );
   }
 
-  return respData.result.map((p: any) => ({
-    imsi: p.imsi,
-    opc: p.opc,
-    sequenceNumber: p.sequenceNumber,
-    key: p.key,
-    policyName: p.policyName,
-    status: p.status,
-  }));
-};
+  return json.result;
+}
 
 export const getSubscriber = async (
   authToken: string,
   imsi: string,
-): Promise<Subscriber> => {
+): Promise<APISubscriber> => {
   const response = await fetch(`/api/v1/subscribers/${imsi}`, {
     method: "GET",
     headers: {

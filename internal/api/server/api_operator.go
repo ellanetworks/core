@@ -286,6 +286,7 @@ func UpdateOperatorSlice(dbInstance *db.Database) http.Handler {
 		}
 
 		resp := SuccessResponse{Message: "Operator slice information updated successfully"}
+
 		writeResponse(w, resp, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
@@ -378,18 +379,18 @@ func UpdateOperatorID(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		numSubs, err := dbInstance.NumSubscribers(r.Context())
+		numSubs, err := dbInstance.CountSubscribers(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to get number of subscribers", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to count subscribers", err, logger.APILog)
 			return
 		}
+
 		if numSubs > 0 {
 			writeError(w, http.StatusBadRequest, "Cannot update operator ID when there are subscribers", nil, logger.APILog)
 			return
 		}
 
 		if err := dbInstance.UpdateOperatorID(r.Context(), params.Mcc, params.Mnc); err != nil {
-			logger.APILog.Warn("Failed to update operator ID", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Failed to update operatorID", err, logger.APILog)
 			return
 		}
@@ -430,18 +431,18 @@ func UpdateOperatorCode(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		numSubs, err := dbInstance.NumSubscribers(r.Context())
+		numSubs, err := dbInstance.CountSubscribers(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to get number of subscribers", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to count subscribers", err, logger.APILog)
 			return
 		}
+
 		if numSubs > 0 {
 			writeError(w, http.StatusBadRequest, "Cannot update operator code when there are subscribers", nil, logger.APILog)
 			return
 		}
 
 		if err := dbInstance.UpdateOperatorCode(r.Context(), params.OperatorCode); err != nil {
-			logger.APILog.Warn("Failed to update operator code", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Failed to update operatorID", err, logger.APILog)
 			return
 		}

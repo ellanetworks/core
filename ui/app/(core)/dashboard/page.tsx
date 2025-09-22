@@ -26,7 +26,10 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { getStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
-import { listSubscribers } from "@/queries/subscribers";
+import {
+  listSubscribers,
+  type ListSubscribersResponse,
+} from "@/queries/subscribers";
 import { listRadios } from "@/queries/radios";
 import {
   listSubscriberLogs,
@@ -222,22 +225,28 @@ const Dashboard = () => {
     if (!authReady) return;
     if (!accessToken) return;
     let mounted = true;
+
     (async () => {
       try {
-        const [status, subscribers, radios] = await Promise.all([
+        const [status, subsPage, radios] = await Promise.all([
           getStatus(),
-          listSubscribers(accessToken),
+          listSubscribers(
+            accessToken,
+            1,
+            1,
+          ) as Promise<ListSubscribersResponse>,
           listRadios(accessToken),
         ]);
         if (!mounted) return;
 
         setVersion(status.version);
-        setSubscriberCount(subscribers.length);
+        setSubscriberCount(subsPage.total_count ?? 0);
         setRadioCount(radios.length);
       } catch {
         if (mounted) setError("Failed to fetch initial data.");
       }
     })();
+
     return () => {
       mounted = false;
     };

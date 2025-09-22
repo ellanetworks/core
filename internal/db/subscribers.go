@@ -36,15 +36,18 @@ const QueryCreateSubscribersTable = `
 )`
 
 const (
-	listSubscribersStmt   = "SELECT &Subscriber.* from %s"
-	getSubscriberStmt     = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
-	createSubscriberStmt  = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKey, opc, policyID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.policyID)"
-	editSubscriberStmt    = "UPDATE %s SET ipAddress=$Subscriber.ipAddress, sequenceNumber=$Subscriber.sequenceNumber, permanentKey=$Subscriber.permanentKey, opc=$Subscriber.opc, policyID=$Subscriber.policyID WHERE imsi==$Subscriber.imsi"
-	deleteSubscriberStmt  = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
-	getNumSubscribersStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s"
-	checkIPStmt           = "SELECT &Subscriber.* FROM %s WHERE ipAddress=$Subscriber.ipAddress"
-	allocateIPStmt        = "UPDATE %s SET ipAddress=$Subscriber.ipAddress WHERE imsi=$Subscriber.imsi"
-	releaseIPStmt         = "UPDATE %s SET ipAddress=NULL WHERE imsi=$Subscriber.imsi"
+	// listSubscribersStmt  = "SELECT &Subscriber.* from %s"
+	listSubscribersPagedStmt     = "SELECT &Subscriber.* from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	getSubscriberStmt            = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
+	createSubscriberStmt         = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKey, opc, policyID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.policyID)"
+	editSubscriberStmt           = "UPDATE %s SET ipAddress=$Subscriber.ipAddress, sequenceNumber=$Subscriber.sequenceNumber, permanentKey=$Subscriber.permanentKey, opc=$Subscriber.opc, policyID=$Subscriber.policyID WHERE imsi==$Subscriber.imsi"
+	deleteSubscriberStmt         = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
+	countSubscribersStmt         = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	countSubscribersInPolicyStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE policyID=$Subscriber.policyID"
+	countSubscribersWithIPStmt   = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE ipAddress IS NOT NULL AND TRIM(ipAddress) <> ''"
+	checkIPStmt                  = "SELECT &Subscriber.* FROM %s WHERE ipAddress=$Subscriber.ipAddress"
+	allocateIPStmt               = "UPDATE %s SET ipAddress=$Subscriber.ipAddress WHERE imsi=$Subscriber.imsi"
+	releaseIPStmt                = "UPDATE %s SET ipAddress=NULL WHERE imsi=$Subscriber.imsi"
 )
 
 type Subscriber struct {
@@ -57,47 +60,56 @@ type Subscriber struct {
 	PolicyID       int    `db:"policyID"`
 }
 
-// ListSubscribers returns all subscribers, with OpenTelemetry spans
-// named according to the OTLP Span Name conventions.
-func (db *Database) ListSubscribers(ctx context.Context) ([]Subscriber, error) {
-	operation := "SELECT"
-	target := db.subscribersTable
-	spanName := fmt.Sprintf("%s %s", operation, target)
+func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage int) ([]Subscriber, int, error) {
+	const operation = "SELECT"
+	const target = SubscribersTableName
+	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
 
-	ctx, span := tracer.Start(ctx, spanName,
-		trace.WithSpanKind(trace.SpanKindClient),
-	)
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	// attach standard semconv + low-card attributes
-	stmt := fmt.Sprintf(listSubscribersStmt, db.subscribersTable)
+	stmtStr := fmt.Sprintf(listSubscribersPagedStmt, db.subscribersTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
+		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
+		attribute.Int("page", page),
+		attribute.Int("per_page", perPage),
 	)
 
-	q, err := sqlair.Prepare(stmt, Subscriber{})
+	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, Subscriber{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
+		return nil, 0, err
 	}
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
+	}
+
 	var subs []Subscriber
-	if err := db.conn.Query(ctx, q).GetAll(&subs); err != nil {
+	if err := db.conn.Query(ctx, stmt, args).GetAll(&subs); err != nil {
 		if err == sql.ErrNoRows {
-			// no rows isn't really an error
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, nil
+			return nil, 0, nil
 		}
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
-		return nil, err
+		span.SetStatus(codes.Error, "query failed")
+		return nil, 0, err
+	}
+
+	count, err := db.CountSubscribers(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "count failed")
+		return nil, 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
-	return subs, nil
+	return subs, count, nil
 }
 
 func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber, error) {
@@ -265,22 +277,15 @@ func (db *Database) SubscribersInPolicy(ctx context.Context, name string) (bool,
 		return false, err
 	}
 
-	subs, err := db.ListSubscribers(ctx)
+	count, err := db.CountSubscribersInPolicy(ctx, policy.ID)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "listing failed")
+		span.SetStatus(codes.Error, "counting failed")
 		return false, err
 	}
 
-	for _, s := range subs {
-		if s.PolicyID == policy.ID {
-			span.SetStatus(codes.Ok, "")
-			return true, nil
-		}
-	}
-
-	span.SetStatus(codes.Ok, "none found")
-	return false, nil
+	span.SetStatus(codes.Ok, "")
+	return count > 0, nil
 }
 
 func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (bool, error) {
@@ -433,7 +438,7 @@ func addOffsetToIP(baseIP net.IP, offset int) net.IP {
 	return resultIP
 }
 
-func (db *Database) NumSubscribers(ctx context.Context) (int, error) {
+func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 	operation := "SELECT"
 	target := db.subscribersTable
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -441,7 +446,80 @@ func (db *Database) NumSubscribers(ctx context.Context) (int, error) {
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(getNumSubscribersStmt, db.subscribersTable)
+	stmt := fmt.Sprintf(countSubscribersStmt, db.subscribersTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	q, err := sqlair.Prepare(stmt, NumItems{})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return 0, err
+	}
+
+	var result NumItems
+
+	if err := db.conn.Query(ctx, q).Get(&result); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return 0, err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return result.Count, nil
+}
+
+func (db *Database) CountSubscribersInPolicy(ctx context.Context, policyID int) (int, error) {
+	operation := "SELECT"
+	target := db.subscribersTable
+	spanName := fmt.Sprintf("%s %s (by policy)", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
+	stmt := fmt.Sprintf(countSubscribersInPolicyStmt, db.subscribersTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+		attribute.Int("policy_id", policyID),
+	)
+
+	q, err := sqlair.Prepare(stmt, NumItems{}, Subscriber{})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return 0, err
+	}
+
+	var result NumItems
+
+	subscriber := Subscriber{PolicyID: policyID}
+
+	if err := db.conn.Query(ctx, q, subscriber).Get(&result); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return 0, err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return result.Count, nil
+}
+
+func (db *Database) CountSubscribersWithIP(ctx context.Context) (int, error) {
+	operation := "SELECT"
+	target := db.subscribersTable
+	spanName := fmt.Sprintf("%s %s (with IP)", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
+	stmt := fmt.Sprintf(countSubscribersWithIPStmt, db.subscribersTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmt),

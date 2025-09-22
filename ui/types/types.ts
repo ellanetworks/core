@@ -33,24 +33,6 @@ export type Route = {
   metric: number;
 };
 
-type SubscriberSession = {
-  ipAddress: string;
-};
-
-export type SubscriberStatus = {
-  registered?: boolean;
-  sessions?: Array<SubscriberSession>;
-};
-
-export type Subscriber = {
-  imsi: string;
-  opc: string;
-  sequenceNumber: string;
-  key: string;
-  policyName: string;
-  status: SubscriberStatus;
-};
-
 export type User = {
   email: string;
   roleID: RoleID;

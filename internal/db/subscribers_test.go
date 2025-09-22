@@ -25,9 +25,13 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, err := database.ListSubscribers(context.Background())
+	res, total, err := database.ListSubscribersPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
+	}
+
+	if total != 0 {
+		t.Fatalf("Expected total count to be 0, but got %d", total)
 	}
 
 	if len(res) != 0 {
@@ -45,10 +49,15 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
-	res, err = database.ListSubscribers(context.Background())
+	res, total, err = database.ListSubscribersPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
+
+	if total != 1 {
+		t.Fatalf("Expected total count to be 1, but got %d", total)
+	}
+
 	if len(res) != 1 {
 		t.Fatalf("One or more subscribers weren't found in DB")
 	}
@@ -95,7 +104,12 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 	if err = database.DeleteSubscriber(context.Background(), subscriber.Imsi); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
-	res, _ = database.ListSubscribers(context.Background())
+	res, total, _ = database.ListSubscribersPage(context.Background(), 1, 10)
+
+	if total != 0 {
+		t.Fatalf("Expected total count to be 0, but got %d", total)
+	}
+
 	if len(res) != 0 {
 		t.Fatalf("Subscribers weren't deleted from the DB properly")
 	}
@@ -305,5 +319,168 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 
 	if len(allocatedIPs) != totalIPs-2 { // Total IPs minus network and broadcast
 		t.Fatalf("Expected %d allocated IPs, but got %d", totalIPs-2, len(allocatedIPs))
+	}
+}
+
+func TestCountSubscribersWithIP(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	count, err := database.CountSubscribersWithIP(context.Background())
+	if err != nil {
+		t.Fatalf("Couldn't complete CountSubscribersWithIP: %s", err)
+	}
+	if count != 0 {
+		t.Fatalf("Expected 0 subscribers with IP, but got %d", count)
+	}
+
+	subscriber1 := &db.Subscriber{
+		Imsi:           "001010100007487",
+		SequenceNumber: "123456",
+		PermanentKey:   "123456",
+		Opc:            "123456",
+		IPAddress:      "192.168.1.2",
+	}
+	err = database.CreateSubscriber(context.Background(), subscriber1)
+	if err != nil {
+		t.Fatalf("Couldn't complete Create: %s", err)
+	}
+
+	subscriber2 := &db.Subscriber{
+		Imsi:           "001010100007488",
+		SequenceNumber: "123457",
+		PermanentKey:   "123457",
+		Opc:            "123457",
+	}
+	err = database.CreateSubscriber(context.Background(), subscriber2)
+	if err != nil {
+		t.Fatalf("Couldn't complete Create: %s", err)
+	}
+
+	count, err = database.CountSubscribersWithIP(context.Background())
+	if err != nil {
+		t.Fatalf("Couldn't complete CountSubscribersWithIP: %s", err)
+	}
+
+	if count != 1 {
+		t.Fatalf("Expected 1 subscriber with IP, but got %d", count)
+	}
+
+	subscriber3 := &db.Subscriber{
+		Imsi:           "001010100007489",
+		SequenceNumber: "123458",
+		PermanentKey:   "123458",
+		Opc:            "123458",
+		IPAddress:      "192.168.1.3",
+	}
+	err = database.CreateSubscriber(context.Background(), subscriber3)
+	if err != nil {
+		t.Fatalf("Couldn't complete Create: %s", err)
+	}
+
+	count, err = database.CountSubscribersWithIP(context.Background())
+	if err != nil {
+		t.Fatalf("Couldn't complete CountSubscribersWithIP: %s", err)
+	}
+
+	if count != 2 {
+		t.Fatalf("Expected 2 subscribers with IP, but got %d", count)
+	}
+}
+
+func TestCountSubscribersInPolicy(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	policy := &db.Policy{
+		Name: "test-policy",
+	}
+	err = database.CreatePolicy(context.Background(), policy)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreatePolicy: %s", err)
+	}
+
+	createdPolicy, err := database.GetPolicy(context.Background(), policy.Name)
+	if err != nil {
+		t.Fatalf("Couldn't retrieve policy: %s", err)
+	}
+
+	count, err := database.CountSubscribersInPolicy(context.Background(), createdPolicy.ID)
+	if err != nil {
+		t.Fatalf("Couldn't complete CountSubscribersInPolicy: %s", err)
+	}
+	if count != 0 {
+		t.Fatalf("Expected 0 subscribers in policy, but got %d", count)
+	}
+
+	subscriber1 := &db.Subscriber{
+		Imsi:           "001010100007487",
+		SequenceNumber: "123456",
+		PermanentKey:   "123456",
+		Opc:            "123456",
+		PolicyID:       createdPolicy.ID,
+	}
+	err = database.CreateSubscriber(context.Background(), subscriber1)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateSubscriber: %s", err)
+	}
+
+	subscriber2 := &db.Subscriber{
+		Imsi:           "001010100007488",
+		SequenceNumber: "123457",
+		PermanentKey:   "123457",
+		Opc:            "123457",
+	}
+	err = database.CreateSubscriber(context.Background(), subscriber2)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateSubscriber: %s", err)
+	}
+
+	count, err = database.CountSubscribersInPolicy(context.Background(), createdPolicy.ID)
+	if err != nil {
+		t.Fatalf("Couldn't complete CountSubscribersInPolicy: %s", err)
+	}
+
+	if count != 1 {
+		t.Fatalf("Expected 1 subscriber in policy, but got %d", count)
+	}
+
+	subscriber3 := &db.Subscriber{
+		Imsi:           "001010100007489",
+		SequenceNumber: "123458",
+		PermanentKey:   "123458",
+		Opc:            "123458",
+		PolicyID:       createdPolicy.ID,
+	}
+	err = database.CreateSubscriber(context.Background(), subscriber3)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateSubscriber: %s", err)
+	}
+
+	count, err = database.CountSubscribersInPolicy(context.Background(), createdPolicy.ID)
+	if err != nil {
+		t.Fatalf("Couldn't complete CountSubscribersInPolicy: %s", err)
+	}
+
+	if count != 2 {
+		t.Fatalf("Expected 2 subscribers in policy, but got %d", count)
 	}
 }

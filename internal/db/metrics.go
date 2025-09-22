@@ -44,17 +44,10 @@ func countIPsInCIDR(ipNet *net.IPNet) int {
 }
 
 func (db *Database) GetIPAddressesAllocated(ctx context.Context) (int, error) {
-	subscribers, err := db.ListSubscribers(ctx)
+	numSubs, err := db.CountSubscribersWithIP(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("failed to list subscribers: %v", err)
+		return 0, fmt.Errorf("failed to count subscribers: %v", err)
 	}
 
-	var allocatedCount int
-	for _, subscriber := range subscribers {
-		if subscriber.IPAddress != "" {
-			allocatedCount++
-		}
-	}
-
-	return allocatedCount, nil
+	return numSubs, nil
 }
