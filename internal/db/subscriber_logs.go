@@ -33,12 +33,8 @@ const (
 	insertSubscriberLogStmt     = "INSERT INTO %s (timestamp, level, imsi, event, details) VALUES ($SubscriberLog.timestamp, $SubscriberLog.level, $SubscriberLog.imsi, $SubscriberLog.event, $SubscriberLog.details)"
 	listSubscriberLogsPagedStmt = "SELECT &SubscriberLog.* FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	deleteOldSubscriberLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
-	countSubscriberLogsStmt     = "SELECT COUNT(*) AS &NumSubscriberLogs.count FROM %s"
+	countSubscriberLogsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
-
-type NumSubscriberLogs struct {
-	Count int `db:"count"`
-}
 
 type SubscriberLog struct {
 	ID        int    `db:"id"`
@@ -220,14 +216,14 @@ func (db *Database) CountSubscriberLogs(ctx context.Context) (int, error) {
 		attribute.String("db.collection", target),
 	)
 
-	stmt, err := sqlair.Prepare(stmtStr, NumSubscriberLogs{})
+	stmt, err := sqlair.Prepare(stmtStr, NumItems{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return 0, err
 	}
 
-	var result NumSubscriberLogs
+	var result NumItems
 
 	if err := db.conn.Query(ctx, stmt).Get(&result); err != nil {
 		if err == sql.ErrNoRows {

@@ -32,8 +32,9 @@ const QueryCreateAuditLogsTable = `
 
 const (
 	insertAuditLogStmt     = "INSERT INTO %s (timestamp, level, actor, action, ip, details) VALUES ($AuditLog.timestamp, $AuditLog.level, $AuditLog.actor, $AuditLog.action, $AuditLog.ip, $AuditLog.details)"
-	listAuditLogsStmt      = "SELECT &AuditLog.* FROM %s ORDER BY id DESC"
+	listAuditLogsPageStmt  = "SELECT &AuditLog.* FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	deleteOldAuditLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
+	countAuditLogsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 type AuditLog struct {
@@ -111,46 +112,56 @@ func (db *Database) InsertAuditLogJSON(ctx context.Context, raw []byte) error {
 	return nil
 }
 
-func (db *Database) ListAuditLogs(ctx context.Context) ([]AuditLog, error) {
+func (db *Database) ListAuditLogsPage(ctx context.Context, page, perPage int) ([]AuditLog, int, error) {
 	const operation = "SELECT"
 	const target = AuditLogsTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
+	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(listAuditLogsStmt, db.auditLogsTable)
+	stmtStr := fmt.Sprintf(listAuditLogsPageStmt, db.auditLogsTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
+		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
+		attribute.Int("page", page),
+		attribute.Int("per_page", perPage),
 	)
 
-	q, err := sqlair.Prepare(stmt, AuditLog{})
+	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, AuditLog{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
+		return nil, 0, err
+	}
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
 	}
 
 	var logs []AuditLog
-	if err := db.conn.Query(ctx, q).GetAll(&logs); err != nil {
+	if err := db.conn.Query(ctx, stmt, args).GetAll(&logs); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, nil
+			return nil, 0, nil
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
-		return nil, err
+		return nil, 0, err
+	}
+
+	totalCount, err := db.CountAuditLogs(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "count failed")
+		return nil, 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
-	return logs, nil
-}
-
-type cutoffArgs struct {
-	Cutoff string `db:"cutoff"`
+	return logs, totalCount, nil
 }
 
 // DeleteOldAuditLogs removes logs older than the specified retention period in days.
@@ -191,4 +202,43 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 
 	span.SetStatus(codes.Ok, "")
 	return nil
+}
+
+func (db *Database) CountAuditLogs(ctx context.Context) (int, error) {
+	const operation = "COUNT"
+	const target = AuditLogsTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
+	stmtStr := fmt.Sprintf(countAuditLogsStmt, db.auditLogsTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmtStr),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	stmt, err := sqlair.Prepare(stmtStr, NumItems{})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return 0, err
+	}
+
+	var result NumItems
+
+	if err := db.conn.Query(ctx, stmt).Get(&result); err != nil {
+		if err == sql.ErrNoRows {
+			span.SetStatus(codes.Ok, "no rows")
+			return 0, nil
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+		return 0, err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return result.Count, nil
 }

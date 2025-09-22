@@ -31,11 +31,11 @@ type SubscriberLog struct {
 	Details   string `json:"details"`
 }
 
-type ListListSubscriberLogsResponse struct {
+type ListSubscriberLogsResponse struct {
 	Items      []SubscriberLog `json:"items"`
 	Page       int             `json:"page"`
 	PerPage    int             `json:"per_page"`
-	TotalCount int64           `json:"total_count"`
+	TotalCount int             `json:"total_count"`
 }
 
 func GetSubscriberLogRetentionPolicy(dbInstance *db.Database) http.Handler {
@@ -122,11 +122,11 @@ func ListSubscriberLogs(dbInstance *db.Database) http.Handler {
 			}
 		}
 
-		response := ListListSubscriberLogsResponse{
+		response := ListSubscriberLogsResponse{
 			Items:      items,
 			Page:       page,
 			PerPage:    perPage,
-			TotalCount: int64(total),
+			TotalCount: total,
 		}
 
 		writeResponse(w, response, http.StatusOK, logger.APILog)

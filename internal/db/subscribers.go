@@ -41,15 +41,11 @@ const (
 	createSubscriberStmt  = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKey, opc, policyID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.policyID)"
 	editSubscriberStmt    = "UPDATE %s SET ipAddress=$Subscriber.ipAddress, sequenceNumber=$Subscriber.sequenceNumber, permanentKey=$Subscriber.permanentKey, opc=$Subscriber.opc, policyID=$Subscriber.policyID WHERE imsi==$Subscriber.imsi"
 	deleteSubscriberStmt  = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
-	getNumSubscribersStmt = "SELECT COUNT(*) AS &NumSubscribers.count FROM %s"
+	getNumSubscribersStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 	checkIPStmt           = "SELECT &Subscriber.* FROM %s WHERE ipAddress=$Subscriber.ipAddress"
 	allocateIPStmt        = "UPDATE %s SET ipAddress=$Subscriber.ipAddress WHERE imsi=$Subscriber.imsi"
 	releaseIPStmt         = "UPDATE %s SET ipAddress=NULL WHERE imsi=$Subscriber.imsi"
 )
-
-type NumSubscribers struct {
-	Count int `db:"count"`
-}
 
 type Subscriber struct {
 	ID             int    `db:"id"`
@@ -453,14 +449,14 @@ func (db *Database) NumSubscribers(ctx context.Context) (int, error) {
 		attribute.String("db.collection", target),
 	)
 
-	q, err := sqlair.Prepare(stmt, NumSubscribers{})
+	q, err := sqlair.Prepare(stmt, NumItems{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return 0, err
 	}
 
-	var result NumSubscribers
+	var result NumItems
 
 	if err := db.conn.Query(ctx, q).Get(&result); err != nil {
 		span.RecordError(err)

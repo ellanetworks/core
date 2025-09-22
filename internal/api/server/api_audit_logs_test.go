@@ -3,13 +3,14 @@ package server_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-type GetAuditLogResponseResult struct {
+type AuditLog struct {
 	ID        int    `json:"id"`
 	Timestamp string `json:"timestamp"`
 	Level     string `json:"level"`
@@ -19,9 +20,16 @@ type GetAuditLogResponseResult struct {
 	Details   string `json:"details"`
 }
 
+type ListAuditLogResponseResult struct {
+	Items      []AuditLog `json:"items"`
+	Page       int        `json:"page"`
+	PerPage    int        `json:"per_page"`
+	TotalCount int        `json:"total_count"`
+}
+
 type ListAuditLogResponse struct {
-	Result []GetAuditLogResponseResult `json:"result"`
-	Error  string                      `json:"error,omitempty"`
+	Result ListAuditLogResponseResult `json:"result"`
+	Error  string                     `json:"error,omitempty"`
 }
 
 type GetAuditLogsRetentionPolicyResponseResult struct {
@@ -46,8 +54,8 @@ type UpdateAuditLogRetentionPolicyParams struct {
 	Days int `json:"days"`
 }
 
-func listAuditLogs(url string, client *http.Client, token string) (int, *ListAuditLogResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/logs/audit", nil)
+func listAuditLogs(url string, client *http.Client, token string, page int, perPage int) (int, *ListAuditLogResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/logs/audit?page=%d&per_page=%d", url, page, perPage), nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -135,7 +143,7 @@ func TestAPIAuditLogs(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	statusCode, response, err := listAuditLogs(ts.URL, client, token)
+	statusCode, response, err := listAuditLogs(ts.URL, client, token, 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list audit logs: %s", err)
 	}
@@ -144,20 +152,20 @@ func TestAPIAuditLogs(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 	}
 
-	if len(response.Result) != 1 {
-		t.Fatalf("expected 1 audit log, got %d", len(response.Result))
+	if len(response.Result.Items) != 1 {
+		t.Fatalf("expected 1 audit log, got %d", len(response.Result.Items))
 	}
 
 	if response.Error != "" {
 		t.Fatalf("unexpected error :%q", response.Error)
 	}
 
-	if response.Result[0].Actor != "" {
-		t.Fatalf("expected second audit log actor to be '', got %s", response.Result[0].Actor)
+	if response.Result.Items[0].Actor != "" {
+		t.Fatalf("expected second audit log actor to be '', got %s", response.Result.Items[0].Actor)
 	}
 
-	if response.Result[0].Action != "create_user" {
-		t.Fatalf("expected second audit log action to be '%s', got %s", "create_user", response.Result[0].Action)
+	if response.Result.Items[0].Action != "create_user" {
+		t.Fatalf("expected second audit log action to be '%s', got %s", "create_user", response.Result.Items[0].Action)
 	}
 }
 
