@@ -498,7 +498,9 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-	ran.Log.Info("Handle NGAP NG Setup Request")
+
+	logger.LogRadioEvent(logger.RadioNGSetupRequest, ran.GnbID, zap.String("ranName", ran.Name), zap.String("ranID", ran.GnbID), zap.String("ranIP", ran.GnbIP))
+
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -655,7 +657,7 @@ func HandleUplinkNasTransport(ctx ctxt.Context, ran *context.AmfRan, message *ng
 		return
 	}
 
-	ran.Log.Info("Handle NGAP Uplink NAS Transport")
+	logger.LogRadioEvent(logger.RadioUplinkNASTransport, ran.GnbID, zap.String("ranName", ran.Name), zap.String("ranID", ran.GnbID), zap.String("ranIP", ran.GnbIP))
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -743,7 +745,7 @@ func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		return
 	}
 
-	ran.Log.Info("Handle NGAP NG Reset")
+	logger.LogRadioEvent(logger.RadioNGReset, ran.GnbID, zap.String("ranName", ran.Name), zap.String("ranID", ran.GnbID), zap.String("ranIP", ran.GnbIP))
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")

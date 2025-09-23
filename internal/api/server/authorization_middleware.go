@@ -39,6 +39,8 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRoutes, PermCreateRoute, PermReadRoute, PermDeleteRoute,
 		PermListRadios, PermReadRadio,
 		PermGetNATInfo, PermUpdateNATInfo,
+		PermListSubscriberLogs, PermGetSubscriberLogRetentionPolicy, PermSetSubscriberLogRetentionPolicy,
+		PermListRadioLogs, PermGetRadioLogRetentionPolicy, PermSetRadioLogRetentionPolicy,
 	},
 }
 
@@ -115,6 +117,11 @@ const (
 	PermGetSubscriberLogRetentionPolicy = "subscriber_logs:get_retention"
 	PermSetSubscriberLogRetentionPolicy = "subscriber_logs:set_retention"
 	PermListSubscriberLogs              = "subscriber_logs:list"
+
+	// Radio Log permissions
+	PermGetRadioLogRetentionPolicy = "radio_logs:get_retention"
+	PermSetRadioLogRetentionPolicy = "radio_logs:set_retention"
+	PermListRadioLogs              = "radio_logs:list"
 )
 
 func RequirePermissionOrFirstUser(permission string, database *db.Database, jwtSecret []byte, next http.Handler) http.Handler {

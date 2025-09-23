@@ -102,6 +102,11 @@ func NewHandler(dbInstance *db.Database, upf UPFReloader, kernel kernel.Kernel, 
 	mux.HandleFunc("PUT /api/v1/logs/subscriber/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermSetSubscriberLogRetentionPolicy, jwtSecret, UpdateSubscriberLogRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/logs/subscriber", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListSubscriberLogs, jwtSecret, ListSubscriberLogs(dbInstance))).ServeHTTP)
 
+	// Radio Logs (Authenticated)
+	mux.HandleFunc("GET /api/v1/logs/radio/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetRadioLogRetentionPolicy, jwtSecret, GetRadioLogRetentionPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/logs/radio/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermSetRadioLogRetentionPolicy, jwtSecret, UpdateRadioLogRetentionPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/logs/radio", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListRadioLogs, jwtSecret, ListRadioLogs(dbInstance))).ServeHTTP)
+
 	// Fallback to UI
 	frontendHandler, err := newFrontendFileServer(embedFS)
 	if err != nil {

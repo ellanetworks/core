@@ -35,6 +35,7 @@ type LogCategory string
 const (
 	CategoryAuditLogs      LogCategory = "audit"
 	CategorySubscriberLogs LogCategory = "subscriber"
+	CategoryRadioLogs      LogCategory = "radio"
 )
 
 type LogRetentionPolicy struct {

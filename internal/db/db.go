@@ -30,6 +30,7 @@ type Database struct {
 	usersTable             string
 	auditLogsTable         string
 	subscriberLogsTable    string
+	radioLogsTable         string
 	retentionPoliciesTable string
 	apiTokensTable         string
 	sessionsTable          string
@@ -141,6 +142,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.usersTable = UsersTableName
 	db.auditLogsTable = AuditLogsTableName
 	db.subscriberLogsTable = SubscriberLogsTableName
+	db.radioLogsTable = RadioLogsTableName
 	db.retentionPoliciesTable = LogRetentionPolicyTableName
 	db.apiTokensTable = APITokensTableName
 	db.sessionsTable = SessionsTableName
@@ -196,7 +198,7 @@ func (db *Database) Initialize() error {
 			return fmt.Errorf("failed to initialize log retention policy: %v", err)
 		}
 
-		logger.DBLog.Info("Initialized log retention policy", zap.Int("days", DefaultLogRetentionDays))
+		logger.DBLog.Info("Initialized audit log retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
 	if !db.IsLogRetentionPolicyInitialized(context.Background(), CategorySubscriberLogs) {
@@ -210,6 +212,19 @@ func (db *Database) Initialize() error {
 		}
 
 		logger.DBLog.Info("Initialized subscriber log retention policy", zap.Int("days", DefaultLogRetentionDays))
+	}
+
+	if !db.IsLogRetentionPolicyInitialized(context.Background(), CategoryRadioLogs) {
+		initialPolicy := &LogRetentionPolicy{
+			Category: CategoryRadioLogs,
+			Days:     DefaultLogRetentionDays,
+		}
+
+		if err := db.SetLogRetentionPolicy(context.Background(), initialPolicy); err != nil {
+			return fmt.Errorf("failed to initialize radio log retention policy: %v", err)
+		}
+
+		logger.DBLog.Info("Initialized radio log retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
 	numDataNetworks, err := db.CountDataNetworks(context.Background())
