@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"net/url"
 )
 
 type GetRadioOptions struct {
@@ -66,7 +67,11 @@ func (c *Client) ListRadios(ctx context.Context, p *ListParams) (*ListRadiosResp
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   fmt.Sprintf("api/v1/radios?page=%d&per_page=%d", p.Page, p.PerPage),
+		Path:   "api/v1/radios",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+		},
 	})
 	if err != nil {
 		return nil, err

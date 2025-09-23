@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 )
 
 type CreateDataNetworkOptions struct {
@@ -103,7 +104,11 @@ func (c *Client) ListDataNetworks(ctx context.Context, p *ListParams) (*ListData
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   fmt.Sprintf("api/v1/networking/data-networks?page=%d&per_page=%d", p.Page, p.PerPage),
+		Path:   "api/v1/networking/data-networks",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+		},
 	})
 	if err != nil {
 		return nil, err

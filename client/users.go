@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 )
 
 type RoleID int
@@ -63,7 +64,11 @@ func (c *Client) ListUsers(ctx context.Context, p *ListParams) (*ListUsersRespon
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   fmt.Sprintf("api/v1/users?page=%d&per_page=%d", p.Page, p.PerPage),
+		Path:   "api/v1/users",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -161,7 +166,11 @@ func (c *Client) ListMyAPITokens(ctx context.Context, p *ListParams) (*ListAPITo
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   fmt.Sprintf("api/v1/users/me/api-tokens?page=%d&per_page=%d", p.Page, p.PerPage),
+		Path:   "api/v1/users/me/api-tokens",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+		},
 	})
 	if err != nil {
 		return nil, err

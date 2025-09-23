@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 )
 
 type AuditLog struct {
@@ -36,7 +37,11 @@ func (c *Client) ListAuditLogs(ctx context.Context, p *ListParams) (*ListAuditLo
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   fmt.Sprintf("api/v1/logs/audit?page=%d&per_page=%d", p.Page, p.PerPage),
+		Path:   "api/v1/logs/audit",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+		},
 	})
 	if err != nil {
 		return nil, err
