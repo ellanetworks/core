@@ -221,7 +221,7 @@ const Events: React.FC = () => {
                 setSelectedRow({
                   id: String(r.id),
                   timestamp: r.timestamp,
-                  imsi: r.imsi,
+                  event_id: r.imsi,
                   event: r.event,
                   details: r.details ?? "",
                 });
@@ -280,7 +280,7 @@ const Events: React.FC = () => {
                 setSelectedRow({
                   id: String(r.id),
                   timestamp: r.timestamp,
-                  imsi: r.ran_id,
+                  event_id: r.ran_id,
                   event: r.event,
                   details: r.details ?? "",
                 });

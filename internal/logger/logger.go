@@ -372,14 +372,14 @@ const (
 	RadioNGReset            RadioEvent = "NG Reset"
 )
 
-func LogRadioEvent(event RadioEvent, id string, fields ...zap.Field) {
+func LogRadioEvent(event RadioEvent, ranID string, fields ...zap.Field) {
 	if RadioLog == nil {
 		return
 	}
 
 	if event == "" {
 		EllaLog.Warn("attempted to log empty radio event",
-			zap.String("id", id),
+			zap.String("ran_id", ranID),
 			zap.Any("fields", fields),
 		)
 		return
@@ -393,7 +393,7 @@ func LogRadioEvent(event RadioEvent, id string, fields ...zap.Field) {
 	var detailsStr string
 
 	reserved := map[string]struct{}{
-		"event": {}, "id": {}, "timestamp": {}, "level": {},
+		"event": {}, "ran_id": {}, "timestamp": {}, "level": {},
 		"component": {}, "caller": {}, "message": {},
 	}
 
@@ -432,7 +432,7 @@ func LogRadioEvent(event RadioEvent, id string, fields ...zap.Field) {
 	// Emit a single, consistent log line. DB reader already expects details as string.
 	RadioLog.Info("radio_event",
 		zap.String("event", string(event)),
-		zap.String("id", id),
+		zap.String("ran_id", ranID),
 		zap.String("details", detailsStr),
 	)
 }

@@ -30,7 +30,7 @@ const QueryCreateRadioLogsTable = `
 );`
 
 const (
-	insertRadioLogStmt     = "INSERT INTO %s (timestamp, level, ran_id, event, details) VALUES ($RadioLog.timestamp, $RadioLog.level, $RadioLog.RanID, $RadioLog.event, $RadioLog.details)"
+	insertRadioLogStmt     = "INSERT INTO %s (timestamp, level, ran_id, event, details) VALUES ($RadioLog.timestamp, $RadioLog.level, $RadioLog.ran_id, $RadioLog.event, $RadioLog.details)"
 	listRadioLogsPagedStmt = "SELECT &RadioLog.* FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	deleteOldRadioLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
 	countRadioLogsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
