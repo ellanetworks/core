@@ -7,14 +7,6 @@ export type Policy = {
   dataNetworkName: string;
 };
 
-export type Route = {
-  id: string;
-  destination: string;
-  gateway: string;
-  interface: string;
-  metric: number;
-};
-
 export type AuditLogRetentionPolicy = {
   days: number;
 };

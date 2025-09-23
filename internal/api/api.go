@@ -92,7 +92,7 @@ func Start(dbInstance *db.Database, upf server.UPFReloader, port int, scheme Sch
 }
 
 func ReconcileKernelRouting(dbInstance *db.Database, kernelInt kernel.Kernel) error {
-	expectedRoutes, err := dbInstance.ListRoutes(context.Background())
+	expectedRoutes, _, err := dbInstance.ListRoutesPage(context.Background(), 1, 100)
 	if err != nil {
 		return fmt.Errorf("couldn't list routes: %v", err)
 	}

@@ -21,12 +21,19 @@ type CreateRouteParams struct {
 	Metric      int    `json:"metric"`
 }
 
-type GetRouteResponse struct {
+type Route struct {
 	ID          int64  `json:"id"`
 	Destination string `json:"destination"`
 	Gateway     string `json:"gateway"`
 	Interface   string `json:"interface"`
 	Metric      int    `json:"metric"`
+}
+
+type ListRoutesResponse struct {
+	Items      []Route `json:"items"`
+	Page       int     `json:"page"`
+	PerPage    int     `json:"per_page"`
+	TotalCount int     `json:"total_count"`
 }
 
 const (
@@ -64,15 +71,30 @@ var interfaceKernelMap = map[string]kernel.NetworkInterface{
 
 func ListRoutes(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		dbRoutes, err := dbInstance.ListRoutes(r.Context())
+		q := r.URL.Query()
+		page := atoiDefault(q.Get("page"), 1)
+		perPage := atoiDefault(q.Get("per_page"), 25)
+
+		if page < 1 {
+			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			return
+		}
+
+		if perPage < 1 || perPage > 100 {
+			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			return
+		}
+
+		dbRoutes, total, err := dbInstance.ListRoutesPage(r.Context(), page, perPage)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Routes not found", err, logger.APILog)
 			return
 		}
 
-		routeList := make([]GetRouteResponse, 0)
+		items := make([]Route, 0)
+
 		for _, dbRoute := range dbRoutes {
-			routeList = append(routeList, GetRouteResponse{
+			items = append(items, Route{
 				ID:          dbRoute.ID,
 				Destination: dbRoute.Destination,
 				Gateway:     dbRoute.Gateway,
@@ -80,7 +102,15 @@ func ListRoutes(dbInstance *db.Database) http.Handler {
 				Metric:      dbRoute.Metric,
 			})
 		}
-		writeResponse(w, routeList, http.StatusOK, logger.APILog)
+
+		resp := ListRoutesResponse{
+			Items:      items,
+			Page:       page,
+			PerPage:    perPage,
+			TotalCount: total,
+		}
+
+		writeResponse(w, resp, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -99,13 +129,14 @@ func GetRoute(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		routeResponse := GetRouteResponse{
+		routeResponse := Route{
 			ID:          dbRoute.ID,
 			Destination: dbRoute.Destination,
 			Gateway:     dbRoute.Gateway,
 			Interface:   dbRoute.Interface.String(),
 			Metric:      dbRoute.Metric,
 		}
+
 		writeResponse(w, routeResponse, http.StatusOK, logger.APILog)
 	})
 }
@@ -185,9 +216,9 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			return
 		}
 
-		numRoutes, err := dbInstance.NumRoutes(r.Context())
+		numRoutes, err := dbInstance.CountRoutes(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve routes", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to count routes", err, logger.APILog)
 			return
 		}
 

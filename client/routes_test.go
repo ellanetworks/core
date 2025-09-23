@@ -177,7 +177,7 @@ func TestListRoutes_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"imsi": "001010100000022", "policyName": "default"}]`),
+			Result:     []byte(`{"items": [{"id": 1, "destination": "1.2.3.4", "gateway": "1.2.3.1", "interface": "eth0", "metric": 100}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}
@@ -187,13 +187,18 @@ func TestListRoutes_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	routes, err := clientObj.ListRoutes(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	routes, err := clientObj.ListRoutes(ctx, params)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(routes) != 1 {
-		t.Fatalf("expected 1 route, got %d", len(routes))
+	if len(routes.Items) != 1 {
+		t.Fatalf("expected 1 route, got %d", len(routes.Items))
 	}
 }
 
@@ -212,7 +217,12 @@ func TestListRoutes_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := clientObj.ListRoutes(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	_, err := clientObj.ListRoutes(ctx, params)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

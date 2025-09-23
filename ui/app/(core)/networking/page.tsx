@@ -10,11 +10,9 @@ import {
   Alert,
   Collapse,
   Chip,
-  IconButton,
   Stack,
   Tabs,
   Tab,
-  Paper,
   Switch,
 } from "@mui/material";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
@@ -33,7 +31,12 @@ import CreateDataNetworkModal from "@/components/CreateDataNetworkModal";
 import EditDataNetworkModal from "@/components/EditDataNetworkModal";
 
 // Routes
-import { listRoutes, deleteRoute } from "@/queries/routes";
+import {
+  listRoutes,
+  deleteRoute,
+  type ListRoutesResponse,
+  type APIRoute,
+} from "@/queries/routes";
 import CreateRouteModal from "@/components/CreateRouteModal";
 
 // NAT (global)
@@ -42,8 +45,6 @@ import { getNATInfo, updateNATInfo } from "@/queries/nat";
 // Shared UI
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-
-import type { Route } from "@/types/types";
 
 import {
   DataGrid,
@@ -77,7 +78,7 @@ export default function NetworkingPage() {
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
 
-  // ====================== Data Networks (SERVER PAGINATION) ======================
+  // ====================== Data Networks ======================
   const [dnPagination, setDnPagination] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 25,
@@ -94,14 +95,12 @@ export default function NetworkingPage() {
       dnPagination.page,
       dnPagination.pageSize,
     ],
-    queryFn: () => {
-      const pageOneBased = dnPagination.page + 1;
-      return listDataNetworks(
+    queryFn: () =>
+      listDataNetworks(
         accessToken || "",
-        pageOneBased,
+        dnPagination.page + 1,
         dnPagination.pageSize,
-      );
-    },
+      ),
     enabled: !!accessToken,
     refetchInterval: 5000,
     refetchIntervalInBackground: true,
@@ -202,18 +201,18 @@ export default function NetworkingPage() {
               width: 120,
               sortable: false,
               disableColumnMenu: true,
-              getActions: (params: { row: APIDataNetwork }) => [
+              getActions: (p: { row: APIDataNetwork }) => [
                 <GridActionsCellItem
                   key="edit"
                   icon={<EditIcon color="primary" />}
                   label="Edit"
-                  onClick={() => handleEditDN(params.row)}
+                  onClick={() => handleEditDN(p.row)}
                 />,
                 <GridActionsCellItem
                   key="delete"
                   icon={<DeleteIcon color="primary" />}
                   label="Delete"
-                  onClick={() => handleRequestDeleteDN(params.row.name)}
+                  onClick={() => handleRequestDeleteDN(p.row.name)}
                 />,
               ],
             } as GridColDef<APIDataNetwork>,
@@ -222,17 +221,30 @@ export default function NetworkingPage() {
     ];
   }, [canEdit]);
 
-  // ====================== Routes (unchanged) ======================
+  // ====================== Routes ======================
+  const [rtPagination, setRtPagination] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize: 25,
+  });
+
   const {
-    data: routes = [],
+    data: rtPage,
     isLoading: rtLoading,
     refetch: refetchRoutes,
-  } = useQuery<Route[]>({
-    queryKey: ["routes", accessToken],
-    queryFn: () => listRoutes(accessToken || ""),
+  } = useQuery<ListRoutesResponse>({
+    queryKey: ["routes", accessToken, rtPagination.page, rtPagination.pageSize],
+    queryFn: () =>
+      listRoutes(
+        accessToken || "",
+        rtPagination.page + 1,
+        rtPagination.pageSize,
+      ),
     enabled: !!accessToken,
     refetchOnWindowFocus: true,
   });
+
+  const rtRows: APIRoute[] = rtPage?.items ?? [];
+  const rtRowCount = rtPage?.total_count ?? 0;
 
   const [isCreateRouteOpen, setCreateRouteOpen] = useState(false);
   const [isDeleteRouteOpen, setDeleteRouteOpen] = useState(false);
@@ -243,10 +255,10 @@ export default function NetworkingPage() {
     setSelectedRouteId(routeID);
     setDeleteRouteOpen(true);
   };
+
   const handleConfirmDeleteRoute = async () => {
     setDeleteRouteOpen(false);
     if (!selectedRouteId || !accessToken) return;
-
     const idNum = Number(selectedRouteId);
     if (Number.isNaN(idNum)) {
       setRtAlert({
@@ -256,7 +268,6 @@ export default function NetworkingPage() {
       setSelectedRouteId(null);
       return;
     }
-
     try {
       await deleteRoute(accessToken, idNum);
       setRtAlert({
@@ -280,7 +291,42 @@ export default function NetworkingPage() {
     [],
   );
 
-  // ====================== NAT (unchanged) ======================
+  const rtColumns: GridColDef<APIRoute>[] = useMemo(() => {
+    return [
+      { field: "id", headerName: "ID", width: 100 },
+      {
+        field: "destination",
+        headerName: "Destination",
+        flex: 1,
+        minWidth: 180,
+      },
+      { field: "gateway", headerName: "Gateway", flex: 1, minWidth: 160 },
+      { field: "interface", headerName: "Interface", flex: 1, minWidth: 140 },
+      { field: "metric", headerName: "Metric", width: 110 },
+      ...(canEdit
+        ? [
+            {
+              field: "actions",
+              headerName: "Actions",
+              type: "actions",
+              width: 100,
+              sortable: false,
+              disableColumnMenu: true,
+              getActions: (p: { row: APIRoute }) => [
+                <GridActionsCellItem
+                  key="delete"
+                  icon={<DeleteIcon color="primary" />}
+                  label="Delete"
+                  onClick={() => handleRequestDeleteRoute(String(p.row.id))}
+                />,
+              ],
+            } as GridColDef<APIRoute>,
+          ]
+        : []),
+    ];
+  }, [canEdit]);
+
+  // ====================== NAT ======================
   type NatInfo = { enabled: boolean };
   const {
     data: natInfo,
@@ -348,7 +394,7 @@ export default function NetworkingPage() {
         </Tabs>
       </Box>
 
-      {/* ================= Data Networks Tab (paginated) ================= */}
+      {/* ================= Data Networks Tab  ================= */}
       {tab === "data-networks" && (
         <Box
           sx={{
@@ -454,7 +500,7 @@ export default function NetworkingPage() {
         </Box>
       )}
 
-      {/* ---------------- Routes Tab (unchanged table) ---------------- */}
+      {/* ================= Routes Tab  ================= */}
       {tab === "routes" && (
         <Box
           sx={{
@@ -474,11 +520,11 @@ export default function NetworkingPage() {
             </Alert>
           </Collapse>
 
-          {rtLoading ? (
+          {rtLoading && rtRowCount === 0 ? (
             <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
               <CircularProgress />
             </Box>
-          ) : routes.length === 0 ? (
+          ) : rtRowCount === 0 ? (
             <EmptyState
               primaryText="No route found."
               secondaryText="Create a route so UEs can reach external networks."
@@ -502,7 +548,7 @@ export default function NetworkingPage() {
                 >
                   <Box>
                     <Typography variant="h5" sx={{ mb: 0.5 }}>
-                      Routes
+                      Routes ({rtRowCount})
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       {routesDescription}
@@ -521,57 +567,47 @@ export default function NetworkingPage() {
                 </Stack>
               </Box>
 
-              {/* keep your existing table for routes if you prefer */}
-              <Paper variant="outlined" sx={{ p: 1 }}>
-                <table style={{ width: "100%" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: "left", padding: 8 }}>ID</th>
-                      <th style={{ textAlign: "left", padding: 8 }}>
-                        Destination
-                      </th>
-                      <th style={{ textAlign: "left", padding: 8 }}>Gateway</th>
-                      <th style={{ textAlign: "left", padding: 8 }}>
-                        Interface
-                      </th>
-                      <th style={{ textAlign: "left", padding: 8 }}>Metric</th>
-                      {canEdit && (
-                        <th style={{ textAlign: "right", padding: 8 }}>
-                          Actions
-                        </th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {routes.map((route) => (
-                      <tr key={route.id}>
-                        <td style={{ padding: 8 }}>{route.id}</td>
-                        <td style={{ padding: 8 }}>{route.destination}</td>
-                        <td style={{ padding: 8 }}>{route.gateway}</td>
-                        <td style={{ padding: 8 }}>{route.interface}</td>
-                        <td style={{ padding: 8 }}>{route.metric}</td>
-                        {canEdit && (
-                          <td style={{ padding: 8, textAlign: "right" }}>
-                            <IconButton
-                              aria-label="delete"
-                              onClick={() => handleRequestDeleteRoute(route.id)}
-                              size="small"
-                            >
-                              <DeleteIcon color="primary" />
-                            </IconButton>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </Paper>
+              <ThemeProvider theme={gridTheme}>
+                <DataGrid<APIRoute>
+                  rows={rtRows}
+                  columns={rtColumns}
+                  getRowId={(row) => row.id}
+                  loading={rtLoading}
+                  paginationMode="server"
+                  rowCount={rtRowCount}
+                  paginationModel={rtPagination}
+                  onPaginationModelChange={setRtPagination}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  sortingMode="server"
+                  disableColumnMenu
+                  disableRowSelectionOnClick
+                  autoHeight
+                  sx={{
+                    width: "100%",
+                    border: 1,
+                    borderColor: "divider",
+                    "& .MuiDataGrid-cell": {
+                      borderBottom: "1px solid",
+                      borderColor: "divider",
+                    },
+                    "& .MuiDataGrid-columnHeaders": {
+                      borderBottom: "1px solid",
+                      borderColor: "divider",
+                    },
+                    "& .MuiDataGrid-footerContainer": {
+                      borderTop: "1px solid",
+                      borderColor: "divider",
+                    },
+                    "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
+                  }}
+                />
+              </ThemeProvider>
             </>
           )}
         </Box>
       )}
 
-      {/* ---------------- NAT Tab (unchanged) ---------------- */}
+      {/* ================= NAT Tab (unchanged) ================= */}
       {tab === "nat" && (
         <Box
           sx={{
@@ -640,14 +676,7 @@ export default function NetworkingPage() {
           open
           onClose={() => setEditDNOpen(false)}
           onSuccess={refetchDataNetworks}
-          initialData={
-            editDN || {
-              name: "",
-              ip_pool: "",
-              dns: "",
-              mtu: 1500,
-            }
-          }
+          initialData={editDN || { name: "", ip_pool: "", dns: "", mtu: 1500 }}
         />
       )}
       {isDeleteDNOpen && (

@@ -30,6 +30,13 @@ type Route struct {
 	Metric      int    `json:"metric"`
 }
 
+type ListRoutesResponse struct {
+	Items      []Route `json:"items"`
+	Page       int     `json:"page"`
+	PerPage    int     `json:"per_page"`
+	TotalCount int     `json:"total_count"`
+}
+
 func (c *Client) CreateRoute(ctx context.Context, opts *CreateRouteOptions) error {
 	payload := struct {
 		Destination string `json:"destination"`
@@ -93,19 +100,19 @@ func (c *Client) DeleteRoute(ctx context.Context, opts *DeleteRouteOptions) erro
 	return nil
 }
 
-func (c *Client) ListRoutes(ctx context.Context) ([]*Route, error) {
+func (c *Client) ListRoutes(ctx context.Context, p *ListParams) (*ListRoutesResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/networking/routes",
+		Path:   fmt.Sprintf("api/v1/networking/routes?page=%d&per_page=%d", p.Page, p.PerPage),
 	})
 	if err != nil {
 		return nil, err
 	}
-	var routes []*Route
-	err = resp.DecodeResult(&routes)
+	var routesResponse ListRoutesResponse
+	err = resp.DecodeResult(&routesResponse)
 	if err != nil {
 		return nil, err
 	}
-	return routes, nil
+	return &routesResponse, nil
 }
