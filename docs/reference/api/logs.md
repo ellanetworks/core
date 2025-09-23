@@ -167,3 +167,80 @@ None
     }
 }
 ```
+
+## List Radio Logs
+
+This path returns the list of radio logs.
+
+| Method | Path                    |
+| ------ | ----------------------- |
+| GET    | `/api/v1/logs/radio`   |
+
+### Query Parameters
+
+| Name       | In    | Type | Default | Allowed | Description                   |
+| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "id": 1,
+                "timestamp": "2025-08-12T16:58:00.810-0400",
+                "level": "info",
+                "ran_id": "001:01:000008",
+                "event": "PDU Session Resource Setup Response",
+                "details": "{\"ranID\":\"001:01:000008\",\"ranIP\":\"192.168.40.14:9487\",\"ranName\":\"my ran name\"}"
+            }
+        ],
+        "page": 1,
+        "per_page": 10,
+        "total_count": 1
+    }
+}
+```
+
+## Update Radio Log Retention Policy
+
+```json
+{
+    "days": 30
+}
+```
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Radio log retention policy updated successfully"
+    }
+}
+```
+
+## Get Radio Log Retention Policy
+
+This path returns the current radio log retention policy.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| GET    | `/api/v1/logs/radio/retention` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "days": 30
+    }
+}
+```
