@@ -301,7 +301,7 @@ const Events: React.FC = () => {
   const subDescription =
     "Review subscriber events in Ella Core. These logs are useful for auditing and troubleshooting purposes.";
   const radioDescription =
-    "Review radio events in Ella Core. Helpful for gNB onboarding, session setup, and troubleshooting.";
+    "Review radio events in Ella Core. These logs are helpful for radio onboarding, session setup, and troubleshooting.";
 
   return (
     <Box
