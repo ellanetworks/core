@@ -32,13 +32,13 @@ const QueryCreatePoliciesTable = `
 )`
 
 const (
-	listPoliciesStmt   = "SELECT &Policy.* from %s"
-	getPolicyStmt      = "SELECT &Policy.* from %s WHERE name==$Policy.name"
-	getPolicyByIDStmt  = "SELECT &Policy.* FROM %s WHERE id==$Policy.id"
-	createPolicyStmt   = "INSERT INTO %s (name, bitrateUplink, bitrateDownlink, var5qi, priorityLevel, dataNetworkID) VALUES ($Policy.name, $Policy.bitrateUplink, $Policy.bitrateDownlink, $Policy.var5qi, $Policy.priorityLevel, $Policy.dataNetworkID)"
-	editPolicyStmt     = "UPDATE %s SET bitrateUplink=$Policy.bitrateUplink, bitrateDownlink=$Policy.bitrateDownlink, var5qi=$Policy.var5qi, priorityLevel=$Policy.priorityLevel, dataNetworkID=$Policy.dataNetworkID WHERE name==$Policy.name"
-	deletePolicyStmt   = "DELETE FROM %s WHERE name==$Policy.name"
-	getNumPoliciesStmt = "SELECT COUNT(*) AS &NumPolicies.count FROM %s"
+	listPoliciesPagedStmt = "SELECT &Policy.* from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	getPolicyStmt         = "SELECT &Policy.* from %s WHERE name==$Policy.name"
+	getPolicyByIDStmt     = "SELECT &Policy.* FROM %s WHERE id==$Policy.id"
+	createPolicyStmt      = "INSERT INTO %s (name, bitrateUplink, bitrateDownlink, var5qi, priorityLevel, dataNetworkID) VALUES ($Policy.name, $Policy.bitrateUplink, $Policy.bitrateDownlink, $Policy.var5qi, $Policy.priorityLevel, $Policy.dataNetworkID)"
+	editPolicyStmt        = "UPDATE %s SET bitrateUplink=$Policy.bitrateUplink, bitrateDownlink=$Policy.bitrateDownlink, var5qi=$Policy.var5qi, priorityLevel=$Policy.priorityLevel, dataNetworkID=$Policy.dataNetworkID WHERE name==$Policy.name"
+	deletePolicyStmt      = "DELETE FROM %s WHERE name==$Policy.name"
+	countPoliciesStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 type Policy struct {
@@ -51,46 +51,57 @@ type Policy struct {
 	DataNetworkID   int    `db:"dataNetworkID"`
 }
 
-type NumPolicies struct {
-	Count int `db:"count"`
-}
-
-func (db *Database) ListPolicies(ctx context.Context) ([]Policy, error) {
-	operation := "SELECT"
-	target := PoliciesTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
+func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int) ([]Policy, int, error) {
+	const operation = "SELECT"
+	const target = PoliciesTableName
+	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(listPoliciesStmt, db.policiesTable)
+	stmtStr := fmt.Sprintf(listPoliciesPagedStmt, db.policiesTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
+		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
+		attribute.Int("page", page),
+		attribute.Int("per_page", perPage),
 	)
 
-	q, err := sqlair.Prepare(stmt, Policy{})
+	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, Policy{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
+		return nil, 0, err
+	}
+
+	count, err := db.CountPolicies(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "count failed")
+		return nil, 0, err
 	}
 
 	var policies []Policy
-	if err := db.conn.Query(ctx, q).GetAll(&policies); err != nil {
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
+	}
+
+	if err := db.conn.Query(ctx, stmt, args).GetAll(&policies); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, nil
+			return nil, count, nil
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
-		return nil, err
+		return nil, 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
-	return policies, nil
+	return policies, count, nil
 }
 
 func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error) {
@@ -284,8 +295,8 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 	return nil
 }
 
-// NumPolicies returns policy count
-func (db *Database) NumPolicies(ctx context.Context) (int, error) {
+// CountPolicies returns policy count
+func (db *Database) CountPolicies(ctx context.Context) (int, error) {
 	operation := "SELECT"
 	target := PoliciesTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -293,7 +304,7 @@ func (db *Database) NumPolicies(ctx context.Context) (int, error) {
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(getNumPoliciesStmt, db.policiesTable)
+	stmt := fmt.Sprintf(countPoliciesStmt, db.policiesTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmt),
@@ -301,8 +312,8 @@ func (db *Database) NumPolicies(ctx context.Context) (int, error) {
 		attribute.String("db.collection", target),
 	)
 
-	var result NumPolicies
-	q, err := sqlair.Prepare(stmt, NumPolicies{})
+	var result NumItems
+	q, err := sqlair.Prepare(stmt, NumItems{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")

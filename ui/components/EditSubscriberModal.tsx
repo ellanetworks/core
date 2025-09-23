@@ -14,9 +14,12 @@ import {
   FormControl,
 } from "@mui/material";
 import { updateSubscriber } from "@/queries/subscribers";
-import { listPolicies } from "@/queries/policies";
+import {
+  listPolicies,
+  type APIPolicy,
+  type ListPoliciesResponse,
+} from "@/queries/policies";
 import { useRouter } from "next/navigation";
-import { Policy } from "@/types/types";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface EditSubscriberModalProps {
@@ -41,6 +44,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   if (!authReady || !accessToken) {
     router.push("/login");
   }
+
   const [formValues, setFormValues] = useState(initialData);
   const [policies, setPolicies] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -49,17 +53,22 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
 
   useEffect(() => {
     if (!accessToken) return;
-    const fetchPolicies = async () => {
+
+    const fetchPoliciesPaginated = async () => {
       try {
-        const policyData = await listPolicies(accessToken);
-        setPolicies(policyData.map((policy: Policy) => policy.name));
+        const page: ListPoliciesResponse = await listPolicies(
+          accessToken,
+          1,
+          100,
+        );
+        setPolicies((page.items ?? []).map((p: APIPolicy) => p.name));
       } catch (error) {
         console.error("Failed to fetch policies:", error);
       }
     };
 
     if (open) {
-      fetchPolicies();
+      fetchPoliciesPaginated();
       setFormValues(initialData);
       setErrors({});
     }
@@ -86,13 +95,8 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
       onClose();
       onSuccess();
     } catch (error: unknown) {
-      let errorMessage = "Unknown error occurred.";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      setAlert({
-        message: `Failed to get subscriber: ${errorMessage}`,
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred.";
       setAlert({ message: `Failed to update subscriber: ${errorMessage}` });
     } finally {
       setLoading(false);
@@ -117,6 +121,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
             {alert.message}
           </Alert>
         </Collapse>
+
         <TextField
           fullWidth
           label="IMSI"
@@ -124,14 +129,15 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
           margin="normal"
           disabled
         />
+
         <FormControl fullWidth margin="normal">
-          <InputLabel id="demo-simple-select-label">Policy Name</InputLabel>
+          <InputLabel id="policy-select-label">Policy Name</InputLabel>
           <Select
+            labelId="policy-select-label"
+            label="Policy Name"
             value={formValues.policyName}
             onChange={(e) => handleChange("policyName", e.target.value)}
             error={!!errors.policyName}
-            label={"Policy Name"}
-            labelId="demo-simple-select-label"
           >
             {policies.map((policy) => (
               <MenuItem key={policy} value={policy}>
@@ -141,6 +147,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
           </Select>
         </FormControl>
       </DialogContent>
+
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
         <Button

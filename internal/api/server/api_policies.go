@@ -12,23 +12,28 @@ import (
 )
 
 type CreatePolicyParams struct {
-	Name string `json:"name"`
-
-	BitrateUplink   string `json:"bitrate-uplink,omitempty"`
-	BitrateDownlink string `json:"bitrate-downlink,omitempty"`
+	Name            string `json:"name"`
+	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
+	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
 	Var5qi          int32  `json:"var5qi,omitempty"`
-	PriorityLevel   int32  `json:"priority-level,omitempty"`
-	DataNetworkName string `json:"data-network-name,omitempty"`
+	PriorityLevel   int32  `json:"priority_level,omitempty"`
+	DataNetworkName string `json:"data_network_name,omitempty"`
 }
 
-type GetPolicyResponse struct {
-	Name string `json:"name"`
-
-	BitrateUplink   string `json:"bitrate-uplink,omitempty"`
-	BitrateDownlink string `json:"bitrate-downlink,omitempty"`
+type Policy struct {
+	Name            string `json:"name"`
+	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
+	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
 	Var5qi          int32  `json:"var5qi,omitempty"`
-	PriorityLevel   int32  `json:"priority-level,omitempty"`
-	DataNetworkName string `json:"data-network-name,omitempty"`
+	PriorityLevel   int32  `json:"priority_level,omitempty"`
+	DataNetworkName string `json:"data_network_name,omitempty"`
+}
+
+type ListPoliciesResponse struct {
+	Items      []Policy `json:"items"`
+	Page       int      `json:"page"`
+	PerPage    int      `json:"per_page"`
+	TotalCount int      `json:"total_count"`
 }
 
 const (
@@ -73,20 +78,37 @@ func isValidPriorityLevel(priorityLevel int32) bool {
 
 func ListPolicies(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		page := atoiDefault(q.Get("page"), 1)
+		perPage := atoiDefault(q.Get("per_page"), 25)
+
+		if page < 1 {
+			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			return
+		}
+
+		if perPage < 1 || perPage > 100 {
+			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			return
+		}
+
 		ctx := r.Context()
-		dbPolicies, err := dbInstance.ListPolicies(ctx)
+
+		dbPolicies, total, err := dbInstance.ListPoliciesPage(ctx, page, perPage)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Policies not found", err, logger.APILog)
 			return
 		}
-		policyList := make([]GetPolicyResponse, 0)
+
+		policyList := make([]Policy, 0)
 		for _, dbPolicy := range dbPolicies {
 			dataNetwork, err := dbInstance.GetDataNetworkByID(ctx, dbPolicy.DataNetworkID)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 				return
 			}
-			policyList = append(policyList, GetPolicyResponse{
+
+			policyList = append(policyList, Policy{
 				Name:            dbPolicy.Name,
 				BitrateDownlink: dbPolicy.BitrateDownlink,
 				BitrateUplink:   dbPolicy.BitrateUplink,
@@ -95,7 +117,15 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 				DataNetworkName: dataNetwork.Name,
 			})
 		}
-		writeResponse(w, policyList, http.StatusOK, logger.APILog)
+
+		resp := ListPoliciesResponse{
+			Items:      policyList,
+			Page:       page,
+			PerPage:    perPage,
+			TotalCount: total,
+		}
+
+		writeResponse(w, resp, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -116,7 +146,7 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 			return
 		}
-		policy := GetPolicyResponse{
+		policy := Policy{
 			Name:            dbPolicy.Name,
 			BitrateDownlink: dbPolicy.BitrateDownlink,
 			BitrateUplink:   dbPolicy.BitrateUplink,
@@ -187,9 +217,9 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		numPolicies, err := dbInstance.NumPolicies(r.Context())
+		numPolicies, err := dbInstance.CountPolicies(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve policies", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to count policies", err, logger.APILog)
 			return
 		}
 
@@ -282,25 +312,25 @@ func validatePolicyParams(p CreatePolicyParams) error {
 	case p.Name == "":
 		return errors.New("name is missing")
 	case p.DataNetworkName == "":
-		return errors.New("data-network-name is missing")
+		return errors.New("data_network_name is missing")
 	case p.BitrateUplink == "":
-		return errors.New("bitrate-uplink is missing")
+		return errors.New("bitrate_uplink is missing")
 	case p.BitrateDownlink == "":
-		return errors.New("bitrate-downlink is missing")
+		return errors.New("bitrate_downlink is missing")
 	case p.Var5qi == 0:
 		return errors.New("Var5qi is missing")
 	case p.PriorityLevel == 0:
-		return errors.New("priority-level is missing")
+		return errors.New("priority_level is missing")
 	case !isPolicyNameValid(p.Name):
 		return errors.New("Invalid name format. Must be less than 256 characters")
 	case !isValidBitrate(p.BitrateUplink):
-		return errors.New("Invalid bitrate-uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+		return errors.New("Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
 	case !isValidBitrate(p.BitrateDownlink):
-		return errors.New("Invalid bitrate-downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+		return errors.New("Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
 	case !isValid5Qi(p.Var5qi):
 		return errors.New("Invalid Var5qi format. Must be an integer between 1 and 255")
 	case !isValidPriorityLevel(p.PriorityLevel):
-		return errors.New("Invalid priority-level format. Must be an integer between 1 and 255")
+		return errors.New("Invalid priority_level format. Must be an integer between 1 and 255")
 	}
 	return nil
 }

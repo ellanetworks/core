@@ -299,7 +299,7 @@ func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (boo
 		return false, err
 	}
 
-	policies, err := db.ListPolicies(ctx)
+	policies, _, err := db.ListPoliciesPage(ctx, 1, 1000)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "listing failed")

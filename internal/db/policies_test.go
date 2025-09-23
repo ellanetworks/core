@@ -23,9 +23,13 @@ func TestPoliciesEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, err := database.ListPolicies(context.Background())
+	res, total, err := database.ListPoliciesPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
+	}
+
+	if total != 1 {
+		t.Fatalf("Default policy wasn't found in DB")
 	}
 
 	if len(res) != 1 {
@@ -59,10 +63,15 @@ func TestPoliciesEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
-	res, err = database.ListPolicies(context.Background())
+	res, total, err = database.ListPoliciesPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
+
+	if total != 2 {
+		t.Fatalf("Not all policies were found in DB")
+	}
+
 	if len(res) != 2 {
 		t.Fatalf("One or more policies weren't found in DB")
 	}
@@ -112,7 +121,12 @@ func TestPoliciesEndToEnd(t *testing.T) {
 	if err = database.DeletePolicy(context.Background(), policy.Name); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
-	res, _ = database.ListPolicies(context.Background())
+
+	res, total, _ = database.ListPoliciesPage(context.Background(), 1, 10)
+	if total != 1 {
+		t.Fatalf("Policy wasn't deleted from the DB properly")
+	}
+
 	if len(res) != 1 {
 		t.Fatalf("Policy wasn't deleted from the DB properly")
 	}

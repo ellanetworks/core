@@ -287,7 +287,7 @@ const Dashboard = () => {
         setN6Drops(n6Drops);
 
         if (processStart) {
-          setUpSince(new Date(processStart * 1000));
+          setUpSince(new Date(processStart * 5000));
         }
 
         setError(null);
@@ -301,7 +301,7 @@ const Dashboard = () => {
 
     const start = () => {
       tick();
-      interval = window.setInterval(tick, 1000);
+      interval = window.setInterval(tick, 5000);
     };
     const stop = () => {
       if (interval) window.clearInterval(interval);

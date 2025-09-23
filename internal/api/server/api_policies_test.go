@@ -22,29 +22,27 @@ type CreatePolicyResponseResult struct {
 	Message string `json:"message"`
 }
 
-type GetPolicyResponseResult struct {
-	Name string `json:"name"`
-
-	BitrateUplink   string `json:"bitrate-uplink,omitempty"`
-	BitrateDownlink string `json:"bitrate-downlink,omitempty"`
+type Policy struct {
+	Name            string `json:"name"`
+	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
+	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
 	Var5qi          int32  `json:"var5qi,omitempty"`
-	PriorityLevel   int32  `json:"priority-level,omitempty"`
-	DataNetworkName string `json:"data-network-name,omitempty"`
+	PriorityLevel   int32  `json:"priority_level,omitempty"`
+	DataNetworkName string `json:"data_network_name,omitempty"`
 }
 
 type GetPolicyResponse struct {
-	Result GetPolicyResponseResult `json:"result"`
-	Error  string                  `json:"error,omitempty"`
+	Result Policy `json:"result"`
+	Error  string `json:"error,omitempty"`
 }
 
 type CreatePolicyParams struct {
-	Name string `json:"name"`
-
-	BitrateUplink   string `json:"bitrate-uplink,omitempty"`
-	BitrateDownlink string `json:"bitrate-downlink,omitempty"`
+	Name            string `json:"name"`
+	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
+	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
 	Var5qi          int32  `json:"var5qi,omitempty"`
-	PriorityLevel   int32  `json:"priority-level,omitempty"`
-	DataNetworkName string `json:"data-network-name,omitempty"`
+	PriorityLevel   int32  `json:"priority_level,omitempty"`
+	DataNetworkName string `json:"data_network_name,omitempty"`
 }
 
 type CreatePolicyResponse struct {
@@ -61,9 +59,16 @@ type DeletePolicyResponse struct {
 	Error  string                     `json:"error,omitempty"`
 }
 
+type ListPolicyResponseResult struct {
+	Items      []Policy `json:"items"`
+	Page       int      `json:"page"`
+	PerPage    int      `json:"per_page"`
+	TotalCount int      `json:"total_count"`
+}
+
 type ListPolicyResponse struct {
-	Result []GetPolicyResponseResult `json:"result"`
-	Error  string                    `json:"error,omitempty"`
+	Result ListPolicyResponseResult `json:"result"`
+	Error  string                   `json:"error,omitempty"`
 }
 
 func listPolicies(url string, client *http.Client, token string) (int, *ListPolicyResponse, error) {
@@ -210,8 +215,8 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if len(response.Result) != 1 {
-			t.Fatalf("expected 1 policy, got %d", len(response.Result))
+		if len(response.Result.Items) != 1 {
+			t.Fatalf("expected 1 policy, got %d", len(response.Result.Items))
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -269,8 +274,8 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if len(response.Result) != 2 {
-			t.Fatalf("expected 2 policy, got %d", len(response.Result))
+		if len(response.Result.Items) != 2 {
+			t.Fatalf("expected 2 policy, got %d", len(response.Result.Items))
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -290,19 +295,19 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		}
 
 		if response.Result.BitrateUplink != "100 Mbps" {
-			t.Fatalf("expected bitrate-uplink 100 Mbps got %s", response.Result.BitrateUplink)
+			t.Fatalf("expected bitrate_uplink 100 Mbps got %s", response.Result.BitrateUplink)
 		}
 		if response.Result.BitrateDownlink != "200 Mbps" {
-			t.Fatalf("expected bitrate-downlink 200 Mbps got %s", response.Result.BitrateDownlink)
+			t.Fatalf("expected bitrate_downlink 200 Mbps got %s", response.Result.BitrateDownlink)
 		}
 		if response.Result.Var5qi != 9 {
 			t.Fatalf("expected var5qi 9 got %d", response.Result.Var5qi)
 		}
 		if response.Result.PriorityLevel != 1 {
-			t.Fatalf("expected priority-level 1 got %d", response.Result.PriorityLevel)
+			t.Fatalf("expected priority_level 1 got %d", response.Result.PriorityLevel)
 		}
 		if response.Result.DataNetworkName != "not-internet" {
-			t.Fatalf("expected data-network-name 'not-internet', got %s", response.Result.DataNetworkName)
+			t.Fatalf("expected data_network_name 'not-internet', got %s", response.Result.DataNetworkName)
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -473,7 +478,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			priorityLevel:   PriorityLevel,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate-uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Uplink Bitrate - Invalid unit",
@@ -483,7 +488,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			priorityLevel:   PriorityLevel,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate-uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Uplink Bitrate - Zero value",
@@ -493,7 +498,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			priorityLevel:   PriorityLevel,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate-uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Uplink Bitrate - Negative value",
@@ -503,7 +508,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			priorityLevel:   PriorityLevel,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate-uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Uplink Bitrate - Too large value",
@@ -513,7 +518,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			priorityLevel:   PriorityLevel,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate-uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Downlink Bitrate - Missing unit",
@@ -523,7 +528,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			priorityLevel:   PriorityLevel,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate-downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Downlink Bitrate - Invalid unit",
@@ -533,7 +538,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			priorityLevel:   PriorityLevel,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate-downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Downlink Bitrate - Zero value",
@@ -543,7 +548,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			priorityLevel:   PriorityLevel,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate-downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Downlink Bitrate - Negative value",
@@ -553,7 +558,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			priorityLevel:   PriorityLevel,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate-downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Downlink Bitrate - Too large value",
@@ -563,7 +568,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			priorityLevel:   PriorityLevel,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate-downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid 5QI - Too large value",
@@ -583,7 +588,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			priorityLevel:   256,
 			DataNetworkName: "internet",
-			error:           "Invalid priority-level format. Must be an integer between 1 and 255",
+			error:           "Invalid priority_level format. Must be an integer between 1 and 255",
 		},
 	}
 	for _, tt := range tests {

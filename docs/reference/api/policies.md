@@ -24,11 +24,11 @@ None
     "result": [
         {
             "name": "default",
-            "bitrate-uplink": "200 Mbps",
-            "bitrate-downlink": "100 Mbps",
+            "bitrate_uplink": "200 Mbps",
+            "bitrate_downlink": "100 Mbps",
             "var5qi": 8,
-            "priority-level": 1,
-            "data-network-name": "internet"
+            "priority_level": 1,
+            "data_network_name": "internet"
         }
     ]
 }
@@ -45,11 +45,11 @@ This path creates a new policy.
 ### Parameters
 
 - `name` (string): The Name of the policy.
-- `bitrate-uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
-- `bitrate-downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `bitrate_uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `bitrate_downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `var5qi` (integer): The QoS class identifier of the policy. Must be an integer between 1 and 255.
-- `priority-level` (integer): The priority level of the policy. Must be an integer between 1 and 255.
-- `data-network-name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
+- `priority_level` (integer): The priority level of the policy. Must be an integer between 1 and 255.
+- `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
 
 ### Sample Response
 
@@ -71,11 +71,11 @@ This path updates an existing policy.
 
 ### Parameters
 
-- `bitrate-uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
-- `bitrate-downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `bitrate_uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `bitrate_downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `var5qi` (integer): The QoS class identifier of the policy. Must be an integer between 1 and 255.
-- `priority-level` (integer): The priority level of the policy. Must be an integer between 1 and 255.
-- `data-network-name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
+- `priority_level` (integer): The priority level of the policy. Must be an integer between 1 and 255.
+- `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
 
 ### Sample Response
 
@@ -105,11 +105,11 @@ None
 {
     "result": {
         "name": "my-policy",
-        "bitrate-uplink": "10 Mbps",
-        "bitrate-downlink": "10 Mbps",
+        "bitrate_uplink": "10 Mbps",
+        "bitrate_downlink": "10 Mbps",
         "var5qi": 1,
-        "priority-level": 2,
-        "data-network-name": "internet"
+        "priority_level": 2,
+        "data_network_name": "internet"
     }
 }
 ```

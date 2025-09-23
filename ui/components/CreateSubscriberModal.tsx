@@ -21,7 +21,11 @@ import {
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createSubscriber } from "@/queries/subscribers";
-import { listPolicies } from "@/queries/policies";
+import {
+  listPolicies,
+  type APIPolicy,
+  type ListPoliciesResponse,
+} from "@/queries/policies";
 import { getOperator } from "@/queries/operator";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,10 +51,6 @@ type Operator = {
   };
 };
 
-type Policy = {
-  name: string;
-};
-
 const schema = yup.object().shape({
   msin: yup
     .string()
@@ -68,7 +68,7 @@ const schema = yup.object().shape({
     .string()
     .matches(
       /^[0-9a-fA-F]{12}$/,
-      "Sequence Number must be a 6-byte (12-character) hexadecimal string.",
+      "Sequence Number must be a 6-byte (12-char) hex string.",
     )
     .required("Sequence Number is required."),
   policyName: yup.string().required("Policy Name is required."),
@@ -76,7 +76,7 @@ const schema = yup.object().shape({
     .string()
     .matches(
       /(^$)|(^[0-9a-fA-F]{32}$)/,
-      "OPC must be either empty or a 32-character hexadecimal string.",
+      "OPC must be empty or a 32-character hex string.",
     )
     .notRequired(),
 });
@@ -92,6 +92,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   if (!authReady || !accessToken) {
     router.push("/login");
   }
+
   const [formValues, setFormValues] = useState<FormValues>({
     msin: "",
     key: "",
@@ -118,8 +119,12 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
         setMcc(operator.id.mcc);
         setMnc(operator.id.mnc);
 
-        const policyData: Policy[] = await listPolicies(accessToken);
-        setPolicies(policyData.map((policy) => policy.name));
+        const policyPage: ListPoliciesResponse = await listPolicies(
+          accessToken,
+          1,
+          100,
+        );
+        setPolicies((policyPage.items ?? []).map((p: APIPolicy) => p.name));
       } catch (error) {
         console.error("Failed to fetch data:", error);
       }
@@ -131,34 +136,22 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   }, [open, accessToken]);
 
   const handleChange = (field: string, value: string | number) => {
-    setFormValues((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setFormValues((prev) => ({ ...prev, [field]: value }));
     validateField(field, value);
   };
 
   const handleBlur = (field: string) => {
-    setTouched((prev) => ({
-      ...prev,
-      [field]: true,
-    }));
+    setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
   const validateField = async (field: string, value: string | number) => {
     try {
       const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
       await fieldSchema.validate(value);
-      setErrors((prev) => ({
-        ...prev,
-        [field]: "",
-      }));
+      setErrors((prev) => ({ ...prev, [field]: "" }));
     } catch (err) {
       if (err instanceof ValidationError) {
-        setErrors((prev) => ({
-          ...prev,
-          [field]: err.message,
-        }));
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
       }
     }
   };
@@ -206,9 +199,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred.";
-      setAlert({
-        message: `Failed to create subscriber: ${errorMessage}`,
-      });
+      setAlert({ message: `Failed to create subscriber: ${errorMessage}` });
       console.error("Failed to create subscriber:", error);
     } finally {
       setLoading(false);
@@ -240,6 +231,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             {alert.message}
           </Alert>
         </Collapse>
+
         <FormGroup
           sx={{ mb: 2, p: 2, border: "1px solid #ccc", borderRadius: 1 }}
         >
@@ -280,6 +272,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             </Button>
           </Box>
         </FormGroup>
+
         <Box display="flex" gap={2} alignItems="center">
           <TextField
             fullWidth
@@ -305,6 +298,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             Generate
           </Button>
         </Box>
+
         <TextField
           fullWidth
           label="Sequence Number"
@@ -315,15 +309,16 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
           helperText={touched.sequenceNumber ? errors.sequenceNumber : ""}
           margin="normal"
         />
+
         <FormControl fullWidth margin="normal">
-          <InputLabel id="demo-simple-select-label">Policy Name</InputLabel>
+          <InputLabel id="policy-select-label">Policy Name</InputLabel>
           <Select
             value={formValues.policyName}
             onChange={(e) => handleChange("policyName", e.target.value)}
             onBlur={() => handleBlur("policyName")}
             error={!!errors.policyName && touched.policyName}
-            labelId="demo-simple-select-label"
-            label={"PolicyName"}
+            labelId="policy-select-label"
+            label="Policy Name"
           >
             {policies.map((policy) => (
               <MenuItem key={policy} value={policy}>
@@ -337,20 +332,20 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             </Typography>
           )}
         </FormControl>
+
         <FormControlLabel
           control={
             <Checkbox
               checked={customOPC}
               onChange={(e) => {
                 setCustomOPC(e.target.checked);
-                if (!e.target.checked) {
-                  handleChange("opc", "");
-                }
+                if (!e.target.checked) handleChange("opc", "");
               }}
             />
           }
           label="Provide custom OPC"
         />
+
         {customOPC && (
           <TextField
             fullWidth
@@ -363,6 +358,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
           />
         )}
       </DialogContent>
+
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
         <Button

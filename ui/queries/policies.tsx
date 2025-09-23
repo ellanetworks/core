@@ -1,18 +1,40 @@
 import { HTTPStatus } from "@/queries/utils";
-import { Policy } from "@/types/types";
 
-export const listPolicies = async (authToken: string): Promise<Policy[]> => {
-  const response = await fetch(`/api/v1/policies`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
+export type APIPolicy = {
+  name: string;
+  bitrate_uplink: string;
+  bitrate_downlink: string;
+  var5qi: number;
+  priority_level: number;
+  data_network_name: string;
+};
+
+export type ListPoliciesResponse = {
+  items: APIPolicy[];
+  page: number;
+  per_page: number;
+  total_count: number;
+};
+
+export async function listPolicies(
+  authToken: string,
+  page: number,
+  perPage: number,
+): Promise<ListPoliciesResponse> {
+  const response = await fetch(
+    `/api/v1/policies?page=${page}&per_page=${perPage}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + authToken,
+      },
     },
-  });
+  );
 
-  let respData;
+  let json: { result: ListPoliciesResponse; error?: string };
   try {
-    respData = await response.json();
+    json = await response.json();
   } catch {
     throw new Error(
       `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
@@ -21,21 +43,12 @@ export const listPolicies = async (authToken: string): Promise<Policy[]> => {
 
   if (!response.ok) {
     throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
     );
   }
 
-  const transformed: Policy[] = respData.result.map((p: any) => ({
-    name: p.name,
-    bitrateUp: p["bitrate-uplink"],
-    bitrateDown: p["bitrate-downlink"],
-    fiveQi: p["var5qi"],
-    priorityLevel: p["priority-level"],
-    dataNetworkName: p["data-network-name"],
-  }));
-
-  return transformed;
-};
+  return json.result;
+}
 
 export const createPolicy = async (
   authToken: string,
@@ -48,11 +61,11 @@ export const createPolicy = async (
 ) => {
   const policyData = {
     name: name,
-    "bitrate-uplink": bitrateUplink,
-    "bitrate-downlink": bitrateDownlink,
+    bitrate_uplink: bitrateUplink,
+    bitrate_downlink: bitrateDownlink,
     var5qi: var5qi,
-    "priority-level": priorityLevel,
-    "data-network-name": dataNetworkName,
+    priority_level: priorityLevel,
+    data_network_name: dataNetworkName,
   };
 
   const response = await fetch(`/api/v1/policies`, {
@@ -92,11 +105,11 @@ export const updatePolicy = async (
 ) => {
   const policyData = {
     name: name,
-    "bitrate-uplink": bitrateUplink,
-    "bitrate-downlink": bitrateDownlink,
+    bitrate_uplink: bitrateUplink,
+    bitrate_downlink: bitrateDownlink,
     var5qi: var5qi,
-    "priority-level": priorityLevel,
-    "data-network-name": dataNetworkName,
+    priority_level: priorityLevel,
+    data_network_name: dataNetworkName,
   };
 
   const response = await fetch(`/api/v1/policies/${name}`, {

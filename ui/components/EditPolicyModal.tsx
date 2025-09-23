@@ -14,23 +14,22 @@ import {
   Alert,
   Collapse,
 } from "@mui/material";
-import { updatePolicy } from "@/queries/policies";
+import { updatePolicy, APIPolicy } from "@/queries/policies";
 import {
   listDataNetworks,
   type ListDataNetworksResponse,
 } from "@/queries/data_networks";
 import { useRouter } from "next/navigation";
-import { Policy } from "@/types/types";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface EditPolicyModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: Policy;
+  initialData: APIPolicy;
 }
 
-type FormState = Omit<Policy, "bitrateUp" | "bitrateDown"> & {
+type FormState = Omit<APIPolicy, "bitrate_uplink" | "bitrate_downlink"> & {
   bitrateUpValue: number;
   bitrateUpUnit: "Mbps" | "Gbps";
   bitrateDownValue: number;
@@ -60,9 +59,9 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
     bitrateUpUnit: "Mbps",
     bitrateDownValue: 0,
     bitrateDownUnit: "Mbps",
-    fiveQi: 0,
-    priorityLevel: 0,
-    dataNetworkName: "",
+    var5qi: 0,
+    priority_level: 0,
+    data_network_name: "",
   });
 
   const [dataNetworks, setDataNetworks] = useState<string[]>([]);
@@ -72,9 +71,10 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
 
   useEffect(() => {
     if (!open) return;
-    const [bitrateUpValueStr, bitrateUpUnit] = initialData.bitrateUp.split(" ");
+    const [bitrateUpValueStr, bitrateUpUnit] =
+      initialData.bitrate_uplink.split(" ");
     const [bitrateDownValueStr, bitrateDownUnit] =
-      initialData.bitrateDown.split(" ");
+      initialData.bitrate_downlink.split(" ");
 
     setFormValues({
       name: initialData.name,
@@ -82,9 +82,9 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
       bitrateUpUnit: (bitrateUpUnit as "Mbps" | "Gbps") ?? "Mbps",
       bitrateDownValue: parseInt(bitrateDownValueStr, 10),
       bitrateDownUnit: (bitrateDownUnit as "Mbps" | "Gbps") ?? "Mbps",
-      fiveQi: initialData.fiveQi,
-      priorityLevel: initialData.priorityLevel,
-      dataNetworkName: initialData.dataNetworkName,
+      var5qi: initialData.var5qi,
+      priority_level: initialData.priority_level,
+      data_network_name: initialData.data_network_name,
     });
     setErrors({});
   }, [open, initialData]);
@@ -124,9 +124,9 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
         formValues.name,
         bitrateUp,
         bitrateDown,
-        formValues.fiveQi,
-        formValues.priorityLevel,
-        formValues.dataNetworkName,
+        formValues.var5qi,
+        formValues.priority_level,
+        formValues.data_network_name,
       );
       onClose();
       onSuccess();
@@ -173,9 +173,9 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           <Select
             labelId="data-network-select-label"
             label="Data Network Name"
-            value={formValues.dataNetworkName}
-            onChange={(e) => handleChange("dataNetworkName", e.target.value)}
-            error={!!errors.dataNetworkName}
+            value={formValues.data_network_name}
+            onChange={(e) => handleChange("data_network_name", e.target.value)}
+            error={!!errors.data_network_name}
           >
             {dataNetworks.map((name) => (
               <MenuItem key={name} value={name}>
@@ -237,10 +237,10 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           fullWidth
           label="5QI"
           type="number"
-          value={formValues.fiveQi}
-          onChange={(e) => handleChange("fiveQi", Number(e.target.value))}
-          error={!!errors.fiveQi}
-          helperText={errors.fiveQi}
+          value={formValues.var5qi}
+          onChange={(e) => handleChange("var5qi", Number(e.target.value))}
+          error={!!errors.var5qi}
+          helperText={errors.var5qi}
           margin="normal"
         />
 
@@ -248,12 +248,12 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           fullWidth
           label="Priority Level"
           type="number"
-          value={formValues.priorityLevel}
+          value={formValues.priority_level}
           onChange={(e) =>
-            handleChange("priorityLevel", Number(e.target.value))
+            handleChange("priority_level", Number(e.target.value))
           }
-          error={!!errors.priorityLevel}
-          helperText={errors.priorityLevel}
+          error={!!errors.priority_level}
+          helperText={errors.priority_level}
           margin="normal"
         />
       </DialogContent>

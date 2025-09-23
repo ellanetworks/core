@@ -180,7 +180,7 @@ func TestListPolicies_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"imsi": "001010100000022", "policyName": "default"}]`),
+			Result:     []byte(`{"items": [{"name": "policy1"}, {"name": "policy2"}], "page": 1, "per_page": 10, "total_count": 2}`),
 		},
 		err: nil,
 	}
@@ -190,13 +190,18 @@ func TestListPolicies_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	policies, err := clientObj.ListPolicies(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	policies, err := clientObj.ListPolicies(ctx, params)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(policies) != 1 {
-		t.Fatalf("expected 1 policy, got %d", len(policies))
+	if len(policies.Items) != 2 {
+		t.Fatalf("expected 2 policies, got: %d", len(policies.Items))
 	}
 }
 
@@ -215,7 +220,12 @@ func TestListPolicies_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := clientObj.ListPolicies(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	_, err := clientObj.ListPolicies(ctx, params)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

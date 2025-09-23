@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -8,64 +8,94 @@ import {
   CircularProgress,
   Alert,
   Collapse,
-  Table,
-  TableHead,
-  TableBody,
-  TableRow,
-  TableCell,
-  TableContainer,
-  Paper,
-  IconButton,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
+import {
+  DataGrid,
+  type GridColDef,
+  GridActionsCellItem,
+  type GridPaginationModel,
+} from "@mui/x-data-grid";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
-import { listPolicies, deletePolicy } from "@/queries/policies";
+
+import {
+  listPolicies,
+  deletePolicy,
+  type APIPolicy,
+  type ListPoliciesResponse,
+} from "@/queries/policies";
 import CreatePolicyModal from "@/components/CreatePolicyModal";
 import EditPolicyModal from "@/components/EditPolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
-import { Policy } from "@/types/types";
 
 const MAX_WIDTH = 1400;
 
 const PolicyPage = () => {
   const { role, accessToken, authReady } = useAuth();
-  const [policies, setPolicies] = useState<Policy[]>([]);
+  const canEdit = role === "Admin" || role === "Network Manager";
+
+  const theme = useTheme();
+  const gridTheme = useMemo(
+    () =>
+      createTheme(theme, {
+        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+      }),
+    [theme],
+  );
+
+  const [pagination, setPagination] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize: 25,
+  });
+
+  const [pageData, setPageData] = useState<ListPoliciesResponse | null>(null);
   const [loading, setLoading] = useState(true);
+
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [editData, setEditData] = useState<Policy | null>(null);
+  const [editData, setEditData] = useState<APIPolicy | null>(null);
   const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
+
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
 
-  const theme = useTheme();
-  const canEdit = role === "Admin" || role === "Network Manager";
+  const descriptionText =
+    "Define bitrate and priority levels for your subscribers.";
 
   const fetchPolicies = useCallback(async () => {
     if (!authReady || !accessToken) return;
     setLoading(true);
     try {
-      const data = await listPolicies(accessToken);
-      setPolicies(data);
+      const pageOneBased = pagination.page + 1;
+      const data = await listPolicies(
+        accessToken,
+        pageOneBased,
+        pagination.pageSize,
+      );
+      setPageData(data);
     } catch (error) {
       console.error("Error fetching policies:", error);
+      setAlert({
+        message: "Failed to fetch policies.",
+        severity: "error",
+      });
     } finally {
       setLoading(false);
     }
-  }, [accessToken, authReady]);
+  }, [accessToken, authReady, pagination.page, pagination.pageSize]);
 
   useEffect(() => {
     fetchPolicies();
   }, [fetchPolicies]);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
-  const handleEditClick = (policy: Policy) => {
+  const handleEditClick = (policy: APIPolicy) => {
     setEditData(policy);
     setEditModalOpen(true);
   };
@@ -95,8 +125,60 @@ const PolicyPage = () => {
     }
   };
 
-  const descriptionText =
-    "Define  bitrate and priority levels for your subscribers.";
+  const rows: APIPolicy[] = pageData?.items ?? [];
+  const rowCount = pageData?.total_count ?? 0;
+
+  const columns: GridColDef<APIPolicy>[] = useMemo(() => {
+    return [
+      { field: "name", headerName: "Name", flex: 1, minWidth: 180 },
+      {
+        field: "bitrate_uplink",
+        headerName: "Bitrate (Up)",
+        flex: 1,
+        minWidth: 160,
+      },
+      {
+        field: "bitrate_downlink",
+        headerName: "Bitrate (Down)",
+        flex: 1,
+        minWidth: 160,
+      },
+      { field: "var5qi", headerName: "5QI", width: 90 },
+      { field: "priority_level", headerName: "Priority", width: 110 },
+      {
+        field: "data_network_name",
+        headerName: "Data Network",
+        flex: 1,
+        minWidth: 160,
+      },
+      ...(canEdit
+        ? [
+            {
+              field: "actions",
+              headerName: "Actions",
+              type: "actions",
+              width: 120,
+              sortable: false,
+              disableColumnMenu: true,
+              getActions: (params) => [
+                <GridActionsCellItem
+                  key="edit"
+                  icon={<EditIcon color="primary" />}
+                  label="Edit"
+                  onClick={() => handleEditClick(params.row)}
+                />,
+                <GridActionsCellItem
+                  key="delete"
+                  icon={<DeleteIcon color="primary" />}
+                  label="Delete"
+                  onClick={() => handleDeleteClick(params.row.name)}
+                />,
+              ],
+            } as GridColDef<APIPolicy>,
+          ]
+        : []),
+    ];
+  }, [canEdit]);
 
   return (
     <Box
@@ -120,11 +202,11 @@ const PolicyPage = () => {
         </Collapse>
       </Box>
 
-      {loading ? (
+      {loading && rowCount === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
         </Box>
-      ) : policies.length === 0 ? (
+      ) : rowCount === 0 ? (
         <EmptyState
           primaryText="No policy found."
           secondaryText="Create a new policy to control QoS and routing for subscribers."
@@ -150,7 +232,7 @@ const PolicyPage = () => {
               gap: 2,
             }}
           >
-            <Typography variant="h4">Policies</Typography>
+            <Typography variant="h4">Policies ({rowCount})</Typography>
 
             <Typography variant="body1" color="text.secondary">
               {descriptionText}
@@ -171,65 +253,42 @@ const PolicyPage = () => {
           <Box
             sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
           >
-            <TableContainer
-              component={Paper}
-              elevation={0}
-              sx={{ border: 1, borderColor: "divider" }}
-            >
-              <Table aria-label="policies table" stickyHeader>
-                <TableHead>
-                  <TableRow
-                    sx={{
-                      "& th": {
-                        fontWeight: "bold",
-                        backgroundColor:
-                          theme.palette.mode === "light"
-                            ? "#F5F5F5"
-                            : "inherit",
-                      },
-                    }}
-                  >
-                    <TableCell>Name</TableCell>
-                    <TableCell>Bitrate (Up)</TableCell>
-                    <TableCell>Bitrate (Down)</TableCell>
-                    <TableCell sx={{ width: 80 }}>5QI</TableCell>
-                    <TableCell sx={{ width: 100 }}>Priority</TableCell>
-                    <TableCell>Data Network</TableCell>
-                    {canEdit && <TableCell align="right">Actions</TableCell>}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {policies.map((p) => (
-                    <TableRow key={p.name} hover>
-                      <TableCell>{p.name}</TableCell>
-                      <TableCell>{p.bitrateUp}</TableCell>
-                      <TableCell>{p.bitrateDown}</TableCell>
-                      <TableCell>{p.fiveQi}</TableCell>
-                      <TableCell>{p.priorityLevel}</TableCell>
-                      <TableCell>{p.dataNetworkName}</TableCell>
-                      {canEdit && (
-                        <TableCell align="right">
-                          <IconButton
-                            aria-label="edit"
-                            onClick={() => handleEditClick(p)}
-                            size="small"
-                          >
-                            <EditIcon color="primary" />
-                          </IconButton>
-                          <IconButton
-                            aria-label="delete"
-                            onClick={() => handleDeleteClick(p.name)}
-                            size="small"
-                          >
-                            <DeleteIcon color="primary" />
-                          </IconButton>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <ThemeProvider theme={gridTheme}>
+              <DataGrid<APIPolicy>
+                rows={rows}
+                columns={columns}
+                getRowId={(row) => row.name}
+                loading={loading}
+                paginationMode="server"
+                rowCount={rowCount}
+                paginationModel={pagination}
+                onPaginationModelChange={setPagination}
+                pageSizeOptions={[10, 25, 50, 100]}
+                disableRowSelectionOnClick
+                disableColumnMenu
+                autoHeight
+                sx={{
+                  width: "100%",
+                  border: 1,
+                  borderColor: "divider",
+                  "& .MuiDataGrid-cell": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-columnHeaders": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                    backgroundColor:
+                      theme.palette.mode === "light" ? "#F5F5F5" : "inherit",
+                  },
+                  "& .MuiDataGrid-footerContainer": {
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
+                }}
+              />
+            </ThemeProvider>
           </Box>
         </>
       )}
@@ -249,11 +308,11 @@ const PolicyPage = () => {
           initialData={
             editData || {
               name: "",
-              bitrateUp: "100 Mbps",
-              bitrateDown: "100 Mbps",
-              fiveQi: 1,
-              priorityLevel: 1,
-              dataNetworkName: "",
+              bitrate_uplink: "100 Mbps",
+              bitrate_downlink: "100 Mbps",
+              var5qi: 1,
+              priority_level: 1,
+              data_network_name: "",
             }
           }
         />
