@@ -143,7 +143,7 @@ func TestAPIAuditLogs(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	statusCode, response, err := listAuditLogs(ts.URL, client, token, 1, 10)
+	statusCode, response, err := listAuditLogs(ts.URL, client, token, 1, 20)
 	if err != nil {
 		t.Fatalf("couldn't list audit logs: %s", err)
 	}
@@ -166,6 +166,143 @@ func TestAPIAuditLogs(t *testing.T) {
 
 	if response.Result.Items[0].Action != "create_user" {
 		t.Fatalf("expected second audit log action to be '%s', got %s", "create_user", response.Result.Items[0].Action)
+	}
+}
+
+func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	// Create 49 users to generate audit logs
+	for i := 1; i <= 49; i++ {
+		email := fmt.Sprintf("user%d@example.com", i)
+		params := &CreateUserParams{
+			Email:    email,
+			Password: "password123",
+			RoleID:   RoleReadOnly,
+		}
+
+		statusCode, resp, err := createUser(ts.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't create user %d: %s", i, err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d when creating user %d, got %d. Error: %s", http.StatusCreated, i, statusCode, resp.Error)
+		}
+	}
+
+	// Test first page
+	statusCode, response, err := listAuditLogs(ts.URL, client, token, 1, 10)
+	if err != nil {
+		t.Fatalf("couldn't list audit logs: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if len(response.Result.Items) != 10 {
+		t.Fatalf("expected 10 audit logs, got %d", len(response.Result.Items))
+	}
+
+	if response.Result.TotalCount != 50 {
+		t.Fatalf("expected total_count to be 50, got %d", response.Result.TotalCount)
+	}
+
+	if response.Result.Page != 1 {
+		t.Fatalf("expected page to be 1, got %d", response.Result.Page)
+	}
+
+	if response.Result.PerPage != 10 {
+		t.Fatalf("expected per_page to be 10, got %d", response.Result.PerPage)
+	}
+
+	if response.Result.Items[0].Details != "User created user: user49@example.com with role: 2" {
+		t.Fatalf("expected first audit log details to be correct, got %s", response.Result.Items[0].Details)
+	}
+
+	if response.Result.Items[9].Details != "User created user: user40@example.com with role: 2" {
+		t.Fatalf("expected last audit log details to be correct, got %s", response.Result.Items[9].Details)
+	}
+
+	// Test second page
+	statusCode, response, err = listAuditLogs(ts.URL, client, token, 2, 10)
+	if err != nil {
+		t.Fatalf("couldn't list audit logs: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if len(response.Result.Items) != 10 {
+		t.Fatalf("expected 10 audit logs, got %d", len(response.Result.Items))
+	}
+
+	if response.Result.TotalCount != 50 {
+		t.Fatalf("expected total_count to be 50, got %d", response.Result.TotalCount)
+	}
+
+	if response.Result.Page != 2 {
+		t.Fatalf("expected page to be 2, got %d", response.Result.Page)
+	}
+
+	if response.Result.PerPage != 10 {
+		t.Fatalf("expected per_page to be 10, got %d", response.Result.PerPage)
+	}
+
+	if response.Result.Items[0].Details != "User created user: user39@example.com with role: 2" {
+		t.Fatalf("expected first audit log details to be correct, got %s", response.Result.Items[0].Details)
+	}
+
+	if response.Result.Items[9].Details != "User created user: user30@example.com with role: 2" {
+		t.Fatalf("expected last audit log details to be correct, got %s", response.Result.Items[9].Details)
+	}
+
+	// Test last page
+	statusCode, response, err = listAuditLogs(ts.URL, client, token, 5, 10)
+	if err != nil {
+		t.Fatalf("couldn't list audit logs: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if len(response.Result.Items) != 10 {
+		t.Fatalf("expected 10 audit logs, got %d", len(response.Result.Items))
+	}
+
+	if response.Result.TotalCount != 50 {
+		t.Fatalf("expected total_count to be 50, got %d", response.Result.TotalCount)
+	}
+
+	if response.Result.Page != 5 {
+		t.Fatalf("expected page to be 5, got %d", response.Result.Page)
+	}
+
+	if response.Result.PerPage != 10 {
+		t.Fatalf("expected per_page to be 10, got %d", response.Result.PerPage)
+	}
+
+	if response.Result.Items[0].Details != "User created user: user9@example.com with role: 2" {
+		t.Fatalf("expected first audit log details to be correct, got %s", response.Result.Items[0].Details)
+	}
+
+	if response.Result.Items[9].Details != "User created user: my.user123@ellanetworks.com with role: 1" {
+		t.Fatalf("expected last audit log details to be correct, got %s", response.Result.Items[9].Details)
 	}
 }
 
