@@ -19,12 +19,11 @@ import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createPolicy } from "@/queries/policies";
 import { useRouter } from "next/navigation";
-import { listDataNetworks } from "@/queries/data_networks";
+import {
+  listDataNetworks,
+  type ListDataNetworksResponse,
+} from "@/queries/data_networks";
 import { useAuth } from "@/contexts/AuthContext";
-
-type DataNetwork = {
-  name: string;
-};
 
 interface CreatePolicyModalProps {
   open: boolean;
@@ -55,6 +54,8 @@ const schema = yup.object().shape({
   dataNetworkName: yup.string().required("Data Network Name is required."),
 });
 
+const PER_PAGE = 12; // fetch up to 12 DNs for the dropdown
+
 const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
   open,
   onClose,
@@ -63,9 +64,11 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
   const router = useRouter();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    router.push("/login");
-  }
+  useEffect(() => {
+    if (open && authReady && !accessToken) {
+      router.push("/login");
+    }
+  }, [open, authReady, accessToken, router]);
 
   const [formValues, setFormValues] = useState({
     name: "",
@@ -87,50 +90,39 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
 
   useEffect(() => {
     const fetchDataNetworks = async () => {
-      if (!accessToken) return;
+      if (!accessToken || !open) return;
       try {
-        const dataNetworkDatae: DataNetwork[] =
-          await listDataNetworks(accessToken);
-        setDataNetworks(dataNetworkDatae.map((policy) => policy.name));
+        const res: ListDataNetworksResponse = await listDataNetworks(
+          accessToken,
+          1,
+          PER_PAGE,
+        );
+        setDataNetworks((res.items ?? []).map((dn) => dn.name));
       } catch (error) {
         console.error("Failed to fetch data networks:", error);
       }
     };
 
-    if (open) {
-      fetchDataNetworks();
-    }
+    fetchDataNetworks();
   }, [open, accessToken]);
 
   const handleChange = (field: string, value: string | number) => {
-    setFormValues((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setFormValues((prev) => ({ ...prev, [field]: value }));
     validateField(field, value);
   };
 
   const handleBlur = (field: string) => {
-    setTouched((prev) => ({
-      ...prev,
-      [field]: true,
-    }));
+    setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
   const validateField = async (field: string, value: string | number) => {
     try {
       const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
       await fieldSchema.validate(value);
-      setErrors((prev) => ({
-        ...prev,
-        [field]: "",
-      }));
+      setErrors((prev) => ({ ...prev, [field]: "" }));
     } catch (err) {
       if (err instanceof ValidationError) {
-        setErrors((prev) => ({
-          ...prev,
-          [field]: err.message,
-        }));
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
       }
     }
   };
@@ -182,10 +174,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-
-      setAlert({
-        message: `Failed to create policy: ${errorMessage}`,
-      });
+      setAlert({ message: `Failed to create policy: ${errorMessage}` });
       console.error("Failed to create policy:", error);
     } finally {
       setLoading(false);
@@ -210,6 +199,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
             {alert.message}
           </Alert>
         </Collapse>
+
         <TextField
           fullWidth
           label="Name"
@@ -220,21 +210,22 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           helperText={touched.name ? errors.name : ""}
           margin="normal"
         />
+
         <FormControl fullWidth margin="normal">
-          <InputLabel id="demo-simple-select-label">
+          <InputLabel id="data-network-select-label">
             Data Network Name
           </InputLabel>
           <Select
+            labelId="data-network-select-label"
+            label="Data Network Name"
             value={formValues.dataNetworkName}
             onChange={(e) => handleChange("dataNetworkName", e.target.value)}
             onBlur={() => handleBlur("dataNetworkName")}
             error={!!errors.dataNetworkName && touched.dataNetworkName}
-            labelId="demo-simple-select-label"
-            label={"PolicyName"}
           >
-            {dataNetworks.map((dataNetwork) => (
-              <MenuItem key={dataNetwork} value={dataNetwork}>
-                {dataNetwork}
+            {dataNetworks.map((name) => (
+              <MenuItem key={name} value={name}>
+                {name}
               </MenuItem>
             ))}
           </Select>
@@ -244,6 +235,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
             </Typography>
           )}
         </FormControl>
+
         <Box display="flex" gap={2}>
           <TextField
             label="Bitrate Up Value"
@@ -271,6 +263,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
             <MenuItem value="Gbps">Gbps</MenuItem>
           </TextField>
         </Box>
+
         <Box display="flex" gap={2}>
           <TextField
             label="Bitrate Down Value"
@@ -298,6 +291,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
             <MenuItem value="Gbps">Gbps</MenuItem>
           </TextField>
         </Box>
+
         <TextField
           fullWidth
           label="5QI"
@@ -309,6 +303,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           helperText={touched.fiveQi ? errors.fiveQi : ""}
           margin="normal"
         />
+
         <TextField
           fullWidth
           label="Priority Level"
@@ -323,6 +318,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           margin="normal"
         />
       </DialogContent>
+
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
         <Button

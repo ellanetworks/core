@@ -21,9 +21,13 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, err := database.ListRoutes(context.Background())
+	res, total, err := database.ListRoutesPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
+	}
+
+	if total != 0 {
+		t.Fatalf("Expected total count to be 0, but got %d", total)
 	}
 
 	if len(res) != 0 {
@@ -63,10 +67,15 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		t.Fatalf("expected routeID 1, got %d", routeID)
 	}
 
-	res, err = database.ListRoutes(context.Background())
+	res, total, err = database.ListRoutesPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
+
+	if total != 1 {
+		t.Fatalf("Expected total count to be 1, but got %d", total)
+	}
+
 	if len(res) != 1 {
 		t.Fatalf("One or more routes weren't found in DB")
 	}
@@ -108,10 +117,15 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 
 	committedDelete = true
 
-	res, err = database.ListRoutes(context.Background())
+	res, total, err = database.ListRoutesPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
+
+	if total != 0 {
+		t.Fatalf("Expected total count to be 0, but got %d", total)
+	}
+
 	if len(res) != 0 {
 		t.Fatalf("Routes weren't deleted from the DB properly")
 	}

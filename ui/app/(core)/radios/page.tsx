@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Box,
   Typography,
@@ -8,63 +8,69 @@ import {
   Alert,
   Collapse,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { DataGrid, GridColDef } from "@mui/x-data-grid";
-import { listRadios } from "@/queries/radios";
+import {
+  DataGrid,
+  type GridColDef,
+  type GridPaginationModel,
+} from "@mui/x-data-grid";
+import {
+  listRadios,
+  type APIRadio,
+  type ListRadiosResponse,
+} from "@/queries/radios";
 import EmptyState from "@/components/EmptyState";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { useAuth } from "@/contexts/AuthContext";
-
-interface RadioData {
-  id: string;
-  name: string;
-  address: string;
-}
+import { useQuery } from "@tanstack/react-query";
 
 const MAX_WIDTH = 1400;
 
 const Radio = () => {
-  const { accessToken, authReady } = useAuth();
-  const [radios, setRadios] = useState<RadioData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
-
+  const { accessToken } = useAuth();
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
 
-  const outerTheme = useTheme();
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize: 25,
+  });
 
-  const gridTheme = React.useMemo(
+  const { data, isLoading } = useQuery<ListRadiosResponse>({
+    queryKey: [
+      "radios",
+      accessToken,
+      paginationModel.page,
+      paginationModel.pageSize,
+    ],
+    queryFn: async () => {
+      const pageOneBased = paginationModel.page + 1;
+      return listRadios(
+        accessToken || "",
+        pageOneBased,
+        paginationModel.pageSize,
+      );
+    },
+    enabled: !!accessToken,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+  });
+
+  const rows: APIRadio[] = data?.items ?? [];
+  const rowCount: number = data?.total_count ?? 0;
+
+  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
+
+  const gridTheme = useMemo(
     () =>
-      createTheme(outerTheme, {
-        palette: {
-          DataGrid: {
-            headerBg: "#F5F5F5",
-          },
-        },
+      createTheme(theme, {
+        palette: { DataGrid: { headerBg: "#F5F5F5" } },
       }),
-    [outerTheme],
+    [theme],
   );
 
-  const fetchRadios = useCallback(async () => {
-    if (!authReady || !accessToken) return;
-    setLoading(true);
-    try {
-      const data = await listRadios(accessToken);
-      setRadios(data);
-    } catch (error) {
-      console.error("Error fetching radios:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [accessToken, authReady]);
-
-  useEffect(() => {
-    fetchRadios();
-  }, [fetchRadios]);
-
-  const columns: GridColDef[] = useMemo(
+  const columns: GridColDef<APIRadio>[] = useMemo(
     () => [
       { field: "id", headerName: "ID", flex: 0.6, minWidth: 160 },
       { field: "name", headerName: "Name", flex: 1, minWidth: 200 },
@@ -98,11 +104,11 @@ const Radio = () => {
         </Collapse>
       </Box>
 
-      {loading ? (
+      {isLoading && rowCount === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
         </Box>
-      ) : radios.length === 0 ? (
+      ) : rowCount === 0 ? (
         <EmptyState
           primaryText="No radio found."
           secondaryText="Connected radios will automatically appear here."
@@ -128,7 +134,7 @@ const Radio = () => {
               gap: 2,
             }}
           >
-            <Typography variant="h4">Radios ({radios.length})</Typography>
+            <Typography variant="h4">Radios ({rowCount})</Typography>
 
             <Typography variant="body1" color="text.secondary">
               {descriptionText}
@@ -139,10 +145,18 @@ const Radio = () => {
             sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
           >
             <ThemeProvider theme={gridTheme}>
-              <DataGrid
-                rows={radios}
+              <DataGrid<APIRadio>
+                rows={rows}
                 columns={columns}
                 getRowId={(row) => row.id}
+                loading={isLoading}
+                paginationMode="server"
+                rowCount={rowCount}
+                paginationModel={paginationModel}
+                onPaginationModelChange={setPaginationModel}
+                pageSizeOptions={[10, 25, 50, 100]}
+                sortingMode="server"
+                disableColumnMenu
                 disableRowSelectionOnClick
                 columnVisibilityModel={{ id: !isSmDown }}
                 sx={{
@@ -156,6 +170,7 @@ const Radio = () => {
                   "& .MuiDataGrid-columnHeaders": {
                     borderBottom: "1px solid",
                     borderColor: "divider",
+                    backgroundColor: "#F5F5F5",
                   },
                   "& .MuiDataGrid-footerContainer": {
                     borderTop: "1px solid",

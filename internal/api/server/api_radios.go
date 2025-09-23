@@ -28,11 +28,18 @@ type SupportedTAI struct {
 	SNssais []Snssai `json:"snssais"`
 }
 
-type GetRadioParams struct {
+type Radio struct {
 	Name          string         `json:"name"`
 	ID            string         `json:"id"`
 	Address       string         `json:"address"`
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
+}
+
+type ListRadiosResponse struct {
+	Items      []Radio `json:"items"`
+	Page       int     `json:"page"`
+	PerPage    int     `json:"per_page"`
+	TotalCount int     `json:"total_count"`
 }
 
 func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
@@ -63,20 +70,44 @@ func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 
 func ListRadios() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ranList := context.ListAmfRan()
-		radios := make([]GetRadioParams, 0, len(ranList))
+		q := r.URL.Query()
+		page := atoiDefault(q.Get("page"), 1)
+		perPage := atoiDefault(q.Get("per_page"), 25)
+
+		if page < 1 {
+			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			return
+		}
+
+		if perPage < 1 || perPage > 100 {
+			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			return
+		}
+
+		total, ranList := context.ListAmfRan(page, perPage)
+
+		items := make([]Radio, 0, len(ranList))
+
 		for _, radio := range ranList {
 			supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAList)
-			newRadio := GetRadioParams{
+			newRadio := Radio{
 				Name:          radio.Name,
 				ID:            radio.GnbID,
 				Address:       radio.GnbIP,
 				SupportedTAIs: supportedTais,
 			}
-			radios = append(radios, newRadio)
+
+			items = append(items, newRadio)
 		}
 
-		writeResponse(w, radios, http.StatusOK, logger.APILog)
+		resp := ListRadiosResponse{
+			Items:      items,
+			Page:       page,
+			PerPage:    perPage,
+			TotalCount: total,
+		}
+
+		writeResponse(w, resp, http.StatusOK, logger.APILog)
 	}
 }
 
@@ -88,11 +119,12 @@ func GetRadio() http.HandlerFunc {
 			return
 		}
 
-		ranList := context.ListAmfRan()
+		_, ranList := context.ListAmfRan(1, 1000)
+
 		for _, radio := range ranList {
 			if radio.Name == radioName {
 				supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAList)
-				result := GetRadioParams{
+				result := Radio{
 					Name:          radio.Name,
 					ID:            radio.GnbID,
 					Address:       radio.GnbIP,

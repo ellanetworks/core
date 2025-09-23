@@ -2,33 +2,41 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, Typography, Alert, Button, Collapse } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { DataGrid, GridColDef } from "@mui/x-data-grid";
+import {
+  DataGrid,
+  type GridColDef,
+  type GridPaginationModel,
+} from "@mui/x-data-grid";
 import {
   listAuditLogs,
   getAuditLogRetentionPolicy,
+  type APIAuditLog,
+  type ListAuditLogsResponse,
 } from "@/queries/audit_logs";
 import { useAuth } from "@/contexts/AuthContext";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 import { AuditLogRetentionPolicy } from "@/types/types";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
-
-interface AuditLogData {
-  id: string;
-  timestamp: string;
-  level: string;
-  actor: string;
-  action: string;
-  ip: string;
-  details: string;
-}
 
 const MAX_WIDTH = 1400;
 
-const AuditLog = () => {
+const AuditLog: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
-  const [auditLogs, setAuditLogs] = useState<AuditLogData[]>([]);
+  const canEdit = role === "Admin";
+
+  const outerTheme = useTheme();
+  const gridTheme = useMemo(() => createTheme(outerTheme), [outerTheme]);
+  const isSmDown = useMediaQuery(outerTheme.breakpoints.down("sm"));
+
+  const [rows, setRows] = useState<APIAuditLog[]>([]);
+  const [rowCount, setRowCount] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize: 25,
+  });
+
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
@@ -36,23 +44,8 @@ const AuditLog = () => {
     message: "",
     severity: null,
   });
+
   const [isEditModalOpen, setEditModalOpen] = useState(false);
-
-  const theme = useTheme();
-  const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
-  const canEdit = role === "Admin";
-
-  const outerTheme = useTheme();
-  const gridTheme = React.useMemo(
-    () =>
-      createTheme(outerTheme, {
-        palette: {
-          DataGrid: { headerBg: "#F5F5F5" },
-        },
-      }),
-    [outerTheme],
-  );
-
   const [retentionPolicy, setRetentionPolicy] =
     useState<AuditLogRetentionPolicy | null>(null);
 
@@ -69,28 +62,73 @@ const AuditLog = () => {
     }
   }, [accessToken, authReady]);
 
-  const fetchAuditLogs = useCallback(async () => {
-    if (!authReady || !accessToken) return;
-    try {
-      const data = await listAuditLogs(accessToken);
-      setAuditLogs(data);
-    } catch (error) {
-      console.error("Error fetching audit logs:", error);
-    }
-  }, [accessToken, authReady]);
+  const fetchAuditLogs = useCallback(
+    async (pageZeroBased: number, pageSize: number) => {
+      if (!authReady || !accessToken) return;
+      setLoading(true);
+      try {
+        const pageOneBased = pageZeroBased + 1;
+        const data: ListAuditLogsResponse = await listAuditLogs(
+          accessToken,
+          pageOneBased,
+          pageSize,
+        );
+        setRows(data.items);
+        setRowCount(data.total_count ?? 0);
+      } catch (error) {
+        console.error("Error fetching audit logs:", error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [accessToken, authReady],
+  );
 
   useEffect(() => {
-    fetchAuditLogs();
     fetchRetentionPolicy();
-  }, [fetchAuditLogs, fetchRetentionPolicy]);
+  }, [fetchRetentionPolicy]);
 
-  const columns: GridColDef[] = useMemo(
+  useEffect(() => {
+    fetchAuditLogs(paginationModel.page, paginationModel.pageSize);
+  }, [fetchAuditLogs, paginationModel.page, paginationModel.pageSize]);
+
+  const columns: GridColDef<APIAuditLog>[] = useMemo(
     () => [
-      { field: "timestamp", headerName: "Timestamp", flex: 1, minWidth: 220 },
-      { field: "actor", headerName: "Actor", flex: 1, minWidth: 250 },
-      { field: "action", headerName: "Action", flex: 1, minWidth: 200 },
-      { field: "ip", headerName: "IP Address", flex: 1, minWidth: 150 },
-      { field: "details", headerName: "Details", flex: 2, minWidth: 350 },
+      {
+        field: "timestamp",
+        headerName: "Timestamp",
+        flex: 1,
+        minWidth: 220,
+        sortable: false,
+      },
+      {
+        field: "actor",
+        headerName: "Actor",
+        flex: 1,
+        minWidth: 250,
+        sortable: false,
+      },
+      {
+        field: "action",
+        headerName: "Action",
+        flex: 1,
+        minWidth: 200,
+        sortable: false,
+      },
+      {
+        field: "ip",
+        headerName: "IP Address",
+        flex: 1,
+        minWidth: 150,
+        sortable: false,
+      },
+      {
+        field: "details",
+        headerName: "Details",
+        flex: 2,
+        minWidth: 350,
+        sortable: false,
+      },
     ],
     [],
   );
@@ -158,18 +196,20 @@ const AuditLog = () => {
 
       <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
         <ThemeProvider theme={gridTheme}>
-          <DataGrid
-            rows={auditLogs}
+          <DataGrid<APIAuditLog>
+            rows={rows}
             columns={columns}
             getRowId={(row) => row.id}
-            showToolbar={true}
-            initialState={{
-              sorting: { sortModel: [{ field: "timestamp", sort: "desc" }] },
-            }}
+            loading={loading}
+            paginationMode="server"
+            rowCount={rowCount}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            sortingMode="server"
+            disableColumnMenu
             disableRowSelectionOnClick
-            columnVisibilityModel={{
-              id: !isSmDown,
-            }}
+            pageSizeOptions={[10, 25, 50, 100]}
+            density={isSmDown ? "compact" : "standard"}
             sx={{
               width: "100%",
               border: 1,
@@ -181,6 +221,7 @@ const AuditLog = () => {
               "& .MuiDataGrid-columnHeaders": {
                 borderBottom: "1px solid",
                 borderColor: "divider",
+                backgroundColor: "#F5F5F5",
               },
               "& .MuiDataGrid-footerContainer": {
                 borderTop: "1px solid",

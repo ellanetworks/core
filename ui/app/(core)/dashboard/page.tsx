@@ -26,9 +26,16 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { getStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
-import { listSubscribers } from "@/queries/subscribers";
+import {
+  listSubscribers,
+  type ListSubscribersResponse,
+} from "@/queries/subscribers";
 import { listRadios } from "@/queries/radios";
-import { listSubscriberLogs } from "@/queries/subscriber_logs";
+import {
+  listSubscriberLogs,
+  type APISubscriberLog,
+  type ListSubscriberLogsResponse,
+} from "@/queries/subscriber_logs";
 
 const MAX_WIDTH = 1200;
 
@@ -148,13 +155,6 @@ function KpiCard({
   return CardInner;
 }
 
-type SubscriberLogData = {
-  id: string;
-  timestamp: string;
-  imsi: string;
-  event: string;
-};
-
 const Dashboard = () => {
   const router = useRouter();
   const { accessToken, authReady } = useAuth();
@@ -177,7 +177,7 @@ const Dashboard = () => {
 
   const [upSince, setUpSince] = useState<Date | null>(null);
 
-  const [subscriberLogs, setSubscriberLogs] = useState<SubscriberLogData[]>([]);
+  const [subscriberLogs, setSubscriberLogs] = useState<APISubscriberLog[]>([]);
   const [logsError, setLogsError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -225,22 +225,28 @@ const Dashboard = () => {
     if (!authReady) return;
     if (!accessToken) return;
     let mounted = true;
+
     (async () => {
       try {
-        const [status, subscribers, radios] = await Promise.all([
+        const [status, subsPage, radiosPage] = await Promise.all([
           getStatus(),
-          listSubscribers(accessToken),
-          listRadios(accessToken),
+          listSubscribers(
+            accessToken,
+            1,
+            1,
+          ) as Promise<ListSubscribersResponse>,
+          listRadios(accessToken, 1, 1),
         ]);
         if (!mounted) return;
 
         setVersion(status.version);
-        setSubscriberCount(subscribers.length);
-        setRadioCount(radios.length);
+        setSubscriberCount(subsPage.total_count ?? 0);
+        setRadioCount(radiosPage.total_count ?? 0);
       } catch {
         if (mounted) setError("Failed to fetch initial data.");
       }
     })();
+
     return () => {
       mounted = false;
     };
@@ -281,7 +287,7 @@ const Dashboard = () => {
         setN6Drops(n6Drops);
 
         if (processStart) {
-          setUpSince(new Date(processStart * 1000));
+          setUpSince(new Date(processStart * 5000));
         }
 
         setError(null);
@@ -295,7 +301,7 @@ const Dashboard = () => {
 
     const start = () => {
       tick();
-      interval = window.setInterval(tick, 1000);
+      interval = window.setInterval(tick, 5000);
     };
     const stop = () => {
       if (interval) window.clearInterval(interval);
@@ -315,21 +321,26 @@ const Dashboard = () => {
   useEffect(() => {
     if (!authReady) return;
     if (!accessToken) return;
+
     let mounted = true;
+
     const fetchLogs = async () => {
       try {
-        const data = await listSubscriberLogs(accessToken);
+        const res: ListSubscriberLogsResponse = await listSubscriberLogs(
+          accessToken,
+          1,
+          10,
+        );
         if (!mounted) return;
-        const rows = [...data]
-          .sort((a, b) => (b.timestamp ?? "").localeCompare(a.timestamp ?? ""))
-          .slice(0, 10);
-        setSubscriberLogs(rows);
+        setSubscriberLogs(res.items ?? []);
         setLogsError(null);
       } catch (e) {
+        if (!mounted) return;
         console.error("Error fetching subscriber logs:", e);
         setLogsError("Failed to fetch subscriber logs.");
       }
     };
+
     fetchLogs();
     return () => {
       mounted = false;

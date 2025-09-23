@@ -10,7 +10,7 @@ import {
   Collapse,
   Chip,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import {
   DataGrid,
@@ -18,53 +18,29 @@ import {
   GridActionsCellItem,
   GridRenderCellParams,
   GridRowParams,
+  GridPaginationModel,
 } from "@mui/x-data-grid";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import { listSubscribers, deleteSubscriber } from "@/queries/subscribers";
+import {
+  listSubscribers,
+  deleteSubscriber,
+  type APISubscriber,
+  type ListSubscribersResponse,
+} from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import ViewSubscriberModal from "@/components/ViewSubscriberModal";
 import EditSubscriberModal from "@/components/EditSubscriberModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
-import { Subscriber } from "@/types/types";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { useQuery } from "@tanstack/react-query";
 
 const MAX_WIDTH = 1400;
 
-const SubscriberPage = () => {
+const SubscriberPage: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
-
-  const {
-    data: subscribers = [],
-    isLoading,
-    refetch,
-  } = useQuery({
-    queryKey: ["subscribers", accessToken],
-    queryFn: () => listSubscribers(accessToken || ""),
-    // Only run once auth is ready and we have a token
-    enabled: authReady && !!accessToken,
-    refetchInterval: 5000,
-    refetchIntervalInBackground: true,
-    refetchOnWindowFocus: true,
-  });
-
-  const [isCreateModalOpen, setCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [isViewModalOpen, setViewModalOpen] = useState(false);
-  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [editData, setEditData] = useState<Subscriber | null>(null);
-  const [selectedSubscriber, setSelectedSubscriber] = useState<string | null>(
-    null,
-  );
-  const [alert, setAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({ message: "", severity: null });
-
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
   const canEdit = role === "Admin" || role === "Network Manager";
@@ -77,19 +53,52 @@ const SubscriberPage = () => {
     [theme],
   );
 
-  const handleOpenCreateModal = () => setCreateModalOpen(true);
-  const handleCloseCreateModal = () => setCreateModalOpen(false);
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize: 25,
+  });
+
+  const [isCreateModalOpen, setCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [isViewModalOpen, setViewModalOpen] = useState(false);
+  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
+  const [editData, setEditData] = useState<APISubscriber | null>(null);
+  const [selectedSubscriber, setSelectedSubscriber] = useState<string | null>(
+    null,
+  );
+  const [alert, setAlert] = useState<{
+    message: string;
+    severity: "success" | "error" | null;
+  }>({ message: "", severity: null });
+
+  const pageOneBased = paginationModel.page + 1;
+  const perPage = paginationModel.pageSize;
+
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ["subscribers", accessToken, pageOneBased, perPage],
+    queryFn: (): Promise<ListSubscribersResponse> =>
+      listSubscribers(accessToken || "", pageOneBased, perPage),
+    enabled: authReady && !!accessToken,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
+  });
+
+  const rows: APISubscriber[] = data?.items ?? [];
+  const rowCount = data?.total_count ?? 0;
+
   const handleCloseViewModal = () => {
     setSelectedSubscriber(null);
     setViewModalOpen(false);
   };
 
-  const handleEditClick = (subscriber: Subscriber) => {
+  const handleEditClick = (subscriber: APISubscriber) => {
     setEditData(subscriber);
     setEditModalOpen(true);
   };
 
-  const handleViewClick = (subscriber: Subscriber) => {
+  const handleViewClick = (subscriber: APISubscriber) => {
     setSelectedSubscriber(subscriber.imsi);
     setViewModalOpen(true);
   };
@@ -119,8 +128,8 @@ const SubscriberPage = () => {
     }
   };
 
-  const columns: GridColDef<Subscriber>[] = useMemo(() => {
-    const actions = (row: Subscriber) =>
+  const columns: GridColDef<APISubscriber>[] = useMemo(() => {
+    const actions = (row: APISubscriber) =>
       isSmDown
         ? [
             <GridActionsCellItem
@@ -165,7 +174,7 @@ const SubscriberPage = () => {
             />,
           ];
 
-    const base: GridColDef<Subscriber>[] = [
+    const base: GridColDef<APISubscriber>[] = [
       { field: "imsi", headerName: "IMSI", flex: 1, minWidth: 200 },
       { field: "policyName", headerName: "Policy", flex: 0.8, minWidth: 140 },
       {
@@ -175,7 +184,7 @@ const SubscriberPage = () => {
         minWidth: 120,
         valueGetter: (_v, row) => Boolean(row?.status?.registered),
         sortComparator: (v1, v2) => Number(v1) - Number(v2),
-        renderCell: (params: GridRenderCellParams<Subscriber>) => {
+        renderCell: (params: GridRenderCellParams<APISubscriber>) => {
           const registered = Boolean(params.row?.status?.registered);
           return (
             <Chip
@@ -194,7 +203,7 @@ const SubscriberPage = () => {
         minWidth: 120,
         valueGetter: (_v, row) => (row?.status?.sessions?.length ?? 0) > 0,
         sortComparator: (v1, v2) => Number(v1) - Number(v2),
-        renderCell: (params: GridRenderCellParams<Subscriber>) => {
+        renderCell: (params: GridRenderCellParams<APISubscriber>) => {
           const active = (params.row?.status?.sessions?.length ?? 0) > 0;
           return (
             <Chip
@@ -215,7 +224,7 @@ const SubscriberPage = () => {
           row?.status?.sessions && row.status.sessions.length > 0
             ? row.status.sessions[0]?.ipAddress || ""
             : "",
-        renderCell: (params: GridRenderCellParams<Subscriber>) => {
+        renderCell: (params: GridRenderCellParams<APISubscriber>) => {
           const ip =
             params.row?.status?.sessions &&
             params.row.status.sessions.length > 0
@@ -242,7 +251,8 @@ const SubscriberPage = () => {
         width: 120,
         sortable: false,
         disableColumnMenu: true,
-        getActions: (params: GridRowParams<Subscriber>) => actions(params.row),
+        getActions: (params: GridRowParams<APISubscriber>) =>
+          actions(params.row),
       });
     }
 
@@ -264,12 +274,28 @@ const SubscriberPage = () => {
   const descriptionText =
     "Manage subscribers connecting to your private network. After creating a subscriber here, you can emit a SIM card with the corresponding IMSI, Key and OPc.";
 
-  // While auth is preparing, show a spinner (AuthProvider will redirect if unauthenticated)
   if (!authReady) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
         <CircularProgress />
       </Box>
+    );
+  }
+
+  if (!isLoading && rowCount === 0) {
+    return (
+      <EmptyState
+        primaryText="No subscriber found."
+        secondaryText="Create a new subscriber."
+        extraContent={
+          <Typography variant="body1" color="text.secondary">
+            {descriptionText}
+          </Typography>
+        }
+        button={canEdit}
+        buttonText="Create"
+        onCreate={() => setCreateModalOpen(true)}
+      />
     );
   }
 
@@ -295,90 +321,72 @@ const SubscriberPage = () => {
         </Collapse>
       </Box>
 
-      {isLoading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : subscribers.length === 0 ? (
-        <EmptyState
-          primaryText="No subscriber found."
-          secondaryText="Create a new subscriber."
-          extraContent={
-            <Typography variant="body1" color="text.secondary">
-              {descriptionText}
-            </Typography>
-          }
-          button={canEdit}
-          buttonText="Create"
-          onCreate={handleOpenCreateModal}
-        />
-      ) : (
-        <>
-          <Box
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: MAX_WIDTH,
+          px: { xs: 2, sm: 4 },
+          mb: 3,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}
+      >
+        <Typography variant="h4">Subscribers ({rowCount})</Typography>
+
+        <Typography variant="body1" color="text.secondary">
+          {descriptionText}
+        </Typography>
+
+        {canEdit && (
+          <Button
+            variant="contained"
+            color="success"
+            onClick={() => setCreateModalOpen(true)}
+            sx={{ maxWidth: 200 }}
+          >
+            Create
+          </Button>
+        )}
+      </Box>
+
+      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+        <ThemeProvider theme={gridTheme}>
+          <DataGrid<APISubscriber>
+            rows={rows}
+            columns={columns}
+            getRowId={(row) => row.imsi}
+            loading={isLoading || isFetching}
+            columnGroupingModel={columnGroupingModel}
+            disableRowSelectionOnClick
+            paginationMode="server"
+            rowCount={rowCount}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            pageSizeOptions={[10, 25, 50, 100]}
+            sortingMode="server"
+            disableColumnMenu
             sx={{
               width: "100%",
-              maxWidth: MAX_WIDTH,
-              px: { xs: 2, sm: 4 },
-              mb: 3,
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
+              border: 1,
+              borderColor: "divider",
+              "& .MuiDataGrid-cell": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
             }}
-          >
-            <Typography variant="h4">
-              Subscribers ({subscribers.length})
-            </Typography>
-
-            <Typography variant="body1" color="text.secondary">
-              {descriptionText}
-            </Typography>
-
-            {canEdit && (
-              <Button
-                variant="contained"
-                color="success"
-                onClick={handleOpenCreateModal}
-                sx={{ maxWidth: 200 }}
-              >
-                Create
-              </Button>
-            )}
-          </Box>
-
-          <Box
-            sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
-          >
-            <ThemeProvider theme={gridTheme}>
-              <DataGrid
-                rows={subscribers}
-                columns={columns}
-                getRowId={(row) => row.imsi}
-                disableRowSelectionOnClick
-                columnVisibilityModel={{}}
-                columnGroupingModel={columnGroupingModel}
-                sx={{
-                  width: "100%",
-                  border: 1,
-                  borderColor: "divider",
-                  "& .MuiDataGrid-cell": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaders": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-footerContainer": {
-                    borderTop: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
-                }}
-              />
-            </ThemeProvider>
-          </Box>
-        </>
-      )}
+          />
+        </ThemeProvider>
+      </Box>
 
       {isViewModalOpen && (
         <ViewSubscriberModal
@@ -387,13 +395,15 @@ const SubscriberPage = () => {
           imsi={selectedSubscriber || ""}
         />
       )}
+
       {isCreateModalOpen && (
         <CreateSubscriberModal
           open
-          onClose={handleCloseCreateModal}
+          onClose={() => setCreateModalOpen(false)}
           onSuccess={refetch}
         />
       )}
+
       {isEditModalOpen && (
         <EditSubscriberModal
           open
@@ -402,6 +412,7 @@ const SubscriberPage = () => {
           initialData={editData || { imsi: "", policyName: "" }}
         />
       )}
+
       {isConfirmationOpen && (
         <DeleteConfirmationModal
           open

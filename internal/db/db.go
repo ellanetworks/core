@@ -212,7 +212,7 @@ func (db *Database) Initialize() error {
 		logger.DBLog.Info("Initialized subscriber log retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
-	numDataNetworks, err := db.NumDataNetworks(context.Background())
+	numDataNetworks, err := db.CountDataNetworks(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to get number of data networks: %v", err)
 	}

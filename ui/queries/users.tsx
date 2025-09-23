@@ -1,5 +1,68 @@
 import { HTTPStatus } from "@/queries/utils";
-import { User, RoleID } from "@/types/types";
+
+export const roleIDToLabel = (role: RoleID): string => {
+  switch (role) {
+    case RoleID.Admin:
+      return "Admin";
+    case RoleID.NetworkManager:
+      return "Network Manager";
+    case RoleID.ReadOnly:
+      return "Read Only";
+    default:
+      return "Unknown";
+  }
+};
+
+export enum RoleID {
+  Admin = 1,
+  ReadOnly = 2,
+  NetworkManager = 3,
+}
+
+export type APIUser = {
+  email: string;
+  role_id: RoleID;
+};
+
+export type ListUsersResponse = {
+  items: APIUser[];
+  page: number;
+  per_page: number;
+  total_count: number;
+};
+
+export async function listUsers(
+  authToken: string,
+  page: number,
+  perPage: number,
+): Promise<ListUsersResponse> {
+  const response = await fetch(
+    `/api/v1/users?page=${page}&per_page=${perPage}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + authToken,
+      },
+    },
+  );
+  let json: { result: ListUsersResponse; error?: string };
+  try {
+    json = await response.json();
+  } catch {
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
+    );
+  }
+
+  return json.result;
+}
 
 export const getLoggedInUser = async (authToken: string) => {
   const response = await fetch(`/api/v1/users/me`, {
@@ -25,37 +88,6 @@ export const getLoggedInUser = async (authToken: string) => {
   }
 
   return respData.result;
-};
-
-export const listUsers = async (authToken: string): Promise<User[]> => {
-  const response = await fetch(`/api/v1/users`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
-  });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  const transformed: User[] = respData.result.map((p: any) => ({
-    email: p.email,
-    roleID: p.role_id,
-  }));
-
-  return transformed;
 };
 
 export const createUser = async (

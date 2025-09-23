@@ -59,10 +59,12 @@ func GetSnssaiInfo(ctx context.Context) (*SnssaiSmfInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
 	}
-	dataNetworks, err := self.DBInstance.ListDataNetworks(ctx)
+
+	dataNetworks, _, err := self.DBInstance.ListDataNetworksPage(ctx, 1, 1000)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list policies from db: %v", err)
 	}
+
 	snssaiInfo := &SnssaiSmfInfo{
 		Snssai: SNssai{
 			Sst: operator.Sst,

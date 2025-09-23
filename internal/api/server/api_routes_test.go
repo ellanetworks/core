@@ -22,7 +22,7 @@ type CreateRouteResponseResult struct {
 	Message string `json:"message"`
 }
 
-type GetRouteResponseResult struct {
+type Route struct {
 	ID          int64  `json:"id"`
 	Destination string `json:"destination"`
 	Gateway     string `json:"gateway"`
@@ -31,8 +31,8 @@ type GetRouteResponseResult struct {
 }
 
 type GetRouteResponse struct {
-	Result GetRouteResponseResult `json:"result"`
-	Error  string                 `json:"error,omitempty"`
+	Result Route  `json:"result"`
+	Error  string `json:"error,omitempty"`
 }
 
 type CreateRouteParams struct {
@@ -56,13 +56,20 @@ type DeleteRouteResponse struct {
 	Error  string                    `json:"error,omitempty"`
 }
 
+type ListRoutesResponseResult struct {
+	Items      []Route `json:"items"`
+	Page       int     `json:"page"`
+	PerPage    int     `json:"per_page"`
+	TotalCount int     `json:"total_count"`
+}
+
 type ListRouteResponse struct {
-	Result []GetRouteResponseResult `json:"result"`
+	Result ListRoutesResponseResult `json:"result"`
 	Error  string                   `json:"error,omitempty"`
 }
 
-func listRoutes(url string, client *http.Client, token string) (int, *ListRouteResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/routes", nil)
+func listRoutes(url string, client *http.Client, token string, page int, perPage int) (int, *ListRouteResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/networking/routes?page=%d&per_page=%d", url, page, perPage), nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -172,15 +179,15 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 	}
 
 	t.Run("1. List routes - 0", func(t *testing.T) {
-		statusCode, response, err := listRoutes(ts.URL, client, token)
+		statusCode, response, err := listRoutes(ts.URL, client, token, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list route: %s", err)
 		}
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if len(response.Result) != 0 {
-			t.Fatalf("expected 0 routes, got %d", len(response.Result))
+		if len(response.Result.Items) != 0 {
+			t.Fatalf("expected 0 routes, got %d", len(response.Result.Items))
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -210,15 +217,15 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. List routes - 1", func(t *testing.T) {
-		statusCode, response, err := listRoutes(ts.URL, client, token)
+		statusCode, response, err := listRoutes(ts.URL, client, token, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list route: %s", err)
 		}
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if len(response.Result) != 1 {
-			t.Fatalf("expected 1 route, got %d", len(response.Result))
+		if len(response.Result.Items) != 1 {
+			t.Fatalf("expected 1 route, got %d", len(response.Result.Items))
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)

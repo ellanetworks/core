@@ -13,24 +13,32 @@ This path returns the list of policies.
 | ------ | ------------------ |
 | GET    | `/api/v1/policies` |
 
-### Parameters
+### Query Parameters
 
-None
+| Name       | In    | Type | Default | Allowed | Description                   |
+| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 
 ### Sample Response
 
 ```json
 {
-    "result": [
-        {
-            "name": "default",
-            "bitrate-uplink": "200 Mbps",
-            "bitrate-downlink": "100 Mbps",
-            "var5qi": 8,
-            "priority-level": 1,
-            "data-network-name": "internet"
-        }
-    ]
+    "result": {
+        "items": [
+            {
+                "name": "default",
+                "bitrate_uplink": "200 Mbps",
+                "bitrate_downlink": "100 Mbps",
+                "var5qi": 8,
+                "priority_level": 1,
+                "data_network_name": "internet"
+            }
+        ],
+        "page": 1,
+        "per_page": 10,
+        "total_count": 1
+    }
 }
 ```
 
@@ -45,11 +53,11 @@ This path creates a new policy.
 ### Parameters
 
 - `name` (string): The Name of the policy.
-- `bitrate-uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
-- `bitrate-downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `bitrate_uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `bitrate_downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `var5qi` (integer): The QoS class identifier of the policy. Must be an integer between 1 and 255.
-- `priority-level` (integer): The priority level of the policy. Must be an integer between 1 and 255.
-- `data-network-name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
+- `priority_level` (integer): The priority level of the policy. Must be an integer between 1 and 255.
+- `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
 
 ### Sample Response
 
@@ -71,11 +79,11 @@ This path updates an existing policy.
 
 ### Parameters
 
-- `bitrate-uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
-- `bitrate-downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `bitrate_uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `bitrate_downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `var5qi` (integer): The QoS class identifier of the policy. Must be an integer between 1 and 255.
-- `priority-level` (integer): The priority level of the policy. Must be an integer between 1 and 255.
-- `data-network-name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
+- `priority_level` (integer): The priority level of the policy. Must be an integer between 1 and 255.
+- `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
 
 ### Sample Response
 
@@ -105,11 +113,11 @@ None
 {
     "result": {
         "name": "my-policy",
-        "bitrate-uplink": "10 Mbps",
-        "bitrate-downlink": "10 Mbps",
+        "bitrate_uplink": "10 Mbps",
+        "bitrate_downlink": "10 Mbps",
         "var5qi": 1,
-        "priority-level": 2,
-        "data-network-name": "internet"
+        "priority_level": 2,
+        "data_network_name": "internet"
     }
 }
 ```

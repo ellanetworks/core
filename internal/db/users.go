@@ -26,19 +26,15 @@ const QueryCreateUsersTable = `
 )`
 
 const (
-	listUsersStmt        = "SELECT &User.* from %s"
+	listUsersPageStmt    = "SELECT &User.* from %s ORDER BY id LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getUserStmt          = "SELECT &User.* from %s WHERE email==$User.email"
 	getUserByIDStmt      = "SELECT &User.* from %s WHERE id==$User.id"
 	createUserStmt       = "INSERT INTO %s (email, roleID, hashedPassword) VALUES ($User.email, $User.roleID, $User.hashedPassword)"
 	editUserStmt         = "UPDATE %s SET roleID=$User.roleID WHERE email==$User.email"
 	editUserPasswordStmt = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE email==$User.email" // #nosec: G101
 	deleteUserStmt       = "DELETE FROM %s WHERE email==$User.email"
-	getNumUsersStmt      = "SELECT COUNT(*) AS &NumUsers.count FROM %s"
+	countUsersStmt       = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
-
-type NumUsers struct {
-	Count int `db:"count"`
-}
 
 type RoleID int
 
@@ -56,42 +52,57 @@ type User struct {
 	HashedPassword string `db:"hashedPassword"`
 }
 
-func (db *Database) ListUsers(ctx context.Context) ([]User, error) {
-	operation := "SELECT"
-	target := UsersTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
+func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]User, int, error) {
+	const operation = "SELECT"
+	const target = UsersTableName
+	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(listUsersStmt, db.usersTable)
+	stmt := fmt.Sprintf(listUsersPageStmt, db.usersTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
+		attribute.Int("page", page),
+		attribute.Int("per_page", perPage),
 	)
 
-	q, err := sqlair.Prepare(stmt, User{})
+	q, err := sqlair.Prepare(stmt, ListArgs{}, User{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
+		return nil, 0, err
+	}
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
+	}
+
+	count, err := db.CountUsers(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "count failed")
+		return nil, 0, err
 	}
 
 	var users []User
-	if err := db.conn.Query(ctx, q).GetAll(&users); err != nil {
+
+	if err := db.conn.Query(ctx, q, args).GetAll(&users); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, nil
+			return nil, count, nil
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
-		return nil, err
+		return nil, 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
-	return users, nil
+	return users, count, nil
 }
 
 // GetUser fetches a single user by email with a span named "SELECT users".
@@ -327,8 +338,8 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 	return nil
 }
 
-// NumUsers returns user count with a span named "SELECT users".
-func (db *Database) NumUsers(ctx context.Context) (int, error) {
+// CountUsers returns user count with a span named "SELECT users".
+func (db *Database) CountUsers(ctx context.Context) (int, error) {
 	operation := "SELECT"
 	target := UsersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -336,7 +347,7 @@ func (db *Database) NumUsers(ctx context.Context) (int, error) {
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(getNumUsersStmt, db.usersTable)
+	stmt := fmt.Sprintf(countUsersStmt, db.usersTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmt),
@@ -344,8 +355,8 @@ func (db *Database) NumUsers(ctx context.Context) (int, error) {
 		attribute.String("db.collection", target),
 	)
 
-	var result NumUsers
-	q, err := sqlair.Prepare(stmt, NumUsers{})
+	var result NumItems
+	q, err := sqlair.Prepare(stmt, NumItems{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")

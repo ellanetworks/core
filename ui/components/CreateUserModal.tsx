@@ -15,9 +15,8 @@ import {
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
-import { createUser } from "@/queries/users";
+import { createUser, RoleID } from "@/queries/users";
 import { useRouter } from "next/navigation";
-import { RoleID } from "@/types/types";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateUserModalProps {

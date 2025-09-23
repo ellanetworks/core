@@ -21,21 +21,21 @@ type CreateDataNetworkResponseResult struct {
 	Message string `json:"message"`
 }
 
-type GetDataNetworkResponseResult struct {
+type DataNetwork struct {
 	Name   string `json:"name"`
-	IPPool string `json:"ip-pool,omitempty"`
+	IPPool string `json:"ip_pool,omitempty"`
 	DNS    string `json:"dns,omitempty"`
 	MTU    int32  `json:"mtu,omitempty"`
 }
 
 type GetDataNetworkResponse struct {
-	Result GetDataNetworkResponseResult `json:"result"`
-	Error  string                       `json:"error,omitempty"`
+	Result DataNetwork `json:"result"`
+	Error  string      `json:"error,omitempty"`
 }
 
 type CreateDataNetworkParams struct {
 	Name   string `json:"name"`
-	IPPool string `json:"ip-pool,omitempty"`
+	IPPool string `json:"ip_pool,omitempty"`
 	DNS    string `json:"dns,omitempty"`
 	MTU    int32  `json:"mtu,omitempty"`
 }
@@ -54,8 +54,15 @@ type DeleteDataNetworkResponse struct {
 	Error  string                          `json:"error,omitempty"`
 }
 
+type ListDataNetworksResponseResult struct {
+	Items      []DataNetwork `json:"items"`
+	Page       int           `json:"page"`
+	PerPage    int           `json:"per_page"`
+	TotalCount int           `json:"total_count"`
+}
+
 type ListDataNetworkResponse struct {
-	Result []GetDataNetworkResponseResult `json:"result"`
+	Result ListDataNetworksResponseResult `json:"result"`
 	Error  string                         `json:"error,omitempty"`
 }
 
@@ -64,20 +71,26 @@ func listDataNetworks(url string, client *http.Client, token string) (int, *List
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var dataNetworkResponse ListDataNetworkResponse
+
 	if err := json.NewDecoder(res.Body).Decode(&dataNetworkResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &dataNetworkResponse, nil
 }
 
@@ -203,8 +216,8 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if len(response.Result) != 1 {
-			t.Fatalf("expected 1 data networks, got %d", len(response.Result))
+		if len(response.Result.Items) != 1 {
+			t.Fatalf("expected 1 data networks, got %d", len(response.Result.Items))
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -238,8 +251,8 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if len(response.Result) != 2 {
-			t.Fatalf("expected 2 data network, got %d", len(response.Result))
+		if len(response.Result.Items) != 2 {
+			t.Fatalf("expected 2 data network, got %d", len(response.Result.Items))
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -451,10 +464,10 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 		{
 			testName: "Invalid IP Pool - bad format",
 			name:     DataNetworkName,
-			ipPool:   "invalid-ip-pool",
+			ipPool:   "invalid-ip_pool",
 			dns:      DNS,
 			mtu:      MTU,
-			error:    "invalid ip-pool format, must be in CIDR format",
+			error:    "invalid ip_pool format, must be in CIDR format",
 		},
 		{
 			testName: "Invalid IP Pool - missing subnet",
@@ -462,7 +475,7 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 			ipPool:   "0.0.0.0",
 			dns:      DNS,
 			mtu:      MTU,
-			error:    "invalid ip-pool format, must be in CIDR format",
+			error:    "invalid ip_pool format, must be in CIDR format",
 		},
 		{
 			testName: "Invalid IP Pool - Too many bits",
@@ -470,7 +483,7 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 			ipPool:   "0.0.0.0/2555",
 			dns:      DNS,
 			mtu:      MTU,
-			error:    "invalid ip-pool format, must be in CIDR format",
+			error:    "invalid ip_pool format, must be in CIDR format",
 		},
 		{
 			testName: "Invalid DNS",

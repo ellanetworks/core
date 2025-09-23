@@ -28,10 +28,6 @@ const QueryCreateAPITokensTable = `
 );
 ` // #nosec: G101
 
-type NumAPITokens struct {
-	Count int `db:"count"`
-}
-
 type APIToken struct {
 	ID        int        `db:"id"`
 	TokenID   string     `db:"token_id"`
@@ -42,44 +38,67 @@ type APIToken struct {
 }
 
 const (
-	listAPITokensStmt  = `SELECT &APIToken.* FROM %s WHERE user_id == $APIToken.user_id`
-	getByTokenIDStmt   = "SELECT &APIToken.* FROM %s WHERE token_id==$APIToken.token_id"
-	getByNameStmt      = "SELECT &APIToken.* FROM %s WHERE user_id==$APIToken.user_id AND name==$APIToken.name"
-	deleteAPITokenStmt = "DELETE FROM %s WHERE id==$APIToken.id"                                                                                                                                       // #nosec: G101
-	createAPITokenStmt = "INSERT INTO %s (token_id, name, token_hash, user_id, expires_at) VALUES ($APIToken.token_id, $APIToken.name, $APIToken.token_hash, $APIToken.user_id, $APIToken.expires_at)" // #nosec: G101
-	numAPITokensStmt   = "SELECT COUNT(*) AS &NumAPITokens.count FROM %s WHERE user_id==$APIToken.user_id"                                                                                             // #nosec: G101
+	listAPITokensPagedStmt = `SELECT &APIToken.* FROM %s WHERE user_id == $APIToken.user_id ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
+	getByTokenIDStmt       = "SELECT &APIToken.* FROM %s WHERE token_id==$APIToken.token_id"
+	getByNameStmt          = "SELECT &APIToken.* FROM %s WHERE user_id==$APIToken.user_id AND name==$APIToken.name"
+	deleteAPITokenStmt     = "DELETE FROM %s WHERE id==$APIToken.id"                                                                                                                                       // #nosec: G101
+	createAPITokenStmt     = "INSERT INTO %s (token_id, name, token_hash, user_id, expires_at) VALUES ($APIToken.token_id, $APIToken.name, $APIToken.token_hash, $APIToken.user_id, $APIToken.expires_at)" // #nosec: G101
+	countAPITokensStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE user_id==$APIToken.user_id"                                                                                                 // #nosec: G101
 )
 
-func (db *Database) ListAPITokens(ctx context.Context, userID int) ([]APIToken, error) {
-	operation := "SELECT"
-	target := APITokensTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
+func (db *Database) ListAPITokensPage(ctx context.Context, userID int, page int, perPage int) ([]APIToken, int, error) {
+	const operation = "SELECT"
+	const target = APITokensTableName
+	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
+
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(listAPITokensStmt, db.apiTokensTable)
+	stmtStr := fmt.Sprintf(listAPITokensPagedStmt, db.apiTokensTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmtStr),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+		attribute.Int("page", page),
+		attribute.Int("per_page", perPage),
+	)
 
-	q, err := sqlair.Prepare(stmt, APIToken{})
+	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, APIToken{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
+		return nil, 0, err
+	}
+
+	count, err := db.CountAPITokens(ctx, userID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "count failed")
+		return nil, 0, err
 	}
 
 	var tokens []APIToken
-	arg := APIToken{UserID: userID}
-	if err := db.conn.Query(ctx, q, arg).GetAll(&tokens); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
+	}
+
+	apiTokenArg := APIToken{UserID: userID}
+
+	if err := db.conn.Query(ctx, stmt, args, apiTokenArg).GetAll(&tokens); err != nil {
+		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
-			return []APIToken{}, nil
+			return nil, count, nil
 		}
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
-		return nil, err
+		span.SetStatus(codes.Error, "query failed")
+		return nil, 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
-	return tokens, nil
+	return tokens, count, nil
 }
 
 // CreateAPIToken inserts a new api token with a span named "INSERT api_token".
@@ -200,7 +219,7 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
 	return nil
 }
 
-func (db *Database) NumAPITokens(ctx context.Context, userID int) (int, error) {
+func (db *Database) CountAPITokens(ctx context.Context, userID int) (int, error) {
 	operation := "SELECT"
 	target := APITokensTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -208,7 +227,7 @@ func (db *Database) NumAPITokens(ctx context.Context, userID int) (int, error) {
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(numAPITokensStmt, db.apiTokensTable)
+	stmt := fmt.Sprintf(countAPITokensStmt, db.apiTokensTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmt),
@@ -216,14 +235,14 @@ func (db *Database) NumAPITokens(ctx context.Context, userID int) (int, error) {
 		attribute.String("db.collection", target),
 	)
 
-	q, err := sqlair.Prepare(stmt, APIToken{}, NumAPITokens{})
+	q, err := sqlair.Prepare(stmt, APIToken{}, NumItems{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return 0, err
 	}
 
-	var result NumAPITokens
+	var result NumItems
 
 	arg := APIToken{UserID: userID}
 

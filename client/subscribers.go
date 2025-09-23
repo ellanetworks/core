@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/url"
 )
 
 type CreateSubscriberOptions struct {
@@ -38,6 +40,13 @@ type Subscriber struct {
 	Key            string           `json:"key"`
 	PolicyName     string           `json:"policyName"`
 	Status         SubscriberStatus `json:"status"`
+}
+
+type ListSubscribersResponse struct {
+	Items      []Subscriber `json:"items"`
+	Page       int          `json:"page"`
+	PerPage    int          `json:"per_page"`
+	TotalCount int          `json:"total_count"`
 }
 
 func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOptions) error {
@@ -103,19 +112,28 @@ func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOpt
 	return nil
 }
 
-func (c *Client) ListSubscribers(ctx context.Context) ([]*Subscriber, error) {
+// http://127.0.0.1:5002/api/v1/subscribers?page=1&per_page=25
+
+func (c *Client) ListSubscribers(ctx context.Context, p *ListParams) (*ListSubscribersResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/subscribers",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	var subscribers []*Subscriber
+
+	var subscribers ListSubscribersResponse
+
 	err = resp.DecodeResult(&subscribers)
 	if err != nil {
 		return nil, err
 	}
-	return subscribers, nil
+
+	return &subscribers, nil
 }

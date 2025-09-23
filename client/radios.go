@@ -1,6 +1,10 @@
 package client
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"net/url"
+)
 
 type GetRadioOptions struct {
 	Name string `json:"name"`
@@ -33,6 +37,13 @@ type Radio struct {
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
+type ListRadiosResponse struct {
+	Items      []Radio `json:"items"`
+	Page       int     `json:"page"`
+	PerPage    int     `json:"per_page"`
+	TotalCount int     `json:"total_count"`
+}
+
 func (c *Client) GetRadio(ctx context.Context, opts *GetRadioOptions) (*Radio, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -52,19 +63,26 @@ func (c *Client) GetRadio(ctx context.Context, opts *GetRadioOptions) (*Radio, e
 	return &radioResponse, nil
 }
 
-func (c *Client) ListRadios(ctx context.Context) ([]*Radio, error) {
+func (c *Client) ListRadios(ctx context.Context, p *ListParams) (*ListRadiosResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/radios",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	var radios []*Radio
+
+	var radios ListRadiosResponse
+
 	err = resp.DecodeResult(&radios)
 	if err != nil {
 		return nil, err
 	}
-	return radios, nil
+
+	return &radios, nil
 }

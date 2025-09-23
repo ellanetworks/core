@@ -26,11 +26,11 @@ const QueryCreateRoutesTable = `
 )`
 
 const (
-	listRoutesStmt   = "SELECT &Route.* FROM %s"
-	getRouteStmt     = "SELECT &Route.* FROM %s WHERE id==$Route.id"
-	createRouteStmt  = "INSERT INTO %s (destination, gateway, interface, metric) VALUES ($Route.destination, $Route.gateway, $Route.interface, $Route.metric)"
-	deleteRouteStmt  = "DELETE FROM %s WHERE id==$Route.id"
-	getNumRoutesStmt = "SELECT COUNT(*) AS &NumRoutes.count FROM %s"
+	listRoutesPageStmt = "SELECT &Route.* FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	getRouteStmt       = "SELECT &Route.* FROM %s WHERE id==$Route.id"
+	createRouteStmt    = "INSERT INTO %s (destination, gateway, interface, metric) VALUES ($Route.destination, $Route.gateway, $Route.interface, $Route.metric)"
+	deleteRouteStmt    = "DELETE FROM %s WHERE id==$Route.id"
+	countRoutesStmt    = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 // NetworkInterface is an enum for network interface keys.
@@ -40,10 +40,6 @@ const (
 	N3 NetworkInterface = iota
 	N6
 )
-
-type NumRoutes struct {
-	Count int `db:"count"`
-}
 
 func (ni NetworkInterface) String() string {
 	switch ni {
@@ -65,43 +61,57 @@ type Route struct {
 	Metric      int              `db:"metric"`
 }
 
-func (db *Database) ListRoutes(ctx context.Context) ([]Route, error) {
-	operation := "SELECT"
-	target := RoutesTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
+func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) ([]Route, int, error) {
+	const operation = "SELECT"
+	const target = RoutesTableName
+	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(listRoutesStmt, db.routesTable)
+	stmtStr := fmt.Sprintf(listRoutesPageStmt, db.routesTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
+		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
+		attribute.Int("page", page),
+		attribute.Int("per_page", perPage),
 	)
 
-	q, err := sqlair.Prepare(stmt, Route{})
+	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, Route{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
+		return nil, 0, err
+	}
+
+	count, err := db.CountRoutes(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "count failed")
+		return nil, 0, err
 	}
 
 	var routes []Route
-	err = db.conn.Query(ctx, q).GetAll(&routes)
-	if err != nil {
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
+	}
+
+	if err := db.conn.Query(ctx, stmt, args).GetAll(&routes); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, nil
+			return nil, count, nil
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
-		return nil, err
+		return nil, 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
-	return routes, nil
+	return routes, count, nil
 }
 
 func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
@@ -213,7 +223,7 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 }
 
 // NumRoutes returns route count
-func (db *Database) NumRoutes(ctx context.Context) (int, error) {
+func (db *Database) CountRoutes(ctx context.Context) (int, error) {
 	operation := "SELECT"
 	target := RoutesTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -221,7 +231,7 @@ func (db *Database) NumRoutes(ctx context.Context) (int, error) {
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(getNumRoutesStmt, db.routesTable)
+	stmt := fmt.Sprintf(countRoutesStmt, db.routesTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmt),
@@ -229,8 +239,8 @@ func (db *Database) NumRoutes(ctx context.Context) (int, error) {
 		attribute.String("db.collection", target),
 	)
 
-	var result NumRoutes
-	q, err := sqlair.Prepare(stmt, NumRoutes{})
+	var result NumItems
+	q, err := sqlair.Prepare(stmt, NumItems{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")

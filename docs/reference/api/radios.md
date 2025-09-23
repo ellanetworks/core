@@ -17,53 +17,62 @@ This path returns the list of radios in the inventory.
 | ------ | ---------------- |
 | GET    | `/api/v1/radios` |
 
-### Parameters
 
-None
+### Query Parameters
+
+| Name       | In    | Type | Default | Allowed | Description                   |
+| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 
 ### Sample Response
 
 ```json
 {
-    "result": [
-        {
-            "name": "gnb1",
-            "id": "001:01:000102",
-            "address": "10.1.107.203/192.168.251.5:9487",
-            "supported_tais": [
-                {
-                    "tai": {
-                        "plmnID": {
-                            "mcc": "001",
-                            "mnc": "01"
+    "result": {
+        "items": [
+            {
+                "name": "gnb1",
+                "id": "001:01:000102",
+                "address": "10.1.107.203/192.168.251.5:9487",
+                "supported_tais": [
+                    {
+                        "tai": {
+                            "plmnID": {
+                                "mcc": "001",
+                                "mnc": "01"
+                            },
+                            "tac": "000001"
                         },
-                        "tac": "000001"
+                        "snssais": [
+                            {
+                                "sst": 1,
+                                "sd": "102030"
+                            }
+                        ]
                     },
-                    "snssais": [
-                        {
-                            "sst": 1,
-                            "sd": "102030"
-                        }
-                    ]
-                },
-                {
-                    "tai": {
-                        "plmnID": {
-                            "mcc": "123",
-                            "mnc": "12"
+                    {
+                        "tai": {
+                            "plmnID": {
+                                "mcc": "123",
+                                "mnc": "12"
+                            },
+                            "tac": "000002"
                         },
-                        "tac": "000002"
-                    },
-                    "snssais": [
-                        {
-                            "sst": 1,
-                            "sd": "102031"
-                        }
-                    ]
-                }
-            ]
-        }
-    ]
+                        "snssais": [
+                            {
+                                "sst": 1,
+                                "sd": "102031"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "page": 1,
+        "per_page": 10,
+        "total_count": 1
+    }
 }
 ```
 

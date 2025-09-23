@@ -38,13 +38,20 @@ type SubscriberStatus struct {
 	Sessions   []SubscriberSession `json:"sessions"`
 }
 
-type GetSubscriberResponse struct {
+type Subscriber struct {
 	Imsi           string           `json:"imsi"`
 	Opc            string           `json:"opc"`
 	SequenceNumber string           `json:"sequenceNumber"`
 	Key            string           `json:"key"`
 	PolicyName     string           `json:"policyName"`
 	Status         SubscriberStatus `json:"status"`
+}
+
+type ListSubscribersResponse struct {
+	Items      []Subscriber `json:"items"`
+	Page       int          `json:"page"`
+	PerPage    int          `json:"per_page"`
+	TotalCount int          `json:"total_count"`
 }
 
 const (
@@ -89,15 +96,30 @@ func isSequenceNumberValid(sequenceNumber string) bool {
 
 func ListSubscribers(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		page := atoiDefault(q.Get("page"), 1)
+		perPage := atoiDefault(q.Get("per_page"), 25)
+
+		if page < 1 {
+			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			return
+		}
+
+		if perPage < 1 || perPage > 100 {
+			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			return
+		}
+
 		ctx := r.Context()
-		dbSubscribers, err := dbInstance.ListSubscribers(ctx)
+
+		dbSubscribers, total, err := dbInstance.ListSubscribersPage(ctx, page, perPage)
 		if err != nil {
-			logger.APILog.Warn("Failed to list subscribers", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Failed to list subscribers", err, logger.APILog)
 			return
 		}
 
-		subscribers := make([]GetSubscriberResponse, 0, len(dbSubscribers))
+		items := make([]Subscriber, 0, len(dbSubscribers))
+
 		for _, dbSubscriber := range dbSubscribers {
 			policy, err := dbInstance.GetPolicyByID(ctx, dbSubscriber.PolicyID)
 			if err != nil {
@@ -122,7 +144,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 				Sessions:   subscriberSessions,
 			}
 
-			subscribers = append(subscribers, GetSubscriberResponse{
+			items = append(items, Subscriber{
 				Imsi:           dbSubscriber.Imsi,
 				Opc:            dbSubscriber.Opc,
 				Key:            dbSubscriber.PermanentKey,
@@ -130,6 +152,13 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 				PolicyName:     policy.Name,
 				Status:         subscriberStatus,
 			})
+		}
+
+		subscribers := ListSubscribersResponse{
+			Items:      items,
+			Page:       page,
+			PerPage:    perPage,
+			TotalCount: total,
 		}
 
 		writeResponse(w, subscribers, http.StatusOK, logger.APILog)
@@ -174,7 +203,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			Sessions:   subscriberSessions,
 		}
 
-		subscriber := GetSubscriberResponse{
+		subscriber := Subscriber{
 			Imsi:           dbSubscriber.Imsi,
 			Opc:            dbSubscriber.Opc,
 			SequenceNumber: dbSubscriber.SequenceNumber,
@@ -182,6 +211,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			PolicyName:     policy.Name,
 			Status:         subscriberStatus,
 		}
+
 		writeResponse(w, subscriber, http.StatusOK, logger.APILog)
 	})
 }
@@ -255,7 +285,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		numSubscribers, err := dbInstance.NumSubscribers(r.Context())
+		numSubscribers, err := dbInstance.CountSubscribers(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to count subscribers", err, logger.APILog)
 			return
@@ -273,12 +303,14 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			Opc:            opcHex,
 			PolicyID:       policy.ID,
 		}
+
 		if err := dbInstance.CreateSubscriber(r.Context(), newSubscriber); err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to create subscriber", err, logger.APILog)
 			return
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Subscriber created successfully"}, http.StatusCreated, logger.APILog)
+
 		logger.LogAuditEvent(CreateSubscriberAction, email, getClientIP(r), "User created subscriber: "+params.Imsi)
 	})
 }

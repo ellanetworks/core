@@ -176,7 +176,7 @@ func TestListSubscribers_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"imsi": "001010100000022", "policyName": "default"}]`),
+			Result:     []byte(`{"items": [{"imsi": "001010100000022", "policyName": "default"}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}
@@ -186,13 +186,18 @@ func TestListSubscribers_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	subscribers, err := clientObj.ListSubscribers(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	resp, err := clientObj.ListSubscribers(ctx, params)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(subscribers) != 1 {
-		t.Fatalf("expected 1 subscriber, got %d", len(subscribers))
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 subscriber, got %d", len(resp.Items))
 	}
 }
 
@@ -211,7 +216,12 @@ func TestListSubscribers_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := clientObj.ListSubscribers(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	_, err := clientObj.ListSubscribers(ctx, params)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

@@ -12,12 +12,11 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
-	"go.uber.org/zap"
 )
 
 type CreateDataNetworkParams struct {
 	Name   string `json:"name"`
-	IPPool string `json:"ip-pool,omitempty"`
+	IPPool string `json:"ip_pool,omitempty"`
 	DNS    string `json:"dns,omitempty"`
 	MTU    int32  `json:"mtu,omitempty"`
 }
@@ -26,12 +25,19 @@ type DataNetworkStatus struct {
 	Sessions int `json:"sessions"`
 }
 
-type GetDataNetworkResponse struct {
+type DataNetwork struct {
 	Name   string            `json:"name"`
-	IPPool string            `json:"ip-pool"`
+	IPPool string            `json:"ip_pool"`
 	DNS    string            `json:"dns,omitempty"`
 	MTU    int32             `json:"mtu,omitempty"`
 	Status DataNetworkStatus `json:"status"`
+}
+
+type ListDataNetworksResponse struct {
+	Items      []DataNetwork `json:"items"`
+	Page       int           `json:"page"`
+	PerPage    int           `json:"per_page"`
+	TotalCount int           `json:"total_count"`
 }
 
 const (
@@ -46,19 +52,34 @@ var dnnRegex = regexp.MustCompile(`^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-
 
 func ListDataNetworks(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		page := atoiDefault(q.Get("page"), 1)
+		perPage := atoiDefault(q.Get("per_page"), 25)
+
+		if page < 1 {
+			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			return
+		}
+
+		if perPage < 1 || perPage > 100 {
+			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			return
+		}
+
 		ctx := r.Context()
-		dbDataNetworks, err := dbInstance.ListDataNetworks(ctx)
+
+		dbDataNetworks, total, err := dbInstance.ListDataNetworksPage(ctx, page, perPage)
 		if err != nil {
-			logger.APILog.Warn("Failed to list data networks", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Failed to list data networks", err, logger.APILog)
 			return
 		}
 
-		dataNetworks := make([]GetDataNetworkResponse, 0, len(dbDataNetworks))
+		items := make([]DataNetwork, 0, len(dbDataNetworks))
+
 		for _, dbDataNetwork := range dbDataNetworks {
 			smfSessions := smfContext.PDUSessionsByDNN(dbDataNetwork.Name)
 
-			dataNetworks = append(dataNetworks, GetDataNetworkResponse{
+			items = append(items, DataNetwork{
 				Name:   dbDataNetwork.Name,
 				IPPool: dbDataNetwork.IPPool,
 				DNS:    dbDataNetwork.DNS,
@@ -67,6 +88,13 @@ func ListDataNetworks(dbInstance *db.Database) http.Handler {
 					Sessions: len(smfSessions),
 				},
 			})
+		}
+
+		dataNetworks := ListDataNetworksResponse{
+			Items:      items,
+			Page:       page,
+			PerPage:    perPage,
+			TotalCount: total,
 		}
 
 		writeResponse(w, dataNetworks, http.StatusOK, logger.APILog)
@@ -88,7 +116,7 @@ func GetDataNetwork(dbInstance *db.Database) http.Handler {
 
 		smfSessions := smfContext.PDUSessionsByDNN(dbDataNetwork.Name)
 
-		dataNetwork := GetDataNetworkResponse{
+		dataNetwork := DataNetwork{
 			Name:   dbDataNetwork.Name,
 			IPPool: dbDataNetwork.IPPool,
 			DNS:    dbDataNetwork.DNS,
@@ -155,7 +183,7 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		numDataNetworks, err := dbInstance.NumDataNetworks(r.Context())
+		numDataNetworks, err := dbInstance.CountDataNetworks(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to count data networks", err, logger.APILog)
 			return
@@ -255,7 +283,7 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 	case p.Name == "":
 		return errors.New("name is missing")
 	case p.IPPool == "":
-		return errors.New("ip-pool is missing")
+		return errors.New("ip_pool is missing")
 	case p.DNS == "":
 		return errors.New("dns is missing")
 	case p.MTU == 0:
@@ -264,7 +292,7 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 	case !isDataNetworkNameValid(p.Name):
 		return errors.New("invalid name format, must be a valid DNN format")
 	case !isUeIPPoolValid(p.IPPool):
-		return errors.New("invalid ip-pool format, must be in CIDR format")
+		return errors.New("invalid ip_pool format, must be in CIDR format")
 	case !isValidDNS(p.DNS):
 		return errors.New("invalid dns format, must be a valid IP address")
 	case !isValidMTU(p.MTU):

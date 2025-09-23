@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/url"
 )
 
 type RoleID int
@@ -44,21 +46,42 @@ type User struct {
 	RoleID RoleID `json:"role_id"`
 }
 
-func (c *Client) ListUsers(ctx context.Context) ([]*User, error) {
+type ListUsersResponse struct {
+	Items      []User `json:"items"`
+	Page       int    `json:"page"`
+	PerPage    int    `json:"per_page"`
+	TotalCount int    `json:"total_count"`
+}
+
+type ListAPITokensResponse struct {
+	Items      []APIToken `json:"items"`
+	Page       int        `json:"page"`
+	PerPage    int        `json:"per_page"`
+	TotalCount int        `json:"total_count"`
+}
+
+func (c *Client) ListUsers(ctx context.Context, p *ListParams) (*ListUsersResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/users",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	var users []*User
+
+	var users ListUsersResponse
+
 	err = resp.DecodeResult(&users)
 	if err != nil {
 		return nil, err
 	}
-	return users, nil
+
+	return &users, nil
 }
 
 func (c *Client) CreateUser(ctx context.Context, opts *CreateUserOptions) error {
@@ -139,24 +162,28 @@ func (c *Client) CreateMyAPIToken(ctx context.Context, opts *CreateAPITokenOptio
 	return &tokenResponse, nil
 }
 
-func (c *Client) ListMyAPITokens(ctx context.Context) ([]*APIToken, error) {
+func (c *Client) ListMyAPITokens(ctx context.Context, p *ListParams) (*ListAPITokensResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/users/me/api-tokens",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+		},
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	var tokens []*APIToken
+	var tokens ListAPITokensResponse
 
 	err = resp.DecodeResult(&tokens)
 	if err != nil {
 		return nil, err
 	}
 
-	return tokens, nil
+	return &tokens, nil
 }
 
 func (c *Client) DeleteMyAPIToken(ctx context.Context, tokenID string) error {

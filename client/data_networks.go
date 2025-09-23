@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/url"
 )
 
 type CreateDataNetworkOptions struct {
 	Name   string `json:"name"`
-	IPPool string `json:"ip-pool"`
+	IPPool string `json:"ip_pool"`
 	DNS    string `json:"dns"`
 	Mtu    int32  `json:"mtu"`
 }
@@ -23,15 +25,22 @@ type DeleteDataNetworkOptions struct {
 
 type DataNetwork struct {
 	Name   string `json:"name"`
-	IPPool string `json:"ip-pool"`
+	IPPool string `json:"ip_pool"`
 	DNS    string `json:"dns"`
 	Mtu    int32  `json:"mtu"`
+}
+
+type ListDataNetworksResponse struct {
+	Items      []DataNetwork `json:"items"`
+	Page       int           `json:"page"`
+	PerPage    int           `json:"per_page"`
+	TotalCount int           `json:"total_count"`
 }
 
 func (c *Client) CreateDataNetwork(ctx context.Context, opts *CreateDataNetworkOptions) error {
 	payload := struct {
 		Name   string `json:"name"`
-		IPPool string `json:"ip-pool"`
+		IPPool string `json:"ip_pool"`
 		DNS    string `json:"dns"`
 		Mtu    int32  `json:"mtu"`
 	}{
@@ -91,19 +100,26 @@ func (c *Client) DeleteDataNetwork(ctx context.Context, opts *DeleteDataNetworkO
 	return nil
 }
 
-func (c *Client) ListDataNetworks(ctx context.Context) ([]*DataNetwork, error) {
+func (c *Client) ListDataNetworks(ctx context.Context, p *ListParams) (*ListDataNetworksResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/networking/data-networks",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	var dataNetworks []*DataNetwork
+
+	var dataNetworks ListDataNetworksResponse
+
 	err = resp.DecodeResult(&dataNetworks)
 	if err != nil {
 		return nil, err
 	}
-	return dataNetworks, nil
+
+	return &dataNetworks, nil
 }

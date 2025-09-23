@@ -14,31 +14,39 @@ This path returns the list of network subscribers.
 | ------ | --------------------- |
 | GET    | `/api/v1/subscribers` |
 
-### Parameters
+### Query Parameters
 
-None
+| Name       | In    | Type | Default | Allowed | Description                   |
+| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 
 ### Sample Response
 
 ```json
 {
-    "result": [
-        {
-            "imsi": "001010100007487",
-            "opc": "981d464c7c52eb6e5036234984ad0bcf",
-            "sequenceNumber": "16f3b3f70fc7",
-            "key": "5122250214c33e723a5dd523fc145fc0",
-            "policyName": "default",
-            "status": {
-                "registered": true,
-                "sessions": [
-                    {
-                        "ipAddress": "1.2.3.4"
-                    }
-                ]
+    "result": {
+        "items": [
+            {
+                "imsi": "001010100007487",
+                "opc": "981d464c7c52eb6e5036234984ad0bcf",
+                "sequenceNumber": "16f3b3f70fc7",
+                "key": "5122250214c33e723a5dd523fc145fc0",
+                "policyName": "default",
+                "status": {
+                    "registered": true,
+                    "sessions": [
+                        {
+                            "ipAddress": "1.2.3.4"
+                        }
+                    ]
+                }
             }
-        }
-    ]
+        ],
+        "page": 1,
+        "per_page": 10,
+        "total_count": 1
+    }
 }
 ```
 

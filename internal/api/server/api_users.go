@@ -38,12 +38,19 @@ type UpdateMyUserPasswordParams struct {
 	Password string `json:"password"`
 }
 
-type GetUserParams struct {
+type User struct {
 	Email  string `json:"email"`
 	RoleID RoleID `json:"role_id"`
 }
 
-type GetAPITokenResponse struct {
+type ListUsersResponse struct {
+	Items      []User `json:"items"`
+	Page       int    `json:"page"`
+	PerPage    int    `json:"per_page"`
+	TotalCount int    `json:"total_count"`
+}
+
+type APIToken struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	ExpiresAt string `json:"expires_at"`
@@ -56,6 +63,13 @@ type CreateAPITokenParams struct {
 
 type CreateAPITokenResponse struct {
 	Token string `json:"token"`
+}
+
+type ListAPITokensResponse struct {
+	Items      []APIToken `json:"items"`
+	Page       int        `json:"page"`
+	PerPage    int        `json:"per_page"`
+	TotalCount int        `json:"total_count"`
 }
 
 const (
@@ -89,6 +103,20 @@ func hashPassword(password string) (string, error) {
 
 func ListUsers(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		page := atoiDefault(q.Get("page"), 1)
+		perPage := atoiDefault(q.Get("per_page"), 25)
+
+		if page < 1 {
+			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			return
+		}
+
+		if perPage < 1 || perPage > 100 {
+			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			return
+		}
+
 		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
@@ -96,19 +124,26 @@ func ListUsers(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		dbUsers, err := dbInstance.ListUsers(r.Context())
+		dbUsers, total, err := dbInstance.ListUsersPage(r.Context(), page, perPage)
 		if err != nil {
-			logger.APILog.Warn("Failed to query users", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Unable to retrieve users", err, logger.APILog)
 			return
 		}
 
-		users := make([]GetUserParams, 0, len(dbUsers))
+		items := make([]User, 0, len(dbUsers))
+
 		for _, user := range dbUsers {
-			users = append(users, GetUserParams{
+			items = append(items, User{
 				Email:  user.Email,
 				RoleID: RoleID(user.RoleID),
 			})
+		}
+
+		users := ListUsersResponse{
+			Items:      items,
+			Page:       page,
+			PerPage:    perPage,
+			TotalCount: total,
 		}
 
 		writeResponse(w, users, http.StatusOK, logger.APILog)
@@ -129,10 +164,11 @@ func GetUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		resp := GetUserParams{
+		resp := User{
 			Email:  dbUser.Email,
 			RoleID: RoleID(dbUser.RoleID),
 		}
+
 		writeResponse(w, resp, http.StatusOK, logger.APILog)
 	})
 }
@@ -152,7 +188,7 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		user := GetUserParams{
+		user := User{
 			Email:  dbUser.Email,
 			RoleID: RoleID(dbUser.RoleID),
 		}
@@ -167,22 +203,27 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 		email, _ := emailAny.(string)
 
 		var newUser CreateUserParams
+
 		if err := json.NewDecoder(r.Body).Decode(&newUser); err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
+
 		if newUser.Email == "" {
 			writeError(w, http.StatusBadRequest, "email is missing", errors.New("missing email"), logger.APILog)
 			return
 		}
+
 		if newUser.Password == "" {
 			writeError(w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
 			return
 		}
+
 		if !isValidEmail(newUser.Email) {
 			writeError(w, http.StatusBadRequest, "Invalid email format", errors.New("bad format"), logger.APILog)
 			return
 		}
+
 		if _, err := dbInstance.GetUser(r.Context(), newUser.Email); err == nil {
 			writeError(w, http.StatusBadRequest, "user already exists", errors.New("duplicate"), logger.APILog)
 			return
@@ -194,11 +235,12 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		numUsers, err := dbInstance.NumUsers(r.Context())
+		numUsers, err := dbInstance.CountUsers(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to count users", err, logger.APILog)
 			return
 		}
+
 		if numUsers == 0 {
 			if newUser.RoleID != RoleAdmin {
 				writeError(w, http.StatusBadRequest, "First user must be an admin", errors.New("first user must be admin"), logger.APILog)
@@ -216,8 +258,8 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 			HashedPassword: hashedPassword,
 			RoleID:         db.RoleID(newUser.RoleID),
 		}
+
 		if err := dbInstance.CreateUser(r.Context(), dbUser); err != nil {
-			logger.APILog.Warn("Failed to create user", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Failed to create user", err, logger.APILog)
 			return
 		}
@@ -386,7 +428,22 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 
 func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		page := atoiDefault(q.Get("page"), 1)
+		perPage := atoiDefault(q.Get("per_page"), 25)
+
+		if page < 1 {
+			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			return
+		}
+
+		if perPage < 1 || perPage > 100 {
+			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			return
+		}
+
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
 			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
@@ -399,24 +456,30 @@ func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		tokens, err := dbInstance.ListAPITokens(r.Context(), user.ID)
+		tokens, total, err := dbInstance.ListAPITokensPage(r.Context(), user.ID, page, perPage)
 		if err != nil {
-			logger.APILog.Warn("Failed to list API tokens", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Unable to retrieve API tokens", err, logger.APILog)
 			return
 		}
 
-		response := make([]GetAPITokenResponse, 0, len(tokens))
+		items := make([]APIToken, 0, len(tokens))
 		for _, token := range tokens {
 			var expiresAt string
 			if token.ExpiresAt != nil {
 				expiresAt = token.ExpiresAt.Format(time.RFC3339)
 			}
-			response = append(response, GetAPITokenResponse{
+			items = append(items, APIToken{
 				ID:        token.TokenID,
 				Name:      token.Name,
 				ExpiresAt: expiresAt,
 			})
+		}
+
+		response := ListAPITokensResponse{
+			Items:      items,
+			Page:       page,
+			PerPage:    perPage,
+			TotalCount: total,
 		}
 
 		writeResponse(w, response, http.StatusOK, logger.APILog)
@@ -498,7 +561,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		numTokens, err := dbInstance.NumAPITokens(r.Context(), user.ID)
+		numTokens, err := dbInstance.CountAPITokens(r.Context(), user.ID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to count API tokens", err, logger.APILog)
 			return

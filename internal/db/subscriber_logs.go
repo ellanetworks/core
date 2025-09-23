@@ -31,8 +31,9 @@ const QueryCreateSubscriberLogsTable = `
 
 const (
 	insertSubscriberLogStmt     = "INSERT INTO %s (timestamp, level, imsi, event, details) VALUES ($SubscriberLog.timestamp, $SubscriberLog.level, $SubscriberLog.imsi, $SubscriberLog.event, $SubscriberLog.details)"
-	listSubscriberLogsStmt      = "SELECT &SubscriberLog.* FROM %s ORDER BY id DESC"
+	listSubscriberLogsPagedStmt = "SELECT &SubscriberLog.* FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	deleteOldSubscriberLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
+	countSubscriberLogsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 type SubscriberLog struct {
@@ -107,42 +108,57 @@ func (db *Database) InsertSubscriberLogJSON(ctx context.Context, raw []byte) err
 	return nil
 }
 
-func (db *Database) ListSubscriberLogs(ctx context.Context) ([]SubscriberLog, error) {
+func (db *Database) ListSubscriberLogsPage(ctx context.Context, page, perPage int) ([]SubscriberLog, int, error) {
 	const operation = "SELECT"
 	const target = SubscriberLogsTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
+	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(listSubscriberLogsStmt, db.subscriberLogsTable)
+	stmtStr := fmt.Sprintf(listSubscriberLogsPagedStmt, db.subscriberLogsTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
+		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
+		attribute.Int("page", page),
+		attribute.Int("per_page", perPage),
 	)
 
-	q, err := sqlair.Prepare(stmt, SubscriberLog{})
+	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, SubscriberLog{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
+		return nil, 0, err
+	}
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
+	}
+
+	count, err := db.CountSubscriberLogs(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "count failed")
+		return nil, 0, err
 	}
 
 	var logs []SubscriberLog
-	if err := db.conn.Query(ctx, q).GetAll(&logs); err != nil {
+
+	if err := db.conn.Query(ctx, stmt, args).GetAll(&logs); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, nil
+			return nil, count, nil
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
-		return nil, err
+		return nil, 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
-	return logs, nil
+	return logs, count, nil
 }
 
 // DeleteOldSubscriberLogs removes logs older than the specified retention period in days.
@@ -183,4 +199,43 @@ func (db *Database) DeleteOldSubscriberLogs(ctx context.Context, days int) error
 
 	span.SetStatus(codes.Ok, "")
 	return nil
+}
+
+func (db *Database) CountSubscriberLogs(ctx context.Context) (int, error) {
+	const operation = "COUNT"
+	const target = SubscriberLogsTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
+	stmtStr := fmt.Sprintf(countSubscriberLogsStmt, db.subscriberLogsTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmtStr),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	stmt, err := sqlair.Prepare(stmtStr, NumItems{})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return 0, err
+	}
+
+	var result NumItems
+
+	if err := db.conn.Query(ctx, stmt).Get(&result); err != nil {
+		if err == sql.ErrNoRows {
+			span.SetStatus(codes.Ok, "no rows")
+			return 0, nil
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+		return 0, err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return result.Count, nil
 }

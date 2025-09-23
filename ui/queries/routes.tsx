@@ -1,17 +1,38 @@
 import { HTTPStatus } from "@/queries/utils";
-import { Route } from "@/types/types";
 
-export const listRoutes = async (authToken: string): Promise<Route[]> => {
-  const response = await fetch(`/api/v1/networking/routes`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
+export type APIRoute = {
+  id: string;
+  destination: string;
+  gateway: string;
+  interface: string;
+  metric: number;
+};
+
+export type ListRoutesResponse = {
+  items: APIRoute[];
+  page: number;
+  per_page: number;
+  total_count: number;
+};
+
+export async function listRoutes(
+  authToken: string,
+  page: number,
+  perPage: number,
+): Promise<ListRoutesResponse> {
+  const response = await fetch(
+    `/api/v1/networking/routes?page=${page}&per_page=${perPage}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + authToken,
+      },
     },
-  });
-  let respData;
+  );
+  let json: { result: ListRoutesResponse; error?: string };
   try {
-    respData = await response.json();
+    json = await response.json();
   } catch {
     throw new Error(
       `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
@@ -20,20 +41,12 @@ export const listRoutes = async (authToken: string): Promise<Route[]> => {
 
   if (!response.ok) {
     throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
     );
   }
 
-  const transformed: Route[] = respData.result.map((p: any) => ({
-    id: p.id,
-    destination: p.destination,
-    gateway: p.gateway,
-    interface: p.interface,
-    metric: p.metric,
-  }));
-
-  return transformed;
-};
+  return json.result;
+}
 
 export const createRoute = async (
   authToken: string,

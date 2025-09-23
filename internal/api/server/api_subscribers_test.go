@@ -17,16 +17,23 @@ const (
 	SequenceNumber = "16f3b3f70fc2"
 )
 
+type ListSubscriberResponseResult struct {
+	Items      []Subscriber `json:"items"`
+	Page       int          `json:"page"`
+	PerPage    int          `json:"per_page"`
+	TotalCount int          `json:"total_count"`
+}
+
 type ListSubscriberResponse struct {
-	Result []GetSubscriberResponseResult `json:"result"`
-	Error  string                        `json:"error,omitempty"`
+	Result ListSubscriberResponseResult `json:"result"`
+	Error  string                       `json:"error,omitempty"`
 }
 
 type CreateSubscriberSuccessResponse struct {
 	Message string `json:"message"`
 }
 
-type GetSubscriberResponseResult struct {
+type Subscriber struct {
 	Imsi           string `json:"imsi"`
 	OPc            string `json:"opc"`
 	Key            string `json:"key"`
@@ -35,8 +42,8 @@ type GetSubscriberResponseResult struct {
 }
 
 type GetSubscriberResponse struct {
-	Result GetSubscriberResponseResult `json:"result"`
-	Error  string                      `json:"error,omitempty"`
+	Result Subscriber `json:"result"`
+	Error  string     `json:"error,omitempty"`
 }
 
 type CreateSubscriberParams struct {
@@ -65,25 +72,31 @@ type DeleteSubscriberResponse struct {
 	Error  string                         `json:"error,omitempty"`
 }
 
-func listSubscribers(url string, client *http.Client, token string) (int, *ListSubscriberResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/subscribers", nil)
+func listSubscribers(url string, client *http.Client, token string, page int, perPage int) (int, *ListSubscriberResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/subscribers?page=%d&per_page=%d", url, page, perPage), nil)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var subscriberResponse ListSubscriberResponse
+
 	if err := json.NewDecoder(res.Body).Decode(&subscriberResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &subscriberResponse, nil
 }
 

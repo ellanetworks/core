@@ -14,20 +14,28 @@ This path returns the list of system users.
 | ------ | --------------- |
 | GET    | `/api/v1/users` |
 
-### Parameters
+### Query Parameters
 
-None
+| Name       | In    | Type | Default | Allowed | Description                   |
+| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 
 ### Sample Response
 
 ```json
 {
-    "result": [
-        {
-            "email": "admin@ellanetworks.com",
-            "role_id": 1
-        }
-    ]
+    "result": {
+        "items": [
+            {
+                "email": "admin@ellanetworks.com",
+                "role_id": 1
+            }
+        ],
+        "page": 1,
+        "per_page": 10,
+        "total_count": 1
+    }
 }
 ```
 

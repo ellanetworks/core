@@ -16,19 +16,28 @@ type CreateSuccessResponse struct {
 	ID      int64  `json:"id"`
 }
 
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
+
+type Response struct {
+	Result any `json:"result,omitempty"`
+}
+
 func writeResponse(w http.ResponseWriter, v any, status int, logger *zap.Logger) {
-	type response struct {
-		Result any `json:"result,omitempty"`
-	}
-	resp := response{Result: v}
+	resp := Response{Result: v}
+
 	respBytes, err := json.Marshal(&resp)
 	if err != nil {
 		logger.Error("Error marshalling response", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
+
 	w.WriteHeader(status)
+
 	if _, err := w.Write(respBytes); err != nil {
 		logger.Error("Error writing response", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -39,18 +48,20 @@ func writeResponse(w http.ResponseWriter, v any, status int, logger *zap.Logger)
 // writeError is a helper function that logs errors and writes http response for errors
 func writeError(w http.ResponseWriter, status int, message string, err error, logger *zap.Logger) {
 	logger.Info(message, zap.Error(err))
-	type errorResponse struct {
-		Error string `json:"error"`
-	}
-	resp := errorResponse{Error: message}
+
+	resp := ErrorResponse{Error: message}
+
 	respBytes, err := json.Marshal(&resp)
 	if err != nil {
 		logger.Error("Error marshalling error response", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
+
 	w.WriteHeader(status)
+
 	_, err = w.Write(respBytes)
 	if err != nil {
 		logger.Error("Error writing error response", zap.Error(err))

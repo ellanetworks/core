@@ -20,19 +20,24 @@ import {
   Chip,
   Skeleton,
   Stack,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 import EditMyUserPasswordModal from "@/components/EditMyUserPasswordModal";
 import CreateAPITokenModal from "@/components/CreateAPITokenModal";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { getLoggedInUser } from "@/queries/users";
-import { listAPITokens, deleteAPIToken } from "@/queries/api_tokens";
+import { getLoggedInUser, type APIUser } from "@/queries/users";
+import {
+  listAPITokens,
+  deleteAPIToken,
+  type APIToken,
+  type ListAPITokensResponse,
+} from "@/queries/api_tokens";
 import { useAuth } from "@/contexts/AuthContext";
-import { User } from "@/types/types";
 import { useRouter } from "next/navigation";
 import EmailIcon from "@mui/icons-material/Email";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
-import { APIToken } from "@/types/types";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CloseIcon from "@mui/icons-material/Close";
 
@@ -52,7 +57,7 @@ export default function Profile() {
   const { role, accessToken, authReady } = useAuth();
 
   useEffect(() => {
-    if (!authReady || !accessToken) router.push("/login");
+    if (authReady && !accessToken) router.push("/login");
   }, [authReady, accessToken, router]);
 
   const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
@@ -65,7 +70,8 @@ export default function Profile() {
   const handleCreateAPITokenSuccess = (token: string) => {
     setCreateAPITokenModalOpen(false);
     setJustCreatedToken(token);
-    fetchAPITokens();
+    setPage(1);
+    fetchAPITokens(1, perPage);
   };
 
   const copyToken = async () => {
@@ -81,27 +87,33 @@ export default function Profile() {
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
 
-  const [loggedInUser, setLoggedInUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loggedInUser, setLoggedInUser] = useState<APIUser | null>(null);
+  const [loadingUser, setLoadingUser] = useState(true);
+
+  // --- API tokens state (paginated) ---
   const [apiTokens, setAPITokens] = useState<APIToken[]>([]);
+  const [loadingTokens, setLoadingTokens] = useState(true);
+  const [page, setPage] = useState<number>(1);
+  const [perPage, setPerPage] = useState<number>(10);
+  const [totalCount, setTotalCount] = useState<number>(0);
+
   const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
   const [selectedTokenName, setSelectedTokenName] = useState<string | null>(
     null,
   );
-
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
 
   const fetchUser = useCallback(async () => {
     if (!authReady || !accessToken) return;
     try {
-      setLoading(true);
+      setLoadingUser(true);
       const data = await getLoggedInUser(accessToken);
       setLoggedInUser(data);
     } catch (error) {
       console.error("Error fetching user:", error);
       setAlert({ message: "Failed to load profile info.", severity: "error" });
     } finally {
-      setLoading(false);
+      setLoadingUser(false);
     }
   }, [accessToken, authReady]);
 
@@ -109,7 +121,7 @@ export default function Profile() {
     fetchUser();
   }, [fetchUser]);
 
-  const handleEditPasswordClick = (user: User | null) => {
+  const handleEditPasswordClick = (user: APIUser | null) => {
     if (!user) return;
     setEditPasswordModalOpen(true);
   };
@@ -127,26 +139,35 @@ export default function Profile() {
   const handleDeleteClick = (tokenId: number, tokenName: string) => {
     setSelectedTokenId(tokenId);
     setSelectedTokenName(tokenName);
-
     setConfirmationOpen(true);
   };
 
-  const fetchAPITokens = useCallback(async () => {
-    if (!authReady || !accessToken) return;
-    setLoading(true);
-    try {
-      const data = await listAPITokens(accessToken);
-      setAPITokens(data);
-    } catch (error) {
-      console.error("Error fetching API Tokens:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [accessToken, authReady]);
+  const fetchAPITokens = useCallback(
+    async (p = page, pp = perPage) => {
+      if (!authReady || !accessToken) return;
+      setLoadingTokens(true);
+      try {
+        const res: ListAPITokensResponse = await listAPITokens(
+          accessToken,
+          p,
+          pp,
+        );
+        setAPITokens(res.items ?? []);
+        setTotalCount(res.total_count ?? 0);
+      } catch (error) {
+        console.error("Error fetching API Tokens:", error);
+        setAPITokens([]);
+        setTotalCount(0);
+      } finally {
+        setLoadingTokens(false);
+      }
+    },
+    [accessToken, authReady, page, perPage],
+  );
 
   useEffect(() => {
-    fetchAPITokens();
-  }, [fetchAPITokens]);
+    fetchAPITokens(page, perPage);
+  }, [fetchAPITokens, page, perPage]);
 
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
@@ -157,10 +178,18 @@ export default function Profile() {
         message: `API Token "${selectedTokenName}" deleted successfully!`,
         severity: "success",
       });
-      fetchAPITokens();
+      // If this was the last item on the page and not the first page, go back one page
+      const remainingOnPage = apiTokens.length - 1;
+      if (remainingOnPage <= 0 && page > 1) {
+        const newPage = page - 1;
+        setPage(newPage);
+        fetchAPITokens(newPage, perPage);
+      } else {
+        fetchAPITokens(page, perPage);
+      }
     } catch (error) {
       setAlert({
-        message: `Failed to delete policy "${selectedTokenName}": ${
+        message: `Failed to delete token "${selectedTokenName}": ${
           error instanceof Error ? error.message : "Unknown error"
         }`,
         severity: "error",
@@ -172,6 +201,10 @@ export default function Profile() {
   };
 
   const descriptionText = "Manage how you authenticate with Ella Core.";
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+  const from = totalCount === 0 ? 0 : (page - 1) * perPage + 1;
+  const to = Math.min(page * perPage, totalCount);
 
   return (
     <Box sx={{ p: { xs: 2, sm: 3, md: 4 }, maxWidth: MAX_WIDTH, mx: "auto" }}>
@@ -198,7 +231,7 @@ export default function Profile() {
           <Card sx={{ height: "100%", borderRadius: 3, boxShadow: 2 }}>
             <CardHeader title="Account" sx={headerStyles} />
             <CardContent>
-              {loading ? (
+              {loadingUser ? (
                 <>
                   <Stack
                     direction="row"
@@ -275,7 +308,7 @@ export default function Profile() {
                 <Button
                   variant="contained"
                   onClick={() => handleEditPasswordClick(loggedInUser)}
-                  disabled={loading || !loggedInUser}
+                  disabled={loadingUser || !loggedInUser}
                 >
                   Change Password
                 </Button>
@@ -306,7 +339,7 @@ export default function Profile() {
                   variant="contained"
                   color="success"
                   onClick={handleOpenCreateAPITokenModal}
-                  disabled={loading || !loggedInUser}
+                  disabled={loadingUser || !loggedInUser}
                 >
                   Create Token
                 </Button>
@@ -370,9 +403,9 @@ export default function Profile() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {loading && (
+                    {loadingTokens && (
                       <>
-                        {[...Array(2)].map((_, i) => (
+                        {[...Array(3)].map((_, i) => (
                           <TableRow key={`sk-${i}`}>
                             <TableCell colSpan={4}>
                               <Skeleton variant="text" />
@@ -382,7 +415,7 @@ export default function Profile() {
                       </>
                     )}
 
-                    {!loading && apiTokens.length === 0 && (
+                    {!loadingTokens && apiTokens.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={4}>
                           <Typography variant="body2" color="text.secondary">
@@ -392,7 +425,7 @@ export default function Profile() {
                       </TableRow>
                     )}
 
-                    {!loading &&
+                    {!loadingTokens &&
                       apiTokens.map((t) => {
                         const isExpired = t.expires_at
                           ? new Date(t.expires_at).getTime() < Date.now()
@@ -434,7 +467,7 @@ export default function Profile() {
                                 aria-label="delete"
                                 size="small"
                                 onClick={() => handleDeleteClick(t.id, t.name)}
-                                disabled={loading}
+                                disabled={loadingTokens}
                               >
                                 <DeleteIcon color="primary" />
                               </IconButton>
@@ -445,6 +478,58 @@ export default function Profile() {
                   </TableBody>
                 </Table>
               </TableContainer>
+
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={2}
+                alignItems={{ xs: "stretch", sm: "center" }}
+                justifyContent="space-between"
+              >
+                <Typography variant="body2" color="text.secondary">
+                  {totalCount > 0
+                    ? `${from}–${to} of ${totalCount}`
+                    : "0 items"}
+                </Typography>
+
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="body2" color="text.secondary">
+                    Rows per page
+                  </Typography>
+                  <Select
+                    size="small"
+                    value={perPage}
+                    onChange={(e) => {
+                      const next = Number(e.target.value);
+                      setPerPage(next);
+                      setPage(1);
+                    }}
+                  >
+                    {[5, 10, 25, 50].map((n) => (
+                      <MenuItem key={n} value={n}>
+                        {n}
+                      </MenuItem>
+                    ))}
+                  </Select>
+
+                  <Button
+                    size="small"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1 || loadingTokens}
+                  >
+                    Prev
+                  </Button>
+                  <Typography variant="body2" sx={{ mx: 1 }}>
+                    Page {page} / {totalPages}
+                  </Typography>
+                  <Button
+                    size="small"
+                    onClick={() => setPage((p) => (p < totalPages ? p + 1 : p))}
+                    disabled={page >= totalPages || loadingTokens}
+                  >
+                    Next
+                  </Button>
+                </Stack>
+              </Stack>
             </CardContent>
           </Card>
         </Grid>

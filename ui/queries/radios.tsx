@@ -1,16 +1,42 @@
 import { HTTPStatus } from "@/queries/utils";
 
-export const listRadios = async (authToken: string) => {
-  const response = await fetch(`/api/v1/radios`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
+export type SupportedTAI = {
+  plmn_id: string;
+  tac: string;
+};
+
+export type APIRadio = {
+  name: string;
+  id: string;
+  address: string;
+  supported_tais: SupportedTAI[];
+};
+
+export type ListRadiosResponse = {
+  items: APIRadio[];
+  page: number;
+  per_page: number;
+  total_count: number;
+};
+
+export async function listRadios(
+  authToken: string,
+  page: number,
+  perPage: number,
+): Promise<ListRadiosResponse> {
+  const response = await fetch(
+    `/api/v1/radios?page=${page}&per_page=${perPage}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + authToken,
+      },
     },
-  });
-  let respData;
+  );
+  let json: { result: ListRadiosResponse; error?: string };
   try {
-    respData = await response.json();
+    json = await response.json();
   } catch {
     throw new Error(
       `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
@@ -19,9 +45,9 @@ export const listRadios = async (authToken: string) => {
 
   if (!response.ok) {
     throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
     );
   }
 
-  return respData.result;
-};
+  return json.result;
+}

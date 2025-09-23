@@ -14,7 +14,15 @@ const (
 	UpdateAuditLogRetentionPolicyAction = "update_audit_log_retention_policy"
 )
 
-type GetAuditLogResponse struct {
+type GetAuditLogsRetentionPolicyResponse struct {
+	Days int `json:"days"`
+}
+
+type UpdateAuditLogsRetentionPolicyParams struct {
+	Days int `json:"days"`
+}
+
+type AuditLog struct {
 	ID        int    `json:"id"`
 	Timestamp string `json:"timestamp"`
 	Level     string `json:"level"`
@@ -24,12 +32,11 @@ type GetAuditLogResponse struct {
 	Details   string `json:"details"`
 }
 
-type GetAuditLogsRetentionPolicyResponse struct {
-	Days int `json:"days"`
-}
-
-type UpdateAuditLogsRetentionPolicyParams struct {
-	Days int `json:"days"`
+type ListAuditLogsResponse struct {
+	Items      []AuditLog `json:"items"`
+	Page       int        `json:"page"`
+	PerPage    int        `json:"per_page"`
+	TotalCount int        `json:"total_count"`
 }
 
 func GetAuditLogRetentionPolicy(dbInstance *db.Database) http.Handler {
@@ -82,16 +89,31 @@ func UpdateAuditLogRetentionPolicy(dbInstance *db.Database) http.Handler {
 
 func ListAuditLogs(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		page := atoiDefault(q.Get("page"), 1)
+		perPage := atoiDefault(q.Get("per_page"), 25)
+
+		if page < 1 {
+			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			return
+		}
+
+		if perPage < 1 || perPage > 100 {
+			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			return
+		}
+
 		ctx := r.Context()
-		logs, err := dbInstance.ListAuditLogs(ctx)
+
+		logs, total, err := dbInstance.ListAuditLogsPage(ctx, page, perPage)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve audit logs", err, logger.APILog)
 			return
 		}
 
-		response := make([]GetAuditLogResponse, len(logs))
+		items := make([]AuditLog, len(logs))
 		for i, log := range logs {
-			response[i] = GetAuditLogResponse{
+			items[i] = AuditLog{
 				ID:        log.ID,
 				Timestamp: log.Timestamp,
 				Level:     log.Level,
@@ -100,6 +122,13 @@ func ListAuditLogs(dbInstance *db.Database) http.Handler {
 				IP:        log.IP,
 				Details:   log.Details,
 			}
+		}
+
+		response := ListAuditLogsResponse{
+			Items:      items,
+			Page:       page,
+			PerPage:    perPage,
+			TotalCount: total,
 		}
 
 		writeResponse(w, response, http.StatusOK, logger.APILog)

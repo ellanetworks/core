@@ -12,25 +12,33 @@ This path returns the list of data networks.
 | ------ | ----------------------- |
 | GET    | `/api/v1/networking/data-networks` |
 
-### Parameters
+### Query Parameters
 
-None
+| Name       | In    | Type | Default | Allowed | Description                   |
+| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 
 ### Sample Response
 
 ```json
 {
-    "result": [
-        {
-            "name": "internet",
-            "ip-pool": "172.250.0.0/24",
-            "dns": "8.8.8.8",
-            "mtu": 1460,
-            "status": {
-                "sessions": 0
+    "result": {
+        "items": [
+            {
+                "name": "internet",
+                "ip_pool": "172.250.0.0/24",
+                "dns": "8.8.8.8",
+                "mtu": 1460,
+                "status": {
+                    "sessions": 0
+                }
             }
-        }
-    ]
+        ],
+        "page": 1,
+        "per_page": 10,
+        "total_count": 1
+    }
 }
 ```
 
@@ -45,7 +53,7 @@ This path creates a new Data Network.
 ### Parameters
 
 - `name` (string): The Name of the Data Network (dnn)
-- `ip-pool` (string): The IP pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
+- `ip_pool` (string): The IP pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
 - `dns` (string): The IP address of the DNS server of the data network. Example: `8.8.8.8`.
 - `mtu` (integer): The MTU of the data network. Must be an integer between 0 and 65535.
 
@@ -69,7 +77,7 @@ This path updates an existing data network.
 
 ### Parameters
 
-- `ip-pool` (string): The IP pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
+- `ip_pool` (string): The IP pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
 - `dns` (string): The IP address of the DNS server of the data network. Example: `8.8.8.8`.
 - `mtu` (integer): The MTU of the data network. Must be an integer between 0 and 65535.
 
@@ -101,7 +109,7 @@ None
 {
     "result": {
         "name": "internet",
-        "ip-pool": "0.0.0.0/24",
+        "ip_pool": "0.0.0.0/24",
         "dns": "8.8.8.8",
         "mtu": 1460,
         "status": {
@@ -145,23 +153,31 @@ This path returns the list of routes.
 | ------ | ---------------- |
 | GET    | `/api/v1/networking/routes` |
 
-### Parameters
+### Query Parameters
 
-None
+| Name       | In    | Type | Default | Allowed | Description                   |
+| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 
 ### Sample Response
 
 ```json
 {
-    "result": [
-        {
-            "id": 1,
-            "destination": "0.0.0.0/0",
-            "gateway": "203.0.113.1",
-            "interface": "n6",
-            "metric": 0
-        }
-    ]
+    "result": {
+        "items": [
+            {
+                "id": 1,
+                "destination": "0.0.0.0/0",
+                "gateway": "203.0.113.1",
+                "interface": "n6",
+                "metric": 0
+            }
+        ],
+        "page": 1,
+        "per_page": 10,
+        "total_count": 1
+    }
 }
 ```
 

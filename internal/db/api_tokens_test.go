@@ -32,19 +32,28 @@ func TestDBAPITokensEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't create user: %s", err)
 	}
 
-	res, err := database.ListUsers(context.Background())
+	res, total, err := database.ListUsersPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't list users: %s", err)
 	}
+
+	if total != 1 {
+		t.Fatalf("Expected total count to be 1, but got %d", total)
+	}
+
 	if len(res) != 1 {
 		t.Fatalf("One or more users weren't found in DB")
 	}
 
 	userID := res[0].ID
 
-	resList, err := database.ListAPITokens(context.Background(), 0)
+	resList, total, err := database.ListAPITokensPage(context.Background(), userID, 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't list API tokens: %s", err)
+	}
+
+	if total != 0 {
+		t.Fatalf("Expected total count to be 0, but got %d", total)
 	}
 
 	if len(resList) != 0 {
@@ -61,9 +70,13 @@ func TestDBAPITokensEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
-	resList, err = database.ListAPITokens(context.Background(), userID)
+	resList, total, err = database.ListAPITokensPage(context.Background(), userID, 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't list API tokens: %s", err)
+	}
+
+	if total != 1 {
+		t.Fatalf("Expected total count to be 1, but got %d", total)
 	}
 
 	if len(resList) != 1 {
@@ -79,9 +92,13 @@ func TestDBAPITokensEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
 
-	resList, err = database.ListAPITokens(context.Background(), userID)
+	resList, total, err = database.ListAPITokensPage(context.Background(), userID, 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't list API tokens: %s", err)
+	}
+
+	if total != 0 {
+		t.Fatalf("API tokens weren't deleted from the DB properly")
 	}
 
 	if len(resList) != 0 {

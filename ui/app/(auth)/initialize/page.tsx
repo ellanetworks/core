@@ -10,9 +10,8 @@ import {
   Alert,
   CircularProgress,
 } from "@mui/material";
-import { createUser } from "@/queries/users";
+import { createUser, RoleID } from "@/queries/users";
 import { getStatus } from "@/queries/status";
-import { RoleID } from "@/types/types";
 
 const InitializePage = () => {
   const router = useRouter();

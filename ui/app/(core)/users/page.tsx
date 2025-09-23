@@ -9,85 +9,117 @@ import {
   Alert,
   Collapse,
 } from "@mui/material";
-import { DataGrid, GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
+import {
+  DataGrid,
+  type GridColDef,
+  GridActionsCellItem,
+  type GridPaginationModel,
+} from "@mui/x-data-grid";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import PasswordIcon from "@mui/icons-material/Password";
-import { listUsers, deleteUser } from "@/queries/users";
+import {
+  listUsers,
+  deleteUser,
+  roleIDToLabel,
+  type ListUsersResponse,
+  type APIUser,
+  RoleID,
+} from "@/queries/users";
 import CreateUserModal from "@/components/CreateUserModal";
 import EditUserModal from "@/components/EditUserModal";
 import EditUserPasswordModal from "@/components/EditUserPasswordModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { RoleID, User, roleIDToLabel } from "@/types/types";
-import { useTheme } from "@mui/material/styles";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import { useAuth } from "@/contexts/AuthContext";
 
 const MAX_WIDTH = 1400;
 
-const UserPage = () => {
+const UserPage: React.FC = () => {
   const { accessToken, authReady } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize: 25,
+  });
+
+  const [rows, setRows] = useState<APIUser[]>([]);
+  const [rowCount, setRowCount] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(true);
+
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [editData, setEditData] = useState<User | null>(null);
-  const [editPasswordData, setEditPasswordData] = useState<User | null>(null);
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [editData, setEditData] = useState<APIUser | null>(null);
+  const [editPasswordData, setEditPasswordData] = useState<APIUser | null>(
+    null,
+  );
+  const [selectedUser, setSelectedUser] = useState<string | null>(null); // email
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   const outerTheme = useTheme();
-
-  const gridTheme = React.useMemo(
+  const gridTheme = useMemo(
     () =>
       createTheme(outerTheme, {
-        palette: {
-          DataGrid: { headerBg: "#F5F5F5" },
-        },
+        palette: { DataGrid: { headerBg: "#F5F5F5" } },
       }),
     [outerTheme],
   );
 
-  const fetchUsers = useCallback(async () => {
-    if (!authReady || !accessToken) return;
-    setLoading(true);
-    try {
-      const data = await listUsers(accessToken);
-      setUsers(data);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [accessToken, authReady]);
+  const fetchUsers = useCallback(
+    async (pageZeroBased: number, pageSize: number) => {
+      if (!authReady || !accessToken) return;
+      setLoading(true);
+      try {
+        const pageOneBased = pageZeroBased + 1;
+        const res: ListUsersResponse = await listUsers(
+          accessToken,
+          pageOneBased,
+          pageSize,
+        );
+        setRows(res.items ?? []);
+        setRowCount(res.total_count ?? 0);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        setRows([]);
+        setRowCount(0);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [accessToken, authReady],
+  );
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    fetchUsers(paginationModel.page, paginationModel.pageSize);
+  }, [fetchUsers, paginationModel.page, paginationModel.pageSize]);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
-  const handleEditPasswordClick = (user: User) => {
+
+  const handleEditPasswordClick = (user: APIUser) => {
     setEditPasswordData(user);
     setEditPasswordModalOpen(true);
   };
-  const handleEditClick = (user: User) => {
+
+  const handleEditClick = (user: APIUser) => {
     setEditData(user);
     setEditModalOpen(true);
   };
+
   const handleDeleteClick = (email: string) => {
     setSelectedUser(email);
     setConfirmationOpen(true);
   };
+
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
     if (!selectedUser || !accessToken) return;
     try {
       await deleteUser(accessToken, selectedUser);
       setAlert({ message: `User "${selectedUser}" deleted successfully!` });
-      fetchUsers();
+      fetchUsers(paginationModel.page, paginationModel.pageSize);
     } catch {
       setAlert({ message: `Failed to delete user "${selectedUser}".` });
     } finally {
@@ -95,7 +127,7 @@ const UserPage = () => {
     }
   };
 
-  const columns: GridColDef[] = useMemo(
+  const columns: GridColDef<APIUser>[] = useMemo(
     () => [
       { field: "email", headerName: "Email", flex: 1, minWidth: 220 },
       {
@@ -103,13 +135,13 @@ const UserPage = () => {
         headerName: "Role",
         flex: 0.6,
         minWidth: 120,
-        valueGetter: (_v, row) => roleIDToLabel(row.roleID),
+        valueGetter: (_v, row) => roleIDToLabel(row.role_id),
       },
       {
         field: "actions",
         headerName: "Actions",
         type: "actions",
-        width: 160,
+        width: 200,
         sortable: false,
         disableColumnMenu: true,
         getActions: (params) => [
@@ -140,6 +172,8 @@ const UserPage = () => {
   const descriptionText =
     "Manage user accounts. Users can have different roles with varying levels of access to the Ella Core UI and API.";
 
+  const showEmpty = !loading && rowCount === 0 && (rows?.length ?? 0) === 0;
+
   return (
     <Box
       sx={{
@@ -162,11 +196,11 @@ const UserPage = () => {
         </Collapse>
       </Box>
 
-      {loading ? (
+      {loading && rowCount === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
         </Box>
-      ) : users.length === 0 ? (
+      ) : showEmpty ? (
         <EmptyState
           primaryText="No user found."
           secondaryText="Create a new user."
@@ -192,7 +226,7 @@ const UserPage = () => {
               gap: 2,
             }}
           >
-            <Typography variant="h4">Users ({users.length})</Typography>
+            <Typography variant="h4">Users ({rowCount})</Typography>
 
             <Typography variant="body1" color="text.secondary">
               {descriptionText}
@@ -212,10 +246,18 @@ const UserPage = () => {
             sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
           >
             <ThemeProvider theme={gridTheme}>
-              <DataGrid
-                rows={users}
+              <DataGrid<APIUser>
+                rows={rows}
                 columns={columns}
                 getRowId={(row) => row.email}
+                loading={loading}
+                paginationMode="server"
+                rowCount={rowCount}
+                paginationModel={paginationModel}
+                onPaginationModelChange={setPaginationModel}
+                pageSizeOptions={[10, 25, 50, 100]}
+                sortingMode="server"
+                disableColumnMenu
                 disableRowSelectionOnClick
                 sx={{
                   width: "100%",
@@ -245,25 +287,34 @@ const UserPage = () => {
         <CreateUserModal
           open
           onClose={() => setCreateModalOpen(false)}
-          onSuccess={fetchUsers}
+          onSuccess={() =>
+            fetchUsers(paginationModel.page, paginationModel.pageSize)
+          }
         />
       )}
+
       {isEditModalOpen && (
         <EditUserModal
           open
           onClose={() => setEditModalOpen(false)}
-          onSuccess={fetchUsers}
-          initialData={editData || { email: "", roleID: RoleID.ReadOnly }}
+          onSuccess={() =>
+            fetchUsers(paginationModel.page, paginationModel.pageSize)
+          }
+          initialData={editData || { email: "", role_id: RoleID.ReadOnly }}
         />
       )}
+
       {isEditPasswordModalOpen && (
         <EditUserPasswordModal
           open
           onClose={() => setEditPasswordModalOpen(false)}
-          onSuccess={fetchUsers}
+          onSuccess={() =>
+            fetchUsers(paginationModel.page, paginationModel.pageSize)
+          }
           initialData={editPasswordData || { email: "" }}
         />
       )}
+
       {isConfirmationOpen && (
         <DeleteConfirmationModal
           open

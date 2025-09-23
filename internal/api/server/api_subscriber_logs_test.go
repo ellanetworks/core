@@ -3,13 +3,14 @@ package server_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-type GetSubscriberLogResponseResult struct {
+type SubscriberLog struct {
 	ID        int    `json:"id"`
 	Timestamp string `json:"timestamp"`
 	IMSI      string `json:"imsi"`
@@ -17,9 +18,16 @@ type GetSubscriberLogResponseResult struct {
 	Details   string `json:"details"`
 }
 
+type ListSubscriberLogResponseResult struct {
+	Items      []SubscriberLog `json:"items"`
+	Page       int             `json:"page"`
+	PerPage    int             `json:"per_page"`
+	TotalCount int             `json:"total_count"`
+}
+
 type ListSubscriberLogResponse struct {
-	Result []GetSubscriberLogResponseResult `json:"result"`
-	Error  string                           `json:"error,omitempty"`
+	Result ListSubscriberLogResponseResult `json:"result"`
+	Error  string                          `json:"error,omitempty"`
 }
 
 type GetSubscriberLogsRetentionPolicyResponseResult struct {
@@ -44,16 +52,19 @@ type UpdateSubscriberLogRetentionPolicyParams struct {
 	Days int `json:"days"`
 }
 
-func listSubscriberLogs(url string, client *http.Client, token string) (int, *ListSubscriberLogResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/logs/subscriber", nil)
+func listSubscriberLogs(url string, client *http.Client, token string, page int, perPage int) (int, *ListSubscriberLogResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/logs/subscriber?page=%d&per_page=%d", url, page, perPage), nil)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
@@ -61,6 +72,7 @@ func listSubscriberLogs(url string, client *http.Client, token string) (int, *Li
 	}()
 
 	var subscribersLogResponse ListSubscriberLogResponse
+
 	if err := json.NewDecoder(res.Body).Decode(&subscribersLogResponse); err != nil {
 		return 0, nil, err
 	}
@@ -133,7 +145,7 @@ func TestAPISubscriberLogs(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	statusCode, response, err := listSubscriberLogs(ts.URL, client, token)
+	statusCode, response, err := listSubscriberLogs(ts.URL, client, token, 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list subscriber logs: %s", err)
 	}
@@ -142,8 +154,20 @@ func TestAPISubscriberLogs(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 	}
 
-	if len(response.Result) != 0 {
-		t.Fatalf("expected 0 subscribers log, got %d", len(response.Result))
+	if len(response.Result.Items) != 0 {
+		t.Fatalf("expected 0 subscribers log, got %d", len(response.Result.Items))
+	}
+
+	if response.Result.Page != 1 {
+		t.Fatalf("expected page to be 1, got %d", response.Result.Page)
+	}
+
+	if response.Result.PerPage != 10 {
+		t.Fatalf("expected per_page to be 10, got %d", response.Result.PerPage)
+	}
+
+	if response.Result.TotalCount != 0 {
+		t.Fatalf("expected total_count to be 0, got %d", response.Result.TotalCount)
 	}
 
 	if response.Error != "" {

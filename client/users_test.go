@@ -64,7 +64,7 @@ func TestListUsers_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"email": "1234"}, {"email": "5678"}]`),
+			Result:     []byte(`{"items": [{"email": "1234"}, {"email": "5678"}], "page": 1, "per_page": 10, "total_count": 2}`),
 		},
 		err: nil,
 	}
@@ -74,13 +74,18 @@ func TestListUsers_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	users, err := clientObj.ListUsers(ctx)
+	listUsersParams := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	resp, err := clientObj.ListUsers(ctx, listUsersParams)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(users) != 2 {
-		t.Fatalf("expected 2 users, got: %d", len(users))
+	if len(resp.Items) != 2 {
+		t.Fatalf("expected 2 users, got: %d", len(resp.Items))
 	}
 }
 
@@ -99,7 +104,12 @@ func TestListUsers_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	users, err := clientObj.ListUsers(ctx)
+	listUsersParams := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	users, err := clientObj.ListUsers(ctx, listUsersParams)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -262,7 +272,7 @@ func TestListMyAPITokens_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"name": "1234"}, {"name": "5678"}]`),
+			Result:     []byte(`{"items": [{"name": "1234"}, {"name": "5678"}], "page": 1, "per_page": 10, "total_count": 2}`),
 		},
 		err: nil,
 	}
@@ -272,13 +282,18 @@ func TestListMyAPITokens_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	tokens, err := clientObj.ListMyAPITokens(ctx)
+	param := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	resp, err := clientObj.ListMyAPITokens(ctx, param)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(tokens) != 2 {
-		t.Fatalf("expected 2 tokens, got: %d", len(tokens))
+	if len(resp.Items) != 2 {
+		t.Fatalf("expected 2 tokens, got: %d", len(resp.Items))
 	}
 }
 
@@ -297,7 +312,12 @@ func TestListMyAPITokens_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	tokens, err := clientObj.ListMyAPITokens(ctx)
+	param := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	tokens, err := clientObj.ListMyAPITokens(ctx, param)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
