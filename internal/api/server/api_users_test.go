@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -114,6 +115,24 @@ type CreateAPITokenResponseResult struct {
 type CreateAPITokenResponse struct {
 	Result CreateAPITokenResponseResult `json:"result"`
 	Error  string                       `json:"error,omitempty"`
+}
+
+type APIToken struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	ExpiresAt string `json:"expires_at"`
+}
+
+type ListAPITokensResponseResult struct {
+	Items      []APIToken `json:"items"`
+	Page       int        `json:"page"`
+	PerPage    int        `json:"per_page"`
+	TotalCount int        `json:"total_count"`
+}
+
+type ListAPITokensResponse struct {
+	Result ListAPITokensResponseResult `json:"result"`
+	Error  string                      `json:"error,omitempty"`
 }
 
 func listUsers(url string, client *http.Client, token string, page int, perPage int) (int, *ListUsersResponse, error) {
@@ -389,6 +408,34 @@ func deleteAPIToken(url string, client *http.Client, token string, tokenID strin
 	}
 
 	return res.StatusCode, nil
+}
+
+func listAPITokens(url string, client *http.Client, token string, page int, perPage int) (int, *ListAPITokensResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/users/me/api-tokens?page=%d&per_page=%d", url, page, perPage), nil)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var listResponse ListAPITokensResponse
+
+	if err := json.NewDecoder(res.Body).Decode(&listResponse); err != nil {
+		return 0, nil, err
+	}
+
+	return res.StatusCode, &listResponse, nil
 }
 
 // This is an end-to-end test for the users handlers.
@@ -796,6 +843,82 @@ func TestCreateTooManyUsers(t *testing.T) {
 	}
 }
 
+func TestCreateAPIToken(t *testing.T) {
+	tempDir := t.TempDir()
+
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+
+	defer ts.Close()
+
+	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	expiresAt := time.Now().AddDate(1, 0, 0)
+
+	createAPITokenParams := &CreateAPITokenParams{
+		Name:      "my-token",
+		ExpiresAt: expiresAt.Format(time.RFC3339),
+	}
+
+	statusCode, response, err := createAPIToken(ts.URL, client, token, createAPITokenParams)
+	if err != nil {
+		t.Fatalf("couldn't create API token: %s", err)
+	}
+
+	if statusCode != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+	}
+
+	if response.Error != "" {
+		t.Fatalf("unexpected error :%q", response.Error)
+	}
+
+	if response.Result.Token == "" {
+		t.Fatal("expected a token, got empty string")
+	}
+
+	statusCode, listResponse, err := listAPITokens(ts.URL, client, token, 1, 10)
+	if err != nil {
+		t.Fatalf("couldn't list API tokens: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if listResponse.Error != "" {
+		t.Fatalf("unexpected error :%q", listResponse.Error)
+	}
+
+	if len(listResponse.Result.Items) != 1 {
+		t.Fatalf("expected 1 API token, got %d", len(listResponse.Result.Items))
+	}
+
+	if listResponse.Result.Items[0].Name != "my-token" {
+		t.Fatalf("expected token name %q, got %q", "my-token", listResponse.Result.Items[0].Name)
+	}
+
+	tokenID := listResponse.Result.Items[0].ID
+
+	statusCode, err = deleteAPIToken(ts.URL, client, token, tokenID)
+	if err != nil {
+		t.Fatalf("couldn't delete API token: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+}
+
 func TestCreateAPITokenInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
@@ -818,17 +941,17 @@ func TestCreateAPITokenInvalidInput(t *testing.T) {
 	}{
 		{
 			name:      strings.Repeat("a", 51),
-			expiresAt: "2040-12-31",
+			expiresAt: time.Now().AddDate(1, 0, 0).Format(time.RFC3339),
 			error:     "Token name must be between 3 and 50 characters",
 		},
 		{
 			name:      "",
-			expiresAt: "",
+			expiresAt: time.Now().AddDate(1, 0, 0).Format(time.RFC3339),
 			error:     "Token name is required",
 		},
 		{
 			name:      "valid-token",
-			expiresAt: "invalid-date",
+			expiresAt: time.Now().AddDate(1, 0, 0).Format(time.Kitchen),
 			error:     "Invalid expiration time format",
 		},
 	}

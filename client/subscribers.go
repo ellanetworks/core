@@ -111,7 +111,7 @@ func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOpt
 	return nil
 }
 
-func (c *Client) ListSubscribers(ctx context.Context, p *ListParams) ([]Subscriber, error) {
+func (c *Client) ListSubscribers(ctx context.Context, p *ListParams) (*ListSubscribersResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
@@ -128,5 +128,5 @@ func (c *Client) ListSubscribers(ctx context.Context, p *ListParams) ([]Subscrib
 		return nil, err
 	}
 
-	return subscribers.Items, nil
+	return &subscribers, nil
 }

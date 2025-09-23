@@ -52,7 +52,14 @@ type ListUsersResponse struct {
 	TotalCount int    `json:"total_count"`
 }
 
-func (c *Client) ListUsers(ctx context.Context, p *ListParams) ([]User, error) {
+type ListAPITokensResponse struct {
+	Items      []APIToken `json:"items"`
+	Page       int        `json:"page"`
+	PerPage    int        `json:"per_page"`
+	TotalCount int        `json:"total_count"`
+}
+
+func (c *Client) ListUsers(ctx context.Context, p *ListParams) (*ListUsersResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
@@ -69,7 +76,7 @@ func (c *Client) ListUsers(ctx context.Context, p *ListParams) ([]User, error) {
 		return nil, err
 	}
 
-	return users.Items, nil
+	return &users, nil
 }
 
 func (c *Client) CreateUser(ctx context.Context, opts *CreateUserOptions) error {
@@ -150,24 +157,24 @@ func (c *Client) CreateMyAPIToken(ctx context.Context, opts *CreateAPITokenOptio
 	return &tokenResponse, nil
 }
 
-func (c *Client) ListMyAPITokens(ctx context.Context) ([]*APIToken, error) {
+func (c *Client) ListMyAPITokens(ctx context.Context, p *ListParams) (*ListAPITokensResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/users/me/api-tokens",
+		Path:   fmt.Sprintf("api/v1/users/me/api-tokens?page=%d&per_page=%d", p.Page, p.PerPage),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	var tokens []*APIToken
+	var tokens ListAPITokensResponse
 
 	err = resp.DecodeResult(&tokens)
 	if err != nil {
 		return nil, err
 	}
 
-	return tokens, nil
+	return &tokens, nil
 }
 
 func (c *Client) DeleteMyAPIToken(ctx context.Context, tokenID string) error {

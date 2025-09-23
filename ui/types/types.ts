@@ -22,9 +22,3 @@ export type AuditLogRetentionPolicy = {
 export type SubscriberLogRetentionPolicy = {
   days: number;
 };
-
-export type APIToken = {
-  id: number;
-  name: string;
-  expires_at: string | null;
-};

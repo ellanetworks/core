@@ -50,7 +50,7 @@ type ListUsersResponse struct {
 	TotalCount int    `json:"total_count"`
 }
 
-type GetAPITokenResponse struct {
+type APIToken struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	ExpiresAt string `json:"expires_at"`
@@ -63,6 +63,13 @@ type CreateAPITokenParams struct {
 
 type CreateAPITokenResponse struct {
 	Token string `json:"token"`
+}
+
+type ListAPITokensResponse struct {
+	Items      []APIToken `json:"items"`
+	Page       int        `json:"page"`
+	PerPage    int        `json:"per_page"`
+	TotalCount int        `json:"total_count"`
 }
 
 const (
@@ -421,7 +428,22 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 
 func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		page := atoiDefault(q.Get("page"), 1)
+		perPage := atoiDefault(q.Get("per_page"), 25)
+
+		if page < 1 {
+			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			return
+		}
+
+		if perPage < 1 || perPage > 100 {
+			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			return
+		}
+
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
 			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
@@ -434,24 +456,30 @@ func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		tokens, err := dbInstance.ListAPITokens(r.Context(), user.ID)
+		tokens, total, err := dbInstance.ListAPITokensPage(r.Context(), user.ID, page, perPage)
 		if err != nil {
-			logger.APILog.Warn("Failed to list API tokens", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Unable to retrieve API tokens", err, logger.APILog)
 			return
 		}
 
-		response := make([]GetAPITokenResponse, 0, len(tokens))
+		items := make([]APIToken, 0, len(tokens))
 		for _, token := range tokens {
 			var expiresAt string
 			if token.ExpiresAt != nil {
 				expiresAt = token.ExpiresAt.Format(time.RFC3339)
 			}
-			response = append(response, GetAPITokenResponse{
+			items = append(items, APIToken{
 				ID:        token.TokenID,
 				Name:      token.Name,
 				ExpiresAt: expiresAt,
 			})
+		}
+
+		response := ListAPITokensResponse{
+			Items:      items,
+			Page:       page,
+			PerPage:    perPage,
+			TotalCount: total,
 		}
 
 		writeResponse(w, response, http.StatusOK, logger.APILog)
@@ -533,7 +561,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		numTokens, err := dbInstance.NumAPITokens(r.Context(), user.ID)
+		numTokens, err := dbInstance.CountAPITokens(r.Context(), user.ID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to count API tokens", err, logger.APILog)
 			return

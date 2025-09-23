@@ -99,7 +99,7 @@ func (c *Client) DeleteDataNetwork(ctx context.Context, opts *DeleteDataNetworkO
 	return nil
 }
 
-func (c *Client) ListDataNetworks(ctx context.Context, p *ListParams) ([]DataNetwork, error) {
+func (c *Client) ListDataNetworks(ctx context.Context, p *ListParams) (*ListDataNetworksResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
@@ -116,5 +116,5 @@ func (c *Client) ListDataNetworks(ctx context.Context, p *ListParams) ([]DataNet
 		return nil, err
 	}
 
-	return dataNetworks.Items, nil
+	return &dataNetworks, nil
 }

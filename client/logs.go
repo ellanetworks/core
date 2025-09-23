@@ -32,7 +32,7 @@ type ListAuditLogsResponse struct {
 	TotalCount int        `json:"total_count"`
 }
 
-func (c *Client) ListAuditLogs(ctx context.Context, p *ListParams) ([]AuditLog, error) {
+func (c *Client) ListAuditLogs(ctx context.Context, p *ListParams) (*ListAuditLogsResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
@@ -49,7 +49,7 @@ func (c *Client) ListAuditLogs(ctx context.Context, p *ListParams) ([]AuditLog, 
 		return nil, err
 	}
 
-	return auditLogs.Items, nil
+	return &auditLogs, nil
 }
 
 func (c *Client) GetAuditLogRetentionPolicy(ctx context.Context) (*GetAuditLogsRetentionPolicy, error) {

@@ -191,13 +191,13 @@ func TestListSubscribers_Success(t *testing.T) {
 		PerPage: 10,
 	}
 
-	subscribers, err := clientObj.ListSubscribers(ctx, params)
+	resp, err := clientObj.ListSubscribers(ctx, params)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(subscribers) != 1 {
-		t.Fatalf("expected 1 subscriber, got %d", len(subscribers))
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 subscriber, got %d", len(resp.Items))
 	}
 }
 

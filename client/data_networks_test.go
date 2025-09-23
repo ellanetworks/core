@@ -197,13 +197,13 @@ func TestListDataNetworks_Success(t *testing.T) {
 		PerPage: 10,
 	}
 
-	dataNetworks, err := clientObj.ListDataNetworks(ctx, params)
+	resp, err := clientObj.ListDataNetworks(ctx, params)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(dataNetworks) != 1 {
-		t.Fatalf("expected 1 data network, got %d", len(dataNetworks))
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 data network, got %d", len(resp.Items))
 	}
 }
 

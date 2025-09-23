@@ -84,11 +84,6 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 		return nil, 0, err
 	}
 
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
 	count, err := db.CountSubscribers(ctx)
 	if err != nil {
 		span.RecordError(err)
@@ -97,6 +92,11 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 	}
 
 	var subs []Subscriber
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
+	}
 
 	if err := db.conn.Query(ctx, stmt, args).GetAll(&subs); err != nil {
 		if err == sql.ErrNoRows {
