@@ -20,17 +20,22 @@ None
 
 ```json
 {
-    "result": [
-        {
-            "name": "internet",
-            "ip_pool": "172.250.0.0/24",
-            "dns": "8.8.8.8",
-            "mtu": 1460,
-            "status": {
-                "sessions": 0
+    "result": {
+        "items": [
+            {
+                "name": "internet",
+                "ip_pool": "172.250.0.0/24",
+                "dns": "8.8.8.8",
+                "mtu": 1460,
+                "status": {
+                    "sessions": 0
+                }
             }
-        }
-    ]
+        ],
+        "page": 1,
+        "per_page": 10,
+        "total_count": 1
+    }
 }
 ```
 
@@ -145,23 +150,31 @@ This path returns the list of routes.
 | ------ | ---------------- |
 | GET    | `/api/v1/networking/routes` |
 
-### Parameters
+### Query Parameters
 
-None
+| Name       | In    | Type | Default | Allowed | Description                   |
+| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 
 ### Sample Response
 
 ```json
 {
-    "result": [
-        {
-            "id": 1,
-            "destination": "0.0.0.0/0",
-            "gateway": "203.0.113.1",
-            "interface": "n6",
-            "metric": 0
-        }
-    ]
+    "result": {
+        "items": [
+            {
+                "id": 1,
+                "destination": "0.0.0.0/0",
+                "gateway": "203.0.113.1",
+                "interface": "n6",
+                "metric": 0
+            }
+        ],
+        "page": 1,
+        "per_page": 10,
+        "total_count": 1
+    }
 }
 ```
 

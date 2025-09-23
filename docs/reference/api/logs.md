@@ -14,25 +14,33 @@ This path returns the list of audit logs.
 | ------ | ----------------------- |
 | GET    | `/api/v1/logs/audit` |
 
-### Parameters
+### Query Parameters
 
-None
+| Name       | In    | Type | Default | Allowed | Description                   |
+| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 
 ### Sample Response
 
 ```json
 {
-    "result": [
-        {
-            "id": 1,
-            "timestamp": "2025-08-12T16:58:00.810-0400",
-            "level": "info",
-            "actor": "guillaume@ellanetworks.com",
-            "action": "create_user",
-            "ip": "127.0.0.1",
-            "details": "User created user: newuser@ellanetworks.com with role: 1"
-        }
-    ]
+    "result": {
+        "items": [
+            {
+                "id": 1,
+                "timestamp": "2025-08-12T16:58:00.810-0400",
+                "level": "INFO",
+                "actor": "guillaume@ellanetworks.com",
+                "action": "create_user",
+                "ip": "127.0.0.1",
+                "details": "User created user: newuser@ellanetworks.com with role: 1"
+            }
+        ],
+        "page": 1,
+        "per_page": 10,
+        "total_count": 1
+    }
 }
 ```
 
@@ -88,23 +96,31 @@ This path returns the list of subscriber logs.
 | ------ | ---------------------------- |
 | GET    | `/api/v1/logs/subscribers`   |
 
-### Parameters
+### Query Parameters
 
-None
+| Name       | In    | Type | Default | Allowed | Description                   |
+| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 
 ### Sample Response
 
 ```json
 {
-    "result": [
-        {
-            "id": 1,
-            "timestamp": "2025-08-12T16:58:00.810-0400",
-            "imsi": "001010100007487",
-            "event": "PDU Session Establishment Accept",
-            "details": "{\"pduSessionID\":1}"
-        }
-    ]
+    "result": {
+        "items": [
+            {
+                "id": 1,
+                "timestamp": "2025-08-12T16:58:00.810-0400",
+                "imsi": "001010100007487",
+                "event": "PDU Session Establishment Accept",
+                "details": "{\"pduSessionID\":1}"
+            }
+        ],
+        "page": 1,
+        "per_page": 10,
+        "total_count": 1
+    }
 }
 ```
 

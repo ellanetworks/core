@@ -13,24 +13,32 @@ This path returns the list of policies.
 | ------ | ------------------ |
 | GET    | `/api/v1/policies` |
 
-### Parameters
+### Query Parameters
 
-None
+| Name       | In    | Type | Default | Allowed | Description                   |
+| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 
 ### Sample Response
 
 ```json
 {
-    "result": [
-        {
-            "name": "default",
-            "bitrate_uplink": "200 Mbps",
-            "bitrate_downlink": "100 Mbps",
-            "var5qi": 8,
-            "priority_level": 1,
-            "data_network_name": "internet"
-        }
-    ]
+    "result": {
+        "items": [
+            {
+                "name": "default",
+                "bitrate_uplink": "200 Mbps",
+                "bitrate_downlink": "100 Mbps",
+                "var5qi": 8,
+                "priority_level": 1,
+                "data_network_name": "internet"
+            }
+        ],
+        "page": 1,
+        "per_page": 10,
+        "total_count": 1
+    }
 }
 ```
 
