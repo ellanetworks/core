@@ -19,7 +19,7 @@ import { Close as CloseIcon } from "@mui/icons-material";
 export interface LogRow {
   id: string;
   timestamp: string;
-  imsi: string;
+  event_id: string;
   event: string;
   details: string; // JSON or free text
 }
@@ -93,7 +93,7 @@ const ViewLogModal: React.FC<ViewLogModalProps> = ({ open, onClose, log }) => {
           </Typography>
 
           <Typography>
-            <strong>IMSI:</strong> {log?.imsi ?? "—"}
+            <strong>ID:</strong> {log?.event_id ?? "—"}
           </Typography>
         </Box>
 

@@ -64,13 +64,19 @@ func setupServer(filepath string) (*httptest.Server, []byte, error) {
 		return nil, nil, err
 	}
 
-	auditWriter := testdb.AuditWriteFunc(context.Background())
+	ctx := context.Background()
 
-	subscriberWriter := testdb.SubscriberWriteFunc(context.Background())
+	auditWriter := testdb.AuditWriteFunc(ctx)
+
+	subscriberWriter := testdb.SubscriberWriteFunc(ctx)
+
+	radioWriter := testdb.RadioWriteFunc(ctx)
 
 	logger.SetAuditDBWriter(auditWriter)
 
 	logger.SetSubscriberDBWriter(subscriberWriter)
+
+	logger.SetRadioDBWriter(radioWriter)
 
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}

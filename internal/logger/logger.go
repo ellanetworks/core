@@ -24,11 +24,13 @@ var (
 	UpfLog        *zap.Logger
 	SessionsLog   *zap.Logger
 	SubscriberLog *zap.Logger
+	RadioLog      *zap.Logger
 
 	atomicLevel zap.AtomicLevel
 
 	auditDBSink      zapcore.WriteSyncer
 	subscriberDBSink zapcore.WriteSyncer
+	radioDBSink      zapcore.WriteSyncer
 )
 
 // Default: console only, info level.
@@ -77,10 +79,22 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 
 	subscriberLogger := zap.New(zapcore.NewTee(subscriberCores...), zap.AddCaller())
 
+	radioCores, err := makeCores(systemOutput, systemFilePath, consoleEnc, jsonEnc)
+	if err != nil {
+		return fmt.Errorf("could not make cores: %w", err)
+	}
+
+	if radioDBSink != nil {
+		radioCores = append(radioCores, zapcore.NewCore(jsonEnc, radioDBSink, atomicLevel))
+	}
+
+	radioLogger := zap.New(zapcore.NewTee(radioCores...), zap.AddCaller())
+
 	// Swap roots
 	log = sysLogger
 	AuditLog = auditLogger.With(zap.String("component", "Audit"))
 	SubscriberLog = subscriberLogger.With(zap.String("component", "Subscriber"))
+	RadioLog = radioLogger.With(zap.String("component", "Radio"))
 
 	// Component children from system logger
 	EllaLog = log.With(zap.String("component", "Ella"))
@@ -134,6 +148,27 @@ func SetSubscriberDBWriter(writeFn func([]byte) error) {
 			atomicLevel,
 		)
 		SubscriberLog = SubscriberLog.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
+			return zapcore.NewTee(c, core)
+		}))
+	}
+}
+
+func SetRadioDBWriter(writeFn func([]byte) error) {
+	if writeFn == nil {
+		radioDBSink = nil
+		return
+	}
+	ws := zapcore.AddSync(funcWriteSyncer{write: writeFn})
+	radioDBSink = ws
+
+	// If the radio logger already exists, attach the DB core now.
+	if RadioLog != nil {
+		core := zapcore.NewCore(
+			zapcore.NewJSONEncoder(prodJSONEncoderConfig()),
+			radioDBSink,
+			atomicLevel,
+		)
+		RadioLog = RadioLog.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
 			return zapcore.NewTee(c, core)
 		}))
 	}
@@ -325,6 +360,113 @@ func LogSubscriberEvent(event SubscriberEvent, imsi string, fields ...zap.Field)
 	SubscriberLog.Info("subscriber_event",
 		zap.String("event", string(event)),
 		zap.String("imsi", imsi),
+		zap.String("details", detailsStr),
+	)
+}
+
+type RadioEvent string
+
+const (
+	RadioNGSetupRequest                      RadioEvent = "NG Setup Request"
+	RadioUplinkNASTransport                  RadioEvent = "Uplink NAS Transport"
+	RadioNGReset                             RadioEvent = "NG Reset"
+	RadioNGResetAcknowledge                  RadioEvent = "NG Reset Acknowledge"
+	RadioUEContextReleaseComplete            RadioEvent = "UE Context Release Complete"
+	RadioPDUSessionResourceReleaseResponse   RadioEvent = "PDU Session Resource Release Response"
+	RadioUERadioCapabilityCheckResponse      RadioEvent = "UE Radio Capability Check Response"
+	RadioLocationReportingFailureIndication  RadioEvent = "Location Reporting Failure Indication"
+	RadioInitialUEMessage                    RadioEvent = "Initial UE Message"
+	RadioPDUSessionResourceSetupResponse     RadioEvent = "PDU Session Resource Setup Response"
+	RadioPDUSessionResourceModifyResponse    RadioEvent = "PDU Session Resource Modify Response"
+	RadioPDUSessionResourceNotify            RadioEvent = "PDU Session Resource Notify"
+	RadioPDUSessionResourceModifyIndication  RadioEvent = "PDU Session Resource Modify Indication"
+	RadioInitialContextSetupResponse         RadioEvent = "Initial Context Setup Response"
+	RadioInitialContextSetupFailure          RadioEvent = "Initial Context Setup Failure"
+	RadioUEContextReleaseRequest             RadioEvent = "UE Context Release Request"
+	RadioUEContextModificationResponse       RadioEvent = "UE Context Modification Response"
+	RadioUEContextModificationFailure        RadioEvent = "UE Context Modification Failure"
+	RadioRRCInactiveTransitionReport         RadioEvent = "RRC Inactive Transition Report"
+	RadioHandoverNotify                      RadioEvent = "Handover Notify"
+	RadioPathSwitchRequest                   RadioEvent = "Path Switch Request"
+	RadioHandoverRequestAcknowledge          RadioEvent = "Handover Request Acknowledge"
+	RadioHandoverFailure                     RadioEvent = "Handover Failure"
+	RadioHandoverRequired                    RadioEvent = "Handover Required"
+	RadioHandoverCancel                      RadioEvent = "Handover Cancel"
+	RadioUplinkRanStatusTransfer             RadioEvent = "Uplink RAN Status Transfer"
+	RadioNasNonDeliveryIndication            RadioEvent = "NAS Non Delivery Indication"
+	RadioRanConfigurationUpdate              RadioEvent = "RAN Configuration Update"
+	RadioUplinkRanConfigurationTransfer      RadioEvent = "Uplink RAN Configuration Transfer"
+	RadioUplinkUEAssociatedNRPPATransport    RadioEvent = "Uplink UE Associated NRPPA Transport"
+	RadioUplinkNonUEAssociatedNRPPATransport RadioEvent = "Uplink Non UE Associated NRPPA Transport"
+	RadioLocationReport                      RadioEvent = "Location Report"
+	RadioUERadioCapabilityInfoIndication     RadioEvent = "UE Radio Capability Info Indication"
+	RadioAMFConfigurationUpdateFailure       RadioEvent = "AMF Configuration Update Failure"
+	RadioAMFConfigurationUpdateAcknowledge   RadioEvent = "AMF Configuration Update Acknowledge"
+	RadioErrorIndication                     RadioEvent = "Error Indication"
+	RadioCellTrafficTrace                    RadioEvent = "Cell Traffic Trace"
+)
+
+func LogRadioEvent(event RadioEvent, ranID string, fields ...zap.Field) {
+	if RadioLog == nil {
+		return
+	}
+
+	if event == "" {
+		EllaLog.Warn("attempted to log empty radio event",
+			zap.String("ran_id", ranID),
+			zap.Any("fields", fields),
+		)
+		return
+	}
+
+	enc := zapcore.NewMapObjectEncoder()
+	for _, f := range fields {
+		f.AddTo(enc)
+	}
+
+	var detailsStr string
+
+	reserved := map[string]struct{}{
+		"event": {}, "ran_id": {}, "timestamp": {}, "level": {},
+		"component": {}, "caller": {}, "message": {},
+	}
+
+	if raw, ok := enc.Fields["details"]; ok {
+		switch v := raw.(type) {
+		case string:
+			detailsStr = v
+		default:
+			if b, err := json.Marshal(v); err == nil {
+				detailsStr = string(b)
+			}
+		}
+		delete(enc.Fields, "details")
+	}
+
+	if detailsStr == "" {
+		agg := make(map[string]any, len(enc.Fields))
+		for k, v := range enc.Fields {
+			if _, isReserved := reserved[k]; !isReserved {
+				agg[k] = v
+			}
+		}
+		if len(agg) > 0 {
+			if b, err := json.Marshal(agg); err == nil {
+				detailsStr = string(b)
+			}
+		}
+	}
+
+	// Optional safety: cap the size
+	const maxDetails = 4096
+	if len(detailsStr) > maxDetails {
+		detailsStr = detailsStr[:maxDetails] + "...(truncated)"
+	}
+
+	// Emit a single, consistent log line. DB reader already expects details as string.
+	RadioLog.Info("radio_event",
+		zap.String("event", string(event)),
+		zap.String("ran_id", ranID),
 		zap.String("details", detailsStr),
 	)
 }

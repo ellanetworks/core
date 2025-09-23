@@ -69,10 +69,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	auditWriter := dbInstance.AuditWriteFunc(ctx)
 	subscriberWriter := dbInstance.SubscriberWriteFunc(ctx)
+	radioWriter := dbInstance.RadioWriteFunc(ctx)
 
 	logger.SetAuditDBWriter(auditWriter)
-
 	logger.SetSubscriberDBWriter(subscriberWriter)
+	logger.SetRadioDBWriter(radioWriter)
 
 	metrics.RegisterDatabaseMetrics(dbInstance)
 
