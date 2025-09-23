@@ -70,7 +70,7 @@ func TestListRadios_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"name": "my-name"}]`),
+			Result:     []byte(`{"items": [{"name": "radio1"}, {"name": "radio2"}], "page": 1, "per_page": 10, "total_count": 2}`),
 		},
 		err: nil,
 	}
@@ -80,13 +80,18 @@ func TestListRadios_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	radios, err := clientObj.ListRadios(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	resp, err := clientObj.ListRadios(ctx, params)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(radios) != 1 {
-		t.Fatalf("expected 1 radio, got %d", len(radios))
+	if len(resp.Items) != 2 {
+		t.Fatalf("expected 2 radios, got %d", len(resp.Items))
 	}
 }
 
@@ -105,7 +110,12 @@ func TestListRadios_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := clientObj.ListRadios(ctx)
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	_, err := clientObj.ListRadios(ctx, params)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

@@ -11,9 +11,34 @@ import (
 
 // This file contains calls to db to get configuration data
 
-func ListAmfRan() []AmfRan {
+func getPaginateIndexes(page int, perPage int, total int) (int, int) {
+	startIndex := (page - 1) * perPage
+
+	endIndex := startIndex + perPage
+
+	if startIndex > total {
+		return 0, 0
+	}
+
+	if endIndex > total {
+		endIndex = total
+	}
+
+	return startIndex, endIndex
+}
+
+func ListAmfRan(page int, perPage int) (int, []AmfRan) {
 	amfSelf := AMFSelf()
-	return amfSelf.ListAmfRan()
+
+	ranList := amfSelf.ListAmfRan()
+
+	total := len(ranList)
+
+	startIndex, endIndex := getPaginateIndexes(page, perPage, total)
+
+	ranListPage := ranList[startIndex:endIndex]
+
+	return total, ranListPage
 }
 
 func GetSupportTaiList(ctx context.Context) []models.Tai {

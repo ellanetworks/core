@@ -3,6 +3,7 @@ package server_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -35,7 +36,7 @@ type SupportedTAI struct {
 	SNssais []Snssai `json:"snssais"`
 }
 
-type GetRadioResponseResult struct {
+type Radio struct {
 	Name          string         `json:"name"`
 	ID            string         `json:"id"`
 	Address       string         `json:"address"`
@@ -43,17 +44,24 @@ type GetRadioResponseResult struct {
 }
 
 type GetRadioResponse struct {
-	Result GetRadioResponseResult `json:"result"`
-	Error  string                 `json:"error,omitempty"`
+	Result Radio  `json:"result"`
+	Error  string `json:"error,omitempty"`
+}
+
+type ListRadiosResponseResult struct {
+	Items      []Radio `json:"items"`
+	Page       int     `json:"page"`
+	PerPage    int     `json:"per_page"`
+	TotalCount int     `json:"total_count"`
 }
 
 type ListRadiosResponse struct {
-	Result []GetRadioResponseResult `json:"result"`
+	Result ListRadiosResponseResult `json:"result"`
 	Error  string                   `json:"error,omitempty"`
 }
 
-func listRadios(url string, client *http.Client, token string) (int, *ListRadiosResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/radios", nil)
+func listRadios(url string, client *http.Client, token string, page int, perPage int) (int, *ListRadiosResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/radios?page=%d&per_page=%d", url, page, perPage), nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -136,7 +144,7 @@ func TestListRadios(t *testing.T) {
 	amf.AmfRanPool.Store("id2", &ran2)
 
 	// Set up the Gin router
-	statusCode, response, err := listRadios(ts.URL, client, token)
+	statusCode, response, err := listRadios(ts.URL, client, token, 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list radios: %s", err)
 	}
@@ -148,11 +156,11 @@ func TestListRadios(t *testing.T) {
 		t.Fatalf("unexpected error :%q", response.Error)
 	}
 
-	if len(response.Result) != 2 {
-		t.Fatalf("expected 2 radios, got %d", len(response.Result))
+	if len(response.Result.Items) != 2 {
+		t.Fatalf("expected 2 radios, got %d", len(response.Result.Items))
 	}
 
-	for _, radio := range response.Result {
+	for _, radio := range response.Result.Items {
 		if radio.Name == "gnb-001" {
 			if radio.Address != "1.2.3.4" {
 				t.Fatalf("expected radio address %q, got %q", "1.2.3.4", radio.Address)

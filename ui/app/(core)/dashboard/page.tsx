@@ -228,20 +228,20 @@ const Dashboard = () => {
 
     (async () => {
       try {
-        const [status, subsPage, radios] = await Promise.all([
+        const [status, subsPage, radiosPage] = await Promise.all([
           getStatus(),
           listSubscribers(
             accessToken,
             1,
             1,
           ) as Promise<ListSubscribersResponse>,
-          listRadios(accessToken),
+          listRadios(accessToken, 1, 1),
         ]);
         if (!mounted) return;
 
         setVersion(status.version);
         setSubscriberCount(subsPage.total_count ?? 0);
-        setRadioCount(radios.length);
+        setRadioCount(radiosPage.total_count ?? 0);
       } catch {
         if (mounted) setError("Failed to fetch initial data.");
       }
