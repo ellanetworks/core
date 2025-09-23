@@ -66,6 +66,7 @@ nav:
       - Logs: reference/api/logs.md
       - Users: reference/api/users.md
     - Configuration File: reference/config_file.md
+    - Production Hardening: reference/production_hardening.md
     - Metrics: reference/metrics.md
     - Logging: reference/logging.md
     - Tracing: reference/tracing.md

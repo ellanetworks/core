@@ -4,6 +4,7 @@ This section provides detailed reference material for Ella Core, from configurat
 
 - [API](api/index.md)
 - [Configuration File](config_file.md)
+- [Production Hardening](production_hardening.md)
 - [Metrics](metrics.md)
 - [Logging](logging.md)
 - [Tracing](tracing.md)
