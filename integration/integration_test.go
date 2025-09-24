@@ -537,7 +537,11 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			}
 			t.Logf("Verified that '3 packets transmitted, 3 received' and '0 packet loss' are in the result")
 
-			result, err = k.Exec(ueransimPodName, "python3 /opt/network-tester/network_test.py uesimtun0", "ueransim")
+			result, err = k.Exec(
+				ueransimPodName,
+				"python3 /opt/network-tester/network_test.py --dev uesimtun0 --dest 192.168.250.1",
+				"ueransim",
+			)
 			if err != nil {
 				t.Fatalf("networking test suite failed: %v", err)
 			}
