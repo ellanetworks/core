@@ -517,9 +517,9 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			}
 			t.Logf("Verified that 'uesimtun0' is in the result")
 
-			// TODO: this block is currently necessary to warm up the connectivity when NAT is enabled,
+			// nolint:godox TODO: this block is currently necessary to warm up the connectivity when NAT is enabled,
 			// otherwise some pings are lost. It should be removed once the issue is identified and fixed.
-			result, err = k.Exec(ueransimPodName, "ping -I uesimtun0 192.168.250.1 -c 10", "ueransim")
+			_, err = k.Exec(ueransimPodName, "ping -I uesimtun0 192.168.250.1 -c 10", "ueransim")
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
