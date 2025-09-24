@@ -24,6 +24,8 @@ spec:
         volumeMounts:
         - name: config-volume
           mountPath: /etc/ueransim
+        - name: network-tester
+          mountPath: /opt/network-tester
         securityContext:
           privileged: true
         ports:
@@ -32,3 +34,6 @@ spec:
       - name: config-volume
         configMap:
           name: ueransim-config
+      - name: network-tester
+        configMap:
+          name: network-testing-script

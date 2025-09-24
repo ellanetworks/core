@@ -5,3 +5,7 @@ resources:
   - ueransim-configmap.yaml
   - ueransim-n2-nad.yaml
   - ueransim-n3-nad.yaml
+configMapGenerator:
+- name: network-testing-script
+  files:
+  - network_test.py

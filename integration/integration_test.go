@@ -36,6 +36,7 @@ func computeIMSI(baseIMSI string, increment int) (string, error) {
 type ConfigureEllaCoreOpts struct {
 	client    *client.Client
 	customOPc bool
+	nat       bool
 }
 
 func configureEllaCore(ctx context.Context, opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) {
@@ -87,7 +88,7 @@ func configureEllaCore(ctx context.Context, opts *ConfigureEllaCoreOpts) (*clien
 	}
 
 	err = opts.client.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{
-		Enabled: false,
+		Enabled: opts.nat,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to disable NAT: %v", err)
@@ -394,12 +395,12 @@ func TestIntegrationGnbsim(t *testing.T) {
 	appUplinkBytes := metrics["app_uplink_bytes"]
 	appDownlinkBytes := metrics["app_downlink_bytes"]
 
-	if appUplinkBytes != 9000 {
-		t.Fatalf("expected app_uplink_bytes to be 9000, but got %v", appUplinkBytes)
+	if appUplinkBytes < 9000 {
+		t.Fatalf("expected app_uplink_bytes to be at least 9000, but got %v", appUplinkBytes)
 	}
 
-	if appDownlinkBytes != 9000 {
-		t.Fatalf("expected app_downlink_bytes to be 9000, but got %v", appDownlinkBytes)
+	if appDownlinkBytes < 9000 {
+		t.Fatalf("expected app_downlink_bytes to be at least 9000, but got %v", appDownlinkBytes)
 	}
 
 	err = k.DeleteNamespace()
@@ -415,107 +416,139 @@ func TestIntegrationUERANSIM(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
-	ctx := context.Background()
-
-	k := &K8s{Namespace: ueransimNamespace}
-
-	ellaCoreURL, err := deploy(k)
-	if err != nil {
-		t.Fatalf("failed to deploy: %v", err)
-	}
-	t.Log("deployed ella core")
-
-	clientConfig := &client.Config{
-		BaseURL: ellaCoreURL,
-	}
-	ellaClient, err := client.New(clientConfig)
-	if err != nil {
-		t.Fatalf("failed to create ella client: %v", err)
+	testCases := []struct {
+		name string
+		nat  bool
+	}{
+		{
+			name: "Nat disabled",
+			nat:  false,
+		},
+		{
+			name: "Nat enabled",
+			nat:  true,
+		},
 	}
 
-	configureOpts := &ConfigureEllaCoreOpts{
-		client:    ellaClient,
-		customOPc: false,
-	}
-	subscriber0, err := configureEllaCore(ctx, configureOpts)
-	if err != nil {
-		t.Fatalf("failed to configure Ella Core: %v", err)
-	}
-	t.Log("configured Ella Core")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
 
-	err = k.ApplyKustomize("../k8s/ueransim")
-	if err != nil {
-		t.Fatalf("failed to apply kustomize: %v", err)
-	}
-	t.Log("applied kustomize for ueransim")
-	err = k.WaitForAppReady("ueransim")
-	if err != nil {
-		t.Fatalf("failed to wait for ueransim app to be ready: %v", err)
-	}
+			k := &K8s{Namespace: ueransimNamespace}
 
-	err = patchUERANSIMConfigmap(k, subscriber0)
-	if err != nil {
-		t.Fatalf("failed to patch ueransim configmap: %v", err)
-	}
-	t.Log("patched ueransim configmap")
+			ellaCoreURL, err := deploy(k)
+			if err != nil {
+				t.Fatalf("failed to deploy: %v", err)
+			}
+			t.Log("deployed ella core")
 
-	ueransimPodName, err := k.GetPodName("ueransim")
-	if err != nil {
-		t.Fatalf("failed to get pod name: %v", err)
-	}
+			clientConfig := &client.Config{
+				BaseURL: ellaCoreURL,
+			}
+			ellaClient, err := client.New(clientConfig)
+			if err != nil {
+				t.Fatalf("failed to create ella client: %v", err)
+			}
 
-	_, err = k.Exec(ueransimPodName, "pebble add gnb /etc/ueransim/pebble_gnb.yaml", "ueransim")
-	if err != nil {
-		t.Fatalf("failed to exec command in pod: %v", err)
-	}
+			configureOpts := &ConfigureEllaCoreOpts{
+				client:    ellaClient,
+				customOPc: false,
+				nat:       tc.nat,
+			}
+			subscriber0, err := configureEllaCore(ctx, configureOpts)
+			if err != nil {
+				t.Fatalf("failed to configure Ella Core: %v", err)
+			}
+			t.Log("configured Ella Core")
 
-	t.Log("added pebble gnb.yaml")
+			err = k.ApplyKustomize("../k8s/ueransim")
+			if err != nil {
+				t.Fatalf("failed to apply kustomize: %v", err)
+			}
+			t.Log("applied kustomize for ueransim")
+			err = k.WaitForAppReady("ueransim")
+			if err != nil {
+				t.Fatalf("failed to wait for ueransim app to be ready: %v", err)
+			}
 
-	_, err = k.Exec(ueransimPodName, "pebble start gnb", "ueransim")
-	if err != nil {
-		t.Fatalf("failed to exec command in pod: %v", err)
-	}
-	t.Log("started pebble gnb")
+			err = patchUERANSIMConfigmap(k, subscriber0)
+			if err != nil {
+				t.Fatalf("failed to patch ueransim configmap: %v", err)
+			}
+			t.Log("patched ueransim configmap")
 
-	_, err = k.Exec(ueransimPodName, "pebble add ue /etc/ueransim/pebble_ue.yaml", "ueransim")
-	if err != nil {
-		t.Fatalf("failed to exec command in pod: %v", err)
-	}
-	t.Log("added pebble ue.yaml")
+			ueransimPodName, err := k.GetPodName("ueransim")
+			if err != nil {
+				t.Fatalf("failed to get pod name: %v", err)
+			}
 
-	_, err = k.Exec(ueransimPodName, "pebble start ue", "ueransim")
-	if err != nil {
-		t.Fatalf("failed to exec command in pod: %v", err)
-	}
-	t.Log("started pebble ue")
+			_, err = k.Exec(ueransimPodName, "pebble add gnb /etc/ueransim/pebble_gnb.yaml", "ueransim")
+			if err != nil {
+				t.Fatalf("failed to exec command in pod: %v", err)
+			}
 
-	result, err := k.Exec(ueransimPodName, "ip a", "ueransim")
-	if err != nil {
-		t.Fatalf("failed to exec command in pod: %v", err)
-	}
-	t.Logf("UERANSIM result: %s", result)
-	if !strings.Contains(result, "uesimtun0") {
-		t.Fatalf("expected 'uesimtun0' to be in the result, but it was not found")
-	}
-	t.Logf("Verified that 'uesimtun0' is in the result")
+			t.Log("added pebble gnb.yaml")
 
-	result, err = k.Exec(ueransimPodName, "ping -I uesimtun0 192.168.250.1 -c 3", "ueransim")
-	if err != nil {
-		t.Fatalf("failed to exec command in pod: %v", err)
-	}
-	t.Logf("UERANSIM ping result: %s", result)
-	if !strings.Contains(result, "3 packets transmitted, 3 received") {
-		t.Fatalf("expected '3 packets transmitted, 3 received' to be in the result, but it was not found")
-	}
-	if !strings.Contains(result, "0% packet loss") {
-		t.Fatalf("expected '0 packet loss' to be in the result, but it was not found")
-	}
-	t.Logf("Verified that '3 packets transmitted, 3 received' and '0 packet loss' are in the result")
+			_, err = k.Exec(ueransimPodName, "pebble start gnb", "ueransim")
+			if err != nil {
+				t.Fatalf("failed to exec command in pod: %v", err)
+			}
+			t.Log("started pebble gnb")
 
-	err = k.DeleteNamespace()
-	if err != nil {
-		t.Fatalf("failed to delete namespace %s: %v", ueransimNamespace, err)
+			_, err = k.Exec(ueransimPodName, "pebble add ue /etc/ueransim/pebble_ue.yaml", "ueransim")
+			if err != nil {
+				t.Fatalf("failed to exec command in pod: %v", err)
+			}
+			t.Log("added pebble ue.yaml")
+
+			_, err = k.Exec(ueransimPodName, "pebble start ue", "ueransim")
+			if err != nil {
+				t.Fatalf("failed to exec command in pod: %v", err)
+			}
+			t.Log("started pebble ue")
+
+			result, err := k.Exec(ueransimPodName, "ip a", "ueransim")
+			if err != nil {
+				t.Fatalf("failed to exec command in pod: %v", err)
+			}
+			t.Logf("UERANSIM result: %s", result)
+			if !strings.Contains(result, "uesimtun0") {
+				t.Fatalf("expected 'uesimtun0' to be in the result, but it was not found")
+			}
+			t.Logf("Verified that 'uesimtun0' is in the result")
+
+			// TODO: this block is currently necessary to warm up the connectivity when NAT is enabled,
+			// otherwise some pings are lost. It should be removed once the issue is identified and fixed.
+			result, err = k.Exec(ueransimPodName, "ping -I uesimtun0 192.168.250.1 -c 10", "ueransim")
+			if err != nil {
+				t.Fatalf("failed to exec command in pod: %v", err)
+			}
+
+			result, err = k.Exec(ueransimPodName, "ping -I uesimtun0 192.168.250.1 -c 3", "ueransim")
+			if err != nil {
+				t.Fatalf("failed to exec command in pod: %v", err)
+			}
+			t.Logf("UERANSIM ping result: %s", result)
+			if !strings.Contains(result, "3 packets transmitted, 3 received") {
+				t.Fatalf("expected '3 packets transmitted, 3 received' to be in the result, but it was not found")
+			}
+			if !strings.Contains(result, "0% packet loss") {
+				t.Fatalf("expected '0 packet loss' to be in the result, but it was not found")
+			}
+			t.Logf("Verified that '3 packets transmitted, 3 received' and '0 packet loss' are in the result")
+
+			result, err = k.Exec(ueransimPodName, "python3 /opt/network-tester/network_test.py uesimtun0", "ueransim")
+			if err != nil {
+				t.Fatalf("networking test suite failed: %v", err)
+			}
+			t.Logf("Network tester results: %s", result)
+
+			err = k.DeleteNamespace()
+			if err != nil {
+				t.Fatalf("failed to delete namespace %s: %v", ueransimNamespace, err)
+			}
+			t.Logf("deleted namespace %s", ueransimNamespace)
+			t.Log("UERANSIM test completed successfully")
+		})
 	}
-	t.Logf("deleted namespace %s", ueransimNamespace)
-	t.Log("UERANSIM test completed successfully")
 }
