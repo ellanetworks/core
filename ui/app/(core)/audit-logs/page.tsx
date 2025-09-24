@@ -14,10 +14,10 @@ import {
   getAuditLogRetentionPolicy,
   type APIAuditLog,
   type ListAuditLogsResponse,
+  type AuditLogRetentionPolicy,
 } from "@/queries/audit_logs";
 import { useAuth } from "@/contexts/AuthContext";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
-import { AuditLogRetentionPolicy } from "@/types/types";
 
 const MAX_WIDTH = 1400;
 

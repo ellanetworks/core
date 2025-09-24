@@ -24,6 +24,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
   listSubscriberLogs,
   getSubscriberLogRetentionPolicy,
+  type SubscriberLogRetentionPolicy,
   type APISubscriberLog,
   type ListSubscriberLogsResponse,
 } from "@/queries/subscriber_logs";
@@ -33,13 +34,14 @@ import {
   getRadioLogRetentionPolicy,
   type APIRadioLog,
   type ListRadioLogsResponse,
+  type RadioLogRetentionPolicy,
 } from "@/queries/radio_logs";
 
 import { useAuth } from "@/contexts/AuthContext";
 import EditSubscriberLogRetentionPolicyModal from "@/components/EditSubscriberLogRetentionPolicyModal";
-import { SubscriberLogRetentionPolicy } from "@/types/types";
-import ViewLogModal from "@/components/ViewSubscriberLogModal";
-import type { LogRow } from "@/components/ViewSubscriberLogModal";
+import EditRadioLogRetentionPolicyModal from "@/components/EditRadioLogRetentionPolicyModal";
+import ViewLogModal from "@/components/ViewLogModal";
+import type { LogRow } from "@/components/ViewLogModal";
 
 const MAX_WIDTH = 1400;
 type TabKey = "subscribers" | "radio";
@@ -70,7 +72,9 @@ const Events: React.FC = () => {
     pageSize: 25,
   });
 
-  const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [isSubscriberEditModalOpen, setSubscriberEditModalOpen] =
+    useState(false);
+  const [isRadioEditModalOpen, setRadioEditModalOpen] = useState(false);
   const [subRetentionPolicy, setSubRetentionPolicy] =
     useState<SubscriberLogRetentionPolicy | null>(null);
 
@@ -83,7 +87,7 @@ const Events: React.FC = () => {
     pageSize: 25,
   });
   const [radioRetentionPolicy, setRadioRetentionPolicy] =
-    useState<SubscriberLogRetentionPolicy | null>(null);
+    useState<RadioLogRetentionPolicy | null>(null);
 
   // ---------------- Fetchers ----------------
   const fetchSubscriberRetention = useCallback(async () => {
@@ -359,7 +363,7 @@ const Events: React.FC = () => {
                 <Button
                   variant="contained"
                   color="primary"
-                  onClick={() => setEditModalOpen(true)}
+                  onClick={() => setSubscriberEditModalOpen(true)}
                   sx={{ minWidth: 140 }}
                 >
                   Edit Retention
@@ -438,7 +442,16 @@ const Events: React.FC = () => {
             </Typography>
 
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              {/* If you later add an Edit modal for radio logs, put it here */}
+              {canEdit && (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => setRadioEditModalOpen(true)}
+                  sx={{ minWidth: 140 }}
+                >
+                  Edit Retention
+                </Button>
+              )}
               <Typography
                 variant="body2"
                 color="text.secondary"
@@ -500,8 +513,8 @@ const Events: React.FC = () => {
       />
 
       <EditSubscriberLogRetentionPolicyModal
-        open={isEditModalOpen}
-        onClose={() => setEditModalOpen(false)}
+        open={isSubscriberEditModalOpen}
+        onClose={() => setSubscriberEditModalOpen(false)}
         onSuccess={() => {
           fetchSubscriberRetention();
           setAlert({
@@ -510,6 +523,18 @@ const Events: React.FC = () => {
           });
         }}
         initialData={subRetentionPolicy || { days: 30 }}
+      />
+      <EditRadioLogRetentionPolicyModal
+        open={isRadioEditModalOpen}
+        onClose={() => setRadioEditModalOpen(false)}
+        onSuccess={() => {
+          fetchRadioRetention();
+          setAlert({
+            message: "Retention policy updated!",
+            severity: "success",
+          });
+        }}
+        initialData={radioRetentionPolicy || { days: 30 }}
       />
     </Box>
   );

@@ -1,5 +1,9 @@
 import { HTTPStatus } from "@/queries/utils";
 
+export type AuditLogRetentionPolicy = {
+  days: number;
+};
+
 export type APIAuditLog = {
   id: number;
   timestamp: string;
