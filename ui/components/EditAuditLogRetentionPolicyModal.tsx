@@ -10,9 +10,11 @@ import {
   Alert,
   Collapse,
 } from "@mui/material";
-import { updateAuditLogRetentionPolicy } from "@/queries/audit_logs";
+import {
+  updateAuditLogRetentionPolicy,
+  type AuditLogRetentionPolicy,
+} from "@/queries/audit_logs";
 import { useRouter } from "next/navigation";
-import { AuditLogRetentionPolicy } from "@/types/types";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface EditAuditLogRetentionPolicyModalProps {

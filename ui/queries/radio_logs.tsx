@@ -1,5 +1,9 @@
 import { HTTPStatus } from "@/queries/utils";
 
+export type RadioLogRetentionPolicy = {
+  days: number;
+};
+
 export type APIRadioLog = {
   id: number;
   timestamp: string;

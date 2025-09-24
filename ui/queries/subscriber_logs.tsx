@@ -1,5 +1,9 @@
 import { HTTPStatus } from "@/queries/utils";
 
+export type SubscriberLogRetentionPolicy = {
+  days: number;
+};
+
 export type APISubscriberLog = {
   id: number;
   timestamp: string;
