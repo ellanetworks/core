@@ -315,7 +315,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := createFirstUserAndLogin(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -538,7 +538,7 @@ func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := createFirstUserAndLogin(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -604,7 +604,7 @@ func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := createFirstUserAndLogin(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -662,7 +662,7 @@ func TestUpdateOperatorIDInvalidInput(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := createFirstUserAndLogin(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -741,7 +741,7 @@ func TestUpdateOperatorCodeInvalidInput(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := createFirstUserAndLogin(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}

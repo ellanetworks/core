@@ -97,32 +97,19 @@ func setupServer(filepath string) (*httptest.Server, []byte, error) {
 	return ts, jwtSecret, nil
 }
 
-func createFirstUserAndLogin(url string, client *http.Client) (string, error) {
-	user := &CreateUserParams{
+func initializeAndRefresh(url string, client *http.Client) (string, error) {
+	initParams := &InitializeParams{
 		Email:    FirstUserEmail,
 		Password: "password123",
-		RoleID:   RoleAdmin,
 	}
-	statusCode, _, err := createUser(url, client, "", user)
+
+	statusCode, _, err := initialize(url, client, initParams)
 	if err != nil {
 		return "", fmt.Errorf("couldn't create user: %s", err)
 	}
+
 	if statusCode != http.StatusCreated {
 		return "", fmt.Errorf("expected status %d, got %d", http.StatusCreated, statusCode)
-	}
-
-	loginParams := &LoginParams{
-		Email:    FirstUserEmail,
-		Password: "password123",
-	}
-
-	statusCode, _, err = login(url, client, loginParams)
-	if err != nil {
-		return "", fmt.Errorf("couldn't login: %s", err)
-	}
-
-	if statusCode != http.StatusOK {
-		return "", fmt.Errorf("expected login status %d, got %d", http.StatusOK, statusCode)
 	}
 
 	statusCode, refreshResponse, err := refresh(url, client)

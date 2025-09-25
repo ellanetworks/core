@@ -118,11 +118,7 @@ In the Initialization page, create the first user with the following credentials
 - Email: `admin@ellanetworks.com`
 - Password: `admin`
 
-After creating the user, you will be redirected to the login page. Use the credentials you just created to log in.
-
-You will be redirected to the dashboard.
-
-Ella Core is now initialized and ready to be used.
+Ella Core is now initialized and ready to be used. You will be redirected to the dashboard.
 
 ### 2.4 Configure your private network
 

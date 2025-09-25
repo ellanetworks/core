@@ -29,6 +29,9 @@ func NewHandler(dbInstance *db.Database, upf UPFReloader, kernel kernel.Kernel, 
 	mux.HandleFunc("POST /api/v1/auth/logout", Logout(dbInstance, secureCookie).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/lookup-token", LookupToken(dbInstance, jwtSecret).ServeHTTP)
 
+	// Initialization (Unauthenticated)
+	mux.HandleFunc("POST /api/v1/init", Initialize(dbInstance, secureCookie).ServeHTTP)
+
 	// Users (Authenticated except for first user creation)
 	mux.HandleFunc("GET /api/v1/users/me", Authenticate(jwtSecret, dbInstance, GetLoggedInUser(dbInstance)).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/users/me/password", Authenticate(jwtSecret, dbInstance, RequirePermission(PermUpdateMyUserPassword, jwtSecret, UpdateMyUserPassword(dbInstance))).ServeHTTP)
@@ -36,7 +39,7 @@ func NewHandler(dbInstance *db.Database, upf UPFReloader, kernel kernel.Kernel, 
 	mux.HandleFunc("POST /api/v1/users/me/api-tokens", Authenticate(jwtSecret, dbInstance, RequirePermission(PermCreateMyAPIToken, jwtSecret, CreateMyAPIToken(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/users/me/api-tokens/", Authenticate(jwtSecret, dbInstance, RequirePermission(PermDeleteMyAPIToken, jwtSecret, DeleteMyAPIToken(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/users", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListUsers, jwtSecret, ListUsers(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/users", RequirePermissionOrFirstUser(PermCreateUser, dbInstance, jwtSecret, CreateUser(dbInstance)).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/users", Authenticate(jwtSecret, dbInstance, RequirePermission(PermCreateUser, jwtSecret, CreateUser(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/users/{email}", Authenticate(jwtSecret, dbInstance, RequirePermission(PermUpdateUser, jwtSecret, UpdateUser(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/users/{email}/password", Authenticate(jwtSecret, dbInstance, RequirePermission(PermUpdateUserPassword, jwtSecret, UpdateUserPassword(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/users/{email}", Authenticate(jwtSecret, dbInstance, RequirePermission(PermReadUser, jwtSecret, GetUser(dbInstance))).ServeHTTP)

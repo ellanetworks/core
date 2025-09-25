@@ -40,9 +40,14 @@ func TestDBUsersEndToEnd(t *testing.T) {
 		Email:          "my.user123@ellanetworks.com",
 		HashedPassword: "my-hashed-password",
 	}
-	err = database.CreateUser(context.Background(), user)
+
+	userID, err := database.CreateUser(context.Background(), user)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
+	}
+
+	if userID == 0 {
+		t.Fatalf("Expected user ID to be non-zero after creation")
 	}
 
 	res, total, err = database.ListUsersPage(context.Background(), 1, 10)

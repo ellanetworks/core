@@ -451,7 +451,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := createFirstUserAndLogin(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -621,7 +621,7 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	adminToken, err := createFirstUserAndLogin(ts.URL, client)
+	adminToken, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -696,36 +696,6 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 	}
 }
 
-func TestAPIUsersFirstUserNonAdmin(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer ts.Close()
-	client := ts.Client()
-
-	createUserParams := &CreateUserParams{
-		Email:    Email,
-		Password: Password,
-		RoleID:   RoleReadOnly,
-	}
-
-	statusCode, response, err := createUser(ts.URL, client, "", createUserParams)
-	if err != nil {
-		t.Fatalf("couldn't create user: %s", err)
-	}
-
-	if statusCode != http.StatusBadRequest {
-		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
-	}
-
-	if response.Error != "First user must be an admin" {
-		t.Fatalf("unexpected error :%q", response.Error)
-	}
-}
-
 func TestCreateUserInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
@@ -736,7 +706,7 @@ func TestCreateUserInvalidInput(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := createFirstUserAndLogin(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -803,7 +773,7 @@ func TestCreateTooManyUsers(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := createFirstUserAndLogin(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -857,7 +827,7 @@ func TestCreateAPIToken(t *testing.T) {
 
 	client := ts.Client()
 
-	token, err := createFirstUserAndLogin(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -929,7 +899,7 @@ func TestCreateAPITokenInvalidInput(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := createFirstUserAndLogin(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -986,7 +956,7 @@ func TestListUsersPagination(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := createFirstUserAndLogin(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}

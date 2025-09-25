@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -83,10 +84,6 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 		}
 
 		expiresAt := time.Unix(session.ExpiresAt, 0)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
-			return
-		}
 
 		if time.Now().After(expiresAt) {
 			err = dbInstance.DeleteSessionByTokenHash(r.Context(), hashed[:])
@@ -159,43 +156,58 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 			return
 		}
 
-		rawToken := make([]byte, 32)
-
-		_, err = rand.Read(rawToken)
+		err = createSessionAndSetCookie(r.Context(), dbInstance, user.ID, secureCookie, w)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
 		}
-
-		tokenHash := sha256.Sum256(rawToken)
-
-		expiresAt := time.Now().Add(SessionTokenDuration)
-
-		session := &db.Session{
-			UserID:    user.ID,
-			TokenHash: tokenHash[:],
-			CreatedAt: time.Now().Unix(),
-			ExpiresAt: expiresAt.Unix(),
-		}
-
-		_, err = dbInstance.CreateSession(r.Context(), session)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
-			return
-		}
-
-		http.SetCookie(w, &http.Cookie{
-			Name:     SessionTokenCookieName,
-			Value:    base64.URLEncoding.EncodeToString(rawToken),
-			Path:     "/",
-			HttpOnly: true,
-			Secure:   secureCookie,
-			SameSite: http.SameSiteLaxMode,
-			Expires:  expiresAt,
-		})
 
 		writeResponse(w, SuccessResponse{Message: "Login successful"}, http.StatusOK, logger.APILog)
+
+		logger.LogAuditEvent(
+			LoginAction,
+			user.Email,
+			getClientIP(r),
+			"User logged in successfully",
+		)
 	})
+}
+
+func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, userID int, secureCookie bool, w http.ResponseWriter) error {
+	rawToken := make([]byte, 32)
+
+	_, err := rand.Read(rawToken)
+	if err != nil {
+		return fmt.Errorf("couldn't create random token: %w", err)
+	}
+
+	tokenHash := sha256.Sum256(rawToken)
+
+	expiresAt := time.Now().Add(SessionTokenDuration)
+
+	session := &db.Session{
+		UserID:    userID,
+		TokenHash: tokenHash[:],
+		CreatedAt: time.Now().Unix(),
+		ExpiresAt: expiresAt.Unix(),
+	}
+
+	_, err = dbInstance.CreateSession(ctx, session)
+	if err != nil {
+		return fmt.Errorf("couldn't create session: %w", err)
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     SessionTokenCookieName,
+		Value:    base64.URLEncoding.EncodeToString(rawToken),
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secureCookie,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  expiresAt,
+	})
+
+	return nil
 }
 
 func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {

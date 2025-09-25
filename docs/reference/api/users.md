@@ -41,7 +41,7 @@ This path returns the list of system users.
 
 ## Create a User
 
-This path creates a new system user. The first user can be created without authentication.
+This path creates a new system user.
 
 | Method | Path            |
 | ------ | --------------- |
