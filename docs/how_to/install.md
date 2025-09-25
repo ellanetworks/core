@@ -25,7 +25,7 @@ description: Step-by-step instructions to install Ella Core.
     ```bash
     sudo vim /var/snap/ella-core/common/core.yaml
     ```
-    
+
     Start Ella Core:
 
     ```bash
@@ -51,7 +51,7 @@ description: Step-by-step instructions to install Ella Core.
     ```bash
     vim core.yaml
     ```
-    
+
     Start Ella Core:
 
     ```bash
@@ -63,5 +63,5 @@ description: Step-by-step instructions to install Ella Core.
     Ensure your Kubernetes cluster is running with the [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni) installed.
 
     ```bash
-    kubectl apply -k github.com/ellanetworks/core/k8s/core/base?ref=v0.2.0 -n ella
+    kubectl apply -k github.com/ellanetworks/core/k8s/core/base?ref=v0.3.1 -n ella
     ```

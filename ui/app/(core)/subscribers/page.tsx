@@ -274,28 +274,13 @@ const SubscriberPage: React.FC = () => {
   const descriptionText =
     "Manage subscribers connecting to your private network. After creating a subscriber here, you can emit a SIM card with the corresponding IMSI, Key and OPc.";
 
+  // ...same imports and hooks/state
+
   if (!authReady) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
         <CircularProgress />
       </Box>
-    );
-  }
-
-  if (!isLoading && rowCount === 0) {
-    return (
-      <EmptyState
-        primaryText="No subscriber found."
-        secondaryText="Create a new subscriber."
-        extraContent={
-          <Typography variant="body1" color="text.secondary">
-            {descriptionText}
-          </Typography>
-        }
-        button={canEdit}
-        buttonText="Create"
-        onCreate={() => setCreateModalOpen(true)}
-      />
     );
   }
 
@@ -321,72 +306,90 @@ const SubscriberPage: React.FC = () => {
         </Collapse>
       </Box>
 
-      <Box
-        sx={{
-          width: "100%",
-          maxWidth: MAX_WIDTH,
-          px: { xs: 2, sm: 4 },
-          mb: 3,
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-        }}
-      >
-        <Typography variant="h4">Subscribers ({rowCount})</Typography>
-
-        <Typography variant="body1" color="text.secondary">
-          {descriptionText}
-        </Typography>
-
-        {canEdit && (
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => setCreateModalOpen(true)}
-            sx={{ maxWidth: 200 }}
-          >
-            Create
-          </Button>
-        )}
-      </Box>
-
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
-        <ThemeProvider theme={gridTheme}>
-          <DataGrid<APISubscriber>
-            rows={rows}
-            columns={columns}
-            getRowId={(row) => row.imsi}
-            loading={isLoading || isFetching}
-            columnGroupingModel={columnGroupingModel}
-            disableRowSelectionOnClick
-            paginationMode="server"
-            rowCount={rowCount}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            pageSizeOptions={[10, 25, 50, 100]}
-            sortingMode="server"
-            disableColumnMenu
+      {/* Empty state vs table */}
+      {!isLoading && rowCount === 0 ? (
+        <EmptyState
+          primaryText="No subscriber found."
+          secondaryText="Create a new subscriber."
+          extraContent={
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
+            </Typography>
+          }
+          button={canEdit}
+          buttonText="Create"
+          onCreate={() => setCreateModalOpen(true)}
+        />
+      ) : (
+        <>
+          <Box
             sx={{
               width: "100%",
-              border: 1,
-              borderColor: "divider",
-              "& .MuiDataGrid-cell": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
+              maxWidth: MAX_WIDTH,
+              px: { xs: 2, sm: 4 },
+              mb: 3,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
             }}
-          />
-        </ThemeProvider>
-      </Box>
+          >
+            <Typography variant="h4">Subscribers ({rowCount})</Typography>
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
+            </Typography>
+            {canEdit && (
+              <Button
+                variant="contained"
+                color="success"
+                onClick={() => setCreateModalOpen(true)}
+                sx={{ maxWidth: 200 }}
+              >
+                Create
+              </Button>
+            )}
+          </Box>
+
+          <Box
+            sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
+          >
+            <ThemeProvider theme={gridTheme}>
+              <DataGrid<APISubscriber>
+                rows={rows}
+                columns={columns}
+                getRowId={(row) => row.imsi}
+                loading={isLoading || isFetching}
+                columnGroupingModel={columnGroupingModel}
+                disableRowSelectionOnClick
+                paginationMode="server"
+                rowCount={rowCount}
+                paginationModel={paginationModel}
+                onPaginationModelChange={setPaginationModel}
+                pageSizeOptions={[10, 25, 50, 100]}
+                sortingMode="server"
+                disableColumnMenu
+                sx={{
+                  width: "100%",
+                  border: 1,
+                  borderColor: "divider",
+                  "& .MuiDataGrid-cell": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-columnHeaders": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-footerContainer": {
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
+                }}
+              />
+            </ThemeProvider>
+          </Box>
+        </>
+      )}
 
       {isViewModalOpen && (
         <ViewSubscriberModal
@@ -395,7 +398,6 @@ const SubscriberPage: React.FC = () => {
           imsi={selectedSubscriber || ""}
         />
       )}
-
       {isCreateModalOpen && (
         <CreateSubscriberModal
           open
@@ -403,7 +405,6 @@ const SubscriberPage: React.FC = () => {
           onSuccess={refetch}
         />
       )}
-
       {isEditModalOpen && (
         <EditSubscriberModal
           open
@@ -412,7 +413,6 @@ const SubscriberPage: React.FC = () => {
           initialData={editData || { imsi: "", policyName: "" }}
         />
       )}
-
       {isConfirmationOpen && (
         <DeleteConfirmationModal
           open
