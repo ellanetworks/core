@@ -241,13 +241,6 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if numUsers == 0 {
-			if newUser.RoleID != RoleAdmin {
-				writeError(w, http.StatusBadRequest, "First user must be an admin", errors.New("first user must be admin"), logger.APILog)
-				return
-			}
-		}
-
 		if numUsers >= MaxNumUsers {
 			writeError(w, http.StatusBadRequest, "Maximum number of users reached ("+strconv.Itoa(MaxNumUsers)+")", nil, logger.APILog)
 			return

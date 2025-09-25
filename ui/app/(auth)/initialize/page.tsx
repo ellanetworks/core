@@ -10,7 +10,7 @@ import {
   Alert,
   CircularProgress,
 } from "@mui/material";
-import { createUser, RoleID } from "@/queries/users";
+import { initialize } from "@/queries/initialize";
 import { getStatus } from "@/queries/status";
 
 const InitializePage = () => {
@@ -45,7 +45,7 @@ const InitializePage = () => {
     setError(null);
 
     try {
-      await createUser("", email, RoleID.Admin, password);
+      await initialize(email, password);
       router.push("/login");
     } catch (err) {
       const error = err as Error;

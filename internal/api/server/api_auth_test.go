@@ -128,13 +128,12 @@ func TestLoginEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	t.Run("1. Create Admin user", func(t *testing.T) {
-		user := &CreateUserParams{
+	t.Run("1. Initialize", func(t *testing.T) {
+		initParams := &InitializeParams{
 			Email:    FirstUserEmail,
 			Password: "password123",
-			RoleID:   RoleAdmin,
 		}
-		statusCode, _, err := createUser(ts.URL, client, "", user)
+		statusCode, _, err := initializeAPI(ts.URL, client, initParams)
 		if err != nil {
 			t.Fatalf("couldn't create admin user: %s", err)
 		}
@@ -268,7 +267,7 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	adminToken, err := createFirstUserAndLogin(ts.URL, client)
+	adminToken, err := initialize(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -375,7 +374,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	adminToken, err := createFirstUserAndLogin(ts.URL, client)
+	adminToken, err := initialize(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -547,12 +546,11 @@ func TestLookupToken(t *testing.T) {
 	client := ts.Client()
 
 	t.Run("Lookup valid token", func(t *testing.T) {
-		createUserParams := &CreateUserParams{
+		initializeParams := &InitializeParams{
 			Email:    FirstUserEmail,
 			Password: "password123",
-			RoleID:   RoleAdmin,
 		}
-		statusCode, _, err := createUser(ts.URL, client, "", createUserParams)
+		statusCode, _, err := initializeAPI(ts.URL, client, initializeParams)
 		if err != nil {
 			t.Fatalf("couldn't create admin user: %s", err)
 		}

@@ -39,10 +39,9 @@ const (
 type RoleID int
 
 const (
-	RoleAdmin                RoleID = 0
-	RoleCertificateManager   RoleID = 1
-	RoleCertificateRequestor RoleID = 2
-	RoleReadOnly             RoleID = 3
+	RoleAdmin          RoleID = 1
+	RoleReadOnly       RoleID = 2
+	RoleNetworkManager RoleID = 3
 )
 
 type User struct {

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 )
 
@@ -123,46 +122,6 @@ const (
 	PermSetRadioLogRetentionPolicy = "radio_logs:set_retention"
 	PermListRadioLogs              = "radio_logs:list"
 )
-
-func RequirePermissionOrFirstUser(permission string, database *db.Database, jwtSecret []byte, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-
-		// 1) First-user bypass only for user creation POST
-		if permission == PermCreateUser && r.Method == http.MethodPost {
-			n, err := database.CountUsers(ctx)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, "Failed to count users", err, logger.APILog)
-				return
-			}
-			if n == 0 {
-				// No auth needed; allow bootstrap
-				next.ServeHTTP(w, r)
-				return
-			}
-		}
-
-		// 2) Otherwise require authentication
-		uid, email, role, err := authenticateRequest(r, jwtSecret, database)
-		if err != nil {
-			logger.LogAuditEvent(AuthenticationAction, "", getClientIP(r), "Unauthorized: "+err.Error())
-			writeError(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
-			return
-		}
-
-		// 3) Put identity in context
-		ctx = putIdentity(ctx, uid, email, role)
-		r = r.WithContext(ctx)
-
-		// 4) Authorization check
-		if !authorize(role, permission) {
-			writeError(w, http.StatusForbidden, "Forbidden", errors.New("permission denied"), logger.APILog)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
 
 func RequirePermission(permission string, jwtSecret []byte, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

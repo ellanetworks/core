@@ -100,16 +100,6 @@ func putIdentity(ctx context.Context, id int, email string, role RoleID) context
 	return ctx
 }
 
-// authorize checks if a role has a permission.
-func authorize(role RoleID, perm string) bool {
-	for _, p := range PermissionsByRole[role] {
-		if p == "*" || p == perm {
-			return true
-		}
-	}
-	return false
-}
-
 func Authenticate(jwtSecret []byte, store *db.Database, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		uid, email, role, err := authenticateRequest(r, jwtSecret, store)
