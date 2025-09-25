@@ -138,7 +138,7 @@ func TestAPIAuditLogs(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := initialize(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -160,12 +160,12 @@ func TestAPIAuditLogs(t *testing.T) {
 		t.Fatalf("unexpected error :%q", response.Error)
 	}
 
-	if response.Result.Items[0].Actor != "" {
-		t.Fatalf("expected second audit log actor to be '', got %s", response.Result.Items[0].Actor)
+	if response.Result.Items[0].Actor != FirstUserEmail {
+		t.Fatalf("expected first audit log actor to be '%s', got %s", FirstUserEmail, response.Result.Items[0].Actor)
 	}
 
 	if response.Result.Items[0].Action != "initialize" {
-		t.Fatalf("expected second audit log action to be '%s', got %s", "initialize", response.Result.Items[0].Action)
+		t.Fatalf("expected first audit log action to be '%s', got %s", "initialize", response.Result.Items[0].Action)
 	}
 }
 
@@ -179,7 +179,7 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := initialize(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -316,7 +316,7 @@ func TestAPIAuditLogRetentionPolicyEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := initialize(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -389,7 +389,7 @@ func TestUpdateAuditLogRetentionPolicyInvalidInput(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := initialize(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}

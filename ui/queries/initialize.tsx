@@ -1,9 +1,6 @@
 import { HTTPStatus } from "@/queries/utils";
 
-export const initialize = async (
-  email: string,
-  password: string,
-) => {
+export const initialize = async (email: string, password: string) => {
   const initData = {
     email: email,
     password: password,

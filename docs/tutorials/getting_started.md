@@ -103,12 +103,9 @@ On the Initialization page, create the first user with the following credentials
 - Email: `admin@ellanetworks.com`
 - Password: `admin`
 
-After creating the user, Ella Core will redirect you to the Login page. Use the credentials you just created to log in.
-
-Ella Core should redirect you to the dashboard.
+After creating the user, Ella Core will redirect you to the dashboard.
 
 ![Dashboard](../images/dashboard.png){ align=center }
-
 
 !!! success
 

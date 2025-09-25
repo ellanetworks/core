@@ -110,7 +110,7 @@ func TestApiNATInfoEndToEnd(t *testing.T) {
 
 	client := ts.Client()
 
-	token, err := initialize(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}

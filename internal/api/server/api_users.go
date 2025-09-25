@@ -252,7 +252,8 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 			RoleID:         db.RoleID(newUser.RoleID),
 		}
 
-		if err := dbInstance.CreateUser(r.Context(), dbUser); err != nil {
+		_, err = dbInstance.CreateUser(r.Context(), dbUser)
+		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to create user", err, logger.APILog)
 			return
 		}

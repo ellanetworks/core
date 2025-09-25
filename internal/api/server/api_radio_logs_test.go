@@ -140,7 +140,7 @@ func TestAPIRadioLogs(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := initialize(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -185,7 +185,7 @@ func TestAPIRadioLogRetentionPolicyEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := initialize(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -258,7 +258,7 @@ func TestUpdateRadioLogRetentionPolicyInvalidInput(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	token, err := initialize(ts.URL, client)
+	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}

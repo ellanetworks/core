@@ -1,11 +1,58 @@
 package server_test
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+type InitializeResponseResult struct {
+	Message string `json:"message"`
+}
+
+type InitializeResponse struct {
+	Result InitializeResponseResult `json:"result"`
+	Error  string                   `json:"error,omitempty"`
+}
+
+type InitializeParams struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+func initialize(url string, client *http.Client, data *InitializeParams) (int, *InitializeResponse, error) {
+	body, err := json.Marshal(data)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/init", strings.NewReader(string(body)))
+	if err != nil {
+		return 0, nil, err
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return res.StatusCode, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var initResponse InitializeResponse
+
+	if err := json.NewDecoder(res.Body).Decode(&initResponse); err != nil {
+		return res.StatusCode, nil, err
+	}
+
+	return res.StatusCode, &initResponse, nil
+}
 
 func TestInitializeInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
@@ -55,7 +102,7 @@ func TestInitializeInvalidInput(t *testing.T) {
 				Email:    tt.email,
 				Password: tt.password,
 			}
-			statusCode, response, err := initializeAPI(ts.URL, client, initializeParams)
+			statusCode, response, err := initialize(ts.URL, client, initializeParams)
 			if err != nil {
 				t.Fatalf("couldn't create user: %s", err)
 			}

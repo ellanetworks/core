@@ -26,7 +26,7 @@ const InitializePage = () => {
       try {
         const status = await getStatus();
         if (status?.initialized) {
-          router.push("/login");
+          router.push("/dashboard");
         } else {
           setCheckingInitialization(false);
         }

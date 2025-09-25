@@ -133,7 +133,7 @@ func TestLoginEndToEnd(t *testing.T) {
 			Email:    FirstUserEmail,
 			Password: "password123",
 		}
-		statusCode, _, err := initializeAPI(ts.URL, client, initParams)
+		statusCode, _, err := initialize(ts.URL, client, initParams)
 		if err != nil {
 			t.Fatalf("couldn't create admin user: %s", err)
 		}
@@ -267,7 +267,7 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	adminToken, err := initialize(ts.URL, client)
+	adminToken, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -374,7 +374,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	adminToken, err := initialize(ts.URL, client)
+	adminToken, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -550,7 +550,7 @@ func TestLookupToken(t *testing.T) {
 			Email:    FirstUserEmail,
 			Password: "password123",
 		}
-		statusCode, _, err := initializeAPI(ts.URL, client, initializeParams)
+		statusCode, _, err := initialize(ts.URL, client, initializeParams)
 		if err != nil {
 			t.Fatalf("couldn't create admin user: %s", err)
 		}

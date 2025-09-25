@@ -20,7 +20,7 @@ const QueryCreateUsersTable = `
 	CREATE TABLE IF NOT EXISTS %s (
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		email TEXT NOT NULL,
+		email TEXT NOT NULL UNIQUE,
 		roleID INTEGER NOT NULL,
 		hashedPassword TEXT NOT NULL
 )`
@@ -29,7 +29,7 @@ const (
 	listUsersPageStmt    = "SELECT &User.* from %s ORDER BY id LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getUserStmt          = "SELECT &User.* from %s WHERE email==$User.email"
 	getUserByIDStmt      = "SELECT &User.* from %s WHERE id==$User.id"
-	createUserStmt       = "INSERT INTO %s (email, roleID, hashedPassword) VALUES ($User.email, $User.roleID, $User.hashedPassword)"
+	createUserStmt       = "INSERT INTO %s (email, roleID, hashedPassword) VALUES ($User.email, $User.roleID, $User.hashedPassword) RETURNING &User.*"
 	editUserStmt         = "UPDATE %s SET roleID=$User.roleID WHERE email==$User.email"
 	editUserPasswordStmt = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE email==$User.email" // #nosec: G101
 	deleteUserStmt       = "DELETE FROM %s WHERE email==$User.email"
@@ -174,9 +174,9 @@ func (db *Database) GetUserByID(ctx context.Context, id int) (*User, error) {
 }
 
 // CreateUser inserts a new user with a span named "INSERT users".
-func (db *Database) CreateUser(ctx context.Context, user *User) error {
-	operation := "INSERT"
-	target := UsersTableName
+func (db *Database) CreateUser(ctx context.Context, user *User) (int, error) {
+	const operation = "INSERT"
+	const target = UsersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
@@ -190,28 +190,22 @@ func (db *Database) CreateUser(ctx context.Context, user *User) error {
 		attribute.String("db.collection", target),
 	)
 
-	// uniqueness check
-	if _, err := db.GetUser(ctx, user.Email); err == nil {
-		dup := fmt.Errorf("user with email %s already exists", user.Email)
-		span.RecordError(dup)
-		span.SetStatus(codes.Error, "duplicate key")
-		return dup
-	}
-
 	q, err := sqlair.Prepare(stmt, User{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
-		return err
+		return 0, err
 	}
-	if err := db.conn.Query(ctx, q, user).Run(); err != nil {
+
+	in := *user
+	if err := db.conn.Query(ctx, q, in).Get(user); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
-		return err
+		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
-	return nil
+	return user.ID, nil
 }
 
 // UpdateUser updates a user's role with a span named "UPDATE users".

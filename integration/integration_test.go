@@ -40,24 +40,14 @@ type ConfigureEllaCoreOpts struct {
 }
 
 func configureEllaCore(ctx context.Context, opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) {
-	createUserOpts := &client.CreateUserOptions{
+	initializeOpts := &client.InitializeOptions{
 		Email:    "admin@ellanetworks.com",
 		Password: "admin",
-		RoleID:   client.RoleAdmin,
 	}
-	err := opts.client.CreateUser(ctx, createUserOpts)
+
+	err := opts.client.Initialize(ctx, initializeOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %v", err)
-	}
-
-	loginOpts := &client.LoginOptions{
-		Email:    "admin@ellanetworks.com",
-		Password: "admin",
-	}
-
-	err = opts.client.Login(ctx, loginOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to login: %v", err)
 	}
 
 	err = opts.client.Refresh(ctx)

@@ -19,7 +19,7 @@ const (
 	InitializeAction = "initialize"
 )
 
-func Initialize(dbInstance *db.Database) http.Handler {
+func Initialize(dbInstance *db.Database, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var newUser InitializeParams
 
@@ -66,8 +66,15 @@ func Initialize(dbInstance *db.Database) http.Handler {
 			RoleID:         db.RoleAdmin,
 		}
 
-		if err := dbInstance.CreateUser(r.Context(), dbUser); err != nil {
+		userID, err := dbInstance.CreateUser(r.Context(), dbUser)
+		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to create user", err, logger.APILog)
+			return
+		}
+
+		err = createSessionAndSetCookie(r.Context(), dbInstance, userID, secureCookie, w)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
 		}
 
@@ -75,7 +82,7 @@ func Initialize(dbInstance *db.Database) http.Handler {
 
 		logger.LogAuditEvent(
 			InitializeAction,
-			"",
+			newUser.Email,
 			getClientIP(r),
 			fmt.Sprintf("System initialized with first user %s", newUser.Email),
 		)

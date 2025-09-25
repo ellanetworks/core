@@ -27,7 +27,8 @@ func TestDBAPITokensEndToEnd(t *testing.T) {
 		Email:  "abc@ellanetworks.com",
 		RoleID: db.RoleAdmin,
 	}
-	err = database.CreateUser(context.Background(), user)
+
+	_, err = database.CreateUser(context.Background(), user)
 	if err != nil {
 		t.Fatalf("Couldn't create user: %s", err)
 	}

@@ -30,7 +30,7 @@ func NewHandler(dbInstance *db.Database, upf UPFReloader, kernel kernel.Kernel, 
 	mux.HandleFunc("POST /api/v1/auth/lookup-token", LookupToken(dbInstance, jwtSecret).ServeHTTP)
 
 	// Initialization (Unauthenticated)
-	mux.HandleFunc("POST /api/v1/init", Initialize(dbInstance).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/init", Initialize(dbInstance, secureCookie).ServeHTTP)
 
 	// Users (Authenticated except for first user creation)
 	mux.HandleFunc("GET /api/v1/users/me", Authenticate(jwtSecret, dbInstance, GetLoggedInUser(dbInstance)).ServeHTTP)

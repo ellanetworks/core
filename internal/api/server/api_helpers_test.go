@@ -3,14 +3,12 @@ package server_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
-	"strings"
 
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/db"
@@ -99,78 +97,19 @@ func setupServer(filepath string) (*httptest.Server, []byte, error) {
 	return ts, jwtSecret, nil
 }
 
-type InitializeResponseResult struct {
-	Message string `json:"message"`
-}
-
-type InitializeResponse struct {
-	Result InitializeResponseResult `json:"result"`
-	Error  string                   `json:"error,omitempty"`
-}
-
-type InitializeParams struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-func initializeAPI(url string, client *http.Client, data *InitializeParams) (int, *InitializeResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/init", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	res, err := client.Do(req)
-	if err != nil {
-		return res.StatusCode, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var initResponse InitializeResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&initResponse); err != nil {
-		return res.StatusCode, nil, err
-	}
-
-	return res.StatusCode, &initResponse, nil
-}
-
-func initialize(url string, client *http.Client) (string, error) {
+func initializeAndRefresh(url string, client *http.Client) (string, error) {
 	initParams := &InitializeParams{
 		Email:    FirstUserEmail,
 		Password: "password123",
 	}
 
-	statusCode, _, err := initializeAPI(url, client, initParams)
+	statusCode, _, err := initialize(url, client, initParams)
 	if err != nil {
 		return "", fmt.Errorf("couldn't create user: %s", err)
 	}
 
 	if statusCode != http.StatusCreated {
 		return "", fmt.Errorf("expected status %d, got %d", http.StatusCreated, statusCode)
-	}
-
-	loginParams := &LoginParams{
-		Email:    FirstUserEmail,
-		Password: "password123",
-	}
-
-	statusCode, _, err = login(url, client, loginParams)
-	if err != nil {
-		return "", fmt.Errorf("couldn't login: %s", err)
-	}
-
-	if statusCode != http.StatusOK {
-		return "", fmt.Errorf("expected login status %d, got %d", http.StatusOK, statusCode)
 	}
 
 	statusCode, refreshResponse, err := refresh(url, client)

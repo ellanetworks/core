@@ -53,17 +53,18 @@ nav:
     - reference/index.md
     - API:
       - reference/api/index.md
-      - Backup: reference/api/backup.md
       - Authentication: reference/api/auth.md
+      - Backup: reference/api/backup.md
+      - Initialization: reference/api/initialize.md
+      - Logs: reference/api/logs.md
       - Metrics: reference/api/metrics.md
-      - Operator: reference/api/operator.md
       - Networking: reference/api/networking.md
+      - Operator: reference/api/operator.md
       - Policies: reference/api/policies.md
       - Radios: reference/api/radios.md
       - Restore: reference/api/restore.md
       - Status: reference/api/status.md
       - Subscribers: reference/api/subscribers.md
-      - Logs: reference/api/logs.md
       - Users: reference/api/users.md
     - Configuration File: reference/config_file.md
     - Production Hardening: reference/production_hardening.md
