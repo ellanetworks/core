@@ -274,8 +274,6 @@ const SubscriberPage: React.FC = () => {
   const descriptionText =
     "Manage subscribers connecting to your private network. After creating a subscriber here, you can emit a SIM card with the corresponding IMSI, Key and OPc.";
 
-  // ...same imports and hooks/state
-
   if (!authReady) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
@@ -306,7 +304,6 @@ const SubscriberPage: React.FC = () => {
         </Collapse>
       </Box>
 
-      {/* Empty state vs table */}
       {!isLoading && rowCount === 0 ? (
         <EmptyState
           primaryText="No subscriber found."
