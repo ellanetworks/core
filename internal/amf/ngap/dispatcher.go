@@ -90,10 +90,17 @@ func DispatchNgapMsg(conn net.Conn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) 
 		procName = "UnknownProcedure"
 	}
 
+	peerAddr := conn.RemoteAddr()
+	var peerAddrStr string
+	if peerAddr != nil {
+		peerAddrStr = peerAddr.String()
+	} else {
+		peerAddrStr = ""
+	}
 	spanName := fmt.Sprintf("AMF NGAP %s", procName)
 	ctx, span := tracer.Start(ctxt.Background(), spanName,
 		trace.WithAttributes(
-			attribute.String("net.peer", conn.RemoteAddr().String()),
+			attribute.String("net.peer", peerAddrStr),
 			attribute.String("ngap.pdu_present", fmt.Sprintf("%d", pdu.Present)),
 			attribute.String("ngap.procedureCode", procName),
 		),
