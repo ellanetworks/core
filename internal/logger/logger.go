@@ -420,7 +420,7 @@ const (
 	RadioCellTrafficTrace                    RadioEvent = "Cell Traffic Trace"
 )
 
-func LogRadioEvent(event RadioEvent, ranID string, fields ...zap.Field) {
+func LogRadioEvent(event RadioEvent, dir LogDirection, ranID string, fields ...zap.Field) {
 	if RadioLog == nil {
 		return
 	}
@@ -441,8 +441,14 @@ func LogRadioEvent(event RadioEvent, ranID string, fields ...zap.Field) {
 	var detailsStr string
 
 	reserved := map[string]struct{}{
-		"event": {}, "ran_id": {}, "timestamp": {}, "level": {},
-		"component": {}, "caller": {}, "message": {},
+		"event":     {},
+		"direction": {},
+		"ran_id":    {},
+		"timestamp": {},
+		"level":     {},
+		"component": {},
+		"caller":    {},
+		"message":   {},
 	}
 
 	if raw, ok := enc.Fields["details"]; ok {
@@ -480,6 +486,7 @@ func LogRadioEvent(event RadioEvent, ranID string, fields ...zap.Field) {
 	// Emit a single, consistent log line. DB reader already expects details as string.
 	RadioLog.Info("radio_event",
 		zap.String("event", string(event)),
+		zap.String("direction", string(dir)),
 		zap.String("ran_id", ranID),
 		zap.String("details", detailsStr),
 	)

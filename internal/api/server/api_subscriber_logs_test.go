@@ -15,6 +15,7 @@ type SubscriberLog struct {
 	Timestamp string `json:"timestamp"`
 	IMSI      string `json:"imsi"`
 	Event     string `json:"event"`
+	Direction string `json:"direction"`
 	Details   string `json:"details"`
 }
 

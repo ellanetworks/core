@@ -28,6 +28,7 @@ type RadioLog struct {
 	Level     string `json:"level"`
 	RanID     string `json:"ran_id"`
 	Event     string `json:"event"`
+	Direction string `json:"direction"`
 	Details   string `json:"details"`
 }
 
@@ -118,6 +119,7 @@ func ListRadioLogs(dbInstance *db.Database) http.Handler {
 				Level:     log.Level,
 				RanID:     log.RanID,
 				Event:     log.Event,
+				Direction: log.Direction,
 				Details:   log.Details,
 			}
 		}
