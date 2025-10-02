@@ -29,6 +29,7 @@ type SubscriberLog struct {
 	IMSI      string `json:"imsi"`
 	Event     string `json:"event"`
 	Direction string `json:"direction"`
+	Raw       []byte `json:"raw"`
 	Details   string `json:"details"`
 }
 
@@ -120,6 +121,7 @@ func ListSubscriberLogs(dbInstance *db.Database) http.Handler {
 				IMSI:      log.IMSI,
 				Event:     log.Event,
 				Direction: log.Direction,
+				Raw:       log.Raw,
 				Details:   log.Details,
 			}
 		}
