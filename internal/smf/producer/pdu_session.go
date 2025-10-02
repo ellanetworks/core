@@ -272,15 +272,19 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 	// N1N2 Json Data
 	n1n2Request.JSONData = &models.N1N2MessageTransferReqData{PduSessionID: smContext.PDUSessionID}
 
-	var logEventType logger.SubscriberEvent
-
 	if success {
 		if smNasBuf, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext); err != nil {
 			logger.SmfLog.Error("Build GSM PDUSessionEstablishmentAccept failed", zap.Error(err))
 		} else {
-			logEventType = logger.SubscriberPduSessionEstablishmentAccept
 			n1n2Request.BinaryDataN1Message = smNasBuf
 			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
+
+			logger.LogSubscriberEvent(
+				logger.SubscriberPduSessionEstablishmentAccept,
+				logger.DirectionOutbound,
+				smContext.Supi,
+				zap.Int32("pduSessionID", smContext.PDUSessionID),
+			)
 		}
 
 		if n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext); err != nil {
@@ -294,9 +298,16 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 			nasMessage.Cause5GSMRequestRejectedUnspecified); err != nil {
 			logger.SmfLog.Error("Build GSM PDUSessionEstablishmentReject failed", zap.Error(err))
 		} else {
-			logEventType = logger.SubscriberPduSessionEstablishmentReject
 			n1n2Request.BinaryDataN1Message = smNasBuf
 			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
+
+			logger.LogSubscriberEvent(
+				logger.SubscriberPduSessionEstablishmentReject,
+				logger.DirectionOutbound,
+				smContext.Supi,
+				zap.Int32("pduSessionID", smContext.PDUSessionID),
+				zap.String("cause", "Request Rejected Unspecified"),
+			)
 		}
 	}
 	rspData, err := amf_producer.CreateN1N2MessageTransfer(ctx, smContext.Supi, n1n2Request, "")
@@ -306,15 +317,6 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 			return fmt.Errorf("failed to commit sm policy decision: %v", err)
 		}
 		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
-	}
-
-	if logEventType != "" {
-		logger.LogSubscriberEvent(
-			logEventType,
-			logger.DirectionOutbound,
-			smContext.Supi,
-			zap.Int32("pduSessionID", smContext.PDUSessionID),
-		)
 	}
 
 	smContext.SubPduSessLog.Info("Sent n1 n2 transfer request")

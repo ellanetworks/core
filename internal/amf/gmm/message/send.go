@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/ngap/ngapType"
@@ -85,10 +86,12 @@ func SendAuthenticationRequest(ue *context.RanUe) error {
 	if err != nil {
 		return fmt.Errorf("error building authentication request: %s", err.Error())
 	}
+
 	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
+
 	amfUe.GmmLog.Info("Sent GMM downlink nas transport message to UE")
 
 	if context.AMFSelf().T3560Cfg.Enable {
@@ -106,6 +109,14 @@ func SendAuthenticationRequest(ue *context.RanUe) error {
 			amfUe.Remove()
 		})
 	}
+
+	logger.LogSubscriberEvent(
+		logger.SubscriberAuthenticationRequest,
+		logger.DirectionOutbound,
+		amfUe.Supi,
+		zap.String("suci", amfUe.Suci),
+		zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
+	)
 
 	return nil
 }

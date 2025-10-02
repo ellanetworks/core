@@ -254,6 +254,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 					logger.DirectionOutbound,
 					ue.Supi,
 					zap.Int32("pduSessionID", pduSessionID),
+					zap.String("cause", nasMessage.Cause5GMMToString(errResponse.Cause)),
 				)
 
 				return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d", pduSessionID)
@@ -1389,7 +1390,7 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe, accessType mod
 	if err != nil {
 		return false, fmt.Errorf("error sending authentication request: %v", err)
 	}
-	ue.GmmLog.Info("Sent GMM authentication request")
+
 	return false, nil
 }
 
@@ -1990,6 +1991,13 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessTyp
 }
 
 func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, authenticationFailure *nasMessage.AuthenticationFailure) error {
+	if ue.T3560 != nil {
+		ue.T3560.Stop()
+		ue.T3560 = nil // clear the timer
+	}
+
+	cause5GMM := authenticationFailure.Cause5GMM.GetCauseValue()
+
 	logger.LogSubscriberEvent(
 		logger.SubscriberAuthenticationFailure,
 		logger.DirectionInbound,
@@ -1997,14 +2005,8 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
 		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+		zap.String("cause", nasMessage.Cause5GMMToString(cause5GMM)),
 	)
-
-	if ue.T3560 != nil {
-		ue.T3560.Stop()
-		ue.T3560 = nil // clear the timer
-	}
-
-	cause5GMM := authenticationFailure.Cause5GMM.GetCauseValue()
 
 	if ue.AuthenticationCtx.AuthType == models.AuthType5GAka {
 		switch cause5GMM {
@@ -2404,20 +2406,22 @@ func HandleStatus5GMM(ue *context.AmfUe, anType models.AccessType, status5GMM *n
 }
 
 func HandleAuthenticationError(ue *context.AmfUe, anType models.AccessType) error {
-	logger.LogSubscriberEvent(
-		logger.SubscriberAuthenticationError,
-		logger.DirectionInbound,
-		ue.Supi,
-		zap.String("ran", ue.RanUe[anType].Ran.Name),
-		zap.String("suci", ue.Suci),
-		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
-	)
-
 	if ue.RegistrationRequest != nil {
 		err := gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
+
+		logger.LogSubscriberEvent(
+			logger.SubscriberRegistrationReject,
+			logger.DirectionOutbound,
+			ue.Supi,
+			zap.String("ran", ue.RanUe[anType].Ran.Name),
+			zap.String("suci", ue.Suci),
+			zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+			zap.String("cause", nasMessage.Cause5GMMToString(nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)),
+		)
+
 		ue.GmmLog.Info("sent registration reject")
 	}
 	return nil

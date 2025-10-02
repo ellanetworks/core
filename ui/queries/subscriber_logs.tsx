@@ -9,6 +9,7 @@ export type APISubscriberLog = {
   timestamp: string;
   imsi: string;
   event: string;
+  direction: string;
   details?: string;
 };
 

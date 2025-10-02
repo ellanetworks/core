@@ -275,7 +275,7 @@ func LogAuditEvent(action, actor, ip, details string) {
 type SubscriberEvent string
 
 const (
-	// Access events
+	// Access events (inbound)
 	SubscriberRegistrationRequest                     SubscriberEvent = "Registration Request"
 	SubscriberInitialRegistration                     SubscriberEvent = "Initial Registration"
 	SubscriberMobilityAndPeriodicRegistrationUpdating SubscriberEvent = "Mobility and Periodic Registration Updating"
@@ -291,12 +291,17 @@ const (
 	SubscriberDeregistrationRequest                   SubscriberEvent = "Deregistration Request"
 	SubscriberDeregistrationAccept                    SubscriberEvent = "Deregistration Accept"
 	SubscriberStatus5GMM                              SubscriberEvent = "Status 5GMM"
-	SubscriberAuthenticationError                     SubscriberEvent = "Authentication Error"
 
-	// Session events
+	// Access events (outbound)
+	SubscriberAuthenticationRequest SubscriberEvent = "Authentication Request"
+	SubscriberRegistrationReject    SubscriberEvent = "Registration Reject"
+
+	// Session events (inbound)
 	SubscriberPduSessionEstablishmentRequest SubscriberEvent = "PDU Session Establishment Request"
-	SubscriberPduSessionEstablishmentReject  SubscriberEvent = "PDU Session Establishment Reject"
-	SubscriberPduSessionEstablishmentAccept  SubscriberEvent = "PDU Session Establishment Accept"
+
+	// Session events (outbound)
+	SubscriberPduSessionEstablishmentReject SubscriberEvent = "PDU Session Establishment Reject"
+	SubscriberPduSessionEstablishmentAccept SubscriberEvent = "PDU Session Establishment Accept"
 )
 
 type LogDirection string
