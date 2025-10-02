@@ -38,8 +38,8 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 		t.Fatalf("Expected no subscriber logs, but found %d", len(res))
 	}
 
-	rawEntry1 := `{"timestamp":"2024-10-01T12:00:00Z","component":"Subscriber","event":"test_event","imsi":"test_imsi","details":"This is a test subscriber log entry"}`
-	rawEntry2 := `{"timestamp":"2024-10-01T13:00:00Z","component":"Subscriber","event":"another_event","imsi":"another_imsi","details":"This is another test subscriber log entry"}`
+	rawEntry1 := `{"timestamp":"2024-10-01T12:00:00Z","component":"Subscriber","event":"test_event","direction":"inbound","imsi":"test_imsi","details":"This is a test subscriber log entry", "raw":"SGVsbG8gd29ybGQh"}`
+	rawEntry2 := `{"timestamp":"2024-10-01T13:00:00Z","component":"Subscriber","event":"another_event","direction":"outbound","imsi":"another_imsi","details":"This is another test subscriber log entry", "raw":"QW5vdGhlciBsb2cgZW50cnk="}`
 
 	err = database.InsertSubscriberLogJSON(context.Background(), []byte(rawEntry1))
 	if err != nil {
@@ -109,8 +109,10 @@ func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 			"level":"info",
 			"component":"Subscriber",
 			"event":"%s",
+			"direction":"inbound",
 			"imsi":"tester",
-			"details":"test"
+			"details":"test",
+			"raw":"dGVzdA=="
 		}`, ts.UTC().Format(time.RFC3339), event)
 		if err := database.InsertSubscriberLogJSON(ctx, []byte(raw)); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)

@@ -282,6 +282,7 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 			logger.LogSubscriberEvent(
 				logger.SubscriberPduSessionEstablishmentAccept,
 				logger.DirectionOutbound,
+				smNasBuf,
 				smContext.Supi,
 				zap.Int32("pduSessionID", smContext.PDUSessionID),
 			)
@@ -304,6 +305,7 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 			logger.LogSubscriberEvent(
 				logger.SubscriberPduSessionEstablishmentReject,
 				logger.DirectionOutbound,
+				smNasBuf,
 				smContext.Supi,
 				zap.Int32("pduSessionID", smContext.PDUSessionID),
 				zap.String("cause", "Request Rejected Unspecified"),

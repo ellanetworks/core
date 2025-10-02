@@ -27,11 +27,12 @@ const QueryCreateSubscriberLogsTable = `
 		imsi      TEXT NOT NULL DEFAULT '',
 		event     TEXT NOT NULL,
 		direction	TEXT NOT NULL DEFAULT '',       -- inbound|outbound
+		raw			 BLOB NOT NULL,
 		details    TEXT NOT NULL DEFAULT ''
 );`
 
 const (
-	insertSubscriberLogStmt     = "INSERT INTO %s (timestamp, level, imsi, event, direction, details) VALUES ($SubscriberLog.timestamp, $SubscriberLog.level, $SubscriberLog.imsi, $SubscriberLog.event, $SubscriberLog.direction, $SubscriberLog.details)"
+	insertSubscriberLogStmt     = "INSERT INTO %s (timestamp, level, imsi, event, direction, raw, details) VALUES ($SubscriberLog.timestamp, $SubscriberLog.level, $SubscriberLog.imsi, $SubscriberLog.event, $SubscriberLog.direction, $SubscriberLog.raw, $SubscriberLog.details)"
 	listSubscriberLogsPagedStmt = "SELECT &SubscriberLog.* FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	deleteOldSubscriberLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
 	deleteAllSubscriberLogsStmt = "DELETE FROM %s"
@@ -45,6 +46,7 @@ type SubscriberLog struct {
 	IMSI      string `db:"imsi"`
 	Event     string `db:"event"`
 	Direction string `db:"direction"`
+	Raw       []byte `db:"raw"`
 	Details   string `db:"details"` // JSON or plain text (we store a string)
 }
 
@@ -54,6 +56,7 @@ type zapSubscriberJSON struct {
 	IMSI      string `json:"imsi"`
 	Event     string `json:"event"`
 	Direction string `json:"direction"`
+	Raw       []byte `json:"raw"`
 	Details   string `json:"details"`
 }
 
@@ -94,6 +97,7 @@ func (db *Database) InsertSubscriberLogJSON(ctx context.Context, raw []byte) err
 		IMSI:      z.IMSI,
 		Event:     z.Event,
 		Direction: z.Direction,
+		Raw:       z.Raw,
 		Details:   z.Details,
 	}
 

@@ -24,14 +24,26 @@ func SendDLNASTransport(ue *context.RanUe, payloadContainerType uint8, nasPdu []
 	if cause != 0 {
 		causePtr = &cause
 	}
+
 	nasMsg, err := BuildDLNASTransport(ue.AmfUe, payloadContainerType, nasPdu, uint8(pduSessionID), causePtr)
 	if err != nil {
 		return fmt.Errorf("error building downlink NAS transport message: %s", err.Error())
 	}
+
 	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
+
+	logger.LogSubscriberEvent(
+		logger.SubscriberDownlinkNasTransport,
+		logger.DirectionOutbound,
+		nasMsg,
+		ue.AmfUe.Supi,
+		zap.Int32("pduSessionID", pduSessionID),
+		zap.String("cause", nasMessage.Cause5GMMToString(cause)),
+	)
+
 	return nil
 }
 
@@ -60,6 +72,7 @@ func SendNotification(ue *context.RanUe, nasMsg []byte) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberNotification,
 		logger.DirectionOutbound,
+		nasMsg,
 		amfUe.Supi,
 		zap.String("ran", ue.Ran.Name),
 		zap.String("suci", amfUe.Suci),
@@ -83,6 +96,7 @@ func SendIdentityRequest(ue *context.RanUe, typeOfIdentity uint8) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberIdentityRequest,
 		logger.DirectionOutbound,
+		nasMsg,
 		ue.AmfUe.Supi,
 		zap.String("ran", ue.Ran.Name),
 		zap.String("suci", ue.AmfUe.Suci),
@@ -133,6 +147,7 @@ func SendAuthenticationRequest(ue *context.RanUe) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberAuthenticationRequest,
 		logger.DirectionOutbound,
+		nasMsg,
 		amfUe.Supi,
 		zap.String("suci", amfUe.Suci),
 		zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
@@ -155,6 +170,7 @@ func SendServiceAccept(ue *context.RanUe, pDUSessionStatus *[16]bool, reactivati
 	logger.LogSubscriberEvent(
 		logger.SubscriberServiceAccept,
 		logger.DirectionOutbound,
+		nasMsg,
 		ue.AmfUe.Supi,
 		zap.String("ran", ue.Ran.Name),
 		zap.String("suci", ue.AmfUe.Suci),
@@ -178,6 +194,7 @@ func SendAuthenticationReject(ue *context.RanUe, eapMsg string) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberAuthenticationReject,
 		logger.DirectionOutbound,
+		nasMsg,
 		ue.AmfUe.Supi,
 		zap.String("ran", ue.Ran.Name),
 		zap.String("suci", ue.AmfUe.Suci),
@@ -205,6 +222,7 @@ func SendAuthenticationResult(ue *context.RanUe, eapSuccess bool, eapMsg string)
 	logger.LogSubscriberEvent(
 		logger.SubscriberAuthenticationResult,
 		logger.DirectionOutbound,
+		nasMsg,
 		ue.AmfUe.Supi,
 		zap.String("ran", ue.Ran.Name),
 		zap.String("suci", ue.AmfUe.Suci),
@@ -228,6 +246,7 @@ func SendServiceReject(ue *context.RanUe, pDUSessionStatus *[16]bool, cause uint
 	logger.LogSubscriberEvent(
 		logger.SubscriberServiceReject,
 		logger.DirectionOutbound,
+		nasMsg,
 		ue.AmfUe.Supi,
 		zap.String("ran", ue.Ran.Name),
 		zap.String("suci", ue.AmfUe.Suci),
@@ -253,6 +272,7 @@ func SendRegistrationReject(ue *context.RanUe, cause5GMM uint8, eapMessage strin
 	logger.LogSubscriberEvent(
 		logger.SubscriberRegistrationReject,
 		logger.DirectionOutbound,
+		nasMsg,
 		ue.AmfUe.Supi,
 		zap.String("ran", ue.Ran.Name),
 		zap.String("suci", ue.AmfUe.Suci),
@@ -296,6 +316,7 @@ func SendSecurityModeCommand(ue *context.RanUe, eapSuccess bool, eapMessage stri
 	logger.LogSubscriberEvent(
 		logger.SubscriberSecurityModeCommand,
 		logger.DirectionOutbound,
+		nasMsg,
 		ue.AmfUe.Supi,
 		zap.String("ran", ue.Ran.Name),
 		zap.String("suci", ue.AmfUe.Suci),
@@ -354,6 +375,7 @@ func SendDeregistrationRequest(ue *context.RanUe, accessType uint8, reRegistrati
 	logger.LogSubscriberEvent(
 		logger.SubscriberDeregistrationRequest,
 		logger.DirectionOutbound,
+		nasMsg,
 		ue.AmfUe.Supi,
 		zap.String("ran", ue.Ran.Name),
 		zap.String("suci", ue.AmfUe.Suci),
@@ -378,6 +400,7 @@ func SendDeregistrationAccept(ue *context.RanUe) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberDeregistrationAccept,
 		logger.DirectionOutbound,
+		nasMsg,
 		ue.AmfUe.Supi,
 		zap.String("ran", ue.Ran.Name),
 		zap.String("suci", ue.AmfUe.Suci),
@@ -449,6 +472,7 @@ func SendRegistrationAccept(
 	logger.LogSubscriberEvent(
 		logger.SubscriberRegistrationAccept,
 		logger.DirectionOutbound,
+		nasMsg,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),

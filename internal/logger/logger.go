@@ -291,6 +291,7 @@ const (
 	SubscriberDeregistrationRequest                   SubscriberEvent = "Deregistration Request"
 	SubscriberDeregistrationAccept                    SubscriberEvent = "Deregistration Accept"
 	SubscriberStatus5GMM                              SubscriberEvent = "Status 5GMM"
+	SubscriberDownlinkNasTransport                    SubscriberEvent = "Downlink NAS Transport"
 
 	// Access events (outbound)
 	SubscriberRegistrationAccept    SubscriberEvent = "Registration Accept"
@@ -319,7 +320,7 @@ const (
 	DirectionOutbound LogDirection = "outbound"
 )
 
-func LogSubscriberEvent(event SubscriberEvent, dir LogDirection, imsi string, fields ...zap.Field) {
+func LogSubscriberEvent(event SubscriberEvent, dir LogDirection, rawBytes []byte, imsi string, fields ...zap.Field) {
 	if SubscriberLog == nil {
 		return
 	}
@@ -342,6 +343,7 @@ func LogSubscriberEvent(event SubscriberEvent, dir LogDirection, imsi string, fi
 	reserved := map[string]struct{}{
 		"event":     {},
 		"direction": {},
+		"raw":       {},
 		"imsi":      {},
 		"timestamp": {},
 		"level":     {},
@@ -386,6 +388,7 @@ func LogSubscriberEvent(event SubscriberEvent, dir LogDirection, imsi string, fi
 	SubscriberLog.Info("subscriber_event",
 		zap.String("event", string(event)),
 		zap.String("direction", string(dir)),
+		zap.Binary("raw", rawBytes),
 		zap.String("imsi", imsi),
 		zap.String("details", detailsStr),
 	)
