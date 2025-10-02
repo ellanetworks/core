@@ -9,6 +9,7 @@ export type APIRadioLog = {
   timestamp: string;
   ran_id: string;
   event: string;
+  direction: string;
   details?: string;
 };
 

@@ -15,6 +15,7 @@ type RadioLog struct {
 	Timestamp string `json:"timestamp"`
 	RanID     string `json:"ran_id"`
 	Event     string `json:"event"`
+	Direction string `json:"direction"`
 	Details   string `json:"details"`
 }
 

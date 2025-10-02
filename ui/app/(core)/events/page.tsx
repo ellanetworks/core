@@ -20,7 +20,8 @@ import {
   type GridPaginationModel,
 } from "@mui/x-data-grid";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-
+import EastIcon from "@mui/icons-material/East";
+import WestIcon from "@mui/icons-material/West";
 import {
   listSubscriberLogs,
   clearSubscriberLogs,
@@ -48,6 +49,35 @@ import type { LogRow } from "@/components/ViewLogModal";
 
 const MAX_WIDTH = 1400;
 type TabKey = "subscribers" | "radio";
+
+const DirectionCell: React.FC<{ value?: string }> = ({ value }) => {
+  const theme = useTheme();
+
+  if (!value) return null;
+
+  const Icon = value === "inbound" ? EastIcon : WestIcon;
+  const title = value === "inbound" ? "Receive (inbound)" : "Send (outbound)";
+  const color =
+    value === "inbound" ? theme.palette.success.main : theme.palette.info.main;
+
+  return (
+    <Tooltip title={title}>
+      <Box
+        sx={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          lineHeight: 0,
+          "& svg": { display: "block" },
+        }}
+      >
+        <Icon fontSize="small" sx={{ color }} aria-label={title} />
+      </Box>
+    </Tooltip>
+  );
+};
 
 const Events: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
@@ -242,6 +272,18 @@ const Events: React.FC = () => {
         sortable: false,
       },
       {
+        field: "direction",
+        headerName: "Dir",
+        width: 70,
+        align: "center",
+        headerAlign: "center",
+        sortable: false,
+        filterable: false,
+        renderCell: (params: GridRenderCellParams<APISubscriberLog>) => (
+          <DirectionCell value={params.row.direction} />
+        ),
+      },
+      {
         field: "event",
         headerName: "Event",
         flex: 1,
@@ -299,6 +341,18 @@ const Events: React.FC = () => {
         flex: 1,
         minWidth: 180,
         sortable: false,
+      },
+      {
+        field: "direction",
+        headerName: "Dir",
+        width: 70,
+        align: "center",
+        headerAlign: "center",
+        sortable: false,
+        filterable: false,
+        renderCell: (params: GridRenderCellParams<APIRadioLog>) => (
+          <DirectionCell value={params.row.direction} />
+        ),
       },
       {
         field: "event",

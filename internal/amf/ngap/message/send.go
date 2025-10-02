@@ -32,6 +32,7 @@ func SendToRan(ran *context.AmfRan, packet []byte) error {
 	if len(packet) == 0 {
 		return fmt.Errorf("packet len is 0")
 	}
+
 	if ran.Conn == nil {
 		return fmt.Errorf("ran conn is nil")
 	}
@@ -43,6 +44,7 @@ func SendToRan(ran *context.AmfRan, packet []byte) error {
 	if _, err := ran.Conn.Write(packet); err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
 	return nil
 }
 
@@ -65,6 +67,7 @@ func SendToRanUe(ue *context.RanUe, packet []byte) error {
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
 	return nil
 }
 
@@ -92,6 +95,17 @@ func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan) error {
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioNGSetupResponse,
+		logger.DirectionOutbound,
+		pkt,
+		ran.GnbID,
+		zap.String("ranName", ran.Name),
+		zap.String("ranID", ran.GnbID),
+		zap.String("ranIP", ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -104,10 +118,23 @@ func SendNGSetupFailure(ran *context.AmfRan, cause ngapType.Cause) error {
 	if err != nil {
 		return fmt.Errorf("error building NG Setup Failure: %s", err.Error())
 	}
+
 	err = SendToRan(ran, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioNGSetupFailure,
+		logger.DirectionOutbound,
+		pkt,
+		ran.GnbID,
+		zap.String("ranName", ran.Name),
+		zap.String("ranID", ran.GnbID),
+		zap.String("ranIP", ran.GnbIP),
+		zap.String("cause", causeToString(&cause)),
+	)
+
 	return nil
 }
 
@@ -120,10 +147,22 @@ func SendNGResetAcknowledge(ran *context.AmfRan, partOfNGInterface *ngapType.UEA
 	if err != nil {
 		return fmt.Errorf("error building NG Reset Acknowledge: %s", err.Error())
 	}
+
 	err = SendToRan(ran, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioNGResetAcknowledge,
+		logger.DirectionOutbound,
+		pkt,
+		ran.GnbID,
+		zap.String("ranName", ran.Name),
+		zap.String("ranID", ran.GnbID),
+		zap.String("ranIP", ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -140,10 +179,22 @@ func SendDownlinkNasTransport(ue *context.RanUe, nasPdu []byte, mobilityRestrict
 	if err != nil {
 		return fmt.Errorf("error building DownlinkNasTransport: %s", err.Error())
 	}
+
 	err = SendToRanUe(ue, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioDownlinkNasTransport,
+		logger.DirectionOutbound,
+		pkt,
+		ue.Ran.GnbID,
+		zap.String("ranName", ue.Ran.Name),
+		zap.String("ranID", ue.Ran.GnbID),
+		zap.String("ranIP", ue.Ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -156,10 +207,22 @@ func SendPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte, pduS
 	if err != nil {
 		return fmt.Errorf("error building pdu session resource release: %s", err.Error())
 	}
+
 	err = SendToRanUe(ue, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioPDUSessionResourceReleaseCommand,
+		logger.DirectionOutbound,
+		pkt,
+		ue.Ran.GnbID,
+		zap.String("ranName", ue.Ran.Name),
+		zap.String("ranID", ue.Ran.GnbID),
+		zap.String("ranIP", ue.Ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -172,6 +235,7 @@ func SendUEContextReleaseCommand(ue *context.RanUe, action context.RelAction, ca
 	if err != nil {
 		return fmt.Errorf("error building ue context release: %s", err.Error())
 	}
+
 	ue.ReleaseAction = action
 	if ue.AmfUe != nil && ue.Ran != nil {
 		ue.AmfUe.ReleaseCause[ue.Ran.AnType] = &context.CauseAll{
@@ -181,10 +245,23 @@ func SendUEContextReleaseCommand(ue *context.RanUe, action context.RelAction, ca
 			},
 		}
 	}
+
 	err = SendToRanUe(ue, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioUEContextReleaseCommand,
+		logger.DirectionOutbound,
+		pkt,
+		ue.Ran.GnbID,
+		zap.String("ranName", ue.Ran.Name),
+		zap.String("ranID", ue.Ran.GnbID),
+		zap.String("ranIP", ue.Ran.GnbIP),
+		zap.String("cause", causePresentToString(causePresent, cause)),
+	)
+
 	return nil
 }
 
@@ -197,10 +274,23 @@ func SendErrorIndication(ran *context.AmfRan, amfUeNgapID, ranUeNgapID *int64, c
 	if err != nil {
 		return fmt.Errorf("error building error indication: %s", err.Error())
 	}
+
 	err = SendToRan(ran, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioErrorIndication,
+		logger.DirectionOutbound,
+		pkt,
+		ran.GnbID,
+		zap.String("ranName", ran.Name),
+		zap.String("ranID", ran.GnbID),
+		zap.String("ranIP", ran.GnbIP),
+		zap.String("cause", causeToString(cause)),
+	)
+
 	return nil
 }
 
@@ -235,10 +325,22 @@ func SendPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte, pduSes
 	if err != nil {
 		return fmt.Errorf("error building pdu session resource setup request: %s", err.Error())
 	}
+
 	err = SendToRanUe(ue, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioPDUSessionResourceSetupRequest,
+		logger.DirectionOutbound,
+		pkt,
+		ue.Ran.GnbID,
+		zap.String("ranName", ue.Ran.Name),
+		zap.String("ranID", ue.Ran.GnbID),
+		zap.String("ranIP", ue.Ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -265,10 +367,22 @@ func SendPDUSessionResourceModifyConfirm(
 	if err != nil {
 		return fmt.Errorf("error building pdu session resource modify confirm: %s", err.Error())
 	}
+
 	err = SendToRanUe(ue, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioPDUSessionResourceModifyConfirm,
+		logger.DirectionOutbound,
+		pkt,
+		ue.Ran.GnbID,
+		zap.String("ranName", ue.Ran.Name),
+		zap.String("ranID", ue.Ran.GnbID),
+		zap.String("ranIP", ue.Ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -288,10 +402,22 @@ func SendPDUSessionResourceModifyRequest(ue *context.RanUe, pduSessionResourceMo
 	if err != nil {
 		return fmt.Errorf("error building pdu session resource modify request: %s", err.Error())
 	}
+
 	err = SendToRanUe(ue, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioPDUSessionResourceModifyRequest,
+		logger.DirectionOutbound,
+		pkt,
+		ue.Ran.GnbID,
+		zap.String("ranName", ue.Ran.Name),
+		zap.String("ranID", ue.Ran.GnbID),
+		zap.String("ranIP", ue.Ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -320,11 +446,27 @@ func SendInitialContextSetupRequest(
 	if err != nil {
 		return fmt.Errorf("error building initial context setup request: %s", err.Error())
 	}
+
 	amfUe.RanUe[anType].SentInitialContextSetupRequest = true
+
 	err = NasSendToRan(amfUe, anType, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioInitialContextSetupRequest,
+		logger.DirectionOutbound,
+		pkt,
+		amfUe.RanUe[anType].Ran.GnbID,
+		zap.String("ranName", amfUe.RanUe[anType].Ran.Name),
+		zap.String("ranID", amfUe.RanUe[anType].Ran.GnbID),
+		zap.String("ranIP", amfUe.RanUe[anType].Ran.GnbIP),
+		zap.String("supi", amfUe.Supi),
+		zap.String("anType", string(anType)),
+		zap.String("nasPdu", fmt.Sprintf("%x", nasPdu)),
+	)
+
 	return nil
 }
 
@@ -356,10 +498,22 @@ func SendHandoverCommand(
 	if err != nil {
 		return fmt.Errorf("error building handover command: %s", err.Error())
 	}
+
 	err = SendToRanUe(sourceUe, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioHandoverCommand,
+		logger.DirectionOutbound,
+		pkt,
+		sourceUe.Ran.GnbID,
+		zap.String("ranName", sourceUe.Ran.Name),
+		zap.String("ranID", sourceUe.Ran.GnbID),
+		zap.String("ranIP", sourceUe.Ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -377,17 +531,32 @@ func SendHandoverPreparationFailure(sourceUe *context.RanUe, cause ngapType.Caus
 	if amfUe == nil {
 		return fmt.Errorf("amf ue is nil")
 	}
+
 	amfUe.SetOnGoing(sourceUe.Ran.AnType, &context.OnGoingProcedureWithPrio{
 		Procedure: context.OnGoingProcedureNothing,
 	})
+
 	pkt, err := BuildHandoverPreparationFailure(sourceUe, cause, criticalityDiagnostics)
 	if err != nil {
 		return fmt.Errorf("error building handover preparation failure: %s", err.Error())
 	}
+
 	err = SendToRanUe(sourceUe, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioHandoverPreparationFailure,
+		logger.DirectionOutbound,
+		pkt,
+		sourceUe.Ran.GnbID,
+		zap.String("ranName", sourceUe.Ran.Name),
+		zap.String("ranID", sourceUe.Ran.GnbID),
+		zap.String("ranIP", sourceUe.Ran.GnbIP),
+		zap.String("cause", causeToString(&cause)),
+	)
+
 	return nil
 }
 
@@ -434,14 +603,31 @@ func SendHandoverRequest(ctx ctxt.Context, sourceUe *context.RanUe, targetRan *c
 	if err != nil {
 		return fmt.Errorf("attach source ue target ue error: %s", err.Error())
 	}
+
 	pkt, err := BuildHandoverRequest(ctx, targetUe, cause, pduSessionResourceSetupListHOReq, sourceToTargetTransparentContainer)
 	if err != nil {
 		return fmt.Errorf("error building handover request: %s", err.Error())
 	}
+
 	err = SendToRanUe(targetUe, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioHandoverRequest,
+		logger.DirectionOutbound,
+		pkt,
+		targetRan.GnbID,
+		zap.String("ranName", targetRan.Name),
+		zap.String("ranID", targetRan.GnbID),
+		zap.String("ranIP", targetRan.GnbIP),
+		zap.String("supi", amfUe.Supi),
+		zap.String("sourceRan", sourceUe.Ran.Name),
+		zap.String("sourceRanID", sourceUe.Ran.GnbID),
+		zap.String("sourceRanIP", sourceUe.Ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -482,10 +668,22 @@ func SendPathSwitchRequestAcknowledge(
 	if err != nil {
 		return fmt.Errorf("error building path switch request acknowledge: %s", err.Error())
 	}
+
 	err = SendToRanUe(ue, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioPathSwitchRequestAcknowledge,
+		logger.DirectionOutbound,
+		pkt,
+		ue.Ran.GnbID,
+		zap.String("ranName", ue.Ran.Name),
+		zap.String("ranID", ue.Ran.GnbID),
+		zap.String("ranIP", ue.Ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -501,15 +699,28 @@ func SendPathSwitchRequestFailure(
 	if pduSessionResourceReleasedList != nil && len(pduSessionResourceReleasedList.List) > context.MaxNumOfPDUSessions {
 		return fmt.Errorf("pdu list out of range")
 	}
+
 	pkt, err := BuildPathSwitchRequestFailure(amfUeNgapID, ranUeNgapID, pduSessionResourceReleasedList,
 		criticalityDiagnostics)
 	if err != nil {
 		return fmt.Errorf("error building path switch request failure: %s", err.Error())
 	}
+
 	err = SendToRan(ran, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioPathSwitchRequestFailure,
+		logger.DirectionOutbound,
+		pkt,
+		ran.GnbID,
+		zap.String("ranName", ran.Name),
+		zap.String("ranID", ran.GnbID),
+		zap.String("ranIP", ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -569,6 +780,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) error {
 			ue.T3513 = nil // clear the timer
 		})
 	}
+
 	return nil
 }
 
@@ -582,10 +794,22 @@ func SendRanConfigurationUpdateAcknowledge(ran *context.AmfRan, criticalityDiagn
 	if err != nil {
 		return fmt.Errorf("error building ran configuration update acknowledge: %s", err.Error())
 	}
+
 	err = SendToRan(ran, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioRanConfigurationUpdateAcknowledge,
+		logger.DirectionOutbound,
+		pkt,
+		ran.GnbID,
+		zap.String("ranName", ran.Name),
+		zap.String("ranID", ran.GnbID),
+		zap.String("ranIP", ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -596,14 +820,28 @@ func SendRanConfigurationUpdateFailure(ran *context.AmfRan, cause ngapType.Cause
 	if ran == nil {
 		return fmt.Errorf("ran is nil")
 	}
+
 	pkt, err := BuildRanConfigurationUpdateFailure(cause, criticalityDiagnostics)
 	if err != nil {
 		return fmt.Errorf("error building ran configuration update failure: %s", err.Error())
 	}
+
 	err = SendToRan(ran, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioRanConfigurationUpdateFailure,
+		logger.DirectionOutbound,
+		pkt,
+		ran.GnbID,
+		zap.String("ranName", ran.Name),
+		zap.String("ranID", ran.GnbID),
+		zap.String("ranIP", ran.GnbIP),
+		zap.String("cause", causeToString(&cause)),
+	)
+
 	return nil
 }
 
@@ -628,10 +866,22 @@ func SendAMFStatusIndication(ran *context.AmfRan, unavailableGUAMIList ngapType.
 	if err != nil {
 		return fmt.Errorf("error building amf status indication: %s", err.Error())
 	}
+
 	err = SendToRan(ran, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioAMFStatusIndication,
+		logger.DirectionOutbound,
+		pkt,
+		ran.GnbID,
+		zap.String("ranName", ran.Name),
+		zap.String("ranID", ran.GnbID),
+		zap.String("ranIP", ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -645,10 +895,22 @@ func SendDownlinkRanConfigurationTransfer(ran *context.AmfRan, transfer *ngapTyp
 	if err != nil {
 		return fmt.Errorf("error building downlink ran configuration transfer: %s", err.Error())
 	}
+
 	err = SendToRan(ran, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioDownlinkRanConfigurationTransfer,
+		logger.DirectionOutbound,
+		pkt,
+		ran.GnbID,
+		zap.String("ranName", ran.Name),
+		zap.String("ranID", ran.GnbID),
+		zap.String("ranIP", ran.GnbIP),
+	)
+
 	return nil
 }
 
@@ -686,9 +948,21 @@ func SendLocationReportingControl(
 	if err != nil {
 		return fmt.Errorf("error building location reporting control: %s", err.Error())
 	}
+
 	err = SendToRanUe(ue, pkt)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioLocationReportingControl,
+		logger.DirectionOutbound,
+		pkt,
+		ue.Ran.GnbID,
+		zap.String("ranName", ue.Ran.Name),
+		zap.String("ranID", ue.Ran.GnbID),
+		zap.String("ranIP", ue.Ran.GnbIP),
+	)
+
 	return nil
 }

@@ -38,8 +38,8 @@ func TestRadioLogsEndToEnd(t *testing.T) {
 		t.Fatalf("Expected no radio logs, but found %d", len(res))
 	}
 
-	rawEntry1 := `{"timestamp":"2024-10-01T12:00:00Z","component":"Radio","event":"test_event","ran_id":"test_ran_id","details":"This is a test radio log entry"}`
-	rawEntry2 := `{"timestamp":"2024-10-01T13:00:00Z","component":"Radio","event":"another_event","ran_id":"another_ran_id","details":"This is another test radio log entry"}`
+	rawEntry1 := `{"timestamp":"2024-10-01T12:00:00Z","component":"Radio","event":"test_event","direction":"inbound","ran_id":"test_ran_id","details":"This is a test radio log entry","raw":"abcd1234"}`
+	rawEntry2 := `{"timestamp":"2024-10-01T13:00:00Z","component":"Radio","event":"another_event","direction":"outbound","ran_id":"another_ran_id","details":"This is another test radio log entry","raw":"efgh5678"}`
 
 	err = database.InsertRadioLogJSON(context.Background(), []byte(rawEntry1))
 	if err != nil {
@@ -110,6 +110,8 @@ func TestRadioLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 			"component":"Radio",
 			"event":"%s",
 			"ran_id":"001:01:000008",
+			"direction":"inbound",
+			"raw":"abcd1234",
 			"details":"test"
 		}`, ts.UTC().Format(time.RFC3339), event)
 		if err := database.InsertRadioLogJSON(ctx, []byte(raw)); err != nil {

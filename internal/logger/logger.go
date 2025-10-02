@@ -275,7 +275,7 @@ func LogAuditEvent(action, actor, ip, details string) {
 type SubscriberEvent string
 
 const (
-	// Access events
+	// Access events (inbound)
 	SubscriberRegistrationRequest                     SubscriberEvent = "Registration Request"
 	SubscriberInitialRegistration                     SubscriberEvent = "Initial Registration"
 	SubscriberMobilityAndPeriodicRegistrationUpdating SubscriberEvent = "Mobility and Periodic Registration Updating"
@@ -291,15 +291,36 @@ const (
 	SubscriberDeregistrationRequest                   SubscriberEvent = "Deregistration Request"
 	SubscriberDeregistrationAccept                    SubscriberEvent = "Deregistration Accept"
 	SubscriberStatus5GMM                              SubscriberEvent = "Status 5GMM"
-	SubscriberAuthenticationError                     SubscriberEvent = "Authentication Error"
+	SubscriberDownlinkNasTransport                    SubscriberEvent = "Downlink NAS Transport"
 
-	// Session events
+	// Access events (outbound)
+	SubscriberRegistrationAccept    SubscriberEvent = "Registration Accept"
+	SubscriberSecurityModeCommand   SubscriberEvent = "Security Mode Command"
+	SubscriberRegistrationReject    SubscriberEvent = "Registration Reject"
+	SubscriberIdentityRequest       SubscriberEvent = "Identity Request"
+	SubscriberNotification          SubscriberEvent = "Notification"
+	SubscriberAuthenticationRequest SubscriberEvent = "Authentication Request"
+	SubscriberAuthenticationResult  SubscriberEvent = "Authentication Result"
+	SubscriberAuthenticationReject  SubscriberEvent = "Authentication Reject"
+	SubscriberServiceAccept         SubscriberEvent = "Service Accept"
+	SubscriberServiceReject         SubscriberEvent = "Service Reject"
+
+	// Session events (inbound)
 	SubscriberPduSessionEstablishmentRequest SubscriberEvent = "PDU Session Establishment Request"
-	SubscriberPduSessionEstablishmentReject  SubscriberEvent = "PDU Session Establishment Reject"
-	SubscriberPduSessionEstablishmentAccept  SubscriberEvent = "PDU Session Establishment Accept"
+
+	// Session events (outbound)
+	SubscriberPduSessionEstablishmentReject SubscriberEvent = "PDU Session Establishment Reject"
+	SubscriberPduSessionEstablishmentAccept SubscriberEvent = "PDU Session Establishment Accept"
 )
 
-func LogSubscriberEvent(event SubscriberEvent, imsi string, fields ...zap.Field) {
+type LogDirection string
+
+const (
+	DirectionInbound  LogDirection = "inbound"
+	DirectionOutbound LogDirection = "outbound"
+)
+
+func LogSubscriberEvent(event SubscriberEvent, dir LogDirection, rawBytes []byte, imsi string, fields ...zap.Field) {
 	if SubscriberLog == nil {
 		return
 	}
@@ -320,8 +341,15 @@ func LogSubscriberEvent(event SubscriberEvent, imsi string, fields ...zap.Field)
 	var detailsStr string
 
 	reserved := map[string]struct{}{
-		"event": {}, "imsi": {}, "timestamp": {}, "level": {},
-		"component": {}, "caller": {}, "message": {},
+		"event":     {},
+		"direction": {},
+		"raw":       {},
+		"imsi":      {},
+		"timestamp": {},
+		"level":     {},
+		"component": {},
+		"caller":    {},
+		"message":   {},
 	}
 
 	if raw, ok := enc.Fields["details"]; ok {
@@ -359,6 +387,8 @@ func LogSubscriberEvent(event SubscriberEvent, imsi string, fields ...zap.Field)
 	// Emit a single, consistent log line. DB reader already expects details as string.
 	SubscriberLog.Info("subscriber_event",
 		zap.String("event", string(event)),
+		zap.String("direction", string(dir)),
+		zap.Binary("raw", rawBytes),
 		zap.String("imsi", imsi),
 		zap.String("details", detailsStr),
 	)
@@ -367,6 +397,7 @@ func LogSubscriberEvent(event SubscriberEvent, imsi string, fields ...zap.Field)
 type RadioEvent string
 
 const (
+	// Radio events (inbound)
 	RadioNGSetupRequest                      RadioEvent = "NG Setup Request"
 	RadioUplinkNASTransport                  RadioEvent = "Uplink NAS Transport"
 	RadioNGReset                             RadioEvent = "NG Reset"
@@ -404,10 +435,40 @@ const (
 	RadioAMFConfigurationUpdateAcknowledge   RadioEvent = "AMF Configuration Update Acknowledge"
 	RadioErrorIndication                     RadioEvent = "Error Indication"
 	RadioCellTrafficTrace                    RadioEvent = "Cell Traffic Trace"
+
+	// Radio events (outbound)
+	RadioNGSetupResponse                   RadioEvent = "NG Setup Response"
+	RadioNGSetupFailure                    RadioEvent = "NG Setup Failure"
+	RadioDownlinkNasTransport              RadioEvent = "Downlink NAS Transport"
+	RadioPDUSessionResourceReleaseCommand  RadioEvent = "PDU Session Resource Release Command"
+	RadioUEContextReleaseCommand           RadioEvent = "UE Context Release Command"
+	RadioPDUSessionResourceSetupRequest    RadioEvent = "PDU Session Resource Setup Request"
+	RadioPDUSessionResourceModifyConfirm   RadioEvent = "PDU Session Resource Modify Confirm"
+	RadioPDUSessionResourceModifyRequest   RadioEvent = "PDU Session Resource Modify Request"
+	RadioInitialContextSetupRequest        RadioEvent = "Initial Context Setup Request"
+	RadioHandoverCommand                   RadioEvent = "Handover Command"
+	RadioHandoverPreparationFailure        RadioEvent = "Handover Preparation Failure"
+	RadioHandoverRequest                   RadioEvent = "Handover Request"
+	RadioPathSwitchRequestAcknowledge      RadioEvent = "Path Switch Request Acknowledge"
+	RadioPathSwitchRequestFailure          RadioEvent = "Path Switch Request Failure"
+	RadioRanConfigurationUpdateAcknowledge RadioEvent = "RAN Configuration Update Acknowledge"
+	RadioRanConfigurationUpdateFailure     RadioEvent = "RAN Configuration Update Failure"
+	RadioAMFStatusIndication               RadioEvent = "AMF Status Indication"
+	RadioDownlinkRanConfigurationTransfer  RadioEvent = "Downlink RAN Configuration Transfer"
+	RadioLocationReportingControl          RadioEvent = "Location Reporting Control"
 )
 
-func LogRadioEvent(event RadioEvent, ranID string, fields ...zap.Field) {
+func LogRadioEvent(event RadioEvent, dir LogDirection, rawBytes []byte, ranID string, fields ...zap.Field) {
 	if RadioLog == nil {
+		return
+	}
+
+	if rawBytes == nil {
+		EllaLog.Warn("attempted to log radio event with nil rawBytes",
+			zap.String("event", string(event)),
+			zap.String("ran_id", ranID),
+			zap.Any("fields", fields),
+		)
 		return
 	}
 
@@ -427,8 +488,15 @@ func LogRadioEvent(event RadioEvent, ranID string, fields ...zap.Field) {
 	var detailsStr string
 
 	reserved := map[string]struct{}{
-		"event": {}, "ran_id": {}, "timestamp": {}, "level": {},
-		"component": {}, "caller": {}, "message": {},
+		"event":     {},
+		"raw":       {},
+		"direction": {},
+		"ran_id":    {},
+		"timestamp": {},
+		"level":     {},
+		"component": {},
+		"caller":    {},
+		"message":   {},
 	}
 
 	if raw, ok := enc.Fields["details"]; ok {
@@ -466,6 +534,8 @@ func LogRadioEvent(event RadioEvent, ranID string, fields ...zap.Field) {
 	// Emit a single, consistent log line. DB reader already expects details as string.
 	RadioLog.Info("radio_event",
 		zap.String("event", string(event)),
+		zap.String("direction", string(dir)),
+		zap.Binary("raw", rawBytes),
 		zap.String("ran_id", ranID),
 		zap.String("details", detailsStr),
 	)
