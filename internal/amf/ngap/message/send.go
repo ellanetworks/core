@@ -32,6 +32,7 @@ func SendToRan(ran *context.AmfRan, packet []byte) error {
 	if len(packet) == 0 {
 		return fmt.Errorf("packet len is 0")
 	}
+
 	if ran.Conn == nil {
 		return fmt.Errorf("ran conn is nil")
 	}
@@ -43,6 +44,7 @@ func SendToRan(ran *context.AmfRan, packet []byte) error {
 	if _, err := ran.Conn.Write(packet); err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
 	return nil
 }
 
@@ -65,6 +67,7 @@ func SendToRanUe(ue *context.RanUe, packet []byte) error {
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
+
 	return nil
 }
 
@@ -96,6 +99,7 @@ func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan) error {
 	logger.LogRadioEvent(
 		logger.RadioNGSetupResponse,
 		logger.DirectionOutbound,
+		pkt,
 		ran.GnbID,
 		zap.String("ranName", ran.Name),
 		zap.String("ranID", ran.GnbID),
@@ -123,6 +127,7 @@ func SendNGSetupFailure(ran *context.AmfRan, cause ngapType.Cause) error {
 	logger.LogRadioEvent(
 		logger.RadioNGSetupFailure,
 		logger.DirectionOutbound,
+		pkt,
 		ran.GnbID,
 		zap.String("ranName", ran.Name),
 		zap.String("ranID", ran.GnbID),
@@ -151,6 +156,7 @@ func SendNGResetAcknowledge(ran *context.AmfRan, partOfNGInterface *ngapType.UEA
 	logger.LogRadioEvent(
 		logger.RadioNGResetAcknowledge,
 		logger.DirectionOutbound,
+		pkt,
 		ran.GnbID,
 		zap.String("ranName", ran.Name),
 		zap.String("ranID", ran.GnbID),
@@ -182,6 +188,7 @@ func SendDownlinkNasTransport(ue *context.RanUe, nasPdu []byte, mobilityRestrict
 	logger.LogRadioEvent(
 		logger.RadioDownlinkNasTransport,
 		logger.DirectionOutbound,
+		pkt,
 		ue.Ran.GnbID,
 		zap.String("ranName", ue.Ran.Name),
 		zap.String("ranID", ue.Ran.GnbID),
@@ -209,6 +216,7 @@ func SendPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte, pduS
 	logger.LogRadioEvent(
 		logger.RadioPDUSessionResourceReleaseCommand,
 		logger.DirectionOutbound,
+		pkt,
 		ue.Ran.GnbID,
 		zap.String("ranName", ue.Ran.Name),
 		zap.String("ranID", ue.Ran.GnbID),
@@ -246,6 +254,7 @@ func SendUEContextReleaseCommand(ue *context.RanUe, action context.RelAction, ca
 	logger.LogRadioEvent(
 		logger.RadioUEContextReleaseCommand,
 		logger.DirectionOutbound,
+		pkt,
 		ue.Ran.GnbID,
 		zap.String("ranName", ue.Ran.Name),
 		zap.String("ranID", ue.Ran.GnbID),
@@ -274,6 +283,7 @@ func SendErrorIndication(ran *context.AmfRan, amfUeNgapID, ranUeNgapID *int64, c
 	logger.LogRadioEvent(
 		logger.RadioErrorIndication,
 		logger.DirectionOutbound,
+		pkt,
 		ran.GnbID,
 		zap.String("ranName", ran.Name),
 		zap.String("ranID", ran.GnbID),
@@ -324,6 +334,7 @@ func SendPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte, pduSes
 	logger.LogRadioEvent(
 		logger.RadioPDUSessionResourceSetupRequest,
 		logger.DirectionOutbound,
+		pkt,
 		ue.Ran.GnbID,
 		zap.String("ranName", ue.Ran.Name),
 		zap.String("ranID", ue.Ran.GnbID),
@@ -365,6 +376,7 @@ func SendPDUSessionResourceModifyConfirm(
 	logger.LogRadioEvent(
 		logger.RadioPDUSessionResourceModifyConfirm,
 		logger.DirectionOutbound,
+		pkt,
 		ue.Ran.GnbID,
 		zap.String("ranName", ue.Ran.Name),
 		zap.String("ranID", ue.Ran.GnbID),
@@ -399,6 +411,7 @@ func SendPDUSessionResourceModifyRequest(ue *context.RanUe, pduSessionResourceMo
 	logger.LogRadioEvent(
 		logger.RadioPDUSessionResourceModifyRequest,
 		logger.DirectionOutbound,
+		pkt,
 		ue.Ran.GnbID,
 		zap.String("ranName", ue.Ran.Name),
 		zap.String("ranID", ue.Ran.GnbID),
@@ -444,6 +457,7 @@ func SendInitialContextSetupRequest(
 	logger.LogRadioEvent(
 		logger.RadioInitialContextSetupRequest,
 		logger.DirectionOutbound,
+		pkt,
 		amfUe.RanUe[anType].Ran.GnbID,
 		zap.String("ranName", amfUe.RanUe[anType].Ran.Name),
 		zap.String("ranID", amfUe.RanUe[anType].Ran.GnbID),
@@ -493,6 +507,7 @@ func SendHandoverCommand(
 	logger.LogRadioEvent(
 		logger.RadioHandoverCommand,
 		logger.DirectionOutbound,
+		pkt,
 		sourceUe.Ran.GnbID,
 		zap.String("ranName", sourceUe.Ran.Name),
 		zap.String("ranID", sourceUe.Ran.GnbID),
@@ -534,6 +549,7 @@ func SendHandoverPreparationFailure(sourceUe *context.RanUe, cause ngapType.Caus
 	logger.LogRadioEvent(
 		logger.RadioHandoverPreparationFailure,
 		logger.DirectionOutbound,
+		pkt,
 		sourceUe.Ran.GnbID,
 		zap.String("ranName", sourceUe.Ran.Name),
 		zap.String("ranID", sourceUe.Ran.GnbID),
@@ -601,6 +617,7 @@ func SendHandoverRequest(ctx ctxt.Context, sourceUe *context.RanUe, targetRan *c
 	logger.LogRadioEvent(
 		logger.RadioHandoverRequest,
 		logger.DirectionOutbound,
+		pkt,
 		targetRan.GnbID,
 		zap.String("ranName", targetRan.Name),
 		zap.String("ranID", targetRan.GnbID),
@@ -660,6 +677,7 @@ func SendPathSwitchRequestAcknowledge(
 	logger.LogRadioEvent(
 		logger.RadioPathSwitchRequestAcknowledge,
 		logger.DirectionOutbound,
+		pkt,
 		ue.Ran.GnbID,
 		zap.String("ranName", ue.Ran.Name),
 		zap.String("ranID", ue.Ran.GnbID),
@@ -696,6 +714,7 @@ func SendPathSwitchRequestFailure(
 	logger.LogRadioEvent(
 		logger.RadioPathSwitchRequestFailure,
 		logger.DirectionOutbound,
+		pkt,
 		ran.GnbID,
 		zap.String("ranName", ran.Name),
 		zap.String("ranID", ran.GnbID),
@@ -784,6 +803,7 @@ func SendRanConfigurationUpdateAcknowledge(ran *context.AmfRan, criticalityDiagn
 	logger.LogRadioEvent(
 		logger.RadioRanConfigurationUpdateAcknowledge,
 		logger.DirectionOutbound,
+		pkt,
 		ran.GnbID,
 		zap.String("ranName", ran.Name),
 		zap.String("ranID", ran.GnbID),
@@ -814,6 +834,7 @@ func SendRanConfigurationUpdateFailure(ran *context.AmfRan, cause ngapType.Cause
 	logger.LogRadioEvent(
 		logger.RadioRanConfigurationUpdateFailure,
 		logger.DirectionOutbound,
+		pkt,
 		ran.GnbID,
 		zap.String("ranName", ran.Name),
 		zap.String("ranID", ran.GnbID),
@@ -854,6 +875,7 @@ func SendAMFStatusIndication(ran *context.AmfRan, unavailableGUAMIList ngapType.
 	logger.LogRadioEvent(
 		logger.RadioAMFStatusIndication,
 		logger.DirectionOutbound,
+		pkt,
 		ran.GnbID,
 		zap.String("ranName", ran.Name),
 		zap.String("ranID", ran.GnbID),
@@ -882,6 +904,7 @@ func SendDownlinkRanConfigurationTransfer(ran *context.AmfRan, transfer *ngapTyp
 	logger.LogRadioEvent(
 		logger.RadioDownlinkRanConfigurationTransfer,
 		logger.DirectionOutbound,
+		pkt,
 		ran.GnbID,
 		zap.String("ranName", ran.Name),
 		zap.String("ranID", ran.GnbID),
@@ -934,6 +957,7 @@ func SendLocationReportingControl(
 	logger.LogRadioEvent(
 		logger.RadioLocationReportingControl,
 		logger.DirectionOutbound,
+		pkt,
 		ue.Ran.GnbID,
 		zap.String("ranName", ue.Ran.Name),
 		zap.String("ranID", ue.Ran.GnbID),

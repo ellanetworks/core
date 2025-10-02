@@ -455,8 +455,17 @@ const (
 	RadioLocationReportingControl          RadioEvent = "Location Reporting Control"
 )
 
-func LogRadioEvent(event RadioEvent, dir LogDirection, ranID string, fields ...zap.Field) {
+func LogRadioEvent(event RadioEvent, dir LogDirection, rawBytes []byte, ranID string, fields ...zap.Field) {
 	if RadioLog == nil {
+		return
+	}
+
+	if rawBytes == nil {
+		EllaLog.Warn("attempted to log radio event with nil rawBytes",
+			zap.String("event", string(event)),
+			zap.String("ran_id", ranID),
+			zap.Any("fields", fields),
+		)
 		return
 	}
 
@@ -477,6 +486,7 @@ func LogRadioEvent(event RadioEvent, dir LogDirection, ranID string, fields ...z
 
 	reserved := map[string]struct{}{
 		"event":     {},
+		"raw":       {},
 		"direction": {},
 		"ran_id":    {},
 		"timestamp": {},
@@ -522,6 +532,7 @@ func LogRadioEvent(event RadioEvent, dir LogDirection, ranID string, fields ...z
 	RadioLog.Info("radio_event",
 		zap.String("event", string(event)),
 		zap.String("direction", string(dir)),
+		zap.Binary("raw", rawBytes),
 		zap.String("ran_id", ranID),
 		zap.String("details", detailsStr),
 	)
