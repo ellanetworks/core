@@ -175,6 +175,19 @@ func (c *Client) ListSubscriberLogs(ctx context.Context, p *ListParams) (*ListSu
 	return &subscriberLogs, nil
 }
 
+func (c *Client) ClearSubscriberLogs(ctx context.Context) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "DELETE",
+		Path:   "api/v1/logs/subscriber",
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) GetSubscriberLogRetentionPolicy(ctx context.Context) (*GetSubscriberLogsRetentionPolicy, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -243,6 +256,19 @@ func (c *Client) ListRadioLogs(ctx context.Context, p *ListParams) (*ListRadioLo
 	}
 
 	return &radioLogs, nil
+}
+
+func (c *Client) ClearRadioLogs(ctx context.Context) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "DELETE",
+		Path:   "api/v1/logs/radio",
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Client) GetRadioLogRetentionPolicy(ctx context.Context) (*GetRadioLogsRetentionPolicy, error) {

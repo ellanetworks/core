@@ -146,6 +146,28 @@ This path updates the subscriber log retention policy.
 }
 ```
 
+## Clear Subscriber Logs
+
+This path deletes all subscriber logs.
+
+| Method | Path                         |
+| ------ | ---------------------------- |
+| DELETE | `/api/v1/logs/subscribers`   |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "All subscriber logs have been deleted successfully"
+    }
+}
+```
+
 ## Get Subscriber Log Retention Policy
 
 This path returns the current subscriber log retention policy.
@@ -201,6 +223,28 @@ This path returns the list of radio logs.
         "page": 1,
         "per_page": 10,
         "total_count": 1
+    }
+}
+```
+
+## Clear Radio Logs
+
+This path deletes all radio logs.
+
+| Method | Path                    |
+| ------ | ----------------------- |
+| DELETE | `/api/v1/logs/radio`   |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "All radio logs have been deleted successfully"
     }
 }
 ```
