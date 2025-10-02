@@ -2412,16 +2412,6 @@ func HandleAuthenticationError(ue *context.AmfUe, anType models.AccessType) erro
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
 
-		logger.LogSubscriberEvent(
-			logger.SubscriberRegistrationReject,
-			logger.DirectionOutbound,
-			ue.Supi,
-			zap.String("ran", ue.RanUe[anType].Ran.Name),
-			zap.String("suci", ue.Suci),
-			zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
-			zap.String("cause", nasMessage.Cause5GMMToString(nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)),
-		)
-
 		ue.GmmLog.Info("sent registration reject")
 	}
 	return nil

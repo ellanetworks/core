@@ -293,8 +293,16 @@ const (
 	SubscriberStatus5GMM                              SubscriberEvent = "Status 5GMM"
 
 	// Access events (outbound)
-	SubscriberAuthenticationRequest SubscriberEvent = "Authentication Request"
+	SubscriberRegistrationAccept    SubscriberEvent = "Registration Accept"
+	SubscriberSecurityModeCommand   SubscriberEvent = "Security Mode Command"
 	SubscriberRegistrationReject    SubscriberEvent = "Registration Reject"
+	SubscriberIdentityRequest       SubscriberEvent = "Identity Request"
+	SubscriberNotification          SubscriberEvent = "Notification"
+	SubscriberAuthenticationRequest SubscriberEvent = "Authentication Request"
+	SubscriberAuthenticationResult  SubscriberEvent = "Authentication Result"
+	SubscriberAuthenticationReject  SubscriberEvent = "Authentication Reject"
+	SubscriberServiceAccept         SubscriberEvent = "Service Accept"
+	SubscriberServiceReject         SubscriberEvent = "Service Reject"
 
 	// Session events (inbound)
 	SubscriberPduSessionEstablishmentRequest SubscriberEvent = "PDU Session Establishment Request"
