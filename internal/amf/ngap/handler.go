@@ -635,14 +635,12 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 			ran.Log.Error("error sending NG Setup Response", zap.Error(err))
 			return
 		}
-		ran.Log.Info("Sent NG Setup Response")
 	} else {
 		err := ngap_message.SendNGSetupFailure(ran, cause)
 		if err != nil {
 			ran.Log.Error("error sending NG Setup Failure", zap.Error(err))
 			return
 		}
-		ran.Log.Info("sent NG Setup failure", zap.Any("cause", cause))
 	}
 }
 

@@ -1893,7 +1893,7 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessTyp
 				if err != nil {
 					return fmt.Errorf("error sending GMM authentication reject: %v", err)
 				}
-				ue.GmmLog.Info("Sent GMM authentication reject")
+
 				return GmmFSM.SendEvent(ctx, ue.State[accessType], AuthFailEvent, fsm.ArgsType{
 					ArgAmfUe:      ue,
 					ArgAccessType: accessType,
@@ -1929,7 +1929,7 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessTyp
 				if err != nil {
 					return fmt.Errorf("error sending GMM authentication reject: %v", err)
 				}
-				ue.GmmLog.Info("Sent GMM authentication reject")
+
 				return GmmFSM.SendEvent(ctx, ue.State[accessType], AuthFailEvent, fsm.ArgsType{
 					ArgAmfUe:      ue,
 					ArgAccessType: accessType,
@@ -1971,7 +1971,7 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessTyp
 				if err != nil {
 					return fmt.Errorf("error sending GMM authentication reject: %v", err)
 				}
-				ue.GmmLog.Info("Sent GMM authentication reject")
+
 				return GmmFSM.SendEvent(ctx, ue.State[accessType], AuthFailEvent, fsm.ArgsType{
 					ArgAmfUe:      ue,
 					ArgAccessType: accessType,
@@ -2016,7 +2016,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
-			ue.GmmLog.Info("Sent GMM authentication reject")
+
 			return GmmFSM.SendEvent(ctx, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
 		case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
 			ue.GmmLog.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
@@ -2024,7 +2024,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
-			ue.GmmLog.Info("Sent GMM authentication reject")
+
 			return GmmFSM.SendEvent(ctx, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
 		case nasMessage.Cause5GMMngKSIAlreadyInUse:
 			ue.GmmLog.Warn("Authentication Failure Cause: NgKSI Already In Use")
@@ -2051,7 +2051,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 				if err != nil {
 					return fmt.Errorf("error sending GMM authentication reject: %v", err)
 				}
-				ue.GmmLog.Info("Sent GMM authentication reject")
+
 				return GmmFSM.SendEvent(ctx, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
 			}
 

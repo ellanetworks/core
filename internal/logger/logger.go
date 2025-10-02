@@ -394,6 +394,7 @@ func LogSubscriberEvent(event SubscriberEvent, dir LogDirection, imsi string, fi
 type RadioEvent string
 
 const (
+	// Radio events (inbound)
 	RadioNGSetupRequest                      RadioEvent = "NG Setup Request"
 	RadioUplinkNASTransport                  RadioEvent = "Uplink NAS Transport"
 	RadioNGReset                             RadioEvent = "NG Reset"
@@ -431,6 +432,27 @@ const (
 	RadioAMFConfigurationUpdateAcknowledge   RadioEvent = "AMF Configuration Update Acknowledge"
 	RadioErrorIndication                     RadioEvent = "Error Indication"
 	RadioCellTrafficTrace                    RadioEvent = "Cell Traffic Trace"
+
+	// Radio events (outbound)
+	RadioNGSetupResponse                   RadioEvent = "NG Setup Response"
+	RadioNGSetupFailure                    RadioEvent = "NG Setup Failure"
+	RadioDownlinkNasTransport              RadioEvent = "Downlink NAS Transport"
+	RadioPDUSessionResourceReleaseCommand  RadioEvent = "PDU Session Resource Release Command"
+	RadioUEContextReleaseCommand           RadioEvent = "UE Context Release Command"
+	RadioPDUSessionResourceSetupRequest    RadioEvent = "PDU Session Resource Setup Request"
+	RadioPDUSessionResourceModifyConfirm   RadioEvent = "PDU Session Resource Modify Confirm"
+	RadioPDUSessionResourceModifyRequest   RadioEvent = "PDU Session Resource Modify Request"
+	RadioInitialContextSetupRequest        RadioEvent = "Initial Context Setup Request"
+	RadioHandoverCommand                   RadioEvent = "Handover Command"
+	RadioHandoverPreparationFailure        RadioEvent = "Handover Preparation Failure"
+	RadioHandoverRequest                   RadioEvent = "Handover Request"
+	RadioPathSwitchRequestAcknowledge      RadioEvent = "Path Switch Request Acknowledge"
+	RadioPathSwitchRequestFailure          RadioEvent = "Path Switch Request Failure"
+	RadioRanConfigurationUpdateAcknowledge RadioEvent = "RAN Configuration Update Acknowledge"
+	RadioRanConfigurationUpdateFailure     RadioEvent = "RAN Configuration Update Failure"
+	RadioAMFStatusIndication               RadioEvent = "AMF Status Indication"
+	RadioDownlinkRanConfigurationTransfer  RadioEvent = "Downlink RAN Configuration Transfer"
+	RadioLocationReportingControl          RadioEvent = "Location Reporting Control"
 )
 
 func LogRadioEvent(event RadioEvent, dir LogDirection, ranID string, fields ...zap.Field) {
