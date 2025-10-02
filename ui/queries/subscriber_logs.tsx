@@ -53,6 +53,30 @@ export async function listSubscriberLogs(
   return json.result;
 }
 
+export async function clearSubscriberLogs(authToken: string): Promise<void> {
+  const response = await fetch(`/api/v1/logs/subscriber`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${authToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    let respData;
+    try {
+      respData = await response.json();
+    } catch {
+      throw new Error(
+        `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
+      );
+    }
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+    );
+  }
+}
+
 export const getSubscriberLogRetentionPolicy = async (authToken: string) => {
   const response = await fetch(`/api/v1/logs/subscriber/retention`, {
     method: "GET",

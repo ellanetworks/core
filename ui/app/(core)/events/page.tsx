@@ -23,6 +23,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 
 import {
   listSubscriberLogs,
+  clearSubscriberLogs,
   getSubscriberLogRetentionPolicy,
   type SubscriberLogRetentionPolicy,
   type APISubscriberLog,
@@ -31,11 +32,13 @@ import {
 
 import {
   listRadioLogs,
+  clearRadioLogs,
   getRadioLogRetentionPolicy,
   type APIRadioLog,
   type ListRadioLogsResponse,
   type RadioLogRetentionPolicy,
 } from "@/queries/radio_logs";
+import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 
 import { useAuth } from "@/contexts/AuthContext";
 import EditSubscriberLogRetentionPolicyModal from "@/components/EditSubscriberLogRetentionPolicyModal";
@@ -74,6 +77,8 @@ const Events: React.FC = () => {
 
   const [isSubscriberEditModalOpen, setSubscriberEditModalOpen] =
     useState(false);
+  const [isSubscriberClearModalOpen, setSubscriberClearModalOpen] =
+    useState(false);
   const [isRadioEditModalOpen, setRadioEditModalOpen] = useState(false);
   const [subRetentionPolicy, setSubRetentionPolicy] =
     useState<SubscriberLogRetentionPolicy | null>(null);
@@ -86,6 +91,7 @@ const Events: React.FC = () => {
     page: 0,
     pageSize: 25,
   });
+  const [isRadioClearModalOpen, setRadioClearModalOpen] = useState(false);
   const [radioRetentionPolicy, setRadioRetentionPolicy] =
     useState<RadioLogRetentionPolicy | null>(null);
 
@@ -163,6 +169,42 @@ const Events: React.FC = () => {
     },
     [accessToken, authReady],
   );
+
+  const handleConfirmDeleteSubscriberLogs = async () => {
+    setSubscriberClearModalOpen(false);
+    if (!accessToken) return;
+    try {
+      await clearSubscriberLogs(accessToken);
+      setAlert({
+        message: `All subscriber logs cleared successfully!`,
+        severity: "success",
+      });
+      fetchSubscriberLogs(subPagination.page, subPagination.pageSize);
+    } catch (error: unknown) {
+      setAlert({
+        message: `Failed to clear subscriber logs: ${String(error)}`,
+        severity: "error",
+      });
+    }
+  };
+
+  const handleConfirmDeleteRadioLogs = async () => {
+    setRadioClearModalOpen(false);
+    if (!accessToken) return;
+    try {
+      await clearRadioLogs(accessToken);
+      setAlert({
+        message: `All radio logs cleared successfully!`,
+        severity: "success",
+      });
+      fetchRadioLogs(radioPagination.page, radioPagination.pageSize);
+    } catch (error: unknown) {
+      setAlert({
+        message: `Failed to clear radio logs: ${String(error)}`,
+        severity: "error",
+      });
+    }
+  };
 
   // ---------------- Effects ----------------
   useEffect(() => {
@@ -360,14 +402,24 @@ const Events: React.FC = () => {
 
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               {canEdit && (
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => setSubscriberEditModalOpen(true)}
-                  sx={{ minWidth: 140 }}
-                >
-                  Edit Retention
-                </Button>
+                <>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => setSubscriberEditModalOpen(true)}
+                    sx={{ minWidth: 140 }}
+                  >
+                    Edit Retention
+                  </Button>
+                  <Button
+                    variant="contained"
+                    color="error"
+                    onClick={() => setSubscriberClearModalOpen(true)}
+                    sx={{ minWidth: 140 }}
+                  >
+                    Clear All
+                  </Button>
+                </>
               )}
               <Typography
                 variant="body2"
@@ -443,14 +495,24 @@ const Events: React.FC = () => {
 
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               {canEdit && (
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => setRadioEditModalOpen(true)}
-                  sx={{ minWidth: 140 }}
-                >
-                  Edit Retention
-                </Button>
+                <>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => setRadioEditModalOpen(true)}
+                    sx={{ minWidth: 140 }}
+                  >
+                    Edit Retention
+                  </Button>
+                  <Button
+                    variant="contained"
+                    color="error"
+                    onClick={() => setRadioClearModalOpen(true)}
+                    sx={{ minWidth: 140 }}
+                  >
+                    Clear All
+                  </Button>
+                </>
               )}
               <Typography
                 variant="body2"
@@ -535,6 +597,20 @@ const Events: React.FC = () => {
           });
         }}
         initialData={radioRetentionPolicy || { days: 30 }}
+      />
+      <DeleteConfirmationModal
+        title="Clear All Subscriber Logs"
+        description="Are you sure you want to clear all subscriber logs? This action cannot be undone."
+        open={isSubscriberClearModalOpen}
+        onClose={() => setSubscriberClearModalOpen(false)}
+        onConfirm={handleConfirmDeleteSubscriberLogs}
+      />
+      <DeleteConfirmationModal
+        title="Clear All Radio Logs"
+        description="Are you sure you want to clear all radio logs? This action cannot be undone."
+        open={isRadioClearModalOpen}
+        onClose={() => setRadioClearModalOpen(false)}
+        onConfirm={handleConfirmDeleteRadioLogs}
       />
     </Box>
   );

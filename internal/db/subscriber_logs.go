@@ -33,6 +33,7 @@ const (
 	insertSubscriberLogStmt     = "INSERT INTO %s (timestamp, level, imsi, event, details) VALUES ($SubscriberLog.timestamp, $SubscriberLog.level, $SubscriberLog.imsi, $SubscriberLog.event, $SubscriberLog.details)"
 	listSubscriberLogsPagedStmt = "SELECT &SubscriberLog.* FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	deleteOldSubscriberLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
+	deleteAllSubscriberLogsStmt = "DELETE FROM %s"
 	countSubscriberLogsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
@@ -238,4 +239,37 @@ func (db *Database) CountSubscriberLogs(ctx context.Context) (int, error) {
 
 	span.SetStatus(codes.Ok, "")
 	return result.Count, nil
+}
+
+func (db *Database) ClearSubscriberLogs(ctx context.Context) error {
+	const operation = "DELETE"
+	const target = SubscriberLogsTableName
+	spanName := fmt.Sprintf("%s %s (all)", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
+	stmtStr := fmt.Sprintf(deleteAllSubscriberLogsStmt, db.subscriberLogsTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmtStr),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	stmt, err := sqlair.Prepare(stmtStr)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return err
+	}
+
+	if err := db.conn.Query(ctx, stmt).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return nil
 }

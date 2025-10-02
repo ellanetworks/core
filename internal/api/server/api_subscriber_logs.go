@@ -132,3 +132,21 @@ func ListSubscriberLogs(dbInstance *db.Database) http.Handler {
 		writeResponse(w, response, http.StatusOK, logger.APILog)
 	})
 }
+
+func ClearSubscriberLogs(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		email, ok := r.Context().Value(contextKeyEmail).(string)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			return
+		}
+
+		if err := dbInstance.ClearSubscriberLogs(r.Context()); err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to clear subscriber logs", err, logger.APILog)
+			return
+		}
+
+		writeResponse(w, SuccessResponse{Message: "All subscriber logs cleared successfully"}, http.StatusOK, logger.APILog)
+		logger.LogAuditEvent("clear_subscriber_logs", email, getClientIP(r), "User cleared all subscriber logs")
+	})
+}

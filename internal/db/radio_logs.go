@@ -33,6 +33,7 @@ const (
 	insertRadioLogStmt     = "INSERT INTO %s (timestamp, level, ran_id, event, details) VALUES ($RadioLog.timestamp, $RadioLog.level, $RadioLog.ran_id, $RadioLog.event, $RadioLog.details)"
 	listRadioLogsPagedStmt = "SELECT &RadioLog.* FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	deleteOldRadioLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
+	deleteAllRadioLogsStmt = "DELETE FROM %s"
 	countRadioLogsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
@@ -238,4 +239,37 @@ func (db *Database) CountRadioLogs(ctx context.Context) (int, error) {
 
 	span.SetStatus(codes.Ok, "")
 	return result.Count, nil
+}
+
+func (db *Database) ClearRadioLogs(ctx context.Context) error {
+	const operation = "DELETE"
+	const target = RadioLogsTableName
+	spanName := fmt.Sprintf("%s %s (clear all)", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
+	stmtStr := fmt.Sprintf(deleteAllRadioLogsStmt, db.radioLogsTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmtStr),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	stmt, err := sqlair.Prepare(stmtStr)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return err
+	}
+
+	if err := db.conn.Query(ctx, stmt).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return nil
 }
