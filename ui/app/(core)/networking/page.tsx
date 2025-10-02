@@ -379,7 +379,7 @@ export default function NetworkingPage() {
           Networking
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-          Configure networks and packet forwarding for UE traffic.
+          Configure networks and packet forwarding for Subscriber traffic.
         </Typography>
 
         <Tabs
@@ -447,17 +447,17 @@ export default function NetworkingPage() {
                     <Typography variant="body2" color="text.secondary">
                       {dnDescription}
                     </Typography>
+                    {canEdit && (
+                      <Button
+                        variant="contained"
+                        color="success"
+                        onClick={handleOpenCreateDN}
+                        sx={{ maxWidth: 200, mt: 2 }}
+                      >
+                        Create
+                      </Button>
+                    )}
                   </Box>
-                  {canEdit && (
-                    <Button
-                      variant="contained"
-                      color="success"
-                      onClick={handleOpenCreateDN}
-                      sx={{ alignSelf: { xs: "stretch", sm: "auto" } }}
-                    >
-                      Create
-                    </Button>
-                  )}
                 </Stack>
               </Box>
               <ThemeProvider theme={gridTheme}>
@@ -553,17 +553,17 @@ export default function NetworkingPage() {
                     <Typography variant="body2" color="text.secondary">
                       {routesDescription}
                     </Typography>
+                    {canEdit && (
+                      <Button
+                        variant="contained"
+                        color="success"
+                        onClick={handleOpenCreateRoute}
+                        sx={{ maxWidth: 200, mt: 2 }}
+                      >
+                        Create
+                      </Button>
+                    )}
                   </Box>
-                  {canEdit && (
-                    <Button
-                      variant="contained"
-                      color="success"
-                      onClick={handleOpenCreateRoute}
-                      sx={{ alignSelf: { xs: "stretch", sm: "auto" } }}
-                    >
-                      Create
-                    </Button>
-                  )}
                 </Stack>
               </Box>
 
