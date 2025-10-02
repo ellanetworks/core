@@ -132,3 +132,21 @@ func ListRadioLogs(dbInstance *db.Database) http.Handler {
 		writeResponse(w, response, http.StatusOK, logger.APILog)
 	})
 }
+
+func ClearRadioLogs(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		email, ok := r.Context().Value(contextKeyEmail).(string)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			return
+		}
+
+		if err := dbInstance.ClearRadioLogs(r.Context()); err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to clear radio logs", err, logger.APILog)
+			return
+		}
+
+		writeResponse(w, SuccessResponse{Message: "All radio logs cleared successfully"}, http.StatusOK, logger.APILog)
+		logger.LogAuditEvent("clear_radio_logs", email, getClientIP(r), "User cleared all radio logs")
+	})
+}
