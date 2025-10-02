@@ -191,6 +191,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		case nasMessage.ULNASTransportRequestTypeInitialRequest:
 			logger.LogSubscriberEvent(
 				logger.SubscriberPduSessionEstablishmentRequest,
+				logger.DirectionInbound,
 				ue.Supi,
 				zap.Int32("pduSessionID", pduSessionID),
 			)
@@ -250,6 +251,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 				logger.LogSubscriberEvent(
 					logger.SubscriberPduSessionEstablishmentReject,
+					logger.DirectionOutbound,
 					ue.Supi,
 					zap.Int32("pduSessionID", pduSessionID),
 				)
@@ -494,6 +496,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 
 	logger.LogSubscriberEvent(
 		logger.SubscriberRegistrationRequest,
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -591,6 +594,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 
 	logger.LogSubscriberEvent(
 		logger.SubscriberInitialRegistration,
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -723,6 +727,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 
 	logger.LogSubscriberEvent(
 		logger.SubscriberMobilityAndPeriodicRegistrationUpdating,
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -1251,7 +1256,7 @@ func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.Iden
 
 	logger.LogSubscriberEvent(
 		logger.SubscriberIdentityResponse,
-
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[models.AccessType3GPPAccess].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -1309,6 +1314,7 @@ func HandleNotificationResponse(ctx ctxt.Context, ue *context.AmfUe, notificatio
 
 	logger.LogSubscriberEvent(
 		logger.SubscriberNotificationResponse,
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[models.AccessType3GPPAccess].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -1340,6 +1346,7 @@ func HandleNotificationResponse(ctx ctxt.Context, ue *context.AmfUe, notificatio
 func HandleConfigurationUpdateComplete(ue *context.AmfUe, configurationUpdateComplete *nasMessage.ConfigurationUpdateComplete) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberConfigurationUpdateComplete,
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[models.AccessType3GPPAccess].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -1453,6 +1460,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 	logger.LogSubscriberEvent(
 		logger.SubscriberServiceRequest,
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -1835,6 +1843,7 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.Access
 func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, authenticationResponse *nasMessage.AuthenticationResponse) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberAuthenticationResponse,
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[accessType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -1983,6 +1992,7 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessTyp
 func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, authenticationFailure *nasMessage.AuthenticationFailure) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberAuthenticationFailure,
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -2084,6 +2094,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, registrationComplete *nasMessage.RegistrationComplete) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberRegistrationComplete,
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[accessType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -2114,6 +2125,7 @@ func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType 
 func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, procedureCode int64, securityModeComplete *nasMessage.SecurityModeComplete) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberSecurityModeComplete,
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -2172,7 +2184,7 @@ func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType,
 ) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberSecurityModeReject,
-
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -2204,7 +2216,7 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType mod
 ) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberDeregistrationRequest,
-
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -2315,7 +2327,7 @@ func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType mode
 ) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberDeregistrationAccept,
-
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -2375,7 +2387,7 @@ func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType mode
 func HandleStatus5GMM(ue *context.AmfUe, anType models.AccessType, status5GMM *nasMessage.Status5GMM) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberStatus5GMM,
-
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -2394,7 +2406,7 @@ func HandleStatus5GMM(ue *context.AmfUe, anType models.AccessType, status5GMM *n
 func HandleAuthenticationError(ue *context.AmfUe, anType models.AccessType) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberAuthenticationError,
-
+		logger.DirectionInbound,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),

@@ -311,6 +311,7 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 	if logEventType != "" {
 		logger.LogSubscriberEvent(
 			logEventType,
+			logger.DirectionOutbound,
 			smContext.Supi,
 			zap.Int32("pduSessionID", smContext.PDUSessionID),
 		)

@@ -299,7 +299,14 @@ const (
 	SubscriberPduSessionEstablishmentAccept  SubscriberEvent = "PDU Session Establishment Accept"
 )
 
-func LogSubscriberEvent(event SubscriberEvent, imsi string, fields ...zap.Field) {
+type LogDirection string
+
+const (
+	DirectionInbound  LogDirection = "inbound"
+	DirectionOutbound LogDirection = "outbound"
+)
+
+func LogSubscriberEvent(event SubscriberEvent, dir LogDirection, imsi string, fields ...zap.Field) {
 	if SubscriberLog == nil {
 		return
 	}
@@ -320,8 +327,14 @@ func LogSubscriberEvent(event SubscriberEvent, imsi string, fields ...zap.Field)
 	var detailsStr string
 
 	reserved := map[string]struct{}{
-		"event": {}, "imsi": {}, "timestamp": {}, "level": {},
-		"component": {}, "caller": {}, "message": {},
+		"event":     {},
+		"direction": {},
+		"imsi":      {},
+		"timestamp": {},
+		"level":     {},
+		"component": {},
+		"caller":    {},
+		"message":   {},
 	}
 
 	if raw, ok := enc.Fields["details"]; ok {
@@ -359,6 +372,7 @@ func LogSubscriberEvent(event SubscriberEvent, imsi string, fields ...zap.Field)
 	// Emit a single, consistent log line. DB reader already expects details as string.
 	SubscriberLog.Info("subscriber_event",
 		zap.String("event", string(event)),
+		zap.String("direction", string(dir)),
 		zap.String("imsi", imsi),
 		zap.String("details", detailsStr),
 	)
