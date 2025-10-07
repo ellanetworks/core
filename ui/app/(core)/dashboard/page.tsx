@@ -287,7 +287,7 @@ const Dashboard = () => {
         setN6Drops(n6Drops);
 
         if (processStart) {
-          setUpSince(new Date(processStart * 5000));
+          setUpSince(new Date(processStart * 1000));
         }
 
         setError(null);
