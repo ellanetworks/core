@@ -37,7 +37,7 @@ type BpfObjects struct {
 
 func NewBpfObjects(masquerade bool) *BpfObjects {
 	return &BpfObjects{
-		Masquerade:   masquerade,
+		Masquerade: masquerade,
 	}
 }
 
