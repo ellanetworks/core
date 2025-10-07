@@ -23,7 +23,6 @@ var pcfCtx *PCFContext
 type PCFContext struct {
 	UePool                 sync.Map
 	SessionRuleIDGenerator *idgenerator.IDGenerator
-	QoSDataIDGenerator     *idgenerator.IDGenerator
 	DBInstance             *db.Database
 }
 
