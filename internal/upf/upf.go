@@ -23,8 +23,6 @@ const (
 	SmfAddress       = "0.0.0.0"
 	SmfNodeID        = "0.0.0.0"
 	PfcpNodeID       = "0.0.0.0"
-	QerMapSize       = 1024
-	FarMapSize       = 1024
 	FTEIDPool        = 65535
 	ConnTrackTimeout = 10 * time.Minute
 )
@@ -43,7 +41,7 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 		logger.UpfLog.Fatal("Can't increase resource limits", zap.Error(err))
 	}
 
-	bpfObjects := ebpf.NewBpfObjects(FarMapSize, QerMapSize, masquerade)
+	bpfObjects := ebpf.NewBpfObjects(masquerade)
 
 	err := ebpf.PinMaps()
 	if err != nil {

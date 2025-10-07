@@ -35,11 +35,9 @@ type BpfObjects struct {
 	Masquerade   bool
 }
 
-func NewBpfObjects(farMapSize uint32, qerMapSize uint32, masquerade bool) *BpfObjects {
+func NewBpfObjects(masquerade bool) *BpfObjects {
 	return &BpfObjects{
-		FarIDTracker: NewIDTracker(farMapSize),
-		QerIDTracker: NewIDTracker(qerMapSize),
-		Masquerade:   masquerade,
+		Masquerade: masquerade,
 	}
 }
 
@@ -81,6 +79,9 @@ func (bpfObjects *BpfObjects) Load() error {
 		logger.UpfLog.Error("failed to load N6 program", zap.Error(err))
 		return err
 	}
+
+	bpfObjects.FarIDTracker = NewIDTracker(bpfObjects.N3EntrypointMaps.FarMap.MaxEntries())
+	bpfObjects.QerIDTracker = NewIDTracker(bpfObjects.N3EntrypointMaps.QerMap.MaxEntries())
 
 	return nil
 }

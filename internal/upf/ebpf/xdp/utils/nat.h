@@ -12,11 +12,13 @@
 #include "xdp/utils/csum.h"
 #include "xdp/utils/packet_context.h"
 #include "xdp/utils/parsers.h"
+#include "xdp/utils/pdr.h"
 
 #ifndef NAT_H
 #define NAT_H
 
-#define NAT_CT_MAP_SIZE 4096
+#define PEAK_CONNECTION_PER_UE 500
+#define NAT_CT_MAP_SIZE (PEAK_CONNECTION_PER_UE * MAX_PDU_SESSIONS)
 #define MAX_PORT_ATTEMPT 5
 
 volatile const bool masquerade;
