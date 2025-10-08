@@ -247,8 +247,8 @@ func TestListSubscriberLogs_Success(t *testing.T) {
 	}
 
 	expectedRaw := "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA"
-	if string(resp.Items[0].Raw) != expectedRaw {
-		t.Fatalf("expected raw '%s', got '%s'", expectedRaw, string(resp.Items[0].Raw))
+	if resp.Items[0].Raw != expectedRaw {
+		t.Fatalf("expected raw '%s', got '%s'", expectedRaw, resp.Items[0].Raw)
 	}
 }
 
@@ -432,8 +432,8 @@ func TestListRadioLogs_Success(t *testing.T) {
 	}
 
 	expectedRaw := "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA"
-	if string(resp.Items[0].Raw) != expectedRaw {
-		t.Fatalf("expected raw '%s', got '%s'", expectedRaw, string(resp.Items[0].Raw))
+	if resp.Items[0].Raw != expectedRaw {
+		t.Fatalf("expected raw '%s', got '%s'", expectedRaw, resp.Items[0].Raw)
 	}
 }
 

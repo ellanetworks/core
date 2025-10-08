@@ -28,8 +28,8 @@ func TestLogRetentionPolicyEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't get audit log retention policy: %s", err)
 	}
 
-	if res != 30 {
-		t.Fatalf("Expected default audit log retention policy to be 30 days, but got %d", res)
+	if res != 7 {
+		t.Fatalf("Expected default audit log retention policy to be 7 days, but got %d", res)
 	}
 
 	policy := &db.LogRetentionPolicy{
