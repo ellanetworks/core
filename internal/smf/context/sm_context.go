@@ -357,6 +357,7 @@ func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(cause uint8) *
 	} else {
 		rsp = &models.PostSmContextsErrorResponse{
 			BinaryDataN1SmMessage: buf,
+			Cause:                 cause,
 		}
 	}
 	return rsp

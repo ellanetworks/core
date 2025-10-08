@@ -48,7 +48,7 @@ lxc network create n3 ipv4.address=33.33.33.1/24
 Create three Multipass instances:
 
 ```shell
-multipass launch noble --name=ella-core --disk=10G --cpus 2 --network n2 --network n3
+multipass launch noble --name=ella-core --memory=4G --cpus 2 --disk=10G --network n2 --network n3
 multipass launch noble --name=radio --memory=6G --cpus 2 --disk=10G --network n2 --network n3
 ```
 

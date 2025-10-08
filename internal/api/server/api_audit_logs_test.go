@@ -334,8 +334,8 @@ func TestAPIAuditLogRetentionPolicyEndToEnd(t *testing.T) {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
 
-		if response.Result.Days != 30 {
-			t.Fatalf("expected default audit log retention policy to be 30 days, got %d", response.Result.Days)
+		if response.Result.Days != 7 {
+			t.Fatalf("expected default audit log retention policy to be 7 days, got %d", response.Result.Days)
 		}
 	})
 

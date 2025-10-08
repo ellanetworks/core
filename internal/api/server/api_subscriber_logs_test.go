@@ -15,6 +15,7 @@ type SubscriberLog struct {
 	Timestamp string `json:"timestamp"`
 	IMSI      string `json:"imsi"`
 	Event     string `json:"event"`
+	Direction string `json:"direction"`
 	Details   string `json:"details"`
 }
 
@@ -203,8 +204,8 @@ func TestAPISubscriberLogRetentionPolicyEndToEnd(t *testing.T) {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
 
-		if response.Result.Days != 30 {
-			t.Fatalf("expected default subscribers log retention policy to be 30 days, got %d", response.Result.Days)
+		if response.Result.Days != 7 {
+			t.Fatalf("expected default subscribers log retention policy to be 7 days, got %d", response.Result.Days)
 		}
 	})
 

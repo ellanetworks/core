@@ -39,7 +39,7 @@ type Database struct {
 }
 
 // Initial Log Retention Policy values
-const DefaultLogRetentionDays = 30
+const DefaultLogRetentionDays = 7
 
 // Initial operator values
 const (

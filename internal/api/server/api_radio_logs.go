@@ -28,6 +28,8 @@ type RadioLog struct {
 	Level     string `json:"level"`
 	RanID     string `json:"ran_id"`
 	Event     string `json:"event"`
+	Direction string `json:"direction"`
+	Raw       []byte `json:"raw"`
 	Details   string `json:"details"`
 }
 
@@ -118,6 +120,8 @@ func ListRadioLogs(dbInstance *db.Database) http.Handler {
 				Level:     log.Level,
 				RanID:     log.RanID,
 				Event:     log.Event,
+				Direction: log.Direction,
+				Raw:       log.Raw,
 				Details:   log.Details,
 			}
 		}
@@ -147,6 +151,7 @@ func ClearRadioLogs(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "All radio logs cleared successfully"}, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent("clear_radio_logs", email, getClientIP(r), "User cleared all radio logs")
 	})
 }

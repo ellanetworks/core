@@ -26,11 +26,13 @@ const QueryCreateRadioLogsTable = `
 		level      TEXT NOT NULL,                      -- info|warn|error...
 		ran_id      TEXT NOT NULL DEFAULT '',
 		event     TEXT NOT NULL,
+		direction	TEXT NOT NULL DEFAULT '',       -- inbound|outbound
+		raw       BLOB NOT NULL,
 		details    TEXT NOT NULL DEFAULT ''
 );`
 
 const (
-	insertRadioLogStmt     = "INSERT INTO %s (timestamp, level, ran_id, event, details) VALUES ($RadioLog.timestamp, $RadioLog.level, $RadioLog.ran_id, $RadioLog.event, $RadioLog.details)"
+	insertRadioLogStmt     = "INSERT INTO %s (timestamp, level, ran_id, event, direction, raw, details) VALUES ($RadioLog.timestamp, $RadioLog.level, $RadioLog.ran_id, $RadioLog.event, $RadioLog.direction, $RadioLog.raw, $RadioLog.details)"
 	listRadioLogsPagedStmt = "SELECT &RadioLog.* FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	deleteOldRadioLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
 	deleteAllRadioLogsStmt = "DELETE FROM %s"
@@ -43,6 +45,8 @@ type RadioLog struct {
 	Level     string `db:"level"`
 	RanID     string `db:"ran_id"`
 	Event     string `db:"event"`
+	Direction string `db:"direction"`
+	Raw       []byte `db:"raw"`
 	Details   string `db:"details"` // JSON or plain text (we store a string)
 }
 
@@ -51,6 +55,8 @@ type zapRadioJSON struct {
 	Level     string `json:"level"`
 	RanID     string `json:"ran_id"`
 	Event     string `json:"event"`
+	Direction string `json:"direction"`
+	Raw       []byte `json:"raw"`
 	Details   string `json:"details"` // could be string or object in the future
 }
 
@@ -90,6 +96,8 @@ func (db *Database) InsertRadioLogJSON(ctx context.Context, raw []byte) error {
 		Level:     z.Level,
 		RanID:     z.RanID,
 		Event:     z.Event,
+		Direction: z.Direction,
+		Raw:       z.Raw,
 		Details:   z.Details,
 	}
 
@@ -99,6 +107,7 @@ func (db *Database) InsertRadioLogJSON(ctx context.Context, raw []byte) error {
 		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
+
 	if err := db.conn.Query(ctx, stmt, row).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
