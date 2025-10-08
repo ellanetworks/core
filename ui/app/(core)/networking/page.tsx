@@ -287,7 +287,7 @@ export default function NetworkingPage() {
 
   const routesDescription = useMemo(
     () =>
-      "Manage the routing table for subscriber traffic. Created routes are applied as kernel routes on the nodes running the UPF.",
+      "Manage the routing table for subscriber traffic. Created routes are applied as kernel routes on the node running Ella Core.",
     [],
   );
 

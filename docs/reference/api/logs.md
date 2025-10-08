@@ -114,6 +114,8 @@ This path returns the list of subscriber logs.
                 "timestamp": "2025-08-12T16:58:00.810-0400",
                 "imsi": "001010100007487",
                 "event": "PDU Session Establishment Accept",
+                "direction": "inbound",
+                "raw": "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA",
                 "details": "{\"pduSessionID\":1}"
             }
         ],
@@ -217,6 +219,8 @@ This path returns the list of radio logs.
                 "level": "info",
                 "ran_id": "001:01:000008",
                 "event": "PDU Session Resource Setup Response",
+                "direction": "outbound",
+                "raw": "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA",
                 "details": "{\"ranID\":\"001:01:000008\",\"ranIP\":\"192.168.40.14:9487\",\"ranName\":\"my ran name\"}"
             }
         ],

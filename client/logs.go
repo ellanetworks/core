@@ -47,6 +47,8 @@ type SubscriberLog struct {
 	Level     string `json:"level"`
 	IMSI      string `json:"imsi"`
 	Event     string `json:"event"`
+	Direction string `json:"direction"`
+	Raw       string `json:"raw"`
 	Details   string `json:"details"`
 }
 
@@ -71,6 +73,8 @@ type RadioLog struct {
 	Level     string `json:"level"`
 	RanID     string `json:"ran_id"`
 	Event     string `json:"event"`
+	Direction string `json:"direction"`
+	Raw       string `json:"raw"`
 	Details   string `json:"details"`
 }
 
