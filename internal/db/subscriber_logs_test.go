@@ -25,7 +25,7 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, total, err := database.ListSubscriberLogsPage(context.Background(), 1, 10)
+	res, total, err := database.ListSubscriberLogsPage(context.Background(), 1, 10, nil)
 	if err != nil {
 		t.Fatalf("couldn't list subscriber logs: %s", err)
 	}
@@ -51,7 +51,7 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't insert subscriber log: %s", err)
 	}
 
-	res, total, err = database.ListSubscriberLogsPage(context.Background(), 1, 10)
+	res, total, err = database.ListSubscriberLogsPage(context.Background(), 1, 10, nil)
 	if err != nil {
 		t.Fatalf("couldn't list subscriber logs: %s", err)
 	}
@@ -73,7 +73,7 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't delete old subscriber logs: %s", err)
 	}
 
-	res, total, err = database.ListSubscriberLogsPage(context.Background(), 1, 10)
+	res, total, err = database.ListSubscriberLogsPage(context.Background(), 1, 10, nil)
 	if err != nil {
 		t.Fatalf("couldn't list subscriber logs after deletion: %s", err)
 	}
@@ -132,7 +132,7 @@ func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	insert(boundary, "boundary_exact")
 	insert(fresh, "fresh")
 
-	logs, total, err := database.ListSubscriberLogsPage(ctx, 1, 10)
+	logs, total, err := database.ListSubscriberLogsPage(ctx, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("list before purge failed: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	}
 
 	// Verify only newer + boundary remain.
-	logs, total, err = database.ListSubscriberLogsPage(ctx, 1, 10)
+	logs, total, err = database.ListSubscriberLogsPage(ctx, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("list after purge failed: %v", err)
 	}
@@ -179,4 +179,206 @@ func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	if !remaining["fresh"] {
 		t.Fatalf("expected fresh log to remain")
 	}
+}
+
+func TestListSubscriberLogsIMSIFilter(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %v", err)
+	}
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %v", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	insert := func(imsi, event string) {
+		raw := fmt.Sprintf(`{
+			"timestamp":"%s",
+			"level":"info",
+			"component":"Subscriber",
+			"event":"%s",
+			"direction":"inbound",
+			"imsi":"%s",
+			"details":"test",
+			"raw":"dGVzdA=="
+		}`, time.Now().UTC().Format(time.RFC3339), event, imsi)
+		if err := database.InsertSubscriberLogJSON(ctx, []byte(raw)); err != nil {
+			t.Fatalf("insert failed (%s): %v", event, err)
+		}
+	}
+
+	insert("imsi-001", "event-001")
+	insert("imsi-002", "event-002")
+	insert("imsi-001", "event-003")
+
+	logs, total, err := database.ListSubscriberLogsPage(ctx, 1, 10, &db.SubscriberLogFilters{IMSI: ptr("imsi-001")})
+	if err != nil {
+		t.Fatalf("list with IMSI filter failed: %v", err)
+	}
+
+	if total != 2 {
+		t.Fatalf("expected total 2 logs with IMSI filter, got %d", total)
+	}
+
+	if got := len(logs); got != 2 {
+		t.Fatalf("expected 2 logs with IMSI filter, got %d", got)
+	}
+
+	for _, l := range logs {
+		if l.IMSI != "imsi-001" {
+			t.Fatalf("expected IMSI imsi-001 with IMSI filter, got %q", l.IMSI)
+		}
+	}
+}
+
+func TestListSubscriberLogsTimestampFilter(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %v", err)
+	}
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %v", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	insert := func(ts time.Time, event string) {
+		raw := fmt.Sprintf(`{
+			"timestamp":"%s",
+			"level":"info",
+			"component":"Subscriber",
+			"event":"%s",
+			"direction":"inbound",
+			"imsi":"tester",
+			"details":"test",
+			"raw":"dGVzdA=="
+		}`, ts.UTC().Format(time.RFC3339), event)
+		if err := database.InsertSubscriberLogJSON(ctx, []byte(raw)); err != nil {
+			t.Fatalf("insert failed (%s): %v", event, err)
+		}
+	}
+
+	now := time.Now().UTC().Truncate(time.Second)
+	past1 := now.Add(-48 * time.Hour)
+	past2 := now.Add(-24 * time.Hour)
+	veryNearFuture := now.Add(5 * time.Minute)
+	future := now.Add(24 * time.Hour)
+
+	insert(past1, "event-001")
+	insert(past2, "event-002")
+	insert(now, "event-003")
+	insert(future, "event-004")
+
+	from := past2.Format(time.RFC3339)
+	to := veryNearFuture.Format(time.RFC3339)
+
+	logs, total, err := database.ListSubscriberLogsPage(ctx, 1, 10, &db.SubscriberLogFilters{
+		From: &from,
+		To:   &to,
+	})
+	if err != nil {
+		t.Fatalf("list with timestamp filter failed: %v", err)
+	}
+
+	if total != 2 {
+		t.Fatalf("expected total 2 logs with timestamp filter, got %d", total)
+	}
+
+	if got := len(logs); got != 2 {
+		t.Fatalf("expected 2 logs with timestamp filter, got %d", got)
+	}
+
+	expectedEvents := map[string]bool{
+		"event-002": true,
+		"event-003": true,
+	}
+
+	for _, l := range logs {
+		if !expectedEvents[l.Event] {
+			t.Fatalf("unexpected event %q with timestamp filter", l.Event)
+		}
+	}
+}
+
+func TestListSubscriberLogsTimestampAndIMSIFilters(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %v", err)
+	}
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %v", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	insert := func(ts time.Time, imsi, event string) {
+		raw := fmt.Sprintf(`{
+			"timestamp":"%s",
+			"level":"info",
+			"component":"Subscriber",
+			"event":"%s",
+			"direction":"inbound",
+			"imsi":"%s",
+			"details":"test",
+			"raw":"dGVzdA=="
+		}`, ts.UTC().Format(time.RFC3339), event, imsi)
+		if err := database.InsertSubscriberLogJSON(ctx, []byte(raw)); err != nil {
+			t.Fatalf("insert failed (%s): %v", event, err)
+		}
+	}
+
+	now := time.Now().UTC().Truncate(time.Second)
+	past1 := now.Add(-48 * time.Hour)
+	past2 := now.Add(-24 * time.Hour)
+	future := now.Add(24 * time.Hour)
+
+	insert(past1, "imsi-001", "event-001")
+	insert(past2, "imsi-002", "event-002")
+	insert(now, "imsi-001", "event-003")
+	insert(future, "imsi-002", "event-004")
+
+	from := past2.Format(time.RFC3339)
+	to := future.Format(time.RFC3339)
+	imsi := "imsi-001"
+
+	logs, total, err := database.ListSubscriberLogsPage(ctx, 1, 10, &db.SubscriberLogFilters{
+		From: &from,
+		To:   &to,
+		IMSI: &imsi,
+	})
+	if err != nil {
+		t.Fatalf("list with timestamp+IMSI filter failed: %v", err)
+	}
+
+	if total != 1 {
+		t.Fatalf("expected total 1 log with timestamp+IMSI filter, got %d", total)
+	}
+
+	if got := len(logs); got != 1 {
+		t.Fatalf("expected 1 log with timestamp+IMSI filter, got %d", got)
+	}
+
+	if logs[0].Event != "event-003" {
+		t.Fatalf("expected event-003 with timestamp+IMSI filter, got %q", logs[0].Event)
+	}
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }
