@@ -14,9 +14,15 @@ import {
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import {
   DataGrid,
+  GridFilterModel,
+  GridLogicOperator,
+  getGridStringOperators,
+  getGridDateOperators,
   type GridColDef,
   type GridRenderCellParams,
   type GridPaginationModel,
+  type GridFilterInputDateProps,
+  type GridFilterOperator,
 } from "@mui/x-data-grid";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EastIcon from "@mui/icons-material/East";
@@ -52,7 +58,75 @@ import ViewLogModal from "@/components/ViewLogModal";
 import type { LogRow } from "@/components/ViewLogModal";
 
 const MAX_WIDTH = 1400;
+
 type TabKey = "subscribers" | "radio";
+
+const STRING_EQ = getGridStringOperators().filter(
+  (op) => op.value === "equals",
+);
+
+type DateOp = GridFilterOperator<
+  APISubscriberLog,
+  Date,
+  Date,
+  GridFilterInputDateProps
+>;
+
+const RAW_DT_OPS = getGridDateOperators(true) as readonly DateOp[];
+const AFTER_RAW = RAW_DT_OPS.find((op) => op.value === "after");
+const BEFORE_RAW = RAW_DT_OPS.find((op) => op.value === "before");
+
+const TIMESTAMP_OPS: readonly DateOp[] = [
+  ...(AFTER_RAW ? [{ ...AFTER_RAW, label: "After" } as DateOp] : []),
+  ...(BEFORE_RAW ? [{ ...BEFORE_RAW, label: "Before" } as DateOp] : []),
+];
+
+function toISOFromFilterValue(v: unknown): string | undefined {
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === "number" || typeof v === "string") {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? undefined : d.toISOString();
+  }
+  return undefined;
+}
+
+function filtersToParams(
+  model: GridFilterModel,
+): Record<string, string | string[]> {
+  const items = model?.items ?? [];
+  const bucket: Record<string, string[]> = {};
+  let fromISO: string | undefined;
+  let toISO: string | undefined;
+
+  const ms = (iso: string) => new Date(iso).getTime();
+
+  for (const { field, operator, value } of items) {
+    if (!field || value == null || value === "") continue;
+
+    if (field === "timestamp") {
+      const iso = toISOFromFilterValue(value);
+      if (!iso) continue;
+
+      if (operator === "after") {
+        if (!fromISO || ms(iso) > ms(fromISO)) fromISO = iso;
+      } else if (operator === "before") {
+        if (!toISO || ms(iso) < ms(toISO)) toISO = iso;
+      }
+      continue;
+    }
+
+    const arr = Array.isArray(value) ? value.map(String) : [String(value)];
+    bucket[field] = (bucket[field] ?? []).concat(arr);
+  }
+
+  const params: Record<string, string | string[]> = {};
+  for (const k of Object.keys(bucket)) {
+    params[k] = bucket[k].length === 1 ? bucket[k][0] : bucket[k];
+  }
+  if (fromISO) params.from = fromISO;
+  if (toISO) params.to = toISO;
+  return params;
+}
 
 const DirectionCell: React.FC<{ value?: string }> = ({ value }) => {
   const theme = useTheme();
@@ -138,6 +212,14 @@ const Events: React.FC = () => {
     }),
     [canEdit, subRetentionPolicy?.days, autoRefresh],
   );
+  const [subFilterModel, setSubFilterModel] = useState<GridFilterModel>({
+    items: [],
+  });
+
+  const onSubFilterModelChange = useCallback(
+    (m: GridFilterModel) => setSubFilterModel(m),
+    [],
+  );
 
   // ---------------- Radio tab state ----------------
   const [radioRows, setRadioRows] = useState<APIRadioLog[]>([]);
@@ -160,6 +242,13 @@ const Events: React.FC = () => {
     }),
     [canEdit, radioRetentionPolicy?.days, autoRefresh],
   );
+  const onRadioFilterModelChange = useCallback(
+    (m: GridFilterModel) => setRadioFilterModel(m),
+    [],
+  );
+  const [radioFilterModel, setRadioFilterModel] = useState<GridFilterModel>({
+    items: [],
+  });
 
   // ---------------- Fetchers ----------------
   const fetchSubscriberRetention = useCallback(async () => {
@@ -187,6 +276,7 @@ const Events: React.FC = () => {
       "subscriberLogs",
       subPagination.page,
       subPagination.pageSize,
+      filtersToParams(subFilterModel),
       accessToken,
     ],
     enabled: tab === "subscribers" && authReady && !!accessToken,
@@ -194,7 +284,13 @@ const Events: React.FC = () => {
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const pageOne = subPagination.page + 1;
-      return listSubscriberLogs(accessToken!, pageOne, subPagination.pageSize);
+      const filterParams = filtersToParams(subFilterModel);
+      return listSubscriberLogs(
+        accessToken!,
+        pageOne,
+        subPagination.pageSize,
+        filterParams,
+      );
     },
   });
 
@@ -209,6 +305,7 @@ const Events: React.FC = () => {
       "radioLogs",
       radioPagination.page,
       radioPagination.pageSize,
+      filtersToParams(radioFilterModel),
       accessToken,
     ],
     enabled: tab === "radio" && authReady && !!accessToken,
@@ -216,7 +313,13 @@ const Events: React.FC = () => {
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const pageOne = radioPagination.page + 1;
-      return listRadioLogs(accessToken!, pageOne, radioPagination.pageSize);
+      const filterParams = filtersToParams(radioFilterModel);
+      return listRadioLogs(
+        accessToken!,
+        pageOne,
+        radioPagination.pageSize,
+        filterParams,
+      );
     },
   });
 
@@ -274,9 +377,12 @@ const Events: React.FC = () => {
       {
         field: "timestamp",
         headerName: "Timestamp",
+        type: "dateTime",
         flex: 1,
         minWidth: 220,
+        valueGetter: ({ value }) => (value ? new Date(String(value)) : null),
         sortable: false,
+        filterOperators: TIMESTAMP_OPS,
       },
       {
         field: "imsi",
@@ -284,6 +390,7 @@ const Events: React.FC = () => {
         flex: 1,
         minWidth: 220,
         sortable: false,
+        filterOperators: STRING_EQ,
       },
       {
         field: "direction",
@@ -293,9 +400,7 @@ const Events: React.FC = () => {
         headerAlign: "center",
         sortable: false,
         filterable: false,
-        renderCell: (params: GridRenderCellParams<APISubscriberLog>) => (
-          <DirectionCell value={params.row.direction} />
-        ),
+        renderCell: (p) => <DirectionCell value={p.row.direction} />,
       },
       {
         field: "event",
@@ -303,6 +408,7 @@ const Events: React.FC = () => {
         flex: 1,
         minWidth: 200,
         sortable: false,
+        filterOperators: STRING_EQ,
       },
       {
         field: "view",
@@ -486,18 +592,30 @@ const Events: React.FC = () => {
                   disableRowSelectionOnClick
                   disableColumnMenu
                   sortingMode="server"
+                  filterMode="server"
+                  onFilterModelChange={onSubFilterModelChange}
                   pageSizeOptions={[10, 25, 50, 100]}
                   slots={{ toolbar: EventToolbar }}
+                  slotProps={{
+                    filterPanel: {
+                      disableAddFilterButton: false,
+                      disableRemoveAllButton: false,
+                      logicOperators: [GridLogicOperator.And],
+                      filterFormProps: {
+                        logicOperatorInputProps: { sx: { display: "none" } },
+                      },
+                    },
+                  }}
                   showToolbar
                   sx={{
                     border: 1,
                     borderColor: "divider",
-                    // Avoid a double seam between toolbar and headers
                     "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
                     "& .MuiDataGrid-footerContainer": {
                       borderTop: "1px solid",
                       borderColor: "divider",
                     },
+                    "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
                   }}
                 />
               </EventToolbarContext.Provider>
@@ -543,6 +661,8 @@ const Events: React.FC = () => {
                   disableRowSelectionOnClick
                   disableColumnMenu
                   sortingMode="server"
+                  filterMode="server"
+                  onFilterModelChange={onRadioFilterModelChange}
                   pageSizeOptions={[10, 25, 50, 100]}
                   slots={{ toolbar: EventToolbar }}
                   showToolbar
