@@ -28,9 +28,8 @@ The value represents the round-trip-response times from the UE to the server and
 
 ### PDU Session Support
 
-Ella Core can stand up **500 PDU sessions**, the maximum UERANSIM supports.
-
-Further testing is required to determine the maximum number of PDU sessions Ella Core can support.
+Ella Core can support up to **1000 subscribers** using a PDU session simultaneously. This was tested with **ueransim**,
+using 10 simulated gNodeBs each handling 100 subscribers.
 
 ## Methodology
 

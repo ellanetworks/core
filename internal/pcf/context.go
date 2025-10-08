@@ -23,7 +23,6 @@ var pcfCtx *PCFContext
 type PCFContext struct {
 	UePool                 sync.Map
 	SessionRuleIDGenerator *idgenerator.IDGenerator
-	QoSDataIDGenerator     *idgenerator.IDGenerator
 	DBInstance             *db.Database
 }
 
@@ -101,13 +100,12 @@ func GetSubscriberPolicy(ctx context.Context, imsi string) (*PcfSubscriberPolicy
 		}
 	}
 
-	// Generate IDs using ID generators
-	qosID, _ := pcfCtx.QoSDataIDGenerator.Allocate()
+	// Generate ID using ID generators
 	sessionRuleID, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
 
 	// Create QoS data
 	qosData := &models.QosData{
-		QosID:                strconv.FormatInt(qosID, 10),
+		QosID:                strconv.FormatInt(int64(subscriber.PolicyID), 10),
 		Var5qi:               policy.Var5qi,
 		MaxbrUl:              policy.BitrateUplink,
 		MaxbrDl:              policy.BitrateDownlink,
