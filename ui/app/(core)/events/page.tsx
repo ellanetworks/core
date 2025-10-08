@@ -190,7 +190,7 @@ const Events: React.FC = () => {
       accessToken,
     ],
     enabled: tab === "subscribers" && authReady && !!accessToken,
-    refetchInterval: autoRefresh && visible ? 1000 : false,
+    refetchInterval: autoRefresh && visible ? 3000 : false,
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const pageOne = subPagination.page + 1;
@@ -212,7 +212,7 @@ const Events: React.FC = () => {
       accessToken,
     ],
     enabled: tab === "radio" && authReady && !!accessToken,
-    refetchInterval: autoRefresh && visible ? 1000 : false,
+    refetchInterval: autoRefresh && visible ? 3000 : false,
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const pageOne = radioPagination.page + 1;
