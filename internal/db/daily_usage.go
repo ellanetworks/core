@@ -242,7 +242,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 	return nil
 }
 
-func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int64) error {
+func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 	operation := "DELETE"
 	target := DailyUsageTableName
 	spanName := fmt.Sprintf("%s %s (older than %d days)", operation, target, days)
@@ -251,7 +251,7 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int64) error {
 	defer span.End()
 
 	now := time.Now().UTC()
-	cutoffDay := DaysSinceEpoch(now.AddDate(0, 0, -int(days)))
+	cutoffDay := DaysSinceEpoch(now.AddDate(0, 0, -days))
 
 	stmtStr := fmt.Sprintf(deleteOldDailyUsageStmt, db.dailyUsageTable)
 	span.SetAttributes(
@@ -259,7 +259,7 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int64) error {
 		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
-		attribute.Int64("retention.days", days),
+		attribute.Int("retention.days", days),
 		attribute.Int64("retention.cutoff_epoch_day", cutoffDay),
 	)
 

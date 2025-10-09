@@ -77,7 +77,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	metrics.RegisterDatabaseMetrics(dbInstance)
 
-	jobs.StartLogRetentionWorker(dbInstance)
+	jobs.StartDataRetentionWorker(dbInstance)
 
 	scheme := api.HTTPS
 	if cfg.Interfaces.API.TLS.Cert == "" || cfg.Interfaces.API.TLS.Key == "" {

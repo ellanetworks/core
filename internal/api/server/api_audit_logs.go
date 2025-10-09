@@ -42,7 +42,7 @@ type ListAuditLogsResponse struct {
 func GetAuditLogRetentionPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		policyDays, err := dbInstance.GetLogRetentionPolicy(ctx, db.CategoryAuditLogs)
+		policyDays, err := dbInstance.GetRetentionPolicy(ctx, db.CategoryAuditLogs)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve audit log retention policy", err, logger.APILog)
 			return
@@ -72,12 +72,12 @@ func UpdateAuditLogRetentionPolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		updatedPolicy := &db.LogRetentionPolicy{
+		updatedPolicy := &db.RetentionPolicy{
 			Category: db.CategoryAuditLogs,
 			Days:     params.Days,
 		}
 
-		if err := dbInstance.SetLogRetentionPolicy(r.Context(), updatedPolicy); err != nil {
+		if err := dbInstance.SetRetentionPolicy(r.Context(), updatedPolicy); err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to update audit log retention policy", err, logger.APILog)
 			return
 		}

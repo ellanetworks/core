@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-func TestLogRetentionPolicyEndToEnd(t *testing.T) {
+func TestRetentionPolicyEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
@@ -23,7 +23,7 @@ func TestLogRetentionPolicyEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, err := database.GetLogRetentionPolicy(context.Background(), db.CategoryAuditLogs)
+	res, err := database.GetRetentionPolicy(context.Background(), db.CategoryAuditLogs)
 	if err != nil {
 		t.Fatalf("couldn't get audit log retention policy: %s", err)
 	}
@@ -32,17 +32,17 @@ func TestLogRetentionPolicyEndToEnd(t *testing.T) {
 		t.Fatalf("Expected default audit log retention policy to be 7 days, but got %d", res)
 	}
 
-	policy := &db.LogRetentionPolicy{
+	policy := &db.RetentionPolicy{
 		Category: db.CategoryAuditLogs,
 		Days:     60,
 	}
 
-	err = database.SetLogRetentionPolicy(context.Background(), policy)
+	err = database.SetRetentionPolicy(context.Background(), policy)
 	if err != nil {
 		t.Fatalf("couldn't set audit log retention policy: %s", err)
 	}
 
-	res, err = database.GetLogRetentionPolicy(context.Background(), db.CategoryAuditLogs)
+	res, err = database.GetRetentionPolicy(context.Background(), db.CategoryAuditLogs)
 	if err != nil {
 		t.Fatalf("couldn't get audit log retention policy: %s", err)
 	}
