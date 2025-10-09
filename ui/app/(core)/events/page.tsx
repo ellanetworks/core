@@ -127,9 +127,11 @@ function filtersToParams(
       if (!iso) continue;
 
       if (operator === "after") {
-        if (!timestampFromISO || ms(iso) > ms(timestampFromISO)) timestampFromISO = iso;
+        if (!timestampFromISO || ms(iso) > ms(timestampFromISO))
+          timestampFromISO = iso;
       } else if (operator === "before") {
-        if (!timestampToISO || ms(iso) < ms(timestampToISO)) timestampToISO = iso;
+        if (!timestampToISO || ms(iso) < ms(timestampToISO))
+          timestampToISO = iso;
       }
       continue;
     }
