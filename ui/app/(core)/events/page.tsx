@@ -77,11 +77,29 @@ const DATE_AFTER_BEFORE_ONLY = getGridDateOperators(true).filter(
   (op) => op.value === "after" || op.value === "before",
 ) as unknown as readonly GridFilterOperator[];
 
-function toISOFromFilterValue(v: unknown): string | undefined {
-  if (v instanceof Date) return v.toISOString();
+function formatRfc3339WithOffset(d: Date): string {
+  const pad = (n: number, len = 2) => String(Math.abs(n)).padStart(len, "0");
+  const y = d.getFullYear();
+  const m = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const mm = pad(d.getMinutes());
+  const ss = pad(d.getSeconds());
+  const ms = pad(d.getMilliseconds(), 3);
+
+  const tzMin = -d.getTimezoneOffset();
+  const sign = tzMin >= 0 ? "+" : "-";
+  const tzH = pad(Math.trunc(Math.abs(tzMin) / 60));
+  const tzM = pad(Math.abs(tzMin) % 60);
+
+  return `${y}-${m}-${day}T${hh}:${mm}:${ss}.${ms}${sign}${tzH}:${tzM}`;
+}
+
+function toBackendTimestamp(v: unknown): string | undefined {
+  if (v instanceof Date) return formatRfc3339WithOffset(v);
   if (typeof v === "string" || typeof v === "number") {
     const d = new Date(v);
-    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+    return Number.isNaN(d.getTime()) ? undefined : formatRfc3339WithOffset(d);
   }
   return undefined;
 }
@@ -99,9 +117,8 @@ function filtersToParams(
   for (const { field, operator, value } of items) {
     if (!field || value == null || value === "") continue;
 
-    // accept either name
     if (field === "timestamp" || field === "timestamp_dt") {
-      const iso = toISOFromFilterValue(value);
+      const iso = toBackendTimestamp(value);
       if (!iso) continue;
       if (operator === "after") {
         if (!timestampFromISO || ms(iso) > ms(timestampFromISO))
@@ -292,30 +309,6 @@ const Events: React.FC = () => {
     },
   });
 
-  useEffect(() => {
-    if (tab !== "subscribers" || !subQuery.data) return;
-    const items = (subQuery.data.items ?? []).map<GridSubscriberLog>((r) => ({
-      ...r,
-      timestamp_dt: r.timestamp
-        ? new Date(normalizeRfc3339Offset(r.timestamp))
-        : null,
-    }));
-    setSubRows(items);
-    setSubRowCount(subQuery.data.total_count ?? 0);
-  }, [tab, subQuery.data]);
-
-  useEffect(() => {
-    if (tab !== "radio" || !radioQuery.data) return;
-    const items = (radioQuery.data.items ?? []).map<GridRadioLog>((r) => ({
-      ...r,
-      timestamp_dt: r.timestamp
-        ? new Date(normalizeRfc3339Offset(r.timestamp))
-        : null,
-    }));
-    setRadioRows(items);
-    setRadioRowCount(radioQuery.data.total_count ?? 0);
-  }, [tab]);
-
   const radioQuery = useQuery<ListRadioLogsResponse>({
     queryKey: [
       "radioLogs",
@@ -339,11 +332,29 @@ const Events: React.FC = () => {
     },
   });
 
-  // useEffect(() => {
-  //   if (tab !== "radio" || !radioQuery.data) return;
-  //   setRadioRows(radioQuery.data.items ?? []);
-  //   setRadioRowCount(radioQuery.data.total_count ?? 0);
-  // }, [tab, radioQuery.data]);
+  useEffect(() => {
+    if (tab !== "subscribers" || !subQuery.data) return;
+    const items = (subQuery.data.items ?? []).map<GridSubscriberLog>((r) => ({
+      ...r,
+      timestamp_dt: r.timestamp
+        ? new Date(normalizeRfc3339Offset(r.timestamp))
+        : null,
+    }));
+    setSubRows(items);
+    setSubRowCount(subQuery.data.total_count ?? 0);
+  }, [tab, subQuery.data]);
+
+  useEffect(() => {
+    if (tab !== "radio" || !radioQuery.data) return;
+    const items = (radioQuery.data.items ?? []).map<GridRadioLog>((r) => ({
+      ...r,
+      timestamp_dt: r.timestamp
+        ? new Date(normalizeRfc3339Offset(r.timestamp))
+        : null,
+    }));
+    setRadioRows(items);
+    setRadioRowCount(radioQuery.data.total_count ?? 0);
+  }, [tab, radioQuery.data]);
 
   const handleConfirmDeleteSubscriberLogs = async () => {
     setSubscriberClearModalOpen(false);
@@ -381,13 +392,11 @@ const Events: React.FC = () => {
     }
   };
 
-  // ---------------- Effects ----------------
   useEffect(() => {
     fetchSubscriberRetention();
     fetchRadioRetention();
   }, [fetchSubscriberRetention, fetchRadioRetention]);
 
-  // ---------------- Columns ----------------
   const subscriberColumns: GridColDef<APISubscriberLog>[] = useMemo(() => {
     return [
       {
