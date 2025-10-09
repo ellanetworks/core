@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -38,6 +40,55 @@ type ListSubscriberLogsResponse struct {
 	Page       int             `json:"page"`
 	PerPage    int             `json:"per_page"`
 	TotalCount int             `json:"total_count"`
+}
+
+func isRFC3339(s string) bool {
+	if _, err := time.Parse(time.RFC3339, s); err != nil {
+		return false
+	}
+
+	return true
+}
+
+func parseSubscriberLogFilters(r *http.Request) (*db.SubscriberLogFilters, error) {
+	q := r.URL.Query()
+	f := &db.SubscriberLogFilters{}
+
+	if v := strings.TrimSpace(q.Get("imsi")); v != "" {
+		if !isImsiValidRegexp(v) {
+			return f, fmt.Errorf("invalid imsi")
+		}
+
+		f.IMSI = &v
+	}
+
+	if v := strings.TrimSpace(q.Get("direction")); v != "" {
+		v = strings.ToLower(v)
+		if v != "inbound" && v != "outbound" {
+			return f, fmt.Errorf("invalid direction")
+		}
+		f.Direction = &v
+	}
+
+	if v := strings.TrimSpace(q.Get("event")); v != "" {
+		f.Event = &v
+	}
+
+	if v := strings.TrimSpace(q.Get("timestamp_from")); v != "" {
+		if !isRFC3339(v) {
+			return f, fmt.Errorf("invalid from timestamp")
+		}
+		f.TimestampFrom = &v
+	}
+
+	if v := strings.TrimSpace(q.Get("timestamp_to")); v != "" {
+		if !isRFC3339(v) {
+			return f, fmt.Errorf("invalid to timestamp")
+		}
+		f.TimestampTo = &v
+	}
+
+	return f, nil
 }
 
 func GetSubscriberLogRetentionPolicy(dbInstance *db.Database) http.Handler {
@@ -106,7 +157,13 @@ func ListSubscriberLogs(dbInstance *db.Database) http.Handler {
 
 		ctx := r.Context()
 
-		logs, total, err := dbInstance.ListSubscriberLogsPage(ctx, page, perPage)
+		filters, err := parseSubscriberLogFilters(r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
+		}
+
+		logs, total, err := dbInstance.ListSubscriberLogs(ctx, page, perPage, filters)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber logs", err, logger.APILog)
 			return

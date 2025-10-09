@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import { Box, Button, Tooltip, Typography } from "@mui/material";
-import { Toolbar } from "@mui/x-data-grid";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PauseIcon from "@mui/icons-material/Pause";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
-
+import { FilterPanelTrigger, Toolbar, ToolbarButton } from "@mui/x-data-grid";
+import FilterListIcon from "@mui/icons-material/FilterList";
 export type EventToolbarState = {
   canEdit: boolean;
   retentionDays?: number | string;
@@ -142,6 +142,20 @@ export function EventToolbar() {
             </span>
           </Tooltip>
         </Box>
+        <Box
+          sx={{
+            width: 1,
+            maxWidth: 12,
+            height: 24,
+            borderLeft: 1,
+            borderColor: "divider",
+            mx: 1,
+            flexShrink: 0,
+          }}
+        />
+        <FilterPanelTrigger render={<ToolbarButton />}>
+          <FilterListIcon fontSize="small" />
+        </FilterPanelTrigger>
       </Box>
     </Toolbar>
   );

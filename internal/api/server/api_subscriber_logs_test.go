@@ -53,8 +53,17 @@ type UpdateSubscriberLogRetentionPolicyParams struct {
 	Days int `json:"days"`
 }
 
-func listSubscriberLogs(url string, client *http.Client, token string, page int, perPage int) (int, *ListSubscriberLogResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/logs/subscriber?page=%d&per_page=%d", url, page, perPage), nil)
+func listSubscriberLogs(url string, client *http.Client, token string, page int, perPage int, filters map[string]string) (int, *ListSubscriberLogResponse, error) {
+	var queryParams []string
+
+	queryParams = append(queryParams, fmt.Sprintf("page=%d", page))
+	queryParams = append(queryParams, fmt.Sprintf("per_page=%d", perPage))
+
+	for k, v := range filters {
+		queryParams = append(queryParams, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/logs/subscriber?%s", url, strings.Join(queryParams, "&")), nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -134,7 +143,7 @@ func editSubscriberLogRetentionPolicy(url string, client *http.Client, token str
 func TestAPISubscriberLogs(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -146,7 +155,7 @@ func TestAPISubscriberLogs(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	statusCode, response, err := listSubscriberLogs(ts.URL, client, token, 1, 10)
+	statusCode, response, err := listSubscriberLogs(ts.URL, client, token, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("couldn't list subscriber logs: %s", err)
 	}
@@ -176,10 +185,63 @@ func TestAPISubscriberLogs(t *testing.T) {
 	}
 }
 
+func TestListSubscriberLogsWithFilter(t *testing.T) {
+	tempDir := t.TempDir()
+
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, testdb, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	rawEntry1 := `{"timestamp":"2024-10-01T10:00:00Z","level":"info","imsi":"001010101010101","event":"test_event","direction":"inbound","details":"Whatever 1", "raw":"SGVsbG8gd29ybGQh"}`
+	rawEntry2 := `{"timestamp":"2024-10-01T11:00:00Z","level":"info","imsi":"001010101010101","event":"another_event","direction":"outbound","details":"Whatever 2", "raw":"SGVsbG8gd29ybGQh"}`
+	rawEntry3 := `{"timestamp":"2024-10-01T12:00:00Z","level":"info","imsi":"001010101010102","event":"test_event","direction":"inbound","details":"Whatever 3", "raw":"SGVsbG8gd29ybGQh"}`
+
+	err = testdb.InsertSubscriberLogJSON(context.Background(), []byte(rawEntry1))
+	if err != nil {
+		t.Fatalf("couldn't insert subscriber log: %s", err)
+	}
+
+	err = testdb.InsertSubscriberLogJSON(context.Background(), []byte(rawEntry2))
+	if err != nil {
+		t.Fatalf("couldn't insert subscriber log: %s", err)
+	}
+
+	err = testdb.InsertSubscriberLogJSON(context.Background(), []byte(rawEntry3))
+	if err != nil {
+		t.Fatalf("couldn't insert subscriber log: %s", err)
+	}
+
+	filters := map[string]string{
+		"imsi": "001010101010102",
+	}
+
+	statusCode, response, err := listSubscriberLogs(ts.URL, client, token, 1, 10, filters)
+	if err != nil {
+		t.Fatalf("couldn't list subscriber logs: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if len(response.Result.Items) != 1 {
+		t.Fatalf("expected 1 subscriber log, got %d", len(response.Result.Items))
+	}
+}
+
 func TestAPISubscriberLogRetentionPolicyEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -252,7 +314,7 @@ func TestAPISubscriberLogRetentionPolicyEndToEnd(t *testing.T) {
 func TestUpdateSubscriberLogRetentionPolicyInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

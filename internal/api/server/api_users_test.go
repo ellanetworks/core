@@ -444,7 +444,7 @@ func listAPITokens(url string, client *http.Client, token string, page int, perP
 func TestAPIUsersEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -614,7 +614,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 func TestNonAdminUpdateUserPassword(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -699,7 +699,7 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 func TestCreateUserInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -766,7 +766,7 @@ func TestCreateUserInvalidInput(t *testing.T) {
 func TestCreateTooManyUsers(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -818,7 +818,7 @@ func TestCreateAPIToken(t *testing.T) {
 
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -892,7 +892,7 @@ func TestCreateAPIToken(t *testing.T) {
 func TestCreateAPITokenInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -949,7 +949,7 @@ func TestCreateAPITokenInvalidInput(t *testing.T) {
 func TestListUsersPagination(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

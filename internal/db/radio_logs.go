@@ -31,13 +31,43 @@ const QueryCreateRadioLogsTable = `
 		details    TEXT NOT NULL DEFAULT ''
 );`
 
+const QueryCreateRadioLogsIndex = `
+	CREATE INDEX IF NOT EXISTS idx_radio_logs_ran_id ON radio_logs (ran_id);
+	CREATE INDEX IF NOT EXISTS idx_radio_logs_timestamp ON radio_logs (timestamp);
+	CREATE INDEX IF NOT EXISTS idx_radio_logs_event ON radio_logs (event);
+	CREATE INDEX IF NOT EXISTS idx_radio_logs_direction ON radio_logs (direction);
+`
+
 const (
 	insertRadioLogStmt     = "INSERT INTO %s (timestamp, level, ran_id, event, direction, raw, details) VALUES ($RadioLog.timestamp, $RadioLog.level, $RadioLog.ran_id, $RadioLog.event, $RadioLog.direction, $RadioLog.raw, $RadioLog.details)"
-	listRadioLogsPagedStmt = "SELECT &RadioLog.* FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	deleteOldRadioLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
 	deleteAllRadioLogsStmt = "DELETE FROM %s"
-	countRadioLogsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
+
+const listRadioLogsPagedFilteredStmt = `
+  SELECT &RadioLog.*
+  FROM %s
+  WHERE
+    ($RadioLogFilters.ran_id      IS NULL OR ran_id      = $RadioLogFilters.ran_id)
+    AND ($RadioLogFilters.direction IS NULL OR direction = $RadioLogFilters.direction)
+    AND ($RadioLogFilters.event     IS NULL OR event     = $RadioLogFilters.event)
+    AND ($RadioLogFilters.timestamp_from      IS NULL OR timestamp >= $RadioLogFilters.timestamp_from)
+    AND ($RadioLogFilters.timestamp_to        IS NULL OR timestamp <  $RadioLogFilters.timestamp_to)
+  ORDER BY id DESC
+  LIMIT $ListArgs.limit
+  OFFSET $ListArgs.offset
+`
+
+const countRadioLogsFilteredStmt = `
+  SELECT COUNT(*) AS &NumItems.count
+  FROM %s
+  WHERE
+    ($RadioLogFilters.ran_id      IS NULL OR ran_id      = $RadioLogFilters.ran_id)
+    AND ($RadioLogFilters.direction IS NULL OR direction = $RadioLogFilters.direction)
+    AND ($RadioLogFilters.event     IS NULL OR event     = $RadioLogFilters.event)
+    AND ($RadioLogFilters.timestamp_from      IS NULL OR timestamp >= $RadioLogFilters.timestamp_from)
+    AND ($RadioLogFilters.timestamp_to        IS NULL OR timestamp <  $RadioLogFilters.timestamp_to)
+`
 
 type RadioLog struct {
 	ID        int    `db:"id"`
@@ -48,6 +78,14 @@ type RadioLog struct {
 	Direction string `db:"direction"`
 	Raw       []byte `db:"raw"`
 	Details   string `db:"details"` // JSON or plain text (we store a string)
+}
+
+type RadioLogFilters struct {
+	RanID         *string `db:"ran_id"`         // exact match
+	Direction     *string `db:"direction"`      // "inbound" | "outbound"
+	Event         *string `db:"event"`          // exact match
+	TimestampFrom *string `db:"timestamp_from"` // RFC3339 (UTC)
+	TimestampTo   *string `db:"timestamp_to"`   // RFC3339 (UTC), exclusive upper bound
 }
 
 type zapRadioJSON struct {
@@ -118,28 +156,42 @@ func (db *Database) InsertRadioLogJSON(ctx context.Context, raw []byte) error {
 	return nil
 }
 
-func (db *Database) ListRadioLogsPage(ctx context.Context, page, perPage int) ([]RadioLog, int, error) {
+func (db *Database) ListRadioLogs(ctx context.Context, page int, perPage int, filters *RadioLogFilters) ([]RadioLog, int, error) {
+	if filters == nil {
+		filters = &RadioLogFilters{}
+	}
+
 	const operation = "SELECT"
 	const target = RadioLogsTableName
-	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
+	spanName := fmt.Sprintf("%s %s (paged+filtered)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmtStr := fmt.Sprintf(listRadioLogsPagedStmt, db.radioLogsTable)
+	listSQL := fmt.Sprintf(listRadioLogsPagedFilteredStmt, db.radioLogsTable)
+	countSQL := fmt.Sprintf(countRadioLogsFilteredStmt, db.radioLogsTable)
+
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
+		semconv.DBStatementKey.String(listSQL),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 		attribute.Int("page", page),
 		attribute.Int("per_page", perPage),
 	)
 
-	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, RadioLog{})
+	// Prepare both statements with all the bind models they use
+	listStmt, err := sqlair.Prepare(listSQL, ListArgs{}, RadioLogFilters{}, RadioLog{})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
+		span.SetStatus(codes.Error, "prepare list failed")
+		return nil, 0, err
+	}
+
+	countStmt, err := sqlair.Prepare(countSQL, RadioLogFilters{}, NumItems{})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare count failed")
 		return nil, 0, err
 	}
 
@@ -148,19 +200,20 @@ func (db *Database) ListRadioLogsPage(ctx context.Context, page, perPage int) ([
 		Offset: (page - 1) * perPage,
 	}
 
-	count, err := db.CountRadioLogs(ctx)
-	if err != nil {
+	// Count with filters
+	var total NumItems
+	if err := db.conn.Query(ctx, countStmt, filters).Get(&total); err != nil && err != sql.ErrNoRows {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
 		return nil, 0, err
 	}
 
+	// Rows with filters
 	var logs []RadioLog
-
-	if err := db.conn.Query(ctx, stmt, args).GetAll(&logs); err != nil {
+	if err := db.conn.Query(ctx, listStmt, args, filters).GetAll(&logs); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, count, nil
+			return nil, total.Count, nil
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -168,7 +221,7 @@ func (db *Database) ListRadioLogsPage(ctx context.Context, page, perPage int) ([
 	}
 
 	span.SetStatus(codes.Ok, "")
-	return logs, count, nil
+	return logs, total.Count, nil
 }
 
 // DeleteOldRadioLogs removes logs older than the specified retention period in days.
@@ -209,45 +262,6 @@ func (db *Database) DeleteOldRadioLogs(ctx context.Context, days int) error {
 
 	span.SetStatus(codes.Ok, "")
 	return nil
-}
-
-func (db *Database) CountRadioLogs(ctx context.Context) (int, error) {
-	const operation = "COUNT"
-	const target = RadioLogsTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	stmtStr := fmt.Sprintf(countRadioLogsStmt, db.radioLogsTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	stmt, err := sqlair.Prepare(stmtStr, NumItems{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
-
-	var result NumItems
-
-	if err := db.conn.Query(ctx, stmt).Get(&result); err != nil {
-		if err == sql.ErrNoRows {
-			span.SetStatus(codes.Ok, "no rows")
-			return 0, nil
-		}
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-		return 0, err
-	}
-
-	span.SetStatus(codes.Ok, "")
-	return result.Count, nil
 }
 
 func (db *Database) ClearRadioLogs(ctx context.Context) error {

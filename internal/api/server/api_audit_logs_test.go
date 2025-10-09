@@ -131,7 +131,7 @@ func editAuditLogRetentionPolicy(url string, client *http.Client, token string, 
 func TestAPIAuditLogs(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -172,7 +172,7 @@ func TestAPIAuditLogs(t *testing.T) {
 func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -309,7 +309,7 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 func TestAPIAuditLogRetentionPolicyEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -382,7 +382,7 @@ func TestAPIAuditLogRetentionPolicyEndToEnd(t *testing.T) {
 func TestUpdateAuditLogRetentionPolicyInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

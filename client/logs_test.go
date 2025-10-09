@@ -204,7 +204,7 @@ func TestListSubscriberLogs_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	params := &client.ListParams{
+	params := &client.ListSubscriberLogsParams{
 		Page:    1,
 		PerPage: 10,
 	}
@@ -267,7 +267,7 @@ func TestListSubscriberLogs_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	params := &client.ListParams{
+	params := &client.ListSubscriberLogsParams{
 		Page:    1,
 		PerPage: 10,
 	}
@@ -389,7 +389,7 @@ func TestListRadioLogs_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	params := &client.ListParams{
+	params := &client.ListRadioLogsParams{
 		Page:    1,
 		PerPage: 10,
 	}
@@ -452,7 +452,7 @@ func TestListRadioLogs_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	params := &client.ListParams{
+	params := &client.ListRadioLogsParams{
 		Page:    1,
 		PerPage: 10,
 	}

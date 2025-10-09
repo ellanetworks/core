@@ -196,7 +196,7 @@ func deleteDataNetwork(url string, client *http.Client, token, name string) (int
 func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -409,7 +409,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 func TestCreateDataNetworkInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -535,7 +535,7 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 func TestCreateTooManyDataNetworks(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

@@ -176,7 +176,7 @@ func deleteSubscriber(url string, client *http.Client, token string, imsi string
 func TestSubscribersApiEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -390,7 +390,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 func TestCreateSubscriberInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -482,7 +482,7 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 func TestCreateTooManySubscribers(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

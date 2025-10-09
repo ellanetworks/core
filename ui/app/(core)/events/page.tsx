@@ -14,8 +14,13 @@ import {
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import {
   DataGrid,
+  GridFilterModel,
+  GridLogicOperator,
+  getGridStringOperators,
+  getGridSingleSelectOperators,
+  getGridDateOperators,
+  type GridFilterOperator,
   type GridColDef,
-  type GridRenderCellParams,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -52,7 +57,91 @@ import ViewLogModal from "@/components/ViewLogModal";
 import type { LogRow } from "@/components/ViewLogModal";
 
 const MAX_WIDTH = 1400;
+
 type TabKey = "subscribers" | "radio";
+
+const STRING_EQ = getGridStringOperators().filter(
+  (op) => op.value === "equals",
+);
+
+const DIR_EQ = getGridSingleSelectOperators().filter((op) => op.value === "is");
+
+// turns "2025-10-09T09:34:27.496-0400" into "...-04:00"
+const normalizeRfc3339Offset = (s: string) =>
+  s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
+
+type GridSubscriberLog = APISubscriberLog & { timestamp_dt: Date | null };
+type GridRadioLog = APIRadioLog & { timestamp_dt: Date | null };
+
+const DATE_AFTER_BEFORE_ONLY = getGridDateOperators(true).filter(
+  (op) => op.value === "after" || op.value === "before",
+) as unknown as readonly GridFilterOperator[];
+
+function formatRfc3339WithOffset(d: Date): string {
+  const pad = (n: number, len = 2) => String(Math.abs(n)).padStart(len, "0");
+  const y = d.getFullYear();
+  const m = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const mm = pad(d.getMinutes());
+  const ss = pad(d.getSeconds());
+  const ms = pad(d.getMilliseconds(), 3);
+
+  const tzMin = -d.getTimezoneOffset();
+  const sign = tzMin >= 0 ? "+" : "-";
+  const tzH = pad(Math.trunc(Math.abs(tzMin) / 60));
+  const tzM = pad(Math.abs(tzMin) % 60);
+
+  return `${y}-${m}-${day}T${hh}:${mm}:${ss}.${ms}${sign}${tzH}:${tzM}`;
+}
+
+function toBackendTimestamp(v: unknown): string | undefined {
+  if (v instanceof Date) return formatRfc3339WithOffset(v);
+  if (typeof v === "string" || typeof v === "number") {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? undefined : formatRfc3339WithOffset(d);
+  }
+  return undefined;
+}
+
+function filtersToParams(
+  model: GridFilterModel,
+): Record<string, string | string[]> {
+  const items = model?.items ?? [];
+  const bucket: Record<string, string[]> = {};
+  let timestampFromISO: string | undefined;
+  let timestampToISO: string | undefined;
+
+  const ms = (iso: string) => new Date(iso).getTime();
+
+  for (const { field, operator, value } of items) {
+    if (!field || value == null || value === "") continue;
+
+    if (field === "timestamp" || field === "timestamp_dt") {
+      const iso = toBackendTimestamp(value);
+      if (!iso) continue;
+      if (operator === "after") {
+        if (!timestampFromISO || ms(iso) > ms(timestampFromISO))
+          timestampFromISO = iso;
+      } else if (operator === "before") {
+        if (!timestampToISO || ms(iso) < ms(timestampToISO))
+          timestampToISO = iso;
+      }
+      continue;
+    }
+
+    const arr = Array.isArray(value) ? value.map(String) : [String(value)];
+    bucket[field] = (bucket[field] ?? []).concat(arr);
+  }
+
+  const params: Record<string, string | string[]> = {};
+  for (const k of Object.keys(bucket)) {
+    params[k] = bucket[k].length === 1 ? bucket[k][0] : bucket[k];
+  }
+  if (timestampFromISO) params.timestamp_from = timestampFromISO;
+  if (timestampToISO) params.timestamp_to = timestampToISO;
+  return params;
+}
 
 const DirectionCell: React.FC<{ value?: string }> = ({ value }) => {
   const theme = useTheme();
@@ -138,6 +227,14 @@ const Events: React.FC = () => {
     }),
     [canEdit, subRetentionPolicy?.days, autoRefresh],
   );
+  const [subFilterModel, setSubFilterModel] = useState<GridFilterModel>({
+    items: [],
+  });
+
+  const onSubFilterModelChange = useCallback(
+    (m: GridFilterModel) => setSubFilterModel(m),
+    [],
+  );
 
   // ---------------- Radio tab state ----------------
   const [radioRows, setRadioRows] = useState<APIRadioLog[]>([]);
@@ -160,6 +257,13 @@ const Events: React.FC = () => {
     }),
     [canEdit, radioRetentionPolicy?.days, autoRefresh],
   );
+  const onRadioFilterModelChange = useCallback(
+    (m: GridFilterModel) => setRadioFilterModel(m),
+    [],
+  );
+  const [radioFilterModel, setRadioFilterModel] = useState<GridFilterModel>({
+    items: [],
+  });
 
   // ---------------- Fetchers ----------------
   const fetchSubscriberRetention = useCallback(async () => {
@@ -187,6 +291,7 @@ const Events: React.FC = () => {
       "subscriberLogs",
       subPagination.page,
       subPagination.pageSize,
+      filtersToParams(subFilterModel),
       accessToken,
     ],
     enabled: tab === "subscribers" && authReady && !!accessToken,
@@ -194,21 +299,22 @@ const Events: React.FC = () => {
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const pageOne = subPagination.page + 1;
-      return listSubscriberLogs(accessToken!, pageOne, subPagination.pageSize);
+      const filterParams = filtersToParams(subFilterModel);
+      return listSubscriberLogs(
+        accessToken!,
+        pageOne,
+        subPagination.pageSize,
+        filterParams,
+      );
     },
   });
-
-  useEffect(() => {
-    if (tab !== "subscribers" || !subQuery.data) return;
-    setSubRows(subQuery.data.items ?? []);
-    setSubRowCount(subQuery.data.total_count ?? 0);
-  }, [tab, subQuery.data]);
 
   const radioQuery = useQuery<ListRadioLogsResponse>({
     queryKey: [
       "radioLogs",
       radioPagination.page,
       radioPagination.pageSize,
+      filtersToParams(radioFilterModel),
       accessToken,
     ],
     enabled: tab === "radio" && authReady && !!accessToken,
@@ -216,13 +322,37 @@ const Events: React.FC = () => {
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const pageOne = radioPagination.page + 1;
-      return listRadioLogs(accessToken!, pageOne, radioPagination.pageSize);
+      const filterParams = filtersToParams(radioFilterModel);
+      return listRadioLogs(
+        accessToken!,
+        pageOne,
+        radioPagination.pageSize,
+        filterParams,
+      );
     },
   });
 
   useEffect(() => {
+    if (tab !== "subscribers" || !subQuery.data) return;
+    const items = (subQuery.data.items ?? []).map<GridSubscriberLog>((r) => ({
+      ...r,
+      timestamp_dt: r.timestamp
+        ? new Date(normalizeRfc3339Offset(r.timestamp))
+        : null,
+    }));
+    setSubRows(items);
+    setSubRowCount(subQuery.data.total_count ?? 0);
+  }, [tab, subQuery.data]);
+
+  useEffect(() => {
     if (tab !== "radio" || !radioQuery.data) return;
-    setRadioRows(radioQuery.data.items ?? []);
+    const items = (radioQuery.data.items ?? []).map<GridRadioLog>((r) => ({
+      ...r,
+      timestamp_dt: r.timestamp
+        ? new Date(normalizeRfc3339Offset(r.timestamp))
+        : null,
+    }));
+    setRadioRows(items);
     setRadioRowCount(radioQuery.data.total_count ?? 0);
   }, [tab, radioQuery.data]);
 
@@ -262,21 +392,22 @@ const Events: React.FC = () => {
     }
   };
 
-  // ---------------- Effects ----------------
   useEffect(() => {
     fetchSubscriberRetention();
     fetchRadioRetention();
   }, [fetchSubscriberRetention, fetchRadioRetention]);
 
-  // ---------------- Columns ----------------
-  const subscriberColumns: GridColDef<APISubscriberLog>[] = useMemo(
-    () => [
+  const subscriberColumns: GridColDef<APISubscriberLog>[] = useMemo(() => {
+    return [
       {
-        field: "timestamp",
+        field: "timestamp_dt",
         headerName: "Timestamp",
+        type: "dateTime",
         flex: 1,
         minWidth: 220,
         sortable: false,
+        renderCell: (p) => (p.value ? p.value.toLocaleString() : ""),
+        filterOperators: DATE_AFTER_BEFORE_ONLY,
       },
       {
         field: "imsi",
@@ -284,6 +415,7 @@ const Events: React.FC = () => {
         flex: 1,
         minWidth: 220,
         sortable: false,
+        filterOperators: STRING_EQ,
       },
       {
         field: "direction",
@@ -292,10 +424,13 @@ const Events: React.FC = () => {
         align: "center",
         headerAlign: "center",
         sortable: false,
-        filterable: false,
-        renderCell: (params: GridRenderCellParams<APISubscriberLog>) => (
-          <DirectionCell value={params.row.direction} />
-        ),
+        type: "singleSelect",
+        valueOptions: [
+          { value: "inbound", label: "Inbound" },
+          { value: "outbound", label: "Outbound" },
+        ],
+        filterOperators: DIR_EQ,
+        renderCell: (p) => <DirectionCell value={p.row.direction} />,
       },
       {
         field: "event",
@@ -303,6 +438,7 @@ const Events: React.FC = () => {
         flex: 1,
         minWidth: 200,
         sortable: false,
+        filterOperators: STRING_EQ,
       },
       {
         field: "view",
@@ -312,7 +448,7 @@ const Events: React.FC = () => {
         width: 60,
         align: "center",
         headerAlign: "center",
-        renderCell: (params: GridRenderCellParams<APISubscriberLog>) => (
+        renderCell: (params) => (
           <Tooltip title="View details">
             <IconButton
               color="primary"
@@ -325,6 +461,7 @@ const Events: React.FC = () => {
                   timestamp: r.timestamp,
                   event_id: r.imsi,
                   event: r.event,
+                  direction: r.direction,
                   details: r.details ?? "",
                 });
                 setViewLogModalOpen(true);
@@ -336,18 +473,20 @@ const Events: React.FC = () => {
           </Tooltip>
         ),
       },
-    ],
-    [],
-  );
+    ];
+  }, []);
 
-  const radioColumns: GridColDef<APIRadioLog>[] = useMemo(
-    () => [
+  const radioColumns: GridColDef<APIRadioLog>[] = useMemo(() => {
+    return [
       {
-        field: "timestamp",
+        field: "timestamp_dt",
         headerName: "Timestamp",
+        type: "dateTime",
         flex: 1,
         minWidth: 220,
         sortable: false,
+        renderCell: (p) => (p.value ? p.value.toLocaleString() : ""),
+        filterOperators: DATE_AFTER_BEFORE_ONLY,
       },
       {
         field: "ran_id",
@@ -355,6 +494,7 @@ const Events: React.FC = () => {
         flex: 1,
         minWidth: 180,
         sortable: false,
+        filterOperators: STRING_EQ,
       },
       {
         field: "direction",
@@ -363,10 +503,13 @@ const Events: React.FC = () => {
         align: "center",
         headerAlign: "center",
         sortable: false,
-        filterable: false,
-        renderCell: (params: GridRenderCellParams<APIRadioLog>) => (
-          <DirectionCell value={params.row.direction} />
-        ),
+        type: "singleSelect",
+        valueOptions: [
+          { value: "inbound", label: "Inbound" },
+          { value: "outbound", label: "Outbound" },
+        ],
+        filterOperators: DIR_EQ,
+        renderCell: (p) => <DirectionCell value={p.row.direction} />,
       },
       {
         field: "event",
@@ -374,6 +517,7 @@ const Events: React.FC = () => {
         flex: 1,
         minWidth: 200,
         sortable: false,
+        filterOperators: STRING_EQ,
       },
       {
         field: "view",
@@ -383,7 +527,7 @@ const Events: React.FC = () => {
         width: 60,
         align: "center",
         headerAlign: "center",
-        renderCell: (params: GridRenderCellParams<APIRadioLog>) => (
+        renderCell: (params) => (
           <Tooltip title="View details">
             <IconButton
               color="primary"
@@ -396,6 +540,7 @@ const Events: React.FC = () => {
                   timestamp: r.timestamp,
                   event_id: r.ran_id,
                   event: r.event,
+                  direction: r.direction,
                   details: r.details ?? "",
                 });
                 setViewLogModalOpen(true);
@@ -407,9 +552,8 @@ const Events: React.FC = () => {
           </Tooltip>
         ),
       },
-    ],
-    [],
-  );
+    ];
+  }, []);
 
   // ---------------- Render ----------------
   const subDescription =
@@ -486,18 +630,30 @@ const Events: React.FC = () => {
                   disableRowSelectionOnClick
                   disableColumnMenu
                   sortingMode="server"
+                  filterMode="server"
+                  onFilterModelChange={onSubFilterModelChange}
                   pageSizeOptions={[10, 25, 50, 100]}
                   slots={{ toolbar: EventToolbar }}
+                  slotProps={{
+                    filterPanel: {
+                      disableAddFilterButton: false,
+                      disableRemoveAllButton: false,
+                      logicOperators: [GridLogicOperator.And],
+                      filterFormProps: {
+                        logicOperatorInputProps: { sx: { display: "none" } },
+                      },
+                    },
+                  }}
                   showToolbar
                   sx={{
                     border: 1,
                     borderColor: "divider",
-                    // Avoid a double seam between toolbar and headers
                     "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
                     "& .MuiDataGrid-footerContainer": {
                       borderTop: "1px solid",
                       borderColor: "divider",
                     },
+                    "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
                   }}
                 />
               </EventToolbarContext.Provider>
@@ -543,8 +699,20 @@ const Events: React.FC = () => {
                   disableRowSelectionOnClick
                   disableColumnMenu
                   sortingMode="server"
+                  filterMode="server"
+                  onFilterModelChange={onRadioFilterModelChange}
                   pageSizeOptions={[10, 25, 50, 100]}
                   slots={{ toolbar: EventToolbar }}
+                  slotProps={{
+                    filterPanel: {
+                      disableAddFilterButton: false,
+                      disableRemoveAllButton: false,
+                      logicOperators: [GridLogicOperator.And],
+                      filterFormProps: {
+                        logicOperatorInputProps: { sx: { display: "none" } },
+                      },
+                    },
+                  }}
                   showToolbar
                   sx={{
                     width: "100%",

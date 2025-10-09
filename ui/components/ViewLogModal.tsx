@@ -21,6 +21,7 @@ export interface LogRow {
   timestamp: string;
   event_id: string;
   event: string;
+  direction: string;
   details: string; // JSON or free text
 }
 

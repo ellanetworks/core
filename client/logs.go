@@ -85,6 +85,16 @@ type ListRadioLogsResponse struct {
 	TotalCount int        `json:"total_count"`
 }
 
+type ListSubscriberLogsParams struct {
+	Page          int    `json:"page"`
+	PerPage       int    `json:"per_page"`
+	IMSI          string `json:"imsi"`
+	Direction     string `json:"direction"`
+	Event         string `json:"event"`
+	TimestampFrom string `json:"timestamp_from"`
+	TimestampTo   string `json:"timestamp_to"`
+}
+
 func (c *Client) ListAuditLogs(ctx context.Context, p *ListParams) (*ListAuditLogsResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -155,15 +165,41 @@ func (c *Client) UpdateAuditLogRetentionPolicy(ctx context.Context, opts *Update
 	return nil
 }
 
-func (c *Client) ListSubscriberLogs(ctx context.Context, p *ListParams) (*ListSubscriberLogsResponse, error) {
+func (c *Client) ListSubscriberLogs(ctx context.Context, p *ListSubscriberLogsParams) (*ListSubscriberLogsResponse, error) {
+	query := url.Values{}
+	if p.Page != 0 {
+		query.Set("page", fmt.Sprintf("%d", p.Page))
+	}
+
+	if p.PerPage != 0 {
+		query.Set("per_page", fmt.Sprintf("%d", p.PerPage))
+	}
+
+	if p.IMSI != "" {
+		query.Set("imsi", p.IMSI)
+	}
+
+	if p.Direction != "" {
+		query.Set("direction", p.Direction)
+	}
+
+	if p.Event != "" {
+		query.Set("event", p.Event)
+	}
+
+	if p.TimestampFrom != "" {
+		query.Set("timestamp_from", p.TimestampFrom)
+	}
+
+	if p.TimestampTo != "" {
+		query.Set("timestamp_to", p.TimestampTo)
+	}
+
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/logs/subscriber",
-		Query: url.Values{
-			"page":     {fmt.Sprintf("%d", p.Page)},
-			"per_page": {fmt.Sprintf("%d", p.PerPage)},
-		},
+		Query:  query,
 	})
 	if err != nil {
 		return nil, err
@@ -238,15 +274,51 @@ func (c *Client) UpdateSubscriberLogRetentionPolicy(ctx context.Context, opts *U
 	return nil
 }
 
-func (c *Client) ListRadioLogs(ctx context.Context, p *ListParams) (*ListRadioLogsResponse, error) {
+type ListRadioLogsParams struct {
+	Page          int    `json:"page"`
+	PerPage       int    `json:"per_page"`
+	RanID         string `json:"ran_id"`
+	Direction     string `json:"direction"`
+	Event         string `json:"event"`
+	TimestampFrom string `json:"timestamp_from"`
+	TimestampTo   string `json:"timestamp_to"`
+}
+
+func (c *Client) ListRadioLogs(ctx context.Context, p *ListRadioLogsParams) (*ListRadioLogsResponse, error) {
+	query := url.Values{}
+	if p.Page != 0 {
+		query.Set("page", fmt.Sprintf("%d", p.Page))
+	}
+
+	if p.PerPage != 0 {
+		query.Set("per_page", fmt.Sprintf("%d", p.PerPage))
+	}
+
+	if p.RanID != "" {
+		query.Set("ran_id", p.RanID)
+	}
+
+	if p.Direction != "" {
+		query.Set("direction", p.Direction)
+	}
+
+	if p.Event != "" {
+		query.Set("event", p.Event)
+	}
+
+	if p.TimestampFrom != "" {
+		query.Set("timestamp_from", p.TimestampFrom)
+	}
+
+	if p.TimestampTo != "" {
+		query.Set("timestamp_to", p.TimestampTo)
+	}
+
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/logs/radio",
-		Query: url.Values{
-			"page":     {fmt.Sprintf("%d", p.Page)},
-			"per_page": {fmt.Sprintf("%d", p.PerPage)},
-		},
+		Query:  query,
 	})
 	if err != nil {
 		return nil, err
