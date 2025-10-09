@@ -21,8 +21,10 @@ const (
 	N6
 )
 
-const routeTable = 42
-const vrfName = "ella"
+const (
+	routeTable = 42
+	vrfName    = "ella"
+)
 
 // Kernel defines the interface for kernel route management.
 type Kernel interface {
