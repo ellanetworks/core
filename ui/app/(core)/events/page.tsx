@@ -24,6 +24,7 @@ import {
   type GridPaginationModel,
   type GridFilterInputDateProps,
   type GridFilterOperator,
+  type GridValidRowModel,
 } from "@mui/x-data-grid";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EastIcon from "@mui/icons-material/East";
@@ -68,21 +69,36 @@ const STRING_EQ = getGridStringOperators().filter(
 
 const DIR_EQ = getGridSingleSelectOperators().filter((op) => op.value === "is");
 
-type DateOp = GridFilterOperator<
-  APISubscriberLog,
+type DateOpFor<Row extends GridValidRowModel> = GridFilterOperator<
+  Row,
   Date,
   Date,
   GridFilterInputDateProps
 >;
 
-const RAW_DT_OPS = getGridDateOperators(true) as readonly DateOp[];
-const AFTER_RAW = RAW_DT_OPS.find((op) => op.value === "after");
-const BEFORE_RAW = RAW_DT_OPS.find((op) => op.value === "before");
+function makeTimestampOps<
+  Row extends GridValidRowModel,
+>(): readonly DateOpFor<Row>[] {
+  const base = getGridDateOperators(true) as readonly GridFilterOperator<
+    GridValidRowModel,
+    Date,
+    Date,
+    GridFilterInputDateProps
+  >[];
 
-const TIMESTAMP_OPS: readonly DateOp[] = [
-  ...(AFTER_RAW ? [{ ...AFTER_RAW, label: "After" } as DateOp] : []),
-  ...(BEFORE_RAW ? [{ ...BEFORE_RAW, label: "Before" } as DateOp] : []),
-];
+  const after = base.find((op) => op.value === "after");
+  const before = base.find((op) => op.value === "before");
+
+  const ops: DateOpFor<Row>[] = [];
+  if (after)
+    ops.push({ ...after, label: "After" } as unknown as DateOpFor<Row>);
+  if (before)
+    ops.push({ ...before, label: "Before" } as unknown as DateOpFor<Row>);
+  return ops;
+}
+
+const TIMESTAMP_OPS_SUB = makeTimestampOps<APISubscriberLog>();
+const TIMESTAMP_OPS_RADIO = makeTimestampOps<APIRadioLog>();
 
 function toISOFromFilterValue(v: unknown): string | undefined {
   if (v instanceof Date) return v.toISOString();
@@ -385,7 +401,7 @@ const Events: React.FC = () => {
         minWidth: 220,
         valueGetter: ({ value }) => (value ? new Date(String(value)) : null),
         sortable: false,
-        filterOperators: TIMESTAMP_OPS,
+        filterOperators: TIMESTAMP_OPS_SUB,
       },
       {
         field: "imsi",
@@ -460,9 +476,12 @@ const Events: React.FC = () => {
       {
         field: "timestamp",
         headerName: "Timestamp",
+        type: "dateTime",
         flex: 1,
         minWidth: 220,
+        valueGetter: ({ value }) => (value ? new Date(String(value)) : null),
         sortable: false,
+        filterOperators: TIMESTAMP_OPS_RADIO,
       },
       {
         field: "ran_id",
@@ -470,6 +489,7 @@ const Events: React.FC = () => {
         flex: 1,
         minWidth: 180,
         sortable: false,
+        filterOperators: STRING_EQ,
       },
       {
         field: "direction",
@@ -484,9 +504,7 @@ const Events: React.FC = () => {
           { value: "outbound", label: "Outbound" },
         ],
         filterOperators: DIR_EQ,
-        renderCell: (params: GridRenderCellParams<APIRadioLog>) => (
-          <DirectionCell value={params.row.direction} />
-        ),
+        renderCell: (p) => <DirectionCell value={p.row.direction} />,
       },
       {
         field: "event",
@@ -494,6 +512,7 @@ const Events: React.FC = () => {
         flex: 1,
         minWidth: 200,
         sortable: false,
+        filterOperators: STRING_EQ,
       },
       {
         field: "view",
