@@ -35,6 +35,7 @@ type Database struct {
 	apiTokensTable         string
 	sessionsTable          string
 	natSettingsTable       string
+	dailyUsageTable        string
 	conn                   *sqlair.DB
 }
 
@@ -139,6 +140,9 @@ func NewDatabase(databasePath string) (*Database, error) {
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateNATSettingsTable, NATSettingsTableName)); err != nil {
 		return nil, err
 	}
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateDailyUsageTable, DailyUsageTableName)); err != nil {
+		return nil, err
+	}
 
 	db := new(Database)
 	db.conn = sqlair.NewDB(sqlConnection)
@@ -156,6 +160,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.apiTokensTable = APITokensTableName
 	db.sessionsTable = SessionsTableName
 	db.natSettingsTable = NATSettingsTableName
+	db.dailyUsageTable = DailyUsageTableName
 
 	err = db.Initialize()
 	if err != nil {
