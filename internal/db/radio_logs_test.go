@@ -188,8 +188,8 @@ func TestListRadioLogsTimestampFilter(t *testing.T) {
 	to := veryNearFuture.Format(time.RFC3339)
 
 	logs, total, err := database.ListRadioLogs(ctx, 1, 10, &db.RadioLogFilters{
-		From: &from,
-		To:   &to,
+		TimestampFrom: &from,
+		TimestampTo:   &to,
 	})
 	if err != nil {
 		t.Fatalf("list with timestamp filter failed: %v", err)
@@ -261,9 +261,9 @@ func TestListRaduiLogsTimestampAndRanIDFilters(t *testing.T) {
 	ranID := "ranid-001"
 
 	logs, total, err := database.ListRadioLogs(ctx, 1, 10, &db.RadioLogFilters{
-		From:  &from,
-		To:    &to,
-		RanID: &ranID,
+		TimestampFrom: &from,
+		TimestampTo:   &to,
+		RanID:         &ranID,
 	})
 	if err != nil {
 		t.Fatalf("list with timestamp+RanID filter failed: %v", err)

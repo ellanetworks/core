@@ -74,18 +74,18 @@ func parseSubscriberLogFilters(r *http.Request) (*db.SubscriberLogFilters, error
 		f.Event = &v
 	}
 
-	if v := strings.TrimSpace(q.Get("from")); v != "" {
+	if v := strings.TrimSpace(q.Get("timestamp_from")); v != "" {
 		if !isRFC3339(v) {
 			return f, fmt.Errorf("invalid from timestamp")
 		}
-		f.From = &v
+		f.TimestampFrom = &v
 	}
 
-	if v := strings.TrimSpace(q.Get("to")); v != "" {
+	if v := strings.TrimSpace(q.Get("timestamp_to")); v != "" {
 		if !isRFC3339(v) {
 			return f, fmt.Errorf("invalid to timestamp")
 		}
-		f.To = &v
+		f.TimestampTo = &v
 	}
 
 	return f, nil

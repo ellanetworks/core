@@ -114,8 +114,8 @@ function filtersToParams(
 ): Record<string, string | string[]> {
   const items = model?.items ?? [];
   const bucket: Record<string, string[]> = {};
-  let fromISO: string | undefined;
-  let toISO: string | undefined;
+  let timestampFromISO: string | undefined;
+  let timestampToISO: string | undefined;
 
   const ms = (iso: string) => new Date(iso).getTime();
 
@@ -127,9 +127,9 @@ function filtersToParams(
       if (!iso) continue;
 
       if (operator === "after") {
-        if (!fromISO || ms(iso) > ms(fromISO)) fromISO = iso;
+        if (!timestampFromISO || ms(iso) > ms(timestampFromISO)) timestampFromISO = iso;
       } else if (operator === "before") {
-        if (!toISO || ms(iso) < ms(toISO)) toISO = iso;
+        if (!timestampToISO || ms(iso) < ms(timestampToISO)) timestampToISO = iso;
       }
       continue;
     }
@@ -142,8 +142,8 @@ function filtersToParams(
   for (const k of Object.keys(bucket)) {
     params[k] = bucket[k].length === 1 ? bucket[k][0] : bucket[k];
   }
-  if (fromISO) params.from = fromISO;
-  if (toISO) params.to = toISO;
+  if (timestampFromISO) params.timestamp_from = timestampFromISO;
+  if (timestampToISO) params.timestamp_to = timestampToISO;
   return params;
 }
 

@@ -80,7 +80,7 @@ func TestRestoreEndpoint(t *testing.T) {
 		t.Fatalf("failed to create dummy backup file: %s", err)
 	}
 
-	ts, _, err := setupServer(dbPath)
+	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

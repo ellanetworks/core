@@ -51,8 +51,8 @@ const listSubscriberLogsPagedFilteredStmt = `
     ($SubscriberLogFilters.imsi      IS NULL OR imsi      = $SubscriberLogFilters.imsi)
     AND ($SubscriberLogFilters.direction IS NULL OR direction = $SubscriberLogFilters.direction)
     AND ($SubscriberLogFilters.event IS NULL OR event     = $SubscriberLogFilters.event)
-    AND ($SubscriberLogFilters.from  IS NULL OR timestamp >= $SubscriberLogFilters.from)
-    AND ($SubscriberLogFilters.to    IS NULL OR timestamp <  $SubscriberLogFilters.to)
+    AND ($SubscriberLogFilters.timestamp_from  IS NULL OR timestamp >= $SubscriberLogFilters.timestamp_from)
+    AND ($SubscriberLogFilters.timestamp_to    IS NULL OR timestamp <  $SubscriberLogFilters.timestamp_to)
   ORDER BY id DESC
   LIMIT $ListArgs.limit
   OFFSET $ListArgs.offset
@@ -65,8 +65,8 @@ const countSubscriberLogsFilteredStmt = `
     ($SubscriberLogFilters.imsi      IS NULL OR imsi      = $SubscriberLogFilters.imsi)
     AND ($SubscriberLogFilters.direction IS NULL OR direction = $SubscriberLogFilters.direction)
     AND ($SubscriberLogFilters.event IS NULL OR event     = $SubscriberLogFilters.event)
-    AND ($SubscriberLogFilters.from  IS NULL OR timestamp >= $SubscriberLogFilters.from)
-    AND ($SubscriberLogFilters.to    IS NULL OR timestamp <  $SubscriberLogFilters.to)
+    AND ($SubscriberLogFilters.timestamp_from  IS NULL OR timestamp >= $SubscriberLogFilters.timestamp_from)
+    AND ($SubscriberLogFilters.timestamp_to    IS NULL OR timestamp <  $SubscriberLogFilters.timestamp_to)
 `
 
 type SubscriberLog struct {
@@ -78,6 +78,14 @@ type SubscriberLog struct {
 	Direction string `db:"direction"`
 	Raw       []byte `db:"raw"`
 	Details   string `db:"details"` // JSON or plain text (we store a string)
+}
+
+type SubscriberLogFilters struct {
+	IMSI          *string `db:"imsi"`           // exact match
+	Direction     *string `db:"direction"`      // "inbound" | "outbound"
+	Event         *string `db:"event"`          // exact match
+	TimestampFrom *string `db:"timestamp_from"` // RFC3339 (UTC)
+	TimestampTo   *string `db:"timestamp_to"`   // RFC3339 (UTC), exclusive upper bound
 }
 
 type zapSubscriberJSON struct {
@@ -145,14 +153,6 @@ func (db *Database) InsertSubscriberLogJSON(ctx context.Context, raw []byte) err
 
 	span.SetStatus(codes.Ok, "")
 	return nil
-}
-
-type SubscriberLogFilters struct {
-	IMSI      *string `db:"imsi"`      // exact match
-	Direction *string `db:"direction"` // "inbound" | "outbound"
-	Event     *string `db:"event"`     // exact match
-	From      *string `db:"from"`      // RFC3339 (UTC)
-	To        *string `db:"to"`        // RFC3339 (UTC), exclusive upper bound
 }
 
 func (db *Database) ListSubscriberLogs(ctx context.Context, page int, perPage int, filters *SubscriberLogFilters) ([]SubscriberLog, int, error) {

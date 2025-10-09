@@ -44,8 +44,8 @@ const listRadioLogsPagedFilteredStmt = `
     ($RadioLogFilters.ran_id      IS NULL OR ran_id      = $RadioLogFilters.ran_id)
     AND ($RadioLogFilters.direction IS NULL OR direction = $RadioLogFilters.direction)
     AND ($RadioLogFilters.event     IS NULL OR event     = $RadioLogFilters.event)
-    AND ($RadioLogFilters.from      IS NULL OR timestamp >= $RadioLogFilters.from)
-    AND ($RadioLogFilters.to        IS NULL OR timestamp <  $RadioLogFilters.to)
+    AND ($RadioLogFilters.timestamp_from      IS NULL OR timestamp >= $RadioLogFilters.timestamp_from)
+    AND ($RadioLogFilters.timestamp_to        IS NULL OR timestamp <  $RadioLogFilters.timestamp_to)
   ORDER BY id DESC
   LIMIT $ListArgs.limit
   OFFSET $ListArgs.offset
@@ -58,8 +58,8 @@ const countRadioLogsFilteredStmt = `
     ($RadioLogFilters.ran_id      IS NULL OR ran_id      = $RadioLogFilters.ran_id)
     AND ($RadioLogFilters.direction IS NULL OR direction = $RadioLogFilters.direction)
     AND ($RadioLogFilters.event     IS NULL OR event     = $RadioLogFilters.event)
-    AND ($RadioLogFilters.from      IS NULL OR timestamp >= $RadioLogFilters.from)
-    AND ($RadioLogFilters.to        IS NULL OR timestamp <  $RadioLogFilters.to)
+    AND ($RadioLogFilters.timestamp_from      IS NULL OR timestamp >= $RadioLogFilters.timestamp_from)
+    AND ($RadioLogFilters.timestamp_to        IS NULL OR timestamp <  $RadioLogFilters.timestamp_to)
 `
 
 type RadioLog struct {
@@ -71,6 +71,14 @@ type RadioLog struct {
 	Direction string `db:"direction"`
 	Raw       []byte `db:"raw"`
 	Details   string `db:"details"` // JSON or plain text (we store a string)
+}
+
+type RadioLogFilters struct {
+	RanID         *string `db:"ran_id"`         // exact match
+	Direction     *string `db:"direction"`      // "inbound" | "outbound"
+	Event         *string `db:"event"`          // exact match
+	TimestampFrom *string `db:"timestamp_from"` // RFC3339 (UTC)
+	TimestampTo   *string `db:"timestamp_to"`   // RFC3339 (UTC), exclusive upper bound
 }
 
 type zapRadioJSON struct {
@@ -139,14 +147,6 @@ func (db *Database) InsertRadioLogJSON(ctx context.Context, raw []byte) error {
 
 	span.SetStatus(codes.Ok, "")
 	return nil
-}
-
-type RadioLogFilters struct {
-	RanID     *string `db:"ran_id"`    // exact match
-	Direction *string `db:"direction"` // "inbound" | "outbound"
-	Event     *string `db:"event"`     // exact match
-	From      *string `db:"from"`      // RFC3339 (UTC)
-	To        *string `db:"to"`        // RFC3339 (UTC), exclusive upper bound
 }
 
 func (db *Database) ListRadioLogs(ctx context.Context, page int, perPage int, filters *RadioLogFilters) ([]RadioLog, int, error) {

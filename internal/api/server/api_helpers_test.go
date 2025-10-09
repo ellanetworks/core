@@ -58,10 +58,10 @@ func (f FakeUPF) Reload(natEnabled bool) error {
 	return nil
 }
 
-func setupServer(filepath string) (*httptest.Server, []byte, error) {
+func setupServer(filepath string) (*httptest.Server, []byte, *db.Database, error) {
 	testdb, err := db.NewDatabase(filepath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	ctx := context.Background()
@@ -89,12 +89,12 @@ func setupServer(filepath string) (*httptest.Server, []byte, error) {
 
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	client.Jar = jar
 
-	return ts, jwtSecret, nil
+	return ts, jwtSecret, testdb, nil
 }
 
 func initializeAndRefresh(url string, client *http.Client) (string, error) {

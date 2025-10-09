@@ -284,8 +284,8 @@ func TestListSubscriberLogsTimestampFilter(t *testing.T) {
 	to := veryNearFuture.Format(time.RFC3339)
 
 	logs, total, err := database.ListSubscriberLogs(ctx, 1, 10, &db.SubscriberLogFilters{
-		From: &from,
-		To:   &to,
+		TimestampFrom: &from,
+		TimestampTo:   &to,
 	})
 	if err != nil {
 		t.Fatalf("list with timestamp filter failed: %v", err)
@@ -358,9 +358,9 @@ func TestListSubscriberLogsTimestampAndIMSIFilters(t *testing.T) {
 	imsi := "imsi-001"
 
 	logs, total, err := database.ListSubscriberLogs(ctx, 1, 10, &db.SubscriberLogFilters{
-		From: &from,
-		To:   &to,
-		IMSI: &imsi,
+		TimestampFrom: &from,
+		TimestampTo:   &to,
+		IMSI:          &imsi,
 	})
 	if err != nil {
 		t.Fatalf("list with timestamp+IMSI filter failed: %v", err)
