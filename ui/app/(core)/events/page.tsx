@@ -18,6 +18,7 @@ import {
   GridLogicOperator,
   getGridStringOperators,
   getGridDateOperators,
+  getGridSingleSelectOperators,
   type GridColDef,
   type GridRenderCellParams,
   type GridPaginationModel,
@@ -64,6 +65,8 @@ type TabKey = "subscribers" | "radio";
 const STRING_EQ = getGridStringOperators().filter(
   (op) => op.value === "equals",
 );
+
+const DIR_EQ = getGridSingleSelectOperators().filter((op) => op.value === "is");
 
 type DateOp = GridFilterOperator<
   APISubscriberLog,
@@ -399,7 +402,12 @@ const Events: React.FC = () => {
         align: "center",
         headerAlign: "center",
         sortable: false,
-        filterable: false,
+        type: "singleSelect",
+        valueOptions: [
+          { value: "inbound", label: "Inbound" },
+          { value: "outbound", label: "Outbound" },
+        ],
+        filterOperators: DIR_EQ,
         renderCell: (p) => <DirectionCell value={p.row.direction} />,
       },
       {
@@ -431,6 +439,7 @@ const Events: React.FC = () => {
                   timestamp: r.timestamp,
                   event_id: r.imsi,
                   event: r.event,
+                  direction: r.direction,
                   details: r.details ?? "",
                 });
                 setViewLogModalOpen(true);
@@ -469,7 +478,12 @@ const Events: React.FC = () => {
         align: "center",
         headerAlign: "center",
         sortable: false,
-        filterable: false,
+        type: "singleSelect",
+        valueOptions: [
+          { value: "inbound", label: "Inbound" },
+          { value: "outbound", label: "Outbound" },
+        ],
+        filterOperators: DIR_EQ,
         renderCell: (params: GridRenderCellParams<APIRadioLog>) => (
           <DirectionCell value={params.row.direction} />
         ),
@@ -502,6 +516,7 @@ const Events: React.FC = () => {
                   timestamp: r.timestamp,
                   event_id: r.ran_id,
                   event: r.event,
+                  direction: r.direction,
                   details: r.details ?? "",
                 });
                 setViewLogModalOpen(true);
@@ -665,6 +680,16 @@ const Events: React.FC = () => {
                   onFilterModelChange={onRadioFilterModelChange}
                   pageSizeOptions={[10, 25, 50, 100]}
                   slots={{ toolbar: EventToolbar }}
+                  slotProps={{
+                    filterPanel: {
+                      disableAddFilterButton: false,
+                      disableRemoveAllButton: false,
+                      logicOperators: [GridLogicOperator.And],
+                      filterFormProps: {
+                        logicOperatorInputProps: { sx: { display: "none" } },
+                      },
+                    },
+                  }}
                   showToolbar
                   sx={{
                     width: "100%",
