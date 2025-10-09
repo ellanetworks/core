@@ -31,6 +31,13 @@ const QueryCreateRadioLogsTable = `
 		details    TEXT NOT NULL DEFAULT ''
 );`
 
+const QueryCreateRadioLogsIndex = `
+	CREATE INDEX IF NOT EXISTS idx_radio_logs_ran_id ON radio_logs (ran_id);
+	CREATE INDEX IF NOT EXISTS idx_radio_logs_timestamp ON radio_logs (timestamp);
+	CREATE INDEX IF NOT EXISTS idx_radio_logs_event ON radio_logs (event);
+	CREATE INDEX IF NOT EXISTS idx_radio_logs_direction ON radio_logs (direction);
+`
+
 const (
 	insertRadioLogStmt     = "INSERT INTO %s (timestamp, level, ran_id, event, direction, raw, details) VALUES ($RadioLog.timestamp, $RadioLog.level, $RadioLog.ran_id, $RadioLog.event, $RadioLog.direction, $RadioLog.raw, $RadioLog.details)"
 	deleteOldRadioLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"

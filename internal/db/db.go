@@ -127,6 +127,9 @@ func NewDatabase(databasePath string) (*Database, error) {
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRadioLogsTable, RadioLogsTableName)); err != nil {
 		return nil, err
 	}
+	if _, err := sqlConnection.Exec(QueryCreateRadioLogsIndex); err != nil {
+		return nil, err
+	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateLogRetentionPolicyTable, LogRetentionPolicyTableName)); err != nil {
 		return nil, err
 	}
