@@ -17,14 +17,11 @@ import {
   GridFilterModel,
   GridLogicOperator,
   getGridStringOperators,
-  getGridDateOperators,
   getGridSingleSelectOperators,
-  type GridColDef,
-  type GridRenderCellParams,
-  type GridPaginationModel,
-  type GridFilterInputDateProps,
+  getGridDateOperators,
   type GridFilterOperator,
-  type GridValidRowModel,
+  type GridColDef,
+  type GridPaginationModel,
 } from "@mui/x-data-grid";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EastIcon from "@mui/icons-material/East";
@@ -69,42 +66,22 @@ const STRING_EQ = getGridStringOperators().filter(
 
 const DIR_EQ = getGridSingleSelectOperators().filter((op) => op.value === "is");
 
-type DateOpFor<Row extends GridValidRowModel> = GridFilterOperator<
-  Row,
-  Date,
-  Date,
-  GridFilterInputDateProps
->;
+// turns "2025-10-09T09:34:27.496-0400" into "...-04:00"
+const normalizeRfc3339Offset = (s: string) =>
+  s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
 
-function makeTimestampOps<
-  Row extends GridValidRowModel,
->(): readonly DateOpFor<Row>[] {
-  const base = getGridDateOperators(true) as readonly GridFilterOperator<
-    GridValidRowModel,
-    Date,
-    Date,
-    GridFilterInputDateProps
-  >[];
+type GridSubscriberLog = APISubscriberLog & { timestamp_dt: Date | null };
+type GridRadioLog = APIRadioLog & { timestamp_dt: Date | null };
 
-  const after = base.find((op) => op.value === "after");
-  const before = base.find((op) => op.value === "before");
-
-  const ops: DateOpFor<Row>[] = [];
-  if (after)
-    ops.push({ ...after, label: "After" } as unknown as DateOpFor<Row>);
-  if (before)
-    ops.push({ ...before, label: "Before" } as unknown as DateOpFor<Row>);
-  return ops;
-}
-
-const TIMESTAMP_OPS_SUB = makeTimestampOps<APISubscriberLog>();
-const TIMESTAMP_OPS_RADIO = makeTimestampOps<APIRadioLog>();
+const DATE_AFTER_BEFORE_ONLY = getGridDateOperators(true).filter(
+  (op) => op.value === "after" || op.value === "before",
+) as unknown as readonly GridFilterOperator[];
 
 function toISOFromFilterValue(v: unknown): string | undefined {
   if (v instanceof Date) return v.toISOString();
-  if (typeof v === "number" || typeof v === "string") {
+  if (typeof v === "string" || typeof v === "number") {
     const d = new Date(v);
-    return isNaN(d.getTime()) ? undefined : d.toISOString();
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
   }
   return undefined;
 }
@@ -122,10 +99,10 @@ function filtersToParams(
   for (const { field, operator, value } of items) {
     if (!field || value == null || value === "") continue;
 
-    if (field === "timestamp") {
+    // accept either name
+    if (field === "timestamp" || field === "timestamp_dt") {
       const iso = toISOFromFilterValue(value);
       if (!iso) continue;
-
       if (operator === "after") {
         if (!timestampFromISO || ms(iso) > ms(timestampFromISO))
           timestampFromISO = iso;
@@ -317,9 +294,27 @@ const Events: React.FC = () => {
 
   useEffect(() => {
     if (tab !== "subscribers" || !subQuery.data) return;
-    setSubRows(subQuery.data.items ?? []);
+    const items = (subQuery.data.items ?? []).map<GridSubscriberLog>((r) => ({
+      ...r,
+      timestamp_dt: r.timestamp
+        ? new Date(normalizeRfc3339Offset(r.timestamp))
+        : null,
+    }));
+    setSubRows(items);
     setSubRowCount(subQuery.data.total_count ?? 0);
   }, [tab, subQuery.data]);
+
+  useEffect(() => {
+    if (tab !== "radio" || !radioQuery.data) return;
+    const items = (radioQuery.data.items ?? []).map<GridRadioLog>((r) => ({
+      ...r,
+      timestamp_dt: r.timestamp
+        ? new Date(normalizeRfc3339Offset(r.timestamp))
+        : null,
+    }));
+    setRadioRows(items);
+    setRadioRowCount(radioQuery.data.total_count ?? 0);
+  }, [tab]);
 
   const radioQuery = useQuery<ListRadioLogsResponse>({
     queryKey: [
@@ -344,11 +339,11 @@ const Events: React.FC = () => {
     },
   });
 
-  useEffect(() => {
-    if (tab !== "radio" || !radioQuery.data) return;
-    setRadioRows(radioQuery.data.items ?? []);
-    setRadioRowCount(radioQuery.data.total_count ?? 0);
-  }, [tab, radioQuery.data]);
+  // useEffect(() => {
+  //   if (tab !== "radio" || !radioQuery.data) return;
+  //   setRadioRows(radioQuery.data.items ?? []);
+  //   setRadioRowCount(radioQuery.data.total_count ?? 0);
+  // }, [tab, radioQuery.data]);
 
   const handleConfirmDeleteSubscriberLogs = async () => {
     setSubscriberClearModalOpen(false);
@@ -393,17 +388,17 @@ const Events: React.FC = () => {
   }, [fetchSubscriberRetention, fetchRadioRetention]);
 
   // ---------------- Columns ----------------
-  const subscriberColumns: GridColDef<APISubscriberLog>[] = useMemo(
-    () => [
+  const subscriberColumns: GridColDef<APISubscriberLog>[] = useMemo(() => {
+    return [
       {
-        field: "timestamp",
+        field: "timestamp_dt",
         headerName: "Timestamp",
         type: "dateTime",
         flex: 1,
         minWidth: 220,
-        valueGetter: ({ value }) => (value ? new Date(String(value)) : null),
         sortable: false,
-        filterOperators: TIMESTAMP_OPS_SUB,
+        renderCell: (p) => (p.value ? p.value.toLocaleString() : ""),
+        filterOperators: DATE_AFTER_BEFORE_ONLY,
       },
       {
         field: "imsi",
@@ -444,7 +439,7 @@ const Events: React.FC = () => {
         width: 60,
         align: "center",
         headerAlign: "center",
-        renderCell: (params: GridRenderCellParams<APISubscriberLog>) => (
+        renderCell: (params) => (
           <Tooltip title="View details">
             <IconButton
               color="primary"
@@ -469,21 +464,20 @@ const Events: React.FC = () => {
           </Tooltip>
         ),
       },
-    ],
-    [],
-  );
+    ];
+  }, []);
 
-  const radioColumns: GridColDef<APIRadioLog>[] = useMemo(
-    () => [
+  const radioColumns: GridColDef<APIRadioLog>[] = useMemo(() => {
+    return [
       {
-        field: "timestamp",
+        field: "timestamp_dt",
         headerName: "Timestamp",
         type: "dateTime",
         flex: 1,
         minWidth: 220,
-        valueGetter: ({ value }) => (value ? new Date(String(value)) : null),
         sortable: false,
-        filterOperators: TIMESTAMP_OPS_RADIO,
+        renderCell: (p) => (p.value ? p.value.toLocaleString() : ""),
+        filterOperators: DATE_AFTER_BEFORE_ONLY,
       },
       {
         field: "ran_id",
@@ -524,7 +518,7 @@ const Events: React.FC = () => {
         width: 60,
         align: "center",
         headerAlign: "center",
-        renderCell: (params: GridRenderCellParams<APIRadioLog>) => (
+        renderCell: (params) => (
           <Tooltip title="View details">
             <IconButton
               color="primary"
@@ -549,9 +543,8 @@ const Events: React.FC = () => {
           </Tooltip>
         ),
       },
-    ],
-    [],
-  );
+    ];
+  }, []);
 
   // ---------------- Render ----------------
   const subDescription =
