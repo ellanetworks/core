@@ -98,10 +98,15 @@ This path returns the list of subscriber logs.
 
 ### Query Parameters
 
-| Name       | In    | Type | Default | Allowed | Description                   |
-| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
-| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
-| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
+| Name             | In    | Type | Default | Allowed           | Description                                                                                     |
+| ----------       | ----- | ---- | ------- | ----------------- | ----------------------------------------------------------------------------------------------- |
+| `page`           | query | int  | `1`     | `>= 1`            | 1-based page index.                                                                             |
+| `per_page`       | query | int  | `25`    | `1…100`           | Number of items per page.                                                                       |
+| `imsi`           | query | str  |         |                   | Filter by IMSI.                                                                                 |
+| `direction`      | query | str  |         | inbound, outbound | Filter by log direction.                                                                        |
+| `event`          | query | str  |         |                   | Filter by event name.                                                                           |
+| `timestamp_from` | query | str  |         |                   | Filter logs from this timestamp (inclusive). RFC3339 format (e.g., 2006-01-02T15:04:05Z07:00).  |
+| `timestamp_to`   | query | str  |         |                   | Filter logs up to this timestamp (inclusive). RFC3339 format (e.g., 2006-01-02T15:04:05Z07:00). |
 
 ### Sample Response
 
@@ -202,10 +207,15 @@ This path returns the list of radio logs.
 
 ### Query Parameters
 
-| Name       | In    | Type | Default | Allowed | Description                   |
-| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
-| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
-| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
+| Name             | In    | Type | Default | Allowed           | Description                                                                                     |
+| ----------       | ----- | ---- | ------- | ----------------- | ----------------------------------------------------------------------------------------------- |
+| `page`           | query | int  | `1`     | `>= 1`            | 1-based page index.                                                                             |
+| `per_page`       | query | int  | `25`    | `1…100`           | Number of items per page.                                                                       |
+| `ran_id`         | query | str  |         |                   | Filter by RAN ID.                                                                               |
+| `direction`      | query | str  |         | inbound, outbound | Filter by log direction.                                                                        |
+| `event`          | query | str  |         |                   | Filter by event name.                                                                           |
+| `timestamp_from` | query | str  |         |                   | Filter logs from this timestamp (inclusive). RFC3339 format (e.g., 2006-01-02T15:04:05Z07:00).  |
+| `timestamp_to`   | query | str  |         |                   | Filter logs up to this timestamp (inclusive). RFC3339 format (e.g., 2006-01-02T15:04:05Z07:00). |
 
 ### Sample Response
 
