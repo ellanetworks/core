@@ -25,7 +25,7 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, total, err := database.ListSubscriberLogsPage(context.Background(), 1, 10, nil)
+	res, total, err := database.ListSubscriberLogs(context.Background(), 1, 10, nil)
 	if err != nil {
 		t.Fatalf("couldn't list subscriber logs: %s", err)
 	}
@@ -51,7 +51,7 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't insert subscriber log: %s", err)
 	}
 
-	res, total, err = database.ListSubscriberLogsPage(context.Background(), 1, 10, nil)
+	res, total, err = database.ListSubscriberLogs(context.Background(), 1, 10, nil)
 	if err != nil {
 		t.Fatalf("couldn't list subscriber logs: %s", err)
 	}
@@ -73,7 +73,7 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't delete old subscriber logs: %s", err)
 	}
 
-	res, total, err = database.ListSubscriberLogsPage(context.Background(), 1, 10, nil)
+	res, total, err = database.ListSubscriberLogs(context.Background(), 1, 10, nil)
 	if err != nil {
 		t.Fatalf("couldn't list subscriber logs after deletion: %s", err)
 	}
@@ -132,7 +132,7 @@ func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	insert(boundary, "boundary_exact")
 	insert(fresh, "fresh")
 
-	logs, total, err := database.ListSubscriberLogsPage(ctx, 1, 10, nil)
+	logs, total, err := database.ListSubscriberLogs(ctx, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("list before purge failed: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	}
 
 	// Verify only newer + boundary remain.
-	logs, total, err = database.ListSubscriberLogsPage(ctx, 1, 10, nil)
+	logs, total, err = database.ListSubscriberLogs(ctx, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("list after purge failed: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestListSubscriberLogsIMSIFilter(t *testing.T) {
 	insert("imsi-002", "event-002")
 	insert("imsi-001", "event-003")
 
-	logs, total, err := database.ListSubscriberLogsPage(ctx, 1, 10, &db.SubscriberLogFilters{IMSI: ptr("imsi-001")})
+	logs, total, err := database.ListSubscriberLogs(ctx, 1, 10, &db.SubscriberLogFilters{IMSI: ptr("imsi-001")})
 	if err != nil {
 		t.Fatalf("list with IMSI filter failed: %v", err)
 	}
@@ -283,7 +283,7 @@ func TestListSubscriberLogsTimestampFilter(t *testing.T) {
 	from := past2.Format(time.RFC3339)
 	to := veryNearFuture.Format(time.RFC3339)
 
-	logs, total, err := database.ListSubscriberLogsPage(ctx, 1, 10, &db.SubscriberLogFilters{
+	logs, total, err := database.ListSubscriberLogs(ctx, 1, 10, &db.SubscriberLogFilters{
 		From: &from,
 		To:   &to,
 	})
@@ -357,7 +357,7 @@ func TestListSubscriberLogsTimestampAndIMSIFilters(t *testing.T) {
 	to := future.Format(time.RFC3339)
 	imsi := "imsi-001"
 
-	logs, total, err := database.ListSubscriberLogsPage(ctx, 1, 10, &db.SubscriberLogFilters{
+	logs, total, err := database.ListSubscriberLogs(ctx, 1, 10, &db.SubscriberLogFilters{
 		From: &from,
 		To:   &to,
 		IMSI: &imsi,

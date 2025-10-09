@@ -155,7 +155,7 @@ type SubscriberLogFilters struct {
 	To        *string `db:"to"`        // RFC3339 (UTC), exclusive upper bound
 }
 
-func (db *Database) ListSubscriberLogsPage(ctx context.Context, page int, perPage int, filters *SubscriberLogFilters) ([]SubscriberLog, int, error) {
+func (db *Database) ListSubscriberLogs(ctx context.Context, page int, perPage int, filters *SubscriberLogFilters) ([]SubscriberLog, int, error) {
 	if filters == nil {
 		filters = &SubscriberLogFilters{}
 	}

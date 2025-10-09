@@ -163,7 +163,7 @@ func ListSubscriberLogs(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		logs, total, err := dbInstance.ListSubscriberLogsPage(ctx, page, perPage, filters)
+		logs, total, err := dbInstance.ListSubscriberLogs(ctx, page, perPage, filters)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber logs", err, logger.APILog)
 			return

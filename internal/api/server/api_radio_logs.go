@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -38,6 +39,43 @@ type ListRadioLogsResponse struct {
 	Page       int        `json:"page"`
 	PerPage    int        `json:"per_page"`
 	TotalCount int        `json:"total_count"`
+}
+
+func parseRadioLogFilters(r *http.Request) (*db.RadioLogFilters, error) {
+	q := r.URL.Query()
+	f := &db.RadioLogFilters{}
+
+	if v := strings.TrimSpace(q.Get("ran_id")); v != "" {
+		f.RanID = &v
+	}
+
+	if v := strings.TrimSpace(q.Get("direction")); v != "" {
+		v = strings.ToLower(v)
+		if v != "inbound" && v != "outbound" {
+			return f, fmt.Errorf("invalid direction")
+		}
+		f.Direction = &v
+	}
+
+	if v := strings.TrimSpace(q.Get("event")); v != "" {
+		f.Event = &v
+	}
+
+	if v := strings.TrimSpace(q.Get("from")); v != "" {
+		if !isRFC3339(v) {
+			return f, fmt.Errorf("invalid from timestamp")
+		}
+		f.From = &v
+	}
+
+	if v := strings.TrimSpace(q.Get("to")); v != "" {
+		if !isRFC3339(v) {
+			return f, fmt.Errorf("invalid to timestamp")
+		}
+		f.To = &v
+	}
+
+	return f, nil
 }
 
 func GetRadioLogRetentionPolicy(dbInstance *db.Database) http.Handler {
@@ -106,7 +144,13 @@ func ListRadioLogs(dbInstance *db.Database) http.Handler {
 
 		ctx := r.Context()
 
-		logs, total, err := dbInstance.ListRadioLogsPage(ctx, page, perPage)
+		filters, err := parseRadioLogFilters(r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
+		}
+
+		logs, total, err := dbInstance.ListRadioLogs(ctx, page, perPage, filters)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve radio logs", err, logger.APILog)
 			return
