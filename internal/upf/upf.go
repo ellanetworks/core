@@ -68,7 +68,6 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 	if err != nil {
 		return nil, fmt.Errorf("failed to attach eBPF program on n3 interface %q: %s", n3Interface, err)
 	}
-	logger.UpfLog.Debug("Attached XDP program to N3 interface")
 
 	n6Iface, err := net.InterfaceByName(n6Interface)
 	if err != nil {
@@ -84,7 +83,6 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 	if err != nil {
 		return nil, fmt.Errorf("failed to attach eBPF program on n6 interface %q: %s", n6Interface, err)
 	}
-	logger.UpfLog.Debug("Attached XDP program to N3 interface")
 
 	resourceManager, err := core.NewFteIDResourceManager(FTEIDPool)
 	if err != nil {
