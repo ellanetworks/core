@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -68,8 +69,10 @@ func isValidBitrate(bitrate string) bool {
 	return valueInt > 0 && valueInt <= 1000
 }
 
+var valid5Qi = []int32{5, 6, 7, 8, 9, 69, 70, 79, 80} // only non-gbr 5Qi are supported for now
+
 func isValid5Qi(var5qi int32) bool {
-	return var5qi >= 1 && var5qi <= 255
+	return slices.Contains(valid5Qi, var5qi)
 }
 
 func isValidPriorityLevel(priorityLevel int32) bool {
@@ -328,7 +331,7 @@ func validatePolicyParams(p CreatePolicyParams) error {
 	case !isValidBitrate(p.BitrateDownlink):
 		return errors.New("Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
 	case !isValid5Qi(p.Var5qi):
-		return errors.New("Invalid Var5qi format. Must be an integer between 1 and 255")
+		return errors.New("Invalid Var5qi format. Must be an integer associated with a non-GBR 5QI")
 	case !isValidPriorityLevel(p.PriorityLevel):
 		return errors.New("Invalid priority_level format. Must be an integer between 1 and 255")
 	}
