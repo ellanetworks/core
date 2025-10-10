@@ -29,7 +29,7 @@ None
         },
         "slice": {
             "sst": 1,
-            "sd": 1056816
+            "sd": "0x012030"
         },
         "tracking": {
             "supportedTACs": [
@@ -102,7 +102,7 @@ This path updates the operator slice information. Only one slice is supported. T
 ### Parameters
 
 - `sst` (integer): The Slice Service Type (SST) of the network. Must be an 8-bit integer.
-- `sd` (integer): The Service Differentiator (SD) of the network. Must be a 24-bit integer.
+- `sd` (optional string): The Service Differentiator (SD) of the network. Must be a 3-byte hexadecimal string prefixed with "0x".
 
 ### Sample Response
 
@@ -132,7 +132,7 @@ None
 {
     "result": {
         "sst": 1,
-        "sd": 1056816
+        "sd": "0x012030"
     }
 }
 ```
