@@ -85,4 +85,6 @@ jobs:
         if: failure()
         run: |
           kubectl describe pods -n gnbsim
+          kubectl logs -n gnbsim deployment/ella-core
           kubectl describe pods -n ueransim
+          kubectl logs -n ueransim deployment/ella-core
