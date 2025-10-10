@@ -13,6 +13,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Install VRF support
+        run: |
+          sudo apt update
+          sudo apt install -y linux-modules-extra-$(uname -r)
+          sudo modprobe vrf
+
       - name: Setup LXD
         run: |
           sudo snap install lxd --channel=5.21/stable
