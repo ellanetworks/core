@@ -31,6 +31,8 @@ interface CreatePolicyModalProps {
   onSuccess: () => void;
 }
 
+const NON_GBR_5QI_OPTIONS = [5, 6, 7, 8, 9, 69, 70, 79, 80];
+
 const schema = yup.object().shape({
   name: yup.string().min(1).max(256).required("Name is required"),
   bitrateUpValue: yup
@@ -45,7 +47,13 @@ const schema = yup.object().shape({
     .max(999, "Bitrate value must be between 1 and 999")
     .required("Bitrate value is required"),
   bitrateDownUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
-  fiveQi: yup.number().min(0).max(256).required("5QI is required"),
+  fiveQi: yup
+    .number()
+    .oneOf(
+      NON_GBR_5QI_OPTIONS,
+      `5QI must be one of: ${NON_GBR_5QI_OPTIONS.join(", ")}`,
+    )
+    .required("5QI is required"),
   priorityLevel: yup
     .number()
     .min(0)
@@ -76,8 +84,8 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
     bitrateUpUnit: "Mbps",
     bitrateDownValue: 100,
     bitrateDownUnit: "Mbps",
-    fiveQi: 1,
-    priorityLevel: 1,
+    fiveQi: 9,
+    priorityLevel: 90,
     dataNetworkName: "",
   });
 
@@ -102,7 +110,6 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
         console.error("Failed to fetch data networks:", error);
       }
     };
-
     fetchDataNetworks();
   }, [open, accessToken]);
 
@@ -292,17 +299,28 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           </TextField>
         </Box>
 
-        <TextField
-          fullWidth
-          label="5QI"
-          type="number"
-          value={formValues.fiveQi}
-          onChange={(e) => handleChange("fiveQi", Number(e.target.value))}
-          onBlur={() => handleBlur("fiveQi")}
-          error={!!errors.fiveQi && touched.fiveQi}
-          helperText={touched.fiveQi ? errors.fiveQi : ""}
-          margin="normal"
-        />
+        <FormControl fullWidth margin="normal">
+          <InputLabel id="fiveqi-select-label">5QI (non-GBR)</InputLabel>
+          <Select
+            labelId="fiveqi-select-label"
+            label="5QI (non-GBR)"
+            value={formValues.fiveQi}
+            onChange={(e) => handleChange("fiveQi", Number(e.target.value))}
+            onBlur={() => handleBlur("fiveQi")}
+            error={!!errors.fiveQi && touched.fiveQi}
+          >
+            {NON_GBR_5QI_OPTIONS.map((val) => (
+              <MenuItem key={val} value={val}>
+                {val}
+              </MenuItem>
+            ))}
+          </Select>
+          {touched.fiveQi && errors.fiveQi && (
+            <Typography color="error" variant="caption">
+              {errors.fiveQi}
+            </Typography>
+          )}
+        </FormControl>
 
         <TextField
           fullWidth
@@ -314,7 +332,6 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           }
           onBlur={() => handleBlur("priorityLevel")}
           error={!!errors.priorityLevel && touched.priorityLevel}
-          helperText={touched.priorityLevel ? errors.priorityLevel : ""}
           margin="normal"
         />
       </DialogContent>
