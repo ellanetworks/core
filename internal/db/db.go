@@ -62,7 +62,7 @@ const (
 	InitialPolicyName            = "default"
 	InitialPolicyBitrateUplink   = "200 Mbps"
 	InitialPolicyBitrateDownlink = "200 Mbps"
-	InitialPolicyVar5qi          = 1
+	InitialPolicyVar5qi          = 9 // Default 5QI for non-GBR
 	InitialPolicyPriorityLevel   = 1
 )
 

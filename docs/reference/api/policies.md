@@ -30,7 +30,7 @@ This path returns the list of policies.
                 "name": "default",
                 "bitrate_uplink": "200 Mbps",
                 "bitrate_downlink": "100 Mbps",
-                "var5qi": 8,
+                "var5qi": 9,
                 "priority_level": 1,
                 "data_network_name": "internet"
             }
@@ -115,7 +115,7 @@ None
         "name": "my-policy",
         "bitrate_uplink": "10 Mbps",
         "bitrate_downlink": "10 Mbps",
-        "var5qi": 1,
+        "var5qi": 9,
         "priority_level": 2,
         "data_network_name": "internet"
     }
