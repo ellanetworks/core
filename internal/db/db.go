@@ -46,8 +46,9 @@ const (
 	InitialMcc         = "001"
 	InitialMnc         = "01"
 	InitialOperatorSst = 1
-	InitialOperatorSd  = 1056816
 )
+
+var InitialOperatorSd = []byte{0x10, 0x20, 0x30}
 
 // Initial Data network values
 const (

@@ -21,24 +21,37 @@ interface EditOperatorSliceModalProps {
   onSuccess: () => void;
   initialData: {
     sst: number;
-    sd: number;
+    sd?: string | null; // <-- make optional
   };
 }
 
-const schema = yup.object().shape({
+const schema = yup.object({
   sst: yup
     .number()
+    .typeError("SST is required")
     .required("SST is required")
     .integer("SST must be an integer")
     .min(0, "SST must be at least 0")
     .max(255, "SST must be at most 255"),
   sd: yup
-    .number()
-    .required("SD is required")
-    .integer("SD must be an integer")
-    .min(0, "SD must be at least 0")
-    .max(16777215, "SD must be at most 16777215"),
+    .string()
+    .transform((v) =>
+      typeof v === "string" && v.trim() === "" ? undefined : v,
+    )
+    .optional()
+    .matches(/^$|^(0x)?[0-9a-fA-F]{6}$/, {
+      message: "SD must be 6 hex digits (e.g., 0x012030 or 012030)",
+      excludeEmptyString: true,
+    }),
 });
+
+function normalizeSd(sd?: string | null): string | undefined {
+  if (!sd) return undefined;
+  let v = sd.trim();
+  if (v === "") return undefined;
+  if (v.startsWith("0x") || v.startsWith("0X")) v = v.slice(2);
+  return `0x${v.toLowerCase()}`;
+}
 
 const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
   open,
@@ -49,47 +62,63 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
   const router = useRouter();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    router.push("/login");
-  }
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      router.push("/login");
+    }
+  }, [authReady, accessToken, router]);
 
-  const [formValues, setFormValues] = useState(initialData);
+  const [formValues, setFormValues] = useState<{
+    sst: number | string;
+    sd: string;
+  }>({
+    sst: initialData.sst,
+    sd: initialData.sd ?? "", // keep as controlled string
+  });
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   useEffect(() => {
     if (open) {
-      setFormValues(initialData);
+      setFormValues({
+        sst: initialData.sst,
+        sd: initialData.sd ?? "",
+      });
       setErrors({});
+      setAlert({ message: "" });
     }
   }, [open, initialData]);
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: "sst" | "sd", value: string) => {
     setFormValues((prev) => ({
       ...prev,
-      [field]:
-        field === "sst" || field === "sd" ? parseInt(value, 10) || "" : value,
+      ...(field === "sst"
+        ? { sst: value } // keep as string for the input; convert later
+        : { sd: value }), // keep sd as string (not parseInt!)
     }));
-
-    setErrors((prev) => ({
-      ...prev,
-      [field]: "",
-    }));
+    setErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
   const validate = async (): Promise<boolean> => {
     try {
-      await schema.validate(formValues, { abortEarly: false });
+      // Convert sst to number before validating
+      const prepared = {
+        sst:
+          typeof formValues.sst === "string"
+            ? Number(formValues.sst)
+            : formValues.sst,
+        sd: formValues.sd,
+      };
+      await schema.validate(prepared, { abortEarly: false });
       setErrors({});
       return true;
-    } catch (err: unknown) {
+    } catch (err) {
       if (err instanceof yup.ValidationError) {
         const validationErrors: Record<string, string> = {};
-        err.inner.forEach((error) => {
-          if (error.path) {
-            validationErrors[error.path] = error.message;
-          }
+        err.inner.forEach((e) => {
+          if (e.path) validationErrors[e.path] = e.message;
         });
         setErrors(validationErrors);
       }
@@ -105,8 +134,14 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
     setLoading(true);
     setAlert({ message: "" });
 
+    const sstNum =
+      typeof formValues.sst === "string"
+        ? Number(formValues.sst)
+        : formValues.sst;
+    const sdNorm = normalizeSd(formValues.sd);
+
     try {
-      await updateOperatorSlice(accessToken, formValues.sd, formValues.sst);
+      await updateOperatorSlice(accessToken, sstNum, sdNorm);
       onClose();
       onSuccess();
     } catch (error: unknown) {
@@ -127,7 +162,10 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
       aria-labelledby="edit-operator-slice-modal-title"
       aria-describedby="edit-operator-slice-modal-description"
     >
-      <DialogTitle>Edit Operator Slice Information</DialogTitle>
+      <DialogTitle id="edit-operator-slice-modal-title">
+        Edit Operator Slice Information
+      </DialogTitle>
+
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -138,32 +176,45 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
             {alert.message}
           </Alert>
         </Collapse>
-        <DialogContentText id="alert-dialog-slide-description">
-          The Slice Information is used to identify the network slice. Ella Core
-          only supports 1 network slice. The Slice Service Type (SST) is a 8-bit
-          field that identifies the type of service provided by the slice. The
-          Service Differentiator (SD) is a 24-bit field that is used to
-          differentiate slices.
+
+        <DialogContentText id="edit-operator-slice-modal-description">
+          The Slice Information identifies the network slice. Ella Core supports
+          one slice. SST is an 8-bit value (0–255). SD is optional; when present
+          it must be 24-bit hex.
         </DialogContentText>
+
         <TextField
           fullWidth
           label="SST"
           value={formValues.sst}
           onChange={(e) => handleChange("sst", e.target.value)}
           error={!!errors.sst}
-          helperText={errors.sst}
+          helperText={errors.sst || "Enter an integer between 0 and 255."}
           margin="normal"
+          inputProps={{
+            inputMode: "numeric",
+            pattern: "[0-9]*",
+            min: 0,
+            max: 255,
+          }}
         />
+
         <TextField
           fullWidth
-          label="SD"
+          label="SD (optional)"
           value={formValues.sd}
           onChange={(e) => handleChange("sd", e.target.value)}
           error={!!errors.sd}
-          helperText={errors.sd}
+          helperText={
+            errors.sd ||
+            "Format: 6 hex digits, with or without 0x (e.g., 0x012030 or 012030). Leave empty to unset."
+          }
           margin="normal"
+          placeholder="0x012030"
+          inputProps={{ spellCheck: false }}
         />
       </DialogContent>
+
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
         <Button

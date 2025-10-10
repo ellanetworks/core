@@ -13,7 +13,7 @@ const (
 	Mcc = "123"
 	Mnc = "456"
 	Sst = 1
-	Sd  = 12345
+	Sd  = "0x303132"
 )
 
 type GetOperatorResponseResult struct {
@@ -28,8 +28,8 @@ type GetOperatorResponse struct {
 }
 
 type GetOperatorSliceResponseResult struct {
-	Sst int `json:"sst,omitempty"`
-	Sd  int `json:"sd,omitempty"`
+	Sst int    `json:"sst,omitempty"`
+	Sd  string `json:"sd,omitempty"`
 }
 
 type GetOperatorTrackingResponseResult struct {
@@ -57,8 +57,8 @@ type GetOperatorIDResponse struct {
 }
 
 type UpdateOperatorSliceParams struct {
-	Sst int `json:"sst,omitempty"`
-	Sd  int `json:"sd,omitempty"`
+	Sst int    `json:"sst,omitempty"`
+	Sd  string `json:"sd,omitempty"`
 }
 
 type UpdateOperatorTrackingParams struct {
@@ -352,7 +352,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 			t.Fatalf("expected sst %d, got %d", Sst, response.Result.Sst)
 		}
 		if response.Result.Sd != Sd {
-			t.Fatalf("expected sd %d, got %d", Sd, response.Result.Sd)
+			t.Fatalf("expected sd %v, got %v", Sd, response.Result.Sd)
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -361,7 +361,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 
 	t.Run("4. Update operator slice - no sst", func(t *testing.T) {
 		updateOperatorParams := &UpdateOperatorSliceParams{
-			Sd: 123,
+			Sd: "0x303132",
 		}
 		statusCode, response, err := updateOperatorSlice(ts.URL, client, token, updateOperatorParams)
 		if err != nil {
@@ -510,8 +510,8 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		if response.Result.Slice.Sst != 1 {
 			t.Fatalf("expected sst %d, got %d", 1, response.Result.Slice.Sst)
 		}
-		if response.Result.Slice.Sd != 12345 {
-			t.Fatalf("expected sd %d, got %d", 12345, response.Result.Slice.Sd)
+		if response.Result.Slice.Sd != "0x303132" {
+			t.Fatalf("expected sd %q, got %q", "0x303132", response.Result.Slice.Sd)
 		}
 		if len(response.Result.Tracking.SupportedTacs) != 2 {
 			t.Fatalf("expected supported TACs of length 2")
@@ -546,7 +546,7 @@ func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 	tests := []struct {
 		testName string
 		sst      int
-		sd       int
+		sd       string
 		error    string
 	}{
 		{
@@ -564,14 +564,14 @@ func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 		{
 			testName: "Invalid sd - negative",
 			sst:      Sst,
-			sd:       -1,
-			error:    "Invalid SD format. Must be a 24-bit integer",
+			sd:       "-1",
+			error:    "Invalid SD format. Must be a 24-bit hex string",
 		},
 		{
 			testName: "Invalid sd - too big",
 			sst:      Sst,
-			sd:       16777216,
-			error:    "Invalid SD format. Must be a 24-bit integer",
+			sd:       "16777216",
+			error:    "Invalid SD format. Must be a 24-bit hex string",
 		},
 	}
 	for _, tt := range tests {

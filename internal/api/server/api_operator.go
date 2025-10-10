@@ -3,8 +3,10 @@ package server
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -16,8 +18,8 @@ const (
 )
 
 type UpdateOperatorSliceParams struct {
-	Sst int `json:"sst,omitempty"`
-	Sd  int `json:"sd,omitempty"`
+	Sst int    `json:"sst,omitempty"`
+	Sd  string `json:"sd,omitempty"`
 }
 
 type UpdateOperatorTrackingParams struct {
@@ -49,8 +51,8 @@ type GetOperatorResponse struct {
 }
 
 type GetOperatorSliceResponse struct {
-	Sst int `json:"sst,omitempty"`
-	Sd  int `json:"sd,omitempty"`
+	Sst int    `json:"sst,omitempty"`
+	Sd  string `json:"sd,omitempty"`
 }
 
 type GetOperatorIDResponse struct {
@@ -156,9 +158,35 @@ func isValidSst(sst int) bool {
 	return sst >= 0 && sst <= 0xFF
 }
 
-// SD is a 24-bit integer
-func isValidSd(sd int) bool {
-	return sd >= 0 && sd <= 0xFFFFFF
+func ParseSDString(s string) ([]byte, error) {
+	if s == "" {
+		return nil, nil
+	}
+
+	s = strings.TrimPrefix(s, "0x")
+	if len(s) != 6 {
+		return nil, fmt.Errorf("SD must be 3 bytes (6 hex chars), got %d", len(s))
+	}
+
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("invalid hex string: %w", err)
+	}
+
+	arr := make([]byte, 3)
+	copy(arr, b)
+
+	return arr, nil
+}
+
+func SDToString(sd []byte) string {
+	if sd == nil {
+		return ""
+	}
+
+	s := fmt.Sprintf("0x%02x%02x%02x", sd[0], sd[1], sd[2])
+
+	return s
 }
 
 func GetOperator(dbInstance *db.Database) http.Handler {
@@ -183,7 +211,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			},
 			Slice: GetOperatorSliceResponse{
 				Sst: int(dbOperator.Sst),
-				Sd:  dbOperator.Sd,
+				Sd:  SDToString(dbOperator.Sd),
 			},
 			Tracking: GetOperatorTrackingResponse{
 				SupportedTacs: dbOperator.GetSupportedTacs(),
@@ -207,7 +235,7 @@ func GetOperatorSlice(dbInstance *db.Database) http.Handler {
 
 		operatorSlice := &GetOperatorSliceResponse{
 			Sst: int(dbOperator.Sst),
-			Sd:  dbOperator.Sd,
+			Sd:  SDToString(dbOperator.Sd),
 		}
 
 		writeResponse(w, operatorSlice, http.StatusOK, logger.APILog)
@@ -266,21 +294,19 @@ func UpdateOperatorSlice(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusBadRequest, "sst is missing", nil, logger.APILog)
 			return
 		}
-		if params.Sd == 0 {
-			writeError(w, http.StatusBadRequest, "sd is missing", nil, logger.APILog)
-			return
-		}
+
 		if !isValidSst(params.Sst) {
 			writeError(w, http.StatusBadRequest, "Invalid SST format. Must be an 8-bit integer", nil, logger.APILog)
 			return
 		}
-		if !isValidSd(params.Sd) {
-			writeError(w, http.StatusBadRequest, "Invalid SD format. Must be a 24-bit integer", nil, logger.APILog)
+
+		sd, err := ParseSDString(params.Sd)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid SD format. Must be a 24-bit hex string", err, logger.APILog)
 			return
 		}
 
-		if err := dbInstance.UpdateOperatorSlice(r.Context(), int32(params.Sst), params.Sd); err != nil {
-			logger.APILog.Warn("Failed to update operator slice information", zap.Error(err))
+		if err := dbInstance.UpdateOperatorSlice(r.Context(), int32(params.Sst), sd); err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to update operator slice information", err, logger.APILog)
 			return
 		}
