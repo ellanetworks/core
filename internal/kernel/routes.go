@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/google/nftables"
@@ -19,11 +18,6 @@ type NetworkInterface int
 const (
 	N3 NetworkInterface = iota
 	N6
-)
-
-const (
-	routeTable = 42
-	vrfName    = "ella"
 )
 
 // Kernel defines the interface for kernel route management.
@@ -52,83 +46,6 @@ func NewRealKernel(n3Interface, n6Interface string) *RealKernel {
 	}
 }
 
-func (rk *RealKernel) createVRF() error {
-	ella_vrf := &netlink.Vrf{
-		LinkAttrs: netlink.LinkAttrs{
-			Name:      vrfName,
-			OperState: netlink.OperUp,
-		},
-		Table: routeTable,
-	}
-	err := netlink.LinkAdd(ella_vrf)
-	if err != nil {
-		return fmt.Errorf("failed to create vrf: %v", err)
-	}
-	return nil
-}
-
-// SetupVRF creates the ella core VRF and assigns the UPF interfaces
-// to that VRF
-func (rk *RealKernel) SetupVRF() error {
-	ella_link, err := netlink.LinkByName(vrfName)
-	if err != nil {
-		err := rk.createVRF()
-		if err != nil {
-			return err
-		}
-		logger.EllaLog.Debug("Created VRF")
-	} else {
-		ella_vrf, ok := ella_link.(*netlink.Vrf)
-		if !ok || ella_vrf.Table != routeTable {
-			err = netlink.LinkDel(ella_vrf)
-			if err != nil {
-				return fmt.Errorf("failed to delete link: %v", err)
-			}
-			err = rk.createVRF()
-			if err != nil {
-				return err
-			}
-			logger.EllaLog.Debug("Recreated VRF")
-		}
-	}
-	ella_link, err = netlink.LinkByName(vrfName)
-	if err != nil {
-		return fmt.Errorf("failed to get vrf link: %v", err)
-	}
-
-	for key, name := range rk.ifMapping {
-		link, err := netlink.LinkByName(name)
-		if err != nil {
-			return fmt.Errorf("failed to find network interface %q: %v", name, err)
-		}
-		addrs, err := netlink.AddrList(link, unix.AF_INET)
-		if err != nil {
-			return fmt.Errorf("failed to list network addresses for interface %q: %v", name, err)
-		}
-
-		err = netlink.LinkSetMaster(link, ella_link)
-		if err != nil {
-			return fmt.Errorf("failed to set %q interface in vrf: %v", key, err)
-		}
-		logger.EllaLog.Debug("Assigned interface to VRF", zap.String("interface", name), zap.String("vrf", vrfName))
-
-		// In some cases, moving the interface to the VRF can result in the interface losing its IP address.
-		// We try to reassign the original IP address here, ignoring errors.
-		for _, addr := range addrs {
-			err = netlink.AddrAdd(link, &addr)
-			if err != nil {
-				logger.EllaLog.Debug("Could not reassign address to interface", zap.String("address", addr.String()), zap.String("interface", name))
-			}
-		}
-	}
-
-	// Many things need to happen in the kernel after the interfaces are moved to the VRF.
-	// This creates a race condition with the route reconciliation if this is not completed.
-	// The following sleep ensures that this does not happen.
-	time.Sleep(500 * time.Millisecond)
-	return nil
-}
-
 // CreateRoute adds a route to the kernel for the interface defined by ifKey.
 func (rk *RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error {
 	interfaceName, ok := rk.ifMapping[ifKey]
@@ -146,8 +63,7 @@ func (rk *RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priori
 		Gw:        gateway,
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
-		Protocol:  unix.RTPROT_STATIC,
-		Table:     routeTable,
+		Table:     unix.RT_TABLE_MAIN,
 	}
 
 	if err := netlink.RouteAdd(&nlRoute); err != nil {
@@ -174,14 +90,12 @@ func (rk *RealKernel) DeleteRoute(destination *net.IPNet, gateway net.IP, priori
 		Gw:        gateway,
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
-		Protocol:  unix.RTPROT_STATIC,
-		Table:     routeTable,
+		Table:     unix.RT_TABLE_MAIN,
 	}
 
 	if err := netlink.RouteDel(&nlRoute); err != nil {
 		return fmt.Errorf("failed to delete route: %v", err)
 	}
-	logger.EllaLog.Debug("Deleted route", zap.String("destination", destination.String()), zap.String("gateway", gateway.String()), zap.Int("priority", priority), zap.String("interface", interfaceName))
 	return nil
 }
 
@@ -219,8 +133,7 @@ func (rk *RealKernel) RouteExists(destination *net.IPNet, gateway net.IP, priori
 		Gw:        gateway,
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
-		Protocol:  unix.RTPROT_STATIC,
-		Table:     routeTable,
+		Table:     unix.RT_TABLE_MAIN,
 	}
 
 	routes, err := netlink.RouteListFiltered(unix.AF_INET, &nlRoute, netlink.RT_FILTER_DST|netlink.RT_FILTER_GW|netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE)
