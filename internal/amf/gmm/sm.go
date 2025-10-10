@@ -527,10 +527,12 @@ func ContextSetup(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 			amfUe.RegistrationRequest = message
 			switch amfUe.RegistrationType5GS {
 			case nasMessage.RegistrationType5GSInitialRegistration:
+				gmmMessage := &nas.GmmMessage{RegistrationRequest: message}
+				gmmMessage.GmmHeader.SetMessageType(nas.MsgTypeRegistrationRequest)
 				logger.LogSubscriberEvent(
 					logger.SubscriberRegistrationRequest,
 					logger.DirectionInbound,
-					rawGmmNasMessage(&nas.GmmMessage{RegistrationRequest: message}),
+					rawGmmNasMessage(gmmMessage),
 					amfUe.Supi,
 					zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
 					zap.String("suci", amfUe.Suci),
@@ -542,10 +544,12 @@ func ContextSetup(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 			case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
 				fallthrough
 			case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
+				nasMessage := &nas.GmmMessage{RegistrationRequest: message}
+				nasMessage.GmmHeader.SetMessageType(nas.MsgTypeRegistrationRequest)
 				logger.LogSubscriberEvent(
 					logger.SubscriberRegistrationRequest,
 					logger.DirectionInbound,
-					rawGmmNasMessage(&nas.GmmMessage{RegistrationRequest: message}),
+					rawGmmNasMessage(nasMessage),
 					amfUe.Supi,
 					zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
 					zap.String("suci", amfUe.Suci),
@@ -556,10 +560,12 @@ func ContextSetup(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 				}
 			}
 		case *nasMessage.ServiceRequest:
+			nasMessage := &nas.GmmMessage{ServiceRequest: message}
+			nasMessage.GmmHeader.SetMessageType(nas.MsgTypeServiceRequest)
 			logger.LogSubscriberEvent(
 				logger.SubscriberServiceRequest,
 				logger.DirectionInbound,
-				rawGmmNasMessage(&nas.GmmMessage{ServiceRequest: message}),
+				rawGmmNasMessage(nasMessage),
 				amfUe.Supi,
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
 				zap.String("suci", amfUe.Suci),

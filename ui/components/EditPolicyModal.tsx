@@ -38,6 +38,8 @@ type FormState = Omit<APIPolicy, "bitrate_uplink" | "bitrate_downlink"> & {
 
 const PER_PAGE = 12;
 
+const NON_GBR_5QI_OPTIONS = [5, 6, 7, 8, 9, 69, 70, 79, 80];
+
 const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   open,
   onClose,
@@ -139,6 +141,8 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
     }
   };
 
+  const fiveQiIsAllowed = NON_GBR_5QI_OPTIONS.includes(formValues.var5qi);
+
   return (
     <Dialog
       open={open}
@@ -233,16 +237,27 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           </TextField>
         </Box>
 
-        <TextField
-          fullWidth
-          label="5QI"
-          type="number"
-          value={formValues.var5qi}
-          onChange={(e) => handleChange("var5qi", Number(e.target.value))}
-          error={!!errors.var5qi}
-          helperText={errors.var5qi}
-          margin="normal"
-        />
+        <FormControl fullWidth margin="normal">
+          <InputLabel id="fiveqi-edit-select-label">5QI (non-GBR)</InputLabel>
+          <Select
+            labelId="fiveqi-edit-select-label"
+            label="5QI (non-GBR)"
+            value={formValues.var5qi}
+            onChange={(e) => handleChange("var5qi", Number(e.target.value))}
+            error={!!errors.var5qi}
+          >
+            {!fiveQiIsAllowed && (
+              <MenuItem value={formValues.var5qi} disabled>
+                {formValues.var5qi} (current, unsupported)
+              </MenuItem>
+            )}
+            {NON_GBR_5QI_OPTIONS.map((val) => (
+              <MenuItem key={val} value={val}>
+                {val}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
         <TextField
           fullWidth
