@@ -80,3 +80,9 @@ jobs:
       - name: Run integration tests
         run: |
           INTEGRATION=1 go test ./integration/... -v
+
+      - name: Check logs on failure
+        if: failure()
+        run: |
+          kubectl describe pods -n gnbsim
+          kubectl describe pods -n ueransim
