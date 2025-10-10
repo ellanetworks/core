@@ -94,7 +94,7 @@ func parseSubscriberLogFilters(r *http.Request) (*db.SubscriberLogFilters, error
 func GetSubscriberLogRetentionPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		policyDays, err := dbInstance.GetLogRetentionPolicy(ctx, db.CategorySubscriberLogs)
+		policyDays, err := dbInstance.GetRetentionPolicy(ctx, db.CategorySubscriberLogs)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber log retention policy", err, logger.APILog)
 			return
@@ -124,12 +124,12 @@ func UpdateSubscriberLogRetentionPolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		updatedPolicy := &db.LogRetentionPolicy{
+		updatedPolicy := &db.RetentionPolicy{
 			Category: db.CategorySubscriberLogs,
 			Days:     params.Days,
 		}
 
-		if err := dbInstance.SetLogRetentionPolicy(r.Context(), updatedPolicy); err != nil {
+		if err := dbInstance.SetRetentionPolicy(r.Context(), updatedPolicy); err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to update subscriber log retention policy", err, logger.APILog)
 			return
 		}
