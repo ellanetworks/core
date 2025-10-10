@@ -241,9 +241,8 @@ func HandleUpdateN2Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 		pfcpAction.sendPfcpModify = true
 	case models.N2SmInfoTypePduResSetupFail:
 		smContext.SubPduSessLog.Debug("received n2 sm info type", zap.Any("N2SmInfoType", smContextUpdateData.N2SmInfoType))
-		if err := context.
-			HandlePDUSessionResourceSetupResponseTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
-			smContext.SubPduSessLog.Error("handle PDUSessionResourceSetupResponseTransfer failed", zap.Error(err))
+		if err := context.HandlePDUSessionResourceSetupResponseTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
+			smContext.SubPduSessLog.Error("failed to handle PDU Session Resource Setup Response Transfer", zap.Error(err))
 		}
 	case models.N2SmInfoTypePduResRelRsp:
 		smContext.SubPduSessLog.Debug("received n2 sm info type", zap.Any("N2SmInfoType", smContextUpdateData.N2SmInfoType))

@@ -1663,7 +1663,7 @@ func HandlePDUSessionResourceSetupResponse(ctx ctxt.Context, ran *context.AmfRan
 
 	if ranUe != nil {
 		ranUe.Ran = ran
-		ranUe.Log.Debug("Handle PDUSessionResourceSetupResponse", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
+
 		amfUe := ranUe.AmfUe
 		if amfUe == nil {
 			ranUe.Log.Error("amfUe is nil")
