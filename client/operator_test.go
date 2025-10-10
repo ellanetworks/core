@@ -123,8 +123,8 @@ func TestUpdateOperatorSlice_Success(t *testing.T) {
 	}
 
 	updateOperatorSliceOpts := &client.UpdateOperatorSliceOptions{
-		Sst: 123,
-		Sd:  456,
+		Sst: 1,
+		Sd:  "0x012030",
 	}
 
 	ctx := context.Background()
@@ -148,8 +148,8 @@ func TestUpdateOperatorSlice_Failure(t *testing.T) {
 		Requester: fake,
 	}
 	updateOperatorSliceOpts := &client.UpdateOperatorSliceOptions{
-		Sst: 123,
-		Sd:  456,
+		Sst: 1,
+		Sd:  "0x012030",
 	}
 
 	ctx := context.Background()
