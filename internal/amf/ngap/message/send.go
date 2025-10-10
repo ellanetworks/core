@@ -59,10 +59,6 @@ func SendToRanUe(ue *context.RanUe, packet []byte) error {
 		return fmt.Errorf("ran is nil")
 	}
 
-	if ue.AmfUe == nil {
-		return fmt.Errorf("amf ue is nil")
-	}
-
 	err := SendToRan(ran, packet)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())

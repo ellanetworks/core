@@ -2577,11 +2577,13 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 			return
 		}
 	}
+
 	err := ngap_message.SendUEContextReleaseCommand(ranUe, context.UeContextN2NormalRelease, causeGroup, causeValue)
 	if err != nil {
 		ranUe.Log.Error("error sending ue context release command", zap.Error(err))
 		return
 	}
+
 	ranUe.Log.Info("sent ue context release command")
 }
 
