@@ -37,7 +37,9 @@ const schema = yup.object({
     .max(255, "SST must be at most 255"),
   sd: yup
     .string()
-    .transform((v) => (typeof v === "string" && v.trim() === "" ? undefined : v))
+    .transform((v) =>
+      typeof v === "string" && v.trim() === "" ? undefined : v,
+    )
     .optional()
     .matches(/^$|^[0-9a-fA-F]{6}$/, {
       message: "SD must be exactly 6 hex digits (e.g., 012030)",
@@ -119,7 +121,10 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
   const validate = async (): Promise<boolean> => {
     try {
       const prepared = {
-        sst: typeof formValues.sst === "string" ? Number(formValues.sst) : formValues.sst,
+        sst:
+          typeof formValues.sst === "string"
+            ? Number(formValues.sst)
+            : formValues.sst,
         sd: formValues.sd, // already sanitized
       };
       await schema.validate(prepared, { abortEarly: false });
@@ -145,7 +150,10 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
     setLoading(true);
     setAlert({ message: "" });
 
-    const sstNum = typeof formValues.sst === "string" ? Number(formValues.sst) : formValues.sst;
+    const sstNum =
+      typeof formValues.sst === "string"
+        ? Number(formValues.sst)
+        : formValues.sst;
     const sdNorm = normalizeSd(formValues.sd); // undefined or plain 6-hex lowercase
 
     try {
@@ -153,7 +161,8 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
       onClose();
       onSuccess();
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred.";
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred.";
       setAlert({
         message: `Failed to update operator slice information: ${errorMessage}`,
       });
@@ -175,14 +184,19 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
 
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
-          <Alert onClose={() => setAlert({ message: "" })} sx={{ mb: 2 }} severity="error">
+          <Alert
+            onClose={() => setAlert({ message: "" })}
+            sx={{ mb: 2 }}
+            severity="error"
+          >
             {alert.message}
           </Alert>
         </Collapse>
 
         <DialogContentText id="edit-operator-slice-modal-description">
-          The Slice Information identifies the network slice. Ella Core supports one slice.
-          SST is an 8-bit value (0–255). SD is optional; when present it must be 24-bit hex.
+          The Slice Information identifies the network slice. Ella Core supports
+          one slice. SST is an 8-bit value (0–255). SD is optional; when present
+          it must be 24-bit hex.
         </DialogContentText>
 
         <TextField
@@ -207,22 +221,26 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
           value={formValues.sd}
           onChange={(e) => handleChange("sd", e.target.value)}
           error={!!errors.sd}
-          helperText={
-            errors.sd ||
-            "Enter 6 hex digits."
-          }
+          helperText={errors.sd || "Enter 6 hex digits."}
           margin="normal"
           placeholder="012030"
           inputProps={{ spellCheck: false, inputMode: "text" }}
           InputProps={{
-            startAdornment: <InputAdornment position="start">0x</InputAdornment>,
+            startAdornment: (
+              <InputAdornment position="start">0x</InputAdornment>
+            ),
           }}
         />
       </DialogContent>
 
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" color="success" onClick={handleSubmit} disabled={loading}>
+        <Button
+          variant="contained"
+          color="success"
+          onClick={handleSubmit}
+          disabled={loading}
+        >
           {loading ? "Updating..." : "Update"}
         </Button>
       </DialogActions>

@@ -264,9 +264,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           label="Allocation and Retention Priority (ARP)"
           type="number"
           value={formValues.arp}
-          onChange={(e) =>
-            handleChange("arp", Number(e.target.value))
-          }
+          onChange={(e) => handleChange("arp", Number(e.target.value))}
           error={!!errors.arp}
           helperText={errors.arp}
           margin="normal"

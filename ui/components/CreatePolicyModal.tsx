@@ -54,11 +54,7 @@ const schema = yup.object().shape({
       `5QI must be one of: ${NON_GBR_5QI_OPTIONS.join(", ")}`,
     )
     .required("5QI is required"),
-  arp: yup
-    .number()
-    .min(1)
-    .max(15)
-    .required("ARP is required"),
+  arp: yup.number().min(1).max(15).required("ARP is required"),
   dataNetworkName: yup.string().required("Data Network Name is required."),
 });
 
@@ -327,9 +323,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           label="Allocation and Retention Priority (ARP)"
           type="number"
           value={formValues.arp}
-          onChange={(e) =>
-            handleChange("arp", Number(e.target.value))
-          }
+          onChange={(e) => handleChange("arp", Number(e.target.value))}
           onBlur={() => handleBlur("arp")}
           error={!!errors.arp && touched.arp}
           margin="normal"
