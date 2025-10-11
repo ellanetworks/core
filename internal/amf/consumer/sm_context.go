@@ -29,6 +29,7 @@ func SelectSmf(
 	nsiInformation := ue.GetNsiInformationFromSnssai(anType, snssai)
 	smContext := context.NewSmContext(pduSessionID)
 	smContext.SetSnssai(snssai)
+
 	smContext.SetDnn(dnn)
 	smContext.SetAccessType(anType)
 

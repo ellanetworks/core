@@ -98,7 +98,7 @@ func (operator *Operator) GetHexSd() string {
 		return ""
 	}
 
-	return fmt.Sprintf("0x%02x%02x%02x", operator.Sd[0], operator.Sd[1], operator.Sd[2])
+	return fmt.Sprintf("%02x%02x%02x", operator.Sd[0], operator.Sd[1], operator.Sd[2])
 }
 
 func (operator *Operator) SetSupportedTacs(supportedTACs []string) {

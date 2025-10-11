@@ -163,9 +163,8 @@ func ParseSDString(s string) ([]byte, error) {
 		return nil, nil
 	}
 
-	s = strings.TrimPrefix(s, "0x")
-	if len(s) != 6 {
-		return nil, fmt.Errorf("SD must be 3 bytes (6 hex chars), got %d", len(s))
+	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
+		return nil, fmt.Errorf("SD must not start with 0x")
 	}
 
 	b, err := hex.DecodeString(s)
