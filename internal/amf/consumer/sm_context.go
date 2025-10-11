@@ -29,6 +29,7 @@ func SelectSmf(
 	nsiInformation := ue.GetNsiInformationFromSnssai(anType, snssai)
 	smContext := context.NewSmContext(pduSessionID)
 	smContext.SetSnssai(snssai)
+
 	smContext.SetDnn(dnn)
 	smContext.SetAccessType(anType)
 
@@ -46,11 +47,7 @@ func SendCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *
 		BinaryDataN1SmMessage: nasPdu,
 	}
 
-	smContextRef, postSmContextErrorReponse, err := pdusession.CreateSmContext(ctx, postSmContextsRequest)
-	if err != nil {
-		return smContextRef, postSmContextErrorReponse, fmt.Errorf("create sm context request error: %s", err)
-	}
-	return smContextRef, nil, nil
+	return pdusession.CreateSmContext(ctx, postSmContextsRequest)
 }
 
 func buildCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext) (smContextCreateData models.SmContextCreateData) {

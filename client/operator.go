@@ -38,7 +38,7 @@ type UpdateOperatorIDOptions struct {
 
 type UpdateOperatorSliceOptions struct {
 	Sst int
-	Sd  int
+	Sd  string
 }
 
 type UpdateOperatorTrackingOptions struct {
@@ -94,8 +94,8 @@ func (c *Client) UpdateOperatorID(ctx context.Context, opts *UpdateOperatorIDOpt
 
 func (c *Client) UpdateOperatorSlice(ctx context.Context, opts *UpdateOperatorSliceOptions) error {
 	payload := struct {
-		Sst int `json:"sst"`
-		Sd  int `json:"sd"`
+		Sst int    `json:"sst"`
+		Sd  string `json:"sd"`
 	}{
 		Sst: opts.Sst,
 		Sd:  opts.Sd,

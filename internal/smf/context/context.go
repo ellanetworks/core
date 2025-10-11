@@ -30,18 +30,21 @@ type SMFContext struct {
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
-func RetrieveDnnInformation(ctx context.Context, Snssai models.Snssai, dnn string) (*SnssaiSmfDnnInfo, error) {
-	snssaiInfo, err := GetSnssaiInfo(ctx)
+func RetrieveDnnInformation(ctx context.Context, ueSnssai models.Snssai, dnn string) (*SnssaiSmfDnnInfo, error) {
+	supportedSnssai, err := GetSnssaiInfo(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get snssai information: %v", err)
 	}
-	if snssaiInfo.Snssai.Sst != Snssai.Sst {
-		return nil, fmt.Errorf("expected sst %d, got %d", Snssai.Sst, snssaiInfo.Snssai.Sst)
+
+	if supportedSnssai.Snssai.Sst != ueSnssai.Sst {
+		return nil, fmt.Errorf("ue requested sst %d, but sst %d is supported", ueSnssai.Sst, supportedSnssai.Snssai.Sst)
 	}
-	if snssaiInfo.Snssai.Sd != Snssai.Sd {
-		return nil, fmt.Errorf("expected sd %s, got %s", Snssai.Sd, snssaiInfo.Snssai.Sd)
+
+	if supportedSnssai.Snssai.Sd != ueSnssai.Sd {
+		return nil, fmt.Errorf("ue requested sd %s, but sd %s is supported", ueSnssai.Sd, supportedSnssai.Snssai.Sd)
 	}
-	return snssaiInfo.DnnInfos[dnn], nil
+
+	return supportedSnssai.DnnInfos[dnn], nil
 }
 
 func AllocateLocalSEID() (uint64, error) {

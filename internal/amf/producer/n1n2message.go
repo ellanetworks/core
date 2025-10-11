@@ -25,20 +25,19 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf")
 
-func CreateN1N2MessageTransfer(ctx ctxt.Context, ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqURI string) (*models.N1N2MessageTransferRspData, error) {
+func CreateN1N2MessageTransfer(ctx ctxt.Context, ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
 	ctx, span := tracer.Start(ctx, "AMF N1N2 MessageTransfer")
 	defer span.End()
 
 	span.SetAttributes(
 		attribute.String("amf.ue_context_id", ueContextID),
-		attribute.String("n1n2.request_uri", reqURI),
 	)
 
 	amfSelf := context.AMFSelf()
 	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
 		return nil, fmt.Errorf("ue context not found")
 	}
-	respData, err := N1N2MessageTransferProcedure(ctx, ueContextID, reqURI, n1n2MessageTransferRequest)
+	respData, err := N1N2MessageTransferProcedure(ctx, ueContextID, n1n2MessageTransferRequest)
 	if err != nil {
 		return nil, fmt.Errorf("n1 n2 message transfer error: %v", err)
 	}
@@ -64,7 +63,7 @@ func CreateN1N2MessageTransfer(ctx ctxt.Context, ueContextID string, n1n2Message
 //   - error: if AMF reject the request due to application error, e.g. UE context not found.
 
 // see TS 29.518 6.1.3.5.3.1 for more details.
-func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, reqURI string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
+func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
 	var (
 		requestData = n1n2MessageTransferRequest.JSONData
 		n2Info      = n1n2MessageTransferRequest.BinaryDataN2Information

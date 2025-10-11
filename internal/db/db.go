@@ -46,8 +46,9 @@ const (
 	InitialMcc         = "001"
 	InitialMnc         = "01"
 	InitialOperatorSst = 1
-	InitialOperatorSd  = 1056816
 )
+
+var InitialSupportedTacs = []string{"001"}
 
 // Initial Data network values
 const (
@@ -188,10 +189,10 @@ func (db *Database) Initialize() error {
 			Mnc:                   InitialMnc,
 			OperatorCode:          initialOp,
 			Sst:                   InitialOperatorSst,
-			Sd:                    InitialOperatorSd,
+			Sd:                    nil,
 			HomeNetworkPrivateKey: initialHNPrivateKey,
 		}
-		initialOperator.SetSupportedTacs([]string{"001"})
+		initialOperator.SetSupportedTacs(InitialSupportedTacs)
 		if err := db.InitializeOperator(context.Background(), initialOperator); err != nil {
 			return fmt.Errorf("failed to initialize network configuration: %v", err)
 		}

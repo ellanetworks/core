@@ -108,7 +108,6 @@ func configureEllaCore(ctx context.Context, opts *ConfigureEllaCoreOpts) (*clien
 
 	updateOperatorSliceOpts := &client.UpdateOperatorSliceOptions{
 		Sst: 1,
-		Sd:  1056816,
 	}
 	err = opts.client.UpdateOperatorSlice(ctx, updateOperatorSliceOpts)
 	if err != nil {

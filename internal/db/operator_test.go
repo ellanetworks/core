@@ -3,6 +3,7 @@
 package db_test
 
 import (
+	"bytes"
 	"context"
 	"path/filepath"
 	"testing"
@@ -13,43 +14,43 @@ import (
 func TestGetHexSd(t *testing.T) {
 	testCases := []struct {
 		name     string
-		input    int
+		input    []byte // nil => unset; when set must be len 3
 		expected string
 	}{
 		{
+			name:     "Unset (nil)",
+			input:    nil,
+			expected: "",
+		},
+		{
 			name:     "Normal case with leading zeros",
-			input:    0x012030,
-			expected: "012030",
+			input:    []byte{0x01, 0x20, 0x30},
+			expected: "0x012030",
 		},
 		{
 			name:     "Zero value",
-			input:    0x0,
-			expected: "000000",
+			input:    []byte{0x00, 0x00, 0x00},
+			expected: "0x000000",
 		},
 		{
-			name:     "Maximum 6-digit hex value",
-			input:    0xFFFFFF,
-			expected: "FFFFFF",
+			name:     "Maximum 24-bit value",
+			input:    []byte{0xFF, 0xFF, 0xFF},
+			expected: "0xffffff",
 		},
 		{
-			name:     "Value with no additional padding needed",
-			input:    0xABCDEF,
-			expected: "ABCDEF",
-		},
-		{
-			name:  "Value greater than six hex digits",
-			input: 0x1234567,
-			// Note: %06X will not truncate numbers larger than 6 digits.
-			expected: "1234567",
+			name:     "No padding needed (hex letters lowercased by %02x)",
+			input:    []byte{0xAB, 0xCD, 0xEF},
+			expected: "0xabcdef",
 		},
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			op := &db.Operator{Sd: tc.input}
 			result := op.GetHexSd()
 			if result != tc.expected {
-				t.Errorf("For input 0x%X, expected %s but got %s", tc.input, tc.expected, result)
+				t.Errorf("expected %q but got %q (input=%v)", tc.expected, result, tc.input)
 			}
 		})
 	}
@@ -88,7 +89,7 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 		t.Fatalf("The operator code from the database doesn't match the expected default")
 	}
 
-	err = database.UpdateOperatorSlice(context.Background(), 1, 1056816)
+	err = database.UpdateOperatorSlice(context.Background(), 1, []byte{0x10, 0x20, 0x30})
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
@@ -100,12 +101,16 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 	if retrievedOperator.Sst != 1 {
 		t.Fatalf("The sst from the database doesn't match the expected value")
 	}
-	if retrievedOperator.Sd != 1056816 {
+	expectedSd := []byte{0x10, 0x20, 0x30}
+
+	if !bytes.Equal(retrievedOperator.Sd, expectedSd) {
 		t.Fatalf("The sd from the database doesn't match the expected value")
 	}
-	if retrievedOperator.GetHexSd() != "102030" {
-		t.Fatalf("The hex sd from the database doesn't match the expected value")
+
+	if retrievedOperator.GetHexSd() != "0x102030" {
+		t.Fatalf("The hex sd from the database doesn't match the expected value, got %q", retrievedOperator.GetHexSd())
 	}
+
 	retrievedOperatorCode, err = database.GetOperatorCode(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
@@ -134,7 +139,8 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 	if operator.Sst != 1 {
 		t.Fatalf("The sst from the database doesn't match the expected value")
 	}
-	if operator.Sd != 1056816 {
+
+	if !bytes.Equal(operator.Sd, expectedSd) {
 		t.Fatalf("The sd from the database doesn't match the expected value")
 	}
 }

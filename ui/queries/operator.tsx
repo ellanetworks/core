@@ -96,11 +96,11 @@ export const updateOperatorTracking = async (
 
 export const updateOperatorSlice = async (
   authToken: string,
-  sd: number,
   sst: number,
+  sd?: string | null,
 ) => {
-  if (typeof sd !== "number" || typeof sst !== "number") {
-    throw new Error("Both sd and sst must be numbers.");
+  if (typeof sst !== "number") {
+    throw new Error("SST must be a number.");
   }
   const operatorSliceData = {
     sd: sd,
