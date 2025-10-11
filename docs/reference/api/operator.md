@@ -29,7 +29,7 @@ None
         },
         "slice": {
             "sst": 1,
-            "sd": "0x012030"
+            "sd": ""
         },
         "tracking": {
             "supportedTACs": [
@@ -132,7 +132,7 @@ None
 {
     "result": {
         "sst": 1,
-        "sd": "0x012030"
+        "sd": ""
     }
 }
 ```

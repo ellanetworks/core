@@ -35,12 +35,15 @@ func RetrieveDnnInformation(ctx context.Context, Snssai models.Snssai, dnn strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to get snssai information: %v", err)
 	}
+
 	if snssaiInfo.Snssai.Sst != Snssai.Sst {
 		return nil, fmt.Errorf("expected sst %d, got %d", Snssai.Sst, snssaiInfo.Snssai.Sst)
 	}
+
 	if snssaiInfo.Snssai.Sd != Snssai.Sd {
 		return nil, fmt.Errorf("expected sd %s, got %s", Snssai.Sd, snssaiInfo.Snssai.Sd)
 	}
+
 	return snssaiInfo.DnnInfos[dnn], nil
 }
 

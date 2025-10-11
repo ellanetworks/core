@@ -43,7 +43,7 @@ func CreateSmContext(ctx ctxt.Context, request models.PostSmContextsRequest) (st
 
 	location, errRsp, err := producer.HandlePDUSessionSMContextCreate(ctx, request, smContext)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
+		return "", errRsp, fmt.Errorf("failed to create SM Context: %v", err)
 	}
 
 	if errRsp != nil {

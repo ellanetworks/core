@@ -291,7 +291,6 @@ const (
 	SubscriberDeregistrationRequest                   SubscriberEvent = "Deregistration Request"
 	SubscriberDeregistrationAccept                    SubscriberEvent = "Deregistration Accept"
 	SubscriberStatus5GMM                              SubscriberEvent = "Status 5GMM"
-	SubscriberDownlinkNasTransport                    SubscriberEvent = "Downlink NAS Transport"
 
 	// Access events (outbound)
 	SubscriberRegistrationAccept    SubscriberEvent = "Registration Accept"
