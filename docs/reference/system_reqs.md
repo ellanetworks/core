@@ -17,12 +17,6 @@ To run Ella Core, your system should meet the following minimum requirements:
 - **Memory**: 2 GB of RAM
 - **Storage**: 10 GB of available disk space
 - **Network**: 4 network interfaces
-- **Operating System**: Linux with kernel 6.8 or above, with support for those features:
-  - eBPF
-  - XDP
-  - nftables
-  - vrf
-  - SCTP protocol
 
 ## Production Requirements
 

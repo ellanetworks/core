@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/jobs"
-	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/pcf"
@@ -95,12 +94,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3.Address, cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name, cfg.XDP.AttachMode, isNATEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
-	}
-
-	kernelInt := kernel.NewRealKernel(cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
-	err = kernelInt.SetupVRF()
-	if err != nil {
-		return fmt.Errorf("couldn't setup VRF: %v", err)
 	}
 
 	if err := api.Start(
