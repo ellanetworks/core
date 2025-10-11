@@ -13,7 +13,7 @@ const (
 	Mcc = "123"
 	Mnc = "456"
 	Sst = 1
-	Sd  = "0x303132"
+	Sd  = "303132"
 )
 
 type GetOperatorResponseResult struct {
@@ -361,7 +361,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 
 	t.Run("4. Update operator slice - no sst", func(t *testing.T) {
 		updateOperatorParams := &UpdateOperatorSliceParams{
-			Sd: "0x303132",
+			Sd: "303132",
 		}
 		statusCode, response, err := updateOperatorSlice(ts.URL, client, token, updateOperatorParams)
 		if err != nil {

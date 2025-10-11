@@ -109,7 +109,7 @@ func GetSubscriberPolicy(ctx context.Context, imsi string) (*PcfSubscriberPolicy
 		Var5qi:               policy.Var5qi,
 		MaxbrUl:              policy.BitrateUplink,
 		MaxbrDl:              policy.BitrateDownlink,
-		Arp:                  &models.Arp{PriorityLevel: policy.PriorityLevel},
+		Arp:                  &models.Arp{PriorityLevel: policy.Arp},
 		DefQosFlowIndication: true,
 	}
 	subscriberPolicies.PccPolicy[pccPolicyID].QosDecs[qosData.QosID] = qosData

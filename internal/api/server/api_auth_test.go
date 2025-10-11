@@ -519,7 +519,7 @@ func TestRolesEndToEnd(t *testing.T) {
 			BitrateUplink:   "100 Mbps",
 			BitrateDownlink: "200 Mbps",
 			Var5qi:          9,
-			PriorityLevel:   1,
+			Arp:             1,
 			DataNetworkName: DataNetworkName,
 		}
 		statusCode, response, err := createPolicy(ts.URL, client, networkManagerToken, createPolicyParams)

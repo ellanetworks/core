@@ -25,22 +25,22 @@ func TestGetHexSd(t *testing.T) {
 		{
 			name:     "Normal case with leading zeros",
 			input:    []byte{0x01, 0x20, 0x30},
-			expected: "0x012030",
+			expected: "012030",
 		},
 		{
 			name:     "Zero value",
 			input:    []byte{0x00, 0x00, 0x00},
-			expected: "0x000000",
+			expected: "000000",
 		},
 		{
 			name:     "Maximum 24-bit value",
 			input:    []byte{0xFF, 0xFF, 0xFF},
-			expected: "0xffffff",
+			expected: "ffffff",
 		},
 		{
 			name:     "No padding needed (hex letters lowercased by %02x)",
 			input:    []byte{0xAB, 0xCD, 0xEF},
-			expected: "0xabcdef",
+			expected: "abcdef",
 		},
 	}
 
@@ -107,7 +107,7 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 		t.Fatalf("The sd from the database doesn't match the expected value")
 	}
 
-	if retrievedOperator.GetHexSd() != "0x102030" {
+	if retrievedOperator.GetHexSd() != "102030" {
 		t.Fatalf("The hex sd from the database doesn't match the expected value, got %q", retrievedOperator.GetHexSd())
 	}
 

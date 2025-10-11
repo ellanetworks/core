@@ -5,7 +5,7 @@ export type APIPolicy = {
   bitrate_uplink: string;
   bitrate_downlink: string;
   var5qi: number;
-  priority_level: number;
+  arp: number;
   data_network_name: string;
 };
 
@@ -56,7 +56,7 @@ export const createPolicy = async (
   bitrateUplink: string,
   bitrateDownlink: string,
   var5qi: number,
-  priorityLevel: number,
+  arp: number,
   dataNetworkName: string,
 ) => {
   const policyData = {
@@ -64,7 +64,7 @@ export const createPolicy = async (
     bitrate_uplink: bitrateUplink,
     bitrate_downlink: bitrateDownlink,
     var5qi: var5qi,
-    priority_level: priorityLevel,
+    arp: arp,
     data_network_name: dataNetworkName,
   };
 
@@ -100,7 +100,7 @@ export const updatePolicy = async (
   bitrateUplink: string,
   bitrateDownlink: string,
   var5qi: number,
-  priorityLevel: number,
+  arp: number,
   dataNetworkName: string,
 ) => {
   const policyData = {
@@ -108,7 +108,7 @@ export const updatePolicy = async (
     bitrate_uplink: bitrateUplink,
     bitrate_downlink: bitrateDownlink,
     var5qi: var5qi,
-    priority_level: priorityLevel,
+    arp: arp,
     data_network_name: dataNetworkName,
   };
 

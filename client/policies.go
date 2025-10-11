@@ -13,7 +13,7 @@ type CreatePolicyOptions struct {
 	BitrateUplink   string `json:"bitrate_uplink"`
 	BitrateDownlink string `json:"bitrate_downlink"`
 	Var5qi          int32  `json:"var5qi"`
-	PriorityLevel   int32  `json:"priority_level"`
+	Arp             int32  `json:"arp"`
 	DataNetworkName string `json:"data_network_name"`
 }
 
@@ -30,7 +30,7 @@ type Policy struct {
 	BitrateUplink   string `json:"bitrate_uplink"`
 	BitrateDownlink string `json:"bitrate_downlink"`
 	Var5qi          int32  `json:"var5qi"`
-	PriorityLevel   int32  `json:"priority_level"`
+	Arp             int32  `json:"arp"`
 	DataNetworkName string `json:"data_network_name"`
 }
 
@@ -47,14 +47,14 @@ func (c *Client) CreatePolicy(ctx context.Context, opts *CreatePolicyOptions) er
 		BitrateUplink   string `json:"bitrate_uplink"`
 		BitrateDownlink string `json:"bitrate_downlink"`
 		Var5qi          int32  `json:"var5qi"`
-		PriorityLevel   int32  `json:"priority_level"`
+		Arp             int32  `json:"arp"`
 		DataNetworkName string `json:"data_network_name"`
 	}{
 		Name:            opts.Name,
 		BitrateUplink:   opts.BitrateUplink,
 		BitrateDownlink: opts.BitrateDownlink,
 		Var5qi:          opts.Var5qi,
-		PriorityLevel:   opts.PriorityLevel,
+		Arp:             opts.Arp,
 		DataNetworkName: opts.DataNetworkName,
 	}
 

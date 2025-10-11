@@ -25,7 +25,7 @@ const QueryCreatePoliciesTable = `
 		bitrateUplink TEXT NOT NULL,
 		bitrateDownlink TEXT NOT NULL,
 		var5qi INTEGER NOT NULL,
-		priorityLevel INTEGER NOT NULL,
+		arp INTEGER NOT NULL,
 
 		dataNetworkID INTEGER NOT NULL,
     	FOREIGN KEY (dataNetworkID) REFERENCES data_networks (id)
@@ -35,8 +35,8 @@ const (
 	listPoliciesPagedStmt = "SELECT &Policy.* from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getPolicyStmt         = "SELECT &Policy.* from %s WHERE name==$Policy.name"
 	getPolicyByIDStmt     = "SELECT &Policy.* FROM %s WHERE id==$Policy.id"
-	createPolicyStmt      = "INSERT INTO %s (name, bitrateUplink, bitrateDownlink, var5qi, priorityLevel, dataNetworkID) VALUES ($Policy.name, $Policy.bitrateUplink, $Policy.bitrateDownlink, $Policy.var5qi, $Policy.priorityLevel, $Policy.dataNetworkID)"
-	editPolicyStmt        = "UPDATE %s SET bitrateUplink=$Policy.bitrateUplink, bitrateDownlink=$Policy.bitrateDownlink, var5qi=$Policy.var5qi, priorityLevel=$Policy.priorityLevel, dataNetworkID=$Policy.dataNetworkID WHERE name==$Policy.name"
+	createPolicyStmt      = "INSERT INTO %s (name, bitrateUplink, bitrateDownlink, var5qi, arp, dataNetworkID) VALUES ($Policy.name, $Policy.bitrateUplink, $Policy.bitrateDownlink, $Policy.var5qi, $Policy.arp, $Policy.dataNetworkID)"
+	editPolicyStmt        = "UPDATE %s SET bitrateUplink=$Policy.bitrateUplink, bitrateDownlink=$Policy.bitrateDownlink, var5qi=$Policy.var5qi, arp=$Policy.arp, dataNetworkID=$Policy.dataNetworkID WHERE name==$Policy.name"
 	deletePolicyStmt      = "DELETE FROM %s WHERE name==$Policy.name"
 	countPoliciesStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
@@ -47,7 +47,7 @@ type Policy struct {
 	BitrateUplink   string `db:"bitrateUplink"`
 	BitrateDownlink string `db:"bitrateDownlink"`
 	Var5qi          int32  `db:"var5qi"`
-	PriorityLevel   int32  `db:"priorityLevel"`
+	Arp             int32  `db:"arp"`
 	DataNetworkID   int    `db:"dataNetworkID"`
 }
 

@@ -31,7 +31,7 @@ This path returns the list of policies.
                 "bitrate_uplink": "200 Mbps",
                 "bitrate_downlink": "100 Mbps",
                 "var5qi": 9,
-                "priority_level": 90,
+                "arp": 1,
                 "data_network_name": "internet"
             }
         ],
@@ -56,7 +56,7 @@ This path creates a new policy.
 - `bitrate_uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `bitrate_downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `var5qi` (integer): The QoS class identifier of the policy. Must be an integer between 1 and 255.
-- `priority_level` (integer): The priority level of the policy. Must be an integer between 1 and 255.
+- `arp` (integer): The Allocation and Retention Priority (ARP) of the policy. Must be an integer between 1 and 15.
 - `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
 
 ### Sample Response
@@ -82,7 +82,7 @@ This path updates an existing policy.
 - `bitrate_uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `bitrate_downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `var5qi` (integer): The QoS class identifier of the policy. Must be an integer between 1 and 255.
-- `priority_level` (integer): The priority level of the policy. Must be an integer between 1 and 255.
+- `arp` (integer): The Allocation and Retention Priority (ARP) of the policy. Must be an integer between 1 and 15.
 - `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
 
 ### Sample Response
@@ -116,7 +116,7 @@ None
         "bitrate_uplink": "10 Mbps",
         "bitrate_downlink": "10 Mbps",
         "var5qi": 9,
-        "priority_level": 90,
+        "arp": 1,
         "data_network_name": "internet"
     }
 }

@@ -172,6 +172,10 @@ func ParseSDString(s string) ([]byte, error) {
 		return nil, fmt.Errorf("invalid hex string: %w", err)
 	}
 
+	if len(b) > 3 {
+		return nil, fmt.Errorf("SD must be at most 3 bytes (6 hex characters)")
+	}
+
 	arr := make([]byte, 3)
 	copy(arr, b)
 
@@ -183,7 +187,7 @@ func SDToString(sd []byte) string {
 		return ""
 	}
 
-	s := fmt.Sprintf("0x%02x%02x%02x", sd[0], sd[1], sd[2])
+	s := fmt.Sprintf("%02x%02x%02x", sd[0], sd[1], sd[2])
 
 	return s
 }

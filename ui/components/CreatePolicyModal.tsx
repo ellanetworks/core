@@ -54,11 +54,11 @@ const schema = yup.object().shape({
       `5QI must be one of: ${NON_GBR_5QI_OPTIONS.join(", ")}`,
     )
     .required("5QI is required"),
-  priorityLevel: yup
+  arp: yup
     .number()
-    .min(0)
-    .max(256)
-    .required("Priority Level is required"),
+    .min(1)
+    .max(15)
+    .required("ARP is required"),
   dataNetworkName: yup.string().required("Data Network Name is required."),
 });
 
@@ -85,7 +85,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
     bitrateDownValue: 100,
     bitrateDownUnit: "Mbps",
     fiveQi: 9,
-    priorityLevel: 90,
+    arp: 1,
     dataNetworkName: "",
   });
 
@@ -171,7 +171,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
         bitrateUplink,
         bitrateDownlink,
         formValues.fiveQi,
-        formValues.priorityLevel,
+        formValues.arp,
         formValues.dataNetworkName,
       );
       onClose();
@@ -324,14 +324,14 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
 
         <TextField
           fullWidth
-          label="Priority Level"
+          label="Allocation and Retention Priority (ARP)"
           type="number"
-          value={formValues.priorityLevel}
+          value={formValues.arp}
           onChange={(e) =>
-            handleChange("priorityLevel", Number(e.target.value))
+            handleChange("arp", Number(e.target.value))
           }
-          onBlur={() => handleBlur("priorityLevel")}
-          error={!!errors.priorityLevel && touched.priorityLevel}
+          onBlur={() => handleBlur("arp")}
+          error={!!errors.arp && touched.arp}
           margin="normal"
         />
       </DialogContent>
