@@ -462,15 +462,6 @@ func LogRadioEvent(event RadioEvent, dir LogDirection, rawBytes []byte, ranID st
 		return
 	}
 
-	if rawBytes == nil {
-		EllaLog.Warn("attempted to log radio event with nil rawBytes",
-			zap.String("event", string(event)),
-			zap.String("ran_id", ranID),
-			zap.Any("fields", fields),
-		)
-		return
-	}
-
 	if event == "" {
 		EllaLog.Warn("attempted to log empty radio event",
 			zap.String("ran_id", ranID),
