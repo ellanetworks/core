@@ -48,7 +48,10 @@ const (
 	InitialOperatorSst = 1
 )
 
-var InitialSupportedTacs = []string{"001"}
+var (
+	InitialOperatorSd    = []byte{0x10, 0x20, 0x30}
+	InitialSupportedTacs = []string{"001"}
+)
 
 // Initial Data network values
 const (
@@ -190,7 +193,7 @@ func (db *Database) Initialize() error {
 			Mnc:                   InitialMnc,
 			OperatorCode:          initialOp,
 			Sst:                   InitialOperatorSst,
-			Sd:                    nil,
+			Sd:                    InitialOperatorSd,
 			HomeNetworkPrivateKey: initialHNPrivateKey,
 		}
 		initialOperator.SetSupportedTacs(InitialSupportedTacs)
