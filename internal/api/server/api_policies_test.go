@@ -15,7 +15,7 @@ const (
 	BitrateUplink   = "100 Mbps"
 	BitrateDownlink = "200 Mbps"
 	Var5qi          = 9
-	PriorityLevel   = 1
+	Arp             = 1
 )
 
 type CreatePolicyResponseResult struct {
@@ -27,7 +27,7 @@ type Policy struct {
 	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
 	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
 	Var5qi          int32  `json:"var5qi,omitempty"`
-	PriorityLevel   int32  `json:"priority_level,omitempty"`
+	Arp             int32  `json:"arp,omitempty"`
 	DataNetworkName string `json:"data_network_name,omitempty"`
 }
 
@@ -41,7 +41,7 @@ type CreatePolicyParams struct {
 	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
 	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
 	Var5qi          int32  `json:"var5qi,omitempty"`
-	PriorityLevel   int32  `json:"priority_level,omitempty"`
+	Arp             int32  `json:"arp,omitempty"`
 	DataNetworkName string `json:"data_network_name,omitempty"`
 }
 
@@ -248,7 +248,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			BitrateUplink:   "100 Mbps",
 			BitrateDownlink: "200 Mbps",
 			Var5qi:          9,
-			PriorityLevel:   1,
+			Arp:             1,
 			DataNetworkName: DataNetworkName,
 		}
 		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
@@ -303,8 +303,8 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if response.Result.Var5qi != 9 {
 			t.Fatalf("expected var5qi 9 got %d", response.Result.Var5qi)
 		}
-		if response.Result.PriorityLevel != 1 {
-			t.Fatalf("expected priority_level 1 got %d", response.Result.PriorityLevel)
+		if response.Result.Arp != 1 {
+			t.Fatalf("expected arp 1 got %d", response.Result.Arp)
 		}
 		if response.Result.DataNetworkName != "not-internet" {
 			t.Fatalf("expected data_network_name 'not-internet', got %s", response.Result.DataNetworkName)
@@ -347,7 +347,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			BitrateUplink:   "100 Mbps",
 			BitrateDownlink: "200 Mbps",
 			Var5qi:          6,
-			PriorityLevel:   3,
+			Arp:             3,
 			DataNetworkName: DataNetworkName,
 		}
 		statusCode, response, err := editPolicy(ts.URL, client, PolicyName, token, createPolicyParams)
@@ -455,7 +455,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 		bitrateUplink   string
 		bitrateDownlink string
 		var5qi          int32
-		priorityLevel   int32
+		arp             int32
 		DataNetworkName string
 		error           string
 	}{
@@ -465,7 +465,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: BitrateDownlink,
 			var5qi:          Var5qi,
-			priorityLevel:   PriorityLevel,
+			arp:             Arp,
 			DataNetworkName: "internet",
 			error:           "Invalid name format. Must be less than 256 characters",
 		},
@@ -476,7 +476,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   "200",
 			bitrateDownlink: BitrateDownlink,
 			var5qi:          Var5qi,
-			priorityLevel:   PriorityLevel,
+			arp:             Arp,
 			DataNetworkName: "internet",
 			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
@@ -486,7 +486,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   "200 Tbps",
 			bitrateDownlink: BitrateDownlink,
 			var5qi:          Var5qi,
-			priorityLevel:   PriorityLevel,
+			arp:             Arp,
 			DataNetworkName: "internet",
 			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
@@ -496,7 +496,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   "0 Mbps",
 			bitrateDownlink: BitrateDownlink,
 			var5qi:          Var5qi,
-			priorityLevel:   PriorityLevel,
+			arp:             Arp,
 			DataNetworkName: "internet",
 			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
@@ -506,7 +506,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   "-1 Mbps",
 			bitrateDownlink: BitrateDownlink,
 			var5qi:          Var5qi,
-			priorityLevel:   PriorityLevel,
+			arp:             Arp,
 			DataNetworkName: "internet",
 			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
@@ -516,7 +516,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   "1001 Mbps",
 			bitrateDownlink: BitrateDownlink,
 			var5qi:          Var5qi,
-			priorityLevel:   PriorityLevel,
+			arp:             Arp,
 			DataNetworkName: "internet",
 			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
@@ -526,7 +526,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: "200",
 			var5qi:          Var5qi,
-			priorityLevel:   PriorityLevel,
+			arp:             Arp,
 			DataNetworkName: "internet",
 			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
@@ -536,7 +536,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: "200 Tbps",
 			var5qi:          Var5qi,
-			priorityLevel:   PriorityLevel,
+			arp:             Arp,
 			DataNetworkName: "internet",
 			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
@@ -546,7 +546,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: "0 Mbps",
 			var5qi:          Var5qi,
-			priorityLevel:   PriorityLevel,
+			arp:             Arp,
 			DataNetworkName: "internet",
 			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
@@ -556,7 +556,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: "-1 Mbps",
 			var5qi:          Var5qi,
-			priorityLevel:   PriorityLevel,
+			arp:             Arp,
 			DataNetworkName: "internet",
 			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
@@ -566,7 +566,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: "1001 Mbps",
 			var5qi:          Var5qi,
-			priorityLevel:   PriorityLevel,
+			arp:             Arp,
 			DataNetworkName: "internet",
 			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
 		},
@@ -576,7 +576,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: BitrateDownlink,
 			var5qi:          1,
-			priorityLevel:   PriorityLevel,
+			arp:             Arp,
 			DataNetworkName: "internet",
 			error:           "Invalid Var5qi format. Must be an integer associated with a non-GBR 5QI",
 		},
@@ -586,7 +586,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: BitrateDownlink,
 			var5qi:          82,
-			priorityLevel:   PriorityLevel,
+			arp:             Arp,
 			DataNetworkName: "internet",
 			error:           "Invalid Var5qi format. Must be an integer associated with a non-GBR 5QI",
 		},
@@ -596,9 +596,9 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: BitrateDownlink,
 			var5qi:          Var5qi,
-			priorityLevel:   256,
+			arp:             256,
 			DataNetworkName: "internet",
-			error:           "Invalid priority_level format. Must be an integer between 1 and 255",
+			error:           "Invalid arp format. Must be an integer between 1 and 255",
 		},
 	}
 	for _, tt := range tests {
@@ -608,7 +608,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 				BitrateUplink:   tt.bitrateUplink,
 				BitrateDownlink: tt.bitrateDownlink,
 				Var5qi:          tt.var5qi,
-				PriorityLevel:   tt.priorityLevel,
+				Arp:             tt.arp,
 				DataNetworkName: tt.DataNetworkName,
 			}
 			statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
@@ -646,7 +646,7 @@ func TestCreateTooManyPolicies(t *testing.T) {
 			BitrateUplink:   BitrateUplink,
 			BitrateDownlink: BitrateDownlink,
 			Var5qi:          Var5qi,
-			PriorityLevel:   PriorityLevel,
+			Arp:             Arp,
 			DataNetworkName: "internet",
 		}
 
@@ -669,7 +669,7 @@ func TestCreateTooManyPolicies(t *testing.T) {
 		BitrateUplink:   BitrateUplink,
 		BitrateDownlink: BitrateDownlink,
 		Var5qi:          Var5qi,
-		PriorityLevel:   PriorityLevel,
+		Arp:             Arp,
 		DataNetworkName: "internet",
 	}
 	statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)

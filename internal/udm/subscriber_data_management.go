@@ -112,9 +112,8 @@ func GetSmData(ctx context.Context, ueID string) ([]models.SessionManagementSubs
 			Uplink:   policy.BitrateUplink,
 		},
 		Var5gQosProfile: &models.SubscribedDefaultQos{
-			Var5qi:        policy.Var5qi,
-			Arp:           &models.Arp{PriorityLevel: policy.PriorityLevel},
-			PriorityLevel: policy.PriorityLevel,
+			Var5qi: policy.Var5qi,
+			Arp:    &models.Arp{PriorityLevel: policy.Arp},
 		},
 	}
 	smDataObjModel.DnnConfigurations[dataNetwork.Name].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[dataNetwork.Name].PduSessionTypes.AllowedSessionTypes, AllowedSessionTypes...)

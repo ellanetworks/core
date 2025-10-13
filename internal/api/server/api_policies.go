@@ -17,7 +17,7 @@ type CreatePolicyParams struct {
 	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
 	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
 	Var5qi          int32  `json:"var5qi,omitempty"`
-	PriorityLevel   int32  `json:"priority_level,omitempty"`
+	Arp             int32  `json:"arp,omitempty"`
 	DataNetworkName string `json:"data_network_name,omitempty"`
 }
 
@@ -26,7 +26,7 @@ type Policy struct {
 	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
 	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
 	Var5qi          int32  `json:"var5qi,omitempty"`
-	PriorityLevel   int32  `json:"priority_level,omitempty"`
+	Arp             int32  `json:"arp,omitempty"`
 	DataNetworkName string `json:"data_network_name,omitempty"`
 }
 
@@ -75,8 +75,8 @@ func isValid5Qi(var5qi int32) bool {
 	return slices.Contains(valid5Qi, var5qi)
 }
 
-func isValidPriorityLevel(priorityLevel int32) bool {
-	return priorityLevel >= 1 && priorityLevel <= 255
+func isValidArp(arp int32) bool {
+	return arp >= 1 && arp <= 15
 }
 
 func ListPolicies(dbInstance *db.Database) http.Handler {
@@ -116,7 +116,7 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 				BitrateDownlink: dbPolicy.BitrateDownlink,
 				BitrateUplink:   dbPolicy.BitrateUplink,
 				Var5qi:          dbPolicy.Var5qi,
-				PriorityLevel:   dbPolicy.PriorityLevel,
+				Arp:             dbPolicy.Arp,
 				DataNetworkName: dataNetwork.Name,
 			})
 		}
@@ -154,7 +154,7 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 			BitrateDownlink: dbPolicy.BitrateDownlink,
 			BitrateUplink:   dbPolicy.BitrateUplink,
 			Var5qi:          dbPolicy.Var5qi,
-			PriorityLevel:   dbPolicy.PriorityLevel,
+			Arp:             dbPolicy.Arp,
 			DataNetworkName: dataNetwork.Name,
 		}
 		writeResponse(w, policy, http.StatusOK, logger.APILog)
@@ -242,7 +242,7 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			BitrateDownlink: createPolicyParams.BitrateDownlink,
 			BitrateUplink:   createPolicyParams.BitrateUplink,
 			Var5qi:          createPolicyParams.Var5qi,
-			PriorityLevel:   createPolicyParams.PriorityLevel,
+			Arp:             createPolicyParams.Arp,
 			DataNetworkID:   dataNetwork.ID,
 		}
 
@@ -297,7 +297,7 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		policy.BitrateDownlink = updatePolicyParams.BitrateDownlink
 		policy.BitrateUplink = updatePolicyParams.BitrateUplink
 		policy.Var5qi = updatePolicyParams.Var5qi
-		policy.PriorityLevel = updatePolicyParams.PriorityLevel
+		policy.Arp = updatePolicyParams.Arp
 		policy.DataNetworkID = dataNetwork.ID
 
 		if err := dbInstance.UpdatePolicy(r.Context(), policy); err != nil {
@@ -322,8 +322,8 @@ func validatePolicyParams(p CreatePolicyParams) error {
 		return errors.New("bitrate_downlink is missing")
 	case p.Var5qi == 0:
 		return errors.New("Var5qi is missing")
-	case p.PriorityLevel == 0:
-		return errors.New("priority_level is missing")
+	case p.Arp == 0:
+		return errors.New("arp is missing")
 	case !isPolicyNameValid(p.Name):
 		return errors.New("Invalid name format. Must be less than 256 characters")
 	case !isValidBitrate(p.BitrateUplink):
@@ -332,8 +332,8 @@ func validatePolicyParams(p CreatePolicyParams) error {
 		return errors.New("Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
 	case !isValid5Qi(p.Var5qi):
 		return errors.New("Invalid Var5qi format. Must be an integer associated with a non-GBR 5QI")
-	case !isValidPriorityLevel(p.PriorityLevel):
-		return errors.New("Invalid priority_level format. Must be an integer between 1 and 255")
+	case !isValidArp(p.Arp):
+		return errors.New("Invalid arp format. Must be an integer between 1 and 255")
 	}
 	return nil
 }

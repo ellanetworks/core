@@ -35,15 +35,6 @@ func SendDLNASTransport(ue *context.RanUe, payloadContainerType uint8, nasPdu []
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
 
-	logger.LogSubscriberEvent(
-		logger.SubscriberDownlinkNasTransport,
-		logger.DirectionOutbound,
-		nasMsg,
-		ue.AmfUe.Supi,
-		zap.Int32("pduSessionID", pduSessionID),
-		zap.String("cause", nasMessage.Cause5GMMToString(cause)),
-	)
-
 	return nil
 }
 

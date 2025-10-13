@@ -3,17 +3,24 @@ package util
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasType"
 )
 
-func SnssaiToModels(nasSnssai *nasType.SNSSAI) models.Snssai {
-	var snssai models.Snssai
-	sD := nasSnssai.GetSD()
-	snssai.Sd = hex.EncodeToString(sD[:])
-	snssai.Sst = int32(nasSnssai.GetSST())
-	return snssai
+func SnssaiToModels(n *nasType.SNSSAI) models.Snssai {
+	var out models.Snssai
+	out.Sst = int32(n.GetSST())
+
+	if n.Len >= 4 {
+		sd := n.Octet[1:4] // 3 bytes following SST
+		out.Sd = strings.ToUpper(hex.EncodeToString(sd))
+	} else {
+		out.Sd = ""
+	}
+
+	return out
 }
 
 func SnssaiToNas(snssai models.Snssai) ([]uint8, error) {

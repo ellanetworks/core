@@ -29,7 +29,7 @@ const QueryCreateOperatorTable = `
 		operatorCode TEXT NOT NULL,
 		supportedTACs TEXT DEFAULT '[]',
 		sst INTEGER NOT NULL,
-		sd INTEGER NOT NULL,
+		sd BLOB NULLABLE,  -- 3 bytes
 		homeNetworkPrivateKey TEXT NOT NULL
 )`
 
@@ -50,7 +50,7 @@ type Operator struct {
 	OperatorCode          string `db:"operatorCode"`
 	SupportedTACs         string `db:"supportedTACs"` // JSON-encoded list of strings
 	Sst                   int32  `db:"sst"`
-	Sd                    int    `db:"sd"`
+	Sd                    []byte `db:"sd"`
 	HomeNetworkPrivateKey string `db:"homeNetworkPrivateKey"`
 }
 
@@ -89,7 +89,16 @@ func deriveHomeNetworkPublicKey(privateKeyHex string) (string, error) {
 }
 
 func (operator *Operator) GetHexSd() string {
-	return fmt.Sprintf("%06X", operator.Sd)
+	if operator.Sd == nil {
+		return ""
+	}
+
+	if len(operator.Sd) != 3 {
+		logger.DBLog.Warn("SD length is not 3 bytes", zap.Int("length", len(operator.Sd)))
+		return ""
+	}
+
+	return fmt.Sprintf("%02x%02x%02x", operator.Sd[0], operator.Sd[1], operator.Sd[2])
 }
 
 func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
@@ -205,7 +214,7 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 }
 
 // UpdateOperatorSlice updates SST/SD.
-func (db *Database) UpdateOperatorSlice(ctx context.Context, sst int32, sd int) error {
+func (db *Database) UpdateOperatorSlice(ctx context.Context, sst int32, sd []byte) error {
 	operation := "UPDATE"
 	target := OperatorTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)

@@ -213,7 +213,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			BitrateUplink:   "100 Mbps",
 			BitrateDownlink: "100 Mbps",
 			Var5qi:          9,
-			PriorityLevel:   1,
+			Arp:             1,
 			DataNetworkName: "whatever",
 		}
 		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
@@ -516,7 +516,7 @@ func TestCreateTooManySubscribers(t *testing.T) {
 		BitrateUplink:   "100 Mbps",
 		BitrateDownlink: "100 Mbps",
 		Var5qi:          9,
-		PriorityLevel:   1,
+		Arp:             1,
 		DataNetworkName: "whatever",
 	}
 	statusCode, createPolicyResponse, err := createPolicy(ts.URL, client, token, createPolicyParams)

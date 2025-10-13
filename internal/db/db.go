@@ -46,7 +46,11 @@ const (
 	InitialMcc         = "001"
 	InitialMnc         = "01"
 	InitialOperatorSst = 1
-	InitialOperatorSd  = 1056816
+)
+
+var (
+	InitialOperatorSd    = []byte{0x10, 0x20, 0x30}
+	InitialSupportedTacs = []string{"001"}
 )
 
 // Initial Data network values
@@ -62,8 +66,8 @@ const (
 	InitialPolicyName            = "default"
 	InitialPolicyBitrateUplink   = "200 Mbps"
 	InitialPolicyBitrateDownlink = "200 Mbps"
-	InitialPolicyVar5qi          = 9  // Default 5QI for non-GBR
-	InitialPolicyPriorityLevel   = 90 // Default priority level 5QI of 9
+	InitialPolicyVar5qi          = 9 // Default 5QI for non-GBR
+	InitialPolicyArp             = 1 // Default ARP of 1
 )
 
 // Close closes the connection to the repository cleanly.
@@ -71,6 +75,7 @@ func (db *Database) Close() error {
 	if db.conn == nil {
 		return nil
 	}
+
 	return db.conn.PlainDB().Close()
 }
 
@@ -191,7 +196,7 @@ func (db *Database) Initialize() error {
 			Sd:                    InitialOperatorSd,
 			HomeNetworkPrivateKey: initialHNPrivateKey,
 		}
-		initialOperator.SetSupportedTacs([]string{"001"})
+		initialOperator.SetSupportedTacs(InitialSupportedTacs)
 		if err := db.InitializeOperator(context.Background(), initialOperator); err != nil {
 			return fmt.Errorf("failed to initialize network configuration: %v", err)
 		}
@@ -262,7 +267,7 @@ func (db *Database) Initialize() error {
 			BitrateUplink:   InitialPolicyBitrateUplink,
 			BitrateDownlink: InitialPolicyBitrateDownlink,
 			Var5qi:          InitialPolicyVar5qi,
-			PriorityLevel:   InitialPolicyPriorityLevel,
+			Arp:             InitialPolicyArp,
 			DataNetworkID:   dataNetwork.ID,
 		}
 
