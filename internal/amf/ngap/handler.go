@@ -22,7 +22,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/ngap"
 	libngap "github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/aper"
 	"github.com/omec-project/ngap/ngapConvert"
@@ -487,15 +486,15 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 	return ranUe, aMFUENGAPID
 }
 
-func rawMessage(message ngapType.NGAPPDU) []byte {
-	raw, err := ngap.Encoder(message)
-	if err != nil {
-		logger.AmfLog.Warn("error encoding ngap message", zap.Error(err))
-		return nil
-	}
+// func rawMessage(message ngapType.NGAPPDU) []byte {
+// 	raw, err := ngap.Encoder(message)
+// 	if err != nil {
+// 		logger.AmfLog.Warn("error encoding ngap message", zap.Error(err))
+// 		return nil
+// 	}
 
-	return raw
-}
+// 	return raw
+// }
 
 func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var globalRANNodeID *ngapType.GlobalRANNodeID
@@ -509,16 +508,6 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioNGSetupRequest,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranName", ran.Name),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -674,16 +663,6 @@ func HandleUplinkNasTransport(ctx ctxt.Context, ran *context.AmfRan, message *ng
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioUplinkNASTransport,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranName", ran.Name),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -769,16 +748,6 @@ func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioNGReset,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranName", ran.Name),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -885,15 +854,6 @@ func HandleNGResetAcknowledge(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioNGResetAcknowledge,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranName", ran.Name),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -949,16 +909,6 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioUEContextReleaseComplete,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -1188,16 +1138,6 @@ func HandlePDUSessionResourceReleaseResponse(ctx ctxt.Context, ran *context.AmfR
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioPDUSessionResourceReleaseResponse,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -1298,16 +1238,6 @@ func HandleUERadioCapabilityCheckResponse(ran *context.AmfRan, message *ngapType
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioUERadioCapabilityCheckResponse,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -1377,16 +1307,6 @@ func HandleLocationReportingFailureIndication(ran *context.AmfRan, message *ngap
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioLocationReportingFailureIndication,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -1449,16 +1369,6 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 	var uEContextRequest *ngapType.UEContextRequest
 
 	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioInitialUEMessage,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -1654,16 +1564,6 @@ func HandlePDUSessionResourceSetupResponse(ctx ctxt.Context, ran *context.AmfRan
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioPDUSessionResourceSetupResponse,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	successfulOutcome := message.SuccessfulOutcome
 	if successfulOutcome == nil {
 		ran.Log.Error("SuccessfulOutcome is nil")
@@ -1811,16 +1711,6 @@ func HandlePDUSessionResourceModifyResponse(ctx ctxt.Context, ran *context.AmfRa
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioPDUSessionResourceModifyResponse,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -1942,16 +1832,6 @@ func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, messa
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioPDUSessionResourceNotify,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -2112,16 +1992,6 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioPDUSessionResourceModifyIndication,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -2275,16 +2145,6 @@ func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, me
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioInitialContextSetupResponse,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -2391,7 +2251,7 @@ func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, me
 	}
 
 	if ranUe.Ran.AnType == models.AccessTypeNon3GPPAccess {
-		err := ngap_message.SendDownlinkNasTransport(ranUe, amfUe.RegistrationAcceptForNon3GPPAccess, nil)
+		err := ngap_message.SendDownlinkNasTransport(ranUe, amfUe.RegistrationAcceptForNon3GPPAccess, nil, "RegistrationAccept")
 		if err != nil {
 			ranUe.Log.Error("error sending downlink nas transport", zap.Error(err))
 			return
@@ -2416,16 +2276,6 @@ func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, mes
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioInitialContextSetupFailure,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -2529,16 +2379,6 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioUEContextReleaseRequest,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -2698,16 +2538,6 @@ func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, 
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioUEContextModificationResponse,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -2800,16 +2630,6 @@ func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.N
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioUEContextModificationFailure,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -2890,16 +2710,6 @@ func HandleRRCInactiveTransitionReport(ctx ctxt.Context, ran *context.AmfRan, me
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioRRCInactiveTransitionReport,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -2978,16 +2788,6 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioHandoverNotify,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -3100,16 +2900,6 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, message *nga
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioPathSwitchRequest,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -3316,16 +3106,6 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, mes
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioHandoverRequestAcknowledge,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -3488,16 +3268,6 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioHandoverFailure,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -3611,16 +3381,6 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioHandoverRequired,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -3828,16 +3588,6 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioHandoverCancel,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -3958,16 +3708,6 @@ func HandleUplinkRanStatusTransfer(ran *context.AmfRan, message *ngapType.NGAPPD
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioUplinkRanStatusTransfer,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -4032,16 +3772,6 @@ func HandleNasNonDeliveryIndication(ctx ctxt.Context, ran *context.AmfRan, messa
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioNasNonDeliveryIndication,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -4114,16 +3844,6 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, message
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioRanConfigurationUpdate,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -4254,16 +3974,6 @@ func HandleUplinkRanConfigurationTransfer(ran *context.AmfRan, message *ngapType
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioUplinkRanConfigurationTransfer,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -4323,16 +4033,6 @@ func HandleUplinkUEAssociatedNRPPATransport(ran *context.AmfRan, message *ngapTy
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioUplinkUEAssociatedNRPPATransport,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -4402,16 +4102,6 @@ func HandleUplinkNonUEAssociatedNRPPATransport(ran *context.AmfRan, message *nga
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioUplinkNonUEAssociatedNRPPATransport,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -4464,16 +4154,6 @@ func HandleLocationReport(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioLocationReport,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -4582,16 +4262,6 @@ func HandleUERadioCapabilityInfoIndication(ran *context.AmfRan, message *ngapTyp
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioUERadioCapabilityInfoIndication,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -4680,16 +4350,6 @@ func HandleAMFconfigurationUpdateFailure(ran *context.AmfRan, message *ngapType.
 		return
 	}
 
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioAMFConfigurationUpdateFailure,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -4734,16 +4394,6 @@ func HandleAMFconfigurationUpdateAcknowledge(ran *context.AmfRan, message *ngapT
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioAMFConfigurationUpdateAcknowledge,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -4799,16 +4449,6 @@ func HandleErrorIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioErrorIndication,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
@@ -4877,16 +4517,6 @@ func HandleCellTrafficTrace(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-
-	logger.LogNetworkEvent(
-		logger.NGAPNetworkProtocol,
-		logger.RadioCellTrafficTrace,
-		logger.DirectionInbound,
-		rawMessage(*message),
-		zap.String("ranName", ran.Name),
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranIP", ran.GnbIP),
-	)
 
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")

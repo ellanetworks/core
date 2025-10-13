@@ -237,108 +237,6 @@ func LogAuditEvent(action, actor, ip, details string) {
 	)
 }
 
-type NetworkMessageType string
-
-const (
-	// Access events (inbound)
-	SubscriberRegistrationRequest                     NetworkMessageType = "Registration Request"
-	SubscriberInitialRegistration                     NetworkMessageType = "Initial Registration"
-	SubscriberMobilityAndPeriodicRegistrationUpdating NetworkMessageType = "Mobility and Periodic Registration Updating"
-	SubscriberIdentityResponse                        NetworkMessageType = "Identity Response"
-	SubscriberNotificationResponse                    NetworkMessageType = "Notification Response"
-	SubscriberConfigurationUpdateComplete             NetworkMessageType = "Configuration Update Complete"
-	SubscriberServiceRequest                          NetworkMessageType = "Service Request"
-	SubscriberAuthenticationResponse                  NetworkMessageType = "Authentication Response"
-	SubscriberAuthenticationFailure                   NetworkMessageType = "Authentication Failure"
-	SubscriberRegistrationComplete                    NetworkMessageType = "Registration Complete"
-	SubscriberSecurityModeComplete                    NetworkMessageType = "Security Mode Complete"
-	SubscriberSecurityModeReject                      NetworkMessageType = "Security Mode Reject"
-	SubscriberDeregistrationRequest                   NetworkMessageType = "Deregistration Request"
-	SubscriberDeregistrationAccept                    NetworkMessageType = "Deregistration Accept"
-	SubscriberStatus5GMM                              NetworkMessageType = "Status 5GMM"
-
-	// Access events (outbound)
-	SubscriberRegistrationAccept    NetworkMessageType = "Registration Accept"
-	SubscriberSecurityModeCommand   NetworkMessageType = "Security Mode Command"
-	SubscriberRegistrationReject    NetworkMessageType = "Registration Reject"
-	SubscriberIdentityRequest       NetworkMessageType = "Identity Request"
-	SubscriberNotification          NetworkMessageType = "Notification"
-	SubscriberAuthenticationRequest NetworkMessageType = "Authentication Request"
-	SubscriberAuthenticationResult  NetworkMessageType = "Authentication Result"
-	SubscriberAuthenticationReject  NetworkMessageType = "Authentication Reject"
-	SubscriberServiceAccept         NetworkMessageType = "Service Accept"
-	SubscriberServiceReject         NetworkMessageType = "Service Reject"
-
-	// Session events (inbound)
-	SubscriberPduSessionEstablishmentRequest NetworkMessageType = "PDU Session Establishment Request"
-
-	// Session events (outbound)
-	SubscriberPduSessionEstablishmentReject NetworkMessageType = "PDU Session Establishment Reject"
-	SubscriberPduSessionEstablishmentAccept NetworkMessageType = "PDU Session Establishment Accept"
-)
-
-const (
-	// Radio events (inbound)
-	RadioNGSetupRequest                      NetworkMessageType = "NG Setup Request"
-	RadioUplinkNASTransport                  NetworkMessageType = "Uplink NAS Transport"
-	RadioNGReset                             NetworkMessageType = "NG Reset"
-	RadioNGResetAcknowledge                  NetworkMessageType = "NG Reset Acknowledge"
-	RadioUEContextReleaseComplete            NetworkMessageType = "UE Context Release Complete"
-	RadioPDUSessionResourceReleaseResponse   NetworkMessageType = "PDU Session Resource Release Response"
-	RadioUERadioCapabilityCheckResponse      NetworkMessageType = "UE Radio Capability Check Response"
-	RadioLocationReportingFailureIndication  NetworkMessageType = "Location Reporting Failure Indication"
-	RadioInitialUEMessage                    NetworkMessageType = "Initial UE Message"
-	RadioPDUSessionResourceSetupResponse     NetworkMessageType = "PDU Session Resource Setup Response"
-	RadioPDUSessionResourceModifyResponse    NetworkMessageType = "PDU Session Resource Modify Response"
-	RadioPDUSessionResourceNotify            NetworkMessageType = "PDU Session Resource Notify"
-	RadioPDUSessionResourceModifyIndication  NetworkMessageType = "PDU Session Resource Modify Indication"
-	RadioInitialContextSetupResponse         NetworkMessageType = "Initial Context Setup Response"
-	RadioInitialContextSetupFailure          NetworkMessageType = "Initial Context Setup Failure"
-	RadioUEContextReleaseRequest             NetworkMessageType = "UE Context Release Request"
-	RadioUEContextModificationResponse       NetworkMessageType = "UE Context Modification Response"
-	RadioUEContextModificationFailure        NetworkMessageType = "UE Context Modification Failure"
-	RadioRRCInactiveTransitionReport         NetworkMessageType = "RRC Inactive Transition Report"
-	RadioHandoverNotify                      NetworkMessageType = "Handover Notify"
-	RadioPathSwitchRequest                   NetworkMessageType = "Path Switch Request"
-	RadioHandoverRequestAcknowledge          NetworkMessageType = "Handover Request Acknowledge"
-	RadioHandoverFailure                     NetworkMessageType = "Handover Failure"
-	RadioHandoverRequired                    NetworkMessageType = "Handover Required"
-	RadioHandoverCancel                      NetworkMessageType = "Handover Cancel"
-	RadioUplinkRanStatusTransfer             NetworkMessageType = "Uplink RAN Status Transfer"
-	RadioNasNonDeliveryIndication            NetworkMessageType = "NAS Non Delivery Indication"
-	RadioRanConfigurationUpdate              NetworkMessageType = "RAN Configuration Update"
-	RadioUplinkRanConfigurationTransfer      NetworkMessageType = "Uplink RAN Configuration Transfer"
-	RadioUplinkUEAssociatedNRPPATransport    NetworkMessageType = "Uplink UE Associated NRPPA Transport"
-	RadioUplinkNonUEAssociatedNRPPATransport NetworkMessageType = "Uplink Non UE Associated NRPPA Transport"
-	RadioLocationReport                      NetworkMessageType = "Location Report"
-	RadioUERadioCapabilityInfoIndication     NetworkMessageType = "UE Radio Capability Info Indication"
-	RadioAMFConfigurationUpdateFailure       NetworkMessageType = "AMF Configuration Update Failure"
-	RadioAMFConfigurationUpdateAcknowledge   NetworkMessageType = "AMF Configuration Update Acknowledge"
-	RadioErrorIndication                     NetworkMessageType = "Error Indication"
-	RadioCellTrafficTrace                    NetworkMessageType = "Cell Traffic Trace"
-
-	// Radio events (outbound)
-	RadioNGSetupResponse                   NetworkMessageType = "NG Setup Response"
-	RadioNGSetupFailure                    NetworkMessageType = "NG Setup Failure"
-	RadioDownlinkNasTransport              NetworkMessageType = "Downlink NAS Transport"
-	RadioPDUSessionResourceReleaseCommand  NetworkMessageType = "PDU Session Resource Release Command"
-	RadioUEContextReleaseCommand           NetworkMessageType = "UE Context Release Command"
-	RadioPDUSessionResourceSetupRequest    NetworkMessageType = "PDU Session Resource Setup Request"
-	RadioPDUSessionResourceModifyConfirm   NetworkMessageType = "PDU Session Resource Modify Confirm"
-	RadioPDUSessionResourceModifyRequest   NetworkMessageType = "PDU Session Resource Modify Request"
-	RadioInitialContextSetupRequest        NetworkMessageType = "Initial Context Setup Request"
-	RadioHandoverCommand                   NetworkMessageType = "Handover Command"
-	RadioHandoverPreparationFailure        NetworkMessageType = "Handover Preparation Failure"
-	RadioHandoverRequest                   NetworkMessageType = "Handover Request"
-	RadioPathSwitchRequestAcknowledge      NetworkMessageType = "Path Switch Request Acknowledge"
-	RadioPathSwitchRequestFailure          NetworkMessageType = "Path Switch Request Failure"
-	RadioRanConfigurationUpdateAcknowledge NetworkMessageType = "RAN Configuration Update Acknowledge"
-	RadioRanConfigurationUpdateFailure     NetworkMessageType = "RAN Configuration Update Failure"
-	RadioAMFStatusIndication               NetworkMessageType = "AMF Status Indication"
-	RadioDownlinkRanConfigurationTransfer  NetworkMessageType = "Downlink RAN Configuration Transfer"
-	RadioLocationReportingControl          NetworkMessageType = "Location Reporting Control"
-)
-
 type LogDirection string
 
 const (
@@ -353,7 +251,7 @@ const (
 	NASNetworkProtocol  NetworkProtocol = "NAS"
 )
 
-func LogNetworkEvent(protocol NetworkProtocol, messageType NetworkMessageType, dir LogDirection, rawBytes []byte, fields ...zap.Field) {
+func LogNetworkEvent(protocol NetworkProtocol, messageType string, dir LogDirection, rawBytes []byte, fields ...zap.Field) {
 	if NetworkLog == nil {
 		return
 	}
@@ -420,7 +318,7 @@ func LogNetworkEvent(protocol NetworkProtocol, messageType NetworkMessageType, d
 	// Emit a single, consistent log line. DB reader already expects details as string.
 	NetworkLog.Info("network_event",
 		zap.String("protocol", string(protocol)),
-		zap.String("message_type", string(messageType)),
+		zap.String("message_type", messageType),
 		zap.String("direction", string(dir)),
 		zap.Binary("raw", rawBytes),
 		zap.String("details", detailsStr),

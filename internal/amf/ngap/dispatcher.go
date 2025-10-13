@@ -50,6 +50,16 @@ func Dispatch(ctx ctxt.Context, conn net.Conn, msg []byte) {
 
 	ranUe, _ := FetchRanUeContext(ctx, ran, pdu)
 
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
+		getMessageType(pdu),
+		logger.DirectionInbound,
+		msg,
+		zap.String("gnbID", ran.GnbID),
+		zap.String("ranName", ran.Name),
+		zap.String("ranIP", ran.GnbIP),
+	)
+
 	/* uecontext is found, submit the message to transaction queue*/
 	if ranUe != nil && ranUe.AmfUe != nil {
 		ranUe.AmfUe.TxLog.Debug("Uecontext found. queuing ngap message to uechannel")
@@ -62,6 +72,27 @@ func Dispatch(ctx ctxt.Context, conn net.Conn, msg []byte) {
 	} else {
 		go DispatchNgapMsg(conn, ran, pdu)
 	}
+}
+
+func getMessageType(pdu *ngapType.NGAPPDU) string {
+	var code int64
+
+	switch pdu.Present {
+	case ngapType.NGAPPDUPresentInitiatingMessage:
+		if pdu.InitiatingMessage != nil {
+			code = pdu.InitiatingMessage.ProcedureCode.Value
+		}
+	case ngapType.NGAPPDUPresentSuccessfulOutcome:
+		if pdu.SuccessfulOutcome != nil {
+			code = pdu.SuccessfulOutcome.ProcedureCode.Value
+		}
+	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
+		if pdu.UnsuccessfulOutcome != nil {
+			code = pdu.UnsuccessfulOutcome.ProcedureCode.Value
+		}
+	}
+
+	return ngapType.ProcedureName(code)
 }
 
 func NgapMsgHandler(conn net.Conn, ue *context.AmfUe, msg context.NgapMsg) {

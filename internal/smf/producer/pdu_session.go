@@ -57,6 +57,16 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 		return "", errRsp, fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
+		getGsmMessageName(m),
+		logger.DirectionInbound,
+		request.BinaryDataN1SmMessage,
+		zap.Int32("pduSessionID", smContext.PDUSessionID),
+		zap.String("supi", smContext.Supi),
+		zap.String("dnn", smContext.Dnn),
+	)
+
 	createData := request.JSONData
 
 	// Create SM context
@@ -77,7 +87,7 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
 		logger.LogNetworkEvent(
 			logger.NASNetworkProtocol,
-			logger.SubscriberPduSessionEstablishmentReject,
+			"PduSessionEstablishmentReject",
 			logger.DirectionOutbound,
 			request.BinaryDataN1SmMessage,
 			zap.String("imsi", smContext.Supi),
@@ -94,7 +104,7 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResources)
 		logger.LogNetworkEvent(
 			logger.NASNetworkProtocol,
-			logger.SubscriberPduSessionEstablishmentReject,
+			"PduSessionEstablishmentReject",
 			logger.DirectionOutbound,
 			request.BinaryDataN1SmMessage,
 			zap.String("imsi", smContext.Supi),
@@ -119,7 +129,7 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		logger.LogNetworkEvent(
 			logger.NASNetworkProtocol,
-			logger.SubscriberPduSessionEstablishmentReject,
+			"PduSessionEstablishmentReject",
 			logger.DirectionOutbound,
 			request.BinaryDataN1SmMessage,
 			zap.String("imsi", smContext.Supi),
@@ -133,7 +143,7 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		logger.LogNetworkEvent(
 			logger.NASNetworkProtocol,
-			logger.SubscriberPduSessionEstablishmentReject,
+			"PduSessionEstablishmentReject",
 			logger.DirectionOutbound,
 			request.BinaryDataN1SmMessage,
 			zap.String("imsi", smContext.Supi),
@@ -156,7 +166,7 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		logger.LogNetworkEvent(
 			logger.NASNetworkProtocol,
-			logger.SubscriberPduSessionEstablishmentReject,
+			"PduSessionEstablishmentReject",
 			logger.DirectionOutbound,
 			request.BinaryDataN1SmMessage,
 			zap.String("imsi", smContext.Supi),
@@ -181,7 +191,7 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		logger.LogNetworkEvent(
 			logger.NASNetworkProtocol,
-			logger.SubscriberPduSessionEstablishmentReject,
+			"PduSessionEstablishmentReject",
 			logger.DirectionOutbound,
 			request.BinaryDataN1SmMessage,
 			zap.String("imsi", smContext.Supi),
@@ -338,7 +348,7 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 
 			logger.LogNetworkEvent(
 				logger.NASNetworkProtocol,
-				logger.SubscriberPduSessionEstablishmentAccept,
+				"PduSessionEstablishmentAccept",
 				logger.DirectionOutbound,
 				smNasBuf,
 				zap.String("imsi", smContext.Supi),
@@ -362,7 +372,7 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 
 			logger.LogNetworkEvent(
 				logger.NASNetworkProtocol,
-				logger.SubscriberPduSessionEstablishmentReject,
+				"PduSessionEstablishmentReject",
 				logger.DirectionOutbound,
 				smNasBuf,
 				zap.String("imsi", smContext.Supi),

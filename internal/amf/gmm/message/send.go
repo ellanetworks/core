@@ -12,14 +12,13 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func SendDLNASTransport(ue *context.RanUe, payloadContainerType uint8, nasPdu []byte, pduSessionID int32, cause uint8) error {
+func SendDLNASTransport(ue *context.RanUe, payloadContainerType uint8, nasPdu []byte, pduSessionID int32, cause uint8, nasMsgType string) error {
 	var causePtr *uint8
 	if cause != 0 {
 		causePtr = &cause
@@ -30,7 +29,7 @@ func SendDLNASTransport(ue *context.RanUe, payloadContainerType uint8, nasPdu []
 		return fmt.Errorf("error building downlink NAS transport message: %s", err.Error())
 	}
 
-	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, nasMsgType)
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
@@ -48,7 +47,7 @@ func SendNotification(ue *context.RanUe, nasMsg []byte) error {
 		cfg := context.AMFSelf().T3565Cfg
 		amfUe.T3565 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.GmmLog.Warn("T3565 expires, retransmit Notification", zap.Any("expireTimes", expireTimes))
-			err := ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+			err := ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "Notification")
 			if err != nil {
 				amfUe.GmmLog.Error("could not send notification", zap.Error(err))
 				return
@@ -60,16 +59,6 @@ func SendNotification(ue *context.RanUe, nasMsg []byte) error {
 		})
 	}
 
-	logger.LogNetworkEvent(
-		logger.NASNetworkProtocol,
-		logger.SubscriberNotification,
-		logger.DirectionOutbound,
-		nasMsg,
-		zap.String("imsi", amfUe.Supi),
-		zap.String("ran", ue.Ran.Name),
-		zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
-	)
-
 	return nil
 }
 
@@ -79,20 +68,10 @@ func SendIdentityRequest(ue *context.RanUe, typeOfIdentity uint8) error {
 		return fmt.Errorf("error building identity request: %s", err.Error())
 	}
 
-	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "IdentityRequest")
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
-
-	logger.LogNetworkEvent(
-		logger.NASNetworkProtocol,
-		logger.SubscriberIdentityRequest,
-		logger.DirectionOutbound,
-		nasMsg,
-		zap.String("imsi", ue.AmfUe.Supi),
-		zap.String("ran", ue.Ran.Name),
-		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
-	)
 
 	return nil
 }
@@ -112,37 +91,25 @@ func SendAuthenticationRequest(ue *context.RanUe) error {
 		return fmt.Errorf("error building authentication request: %s", err.Error())
 	}
 
-	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "AuthenticationRequest")
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
-
-	amfUe.GmmLog.Info("Sent GMM downlink nas transport message to UE")
 
 	if context.AMFSelf().T3560Cfg.Enable {
 		cfg := context.AMFSelf().T3560Cfg
 		amfUe.T3560 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.GmmLog.Warn("T3560 expires, retransmit Authentication Request", zap.Any("expireTimes", expireTimes))
-			err := ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+			err := ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "AuthenticationRequest")
 			if err != nil {
 				amfUe.GmmLog.Error("could not send downlink NAS transport message", zap.Error(err))
 				return
 			}
-			amfUe.GmmLog.Info("Sent GMM downlink nas transport message to UE")
 		}, func() {
 			amfUe.GmmLog.Warn("T3560 Expires, abort authentication procedure & ongoing 5GMM procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
 			amfUe.Remove()
 		})
 	}
-
-	logger.LogNetworkEvent(
-		logger.NASNetworkProtocol,
-		logger.SubscriberAuthenticationRequest,
-		logger.DirectionOutbound,
-		nasMsg,
-		zap.String("imsi", amfUe.Supi),
-		zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
-	)
 
 	return nil
 }
@@ -153,20 +120,10 @@ func SendServiceAccept(ue *context.RanUe, pDUSessionStatus *[16]bool, reactivati
 		return fmt.Errorf("error building service accept: %s", err.Error())
 	}
 
-	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "ServiceAccept")
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
-
-	logger.LogNetworkEvent(
-		logger.NASNetworkProtocol,
-		logger.SubscriberServiceAccept,
-		logger.DirectionOutbound,
-		nasMsg,
-		zap.String("imsi", ue.AmfUe.Supi),
-		zap.String("ran", ue.Ran.Name),
-		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
-	)
 
 	return nil
 }
@@ -177,20 +134,10 @@ func SendAuthenticationReject(ue *context.RanUe, eapMsg string) error {
 		return fmt.Errorf("error building authentication reject: %s", err.Error())
 	}
 
-	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "AuthenticationReject")
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
-
-	logger.LogNetworkEvent(
-		logger.NASNetworkProtocol,
-		logger.SubscriberAuthenticationReject,
-		logger.DirectionOutbound,
-		nasMsg,
-		zap.String("imsi", ue.AmfUe.Supi),
-		zap.String("ran", ue.Ran.Name),
-		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
-	)
 
 	return nil
 }
@@ -205,20 +152,10 @@ func SendAuthenticationResult(ue *context.RanUe, eapSuccess bool, eapMsg string)
 		return fmt.Errorf("error building authentication result: %s", err.Error())
 	}
 
-	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "AuthenticationResult")
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
-
-	logger.LogNetworkEvent(
-		logger.NASNetworkProtocol,
-		logger.SubscriberAuthenticationResult,
-		logger.DirectionOutbound,
-		nasMsg,
-		zap.String("imsi", ue.AmfUe.Supi),
-		zap.String("ran", ue.Ran.Name),
-		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
-	)
 
 	return nil
 }
@@ -229,21 +166,10 @@ func SendServiceReject(ue *context.RanUe, pDUSessionStatus *[16]bool, cause uint
 		return fmt.Errorf("error building service reject: %s", err.Error())
 	}
 
-	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "ServiceReject")
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
-
-	logger.LogNetworkEvent(
-		logger.NASNetworkProtocol,
-		logger.SubscriberServiceReject,
-		logger.DirectionOutbound,
-		nasMsg,
-		zap.String("imsi", ue.AmfUe.Supi),
-		zap.String("ran", ue.Ran.Name),
-		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
-		zap.String("cause", nasMessage.Cause5GMMToString(cause)),
-	)
 
 	return nil
 }
@@ -255,21 +181,10 @@ func SendRegistrationReject(ue *context.RanUe, cause5GMM uint8, eapMessage strin
 	if err != nil {
 		return fmt.Errorf("error building registration reject: %s", err.Error())
 	}
-	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "RegistrationReject")
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
-
-	logger.LogNetworkEvent(
-		logger.NASNetworkProtocol,
-		logger.SubscriberRegistrationReject,
-		logger.DirectionOutbound,
-		nasMsg,
-		zap.String("imsi", ue.AmfUe.Supi),
-		zap.String("ran", ue.Ran.Name),
-		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
-		zap.String("cause", nasMessage.Cause5GMMToString(cause5GMM)),
-	)
 
 	return nil
 }
@@ -281,7 +196,8 @@ func SendSecurityModeCommand(ue *context.RanUe, eapSuccess bool, eapMessage stri
 	if err != nil {
 		return fmt.Errorf("error building security mode command: %s", err.Error())
 	}
-	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+
+	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "SecurityModeCommand")
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
@@ -292,7 +208,7 @@ func SendSecurityModeCommand(ue *context.RanUe, eapSuccess bool, eapMessage stri
 		cfg := context.AMFSelf().T3560Cfg
 		amfUe.T3560 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.GmmLog.Warn("T3560 expires, retransmit Security Mode Command", zap.Any("expireTimes", expireTimes))
-			err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+			err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "SecurityModeCommand")
 			if err != nil {
 				amfUe.GmmLog.Error("could not send downlink NAS transport message", zap.Error(err))
 				return
@@ -304,16 +220,6 @@ func SendSecurityModeCommand(ue *context.RanUe, eapSuccess bool, eapMessage stri
 		})
 	}
 
-	logger.LogNetworkEvent(
-		logger.NASNetworkProtocol,
-		logger.SubscriberSecurityModeCommand,
-		logger.DirectionOutbound,
-		nasMsg,
-		zap.String("imsi", ue.AmfUe.Supi),
-		zap.String("ran", ue.Ran.Name),
-		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
-	)
-
 	return nil
 }
 
@@ -324,7 +230,7 @@ func SendDeregistrationRequest(ue *context.RanUe, accessType uint8, reRegistrati
 	if err != nil {
 		return fmt.Errorf("error building deregistration request: %s", err.Error())
 	}
-	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "DeregistrationRequest")
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
@@ -336,7 +242,7 @@ func SendDeregistrationRequest(ue *context.RanUe, accessType uint8, reRegistrati
 		cfg := context.AMFSelf().T3522Cfg
 		amfUe.T3522 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.GmmLog.Warn("T3522 expires, retransmit Deregistration Request", zap.Any("expireTimes", expireTimes))
-			err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+			err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "DeregistrationRequest")
 			if err != nil {
 				amfUe.GmmLog.Error("could not send downlink NAS transport message", zap.Error(err))
 				return
@@ -363,16 +269,6 @@ func SendDeregistrationRequest(ue *context.RanUe, accessType uint8, reRegistrati
 		})
 	}
 
-	logger.LogNetworkEvent(
-		logger.NASNetworkProtocol,
-		logger.SubscriberDeregistrationRequest,
-		logger.DirectionOutbound,
-		nasMsg,
-		zap.String("imsi", ue.AmfUe.Supi),
-		zap.String("ran", ue.Ran.Name),
-		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
-	)
-
 	return nil
 }
 
@@ -382,21 +278,11 @@ func SendDeregistrationAccept(ue *context.RanUe) error {
 		return fmt.Errorf("error building deregistration accept: %s", err.Error())
 	}
 
-	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil, "DeregistrationAccept")
 	if err != nil {
 		ue.AmfUe.GmmLog.Error("could not send downlink NAS transport message", zap.Error(err))
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
-
-	logger.LogNetworkEvent(
-		logger.NASNetworkProtocol,
-		logger.SubscriberDeregistrationAccept,
-		logger.DirectionOutbound,
-		nasMsg,
-		zap.String("imsi", ue.AmfUe.Supi),
-		zap.String("ran", ue.Ran.Name),
-		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
-	)
 
 	return nil
 }
@@ -422,7 +308,7 @@ func SendRegistrationAccept(
 		}
 		ue.GmmLog.Info("Sent NGAP initial context setup request")
 	} else {
-		err = ngap_message.SendDownlinkNasTransport(ue.RanUe[models.AccessType3GPPAccess], nasMsg, nil)
+		err = ngap_message.SendDownlinkNasTransport(ue.RanUe[models.AccessType3GPPAccess], nasMsg, nil, "RegistrationAccept")
 		if err != nil {
 			return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 		}
@@ -444,7 +330,7 @@ func SendRegistrationAccept(
 					ue.GmmLog.Info("Sent NGAP initial context setup request")
 				} else {
 					ue.GmmLog.Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
-					err = ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasMsg, nil)
+					err = ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasMsg, nil, "RegistrationAccept")
 					if err != nil {
 						ue.GmmLog.Error("could not send downlink NAS transport message", zap.Error(err))
 					}
@@ -459,16 +345,6 @@ func SendRegistrationAccept(
 			ue.ClearRegistrationRequestData(anType)
 		})
 	}
-
-	logger.LogNetworkEvent(
-		logger.NASNetworkProtocol,
-		logger.SubscriberRegistrationAccept,
-		logger.DirectionOutbound,
-		nasMsg,
-		zap.String("imsi", ue.Supi),
-		zap.String("ran", ue.RanUe[anType].Ran.Name),
-		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
-	)
 
 	return nil
 }

@@ -12,6 +12,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/omec-project/nas"
 	"go.uber.org/zap"
 )
 
@@ -56,6 +58,19 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
+
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
+		nas.MessageName(msg.GmmMessage.GmmHeader.GetMessageType()),
+		logger.DirectionInbound,
+		nasPdu,
+		zap.String("supi", ue.AmfUe.Supi),
+		zap.String("PLMNID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
+		zap.String("gnbID", ue.Ran.GnbID),
+		zap.String("ranName", ue.Ran.Name),
+		zap.String("ranIP", ue.Ran.GnbIP),
+	)
+
 	if err := Dispatch(ctx, ue.AmfUe, ue.Ran.AnType, procedureCode, msg); err != nil {
 		eeCtx := ue.AmfUe
 		eeCtx.NASLog.Error("Handle NAS Error", zap.Error(err))
@@ -71,6 +86,16 @@ func DispatchMsg(ctx ctxt.Context, amfUe *context.AmfUe, transInfo context.NasMs
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
+
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
+		nas.MessageName(msg.GmmMessage.GmmHeader.GetMessageType()),
+		logger.DirectionInbound,
+		transInfo.NasMsg,
+		zap.String("supi", amfUe.Supi),
+		zap.String("PLMNID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
+	)
+
 	err = Dispatch(ctx, amfUe, transInfo.AnType, transInfo.ProcedureCode, msg)
 	if err != nil {
 		return fmt.Errorf("error handling NAS message: %v", err)
