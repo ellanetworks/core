@@ -79,7 +79,8 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 	span.SetAttributes(
 		attribute.String("ue.supi", request.Supi),
 	)
-	if request.Supi == "" || request.SliceInfo == nil || len(request.SliceInfo.Sd) != 6 {
+
+	if request.Supi == "" || request.SliceInfo == nil {
 		return nil, fmt.Errorf("Errorneous/Missing Mandotory IE")
 	}
 
@@ -114,6 +115,7 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 	if err != nil {
 		return nil, fmt.Errorf("can't find subscriber policy for subscriber %s: %s", ue.Supi, err)
 	}
+
 	if subscriberPolicy == nil {
 		return nil, fmt.Errorf("subscriber policy is nil for subscriber %s", ue.Supi)
 	}
@@ -121,10 +123,12 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 	if !ok {
 		return nil, fmt.Errorf("can't find PCC policy for slice %s", sliceid)
 	}
+
 	sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]
 	if !exist {
 		return nil, fmt.Errorf("can't find session policy for dnn %s", request.Dnn)
 	}
+
 	for _, sessRule := range sessPolicy.SessionRules {
 		decision.SessRules[sessRule.SessRuleID] = deepCopySessionRule(sessRule)
 	}
@@ -141,21 +145,25 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 	if err != nil {
 		return nil, fmt.Errorf("error finding SM Policy DNN Data for dnn %s", request.Dnn)
 	}
+
 	if dnnData == nil {
 		return nil, fmt.Errorf("SM Policy DNN Data is empty for dnn %s", request.Dnn)
 	}
+
 	if dnnData.GbrDl != "" {
 		_, err := ConvertBitRateToKbps(dnnData.GbrDl)
 		if err != nil {
 			return nil, fmt.Errorf("can't convert GBR DL to Kbps: %s", err)
 		}
 	}
+
 	if dnnData.GbrUl != "" {
 		_, err := ConvertBitRateToKbps(dnnData.GbrUl)
 		if err != nil {
 			return nil, fmt.Errorf("can't convert GBR UL to Kbps: %s", err)
 		}
 	}
+
 	return decision, nil
 }
 

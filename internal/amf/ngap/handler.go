@@ -490,7 +490,7 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 func rawMessage(message ngapType.NGAPPDU) []byte {
 	raw, err := ngap.Encoder(message)
 	if err != nil {
-		logger.AmfLog.Warn("rawMessage ngap.Encoder error", zap.Error(err))
+		logger.AmfLog.Warn("error encoding ngap message", zap.Error(err))
 		return nil
 	}
 
@@ -1609,12 +1609,21 @@ func HandlePDUSessionResourceSetupResponse(ctx ctxt.Context, ran *context.AmfRan
 		return
 	}
 
-	logger.LogRadioEvent(logger.RadioPDUSessionResourceSetupResponse, logger.DirectionInbound, rawMessage(*message), ran.GnbID, zap.String("ranName", ran.Name), zap.String("ranID", ran.GnbID), zap.String("ranIP", ran.GnbIP))
-
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
+
+	logger.LogRadioEvent(
+		logger.RadioPDUSessionResourceSetupResponse,
+		logger.DirectionInbound,
+		rawMessage(*message),
+		ran.GnbID,
+		zap.String("ranName", ran.Name),
+		zap.String("ranID", ran.GnbID),
+		zap.String("ranIP", ran.GnbIP),
+	)
+
 	successfulOutcome := message.SuccessfulOutcome
 	if successfulOutcome == nil {
 		ran.Log.Error("SuccessfulOutcome is nil")

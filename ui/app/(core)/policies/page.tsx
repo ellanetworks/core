@@ -144,7 +144,7 @@ const PolicyPage = () => {
         minWidth: 160,
       },
       { field: "var5qi", headerName: "5QI", width: 90 },
-      { field: "priority_level", headerName: "Priority", width: 110 },
+      { field: "arp", headerName: "ARP", width: 110 },
       {
         field: "data_network_name",
         headerName: "Data Network",
@@ -311,7 +311,7 @@ const PolicyPage = () => {
               bitrate_uplink: "100 Mbps",
               bitrate_downlink: "100 Mbps",
               var5qi: 1,
-              priority_level: 1,
+              arp: 1,
               data_network_name: "",
             }
           }

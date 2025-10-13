@@ -62,7 +62,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
     bitrateDownValue: 0,
     bitrateDownUnit: "Mbps",
     var5qi: 0,
-    priority_level: 0,
+    arp: 0,
     data_network_name: "",
   });
 
@@ -85,7 +85,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
       bitrateDownValue: parseInt(bitrateDownValueStr, 10),
       bitrateDownUnit: (bitrateDownUnit as "Mbps" | "Gbps") ?? "Mbps",
       var5qi: initialData.var5qi,
-      priority_level: initialData.priority_level,
+      arp: initialData.arp,
       data_network_name: initialData.data_network_name,
     });
     setErrors({});
@@ -127,7 +127,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
         bitrateUp,
         bitrateDown,
         formValues.var5qi,
-        formValues.priority_level,
+        formValues.arp,
         formValues.data_network_name,
       );
       onClose();
@@ -261,14 +261,12 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
 
         <TextField
           fullWidth
-          label="Priority Level"
+          label="Allocation and Retention Priority (ARP)"
           type="number"
-          value={formValues.priority_level}
-          onChange={(e) =>
-            handleChange("priority_level", Number(e.target.value))
-          }
-          error={!!errors.priority_level}
-          helperText={errors.priority_level}
+          value={formValues.arp}
+          onChange={(e) => handleChange("arp", Number(e.target.value))}
+          error={!!errors.arp}
+          helperText={errors.arp}
           margin="normal"
         />
       </DialogContent>
