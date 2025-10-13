@@ -189,12 +189,12 @@ func TestUpdateAuditLogRetentionPolicy_Failure(t *testing.T) {
 	}
 }
 
-func TestListSubscriberLogs_Success(t *testing.T) {
+func TestListNetworkLogs_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "level": "info", "imsi": "123456789012345", "event": "PDU Session Establishment Request", "direction": "inbound", "raw": "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA", "details": "{\"pduSessionID\":1}"}], "page": 1, "per_page": 10, "total_count": 1}`),
+			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "level": "info", "protocol": "ngap", "message_type": "PDU Session Establishment Request", "direction": "inbound", "raw": "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA", "details": "{\"pduSessionID\":1}"}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}
@@ -204,38 +204,38 @@ func TestListSubscriberLogs_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	params := &client.ListSubscriberLogsParams{
+	params := &client.ListNetworkLogsParams{
 		Page:    1,
 		PerPage: 10,
 	}
 
-	resp, err := clientObj.ListSubscriberLogs(ctx, params)
+	resp, err := clientObj.ListNetworkLogs(ctx, params)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
 	if len(resp.Items) != 1 {
-		t.Fatalf("expected 1 subscriber log, got %d", len(resp.Items))
+		t.Fatalf("expected 1 network log, got %d", len(resp.Items))
 	}
 
 	if resp.Items[0].ID != 1 {
-		t.Fatalf("expected subscriber log ID 1, got %d", resp.Items[0].ID)
+		t.Fatalf("expected network log ID 1, got %d", resp.Items[0].ID)
 	}
 
 	if resp.Items[0].Timestamp != "2023-10-01T12:00:00Z" {
 		t.Fatalf("expected timestamp '2023-10-01T12:00:00Z', got '%s'", resp.Items[0].Timestamp)
 	}
 
-	if resp.Items[0].IMSI != "123456789012345" {
-		t.Fatalf("expected IMSI '123456789012345', got '%s'", resp.Items[0].IMSI)
+	if resp.Items[0].Protocol != "ngap" {
+		t.Fatalf("expected protocol 'ngap', got '%s'", resp.Items[0].Protocol)
 	}
 
 	if resp.Items[0].Level != "info" {
 		t.Fatalf("expected level 'info', got '%s'", resp.Items[0].Level)
 	}
 
-	if resp.Items[0].Event != "PDU Session Establishment Request" {
-		t.Fatalf("expected event 'PDU Session Establishment Request', got '%s'", resp.Items[0].Event)
+	if resp.Items[0].MessageType != "PDU Session Establishment Request" {
+		t.Fatalf("expected message type 'PDU Session Establishment Request', got '%s'", resp.Items[0].MessageType)
 	}
 
 	if resp.Items[0].Details != "{\"pduSessionID\":1}" {
@@ -252,7 +252,7 @@ func TestListSubscriberLogs_Success(t *testing.T) {
 	}
 }
 
-func TestListSubscriberLogs_Failure(t *testing.T) {
+func TestListNetworkLogs_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 500,
@@ -267,18 +267,18 @@ func TestListSubscriberLogs_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	params := &client.ListSubscriberLogsParams{
+	params := &client.ListNetworkLogsParams{
 		Page:    1,
 		PerPage: 10,
 	}
 
-	_, err := clientObj.ListSubscriberLogs(ctx, params)
+	_, err := clientObj.ListNetworkLogs(ctx, params)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
 }
 
-func TestGetSubscriberLogsRetentionPolicy_Success(t *testing.T) {
+func TestGetNetworkLogsRetentionPolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
@@ -293,7 +293,7 @@ func TestGetSubscriberLogsRetentionPolicy_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	policy, err := clientObj.GetSubscriberLogRetentionPolicy(ctx)
+	policy, err := clientObj.GetNetworkLogRetentionPolicy(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -303,7 +303,7 @@ func TestGetSubscriberLogsRetentionPolicy_Success(t *testing.T) {
 	}
 }
 
-func TestGetSubscriberLogsRetentionPolicy_Failure(t *testing.T) {
+func TestGetNetworkLogsRetentionPolicy_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 500,
@@ -318,18 +318,18 @@ func TestGetSubscriberLogsRetentionPolicy_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := clientObj.GetSubscriberLogRetentionPolicy(ctx)
+	_, err := clientObj.GetNetworkLogRetentionPolicy(ctx)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
 }
 
-func TestUpdateSubscriberLogsRetentionPolicy_Success(t *testing.T) {
+func TestUpdateNetworkLogsRetentionPolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Subscriber log retention policy updated successfully"}`),
+			Result:     []byte(`{"message": "Network log retention policy updated successfully"}`),
 		},
 		err: nil,
 	}
@@ -337,19 +337,19 @@ func TestUpdateSubscriberLogsRetentionPolicy_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	updateOpts := &client.UpdateSubscriberLogsRetentionPolicyOptions{
+	updateOpts := &client.UpdateNetworkLogsRetentionPolicyOptions{
 		Days: 45,
 	}
 
 	ctx := context.Background()
 
-	err := clientObj.UpdateSubscriberLogRetentionPolicy(ctx, updateOpts)
+	err := clientObj.UpdateNetworkLogRetentionPolicy(ctx, updateOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
-func TestUpdateSubscriberLogsRetentionPolicy_Failure(t *testing.T) {
+func TestUpdateNetworkLogsRetentionPolicy_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 400,
@@ -362,148 +362,13 @@ func TestUpdateSubscriberLogsRetentionPolicy_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	updateOpts := &client.UpdateSubscriberLogsRetentionPolicyOptions{
+	updateOpts := &client.UpdateNetworkLogsRetentionPolicyOptions{
 		Days: 0,
 	}
 
 	ctx := context.Background()
 
-	err := clientObj.UpdateSubscriberLogRetentionPolicy(ctx, updateOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
-func TestListRadioLogs_Success(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 200,
-			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "level": "info", "ran_id": "ran123", "event": "NGAP Connection Establishment", "direction": "inbound", "raw": "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA", "details": "{\"gnbID\":\"ran123\"}"}], "page": 1, "per_page": 10, "total_count": 1}`),
-		},
-		err: nil,
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListRadioLogsParams{
-		Page:    1,
-		PerPage: 10,
-	}
-
-	resp, err := clientObj.ListRadioLogs(ctx, params)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
-
-	if len(resp.Items) != 1 {
-		t.Fatalf("expected 1 radio log, got %d", len(resp.Items))
-	}
-
-	if resp.Items[0].ID != 1 {
-		t.Fatalf("expected radio log ID 1, got %d", resp.Items[0].ID)
-	}
-
-	if resp.Items[0].Timestamp != "2023-10-01T12:00:00Z" {
-		t.Fatalf("expected timestamp '2023-10-01T12:00:00Z', got '%s'", resp.Items[0].Timestamp)
-	}
-
-	if resp.Items[0].Level != "info" {
-		t.Fatalf("expected level 'info', got '%s'", resp.Items[0].Level)
-	}
-
-	if resp.Items[0].RanID != "ran123" {
-		t.Fatalf("expected RAN ID 'ran123', got '%s'", resp.Items[0].RanID)
-	}
-
-	if resp.Items[0].Event != "NGAP Connection Establishment" {
-		t.Fatalf("expected event 'NGAP Connection Establishment', got '%s'", resp.Items[0].Event)
-	}
-
-	if resp.Items[0].Details != "{\"gnbID\":\"ran123\"}" {
-		t.Fatalf("expected details '{\"gnbID\":\"ran123\"}', got '%s'", resp.Items[0].Details)
-	}
-
-	if resp.Items[0].Direction != "inbound" {
-		t.Fatalf("expected direction 'inbound', got '%s'", resp.Items[0].Direction)
-	}
-
-	expectedRaw := "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA"
-	if resp.Items[0].Raw != expectedRaw {
-		t.Fatalf("expected raw '%s', got '%s'", expectedRaw, resp.Items[0].Raw)
-	}
-}
-
-func TestListRadioLogs_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListRadioLogsParams{
-		Page:    1,
-		PerPage: 10,
-	}
-
-	_, err := clientObj.ListRadioLogs(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
-func TestGetRadioLogsRetentionPolicy_Success(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 200,
-			Headers:    http.Header{},
-			Result:     []byte(`{"days": 7}`),
-		},
-		err: nil,
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	policy, err := clientObj.GetRadioLogRetentionPolicy(ctx)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
-
-	if policy.Days != 7 {
-		t.Fatalf("expected retention days 7, got %d", policy.Days)
-	}
-}
-
-func TestGetRadioLogsRetentionPolicy_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetRadioLogRetentionPolicy(ctx)
+	err := clientObj.UpdateNetworkLogRetentionPolicy(ctx, updateOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

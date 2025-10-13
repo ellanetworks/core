@@ -88,13 +88,13 @@ None
 }
 ```
 
-## List Subscriber Logs
+## List Network Logs
 
-This path returns the list of subscriber logs.
+This path returns the list of network logs.
 
 | Method | Path                         |
 | ------ | ---------------------------- |
-| GET    | `/api/v1/logs/subscribers`   |
+| GET    | `/api/v1/logs/networks`   |
 
 ### Query Parameters
 
@@ -102,9 +102,9 @@ This path returns the list of subscriber logs.
 | ----------       | ----- | ---- | ------- | ----------------- | ----------------------------------------------------------------------------------------------- |
 | `page`           | query | int  | `1`     | `>= 1`            | 1-based page index.                                                                             |
 | `per_page`       | query | int  | `25`    | `1…100`           | Number of items per page.                                                                       |
-| `imsi`           | query | str  |         |                   | Filter by IMSI.                                                                                 |
+| `protocol`       | query | str  |         |                   | Filter by protocol.                                                                              |
 | `direction`      | query | str  |         | inbound, outbound | Filter by log direction.                                                                        |
-| `event`          | query | str  |         |                   | Filter by event name.                                                                           |
+| `message_type`   | query | str  |         |                   | Filter by message type.                                                                          |
 | `timestamp_from` | query | str  |         |                   | Filter logs from this timestamp (inclusive). RFC3339 format (e.g., 2006-01-02T15:04:05Z07:00).  |
 | `timestamp_to`   | query | str  |         |                   | Filter logs up to this timestamp (inclusive). RFC3339 format (e.g., 2006-01-02T15:04:05Z07:00). |
 
@@ -117,8 +117,8 @@ This path returns the list of subscriber logs.
             {
                 "id": 1,
                 "timestamp": "2025-08-12T16:58:00.810-0400",
-                "imsi": "001010100007487",
-                "event": "PDU Session Establishment Accept",
+                "protocol": "NGAP",
+                "message_type": "PDU Session Establishment Accept",
                 "direction": "inbound",
                 "raw": "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA",
                 "details": "{\"pduSessionID\":1}"
@@ -131,35 +131,35 @@ This path returns the list of subscriber logs.
 }
 ```
 
-## Update Subscriber Log Retention Policy
+## Update Network Log Retention Policy
 
-This path updates the subscriber log retention policy.
+This path updates the network log retention policy.
 
 | Method | Path                           |
 | ------ | ------------------------------ |
-| PUT    | `/api/v1/logs/subscribers/retention` |
+| PUT    | `/api/v1/logs/networks/retention` |
 
 ### Parameters
 
-- `days` (integer): The number of days to retain subscriber logs. Must be a positive integer.
+- `days` (integer): The number of days to retain network logs. Must be a positive integer.
 
 ### Sample Response
 
 ```json
 {
     "result": {
-        "message": "Subscriber log retention policy updated successfully"
+        "message": "Network log retention policy updated successfully"
     }
 }
 ```
 
-## Clear Subscriber Logs
+## Clear Network Logs
 
-This path deletes all subscriber logs.
+This path deletes all network logs.
 
 | Method | Path                         |
 | ------ | ---------------------------- |
-| DELETE | `/api/v1/logs/subscribers`   |
+| DELETE | `/api/v1/logs/networks`   |
 
 ### Parameters
 
@@ -170,124 +170,18 @@ None
 ```json
 {
     "result": {
-        "message": "All subscriber logs have been deleted successfully"
+        "message": "All network logs have been deleted successfully"
     }
 }
 ```
 
-## Get Subscriber Log Retention Policy
+## Get Network Log Retention Policy
 
-This path returns the current subscriber log retention policy.
+This path returns the current network log retention policy.
 
 | Method | Path                           |
 | ------ | ------------------------------ |
-| GET    | `/api/v1/logs/subscribers/retention` |
-
-### Parameters
-
-None
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "days": 30
-    }
-}
-```
-
-## List Radio Logs
-
-This path returns the list of radio logs.
-
-| Method | Path                    |
-| ------ | ----------------------- |
-| GET    | `/api/v1/logs/radio`   |
-
-### Query Parameters
-
-| Name             | In    | Type | Default | Allowed           | Description                                                                                     |
-| ----------       | ----- | ---- | ------- | ----------------- | ----------------------------------------------------------------------------------------------- |
-| `page`           | query | int  | `1`     | `>= 1`            | 1-based page index.                                                                             |
-| `per_page`       | query | int  | `25`    | `1…100`           | Number of items per page.                                                                       |
-| `ran_id`         | query | str  |         |                   | Filter by RAN ID.                                                                               |
-| `direction`      | query | str  |         | inbound, outbound | Filter by log direction.                                                                        |
-| `event`          | query | str  |         |                   | Filter by event name.                                                                           |
-| `timestamp_from` | query | str  |         |                   | Filter logs from this timestamp (inclusive). RFC3339 format (e.g., 2006-01-02T15:04:05Z07:00).  |
-| `timestamp_to`   | query | str  |         |                   | Filter logs up to this timestamp (inclusive). RFC3339 format (e.g., 2006-01-02T15:04:05Z07:00). |
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "items": [
-            {
-                "id": 1,
-                "timestamp": "2025-08-12T16:58:00.810-0400",
-                "level": "info",
-                "ran_id": "001:01:000008",
-                "event": "PDU Session Resource Setup Response",
-                "direction": "outbound",
-                "raw": "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA",
-                "details": "{\"ranID\":\"001:01:000008\",\"ranIP\":\"192.168.40.14:9487\",\"ranName\":\"my ran name\"}"
-            }
-        ],
-        "page": 1,
-        "per_page": 10,
-        "total_count": 1
-    }
-}
-```
-
-## Clear Radio Logs
-
-This path deletes all radio logs.
-
-| Method | Path                    |
-| ------ | ----------------------- |
-| DELETE | `/api/v1/logs/radio`   |
-
-### Parameters
-
-None
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "message": "All radio logs have been deleted successfully"
-    }
-}
-```
-
-## Update Radio Log Retention Policy
-
-```json
-{
-    "days": 30
-}
-```
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "message": "Radio log retention policy updated successfully"
-    }
-}
-```
-
-## Get Radio Log Retention Policy
-
-This path returns the current radio log retention policy.
-
-| Method | Path                           |
-| ------ | ------------------------------ |
-| GET    | `/api/v1/logs/radio/retention` |
+| GET    | `/api/v1/logs/networks/retention` |
 
 ### Parameters
 

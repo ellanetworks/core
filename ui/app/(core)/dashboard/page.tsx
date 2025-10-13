@@ -538,7 +538,7 @@ const Dashboard = () => {
                       <TableRow>
                         <TableCell colSpan={3}>
                           <Typography variant="body2" color="text.secondary">
-                            No subscriber events.
+                            No network events.
                           </Typography>
                         </TableCell>
                       </TableRow>

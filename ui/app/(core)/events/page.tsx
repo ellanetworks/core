@@ -5,6 +5,7 @@ import {
   Box,
   Typography,
   Alert,
+  Chip,
   Collapse,
   IconButton,
   Tooltip,
@@ -52,6 +53,10 @@ const STRING_EQ = getGridStringOperators().filter(
 
 const DIR_EQ = getGridSingleSelectOperators().filter((op) => op.value === "is");
 
+const PROTOCOL_EQ = getGridSingleSelectOperators().filter(
+  (op) => op.value === "is",
+);
+
 // turns "2025-10-09T09:34:27.496-0400" into "...-04:00"
 const normalizeRfc3339Offset = (s: string) =>
   s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
@@ -79,6 +84,28 @@ function formatRfc3339WithOffset(d: Date): string {
 
   return `${y}-${m}-${day}T${hh}:${mm}:${ss}.${ms}${sign}${tzH}:${tzM}`;
 }
+
+const ProtocolCell: React.FC<{ value?: string }> = ({ value }) => {
+  if (!value) return null;
+
+  const val = String(value).toUpperCase();
+  const color = val === "NGAP" ? "info" : val === "NAS" ? "success" : "default";
+
+  return (
+    <Chip
+      label={val}
+      size="small"
+      variant={color === "default" ? "outlined" : "filled"}
+      color={color}
+      sx={{
+        fontWeight: 600,
+        letterSpacing: 0.25,
+        height: 22,
+      }}
+      aria-label={`Protocol ${val}`}
+    />
+  );
+};
 
 function toBackendTimestamp(v: unknown): string | undefined {
   if (v instanceof Date) return formatRfc3339WithOffset(v);
@@ -311,10 +338,16 @@ const Events: React.FC = () => {
       {
         field: "protocol",
         headerName: "Protocol",
+        type: "singleSelect",
+        valueOptions: [
+          { value: "NGAP", label: "NGAP" },
+          { value: "NAS", label: "NAS" },
+        ],
         flex: 1,
-        minWidth: 100,
+        minWidth: 120,
         sortable: false,
-        filterOperators: STRING_EQ,
+        filterOperators: PROTOCOL_EQ,
+        renderCell: (p) => <ProtocolCell value={p.row.protocol} />,
       },
       {
         field: "message_type",
@@ -360,7 +393,6 @@ const Events: React.FC = () => {
     ];
   }, []);
 
-  // ---------------- Render ----------------
   const subDescription =
     "Review network events in Ella Core. These logs are useful for auditing and troubleshooting purposes.";
 
