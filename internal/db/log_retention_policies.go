@@ -33,9 +33,8 @@ ON CONFLICT(category) DO UPDATE SET retention_days = excluded.retention_days
 type LogCategory string
 
 const (
-	CategoryAuditLogs      LogCategory = "audit"
-	CategorySubscriberLogs LogCategory = "subscriber"
-	CategoryRadioLogs      LogCategory = "radio"
+	CategoryAuditLogs   LogCategory = "audit"
+	CategoryNetworkLogs LogCategory = "network"
 )
 
 type LogRetentionPolicy struct {

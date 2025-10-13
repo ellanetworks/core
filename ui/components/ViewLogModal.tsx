@@ -19,8 +19,8 @@ import { Close as CloseIcon } from "@mui/icons-material";
 export interface LogRow {
   id: string;
   timestamp: string;
-  event_id: string;
-  event: string;
+  protocol: string;
+  messageType: string;
   direction: string;
   details: string; // JSON or free text
 }
@@ -60,7 +60,7 @@ const ViewLogModal: React.FC<ViewLogModalProps> = ({ open, onClose, log }) => {
       aria-describedby="view-log-modal-description"
     >
       <DialogTitle id="view-log-modal-title" sx={{ pr: 6 }}>
-        {log?.event ?? "Log Details"}
+        {log?.protocol ?? "Log Details"}
         <IconButton
           onClick={onClose}
           aria-label="Close"
@@ -94,7 +94,7 @@ const ViewLogModal: React.FC<ViewLogModalProps> = ({ open, onClose, log }) => {
           </Typography>
 
           <Typography>
-            <strong>ID:</strong> {log?.event_id ?? "—"}
+            <strong>Type:</strong> {log?.messageType ?? "—"}
           </Typography>
         </Box>
 

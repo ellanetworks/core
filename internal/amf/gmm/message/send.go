@@ -60,13 +60,13 @@ func SendNotification(ue *context.RanUe, nasMsg []byte) error {
 		})
 	}
 
-	logger.LogSubscriberEvent(
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
 		logger.SubscriberNotification,
 		logger.DirectionOutbound,
 		nasMsg,
-		amfUe.Supi,
+		zap.String("imsi", amfUe.Supi),
 		zap.String("ran", ue.Ran.Name),
-		zap.String("suci", amfUe.Suci),
 		zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 	)
 
@@ -84,13 +84,13 @@ func SendIdentityRequest(ue *context.RanUe, typeOfIdentity uint8) error {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
 
-	logger.LogSubscriberEvent(
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
 		logger.SubscriberIdentityRequest,
 		logger.DirectionOutbound,
 		nasMsg,
-		ue.AmfUe.Supi,
+		zap.String("imsi", ue.AmfUe.Supi),
 		zap.String("ran", ue.Ran.Name),
-		zap.String("suci", ue.AmfUe.Suci),
 		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
 	)
 
@@ -135,12 +135,12 @@ func SendAuthenticationRequest(ue *context.RanUe) error {
 		})
 	}
 
-	logger.LogSubscriberEvent(
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
 		logger.SubscriberAuthenticationRequest,
 		logger.DirectionOutbound,
 		nasMsg,
-		amfUe.Supi,
-		zap.String("suci", amfUe.Suci),
+		zap.String("imsi", amfUe.Supi),
 		zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 	)
 
@@ -158,13 +158,13 @@ func SendServiceAccept(ue *context.RanUe, pDUSessionStatus *[16]bool, reactivati
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
 
-	logger.LogSubscriberEvent(
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
 		logger.SubscriberServiceAccept,
 		logger.DirectionOutbound,
 		nasMsg,
-		ue.AmfUe.Supi,
+		zap.String("imsi", ue.AmfUe.Supi),
 		zap.String("ran", ue.Ran.Name),
-		zap.String("suci", ue.AmfUe.Suci),
 		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
 	)
 
@@ -182,13 +182,13 @@ func SendAuthenticationReject(ue *context.RanUe, eapMsg string) error {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
 
-	logger.LogSubscriberEvent(
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
 		logger.SubscriberAuthenticationReject,
 		logger.DirectionOutbound,
 		nasMsg,
-		ue.AmfUe.Supi,
+		zap.String("imsi", ue.AmfUe.Supi),
 		zap.String("ran", ue.Ran.Name),
-		zap.String("suci", ue.AmfUe.Suci),
 		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
 	)
 
@@ -210,13 +210,13 @@ func SendAuthenticationResult(ue *context.RanUe, eapSuccess bool, eapMsg string)
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
 
-	logger.LogSubscriberEvent(
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
 		logger.SubscriberAuthenticationResult,
 		logger.DirectionOutbound,
 		nasMsg,
-		ue.AmfUe.Supi,
+		zap.String("imsi", ue.AmfUe.Supi),
 		zap.String("ran", ue.Ran.Name),
-		zap.String("suci", ue.AmfUe.Suci),
 		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
 	)
 
@@ -234,13 +234,13 @@ func SendServiceReject(ue *context.RanUe, pDUSessionStatus *[16]bool, cause uint
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
 
-	logger.LogSubscriberEvent(
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
 		logger.SubscriberServiceReject,
 		logger.DirectionOutbound,
 		nasMsg,
-		ue.AmfUe.Supi,
+		zap.String("imsi", ue.AmfUe.Supi),
 		zap.String("ran", ue.Ran.Name),
-		zap.String("suci", ue.AmfUe.Suci),
 		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
 		zap.String("cause", nasMessage.Cause5GMMToString(cause)),
 	)
@@ -260,13 +260,13 @@ func SendRegistrationReject(ue *context.RanUe, cause5GMM uint8, eapMessage strin
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
 
-	logger.LogSubscriberEvent(
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
 		logger.SubscriberRegistrationReject,
 		logger.DirectionOutbound,
 		nasMsg,
-		ue.AmfUe.Supi,
+		zap.String("imsi", ue.AmfUe.Supi),
 		zap.String("ran", ue.Ran.Name),
-		zap.String("suci", ue.AmfUe.Suci),
 		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
 		zap.String("cause", nasMessage.Cause5GMMToString(cause5GMM)),
 	)
@@ -304,13 +304,13 @@ func SendSecurityModeCommand(ue *context.RanUe, eapSuccess bool, eapMessage stri
 		})
 	}
 
-	logger.LogSubscriberEvent(
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
 		logger.SubscriberSecurityModeCommand,
 		logger.DirectionOutbound,
 		nasMsg,
-		ue.AmfUe.Supi,
+		zap.String("imsi", ue.AmfUe.Supi),
 		zap.String("ran", ue.Ran.Name),
-		zap.String("suci", ue.AmfUe.Suci),
 		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
 	)
 
@@ -363,13 +363,13 @@ func SendDeregistrationRequest(ue *context.RanUe, accessType uint8, reRegistrati
 		})
 	}
 
-	logger.LogSubscriberEvent(
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
 		logger.SubscriberDeregistrationRequest,
 		logger.DirectionOutbound,
 		nasMsg,
-		ue.AmfUe.Supi,
+		zap.String("imsi", ue.AmfUe.Supi),
 		zap.String("ran", ue.Ran.Name),
-		zap.String("suci", ue.AmfUe.Suci),
 		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
 	)
 
@@ -388,13 +388,13 @@ func SendDeregistrationAccept(ue *context.RanUe) error {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
 
-	logger.LogSubscriberEvent(
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
 		logger.SubscriberDeregistrationAccept,
 		logger.DirectionOutbound,
 		nasMsg,
-		ue.AmfUe.Supi,
+		zap.String("imsi", ue.AmfUe.Supi),
 		zap.String("ran", ue.Ran.Name),
-		zap.String("suci", ue.AmfUe.Suci),
 		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
 	)
 
@@ -460,13 +460,13 @@ func SendRegistrationAccept(
 		})
 	}
 
-	logger.LogSubscriberEvent(
+	logger.LogNetworkEvent(
+		logger.NASNetworkProtocol,
 		logger.SubscriberRegistrationAccept,
 		logger.DirectionOutbound,
 		nasMsg,
-		ue.Supi,
+		zap.String("imsi", ue.Supi),
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
-		zap.String("suci", ue.Suci),
 		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
 	)
 

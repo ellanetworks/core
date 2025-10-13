@@ -92,13 +92,13 @@ func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan) error {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioNGSetupResponse,
 		logger.DirectionOutbound,
 		pkt,
-		ran.GnbID,
+		zap.String("gnbID", ran.GnbID),
 		zap.String("ranName", ran.Name),
-		zap.String("ranID", ran.GnbID),
 		zap.String("ranIP", ran.GnbIP),
 	)
 
@@ -120,13 +120,13 @@ func SendNGSetupFailure(ran *context.AmfRan, cause ngapType.Cause) error {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioNGSetupFailure,
 		logger.DirectionOutbound,
 		pkt,
-		ran.GnbID,
+		zap.String("gnbID", ran.GnbID),
 		zap.String("ranName", ran.Name),
-		zap.String("ranID", ran.GnbID),
 		zap.String("ranIP", ran.GnbIP),
 		zap.String("cause", causeToString(&cause)),
 	)
@@ -149,13 +149,13 @@ func SendNGResetAcknowledge(ran *context.AmfRan, partOfNGInterface *ngapType.UEA
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioNGResetAcknowledge,
 		logger.DirectionOutbound,
 		pkt,
-		ran.GnbID,
+		zap.String("gnbID", ran.GnbID),
 		zap.String("ranName", ran.Name),
-		zap.String("ranID", ran.GnbID),
 		zap.String("ranIP", ran.GnbIP),
 	)
 
@@ -181,13 +181,13 @@ func SendDownlinkNasTransport(ue *context.RanUe, nasPdu []byte, mobilityRestrict
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioDownlinkNasTransport,
 		logger.DirectionOutbound,
 		pkt,
-		ue.Ran.GnbID,
+		zap.String("gnbID", ue.Ran.GnbID),
 		zap.String("ranName", ue.Ran.Name),
-		zap.String("ranID", ue.Ran.GnbID),
 		zap.String("ranIP", ue.Ran.GnbIP),
 	)
 
@@ -209,13 +209,13 @@ func SendPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte, pduS
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioPDUSessionResourceReleaseCommand,
 		logger.DirectionOutbound,
 		pkt,
-		ue.Ran.GnbID,
+		zap.String("gnbID", ue.Ran.GnbID),
 		zap.String("ranName", ue.Ran.Name),
-		zap.String("ranID", ue.Ran.GnbID),
 		zap.String("ranIP", ue.Ran.GnbIP),
 	)
 
@@ -247,13 +247,13 @@ func SendUEContextReleaseCommand(ue *context.RanUe, action context.RelAction, ca
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioUEContextReleaseCommand,
 		logger.DirectionOutbound,
 		pkt,
-		ue.Ran.GnbID,
+		zap.String("gnbID", ue.Ran.GnbID),
 		zap.String("ranName", ue.Ran.Name),
-		zap.String("ranID", ue.Ran.GnbID),
 		zap.String("ranIP", ue.Ran.GnbIP),
 		zap.String("cause", causePresentToString(causePresent, cause)),
 	)
@@ -276,13 +276,13 @@ func SendErrorIndication(ran *context.AmfRan, amfUeNgapID, ranUeNgapID *int64, c
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioErrorIndication,
 		logger.DirectionOutbound,
 		pkt,
-		ran.GnbID,
+		zap.String("gnbID", ran.GnbID),
 		zap.String("ranName", ran.Name),
-		zap.String("ranID", ran.GnbID),
 		zap.String("ranIP", ran.GnbIP),
 		zap.String("cause", causeToString(cause)),
 	)
@@ -327,13 +327,13 @@ func SendPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte, pduSes
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioPDUSessionResourceSetupRequest,
 		logger.DirectionOutbound,
 		pkt,
-		ue.Ran.GnbID,
+		zap.String("gnbID", ue.Ran.GnbID),
 		zap.String("ranName", ue.Ran.Name),
-		zap.String("ranID", ue.Ran.GnbID),
 		zap.String("ranIP", ue.Ran.GnbIP),
 	)
 
@@ -369,13 +369,13 @@ func SendPDUSessionResourceModifyConfirm(
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioPDUSessionResourceModifyConfirm,
 		logger.DirectionOutbound,
 		pkt,
-		ue.Ran.GnbID,
+		zap.String("gnbID", ue.Ran.GnbID),
 		zap.String("ranName", ue.Ran.Name),
-		zap.String("ranID", ue.Ran.GnbID),
 		zap.String("ranIP", ue.Ran.GnbIP),
 	)
 
@@ -404,13 +404,13 @@ func SendPDUSessionResourceModifyRequest(ue *context.RanUe, pduSessionResourceMo
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioPDUSessionResourceModifyRequest,
 		logger.DirectionOutbound,
 		pkt,
-		ue.Ran.GnbID,
+		zap.String("gnbID", ue.Ran.GnbID),
 		zap.String("ranName", ue.Ran.Name),
-		zap.String("ranID", ue.Ran.GnbID),
 		zap.String("ranIP", ue.Ran.GnbIP),
 	)
 
@@ -450,13 +450,13 @@ func SendInitialContextSetupRequest(
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioInitialContextSetupRequest,
 		logger.DirectionOutbound,
 		pkt,
-		amfUe.RanUe[anType].Ran.GnbID,
+		zap.String("gnbID", amfUe.RanUe[anType].Ran.GnbID),
 		zap.String("ranName", amfUe.RanUe[anType].Ran.Name),
-		zap.String("ranID", amfUe.RanUe[anType].Ran.GnbID),
 		zap.String("ranIP", amfUe.RanUe[anType].Ran.GnbIP),
 		zap.String("supi", amfUe.Supi),
 		zap.String("anType", string(anType)),
@@ -500,13 +500,13 @@ func SendHandoverCommand(
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioHandoverCommand,
 		logger.DirectionOutbound,
 		pkt,
-		sourceUe.Ran.GnbID,
+		zap.String("gnbID", sourceUe.Ran.GnbID),
 		zap.String("ranName", sourceUe.Ran.Name),
-		zap.String("ranID", sourceUe.Ran.GnbID),
 		zap.String("ranIP", sourceUe.Ran.GnbIP),
 	)
 
@@ -542,13 +542,13 @@ func SendHandoverPreparationFailure(sourceUe *context.RanUe, cause ngapType.Caus
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioHandoverPreparationFailure,
 		logger.DirectionOutbound,
 		pkt,
-		sourceUe.Ran.GnbID,
+		zap.String("gnbID", sourceUe.Ran.GnbID),
 		zap.String("ranName", sourceUe.Ran.Name),
-		zap.String("ranID", sourceUe.Ran.GnbID),
 		zap.String("ranIP", sourceUe.Ran.GnbIP),
 		zap.String("cause", causeToString(&cause)),
 	)
@@ -610,13 +610,13 @@ func SendHandoverRequest(ctx ctxt.Context, sourceUe *context.RanUe, targetRan *c
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioHandoverRequest,
 		logger.DirectionOutbound,
 		pkt,
-		targetRan.GnbID,
+		zap.String("gnbID", targetRan.GnbID),
 		zap.String("ranName", targetRan.Name),
-		zap.String("ranID", targetRan.GnbID),
 		zap.String("ranIP", targetRan.GnbIP),
 		zap.String("supi", amfUe.Supi),
 		zap.String("sourceRan", sourceUe.Ran.Name),
@@ -670,13 +670,13 @@ func SendPathSwitchRequestAcknowledge(
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioPathSwitchRequestAcknowledge,
 		logger.DirectionOutbound,
 		pkt,
-		ue.Ran.GnbID,
+		zap.String("gnbID", ue.Ran.GnbID),
 		zap.String("ranName", ue.Ran.Name),
-		zap.String("ranID", ue.Ran.GnbID),
 		zap.String("ranIP", ue.Ran.GnbIP),
 	)
 
@@ -707,13 +707,13 @@ func SendPathSwitchRequestFailure(
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioPathSwitchRequestFailure,
 		logger.DirectionOutbound,
 		pkt,
-		ran.GnbID,
+		zap.String("gnbID", ran.GnbID),
 		zap.String("ranName", ran.Name),
-		zap.String("ranID", ran.GnbID),
 		zap.String("ranIP", ran.GnbIP),
 	)
 
@@ -796,13 +796,13 @@ func SendRanConfigurationUpdateAcknowledge(ran *context.AmfRan, criticalityDiagn
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioRanConfigurationUpdateAcknowledge,
 		logger.DirectionOutbound,
 		pkt,
-		ran.GnbID,
+		zap.String("gnbID", ran.GnbID),
 		zap.String("ranName", ran.Name),
-		zap.String("ranID", ran.GnbID),
 		zap.String("ranIP", ran.GnbIP),
 	)
 
@@ -827,13 +827,13 @@ func SendRanConfigurationUpdateFailure(ran *context.AmfRan, cause ngapType.Cause
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioRanConfigurationUpdateFailure,
 		logger.DirectionOutbound,
 		pkt,
-		ran.GnbID,
+		zap.String("gnbID", ran.GnbID),
 		zap.String("ranName", ran.Name),
-		zap.String("ranID", ran.GnbID),
 		zap.String("ranIP", ran.GnbIP),
 		zap.String("cause", causeToString(&cause)),
 	)
@@ -868,13 +868,13 @@ func SendAMFStatusIndication(ran *context.AmfRan, unavailableGUAMIList ngapType.
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioAMFStatusIndication,
 		logger.DirectionOutbound,
 		pkt,
-		ran.GnbID,
+		zap.String("gnbID", ran.GnbID),
 		zap.String("ranName", ran.Name),
-		zap.String("ranID", ran.GnbID),
 		zap.String("ranIP", ran.GnbIP),
 	)
 
@@ -897,13 +897,13 @@ func SendDownlinkRanConfigurationTransfer(ran *context.AmfRan, transfer *ngapTyp
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioDownlinkRanConfigurationTransfer,
 		logger.DirectionOutbound,
 		pkt,
-		ran.GnbID,
+		zap.String("gnbID", ran.GnbID),
 		zap.String("ranName", ran.Name),
-		zap.String("ranID", ran.GnbID),
 		zap.String("ranIP", ran.GnbIP),
 	)
 
@@ -950,13 +950,13 @@ func SendLocationReportingControl(
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
-	logger.LogRadioEvent(
+	logger.LogNetworkEvent(
+		logger.NGAPNetworkProtocol,
 		logger.RadioLocationReportingControl,
 		logger.DirectionOutbound,
 		pkt,
-		ue.Ran.GnbID,
+		zap.String("gnbID", ue.Ran.GnbID),
 		zap.String("ranName", ue.Ran.Name),
-		zap.String("ranID", ue.Ran.GnbID),
 		zap.String("ranIP", ue.Ran.GnbIP),
 	)
 

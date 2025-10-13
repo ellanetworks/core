@@ -38,13 +38,13 @@ func DeRegistered(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 		amfUe.GmmLog.Debug("GmmMessageEvent at GMM State[DeRegistered]")
 		switch gmmMessage.GetMessageType() {
 		case nas.MsgTypeRegistrationRequest:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberRegistrationRequest,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleRegistrationRequest(ctx, amfUe, accessType, procedureCode, gmmMessage.RegistrationRequest); err != nil {
@@ -59,13 +59,13 @@ func DeRegistered(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 				}
 			}
 		case nas.MsgTypeServiceRequest:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberServiceRequest,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[models.AccessType3GPPAccess].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleServiceRequest(ctx, amfUe, accessType, gmmMessage.ServiceRequest); err != nil {
@@ -107,13 +107,13 @@ func Registered(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args fs
 		switch gmmMessage.GetMessageType() {
 		// Mobility Registration update / Periodic Registration update
 		case nas.MsgTypeRegistrationRequest:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberRegistrationRequest,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleRegistrationRequest(ctx, amfUe, accessType, procedureCode, gmmMessage.RegistrationRequest); err != nil {
@@ -132,39 +132,39 @@ func Registered(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args fs
 				logger.AmfLog.Error("Error handling UL NASTransport", zap.Error(err))
 			}
 		case nas.MsgTypeConfigurationUpdateComplete:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberConfigurationUpdateComplete,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[models.AccessType3GPPAccess].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleConfigurationUpdateComplete(amfUe, gmmMessage.ConfigurationUpdateComplete); err != nil {
 				logger.AmfLog.Error("Error handling configuration update complete", zap.Error(err))
 			}
 		case nas.MsgTypeServiceRequest:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberServiceRequest,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[models.AccessType3GPPAccess].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleServiceRequest(ctx, amfUe, accessType, gmmMessage.ServiceRequest); err != nil {
 				logger.AmfLog.Error("Error handling service request", zap.Error(err))
 			}
 		case nas.MsgTypeNotificationResponse:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberNotificationResponse,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[models.AccessType3GPPAccess].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleNotificationResponse(ctx, amfUe, gmmMessage.NotificationResponse); err != nil {
@@ -179,13 +179,13 @@ func Registered(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args fs
 				logger.AmfLog.Error("Error sending event", zap.Error(err))
 			}
 		case nas.MsgTypeStatus5GMM:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberStatus5GMM,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleStatus5GMM(amfUe, accessType, gmmMessage.Status5GMM); err != nil {
@@ -260,39 +260,39 @@ func Authentication(ctx ctxt.Context, state *fsm.State, event fsm.EventType, arg
 				logger.AmfLog.Error("Error sending event", zap.Error(err))
 			}
 		case nas.MsgTypeAuthenticationResponse:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberAuthenticationResponse,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleAuthenticationResponse(ctx, amfUe, accessType, gmmMessage.AuthenticationResponse); err != nil {
 				logger.AmfLog.Error("Error handling authentication response", zap.Error(err))
 			}
 		case nas.MsgTypeAuthenticationFailure:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberAuthenticationFailure,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleAuthenticationFailure(ctx, amfUe, accessType, gmmMessage.AuthenticationFailure); err != nil {
 				logger.AmfLog.Error("Error handling authentication failure", zap.Error(err))
 			}
 		case nas.MsgTypeStatus5GMM:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberStatus5GMM,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleStatus5GMM(amfUe, accessType, gmmMessage.Status5GMM); err != nil {
@@ -393,26 +393,26 @@ func SecurityMode(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 		amfUe.GmmLog.Debug("GmmMessageEvent to GMM State[SecurityMode]")
 		switch gmmMessage.GetMessageType() {
 		case nas.MsgTypeSecurityModeComplete:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberSecurityModeComplete,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleSecurityModeComplete(ctx, amfUe, accessType, procedureCode, gmmMessage.SecurityModeComplete); err != nil {
 				logger.AmfLog.Error("Error handling security mode complete", zap.Error(err))
 			}
 		case nas.MsgTypeSecurityModeReject:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberSecurityModeReject,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleSecurityModeReject(amfUe, accessType, gmmMessage.SecurityModeReject); err != nil {
@@ -446,13 +446,13 @@ func SecurityMode(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 			}
 
 		case nas.MsgTypeStatus5GMM:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberStatus5GMM,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleStatus5GMM(amfUe, accessType, gmmMessage.Status5GMM); err != nil {
@@ -529,13 +529,13 @@ func ContextSetup(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 			case nasMessage.RegistrationType5GSInitialRegistration:
 				gmmMessage := &nas.GmmMessage{RegistrationRequest: message}
 				gmmMessage.GmmHeader.SetMessageType(nas.MsgTypeRegistrationRequest)
-				logger.LogSubscriberEvent(
+				logger.LogNetworkEvent(
+					logger.NASNetworkProtocol,
 					logger.SubscriberRegistrationRequest,
 					logger.DirectionInbound,
 					rawGmmNasMessage(gmmMessage),
-					amfUe.Supi,
+					zap.String("imsi", amfUe.Supi),
 					zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-					zap.String("suci", amfUe.Suci),
 					zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 				)
 				if err := HandleInitialRegistration(ctx, amfUe, accessType); err != nil {
@@ -546,13 +546,13 @@ func ContextSetup(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 			case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
 				nasMessage := &nas.GmmMessage{RegistrationRequest: message}
 				nasMessage.GmmHeader.SetMessageType(nas.MsgTypeRegistrationRequest)
-				logger.LogSubscriberEvent(
+				logger.LogNetworkEvent(
+					logger.NASNetworkProtocol,
 					logger.SubscriberRegistrationRequest,
 					logger.DirectionInbound,
 					rawGmmNasMessage(nasMessage),
-					amfUe.Supi,
+					zap.String("imsi", amfUe.Supi),
 					zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-					zap.String("suci", amfUe.Suci),
 					zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 				)
 				if err := HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfUe, accessType); err != nil {
@@ -562,13 +562,13 @@ func ContextSetup(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 		case *nasMessage.ServiceRequest:
 			nasMessage := &nas.GmmMessage{ServiceRequest: message}
 			nasMessage.GmmHeader.SetMessageType(nas.MsgTypeServiceRequest)
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberServiceRequest,
 				logger.DirectionInbound,
 				rawGmmNasMessage(nasMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleServiceRequest(ctx, amfUe, accessType, message); err != nil {
@@ -584,13 +584,13 @@ func ContextSetup(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 		amfUe.GmmLog.Debug("GmmMessageEvent at GMM State[ContextSetup]")
 		switch gmmMessage.GetMessageType() {
 		case nas.MsgTypeIdentityResponse:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberIdentityResponse,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleIdentityResponse(amfUe, gmmMessage.IdentityResponse); err != nil {
@@ -598,13 +598,13 @@ func ContextSetup(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 			}
 			switch amfUe.RegistrationType5GS {
 			case nasMessage.RegistrationType5GSInitialRegistration:
-				logger.LogSubscriberEvent(
+				logger.LogNetworkEvent(
+					logger.NASNetworkProtocol,
 					logger.SubscriberRegistrationRequest,
 					logger.DirectionInbound,
 					rawGmmNasMessage(gmmMessage),
-					amfUe.Supi,
+					zap.String("imsi", amfUe.Supi),
 					zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-					zap.String("suci", amfUe.Suci),
 					zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 				)
 				if err := HandleInitialRegistration(ctx, amfUe, accessType); err != nil {
@@ -620,13 +620,13 @@ func ContextSetup(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 			case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
 				fallthrough
 			case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-				logger.LogSubscriberEvent(
+				logger.LogNetworkEvent(
+					logger.NASNetworkProtocol,
 					logger.SubscriberRegistrationRequest,
 					logger.DirectionInbound,
 					rawGmmNasMessage(gmmMessage),
-					amfUe.Supi,
+					zap.String("imsi", amfUe.Supi),
 					zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-					zap.String("suci", amfUe.Suci),
 					zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 				)
 				if err := HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfUe, accessType); err != nil {
@@ -641,26 +641,26 @@ func ContextSetup(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 				}
 			}
 		case nas.MsgTypeRegistrationComplete:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberRegistrationComplete,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleRegistrationComplete(ctx, amfUe, accessType, gmmMessage.RegistrationComplete); err != nil {
 				logger.AmfLog.Error("Error handling registration complete", zap.Error(err))
 			}
 		case nas.MsgTypeStatus5GMM:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberStatus5GMM,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleStatus5GMM(amfUe, accessType, gmmMessage.Status5GMM); err != nil {
@@ -711,13 +711,13 @@ func DeregisteredInitiated(ctx ctxt.Context, state *fsm.State, event fsm.EventTy
 			gmmMessage := args[ArgNASMessage].(*nas.GmmMessage)
 			if gmmMessage != nil {
 				accessType := args[ArgAccessType].(models.AccessType)
-				logger.LogSubscriberEvent(
+				logger.LogNetworkEvent(
+					logger.NASNetworkProtocol,
 					logger.SubscriberDeregistrationRequest,
 					logger.DirectionInbound,
 					rawGmmNasMessage(gmmMessage),
-					amfUe.Supi,
+					zap.String("imsi", amfUe.Supi),
 					zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-					zap.String("suci", amfUe.Suci),
 					zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 				)
 				if err := HandleDeregistrationRequest(ctx, amfUe, accessType,
@@ -733,13 +733,13 @@ func DeregisteredInitiated(ctx ctxt.Context, state *fsm.State, event fsm.EventTy
 		amfUe.GmmLog.Debug("GmmMessageEvent at GMM State[DeregisteredInitiated]")
 		switch gmmMessage.GetMessageType() {
 		case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberDeregistrationAccept,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				amfUe.Supi,
+				zap.String("imsi", amfUe.Supi),
 				zap.String("ran", amfUe.RanUe[accessType].Ran.Name),
-				zap.String("suci", amfUe.Suci),
 				zap.String("plmnID", amfUe.PlmnID.Mcc+amfUe.PlmnID.Mnc),
 			)
 			if err := HandleDeregistrationAccept(ctx, amfUe, accessType,

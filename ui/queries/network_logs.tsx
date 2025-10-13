@@ -1,32 +1,32 @@
 import { HTTPStatus } from "@/queries/utils";
 
-export type SubscriberLogRetentionPolicy = {
+export type NetworkLogRetentionPolicy = {
   days: number;
 };
 
-export type APISubscriberLog = {
+export type APINetworkLog = {
   id: number;
   timestamp: string;
-  imsi: string;
-  event: string;
+  protocol: string;
+  message_type: string;
   direction: string;
   details?: string;
 };
 
-export type ListSubscriberLogsResponse = {
-  items: APISubscriberLog[];
+export type ListNetworkLogsResponse = {
+  items: APINetworkLog[];
   page: number;
   per_page: number;
   total_count: number;
 };
 
-export async function listSubscriberLogs(
+export async function listNetworkLogs(
   authToken: string,
   page: number,
   perPage: number,
   params?: Record<string, string | string[]>,
-): Promise<ListSubscriberLogsResponse> {
-  const url = new URL(`/api/v1/logs/subscriber`, window.location.origin);
+): Promise<ListNetworkLogsResponse> {
+  const url = new URL(`/api/v1/logs/network`, window.location.origin);
   url.searchParams.set("page", String(page));
   url.searchParams.set("page_size", String(perPage));
 
@@ -45,7 +45,7 @@ export async function listSubscriberLogs(
     },
   });
 
-  let json: { result: ListSubscriberLogsResponse; error?: string };
+  let json: { result: ListNetworkLogsResponse; error?: string };
   try {
     json = await response.json();
   } catch {
@@ -63,8 +63,8 @@ export async function listSubscriberLogs(
   return json.result;
 }
 
-export async function clearSubscriberLogs(authToken: string): Promise<void> {
-  const response = await fetch(`/api/v1/logs/subscriber`, {
+export async function clearNetworkLogs(authToken: string): Promise<void> {
+  const response = await fetch(`/api/v1/logs/network`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
@@ -87,8 +87,8 @@ export async function clearSubscriberLogs(authToken: string): Promise<void> {
   }
 }
 
-export const getSubscriberLogRetentionPolicy = async (authToken: string) => {
-  const response = await fetch(`/api/v1/logs/subscriber/retention`, {
+export const getNetworkLogRetentionPolicy = async (authToken: string) => {
+  const response = await fetch(`/api/v1/logs/network/retention`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -113,7 +113,7 @@ export const getSubscriberLogRetentionPolicy = async (authToken: string) => {
   return respData.result;
 };
 
-export const updateSubscriberLogRetentionPolicy = async (
+export const updateNetworkLogRetentionPolicy = async (
   authToken: string,
   days: number,
 ) => {

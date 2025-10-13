@@ -1,5 +1,3 @@
-// Copyright 2024 Ella Networks
-
 package db
 
 import (
@@ -16,104 +14,102 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const SubscriberLogsTableName = "subscriber_logs"
+const NetworkLogsTableName = "network_logs"
 
 // Structured table (no raw blob). Keep strings NOT NULL with empty defaults to avoid NullString hassle.
-const QueryCreateSubscriberLogsTable = `
+const QueryCreateNetworkLogsTable = `
 	CREATE TABLE IF NOT EXISTS %s (
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
 		timestamp  TEXT NOT NULL,                      -- RFC3339
-		level      TEXT NOT NULL,                      -- info|warn|error...
-		imsi      TEXT NOT NULL DEFAULT '',
-		event     TEXT NOT NULL,
+		protocol      TEXT NOT NULL,
+		message_type TEXT NOT NULL,
 		direction	TEXT NOT NULL DEFAULT '',       -- inbound|outbound
 		raw			 BLOB NOT NULL,
 		details    TEXT NOT NULL DEFAULT ''
 );`
 
-const QueryCreateSubscriberLogsIndex = `
-	CREATE INDEX IF NOT EXISTS idx_subscriber_logs_imsi ON subscriber_logs (imsi);
-	CREATE INDEX IF NOT EXISTS idx_subscriber_logs_timestamp ON subscriber_logs (timestamp);
-	CREATE INDEX IF NOT EXISTS idx_subscriber_logs_event ON subscriber_logs (event);
-	CREATE INDEX IF NOT EXISTS idx_subscriber_logs_direction ON subscriber_logs (direction);
+const QueryCreateNetworkLogsIndex = `
+	CREATE INDEX IF NOT EXISTS idx_network_logs_protocol ON network_logs (protocol);
+	CREATE INDEX IF NOT EXISTS idx_network_logs_timestamp ON network_logs (timestamp);
+	CREATE INDEX IF NOT EXISTS idx_network_logs_message_type ON network_logs (message_type);
+	CREATE INDEX IF NOT EXISTS idx_network_logs_direction ON network_logs (direction);
 `
 
 const (
-	insertSubscriberLogStmt     = "INSERT INTO %s (timestamp, level, imsi, event, direction, raw, details) VALUES ($SubscriberLog.timestamp, $SubscriberLog.level, $SubscriberLog.imsi, $SubscriberLog.event, $SubscriberLog.direction, $SubscriberLog.raw, $SubscriberLog.details)"
-	deleteOldSubscriberLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
-	deleteAllSubscriberLogsStmt = "DELETE FROM %s"
+	insertNetworkLogStmt     = "INSERT INTO %s (timestamp, protocol, message_type, direction, raw, details) VALUES ($NetworkLog.timestamp, $NetworkLog.protocol, $NetworkLog.message_type, $NetworkLog.direction, $NetworkLog.raw, $NetworkLog.details)"
+	deleteOldNetworkLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
+	deleteAllNetworkLogsStmt = "DELETE FROM %s"
 )
 
-const listSubscriberLogsPagedFilteredStmt = `
-  SELECT &SubscriberLog.*
+const listNetworkLogsPagedFilteredStmt = `
+  SELECT &NetworkLog.*
   FROM %s
   WHERE
-    ($SubscriberLogFilters.imsi      IS NULL OR imsi      = $SubscriberLogFilters.imsi)
-    AND ($SubscriberLogFilters.direction IS NULL OR direction = $SubscriberLogFilters.direction)
-    AND ($SubscriberLogFilters.event IS NULL OR event     = $SubscriberLogFilters.event)
-    AND ($SubscriberLogFilters.timestamp_from  IS NULL OR timestamp >= $SubscriberLogFilters.timestamp_from)
-    AND ($SubscriberLogFilters.timestamp_to    IS NULL OR timestamp <  $SubscriberLogFilters.timestamp_to)
+    ($NetworkLogFilters.protocol      IS NULL OR protocol      = $NetworkLogFilters.protocol)
+    AND ($NetworkLogFilters.direction IS NULL OR direction = $NetworkLogFilters.direction)
+    AND ($NetworkLogFilters.message_type IS NULL OR message_type     = $NetworkLogFilters.message_type)
+    AND ($NetworkLogFilters.timestamp_from  IS NULL OR timestamp >= $NetworkLogFilters.timestamp_from)
+    AND ($NetworkLogFilters.timestamp_to    IS NULL OR timestamp <  $NetworkLogFilters.timestamp_to)
   ORDER BY id DESC
   LIMIT $ListArgs.limit
   OFFSET $ListArgs.offset
 `
 
-const countSubscriberLogsFilteredStmt = `
+const countNetworkLogsFilteredStmt = `
   SELECT COUNT(*) AS &NumItems.count
   FROM %s
   WHERE
-    ($SubscriberLogFilters.imsi      IS NULL OR imsi      = $SubscriberLogFilters.imsi)
-    AND ($SubscriberLogFilters.direction IS NULL OR direction = $SubscriberLogFilters.direction)
-    AND ($SubscriberLogFilters.event IS NULL OR event     = $SubscriberLogFilters.event)
-    AND ($SubscriberLogFilters.timestamp_from  IS NULL OR timestamp >= $SubscriberLogFilters.timestamp_from)
-    AND ($SubscriberLogFilters.timestamp_to    IS NULL OR timestamp <  $SubscriberLogFilters.timestamp_to)
+    ($NetworkLogFilters.protocol      IS NULL OR protocol      = $NetworkLogFilters.protocol)
+    AND ($NetworkLogFilters.direction IS NULL OR direction = $NetworkLogFilters.direction)
+    AND ($NetworkLogFilters.message_type IS NULL OR message_type     = $NetworkLogFilters.message_type)
+    AND ($NetworkLogFilters.timestamp_from  IS NULL OR timestamp >= $NetworkLogFilters.timestamp_from)
+    AND ($NetworkLogFilters.timestamp_to    IS NULL OR timestamp <  $NetworkLogFilters.timestamp_to)
 `
 
-type SubscriberLog struct {
-	ID        int    `db:"id"`
-	Timestamp string `db:"timestamp"` // store as RFC3339 string; parse in API layer if needed
-	Level     string `db:"level"`
-	IMSI      string `db:"imsi"`
-	Event     string `db:"event"`
-	Direction string `db:"direction"`
-	Raw       []byte `db:"raw"`
-	Details   string `db:"details"` // JSON or plain text (we store a string)
+type NetworkLog struct {
+	ID          int    `db:"id"`
+	Timestamp   string `db:"timestamp"` // store as RFC3339 string; parse in API layer if needed
+	Protocol    string `db:"protocol"`
+	MessageType string `db:"message_type"`
+	Direction   string `db:"direction"`
+	Raw         []byte `db:"raw"`
+	Details     string `db:"details"` // JSON or plain text (we store a string)
 }
 
-type SubscriberLogFilters struct {
-	IMSI          *string `db:"imsi"`           // exact match
+type NetworkLogFilters struct {
+	Protocol      *string `db:"protocol"`       // exact match
 	Direction     *string `db:"direction"`      // "inbound" | "outbound"
-	Event         *string `db:"event"`          // exact match
+	MessageType   *string `db:"message_type"`   // exact match
 	TimestampFrom *string `db:"timestamp_from"` // RFC3339 (UTC)
 	TimestampTo   *string `db:"timestamp_to"`   // RFC3339 (UTC), exclusive upper bound
 }
 
-type zapSubscriberJSON struct {
-	Timestamp string `json:"timestamp"`
-	Level     string `json:"level"`
-	IMSI      string `json:"imsi"`
-	Event     string `json:"event"`
-	Direction string `json:"direction"`
-	Raw       []byte `json:"raw"`
-	Details   string `json:"details"`
+type zapNetworkJSON struct {
+	Timestamp   string `json:"timestamp"`
+	Level       string `json:"level"`
+	Protocol    string `json:"protocol"`
+	MessageType string `json:"message_type"`
+	Direction   string `json:"direction"`
+	Raw         []byte `json:"raw"`
+	Details     string `json:"details"`
 }
 
-func (db *Database) SubscriberWriteFunc(ctx context.Context) func([]byte) error {
+func (db *Database) NetworkWriteFunc(ctx context.Context) func([]byte) error {
 	return func(b []byte) error {
-		return db.InsertSubscriberLogJSON(ctx, b)
+		return db.InsertNetworkLogJSON(ctx, b)
 	}
 }
 
-// InsertSubscriberLogJSON parses the zap JSON and inserts a structured row.
-func (db *Database) InsertSubscriberLogJSON(ctx context.Context, raw []byte) error {
+// InsertNetworkLogJSON parses the zap JSON and inserts a structured row.
+func (db *Database) InsertNetworkLogJSON(ctx context.Context, raw []byte) error {
 	const operation = "INSERT"
-	const target = SubscriberLogsTableName
+	const target = NetworkLogsTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	query := fmt.Sprintf(insertSubscriberLogStmt, db.subscriberLogsTable)
+	query := fmt.Sprintf(insertNetworkLogStmt, db.networkLogsTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(query),
@@ -122,24 +118,23 @@ func (db *Database) InsertSubscriberLogJSON(ctx context.Context, raw []byte) err
 	)
 
 	// Parse incoming JSON
-	var z zapSubscriberJSON
+	var z zapNetworkJSON
 	if err := json.Unmarshal(raw, &z); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "unmarshal failed")
 		return err
 	}
 
-	row := SubscriberLog{
-		Timestamp: z.Timestamp,
-		Level:     z.Level,
-		IMSI:      z.IMSI,
-		Event:     z.Event,
-		Direction: z.Direction,
-		Raw:       z.Raw,
-		Details:   z.Details,
+	row := NetworkLog{
+		Timestamp:   z.Timestamp,
+		Protocol:    z.Protocol,
+		MessageType: z.MessageType,
+		Direction:   z.Direction,
+		Raw:         z.Raw,
+		Details:     z.Details,
 	}
 
-	stmt, err := sqlair.Prepare(query, SubscriberLog{})
+	stmt, err := sqlair.Prepare(query, NetworkLog{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
@@ -155,20 +150,20 @@ func (db *Database) InsertSubscriberLogJSON(ctx context.Context, raw []byte) err
 	return nil
 }
 
-func (db *Database) ListSubscriberLogs(ctx context.Context, page int, perPage int, filters *SubscriberLogFilters) ([]SubscriberLog, int, error) {
+func (db *Database) ListNetworkLogs(ctx context.Context, page int, perPage int, filters *NetworkLogFilters) ([]NetworkLog, int, error) {
 	if filters == nil {
-		filters = &SubscriberLogFilters{}
+		filters = &NetworkLogFilters{}
 	}
 
 	const operation = "SELECT"
-	const target = SubscriberLogsTableName
+	const target = NetworkLogsTableName
 	spanName := fmt.Sprintf("%s %s (paged+filtered)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	listSQL := fmt.Sprintf(listSubscriberLogsPagedFilteredStmt, db.subscriberLogsTable)
-	countSQL := fmt.Sprintf(countSubscriberLogsFilteredStmt, db.subscriberLogsTable)
+	listSQL := fmt.Sprintf(listNetworkLogsPagedFilteredStmt, db.networkLogsTable)
+	countSQL := fmt.Sprintf(countNetworkLogsFilteredStmt, db.networkLogsTable)
 
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
@@ -180,13 +175,13 @@ func (db *Database) ListSubscriberLogs(ctx context.Context, page int, perPage in
 	)
 
 	// Prepare both statements with all the bind models they use
-	listStmt, err := sqlair.Prepare(listSQL, ListArgs{}, SubscriberLogFilters{}, SubscriberLog{})
+	listStmt, err := sqlair.Prepare(listSQL, ListArgs{}, NetworkLogFilters{}, NetworkLog{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare list failed")
 		return nil, 0, err
 	}
-	countStmt, err := sqlair.Prepare(countSQL, SubscriberLogFilters{}, NumItems{})
+	countStmt, err := sqlair.Prepare(countSQL, NetworkLogFilters{}, NumItems{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare count failed")
@@ -207,7 +202,7 @@ func (db *Database) ListSubscriberLogs(ctx context.Context, page int, perPage in
 	}
 
 	// Rows with filters
-	var logs []SubscriberLog
+	var logs []NetworkLog
 	if err := db.conn.Query(ctx, listStmt, args, filters).GetAll(&logs); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
@@ -222,10 +217,10 @@ func (db *Database) ListSubscriberLogs(ctx context.Context, page int, perPage in
 	return logs, total.Count, nil
 }
 
-// DeleteOldSubscriberLogs removes logs older than the specified retention period in days.
-func (db *Database) DeleteOldSubscriberLogs(ctx context.Context, days int) error {
+// DeleteOldNetworkLogs removes logs older than the specified retention period in days.
+func (db *Database) DeleteOldNetworkLogs(ctx context.Context, days int) error {
 	const operation = "DELETE"
-	const target = SubscriberLogsTableName
+	const target = NetworkLogsTableName
 	spanName := fmt.Sprintf("%s %s (retention)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
@@ -234,7 +229,7 @@ func (db *Database) DeleteOldSubscriberLogs(ctx context.Context, days int) error
 	// Compute UTC cutoff so string comparison works lexicographically for RFC3339
 	cutoff := time.Now().AddDate(0, 0, -days).UTC().Format(time.RFC3339)
 
-	stmtStr := fmt.Sprintf(deleteOldSubscriberLogsStmt, db.subscriberLogsTable)
+	stmtStr := fmt.Sprintf(deleteOldNetworkLogsStmt, db.networkLogsTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmtStr),
@@ -262,15 +257,15 @@ func (db *Database) DeleteOldSubscriberLogs(ctx context.Context, days int) error
 	return nil
 }
 
-func (db *Database) ClearSubscriberLogs(ctx context.Context) error {
+func (db *Database) ClearNetworkLogs(ctx context.Context) error {
 	const operation = "DELETE"
-	const target = SubscriberLogsTableName
+	const target = NetworkLogsTableName
 	spanName := fmt.Sprintf("%s %s (all)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmtStr := fmt.Sprintf(deleteAllSubscriberLogsStmt, db.subscriberLogsTable)
+	stmtStr := fmt.Sprintf(deleteAllNetworkLogsStmt, db.networkLogsTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmtStr),

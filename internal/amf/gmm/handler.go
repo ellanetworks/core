@@ -191,11 +191,12 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		case nasMessage.ULNASTransportRequestTypeInitialRequest:
 			gmmMessage := &nas.GmmMessage{ULNASTransport: ulNasTransport}
 			gmmMessage.GmmHeader.SetMessageType(nas.MsgTypeULNASTransport)
-			logger.LogSubscriberEvent(
+			logger.LogNetworkEvent(
+				logger.NASNetworkProtocol,
 				logger.SubscriberPduSessionEstablishmentRequest,
 				logger.DirectionInbound,
 				rawGmmNasMessage(gmmMessage),
-				ue.Supi,
+				zap.String("imsi", ue.Supi),
 				zap.Int32("pduSessionID", pduSessionID),
 			)
 
@@ -466,7 +467,6 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
 		ue.PlmnID = PlmnIDStringToModels(plmnID)
-		ue.GmmLog.Debug("ue suci", zap.String("suci", ue.Suci), zap.String("plmnID", plmnID))
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		guamiFromUeGutiTmp, guti := util.GutiToString(mobileIdentity5GSContents)
 		guamiFromUeGuti = guamiFromUeGutiTmp
@@ -1230,7 +1230,6 @@ func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.Iden
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentityContents)
 		ue.PlmnID = PlmnIDStringToModels(plmnID)
-		ue.GmmLog.Debug("get suci", zap.String("suci", ue.Suci), zap.String("plmnID", plmnID))
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")

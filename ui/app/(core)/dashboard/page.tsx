@@ -32,10 +32,10 @@ import {
 } from "@/queries/subscribers";
 import { listRadios } from "@/queries/radios";
 import {
-  listSubscriberLogs,
-  type APISubscriberLog,
-  type ListSubscriberLogsResponse,
-} from "@/queries/subscriber_logs";
+  listNetworkLogs,
+  type APINetworkLog,
+  type ListNetworkLogsResponse,
+} from "@/queries/network_logs";
 
 const MAX_WIDTH = 1200;
 
@@ -177,7 +177,7 @@ const Dashboard = () => {
 
   const [upSince, setUpSince] = useState<Date | null>(null);
 
-  const [subscriberLogs, setSubscriberLogs] = useState<APISubscriberLog[]>([]);
+  const [networkLogs, setNetworkLogs] = useState<APINetworkLog[]>([]);
   const [logsError, setLogsError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -326,18 +326,18 @@ const Dashboard = () => {
 
     const fetchLogs = async () => {
       try {
-        const res: ListSubscriberLogsResponse = await listSubscriberLogs(
+        const res: ListNetworkLogsResponse = await listNetworkLogs(
           accessToken,
           1,
           10,
         );
         if (!mounted) return;
-        setSubscriberLogs(res.items ?? []);
+        setNetworkLogs(res.items ?? []);
         setLogsError(null);
       } catch (e) {
         if (!mounted) return;
-        console.error("Error fetching subscriber logs:", e);
-        setLogsError("Failed to fetch subscriber logs.");
+        console.error("Error fetching network logs:", e);
+        setLogsError("Failed to fetch network logs.");
       }
     };
 
@@ -466,7 +466,7 @@ const Dashboard = () => {
                   cursor: "pointer",
                 }}
               >
-                Recent Subscriber Events
+                Recent Network Events
               </Box>
             }
             loading={loading}
@@ -489,7 +489,7 @@ const Dashboard = () => {
                 <Table
                   size="small"
                   stickyHeader
-                  aria-label="recent-subscriber-events"
+                  aria-label="recent-network-events"
                 >
                   <TableHead>
                     <TableRow>
@@ -504,23 +504,23 @@ const Dashboard = () => {
                       </TableCell>
 
                       <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>
-                        IMSI
+                        Protocol
                       </TableCell>
 
                       <TableCell sx={{ fontWeight: 600, minWidth: 220 }}>
-                        Event
+                        Message Type
                       </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(subscriberLogs ?? []).slice(0, 10).map((row) => (
+                    {(networkLogs ?? []).slice(0, 10).map((row) => (
                       <TableRow key={row.id} hover>
                         <TableCell sx={{ whiteSpace: "nowrap" }}>
                           {formatTimestamp(row.timestamp)}
                         </TableCell>
 
                         <TableCell sx={{ whiteSpace: "nowrap" }}>
-                          {row.imsi}
+                          {row.protocol}
                         </TableCell>
 
                         <TableCell
@@ -528,13 +528,13 @@ const Dashboard = () => {
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                           }}
-                          title={row.event}
+                          title={row.message_type}
                         >
-                          {row.event}
+                          {row.message_type}
                         </TableCell>
                       </TableRow>
                     ))}
-                    {(!subscriberLogs || subscriberLogs.length === 0) && (
+                    {(!networkLogs || networkLogs.length === 0) && (
                       <TableRow>
                         <TableCell colSpan={3}>
                           <Typography variant="body2" color="text.secondary">
