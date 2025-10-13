@@ -25,13 +25,15 @@ type UpdateNetworkLogsRetentionPolicyParams struct {
 }
 
 type NetworkLog struct {
-	ID          int    `json:"id"`
-	Timestamp   string `json:"timestamp"`
-	Protocol    string `json:"protocol"`
-	MessageType string `json:"message_type"`
-	Direction   string `json:"direction"`
-	Raw         []byte `json:"raw"`
-	Details     string `json:"details"`
+	ID            int    `json:"id"`
+	Timestamp     string `json:"timestamp"`
+	Protocol      string `json:"protocol"`
+	MessageType   string `json:"message_type"`
+	Direction     string `json:"direction"`
+	LocalAddress  string `json:"local_address"`
+	RemoteAddress string `json:"remote_address"`
+	Raw           []byte `json:"raw"`
+	Details       string `json:"details"`
 }
 
 type ListNetworkLogsResponse struct {
@@ -63,6 +65,14 @@ func parseNetworkLogFilters(r *http.Request) (*db.NetworkLogFilters, error) {
 			return f, fmt.Errorf("invalid direction")
 		}
 		f.Direction = &v
+	}
+
+	if v := strings.TrimSpace(q.Get("local_address")); v != "" {
+		f.LocalAddress = &v
+	}
+
+	if v := strings.TrimSpace(q.Get("remote_address")); v != "" {
+		f.RemoteAddress = &v
 	}
 
 	if v := strings.TrimSpace(q.Get("message_type")); v != "" {
@@ -167,13 +177,15 @@ func ListNetworkLogs(dbInstance *db.Database) http.Handler {
 		items := make([]NetworkLog, len(logs))
 		for i, log := range logs {
 			items[i] = NetworkLog{
-				ID:          log.ID,
-				Timestamp:   log.Timestamp,
-				Protocol:    log.Protocol,
-				MessageType: log.MessageType,
-				Direction:   log.Direction,
-				Raw:         log.Raw,
-				Details:     log.Details,
+				ID:            log.ID,
+				Timestamp:     log.Timestamp,
+				Protocol:      log.Protocol,
+				MessageType:   log.MessageType,
+				Direction:     log.Direction,
+				LocalAddress:  log.LocalAddress,
+				RemoteAddress: log.RemoteAddress,
+				Raw:           log.Raw,
+				Details:       log.Details,
 			}
 		}
 

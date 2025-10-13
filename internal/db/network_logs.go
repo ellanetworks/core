@@ -24,6 +24,8 @@ const QueryCreateNetworkLogsTable = `
 		protocol      TEXT NOT NULL,
 		message_type TEXT NOT NULL,
 		direction	TEXT NOT NULL DEFAULT '',       -- inbound|outbound
+		local_address TEXT NOT NULL DEFAULT '',
+		remote_address TEXT NOT NULL DEFAULT '',
 		raw			 BLOB NOT NULL,
 		details    TEXT NOT NULL DEFAULT ''
 );`
@@ -33,10 +35,12 @@ const QueryCreateNetworkLogsIndex = `
 	CREATE INDEX IF NOT EXISTS idx_network_logs_timestamp ON network_logs (timestamp);
 	CREATE INDEX IF NOT EXISTS idx_network_logs_message_type ON network_logs (message_type);
 	CREATE INDEX IF NOT EXISTS idx_network_logs_direction ON network_logs (direction);
+	CREATE INDEX IF NOT EXISTS idx_network_logs_local_address ON network_logs (local_address);
+	CREATE INDEX IF NOT EXISTS idx_network_logs_remote_address ON network_logs (remote_address);
 `
 
 const (
-	insertNetworkLogStmt     = "INSERT INTO %s (timestamp, protocol, message_type, direction, raw, details) VALUES ($NetworkLog.timestamp, $NetworkLog.protocol, $NetworkLog.message_type, $NetworkLog.direction, $NetworkLog.raw, $NetworkLog.details)"
+	insertNetworkLogStmt     = "INSERT INTO %s (timestamp, protocol, message_type, direction, local_address, remote_address, raw, details) VALUES ($NetworkLog.timestamp, $NetworkLog.protocol, $NetworkLog.message_type, $NetworkLog.direction, $NetworkLog.local_address, $NetworkLog.remote_address, $NetworkLog.raw, $NetworkLog.details)"
 	deleteOldNetworkLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
 	deleteAllNetworkLogsStmt = "DELETE FROM %s"
 )
@@ -47,6 +51,8 @@ const listNetworkLogsPagedFilteredStmt = `
   WHERE
     ($NetworkLogFilters.protocol      IS NULL OR protocol      = $NetworkLogFilters.protocol)
     AND ($NetworkLogFilters.direction IS NULL OR direction = $NetworkLogFilters.direction)
+    AND ($NetworkLogFilters.local_address IS NULL OR local_address = $NetworkLogFilters.local_address)
+    AND ($NetworkLogFilters.remote_address IS NULL OR remote_address = $NetworkLogFilters.remote_address)
     AND ($NetworkLogFilters.message_type IS NULL OR message_type     = $NetworkLogFilters.message_type)
     AND ($NetworkLogFilters.timestamp_from  IS NULL OR timestamp >= $NetworkLogFilters.timestamp_from)
     AND ($NetworkLogFilters.timestamp_to    IS NULL OR timestamp <  $NetworkLogFilters.timestamp_to)
@@ -61,37 +67,45 @@ const countNetworkLogsFilteredStmt = `
   WHERE
     ($NetworkLogFilters.protocol      IS NULL OR protocol      = $NetworkLogFilters.protocol)
     AND ($NetworkLogFilters.direction IS NULL OR direction = $NetworkLogFilters.direction)
+    AND ($NetworkLogFilters.local_address IS NULL OR local_address = $NetworkLogFilters.local_address)
+    AND ($NetworkLogFilters.remote_address IS NULL OR remote_address = $NetworkLogFilters.remote_address)
     AND ($NetworkLogFilters.message_type IS NULL OR message_type     = $NetworkLogFilters.message_type)
     AND ($NetworkLogFilters.timestamp_from  IS NULL OR timestamp >= $NetworkLogFilters.timestamp_from)
     AND ($NetworkLogFilters.timestamp_to    IS NULL OR timestamp <  $NetworkLogFilters.timestamp_to)
 `
 
 type NetworkLog struct {
-	ID          int    `db:"id"`
-	Timestamp   string `db:"timestamp"` // store as RFC3339 string; parse in API layer if needed
-	Protocol    string `db:"protocol"`
-	MessageType string `db:"message_type"`
-	Direction   string `db:"direction"`
-	Raw         []byte `db:"raw"`
-	Details     string `db:"details"` // JSON or plain text (we store a string)
+	ID            int    `db:"id"`
+	Timestamp     string `db:"timestamp"` // store as RFC3339 string; parse in API layer if needed
+	Protocol      string `db:"protocol"`
+	MessageType   string `db:"message_type"`
+	Direction     string `db:"direction"`
+	LocalAddress  string `db:"local_address"`
+	RemoteAddress string `db:"remote_address"`
+	Raw           []byte `db:"raw"`
+	Details       string `db:"details"` // JSON or plain text (we store a string)
 }
 
 type NetworkLogFilters struct {
 	Protocol      *string `db:"protocol"`       // exact match
 	Direction     *string `db:"direction"`      // "inbound" | "outbound"
+	LocalAddress  *string `db:"local_address"`  // exact match
+	RemoteAddress *string `db:"remote_address"` // exact match
 	MessageType   *string `db:"message_type"`   // exact match
 	TimestampFrom *string `db:"timestamp_from"` // RFC3339 (UTC)
 	TimestampTo   *string `db:"timestamp_to"`   // RFC3339 (UTC), exclusive upper bound
 }
 
 type zapNetworkJSON struct {
-	Timestamp   string `json:"timestamp"`
-	Level       string `json:"level"`
-	Protocol    string `json:"protocol"`
-	MessageType string `json:"message_type"`
-	Direction   string `json:"direction"`
-	Raw         []byte `json:"raw"`
-	Details     string `json:"details"`
+	Timestamp     string `json:"timestamp"`
+	Level         string `json:"level"`
+	Protocol      string `json:"protocol"`
+	MessageType   string `json:"message_type"`
+	Direction     string `json:"direction"`
+	LocalAddress  string `json:"local_address"`
+	RemoteAddress string `json:"remote_address"`
+	Raw           []byte `json:"raw"`
+	Details       string `json:"details"`
 }
 
 func (db *Database) NetworkWriteFunc(ctx context.Context) func([]byte) error {
@@ -126,12 +140,14 @@ func (db *Database) InsertNetworkLogJSON(ctx context.Context, raw []byte) error 
 	}
 
 	row := NetworkLog{
-		Timestamp:   z.Timestamp,
-		Protocol:    z.Protocol,
-		MessageType: z.MessageType,
-		Direction:   z.Direction,
-		Raw:         z.Raw,
-		Details:     z.Details,
+		Timestamp:     z.Timestamp,
+		Protocol:      z.Protocol,
+		MessageType:   z.MessageType,
+		Direction:     z.Direction,
+		LocalAddress:  z.LocalAddress,
+		RemoteAddress: z.RemoteAddress,
+		Raw:           z.Raw,
+		Details:       z.Details,
 	}
 
 	stmt, err := sqlair.Prepare(query, NetworkLog{})

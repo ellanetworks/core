@@ -90,7 +90,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			fallthrough
 		case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
 			ue.GmmLog.Warn("Emergency PDU Session is not supported")
-			err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded, "unsure") // TO DO, get message type from N1 message and remove network logging in the smf
+			err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %s", err)
 			}
@@ -143,7 +143,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			}
 			if response == nil {
 				ue.GmmLog.Error("PDU Session can't be released in DUPLICATE_SESSION_ID case", zap.Int32("pduSessionID", pduSessionID))
-				err = gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded, "unsure") // TO DO, get message type from N1 message and remove network logging in the smf
+				err = gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
 				}
@@ -173,7 +173,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				return forward5GSMMessageToSMF(ctx, ue, anType, pduSessionID, smContext, smMessage)
 			} else {
 				ue.GmmLog.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai()), zap.Any("accessType", anType), zap.Int32("pduSessionID", pduSessionID))
-				err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded, "unsure") // TO DO, get message type from N1 message and remove network logging in the smf
+				err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
 				}
@@ -238,7 +238,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			}
 
 			if errResponse != nil {
-				err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, errResponse.BinaryDataN1SmMessage, pduSessionID, 0, "unsure") // TO DO, get message type from N1 message and remove network logging in the smf
+				err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, errResponse.BinaryDataN1SmMessage, pduSessionID, 0)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
 				}
@@ -259,7 +259,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				// TS 24.501 5.4.5.2.5 case a) 3)
 				pduSessionIDStr := fmt.Sprintf("%d", pduSessionID)
 				if ueContextInSmf, ok := ue.UeContextInSmfData.PduSessions[pduSessionIDStr]; !ok {
-					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded, "unsure") // TO DO, get message type from N1 message and remove network logging in the smf
+					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport: %s", err)
 					}
@@ -274,7 +274,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 					return forward5GSMMessageToSMF(ctx, ue, anType, pduSessionID, smContext, smMessage)
 				}
 			} else {
-				err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded, "unsure") // TO DO, get message type from N1 message and remove network logging in the smf
+				err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
 				}
@@ -353,7 +353,7 @@ func forward5GSMMessageToSMF(
 			}
 		} else if n1Msg != nil {
 			ue.GmmLog.Debug("AMF forward Only N1 SM Message to UE")
-			err := ngap_message.SendDownlinkNasTransport(ue.RanUe[accessType], n1Msg, nil, "unsure")
+			err := ngap_message.SendDownlinkNasTransport(ue.RanUe[accessType], n1Msg, nil)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %s", err)
 			}
@@ -847,22 +847,22 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 				}
 				switch requestData.N1MessageContainer.N1MessageClass {
 				case models.N1MessageClassSM:
-					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0, "unsure") // TO DO, get message type from N1 message and remove network logging in the smf
+					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
 				case models.N1MessageClassLPP:
-					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0, "unsure") // TO DO, remove network logging in the smf
+					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
 				case models.N1MessageClassSMS:
-					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0, "unsure") // TO DO, remove network logging in the smf
+					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
 				case models.N1MessageClassUPDP:
-					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0, "unsure") // TO DO, remove network logging in the smf
+					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
@@ -971,7 +971,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 			}
 			ue.GmmLog.Info("Sent NGAP pdu session resource setup request")
 		} else {
-			err := ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasPdu, nil, "RegistrationAccept")
+			err := ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasPdu, nil)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %v", err)
 			}
@@ -1563,25 +1563,25 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				}
 				switch requestData.N1MessageContainer.N1MessageClass {
 				case models.N1MessageClassSM:
-					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0, "unsure") // TODO: to set the correct value
+					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
 					ue.GmmLog.Info("sent downlink nas transport message")
 				case models.N1MessageClassLPP:
-					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0, "unsure") // TODO: to set the correct value
+					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
 					ue.GmmLog.Info("sent downlink nas transport message")
 				case models.N1MessageClassSMS:
-					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0, "unsure") // TODO: to set the correct value
+					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
 					ue.GmmLog.Info("sent downlink nas transport message")
 				case models.N1MessageClassUPDP:
-					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0, "unsure") // TODO: to set the correct value
+					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
@@ -1662,7 +1662,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				return err
 			}
 			mobilityRestrictionList := ngap_message.BuildIEMobilityRestrictionList(ue)
-			err = ngap_message.SendDownlinkNasTransport(ue.RanUe[models.AccessType3GPPAccess], ue.ConfigurationUpdateMessage, &mobilityRestrictionList, "unsure") //TODO: to set the correct value
+			err = ngap_message.SendDownlinkNasTransport(ue.RanUe[models.AccessType3GPPAccess], ue.ConfigurationUpdateMessage, &mobilityRestrictionList)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %v", err)
 			}

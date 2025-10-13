@@ -10,6 +10,8 @@ export type APINetworkLog = {
   protocol: string;
   message_type: string;
   direction: string;
+  local_address: string;
+  remote_address: string;
   details?: string;
 };
 

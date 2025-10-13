@@ -2251,7 +2251,7 @@ func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, me
 	}
 
 	if ranUe.Ran.AnType == models.AccessTypeNon3GPPAccess {
-		err := ngap_message.SendDownlinkNasTransport(ranUe, amfUe.RegistrationAcceptForNon3GPPAccess, nil, "RegistrationAccept")
+		err := ngap_message.SendDownlinkNasTransport(ranUe, amfUe.RegistrationAcceptForNon3GPPAccess, nil)
 		if err != nil {
 			ranUe.Log.Error("error sending downlink nas transport", zap.Error(err))
 			return

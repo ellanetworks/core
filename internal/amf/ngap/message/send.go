@@ -49,6 +49,8 @@ func SendToRan(ran *context.AmfRan, packet []byte, msgType string) error {
 		logger.NGAPNetworkProtocol,
 		msgType,
 		logger.DirectionOutbound,
+		ran.Conn.LocalAddr().String(),
+		ran.Conn.RemoteAddr().String(),
 		packet,
 		zap.String("gnbID", ran.GnbID),
 		zap.String("ranName", ran.Name),
@@ -145,7 +147,7 @@ func SendNGResetAcknowledge(ran *context.AmfRan, partOfNGInterface *ngapType.UEA
 	return nil
 }
 
-func SendDownlinkNasTransport(ue *context.RanUe, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList, nasMsgType string) error {
+func SendDownlinkNasTransport(ue *context.RanUe, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
 	if ue == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
@@ -163,16 +165,6 @@ func SendDownlinkNasTransport(ue *context.RanUe, nasPdu []byte, mobilityRestrict
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
-
-	logger.LogNetworkEvent(
-		logger.NASNetworkProtocol,
-		nasMsgType,
-		logger.DirectionOutbound,
-		nasPdu,
-		zap.String("imsi", ue.AmfUe.Supi),
-		zap.String("ran", ue.Ran.Name),
-		zap.String("plmnID", ue.AmfUe.PlmnID.Mcc+ue.AmfUe.PlmnID.Mnc),
-	)
 
 	return nil
 }

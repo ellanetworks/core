@@ -54,6 +54,8 @@ func Dispatch(ctx ctxt.Context, conn net.Conn, msg []byte) {
 		logger.NGAPNetworkProtocol,
 		getMessageType(pdu),
 		logger.DirectionInbound,
+		ran.Conn.LocalAddr().String(),
+		ran.Conn.RemoteAddr().String(),
 		msg,
 		zap.String("gnbID", ran.GnbID),
 		zap.String("ranName", ran.Name),

@@ -373,6 +373,22 @@ const Events: React.FC = () => {
         filterOperators: STRING_EQ,
       },
       {
+        field: "local_address",
+        headerName: "Local Address",
+        flex: 1,
+        minWidth: 150,
+        sortable: false,
+        filterOperators: STRING_EQ,
+      },
+      {
+        field: "remote_address",
+        headerName: "Remote Address",
+        flex: 1,
+        minWidth: 150,
+        sortable: false,
+        filterOperators: STRING_EQ,
+      },
+      {
         field: "view",
         headerName: "",
         sortable: false,

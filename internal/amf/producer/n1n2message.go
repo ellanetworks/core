@@ -143,7 +143,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 			}
 			if n2Info == nil {
 				ue.ProducerLog.Debug("Forward N1 Message to UE")
-				err := ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasPdu, nil, "unsure") // TO DO, get message type from N1 message and remove network logging in the smf
+				err := ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasPdu, nil)
 				if err != nil {
 					return nil, fmt.Errorf("send downlink nas transport error: %v", err)
 				}
@@ -273,7 +273,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 		if ue.CmConnect(models.AccessType3GPPAccess) {
 			if n2Info == nil {
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseN1N2TransferInitiated
-				err := gmm_message.SendDLNASTransport(ue.RanUe[models.AccessType3GPPAccess], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0, "unsure") // TO DO, get message type from N1 message and remove network logging in the smf
+				err := gmm_message.SendDLNASTransport(ue.RanUe[models.AccessType3GPPAccess], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 				if err != nil {
 					return n1n2MessageTransferRspData, fmt.Errorf("error sending downlink nas transport: %v", err)
 				}

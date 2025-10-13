@@ -248,10 +248,17 @@ type NetworkProtocol string
 
 const (
 	NGAPNetworkProtocol NetworkProtocol = "NGAP"
-	NASNetworkProtocol  NetworkProtocol = "NAS"
 )
 
-func LogNetworkEvent(protocol NetworkProtocol, messageType string, dir LogDirection, rawBytes []byte, fields ...zap.Field) {
+func LogNetworkEvent(
+	protocol NetworkProtocol,
+	messageType string,
+	dir LogDirection,
+	localAddress string,
+	remoteAddress string,
+	rawBytes []byte,
+	fields ...zap.Field,
+) {
 	if NetworkLog == nil {
 		return
 	}
@@ -260,6 +267,8 @@ func LogNetworkEvent(protocol NetworkProtocol, messageType string, dir LogDirect
 		EllaLog.Warn("attempted to log empty network message type",
 			zap.String("protocol", string(protocol)),
 			zap.String("dir", string(dir)),
+			zap.String("local_address", localAddress),
+			zap.String("remote_address", remoteAddress),
 			zap.Any("fields", fields),
 		)
 		return
@@ -273,14 +282,16 @@ func LogNetworkEvent(protocol NetworkProtocol, messageType string, dir LogDirect
 	var detailsStr string
 
 	reserved := map[string]struct{}{
-		"message_type": {},
-		"direction":    {},
-		"raw":          {},
-		"protocol":     {},
-		"timestamp":    {},
-		"component":    {},
-		"caller":       {},
-		"message":      {},
+		"message_type":   {},
+		"direction":      {},
+		"raw":            {},
+		"protocol":       {},
+		"timestamp":      {},
+		"local_address":  {},
+		"remote_address": {},
+		"component":      {},
+		"caller":         {},
+		"message":        {},
 	}
 
 	if raw, ok := enc.Fields["details"]; ok {
@@ -320,6 +331,8 @@ func LogNetworkEvent(protocol NetworkProtocol, messageType string, dir LogDirect
 		zap.String("protocol", string(protocol)),
 		zap.String("message_type", messageType),
 		zap.String("direction", string(dir)),
+		zap.String("local_address", localAddress),
+		zap.String("remote_address", remoteAddress),
 		zap.Binary("raw", rawBytes),
 		zap.String("details", detailsStr),
 	)
