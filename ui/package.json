@@ -15,9 +15,9 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.4",
     "@mui/material": "^7.0.1",
-    "@mui/x-charts": "^8.13.1",
-    "@mui/x-data-grid": "^8.13.1",
-    "@mui/x-date-pickers": "^8.12.0",
+    "@mui/x-charts": "^8.14.0",
+    "@mui/x-data-grid": "^8.14.0",
+    "@mui/x-date-pickers": "^8.14.0",
     "@tanstack/react-query": "^5.90.2",
     "@types/react": "18.3.12",
     "autoprefixer": "^10.4.21",
@@ -31,7 +31,7 @@
     "yup": "1.7.1"
   },
   "devDependencies": {
-    "@types/node": "24.7.0",
+    "@types/node": "24.7.2",
     "eslint": "9.32.0",
     "eslint-config-next": "15.5.4",
     "prettier": "^3.6.2",
