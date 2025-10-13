@@ -88,8 +88,8 @@ func configureEllaCore(ctx context.Context, opts *ConfigureEllaCoreOpts) (*clien
 		Name:            testPolicyName,
 		BitrateUplink:   "200 Mbps",
 		BitrateDownlink: "100 Mbps",
-		Var5qi:          8,
-		PriorityLevel:   1,
+		Var5qi:          9,
+		Arp:             1,
 		DataNetworkName: "not-internet",
 	}
 	err = opts.client.CreatePolicy(ctx, createPolicyOpts)
@@ -108,7 +108,7 @@ func configureEllaCore(ctx context.Context, opts *ConfigureEllaCoreOpts) (*clien
 
 	updateOperatorSliceOpts := &client.UpdateOperatorSliceOptions{
 		Sst: 1,
-		Sd:  1056816,
+		Sd:  "102030",
 	}
 	err = opts.client.UpdateOperatorSlice(ctx, updateOperatorSliceOpts)
 	if err != nil {

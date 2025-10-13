@@ -13,7 +13,7 @@ const (
 	Mcc = "123"
 	Mnc = "456"
 	Sst = 1
-	Sd  = 12345
+	Sd  = "303132"
 )
 
 type GetOperatorResponseResult struct {
@@ -28,8 +28,8 @@ type GetOperatorResponse struct {
 }
 
 type GetOperatorSliceResponseResult struct {
-	Sst int `json:"sst,omitempty"`
-	Sd  int `json:"sd,omitempty"`
+	Sst int    `json:"sst,omitempty"`
+	Sd  string `json:"sd,omitempty"`
 }
 
 type GetOperatorTrackingResponseResult struct {
@@ -57,8 +57,8 @@ type GetOperatorIDResponse struct {
 }
 
 type UpdateOperatorSliceParams struct {
-	Sst int `json:"sst,omitempty"`
-	Sd  int `json:"sd,omitempty"`
+	Sst int    `json:"sst,omitempty"`
+	Sd  string `json:"sd,omitempty"`
 }
 
 type UpdateOperatorTrackingParams struct {
@@ -352,7 +352,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 			t.Fatalf("expected sst %d, got %d", Sst, response.Result.Sst)
 		}
 		if response.Result.Sd != Sd {
-			t.Fatalf("expected sd %d, got %d", Sd, response.Result.Sd)
+			t.Fatalf("expected sd %v, got %v", Sd, response.Result.Sd)
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -361,7 +361,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 
 	t.Run("4. Update operator slice - no sst", func(t *testing.T) {
 		updateOperatorParams := &UpdateOperatorSliceParams{
-			Sd: 123,
+			Sd: "303132",
 		}
 		statusCode, response, err := updateOperatorSlice(ts.URL, client, token, updateOperatorParams)
 		if err != nil {
@@ -375,7 +375,42 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("5. Update operator tracking", func(t *testing.T) {
+	t.Run("5. Update operator slice - no sd", func(t *testing.T) {
+		updateOperatorParams := &UpdateOperatorSliceParams{
+			Sst: 1,
+		}
+		statusCode, response, err := updateOperatorSlice(ts.URL, client, token, updateOperatorParams)
+		if err != nil {
+			t.Fatalf("couldn't create operator: %s", err)
+		}
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+		if response.Result.Message != "Operator slice information updated successfully" {
+			t.Fatalf("expected message %q, got %q", "Operator slice information updated successfully", response.Result.Message)
+		}
+	})
+
+	t.Run("6. Get operator Slice Information", func(t *testing.T) {
+		statusCode, response, err := getOperatorSlice(ts.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't get operator: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+		if response.Result.Sst != Sst {
+			t.Fatalf("expected sst %d, got %d", Sst, response.Result.Sst)
+		}
+		if response.Result.Sd != "" {
+			t.Fatalf("expected no sd, got %v", response.Result.Sd)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	})
+
+	t.Run("7. Update operator tracking", func(t *testing.T) {
 		updateOperatorTrackingParams := &UpdateOperatorTrackingParams{
 			SupportedTacs: []string{
 				"001",
@@ -398,7 +433,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("6. Get operator tracking", func(t *testing.T) {
+	t.Run("8. Get operator tracking", func(t *testing.T) {
 		statusCode, response, err := getOperatorTracking(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
@@ -421,7 +456,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("7. Update operator tracking - no supportedTacs", func(t *testing.T) {
+	t.Run("9. Update operator tracking - no supportedTacs", func(t *testing.T) {
 		updateOperatorTrackingParams := &UpdateOperatorTrackingParams{}
 		statusCode, response, err := updateOperatorTracking(ts.URL, client, token, updateOperatorTrackingParams)
 		if err != nil {
@@ -435,7 +470,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("8. Update operator Id", func(t *testing.T) {
+	t.Run("10. Update operator Id", func(t *testing.T) {
 		updateOperatorIDParams := &UpdateOperatorIDParams{
 			Mcc: Mcc,
 			Mnc: Mnc,
@@ -455,7 +490,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("9. Get operator Id", func(t *testing.T) {
+	t.Run("11. Get operator Id", func(t *testing.T) {
 		statusCode, response, err := getOperatorID(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator Id: %s", err)
@@ -474,7 +509,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("10. Update operator code", func(t *testing.T) {
+	t.Run("12. Update operator code", func(t *testing.T) {
 		updateOperatorCodeParams := &UpdateOperatorCodeParams{
 			OperatorCode: "0123456789ABCDEF0123456789ABCDEF",
 		}
@@ -493,7 +528,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("11. Get Operator", func(t *testing.T) {
+	t.Run("13. Get Operator", func(t *testing.T) {
 		statusCode, response, err := getOperator(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
@@ -510,8 +545,8 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		if response.Result.Slice.Sst != 1 {
 			t.Fatalf("expected sst %d, got %d", 1, response.Result.Slice.Sst)
 		}
-		if response.Result.Slice.Sd != 12345 {
-			t.Fatalf("expected sd %d, got %d", 12345, response.Result.Slice.Sd)
+		if response.Result.Slice.Sd != "" {
+			t.Fatalf("expected no sd, got %q", response.Result.Slice.Sd)
 		}
 		if len(response.Result.Tracking.SupportedTacs) != 2 {
 			t.Fatalf("expected supported TACs of length 2")
@@ -546,7 +581,7 @@ func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 	tests := []struct {
 		testName string
 		sst      int
-		sd       int
+		sd       string
 		error    string
 	}{
 		{
@@ -554,6 +589,12 @@ func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 			sst:      -1,
 			sd:       Sd,
 			error:    "Invalid SST format. Must be an 8-bit integer",
+		},
+		{
+			testName: "Invalid sst - not set",
+			sst:      0,
+			sd:       Sd,
+			error:    "sst is missing",
 		},
 		{
 			testName: "Invalid sst - too big",
@@ -564,14 +605,14 @@ func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 		{
 			testName: "Invalid sd - negative",
 			sst:      Sst,
-			sd:       -1,
-			error:    "Invalid SD format. Must be a 24-bit integer",
+			sd:       "-1",
+			error:    "Invalid SD format. Must be a 24-bit hex string",
 		},
 		{
 			testName: "Invalid sd - too big",
 			sst:      Sst,
-			sd:       16777216,
-			error:    "Invalid SD format. Must be a 24-bit integer",
+			sd:       "16777216",
+			error:    "Invalid SD format. Must be a 24-bit hex string",
 		},
 	}
 	for _, tt := range tests {

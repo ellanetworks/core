@@ -27,7 +27,7 @@ func TestCreatePolicy_Success(t *testing.T) {
 		BitrateUplink:   "100 Mbps",
 		BitrateDownlink: "100 Mbps",
 		Var5qi:          9,
-		PriorityLevel:   1,
+		Arp:             1,
 	}
 
 	ctx := context.Background()
@@ -55,7 +55,7 @@ func TestCreatePolicy_Failure(t *testing.T) {
 		BitrateUplink:   "100 Mbps",
 		BitrateDownlink: "100 Mbps",
 		Var5qi:          9,
-		PriorityLevel:   1,
+		Arp:             1,
 	}
 
 	ctx := context.Background()

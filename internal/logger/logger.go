@@ -291,7 +291,6 @@ const (
 	SubscriberDeregistrationRequest                   SubscriberEvent = "Deregistration Request"
 	SubscriberDeregistrationAccept                    SubscriberEvent = "Deregistration Accept"
 	SubscriberStatus5GMM                              SubscriberEvent = "Status 5GMM"
-	SubscriberDownlinkNasTransport                    SubscriberEvent = "Downlink NAS Transport"
 
 	// Access events (outbound)
 	SubscriberRegistrationAccept    SubscriberEvent = "Registration Accept"
@@ -460,15 +459,6 @@ const (
 
 func LogRadioEvent(event RadioEvent, dir LogDirection, rawBytes []byte, ranID string, fields ...zap.Field) {
 	if RadioLog == nil {
-		return
-	}
-
-	if rawBytes == nil {
-		EllaLog.Warn("attempted to log radio event with nil rawBytes",
-			zap.String("event", string(event)),
-			zap.String("ran_id", ranID),
-			zap.Any("fields", fields),
-		)
 		return
 	}
 

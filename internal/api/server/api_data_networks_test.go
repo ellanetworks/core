@@ -338,7 +338,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 			BitrateUplink:   BitrateUplink,
 			BitrateDownlink: BitrateDownlink,
 			Var5qi:          Var5qi,
-			PriorityLevel:   PriorityLevel,
+			Arp:             Arp,
 			DataNetworkName: DataNetworkName,
 		}
 		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)

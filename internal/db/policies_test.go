@@ -55,7 +55,7 @@ func TestPoliciesEndToEnd(t *testing.T) {
 		BitrateUplink:   "100 Mbps",
 		BitrateDownlink: "200 Mbps",
 		Var5qi:          9,
-		PriorityLevel:   1,
+		Arp:             1,
 		DataNetworkID:   createdNetwork.ID,
 	}
 	err = database.CreatePolicy(context.Background(), policy)
@@ -92,13 +92,13 @@ func TestPoliciesEndToEnd(t *testing.T) {
 	if retrievedPolicy.Var5qi != policy.Var5qi {
 		t.Fatalf("The Var5qi from the database doesn't match the Var5qi that was given")
 	}
-	if retrievedPolicy.PriorityLevel != policy.PriorityLevel {
-		t.Fatalf("The priority level from the database doesn't match the priority level that was given")
+	if retrievedPolicy.Arp != policy.Arp {
+		t.Fatalf("The ARP from the database doesn't match the ARP that was given")
 	}
 
 	// Edit the policy
 	policy.Var5qi = 7
-	policy.PriorityLevel = 2
+	policy.Arp = 2
 
 	if err = database.UpdatePolicy(context.Background(), policy); err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
@@ -114,8 +114,8 @@ func TestPoliciesEndToEnd(t *testing.T) {
 	if retrievedPolicy.Var5qi != policy.Var5qi {
 		t.Fatalf("The 5qi from the database doesn't match the 5qi that was given")
 	}
-	if retrievedPolicy.PriorityLevel != policy.PriorityLevel {
-		t.Fatalf("The ue priority level from the database doesn't match the priority level that was given")
+	if retrievedPolicy.Arp != policy.Arp {
+		t.Fatalf("The ARP from the database doesn't match the ARP that was given")
 	}
 
 	if err = database.DeletePolicy(context.Background(), policy.Name); err != nil {

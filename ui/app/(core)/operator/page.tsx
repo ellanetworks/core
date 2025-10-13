@@ -24,10 +24,19 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface OperatorData {
   id: { mcc: string; mnc: string };
-  slice: { sst: number; sd: number };
+  slice: { sst: number; sd?: string | null };
   tracking: { supportedTacs: string[] };
   homeNetwork: { publicKey: string };
 }
+
+const isSdSet = (sd?: string | null) =>
+  typeof sd === "string" && sd.trim() !== "";
+
+const formatSd = (sd?: string | null) => {
+  if (!isSdSet(sd)) return "Not set";
+  const v = sd!.startsWith("0x") ? sd! : `0x${sd}`;
+  return v.toLowerCase();
+};
 
 const MAX_WIDTH = 1400;
 
@@ -353,9 +362,29 @@ const Operator = () => {
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 6 }}>
-                  <Typography variant="body1">
-                    {operator ? `${operator.slice.sd}` : "N/A"}
-                  </Typography>
+                  {operator ? (
+                    isSdSet(operator.slice.sd) ? (
+                      <Chip
+                        label={formatSd(operator.slice.sd)}
+                        color="primary"
+                        variant="outlined"
+                        sx={{ fontFamily: "monospace" }}
+                      />
+                    ) : (
+                      <Chip
+                        label="N/A"
+                        variant="outlined"
+                        color="default"
+                        sx={{
+                          fontStyle: "italic",
+                          borderStyle: "dashed",
+                          bgcolor: (theme) => theme.palette.action.hover,
+                        }}
+                      />
+                    )
+                  ) : (
+                    <Typography variant="body1">N/A</Typography>
+                  )}
                 </Grid>
               </Grid>
             </CardContent>
@@ -469,7 +498,10 @@ const Operator = () => {
           open
           onClose={handleEditOperatorSliceModalClose}
           onSuccess={handleEditOperatorSliceSuccess}
-          initialData={operator?.slice || { sst: 0, sd: 0 }}
+          initialData={{
+            sst: operator?.slice.sst ?? 1,
+            sd: operator?.slice.sd ?? "",
+          }}
         />
       )}
       {isEditOperatorHomeNetworkModalOpen && (
