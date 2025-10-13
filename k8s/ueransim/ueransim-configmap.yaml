@@ -16,7 +16,8 @@ data:
     nci: '0x000000010'
     ngapIp: 192.168.253.6
     slices:
-    - sst: 1
+    - sd: 1056816
+      sst: 1
     tac: 1
   ue.yaml: |
     amf: '8000'
@@ -28,7 +29,8 @@ data:
     configured-nssai:
     - sst: 1
     default-nssai:
-    - sst: 1
+    - sd: 1
+      sst: 1
     gnbSearchList:
     - 127.0.0.1
     homeNetworkPublicKey: 75d1dde9519b390b172104ae3397557a114acbd39d3c39b2bcc3ce282abc4c3e
@@ -49,9 +51,11 @@ data:
     opType: OPC
     protectionScheme: 0
     routingIndicator: '0000'
+    sd: 1056816
     sessions:
     - type: IPv4
     slice:
+      sd: 1056816
       sst: 1
     supi: imsi-001010100000001
     uacAcc:
