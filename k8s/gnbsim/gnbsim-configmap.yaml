@@ -28,16 +28,14 @@ data:
                 mcc: '001'
                 mnc: '01'
               taiSliceSupportList:
-              - sd: '102030'
-                sst: 1
+              - sst: 1
             tac: '000001'
           - broadcastPlmnList:
             - plmnId:
                 mcc: '123'
                 mnc: '12'
               taiSliceSupportList:
-              - sd: '102031'
-                sst: 1
+              - sst: 1
             tac: '000002'
       goProfile:
         enable: false
@@ -57,7 +55,6 @@ data:
         profileName: profile1
         profileType: register
         sNssai:
-          sd: '102030'
           sst: 1
         sequenceNumber: '000000000022'
         startImsi: '001010100000001'
@@ -76,7 +73,6 @@ data:
         profileName: profile2
         profileType: pdusessest
         sNssai:
-          sd: '102030'
           sst: 1
         sequenceNumber: '000000000022'
         startImsi: '001010100000001'
@@ -94,7 +90,6 @@ data:
         profileName: profile3
         profileType: anrelease
         sNssai:
-          sd: '102030'
           sst: 1
         sequenceNumber: '000000000022'
         startImsi: '001010100000001'
@@ -113,7 +108,6 @@ data:
         profileType: uetriggservicereq
         retransMsg: false
         sNssai:
-          sd: '102030'
           sst: 1
         sequenceNumber: '000000000022'
         startImsi: '001010100000001'
@@ -131,7 +125,6 @@ data:
         profileName: profile5
         profileType: deregister
         sNssai:
-          sd: '102030'
           sst: 1
         sequenceNumber: '000000000022'
         startImsi: '001010100000001'
