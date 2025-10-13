@@ -89,18 +89,34 @@ const ProtocolCell: React.FC<{ value?: string }> = ({ value }) => {
   if (!value) return null;
 
   const val = String(value).toUpperCase();
-  const color = val === "NGAP" ? "info" : val === "NAS" ? "success" : "default";
+
+  const styles =
+    val === "NGAP"
+      ? {
+          backgroundColor: "#003366",
+          color: "#fff",
+        }
+      : val === "NAS"
+        ? {
+            backgroundColor: "#ff7300ff",
+            color: "#fff",
+          }
+        : {
+            backgroundColor: "transparent",
+            color: "text.primary",
+            border: "1px solid",
+            borderColor: "divider",
+          };
 
   return (
     <Chip
       label={val}
       size="small"
-      variant={color === "default" ? "outlined" : "filled"}
-      color={color}
       sx={{
         fontWeight: 600,
         letterSpacing: 0.25,
         height: 22,
+        ...styles,
       }}
       aria-label={`Protocol ${val}`}
     />
@@ -315,7 +331,7 @@ const Events: React.FC = () => {
         headerName: "Timestamp",
         type: "dateTime",
         flex: 1,
-        minWidth: 220,
+        minWidth: 180,
         sortable: false,
         renderCell: (p) => (p.value ? p.value.toLocaleString() : ""),
         filterOperators: DATE_AFTER_BEFORE_ONLY,
@@ -343,8 +359,7 @@ const Events: React.FC = () => {
           { value: "NGAP", label: "NGAP" },
           { value: "NAS", label: "NAS" },
         ],
-        flex: 1,
-        minWidth: 120,
+        width: 120,
         sortable: false,
         filterOperators: PROTOCOL_EQ,
         renderCell: (p) => <ProtocolCell value={p.row.protocol} />,
