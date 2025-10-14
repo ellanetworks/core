@@ -71,6 +71,8 @@ type IE struct {
 	RelativeAMFCapacity    *int64                  `json:"relative_amf_capacity,omitempty"`
 	PLMNSupportList        []PLMN                  `json:"plmn_support_list,omitempty"`
 	CriticalityDiagnostics *CriticalityDiagnostics `json:"criticality_diagnostics,omitempty"`
+	Cause                  *string                 `json:"cause,omitempty"`
+	TimeToWait             *string                 `json:"time_to_wait,omitempty"`
 }
 
 type NGSetupRequest struct {
@@ -89,11 +91,20 @@ type SuccessfulOutcome struct {
 	NGSetupResponse *NGSetupResponse `json:"ng_setup_response,omitempty"`
 }
 
+type NGSetupFailure struct {
+	IEs []IE `json:"ies"`
+}
+
+type UnsuccessfulOutcome struct {
+	NGSetupFailure *NGSetupFailure `json:"ng_setup_failure,omitempty"`
+}
+
 type NGAPMessage struct {
-	ProcedureCode     string             `json:"procedure_code"`
-	Criticality       string             `json:"criticality"`
-	InitiatingMessage *InitiatingMessage `json:"initiating_message,omitempty"`
-	SuccessfulOutcome *SuccessfulOutcome `json:"successful_outcome,omitempty"`
+	ProcedureCode       string               `json:"procedure_code"`
+	Criticality         string               `json:"criticality"`
+	InitiatingMessage   *InitiatingMessage   `json:"initiating_message,omitempty"`
+	SuccessfulOutcome   *SuccessfulOutcome   `json:"successful_outcome,omitempty"`
+	UnsuccessfulOutcome *UnsuccessfulOutcome `json:"unsuccessful_outcome,omitempty"`
 }
 
 func DecodeNetworkLog(raw []byte) (*NGAPMessage, error) {
@@ -124,6 +135,15 @@ func DecodeNetworkLog(raw []byte) (*NGAPMessage, error) {
 		ngapMsg.Criticality = criticalityToString(so.Criticality.Value)
 		ngapMsg.SuccessfulOutcome = buildSuccessfulOutcome(so.Value)
 		return ngapMsg, nil
+	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
+		uo := pdu.UnsuccessfulOutcome
+		if uo == nil {
+			return nil, fmt.Errorf("unsuccessful outcome is nil")
+		}
+		ngapMsg.ProcedureCode = procedureCodeToString(uo.ProcedureCode.Value)
+		ngapMsg.Criticality = criticalityToString(uo.Criticality.Value)
+		ngapMsg.UnsuccessfulOutcome = buildUnsuccessfulOutcome(uo.Value)
+		return ngapMsg, nil
 	default:
 		return nil, fmt.Errorf("unknown NGAP PDU type: %d", pdu.Present)
 	}
@@ -152,6 +172,19 @@ func buildSuccessfulOutcome(sucMsg ngapType.SuccessfulOutcomeValue) *SuccessfulO
 	default:
 		logger.EllaLog.Warn("Unsupported message", zap.Int("present", sucMsg.Present))
 		return successfulOutcome
+	}
+}
+
+func buildUnsuccessfulOutcome(unsucMsg ngapType.UnsuccessfulOutcomeValue) *UnsuccessfulOutcome {
+	unsuccessfulOutcome := &UnsuccessfulOutcome{}
+
+	switch unsucMsg.Present {
+	case ngapType.UnsuccessfulOutcomePresentNGSetupFailure:
+		unsuccessfulOutcome.NGSetupFailure = buildNGSetupFailure(unsucMsg.NGSetupFailure)
+		return unsuccessfulOutcome
+	default:
+		logger.EllaLog.Warn("Unsupported message", zap.Int("present", unsucMsg.Present))
+		return unsuccessfulOutcome
 	}
 }
 
@@ -257,6 +290,278 @@ func buildNGSetupResponse(ngSetupResponse *ngapType.NGSetupResponse) *NGSetupRes
 	}
 
 	return ngSetup
+}
+
+func buildNGSetupFailure(ngSetupFailure *ngapType.NGSetupFailure) *NGSetupFailure {
+	if ngSetupFailure == nil {
+		return nil
+	}
+
+	ngFail := &NGSetupFailure{}
+
+	for i := 0; i < len(ngSetupFailure.ProtocolIEs.List); i++ {
+		ie := ngSetupFailure.ProtocolIEs.List[i]
+
+		switch ie.Id.Value {
+		case ngapType.ProtocolIEIDCause:
+			ngFail.IEs = append(ngFail.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				Cause:       strPtr(causeToString(ie.Value.Cause)),
+			})
+		case ngapType.ProtocolIEIDTimeToWait:
+			ngFail.IEs = append(ngFail.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				TimeToWait:  buildTimeToWaitIE(ie.Value.TimeToWait),
+			})
+		case ngapType.ProtocolIEIDCriticalityDiagnostics:
+			ngFail.IEs = append(ngFail.IEs, IE{
+				ID:                     protocolIEIDToString(ie.Id.Value),
+				Criticality:            criticalityToString(ie.Criticality.Value),
+				CriticalityDiagnostics: buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
+			})
+		default:
+			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
+		}
+	}
+
+	return ngFail
+}
+
+func buildTimeToWaitIE(timeToWait *ngapType.TimeToWait) *string {
+	if timeToWait == nil {
+		return nil
+	}
+
+	var str string
+
+	switch timeToWait.Value {
+	case ngapType.TimeToWaitPresentV1s:
+		str = "V1s (0)"
+	case ngapType.TimeToWaitPresentV2s:
+		str = "V2s (1)"
+	case ngapType.TimeToWaitPresentV5s:
+		str = "V5s (2)"
+	case ngapType.TimeToWaitPresentV10s:
+		str = "V10s (3)"
+	case ngapType.TimeToWaitPresentV20s:
+		str = "V20s (4)"
+	case ngapType.TimeToWaitPresentV60s:
+		str = "V60s (5)"
+	default:
+		str = fmt.Sprintf("Unknown (%d)", timeToWait.Value)
+	}
+
+	return &str
+}
+
+func causeToString(cause *ngapType.Cause) string {
+	if cause == nil {
+		return "nil"
+	}
+
+	switch cause.Present {
+	case ngapType.CausePresentRadioNetwork:
+		return radioNetworkCauseToString(cause.RadioNetwork)
+	case ngapType.CausePresentTransport:
+		return transportCauseToString(cause.Transport)
+	case ngapType.CausePresentNas:
+		return nasCauseToString(cause.Nas)
+	case ngapType.CausePresentProtocol:
+		return protocolCauseToString(cause.Protocol)
+	case ngapType.CausePresentMisc:
+		return miscCauseToString(cause.Misc)
+	default:
+		return fmt.Sprintf("Unknown (%d)", cause.Present)
+	}
+}
+
+func radioNetworkCauseToString(cause *ngapType.CauseRadioNetwork) string {
+	if cause == nil {
+		return "nil"
+	}
+
+	switch cause.Value {
+	case ngapType.CauseRadioNetworkPresentUnspecified:
+		return "Unspecified (0)"
+	case ngapType.CauseRadioNetworkPresentTxnrelocoverallExpiry:
+		return "TxNRelocOverallExpiry (1)"
+	case ngapType.CauseRadioNetworkPresentSuccessfulHandover:
+		return "SuccessfulHandover (2)"
+	case ngapType.CauseRadioNetworkPresentReleaseDueToNgranGeneratedReason:
+		return "ReleaseDueToNgranGeneratedReason (3)"
+	case ngapType.CauseRadioNetworkPresentReleaseDueTo5gcGeneratedReason:
+		return "ReleaseDueTo5gcGeneratedReason (4)"
+	case ngapType.CauseRadioNetworkPresentHandoverCancelled:
+		return "HandoverCancelled (5)"
+	case ngapType.CauseRadioNetworkPresentPartialHandover:
+		return "PartialHandover (6)"
+	case ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem:
+		return "HoFailureInTarget5GCNgranNodeOrTargetSystem (7)"
+	case ngapType.CauseRadioNetworkPresentHoTargetNotAllowed:
+		return "HoTargetNotAllowed (8)"
+	case ngapType.CauseRadioNetworkPresentTngrelocoverallExpiry:
+		return "TngRelocOverallExpiry (9)"
+	case ngapType.CauseRadioNetworkPresentTngrelocprepExpiry:
+		return "TngRelocPrepExpiry (10)"
+	case ngapType.CauseRadioNetworkPresentCellNotAvailable:
+		return "CellNotAvailable (11)"
+	case ngapType.CauseRadioNetworkPresentUnknownTargetID:
+		return "UnknownTargetID (12)"
+	case ngapType.CauseRadioNetworkPresentNoRadioResourcesAvailableInTargetCell:
+		return "NoRadioResourcesAvailableInTargetCell (13)"
+	case ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID:
+		return "UnknownLocalUENGAPID (14)"
+	case ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID:
+		return "InconsistentRemoteUENGAPID (15)"
+	case ngapType.CauseRadioNetworkPresentHandoverDesirableForRadioReason:
+		return "HandoverDesirableForRadioReason (16)"
+	case ngapType.CauseRadioNetworkPresentTimeCriticalHandover:
+		return "TimeCriticalHandover (17)"
+	case ngapType.CauseRadioNetworkPresentResourceOptimisationHandover:
+		return "ResourceOptimisationHandover (18)"
+	case ngapType.CauseRadioNetworkPresentReduceLoadInServingCell:
+		return "ReduceLoadInServingCell (19)"
+	case ngapType.CauseRadioNetworkPresentUserInactivity:
+		return "UserInactivity (20)"
+	case ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost:
+		return "RadioConnectionWithUeLost (21)"
+	case ngapType.CauseRadioNetworkPresentRadioResourcesNotAvailable:
+		return "RadioResourcesNotAvailable (22)"
+	case ngapType.CauseRadioNetworkPresentInvalidQosCombination:
+		return "InvalidQosCombination (23)"
+	case ngapType.CauseRadioNetworkPresentFailureInRadioInterfaceProcedure:
+		return "FailureInRadioInterfaceProcedure (24)"
+	case ngapType.CauseRadioNetworkPresentInteractionWithOtherProcedure:
+		return "InteractionWithOtherProcedure (25)"
+	case ngapType.CauseRadioNetworkPresentUnknownPDUSessionID:
+		return "UnknownPDUSessionID (26)"
+	case ngapType.CauseRadioNetworkPresentUnkownQosFlowID:
+		return "UnkownQosFlowID (27)"
+	case ngapType.CauseRadioNetworkPresentMultiplePDUSessionIDInstances:
+		return "MultiplePDUSessionIDInstances (28)"
+	case ngapType.CauseRadioNetworkPresentMultipleQosFlowIDInstances:
+		return "MultipleQosFlowIDInstances (29)"
+	case ngapType.CauseRadioNetworkPresentEncryptionAndOrIntegrityProtectionAlgorithmsNotSupported:
+		return "EncryptionAndOrIntegrityProtectionAlgorithmsNotSupported (30)"
+	case ngapType.CauseRadioNetworkPresentNgIntraSystemHandoverTriggered:
+		return "NgIntraSystemHandoverTriggered (31)"
+	case ngapType.CauseRadioNetworkPresentNgInterSystemHandoverTriggered:
+		return "NgInterSystemHandoverTriggered (32)"
+	case ngapType.CauseRadioNetworkPresentXnHandoverTriggered:
+		return "XnHandoverTriggered (33)"
+	case ngapType.CauseRadioNetworkPresentNotSupported5QIValue:
+		return "NotSupported5QIValue (34)"
+	case ngapType.CauseRadioNetworkPresentUeContextTransfer:
+		return "UeContextTransfer (35)"
+	case ngapType.CauseRadioNetworkPresentImsVoiceEpsFallbackOrRatFallbackTriggered:
+		return "ImsVoiceEpsFallbackOrRatFallbackTriggered (36)"
+	case ngapType.CauseRadioNetworkPresentUpIntegrityProtectionNotPossible:
+		return "UpIntegrityProtectionNotPossible (37)"
+	case ngapType.CauseRadioNetworkPresentUpConfidentialityProtectionNotPossible:
+		return "UpConfidentialityProtectionNotPossible (38)"
+	case ngapType.CauseRadioNetworkPresentSliceNotSupported:
+		return "SliceNotSupported (39)"
+	case ngapType.CauseRadioNetworkPresentUeInRrcInactiveStateNotReachable:
+		return "UeInRrcInactiveStateNotReachable (40)"
+	case ngapType.CauseRadioNetworkPresentRedirection:
+		return "Redirection (41)"
+	case ngapType.CauseRadioNetworkPresentResourcesNotAvailableForTheSlice:
+		return "ResourcesNotAvailableForTheSlice (42)"
+	case ngapType.CauseRadioNetworkPresentUeMaxIntegrityProtectedDataRateReason:
+		return "UeMaxIntegrityProtectedDataRateReason (43)"
+	case ngapType.CauseRadioNetworkPresentReleaseDueToCnDetectedMobility:
+		return "ReleaseDueToCnDetectedMobility (44)"
+	case ngapType.CauseRadioNetworkPresentN26InterfaceNotAvailable:
+		return "N26InterfaceNotAvailable (45)"
+	case ngapType.CauseRadioNetworkPresentReleaseDueToPreEmption:
+		return "ReleaseDueToPreEmption (46)"
+	default:
+		return fmt.Sprintf("Unknown (%d)", cause.Value)
+	}
+}
+
+func transportCauseToString(cause *ngapType.CauseTransport) string {
+	if cause == nil {
+		return "nil"
+	}
+
+	switch cause.Value {
+	case ngapType.CauseTransportPresentTransportResourceUnavailable:
+		return "TransportResourceUnavailable (0)"
+	case ngapType.CauseTransportPresentUnspecified:
+		return "Unspecified (1)"
+	default:
+		return fmt.Sprintf("Unknown (%d)", cause.Value)
+	}
+}
+
+func nasCauseToString(cause *ngapType.CauseNas) string {
+	if cause == nil {
+		return "nil"
+	}
+
+	switch cause.Value {
+	case ngapType.CauseNasPresentNormalRelease:
+		return "NormalRelease (0)"
+	case ngapType.CauseNasPresentAuthenticationFailure:
+		return "AuthenticationFailure (1)"
+	case ngapType.CauseNasPresentDeregister:
+		return "Deregister (2)"
+	case ngapType.CauseNasPresentUnspecified:
+		return "Unspecified (3)"
+	default:
+		return fmt.Sprintf("Unknown (%d)", cause.Value)
+	}
+}
+
+func protocolCauseToString(cause *ngapType.CauseProtocol) string {
+	if cause == nil {
+		return "nil"
+	}
+
+	switch cause.Value {
+	case ngapType.CauseProtocolPresentTransferSyntaxError:
+		return "TransferSyntaxError (0)"
+	case ngapType.CauseProtocolPresentAbstractSyntaxErrorReject:
+		return "AbstractSyntaxErrorReject (1)"
+	case ngapType.CauseProtocolPresentAbstractSyntaxErrorIgnoreAndNotify:
+		return "AbstractSyntaxErrorIgnoreAndNotify (2)"
+	case ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState:
+		return "MessageNotCompatibleWithReceiverState (3)"
+	case ngapType.CauseProtocolPresentSemanticError:
+		return "SemanticError (4)"
+	case ngapType.CauseProtocolPresentAbstractSyntaxErrorFalselyConstructedMessage:
+		return "AbstractSyntaxErrorFalselyConstructedMessage (5)"
+	case ngapType.CauseProtocolPresentUnspecified:
+		return "Unspecified (6)"
+	default:
+		return fmt.Sprintf("Unknown (%d)", cause.Value)
+	}
+}
+
+func miscCauseToString(cause *ngapType.CauseMisc) string {
+	if cause == nil {
+		return "nil"
+	}
+
+	switch cause.Value {
+	case ngapType.CauseMiscPresentControlProcessingOverload:
+		return "ControlProcessingOverload (0)"
+	case ngapType.CauseMiscPresentNotEnoughUserPlaneProcessingResources:
+		return "NotEnoughUserPlaneProcessingResources (1)"
+	case ngapType.CauseMiscPresentHardwareFailure:
+		return "HardwareFailure (2)"
+	case ngapType.CauseMiscPresentOmIntervention:
+		return "OmIntervention (3)"
+	case ngapType.CauseMiscPresentUnknownPLMN:
+		return "UnknownPLMN (4)"
+	case ngapType.CauseMiscPresentUnspecified:
+		return "Unspecified (5)"
+	default:
+		return fmt.Sprintf("Unknown (%d)", cause.Value)
+	}
 }
 
 func buildAMFNameIE(an *ngapType.AMFName) *string {

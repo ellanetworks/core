@@ -314,3 +314,55 @@ func TestDecode_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected SD=%s, got %v", "102030", snssai.SD)
 	}
 }
+
+func TestDecode_NGSetupFailure(t *testing.T) {
+	const message = "QBUACAAAAQAPQAGI"
+
+	raw, err := decodeB64(message)
+	if err != nil {
+		t.Fatalf("base64 decode failed: %v", err)
+	}
+
+	ngap, err := decoder.DecodeNetworkLog(raw)
+	if err != nil {
+		t.Fatalf("failed to decode NGAP message: %v", err)
+	}
+
+	if ngap.ProcedureCode != "NGSetup" {
+		t.Errorf("expected ProcedureCode=NGSetup, got %s", ngap.ProcedureCode)
+	}
+
+	if ngap.Criticality != "Reject (0)" {
+		t.Errorf("expected Criticality=Reject (0), got %s", ngap.Criticality)
+	}
+
+	if ngap.UnsuccessfulOutcome == nil {
+		t.Fatalf("expected UnsuccessfulOutcome, got nil")
+	}
+
+	if ngap.UnsuccessfulOutcome.NGSetupFailure == nil {
+		t.Fatalf("expected NGSetupFailure, got nil")
+	}
+
+	if len(ngap.UnsuccessfulOutcome.NGSetupFailure.IEs) != 1 {
+		t.Errorf("expected 1 ProtocolIEs, got %d", len(ngap.UnsuccessfulOutcome.NGSetupFailure.IEs))
+	}
+
+	item0 := ngap.UnsuccessfulOutcome.NGSetupFailure.IEs[0]
+
+	if item0.ID != "Cause (15)" {
+		t.Errorf("expected ID=Cause (15), got %s", item0.ID)
+	}
+
+	if item0.Criticality != "Ignore (1)" {
+		t.Errorf("expected Criticality=Ignore (1), got %s", item0.Criticality)
+	}
+
+	if item0.Cause == nil {
+		t.Fatalf("expected Cause, got nil")
+	}
+
+	if *item0.Cause != "UnknownPLMN (4)" {
+		t.Errorf("expected Cause=UnknownPLMN (4), got %s", *item0.Cause)
+	}
+}
