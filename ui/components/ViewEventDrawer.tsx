@@ -65,7 +65,11 @@ const MonoBlock: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </Box>
 );
 
-const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({ open, onClose, log }) => {
+const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
+  open,
+  onClose,
+  log,
+}) => {
   const theme = useTheme();
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
   const router = useRouter();
@@ -108,7 +112,6 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({ open, onClose, log })
     setAlert({ message: "Copied to clipboard." });
     setTimeout(() => setAlert({ message: "" }), 1500);
   };
-
 
   const renderDecoded = () => {
     if (isDecoding || isDecodeFetching) {

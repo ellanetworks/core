@@ -65,10 +65,7 @@ export async function listNetworkLogs(
   return json.result;
 }
 
-export async function decodeNetworkLog(
-  authToken: string,
-  id: string,
-) {
+export async function decodeNetworkLog(authToken: string, id: string) {
   const url = new URL(`/api/v1/logs/network/${id}`, window.location.origin);
 
   const response = await fetch(url.toString(), {
