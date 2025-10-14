@@ -3,6 +3,7 @@ package decoder
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap"
@@ -22,8 +23,13 @@ type SNSSAI struct {
 	SD  *string `json:"sd,omitempty"`
 }
 
+type PLMNID struct {
+	Mcc string `json:"mcc"`
+	Mnc string `json:"mnc"`
+}
+
 type PLMN struct {
-	PLMNIdentity     string   `json:"plmn_identity"`
+	PLMNID           PLMNID   `json:"plmn_id"`
 	SliceSupportList []SNSSAI `json:"slice_support_list,omitempty"`
 }
 
@@ -272,7 +278,7 @@ func buildPLMNSupportListIE(psl *ngapType.PLMNSupportList) []PLMN {
 	plmnList := make([]PLMN, len(psl.List))
 	for i := 0; i < len(psl.List); i++ {
 		plmnList[i] = PLMN{
-			PLMNIdentity:     hex.EncodeToString(psl.List[i].PLMNIdentity.Value),
+			PLMNID:           plmnIDToModels(psl.List[i].PLMNIdentity),
 			SliceSupportList: buildSNSSAIList(psl.List[i].SliceSupportList),
 		}
 	}
@@ -322,7 +328,7 @@ func buildPLMNList(bpl ngapType.BroadcastPLMNList) []PLMN {
 	plmns := make([]PLMN, len(bpl.List))
 	for i := 0; i < len(bpl.List); i++ {
 		plmns[i] = PLMN{
-			PLMNIdentity:     hex.EncodeToString(bpl.List[i].PLMNIdentity.Value),
+			PLMNID:           plmnIDToModels(bpl.List[i].PLMNIdentity),
 			SliceSupportList: buildSNSSAIList(bpl.List[i].TAISliceSupportList),
 		}
 	}
@@ -411,6 +417,22 @@ func procedureCodeToString(code int64) string {
 		return fmt.Sprintf("Unknown (%d)", code)
 	}
 	return name
+}
+
+func plmnIDToModels(ngapPlmnID ngapType.PLMNIdentity) PLMNID {
+	value := ngapPlmnID.Value
+	hexString := strings.Split(hex.EncodeToString(value), "")
+
+	var modelsPlmnid PLMNID
+
+	modelsPlmnid.Mcc = hexString[1] + hexString[0] + hexString[3]
+	if hexString[2] == "f" {
+		modelsPlmnid.Mnc = hexString[5] + hexString[4]
+	} else {
+		modelsPlmnid.Mnc = hexString[2] + hexString[5] + hexString[4]
+	}
+
+	return modelsPlmnid
 }
 
 func protocolIEIDToString(id int64) string {

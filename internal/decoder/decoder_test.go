@@ -121,8 +121,12 @@ func TestDecode_NGSetupRequest(t *testing.T) {
 		t.Fatalf("expected 1 BroadcastPLMN, got %d", len(supportedTAItem.BroadcastPLMNList))
 	}
 
-	if supportedTAItem.BroadcastPLMNList[0].PLMNIdentity != "00f110" {
-		t.Errorf("expected PLMNIdentity=00f110, got %s", supportedTAItem.BroadcastPLMNList[0].PLMNIdentity)
+	if supportedTAItem.BroadcastPLMNList[0].PLMNID.Mcc != "001" {
+		t.Errorf("expected PLMNID.Mcc=001, got %s", supportedTAItem.BroadcastPLMNList[0].PLMNID.Mcc)
+	}
+
+	if supportedTAItem.BroadcastPLMNList[0].PLMNID.Mnc != "01" {
+		t.Errorf("expected PLMNID.Mnc=01, got %s", supportedTAItem.BroadcastPLMNList[0].PLMNID.Mnc)
 	}
 
 	if len(supportedTAItem.BroadcastPLMNList[0].SliceSupportList) != 1 {
@@ -284,8 +288,12 @@ func TestDecode_NGSetupResponse(t *testing.T) {
 
 	plmnItem := item3.PLMNSupportList[0]
 
-	if plmnItem.PLMNIdentity != "00f110" {
-		t.Errorf("expected PLMNIdentity=00f110, got %s", plmnItem.PLMNIdentity)
+	if plmnItem.PLMNID.Mcc != "001" {
+		t.Errorf("expected Mcc=001, got %s", plmnItem.PLMNID.Mcc)
+	}
+
+	if plmnItem.PLMNID.Mnc != "01" {
+		t.Errorf("expected Mnc=01, got %s", plmnItem.PLMNID.Mnc)
 	}
 
 	if len(plmnItem.SliceSupportList) != 1 {
