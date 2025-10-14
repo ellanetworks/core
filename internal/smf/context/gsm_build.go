@@ -87,18 +87,23 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	// pDUSessionEstablishmentAccept.AuthorizedQosFlowDescriptions.SetLen(6)
 	// pDUSessionEstablishmentAccept.SetQoSFlowDescriptions([]uint8{uint8(authDefQos.Var5qi), 0x20, 0x41, 0x01, 0x01, 0x09})
 
-	var sd [3]uint8
-
-	if byteArray, err := hex.DecodeString(smContext.Snssai.Sd); err != nil {
-		return nil, err
-	} else {
-		copy(sd[:], byteArray)
-	}
-
 	pDUSessionEstablishmentAccept.SNSSAI = nasType.NewSNSSAI(nasMessage.ULNASTransportSNSSAIType)
-	pDUSessionEstablishmentAccept.SNSSAI.SetLen(4)
 	pDUSessionEstablishmentAccept.SNSSAI.SetSST(uint8(smContext.Snssai.Sst))
-	pDUSessionEstablishmentAccept.SNSSAI.SetSD(sd)
+	pDUSessionEstablishmentAccept.SNSSAI.SetLen(1)
+
+	if smContext.Snssai.Sd != "" {
+		byteArray, err := hex.DecodeString(smContext.Snssai.Sd)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode sd: %v", err)
+		}
+
+		var sd [3]uint8
+
+		copy(sd[:], byteArray)
+
+		pDUSessionEstablishmentAccept.SNSSAI.SetSD(sd)
+		pDUSessionEstablishmentAccept.SNSSAI.SetLen(4)
+	}
 
 	dnn := []byte(smContext.Dnn)
 	pDUSessionEstablishmentAccept.DNN = nasType.NewDNN(nasMessage.ULNASTransportDNNType)
