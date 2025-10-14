@@ -178,31 +178,47 @@ type DownlinkNASTransport struct {
 	IEs []IE `json:"ies"`
 }
 
-type InitiatingMessage struct {
+type InitiatingMessageValue struct {
 	NGSetupRequest       *NGSetupRequest       `json:"ng_setup_request,omitempty"`
 	InitialUEMessage     *InitialUEMessage     `json:"initial_ue_message,omitempty"`
 	DownlinkNASTransport *DownlinkNASTransport `json:"downlink_nas_transport,omitempty"`
+}
+
+type InitiatingMessage struct {
+	ProcedureCode string                 `json:"procedure_code"`
+	Criticality   string                 `json:"criticality"`
+	Value         InitiatingMessageValue `json:"value"`
 }
 
 type NGSetupResponse struct {
 	IEs []IE `json:"ies"`
 }
 
-type SuccessfulOutcome struct {
+type SuccessfulOutcomeValue struct {
 	NGSetupResponse *NGSetupResponse `json:"ng_setup_response,omitempty"`
+}
+
+type SuccessfulOutcome struct {
+	ProcedureCode string                 `json:"procedure_code"`
+	Criticality   string                 `json:"criticality"`
+	Value         SuccessfulOutcomeValue `json:"value"`
 }
 
 type NGSetupFailure struct {
 	IEs []IE `json:"ies"`
 }
 
-type UnsuccessfulOutcome struct {
+type UnsuccessfulOutcomeValue struct {
 	NGSetupFailure *NGSetupFailure `json:"ng_setup_failure,omitempty"`
 }
 
+type UnsuccessfulOutcome struct {
+	ProcedureCode string                   `json:"procedure_code"`
+	Criticality   string                   `json:"criticality"`
+	Value         UnsuccessfulOutcomeValue `json:"value"`
+}
+
 type NGAPMessage struct {
-	ProcedureCode       string               `json:"procedure_code"`
-	Criticality         string               `json:"criticality"`
 	InitiatingMessage   *InitiatingMessage   `json:"initiating_message,omitempty"`
 	SuccessfulOutcome   *SuccessfulOutcome   `json:"successful_outcome,omitempty"`
 	UnsuccessfulOutcome *UnsuccessfulOutcome `json:"unsuccessful_outcome,omitempty"`
@@ -219,78 +235,82 @@ func DecodeNetworkLog(raw []byte) (*NGAPMessage, error) {
 	// Extract message type
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
-		im := pdu.InitiatingMessage
-		if im == nil {
-			return nil, fmt.Errorf("initiating message is nil")
-		}
-		ngapMsg.ProcedureCode = procedureCodeToString(im.ProcedureCode.Value)
-		ngapMsg.Criticality = criticalityToString(im.Criticality.Value)
-		ngapMsg.InitiatingMessage = buildInitiatingMessage(im.Value)
+		ngapMsg.InitiatingMessage = buildInitiatingMessage(pdu.InitiatingMessage)
 		return ngapMsg, nil
 	case ngapType.NGAPPDUPresentSuccessfulOutcome:
-		so := pdu.SuccessfulOutcome
-		if so == nil {
-			return nil, fmt.Errorf("successful outcome is nil")
-		}
-		ngapMsg.ProcedureCode = procedureCodeToString(so.ProcedureCode.Value)
-		ngapMsg.Criticality = criticalityToString(so.Criticality.Value)
-		ngapMsg.SuccessfulOutcome = buildSuccessfulOutcome(so.Value)
+		ngapMsg.SuccessfulOutcome = buildSuccessfulOutcome(pdu.SuccessfulOutcome)
 		return ngapMsg, nil
 	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
-		uo := pdu.UnsuccessfulOutcome
-		if uo == nil {
-			return nil, fmt.Errorf("unsuccessful outcome is nil")
-		}
-		ngapMsg.ProcedureCode = procedureCodeToString(uo.ProcedureCode.Value)
-		ngapMsg.Criticality = criticalityToString(uo.Criticality.Value)
-		ngapMsg.UnsuccessfulOutcome = buildUnsuccessfulOutcome(uo.Value)
+		ngapMsg.UnsuccessfulOutcome = buildUnsuccessfulOutcome(pdu.UnsuccessfulOutcome)
 		return ngapMsg, nil
 	default:
 		return nil, fmt.Errorf("unknown NGAP PDU type: %d", pdu.Present)
 	}
 }
 
-func buildInitiatingMessage(initMsg ngapType.InitiatingMessageValue) *InitiatingMessage {
-	initiatingMsg := &InitiatingMessage{}
+func buildInitiatingMessage(initMsg *ngapType.InitiatingMessage) *InitiatingMessage {
+	if initMsg == nil {
+		return nil
+	}
 
-	switch initMsg.Present {
+	initiatingMsg := &InitiatingMessage{
+		ProcedureCode: procedureCodeToString(initMsg.ProcedureCode.Value),
+		Criticality:   criticalityToString(initMsg.Criticality.Value),
+		Value:         InitiatingMessageValue{},
+	}
+
+	switch initMsg.Value.Present {
 	case ngapType.InitiatingMessagePresentNGSetupRequest:
-		initiatingMsg.NGSetupRequest = buildNGSetupRequest(initMsg.NGSetupRequest)
+		initiatingMsg.Value.NGSetupRequest = buildNGSetupRequest(initMsg.Value.NGSetupRequest)
 		return initiatingMsg
 	case ngapType.InitiatingMessagePresentInitialUEMessage:
-		initiatingMsg.InitialUEMessage = buildInitialUEMessage(initMsg.InitialUEMessage)
+		initiatingMsg.Value.InitialUEMessage = buildInitialUEMessage(initMsg.Value.InitialUEMessage)
 		return initiatingMsg
 	case ngapType.InitiatingMessagePresentDownlinkNASTransport:
-		initiatingMsg.DownlinkNASTransport = buildDownlinkNASTransport(initMsg.DownlinkNASTransport)
+		initiatingMsg.Value.DownlinkNASTransport = buildDownlinkNASTransport(initMsg.Value.DownlinkNASTransport)
 		return initiatingMsg
 	default:
-		logger.EllaLog.Warn("Unsupported procedure code", zap.Int("present", initMsg.Present))
+		logger.EllaLog.Warn("Unsupported procedure code", zap.Int("present", initMsg.Value.Present))
 		return initiatingMsg
 	}
 }
 
-func buildSuccessfulOutcome(sucMsg ngapType.SuccessfulOutcomeValue) *SuccessfulOutcome {
-	successfulOutcome := &SuccessfulOutcome{}
+func buildSuccessfulOutcome(sucMsg *ngapType.SuccessfulOutcome) *SuccessfulOutcome {
+	if sucMsg == nil {
+		return nil
+	}
+	successfulOutcome := &SuccessfulOutcome{
+		ProcedureCode: procedureCodeToString(sucMsg.ProcedureCode.Value),
+		Criticality:   criticalityToString(sucMsg.Criticality.Value),
+		Value:         SuccessfulOutcomeValue{},
+	}
 
-	switch sucMsg.Present {
+	switch sucMsg.Value.Present {
 	case ngapType.SuccessfulOutcomePresentNGSetupResponse:
-		successfulOutcome.NGSetupResponse = buildNGSetupResponse(sucMsg.NGSetupResponse)
+		successfulOutcome.Value.NGSetupResponse = buildNGSetupResponse(sucMsg.Value.NGSetupResponse)
 		return successfulOutcome
 	default:
-		logger.EllaLog.Warn("Unsupported message", zap.Int("present", sucMsg.Present))
+		logger.EllaLog.Warn("Unsupported message", zap.Int("present", sucMsg.Value.Present))
 		return successfulOutcome
 	}
 }
 
-func buildUnsuccessfulOutcome(unsucMsg ngapType.UnsuccessfulOutcomeValue) *UnsuccessfulOutcome {
-	unsuccessfulOutcome := &UnsuccessfulOutcome{}
+func buildUnsuccessfulOutcome(unsucMsg *ngapType.UnsuccessfulOutcome) *UnsuccessfulOutcome {
+	if unsucMsg == nil {
+		return nil
+	}
+	unsuccessfulOutcome := &UnsuccessfulOutcome{
+		ProcedureCode: procedureCodeToString(unsucMsg.ProcedureCode.Value),
+		Criticality:   criticalityToString(unsucMsg.Criticality.Value),
+		Value:         UnsuccessfulOutcomeValue{},
+	}
 
-	switch unsucMsg.Present {
+	switch unsucMsg.Value.Present {
 	case ngapType.UnsuccessfulOutcomePresentNGSetupFailure:
-		unsuccessfulOutcome.NGSetupFailure = buildNGSetupFailure(unsucMsg.NGSetupFailure)
+		unsuccessfulOutcome.Value.NGSetupFailure = buildNGSetupFailure(unsucMsg.Value.NGSetupFailure)
 		return unsuccessfulOutcome
 	default:
-		logger.EllaLog.Warn("Unsupported message", zap.Int("present", unsucMsg.Present))
+		logger.EllaLog.Warn("Unsupported message", zap.Int("present", unsucMsg.Value.Present))
 		return unsuccessfulOutcome
 	}
 }
