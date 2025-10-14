@@ -1,16 +1,21 @@
 package decoder
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/aper"
+	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 	"go.uber.org/zap"
 )
+
+const ntpToUnixOffset = 2208988800 // seconds between 1900-01-01 and 1970-01-01
 
 type GlobalRANNodeIDIE struct {
 	GlobalGNBID   string `json:"global_gnb_id,omitempty"`
@@ -39,10 +44,8 @@ type SupportedTA struct {
 }
 
 type Guami struct {
-	PLMNID      PLMNID `json:"plmn_id"`
-	AMFRegionID string `json:"amf_region_id"`
-	AMFSetID    string `json:"amf_set_id"`
-	AMFPointer  string `json:"amf_pointer"`
+	PLMNID PLMNID `json:"plmn_id"`
+	AMFID  string `json:"amf_id"`
 }
 
 type IEsCriticalityDiagnostics struct {
@@ -58,29 +61,86 @@ type CriticalityDiagnostics struct {
 	IEsCriticalityDiagnostics []IEsCriticalityDiagnostics `json:"ie_criticality_diagnostics,omitempty"`
 }
 
+type EUTRACGI struct {
+	PLMNID            PLMNID `json:"plmn_id"`
+	EUTRACellIdentity string `json:"eutra_cell_identity"`
+}
+
+type TAI struct {
+	PLMNID PLMNID `json:"plmn_id"`
+	TAC    string `json:"tac"`
+}
+
+type UserLocationInformationEUTRA struct {
+	EUTRACGI  EUTRACGI `json:"eutra_cgi"`
+	TAI       TAI      `json:"tai"`
+	TimeStamp *string  `json:"timestamp,omitempty"`
+}
+
+type NRCGI struct {
+	PLMNID         PLMNID `json:"plmn_id"`
+	NRCellIdentity string `json:"nr_cell_identity"`
+}
+
+type UserLocationInformationNR struct {
+	NRCGI     NRCGI   `json:"nr_cgi"`
+	TAI       TAI     `json:"tai"`
+	TimeStamp *string `json:"timestamp,omitempty"`
+}
+
+type UserLocationInformationN3IWF struct {
+	IPAddress  string `json:"ip_address"`
+	PortNumber int32  `json:"port_number"`
+}
+
+type UserLocationInformation struct {
+	EUTRA *UserLocationInformationEUTRA `json:"eutra,omitempty"`
+	NR    *UserLocationInformationNR    `json:"nr,omitempty"`
+	N3IWF *UserLocationInformationN3IWF `json:"n3iwf,omitempty"`
+}
+
+type FiveGSTMSI struct {
+	AMFSetID   string `json:"amf_set_id"`
+	AMFPointer string `json:"amf_pointer"`
+	FiveGTMSI  string `json:"fiveg_tmsi"`
+}
+
 type IE struct {
-	ID                     string                  `json:"id"`
-	Criticality            string                  `json:"criticality"`
-	GlobalRANNodeID        *GlobalRANNodeIDIE      `json:"global_ran_node_id,omitempty"`
-	RANNodeName            *string                 `json:"ran_node_name,omitempty"`
-	SupportedTAList        []SupportedTA           `json:"supported_ta_list,omitempty"`
-	DefaultPagingDRX       *string                 `json:"default_paging_drx,omitempty"`
-	UERetentionInformation *string                 `json:"ue_retention_information,omitempty"`
-	AMFName                *string                 `json:"amf_name,omitempty"`
-	ServedGUAMIList        []Guami                 `json:"served_guami_list,omitempty"`
-	RelativeAMFCapacity    *int64                  `json:"relative_amf_capacity,omitempty"`
-	PLMNSupportList        []PLMN                  `json:"plmn_support_list,omitempty"`
-	CriticalityDiagnostics *CriticalityDiagnostics `json:"criticality_diagnostics,omitempty"`
-	Cause                  *string                 `json:"cause,omitempty"`
-	TimeToWait             *string                 `json:"time_to_wait,omitempty"`
+	ID                      string                   `json:"id"`
+	Criticality             string                   `json:"criticality"`
+	GlobalRANNodeID         *GlobalRANNodeIDIE       `json:"global_ran_node_id,omitempty"`
+	RANNodeName             *string                  `json:"ran_node_name,omitempty"`
+	SupportedTAList         []SupportedTA            `json:"supported_ta_list,omitempty"`
+	DefaultPagingDRX        *string                  `json:"default_paging_drx,omitempty"`
+	UERetentionInformation  *string                  `json:"ue_retention_information,omitempty"`
+	AMFName                 *string                  `json:"amf_name,omitempty"`
+	ServedGUAMIList         []Guami                  `json:"served_guami_list,omitempty"`
+	RelativeAMFCapacity     *int64                   `json:"relative_amf_capacity,omitempty"`
+	PLMNSupportList         []PLMN                   `json:"plmn_support_list,omitempty"`
+	CriticalityDiagnostics  *CriticalityDiagnostics  `json:"criticality_diagnostics,omitempty"`
+	Cause                   *string                  `json:"cause,omitempty"`
+	TimeToWait              *string                  `json:"time_to_wait,omitempty"`
+	RANUENGAPID             *int64                   `json:"ran_ue_ngap_id,omitempty"`
+	NASPDU                  []byte                   `json:"nas_pdu,omitempty"`
+	UserLocationInformation *UserLocationInformation `json:"user_location_information,omitempty"`
+	RRCEstablishmentCause   *string                  `json:"rrc_establishment_cause,omitempty"`
+	FiveGSTMSI              *FiveGSTMSI              `json:"fiveg_stmsi,omitempty"`
+	AMFSetID                *string                  `json:"amf_set_id,omitempty"`
+	UEContextRequest        *string                  `json:"ue_context_request,omitempty"`
+	AllowedNSSAI            []SNSSAI                 `json:"allowed_nssai,omitempty"`
 }
 
 type NGSetupRequest struct {
 	IEs []IE `json:"ies"`
 }
 
+type InitialUEMessage struct {
+	IEs []IE `json:"ies"`
+}
+
 type InitiatingMessage struct {
-	NGSetupRequest *NGSetupRequest `json:"ng_setup_request,omitempty"`
+	NGSetupRequest   *NGSetupRequest   `json:"ng_setup_request,omitempty"`
+	InitialUEMessage *InitialUEMessage `json:"initial_ue_message,omitempty"`
 }
 
 type NGSetupResponse struct {
@@ -156,6 +216,9 @@ func buildInitiatingMessage(initMsg ngapType.InitiatingMessageValue) *Initiating
 	case ngapType.InitiatingMessagePresentNGSetupRequest:
 		initiatingMsg.NGSetupRequest = buildNGSetupRequest(initMsg.NGSetupRequest)
 		return initiatingMsg
+	case ngapType.InitiatingMessagePresentInitialUEMessage:
+		initiatingMsg.InitialUEMessage = buildInitialUEMessage(initMsg.InitialUEMessage)
+		return initiatingMsg
 	default:
 		logger.EllaLog.Warn("Unsupported procedure code", zap.Int("present", initMsg.Present))
 		return initiatingMsg
@@ -186,6 +249,273 @@ func buildUnsuccessfulOutcome(unsucMsg ngapType.UnsuccessfulOutcomeValue) *Unsuc
 		logger.EllaLog.Warn("Unsupported message", zap.Int("present", unsucMsg.Present))
 		return unsuccessfulOutcome
 	}
+}
+
+func buildInitialUEMessage(initialUEMessage *ngapType.InitialUEMessage) *InitialUEMessage {
+	if initialUEMessage == nil {
+		return nil
+	}
+
+	ieList := &InitialUEMessage{}
+
+	for i := 0; i < len(initialUEMessage.ProtocolIEs.List); i++ {
+		ie := initialUEMessage.ProtocolIEs.List[i]
+
+		switch ie.Id.Value {
+		case ngapType.ProtocolIEIDRANUENGAPID:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
+			})
+		case ngapType.ProtocolIEIDNASPDU:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				NASPDU:      ie.Value.NASPDU.Value,
+			})
+		case ngapType.ProtocolIEIDUserLocationInformation:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:                      protocolIEIDToString(ie.Id.Value),
+				Criticality:             criticalityToString(ie.Criticality.Value),
+				UserLocationInformation: buildUserLocationInformationIE(ie.Value.UserLocationInformation),
+			})
+		case ngapType.ProtocolIEIDRRCEstablishmentCause:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:                    protocolIEIDToString(ie.Id.Value),
+				Criticality:           criticalityToString(ie.Criticality.Value),
+				RRCEstablishmentCause: buildRRCEstablishmentCauseIE(ie.Value.RRCEstablishmentCause),
+			})
+		case ngapType.ProtocolIEIDFiveGSTMSI:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				FiveGSTMSI:  buildFiveGSTMSIIE(ie.Value.FiveGSTMSI),
+			})
+		case ngapType.ProtocolIEIDAMFSetID:
+			amfSetID := bitStringToHex(&ie.Value.AMFSetID.Value)
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				AMFSetID:    &amfSetID,
+			})
+		case ngapType.ProtocolIEIDUEContextRequest:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:               protocolIEIDToString(ie.Id.Value),
+				Criticality:      criticalityToString(ie.Criticality.Value),
+				UEContextRequest: buildUEContextRequestIE(ie.Value.UEContextRequest),
+			})
+		case ngapType.ProtocolIEIDAllowedNSSAI:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:           protocolIEIDToString(ie.Id.Value),
+				Criticality:  criticalityToString(ie.Criticality.Value),
+				AllowedNSSAI: buildAllowedNSSAI(ie.Value.AllowedNSSAI),
+			})
+		default:
+			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
+		}
+	}
+
+	return ieList
+}
+
+func buildAllowedNSSAI(allowedNSSAI *ngapType.AllowedNSSAI) []SNSSAI {
+	if allowedNSSAI == nil {
+		return nil
+	}
+
+	snssaiList := make([]SNSSAI, 0)
+
+	for i := 0; i < len(allowedNSSAI.List); i++ {
+		ngapSnssai := allowedNSSAI.List[i].SNSSAI
+		snssai := SNSSAI{
+			SST: int32(ngapSnssai.SST.Value[0]),
+		}
+		if ngapSnssai.SD != nil {
+			sd := hex.EncodeToString(ngapSnssai.SD.Value)
+			snssai.SD = &sd
+		}
+		snssaiList = append(snssaiList, snssai)
+	}
+
+	return snssaiList
+}
+
+func buildUEContextRequestIE(ueCtxReq *ngapType.UEContextRequest) *string {
+	if ueCtxReq == nil {
+		return nil
+	}
+
+	var req string
+
+	switch ueCtxReq.Value {
+	case ngapType.UEContextRequestPresentRequested:
+		req = "Requested"
+	default:
+		req = fmt.Sprintf("Unknown(%d)", ueCtxReq.Value)
+	}
+
+	return &req
+}
+
+func buildFiveGSTMSIIE(fivegStmsi *ngapType.FiveGSTMSI) *FiveGSTMSI {
+	if fivegStmsi == nil {
+		return nil
+	}
+
+	fiveg := &FiveGSTMSI{}
+
+	fiveg.AMFSetID = bitStringToHex(&fivegStmsi.AMFSetID.Value)
+	fiveg.AMFPointer = bitStringToHex(&fivegStmsi.AMFPointer.Value)
+	fiveg.FiveGTMSI = hex.EncodeToString(fivegStmsi.FiveGTMSI.Value)
+
+	return fiveg
+}
+
+func buildRRCEstablishmentCauseIE(rrc *ngapType.RRCEstablishmentCause) *string {
+	if rrc == nil {
+		return nil
+	}
+
+	var cause string
+
+	switch rrc.Value {
+	case ngapType.RRCEstablishmentCausePresentEmergency:
+		cause = "Emergency"
+	case ngapType.RRCEstablishmentCausePresentHighPriorityAccess:
+		cause = "HighPriorityAccess"
+	case ngapType.RRCEstablishmentCausePresentMtAccess:
+		cause = "MtAccess"
+	case ngapType.RRCEstablishmentCausePresentMoSignalling:
+		cause = "MoSignalling"
+	case ngapType.RRCEstablishmentCausePresentMoData:
+		cause = "MoData"
+	case ngapType.RRCEstablishmentCausePresentMoVoiceCall:
+		cause = "MoVoiceCall"
+	case ngapType.RRCEstablishmentCausePresentMoVideoCall:
+		cause = "MoVideoCall"
+	case ngapType.RRCEstablishmentCausePresentMoSMS:
+		cause = "MoSMS"
+	case ngapType.RRCEstablishmentCausePresentMpsPriorityAccess:
+		cause = "MpsPriorityAccess"
+	case ngapType.RRCEstablishmentCausePresentMcsPriorityAccess:
+		cause = "McsPriorityAccess"
+	case ngapType.RRCEstablishmentCausePresentNotAvailable:
+		cause = "NotAvailable"
+	default:
+		cause = fmt.Sprintf("Unknown(%d)", rrc.Value)
+	}
+
+	return &cause
+}
+
+func buildUserLocationInformationIE(uli *ngapType.UserLocationInformation) *UserLocationInformation {
+	if uli == nil {
+		return nil
+	}
+
+	userLocationInfo := &UserLocationInformation{}
+
+	switch uli.Present {
+	case ngapType.UserLocationInformationPresentUserLocationInformationEUTRA:
+		userLocationInfo.EUTRA = buildUserLocationInformationEUTRA(uli.UserLocationInformationEUTRA)
+	case ngapType.UserLocationInformationPresentUserLocationInformationNR:
+		userLocationInfo.NR = buildUserLocationInformationNR(uli.UserLocationInformationNR)
+	case ngapType.UserLocationInformationPresentUserLocationInformationN3IWF:
+		userLocationInfo.N3IWF = buildUserLocationInformationN3IWF(uli.UserLocationInformationN3IWF)
+	default:
+		logger.EllaLog.Warn("Unsupported UserLocationInformation type", zap.Int("present", uli.Present))
+	}
+
+	return userLocationInfo
+}
+
+func buildUserLocationInformationEUTRA(uliEUTRA *ngapType.UserLocationInformationEUTRA) *UserLocationInformationEUTRA {
+	if uliEUTRA == nil {
+		return nil
+	}
+
+	eutra := &UserLocationInformationEUTRA{}
+
+	eutra.EUTRACGI = EUTRACGI{
+		PLMNID:            plmnIDToModels(uliEUTRA.EUTRACGI.PLMNIdentity),
+		EUTRACellIdentity: bitStringToHex(&uliEUTRA.EUTRACGI.EUTRACellIdentity.Value),
+	}
+
+	eutra.TAI = TAI{
+		PLMNID: plmnIDToModels(uliEUTRA.TAI.PLMNIdentity),
+		TAC:    hex.EncodeToString(uliEUTRA.TAI.TAC.Value),
+	}
+
+	if uliEUTRA.TimeStamp != nil {
+		tsStr, err := timeStampToRFC3339(uliEUTRA.TimeStamp.Value)
+		if err != nil {
+			logger.EllaLog.Warn("failed to convert NGAP timestamp to RFC3339", zap.Error(err))
+		} else {
+			eutra.TimeStamp = &tsStr
+		}
+	}
+
+	return eutra
+}
+
+func timeStampToRFC3339(timeStampNgap aper.OctetString) (string, error) {
+	if len(timeStampNgap) != 4 {
+		return "", fmt.Errorf("invalid NGAP timestamp length: got %d, want 4", len(timeStampNgap))
+	}
+
+	ntpSeconds := binary.BigEndian.Uint32(timeStampNgap)
+	unixSeconds := int64(ntpSeconds) - ntpToUnixOffset
+	t := time.Unix(unixSeconds, 0).UTC()
+	return t.Format(time.RFC3339), nil
+}
+
+func buildUserLocationInformationNR(uliNR *ngapType.UserLocationInformationNR) *UserLocationInformationNR {
+	if uliNR == nil {
+		return nil
+	}
+
+	nr := &UserLocationInformationNR{}
+
+	nr.NRCGI = NRCGI{
+		PLMNID:         plmnIDToModels(uliNR.NRCGI.PLMNIdentity),
+		NRCellIdentity: bitStringToHex(&uliNR.NRCGI.NRCellIdentity.Value),
+	}
+
+	nr.TAI = TAI{
+		PLMNID: plmnIDToModels(uliNR.TAI.PLMNIdentity),
+		TAC:    hex.EncodeToString(uliNR.TAI.TAC.Value),
+	}
+
+	if uliNR.TimeStamp != nil {
+		tsStr, err := timeStampToRFC3339(uliNR.TimeStamp.Value)
+		if err != nil {
+			logger.EllaLog.Warn("failed to convert NGAP timestamp to RFC3339", zap.Error(err))
+		} else {
+			nr.TimeStamp = &tsStr
+		}
+	}
+
+	return nr
+}
+
+func buildUserLocationInformationN3IWF(uliN3IWF *ngapType.UserLocationInformationN3IWF) *UserLocationInformationN3IWF {
+	if uliN3IWF == nil {
+		return nil
+	}
+
+	n3iwf := &UserLocationInformationN3IWF{}
+
+	ipv4Addr, ipv6Addr := ngapConvert.IPAddressToString(uliN3IWF.IPAddress)
+	if ipv4Addr != "" {
+		n3iwf.IPAddress = ipv4Addr
+	} else {
+		n3iwf.IPAddress = ipv6Addr
+	}
+
+	n3iwf.PortNumber = ngapConvert.PortNumberToInt(uliN3IWF.PortNumber)
+
+	return n3iwf
 }
 
 func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupRequest {
@@ -581,11 +911,10 @@ func buildServedGUAMIListIE(sgl *ngapType.ServedGUAMIList) []Guami {
 
 	guamiList := make([]Guami, len(sgl.List))
 	for i := 0; i < len(sgl.List); i++ {
+		amfID := ngapConvert.AmfIdToModels(sgl.List[i].GUAMI.AMFRegionID.Value, sgl.List[i].GUAMI.AMFSetID.Value, sgl.List[i].GUAMI.AMFPointer.Value)
 		guamiList[i] = Guami{
-			PLMNID:      plmnIDToModels(sgl.List[i].GUAMI.PLMNIdentity),
-			AMFRegionID: bitStringToHex(&sgl.List[i].GUAMI.AMFRegionID.Value),
-			AMFSetID:    bitStringToHex(&sgl.List[i].GUAMI.AMFSetID.Value),
-			AMFPointer:  bitStringToHex(&sgl.List[i].GUAMI.AMFPointer.Value),
+			PLMNID: plmnIDToModels(sgl.List[i].GUAMI.PLMNIdentity),
+			AMFID:  amfID,
 		}
 	}
 
