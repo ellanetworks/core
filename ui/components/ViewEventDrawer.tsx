@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Drawer,
@@ -13,6 +13,7 @@ import {
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import {
+  Close as CloseIcon,
   ContentCopy as CopyIcon,
   Refresh as RefreshIcon,
 } from "@mui/icons-material";
@@ -193,6 +194,12 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
             {log?.protocol ?? "Log"}
           </Typography>
         </Box>
+
+        <Tooltip title="Close">
+          <IconButton onClick={onClose} aria-label="Close">
+            <CloseIcon />
+          </IconButton>
+        </Tooltip>
       </Box>
 
       <Box sx={{ px: 2, pt: 1 }}>
@@ -248,12 +255,6 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
         </Box>
 
         {renderDecoded()}
-
-        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
-          <Button onClick={onClose} variant="outlined">
-            Close
-          </Button>
-        </Box>
       </Box>
     </Drawer>
   );

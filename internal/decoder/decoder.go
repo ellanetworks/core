@@ -23,13 +23,20 @@ type SNSSAI struct {
 }
 
 type PLMN struct {
-	PLMNIdentity        string   `json:"plmn_identity"`
-	TAISliceSupportList []SNSSAI `json:"slice_support_list,omitempty"`
+	PLMNIdentity     string   `json:"plmn_identity"`
+	SliceSupportList []SNSSAI `json:"slice_support_list,omitempty"`
 }
 
 type SupportedTA struct {
 	TAC               string `json:"tac"`
 	BroadcastPLMNList []PLMN `json:"broadcast_plmn_list,omitempty"`
+}
+
+type Guami struct {
+	PLMNIdentity string `json:"plmn_identity"`
+	AMFRegionID  string `json:"amf_region_id"`
+	AMFSetID     string `json:"amf_set_id"`
+	AMFPointer   string `json:"amf_pointer"`
 }
 
 type IE struct {
@@ -40,6 +47,13 @@ type IE struct {
 	SupportedTAList        []SupportedTA      `json:"supported_ta_list,omitempty"`
 	DefaultPagingDRX       *string            `json:"default_paging_drx,omitempty"`
 	UERetentionInformation *string            `json:"ue_retention_information,omitempty"`
+	AMFName                *string            `json:"amf_name,omitempty"`
+	ServedGUAMIList        []Guami            `json:"served_guami_list,omitempty"`
+	RelativeAMFCapacity    *int64             `json:"relative_amf_capacity,omitempty"`
+	PLMNSupportList        []PLMN             `json:"plmn_support_list,omitempty"`
+	// for ng setup response:
+	// CriticalityDiagnostics *CriticalityDiagnostics `aper:"valueExt,referenceFieldValue:19"`
+	// UERetentionInformation *UERetentionInformation `aper:"referenceFieldValue:147"`
 }
 
 type NGSetupRequest struct {
@@ -50,10 +64,19 @@ type InitiatingMessage struct {
 	NGSetupRequest *NGSetupRequest `json:"ng_setup_request,omitempty"`
 }
 
+type NGSetupResponse struct {
+	IEs []IE `json:"ies"`
+}
+
+type SuccessfulOutcome struct {
+	NGSetupResponse *NGSetupResponse `json:"ng_setup_response,omitempty"`
+}
+
 type NGAPMessage struct {
 	ProcedureCode     string             `json:"procedure_code"`
 	Criticality       string             `json:"criticality"`
 	InitiatingMessage *InitiatingMessage `json:"initiating_message,omitempty"`
+	SuccessfulOutcome *SuccessfulOutcome `json:"successful_outcome,omitempty"`
 }
 
 func DecodeNetworkLog(raw []byte) (*NGAPMessage, error) {
@@ -73,32 +96,53 @@ func DecodeNetworkLog(raw []byte) (*NGAPMessage, error) {
 		}
 		ngapMsg.ProcedureCode = procedureCodeToString(im.ProcedureCode.Value)
 		ngapMsg.Criticality = criticalityToString(im.Criticality.Value)
-		ngapMsg.InitiatingMessage = buildInitiatingMessage(im.ProcedureCode.Value, im.Value)
+		ngapMsg.InitiatingMessage = buildInitiatingMessage(im.Value)
 		return ngapMsg, nil
-
+	case ngapType.NGAPPDUPresentSuccessfulOutcome:
+		so := pdu.SuccessfulOutcome
+		if so == nil {
+			return nil, fmt.Errorf("successful outcome is nil")
+		}
+		ngapMsg.ProcedureCode = procedureCodeToString(so.ProcedureCode.Value)
+		ngapMsg.Criticality = criticalityToString(so.Criticality.Value)
+		ngapMsg.SuccessfulOutcome = buildSuccessfulOutcome(so.Value)
+		return ngapMsg, nil
 	default:
 		return nil, fmt.Errorf("unknown NGAP PDU type")
 	}
 }
 
-func buildInitiatingMessage(procedureCode int64, initMsg ngapType.InitiatingMessageValue) *InitiatingMessage {
+func buildInitiatingMessage(initMsg ngapType.InitiatingMessageValue) *InitiatingMessage {
 	initiatingMsg := &InitiatingMessage{}
 
-	switch procedureCode {
-	case ngapType.ProcedureCodeNGSetup:
-		ngSetupRequest := initMsg.NGSetupRequest
-		if ngSetupRequest == nil {
-			return nil
-		}
+	switch initMsg.Present {
+	case ngapType.InitiatingMessagePresentNGSetupRequest:
 		initiatingMsg.NGSetupRequest = buildNGSetupRequest(initMsg.NGSetupRequest)
 		return initiatingMsg
 	default:
-		logger.EllaLog.Warn("Unsupported procedure code", zap.Int64("procedure_code", procedureCode))
+		logger.EllaLog.Warn("Unsupported procedure code", zap.Int("present", initMsg.Present))
+		return initiatingMsg
 	}
-	return nil
+}
+
+func buildSuccessfulOutcome(sucMsg ngapType.SuccessfulOutcomeValue) *SuccessfulOutcome {
+	successfulOutcome := &SuccessfulOutcome{}
+
+	switch sucMsg.Present {
+	case ngapType.SuccessfulOutcomePresentNGSetupResponse:
+		successfulOutcome.NGSetupResponse = buildNGSetupResponse(sucMsg.NGSetupResponse)
+		return successfulOutcome
+	default:
+		logger.EllaLog.Warn("Unsupported message", zap.Int("present", sucMsg.Present))
+		return successfulOutcome
+	}
 }
 
 func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupRequest {
+	if ngSetupRequest == nil {
+		return nil
+	}
+
 	ngSetup := &NGSetupRequest{}
 
 	for i := 0; i < len(ngSetupRequest.ProtocolIEs.List); i++ {
@@ -143,6 +187,99 @@ func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupReques
 	return ngSetup
 }
 
+func buildNGSetupResponse(ngSetupResponse *ngapType.NGSetupResponse) *NGSetupResponse {
+	if ngSetupResponse == nil {
+		return nil
+	}
+
+	ngSetup := &NGSetupResponse{}
+
+	for i := 0; i < len(ngSetupResponse.ProtocolIEs.List); i++ {
+		ie := ngSetupResponse.ProtocolIEs.List[i]
+
+		switch ie.Id.Value {
+		case ngapType.ProtocolIEIDAMFName:
+			ngSetup.IEs = append(ngSetup.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				AMFName:     buildAMFNameIE(ie.Value.AMFName),
+			})
+		case ngapType.ProtocolIEIDServedGUAMIList:
+			ngSetup.IEs = append(ngSetup.IEs, IE{
+				ID:              protocolIEIDToString(ie.Id.Value),
+				Criticality:     criticalityToString(ie.Criticality.Value),
+				ServedGUAMIList: buildServedGUAMIListIE(ie.Value.ServedGUAMIList),
+			})
+		case ngapType.ProtocolIEIDRelativeAMFCapacity:
+			ngSetup.IEs = append(ngSetup.IEs, IE{
+				ID:                  protocolIEIDToString(ie.Id.Value),
+				Criticality:         criticalityToString(ie.Criticality.Value),
+				RelativeAMFCapacity: &ie.Value.RelativeAMFCapacity.Value,
+			})
+		case ngapType.ProtocolIEIDPLMNSupportList:
+			ngSetup.IEs = append(ngSetup.IEs, IE{
+				ID:              protocolIEIDToString(ie.Id.Value),
+				Criticality:     criticalityToString(ie.Criticality.Value),
+				PLMNSupportList: buildPLMNSupportListIE(ie.Value.PLMNSupportList),
+			})
+		case ngapType.ProtocolIEIDUERetentionInformation:
+			ngSetup.IEs = append(ngSetup.IEs, IE{
+				ID:                     protocolIEIDToString(ie.Id.Value),
+				Criticality:            criticalityToString(ie.Criticality.Value),
+				UERetentionInformation: buildUERetentionInformationIE(ie.Value.UERetentionInformation),
+			})
+		default:
+			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
+		}
+	}
+
+	return ngSetup
+}
+
+func buildAMFNameIE(an *ngapType.AMFName) *string {
+	if an == nil || an.Value == "" {
+		return nil
+	}
+
+	s := an.Value
+
+	return &s
+}
+
+func buildServedGUAMIListIE(sgl *ngapType.ServedGUAMIList) []Guami {
+	if sgl == nil {
+		return nil
+	}
+
+	guamiList := make([]Guami, len(sgl.List))
+	for i := 0; i < len(sgl.List); i++ {
+		guamiList[i] = Guami{
+			PLMNIdentity: hex.EncodeToString(sgl.List[i].GUAMI.PLMNIdentity.Value),
+			AMFRegionID:  bitStringToHex(&sgl.List[i].GUAMI.AMFRegionID.Value),
+			AMFSetID:     bitStringToHex(&sgl.List[i].GUAMI.AMFSetID.Value),
+			AMFPointer:   bitStringToHex(&sgl.List[i].GUAMI.AMFPointer.Value),
+		}
+	}
+
+	return guamiList
+}
+
+func buildPLMNSupportListIE(psl *ngapType.PLMNSupportList) []PLMN {
+	if psl == nil {
+		return nil
+	}
+
+	plmnList := make([]PLMN, len(psl.List))
+	for i := 0; i < len(psl.List); i++ {
+		plmnList[i] = PLMN{
+			PLMNIdentity:     hex.EncodeToString(psl.List[i].PLMNIdentity.Value),
+			SliceSupportList: buildSNSSAIList(psl.List[i].SliceSupportList),
+		}
+	}
+
+	return plmnList
+}
+
 func buildGlobalRANNodeIDIE(grn *ngapType.GlobalRANNodeID) *GlobalRANNodeIDIE {
 	if grn == nil {
 		return nil
@@ -185,8 +322,8 @@ func buildPLMNList(bpl ngapType.BroadcastPLMNList) []PLMN {
 	plmns := make([]PLMN, len(bpl.List))
 	for i := 0; i < len(bpl.List); i++ {
 		plmns[i] = PLMN{
-			PLMNIdentity:        hex.EncodeToString(bpl.List[i].PLMNIdentity.Value),
-			TAISliceSupportList: buildSNSSAIList(bpl.List[i].TAISliceSupportList),
+			PLMNIdentity:     hex.EncodeToString(bpl.List[i].PLMNIdentity.Value),
+			SliceSupportList: buildSNSSAIList(bpl.List[i].TAISliceSupportList),
 		}
 	}
 
