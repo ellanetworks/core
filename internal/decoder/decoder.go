@@ -1,6 +1,7 @@
 package decoder
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -105,29 +106,64 @@ type FiveGSTMSI struct {
 	FiveGTMSI  string `json:"fiveg_tmsi"`
 }
 
+type RATRestriction struct {
+	PLMNID                    PLMNID `json:"plmn_id"`
+	RATRestrictionInformation string `json:"rat_restriction_information"`
+}
+
+type ForbiddenAreaInformation struct {
+	PLMNID        PLMNID   `json:"plmn_id"`
+	ForbiddenTACs []string `json:"forbidden_tacs"`
+}
+
+type ServiceAreaInformation struct {
+	PLMNID         PLMNID   `json:"plmn_id"`
+	AllowedTACs    []string `json:"allowed_tacs,omitempty"`
+	NotAllowedTACs []string `json:"not_allowed_tacs,omitempty"`
+}
+
+type MobilityRestrictionList struct {
+	ServingPLMN              PLMNID                     `json:"serving_plmn"`
+	EquivalentPLMNs          []PLMNID                   `json:"equivalent_plmns,omitempty"`
+	RATRestrictions          []RATRestriction           `json:"rat_restrictions,omitempty"`
+	ForbiddenAreaInformation []ForbiddenAreaInformation `json:"forbidden_area_information,omitempty"`
+	ServiceAreaInformation   []ServiceAreaInformation   `json:"service_area_information,omitempty"`
+}
+
+type UEAggregateMaximumBitRate struct {
+	UEAggregateMaximumBitRateDL int64 `json:"ue_aggregate_maximum_bit_rate_dl"`
+	UEAggregateMaximumBitRateUL int64 `json:"ue_aggregate_maximum_bit_rate_ul"`
+}
+
 type IE struct {
-	ID                      string                   `json:"id"`
-	Criticality             string                   `json:"criticality"`
-	GlobalRANNodeID         *GlobalRANNodeIDIE       `json:"global_ran_node_id,omitempty"`
-	RANNodeName             *string                  `json:"ran_node_name,omitempty"`
-	SupportedTAList         []SupportedTA            `json:"supported_ta_list,omitempty"`
-	DefaultPagingDRX        *string                  `json:"default_paging_drx,omitempty"`
-	UERetentionInformation  *string                  `json:"ue_retention_information,omitempty"`
-	AMFName                 *string                  `json:"amf_name,omitempty"`
-	ServedGUAMIList         []Guami                  `json:"served_guami_list,omitempty"`
-	RelativeAMFCapacity     *int64                   `json:"relative_amf_capacity,omitempty"`
-	PLMNSupportList         []PLMN                   `json:"plmn_support_list,omitempty"`
-	CriticalityDiagnostics  *CriticalityDiagnostics  `json:"criticality_diagnostics,omitempty"`
-	Cause                   *string                  `json:"cause,omitempty"`
-	TimeToWait              *string                  `json:"time_to_wait,omitempty"`
-	RANUENGAPID             *int64                   `json:"ran_ue_ngap_id,omitempty"`
-	NASPDU                  []byte                   `json:"nas_pdu,omitempty"`
-	UserLocationInformation *UserLocationInformation `json:"user_location_information,omitempty"`
-	RRCEstablishmentCause   *string                  `json:"rrc_establishment_cause,omitempty"`
-	FiveGSTMSI              *FiveGSTMSI              `json:"fiveg_stmsi,omitempty"`
-	AMFSetID                *string                  `json:"amf_set_id,omitempty"`
-	UEContextRequest        *string                  `json:"ue_context_request,omitempty"`
-	AllowedNSSAI            []SNSSAI                 `json:"allowed_nssai,omitempty"`
+	ID                        string                     `json:"id"`
+	Criticality               string                     `json:"criticality"`
+	GlobalRANNodeID           *GlobalRANNodeIDIE         `json:"global_ran_node_id,omitempty"`
+	RANNodeName               *string                    `json:"ran_node_name,omitempty"`
+	SupportedTAList           []SupportedTA              `json:"supported_ta_list,omitempty"`
+	DefaultPagingDRX          *string                    `json:"default_paging_drx,omitempty"`
+	UERetentionInformation    *string                    `json:"ue_retention_information,omitempty"`
+	AMFName                   *string                    `json:"amf_name,omitempty"`
+	ServedGUAMIList           []Guami                    `json:"served_guami_list,omitempty"`
+	RelativeAMFCapacity       *int64                     `json:"relative_amf_capacity,omitempty"`
+	PLMNSupportList           []PLMN                     `json:"plmn_support_list,omitempty"`
+	CriticalityDiagnostics    *CriticalityDiagnostics    `json:"criticality_diagnostics,omitempty"`
+	Cause                     *string                    `json:"cause,omitempty"`
+	TimeToWait                *string                    `json:"time_to_wait,omitempty"`
+	RANUENGAPID               *int64                     `json:"ran_ue_ngap_id,omitempty"`
+	NASPDU                    []byte                     `json:"nas_pdu,omitempty"`
+	UserLocationInformation   *UserLocationInformation   `json:"user_location_information,omitempty"`
+	RRCEstablishmentCause     *string                    `json:"rrc_establishment_cause,omitempty"`
+	FiveGSTMSI                *FiveGSTMSI                `json:"fiveg_stmsi,omitempty"`
+	AMFSetID                  *string                    `json:"amf_set_id,omitempty"`
+	UEContextRequest          *string                    `json:"ue_context_request,omitempty"`
+	AllowedNSSAI              []SNSSAI                   `json:"allowed_nssai,omitempty"`
+	AMFUENGAPID               *int64                     `json:"amf_ue_ngap_id,omitempty"`
+	OldAMF                    *string                    `json:"old_amf,omitempty"`
+	RANPagingPriority         *int64                     `json:"ran_paging_priority,omitempty"`
+	MobilityRestrictionList   *MobilityRestrictionList   `json:"mobility_restriction_list,omitempty"`
+	IndexToRFSP               *int64                     `json:"index_to_rfsp,omitempty"`
+	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate `json:"ue_aggregate_maximum_bit_rate,omitempty"`
 }
 
 type NGSetupRequest struct {
@@ -138,9 +174,14 @@ type InitialUEMessage struct {
 	IEs []IE `json:"ies"`
 }
 
+type DownlinkNASTransport struct {
+	IEs []IE `json:"ies"`
+}
+
 type InitiatingMessage struct {
-	NGSetupRequest   *NGSetupRequest   `json:"ng_setup_request,omitempty"`
-	InitialUEMessage *InitialUEMessage `json:"initial_ue_message,omitempty"`
+	NGSetupRequest       *NGSetupRequest       `json:"ng_setup_request,omitempty"`
+	InitialUEMessage     *InitialUEMessage     `json:"initial_ue_message,omitempty"`
+	DownlinkNASTransport *DownlinkNASTransport `json:"downlink_nas_transport,omitempty"`
 }
 
 type NGSetupResponse struct {
@@ -219,6 +260,9 @@ func buildInitiatingMessage(initMsg ngapType.InitiatingMessageValue) *Initiating
 	case ngapType.InitiatingMessagePresentInitialUEMessage:
 		initiatingMsg.InitialUEMessage = buildInitialUEMessage(initMsg.InitialUEMessage)
 		return initiatingMsg
+	case ngapType.InitiatingMessagePresentDownlinkNASTransport:
+		initiatingMsg.DownlinkNASTransport = buildDownlinkNASTransport(initMsg.DownlinkNASTransport)
+		return initiatingMsg
 	default:
 		logger.EllaLog.Warn("Unsupported procedure code", zap.Int("present", initMsg.Present))
 		return initiatingMsg
@@ -249,6 +293,167 @@ func buildUnsuccessfulOutcome(unsucMsg ngapType.UnsuccessfulOutcomeValue) *Unsuc
 		logger.EllaLog.Warn("Unsupported message", zap.Int("present", unsucMsg.Present))
 		return unsuccessfulOutcome
 	}
+}
+
+func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTransport) *DownlinkNASTransport {
+	if downlinkNASTransport == nil {
+		return nil
+	}
+
+	ieList := &DownlinkNASTransport{}
+
+	for i := 0; i < len(downlinkNASTransport.ProtocolIEs.List); i++ {
+		ie := downlinkNASTransport.ProtocolIEs.List[i]
+		switch ie.Id.Value {
+		case ngapType.ProtocolIEIDAMFUENGAPID:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
+			})
+		case ngapType.ProtocolIEIDRANUENGAPID:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
+			})
+		case ngapType.ProtocolIEIDOldAMF:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				OldAMF:      buildAMFNameIE(ie.Value.OldAMF),
+			})
+		case ngapType.ProtocolIEIDRANPagingPriority:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:                protocolIEIDToString(ie.Id.Value),
+				Criticality:       criticalityToString(ie.Criticality.Value),
+				RANPagingPriority: &ie.Value.RANPagingPriority.Value,
+			})
+		case ngapType.ProtocolIEIDNASPDU:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				NASPDU:      ie.Value.NASPDU.Value,
+			})
+		case ngapType.ProtocolIEIDMobilityRestrictionList:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:                      protocolIEIDToString(ie.Id.Value),
+				Criticality:             criticalityToString(ie.Criticality.Value),
+				MobilityRestrictionList: buildMobilityRestrictionListIE(ie.Value.MobilityRestrictionList),
+			})
+		case ngapType.ProtocolIEIDIndexToRFSP:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				IndexToRFSP: &ie.Value.IndexToRFSP.Value,
+			})
+		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:                        protocolIEIDToString(ie.Id.Value),
+				Criticality:               criticalityToString(ie.Criticality.Value),
+				UEAggregateMaximumBitRate: buildUEAggregateMaximumBitRateIE(ie.Value.UEAggregateMaximumBitRate),
+			})
+		case ngapType.ProtocolIEIDAllowedNSSAI:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:           protocolIEIDToString(ie.Id.Value),
+				Criticality:  criticalityToString(ie.Criticality.Value),
+				AllowedNSSAI: buildAllowedNSSAI(ie.Value.AllowedNSSAI),
+			})
+		default:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+			})
+			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
+		}
+	}
+	return ieList
+}
+
+func buildUEAggregateMaximumBitRateIE(ueambr *ngapType.UEAggregateMaximumBitRate) *UEAggregateMaximumBitRate {
+	if ueambr == nil {
+		return nil
+	}
+
+	return &UEAggregateMaximumBitRate{
+		UEAggregateMaximumBitRateDL: ueambr.UEAggregateMaximumBitRateDL.Value,
+		UEAggregateMaximumBitRateUL: ueambr.UEAggregateMaximumBitRateUL.Value,
+	}
+}
+
+func ratRestrictionInfoToString(ratType ngapType.RATRestrictionInformation) string {
+	if bytes.Equal(ratType.Value.Bytes, []byte{0x40}) {
+		return "NR"
+	} else if bytes.Equal(ratType.Value.Bytes, []byte{0x80}) {
+		return "EUTRA"
+	} else {
+		return fmt.Sprintf("Unknown (%v)", ratType.Value)
+	}
+}
+
+func buildMobilityRestrictionListIE(mrl *ngapType.MobilityRestrictionList) *MobilityRestrictionList {
+	if mrl == nil {
+		return nil
+	}
+
+	mobilityRestrictionList := &MobilityRestrictionList{}
+
+	mobilityRestrictionList.ServingPLMN = plmnIDToModels(mrl.ServingPLMN)
+
+	if mrl.EquivalentPLMNs != nil {
+		eqPlmns := make([]PLMNID, 0)
+		for i := 0; i < len(mrl.EquivalentPLMNs.List); i++ {
+			eqPlmns = append(eqPlmns, plmnIDToModels(mrl.EquivalentPLMNs.List[i]))
+		}
+		mobilityRestrictionList.EquivalentPLMNs = eqPlmns
+	}
+
+	if mrl.RATRestrictions != nil {
+		ratRestrictions := make([]RATRestriction, 0)
+		for i := 0; i < len(mrl.RATRestrictions.List); i++ {
+			ratRestrictions = append(ratRestrictions, RATRestriction{
+				PLMNID:                    plmnIDToModels(mrl.RATRestrictions.List[i].PLMNIdentity),
+				RATRestrictionInformation: ratRestrictionInfoToString(mrl.RATRestrictions.List[i].RATRestrictionInformation),
+			})
+		}
+		mobilityRestrictionList.RATRestrictions = ratRestrictions
+	}
+
+	if mrl.ForbiddenAreaInformation != nil {
+		faiList := make([]ForbiddenAreaInformation, 0)
+		for i := 0; i < len(mrl.ForbiddenAreaInformation.List); i++ {
+			tacList := make([]string, 0)
+			for j := 0; j < len(mrl.ForbiddenAreaInformation.List[i].ForbiddenTACs.List); j++ {
+				tacList = append(tacList, hex.EncodeToString(mrl.ForbiddenAreaInformation.List[i].ForbiddenTACs.List[j].Value))
+			}
+			faiList = append(faiList, ForbiddenAreaInformation{
+				PLMNID:        plmnIDToModels(mrl.ForbiddenAreaInformation.List[i].PLMNIdentity),
+				ForbiddenTACs: tacList,
+			})
+		}
+		mobilityRestrictionList.ForbiddenAreaInformation = faiList
+	}
+
+	if mrl.ServiceAreaInformation != nil {
+		saiList := make([]ServiceAreaInformation, 0)
+		for i := 0; i < len(mrl.ServiceAreaInformation.List); i++ {
+			allowedTACs := make([]string, 0)
+			for j := 0; j < len(mrl.ServiceAreaInformation.List[i].AllowedTACs.List); j++ {
+				allowedTACs = append(allowedTACs, hex.EncodeToString(mrl.ServiceAreaInformation.List[i].AllowedTACs.List[j].Value))
+			}
+			notAllowedTACs := make([]string, 0)
+			for j := 0; j < len(mrl.ServiceAreaInformation.List[i].NotAllowedTACs.List); j++ {
+				notAllowedTACs = append(notAllowedTACs, hex.EncodeToString(mrl.ServiceAreaInformation.List[i].NotAllowedTACs.List[j].Value))
+			}
+			saiList = append(saiList, ServiceAreaInformation{
+				PLMNID:         plmnIDToModels(mrl.ServiceAreaInformation.List[i].PLMNIdentity),
+				AllowedTACs:    allowedTACs,
+				NotAllowedTACs: notAllowedTACs,
+			})
+		}
+		mobilityRestrictionList.ServiceAreaInformation = saiList
+	}
+	return mobilityRestrictionList
 }
 
 func buildInitialUEMessage(initialUEMessage *ngapType.InitialUEMessage) *InitialUEMessage {
@@ -312,6 +517,10 @@ func buildInitialUEMessage(initialUEMessage *ngapType.InitialUEMessage) *Initial
 				AllowedNSSAI: buildAllowedNSSAI(ie.Value.AllowedNSSAI),
 			})
 		default:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+			})
 			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}
 	}
@@ -560,6 +769,10 @@ func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupReques
 				UERetentionInformation: buildUERetentionInformationIE(ie.Value.UERetentionInformation),
 			})
 		default:
+			ngSetup.IEs = append(ngSetup.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+			})
 			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}
 	}
@@ -615,6 +828,10 @@ func buildNGSetupResponse(ngSetupResponse *ngapType.NGSetupResponse) *NGSetupRes
 				UERetentionInformation: buildUERetentionInformationIE(ie.Value.UERetentionInformation),
 			})
 		default:
+			ngSetup.IEs = append(ngSetup.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+			})
 			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}
 	}
@@ -652,6 +869,10 @@ func buildNGSetupFailure(ngSetupFailure *ngapType.NGSetupFailure) *NGSetupFailur
 				CriticalityDiagnostics: buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
 			})
 		default:
+			ngFail.IEs = append(ngFail.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+			})
 			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}
 	}
