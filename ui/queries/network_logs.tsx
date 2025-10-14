@@ -65,6 +65,38 @@ export async function listNetworkLogs(
   return json.result;
 }
 
+export async function decodeNetworkLog(
+  authToken: string,
+  id: string,
+) {
+  const url = new URL(`/api/v1/logs/network/${id}`, window.location.origin);
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${authToken}`,
+    },
+  });
+
+  let json: { result: ListNetworkLogsResponse; error?: string };
+  try {
+    json = await response.json();
+  } catch {
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
+    );
+  }
+
+  return json.result;
+}
+
 export async function clearNetworkLogs(authToken: string): Promise<void> {
   const response = await fetch(`/api/v1/logs/network`, {
     method: "DELETE",

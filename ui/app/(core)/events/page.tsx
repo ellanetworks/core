@@ -42,8 +42,8 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { useAuth } from "@/contexts/AuthContext";
 import EditNetworkLogRetentionPolicyModal from "@/components/EditNetworkLogRetentionPolicyModal";
-import ViewLogModal from "@/components/ViewLogModal";
-import type { LogRow } from "@/components/ViewLogModal";
+import ViewEventDrawer from "@/components/ViewEventDrawer";
+import type { LogRow } from "@/components/ViewEventDrawer";
 
 const MAX_WIDTH = 1400;
 
@@ -221,7 +221,7 @@ const Events: React.FC = () => {
     message: string;
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
-  const [viewLogModalOpen, setViewLogModalOpen] = useState(false);
+  const [viewEventDrawerOpen, setViewEventDrawerOpen] = useState(false);
   const [selectedRow, setSelectedRow] = useState<LogRow | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const visible = usePageVisible();
@@ -412,7 +412,7 @@ const Events: React.FC = () => {
                   direction: r.direction,
                   details: r.details ?? "",
                 });
-                setViewLogModalOpen(true);
+                setViewEventDrawerOpen(true);
               }}
               aria-label="View details"
             >
@@ -513,9 +513,9 @@ const Events: React.FC = () => {
         </Box>
       </>
 
-      <ViewLogModal
-        open={viewLogModalOpen}
-        onClose={() => setViewLogModalOpen(false)}
+      <ViewEventDrawer
+        open={viewEventDrawerOpen}
+        onClose={() => setViewEventDrawerOpen(false)}
         log={selectedRow}
       />
       <EditNetworkLogRetentionPolicyModal
