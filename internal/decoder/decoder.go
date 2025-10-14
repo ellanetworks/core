@@ -178,10 +178,15 @@ type DownlinkNASTransport struct {
 	IEs []IE `json:"ies"`
 }
 
+type UplinkNASTransport struct {
+	IEs []IE `json:"ies"`
+}
+
 type InitiatingMessageValue struct {
 	NGSetupRequest       *NGSetupRequest       `json:"ng_setup_request,omitempty"`
 	InitialUEMessage     *InitialUEMessage     `json:"initial_ue_message,omitempty"`
 	DownlinkNASTransport *DownlinkNASTransport `json:"downlink_nas_transport,omitempty"`
+	UplinkNASTransport   *UplinkNASTransport   `json:"uplink_nas_transport,omitempty"`
 }
 
 type InitiatingMessage struct {
@@ -269,6 +274,9 @@ func buildInitiatingMessage(initMsg *ngapType.InitiatingMessage) *InitiatingMess
 	case ngapType.InitiatingMessagePresentDownlinkNASTransport:
 		initiatingMsg.Value.DownlinkNASTransport = buildDownlinkNASTransport(initMsg.Value.DownlinkNASTransport)
 		return initiatingMsg
+	case ngapType.InitiatingMessagePresentUplinkNASTransport:
+		initiatingMsg.Value.UplinkNASTransport = buildUplinkNASTransport(initMsg.Value.UplinkNASTransport)
+		return initiatingMsg
 	default:
 		logger.EllaLog.Warn("Unsupported procedure code", zap.Int("present", initMsg.Value.Present))
 		return initiatingMsg
@@ -299,6 +307,7 @@ func buildUnsuccessfulOutcome(unsucMsg *ngapType.UnsuccessfulOutcome) *Unsuccess
 	if unsucMsg == nil {
 		return nil
 	}
+
 	unsuccessfulOutcome := &UnsuccessfulOutcome{
 		ProcedureCode: procedureCodeToString(unsucMsg.ProcedureCode.Value),
 		Criticality:   criticalityToString(unsucMsg.Criticality.Value),
@@ -313,6 +322,52 @@ func buildUnsuccessfulOutcome(unsucMsg *ngapType.UnsuccessfulOutcome) *Unsuccess
 		logger.EllaLog.Warn("Unsupported message", zap.Int("present", unsucMsg.Value.Present))
 		return unsuccessfulOutcome
 	}
+}
+
+func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *UplinkNASTransport {
+	if uplinkNASTransport == nil {
+		return nil
+	}
+
+	ieList := &UplinkNASTransport{}
+
+	for i := 0; i < len(uplinkNASTransport.ProtocolIEs.List); i++ {
+		ie := uplinkNASTransport.ProtocolIEs.List[i]
+		switch ie.Id.Value {
+		case ngapType.ProtocolIEIDAMFUENGAPID:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
+			})
+		case ngapType.ProtocolIEIDRANUENGAPID:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
+			})
+		case ngapType.ProtocolIEIDNASPDU:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				NASPDU:      ie.Value.NASPDU.Value,
+			})
+		case ngapType.ProtocolIEIDUserLocationInformation:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:                      protocolIEIDToString(ie.Id.Value),
+				Criticality:             criticalityToString(ie.Criticality.Value),
+				UserLocationInformation: buildUserLocationInformationIE(ie.Value.UserLocationInformation),
+			})
+		default:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+			})
+			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
+		}
+	}
+
+	return ieList
 }
 
 func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTransport) *DownlinkNASTransport {
