@@ -35,11 +35,15 @@ type Database struct {
 	apiTokensTable         string
 	sessionsTable          string
 	natSettingsTable       string
+	dailyUsageTable        string
 	conn                   *sqlair.DB
 }
 
-// Initial Log Retention Policy values
-const DefaultLogRetentionDays = 7
+// Initial Data Retention Policy values
+const (
+	DefaultLogRetentionDays             = 7
+	DefaultSubscriberUsageRetentionDays = 90
+)
 
 // Initial operator values
 const (
@@ -135,13 +139,16 @@ func NewDatabase(databasePath string) (*Database, error) {
 	if _, err := sqlConnection.Exec(QueryCreateRadioLogsIndex); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateLogRetentionPolicyTable, LogRetentionPolicyTableName)); err != nil {
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRetentionPolicyTable, RetentionPolicyTableName)); err != nil {
 		return nil, err
 	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateAPITokensTable, APITokensTableName)); err != nil {
 		return nil, err
 	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateNATSettingsTable, NATSettingsTableName)); err != nil {
+		return nil, err
+	}
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateDailyUsageTable, DailyUsageTableName)); err != nil {
 		return nil, err
 	}
 
@@ -157,10 +164,11 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.auditLogsTable = AuditLogsTableName
 	db.subscriberLogsTable = SubscriberLogsTableName
 	db.radioLogsTable = RadioLogsTableName
-	db.retentionPoliciesTable = LogRetentionPolicyTableName
+	db.retentionPoliciesTable = RetentionPolicyTableName
 	db.apiTokensTable = APITokensTableName
 	db.sessionsTable = SessionsTableName
 	db.natSettingsTable = NATSettingsTableName
+	db.dailyUsageTable = DailyUsageTableName
 
 	err = db.Initialize()
 	if err != nil {
@@ -202,43 +210,56 @@ func (db *Database) Initialize() error {
 		}
 	}
 
-	if !db.IsLogRetentionPolicyInitialized(context.Background(), CategoryAuditLogs) {
-		initialPolicy := &LogRetentionPolicy{
+	if !db.IsRetentionPolicyInitialized(context.Background(), CategoryAuditLogs) {
+		initialPolicy := &RetentionPolicy{
 			Category: CategoryAuditLogs,
 			Days:     DefaultLogRetentionDays,
 		}
 
-		if err := db.SetLogRetentionPolicy(context.Background(), initialPolicy); err != nil {
+		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
 			return fmt.Errorf("failed to initialize log retention policy: %v", err)
 		}
 
 		logger.DBLog.Info("Initialized audit log retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
-	if !db.IsLogRetentionPolicyInitialized(context.Background(), CategorySubscriberLogs) {
-		initialPolicy := &LogRetentionPolicy{
+	if !db.IsRetentionPolicyInitialized(context.Background(), CategorySubscriberLogs) {
+		initialPolicy := &RetentionPolicy{
 			Category: CategorySubscriberLogs,
 			Days:     DefaultLogRetentionDays,
 		}
 
-		if err := db.SetLogRetentionPolicy(context.Background(), initialPolicy); err != nil {
+		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
 			return fmt.Errorf("failed to initialize subscriber log retention policy: %v", err)
 		}
 
 		logger.DBLog.Info("Initialized subscriber log retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
-	if !db.IsLogRetentionPolicyInitialized(context.Background(), CategoryRadioLogs) {
-		initialPolicy := &LogRetentionPolicy{
+	if !db.IsRetentionPolicyInitialized(context.Background(), CategoryRadioLogs) {
+		initialPolicy := &RetentionPolicy{
 			Category: CategoryRadioLogs,
 			Days:     DefaultLogRetentionDays,
 		}
 
-		if err := db.SetLogRetentionPolicy(context.Background(), initialPolicy); err != nil {
+		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
 			return fmt.Errorf("failed to initialize radio log retention policy: %v", err)
 		}
 
 		logger.DBLog.Info("Initialized radio log retention policy", zap.Int("days", DefaultLogRetentionDays))
+	}
+
+	if !db.IsRetentionPolicyInitialized(context.Background(), CategorySubscriberUsage) {
+		initialPolicy := &RetentionPolicy{
+			Category: CategorySubscriberUsage,
+			Days:     DefaultSubscriberUsageRetentionDays,
+		}
+
+		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
+			return fmt.Errorf("failed to initialize subscriber usage retention policy: %v", err)
+		}
+
+		logger.DBLog.Info("Initialized subscriber usage retention policy", zap.Int("days", DefaultSubscriberUsageRetentionDays))
 	}
 
 	numDataNetworks, err := db.CountDataNetworks(context.Background())
