@@ -234,8 +234,12 @@ func TestDecode_NGSetupResponse(t *testing.T) {
 
 	guami := item1.ServedGUAMIList[0]
 
-	if guami.PLMNIdentity != "00f110" {
-		t.Errorf("expected PLMNIdentity=00f110, got %s", guami.PLMNIdentity)
+	if guami.PLMNID.Mcc != "001" {
+		t.Errorf("expected PLMNID.Mcc=001, got %s", guami.PLMNID.Mcc)
+	}
+
+	if guami.PLMNID.Mnc != "01" {
+		t.Errorf("expected PLMNID.Mnc=01, got %s", guami.PLMNID.Mnc)
 	}
 
 	if guami.AMFRegionID != "ca" {

@@ -39,27 +39,38 @@ type SupportedTA struct {
 }
 
 type Guami struct {
-	PLMNIdentity string `json:"plmn_identity"`
-	AMFRegionID  string `json:"amf_region_id"`
-	AMFSetID     string `json:"amf_set_id"`
-	AMFPointer   string `json:"amf_pointer"`
+	PLMNID      PLMNID `json:"plmn_id"`
+	AMFRegionID string `json:"amf_region_id"`
+	AMFSetID    string `json:"amf_set_id"`
+	AMFPointer  string `json:"amf_pointer"`
+}
+
+type IEsCriticalityDiagnostics struct {
+	IECriticality string `json:"ie_criticality"`
+	IEID          string `json:"ie_id"`
+	TypeOfError   string `json:"type_of_error"`
+}
+
+type CriticalityDiagnostics struct {
+	ProcedureCode             *string                     `json:"procedure_code,omitempty"`
+	TriggeringMessage         *string                     `json:"triggering_message,omitempty"`
+	ProcedureCriticality      *string                     `json:"procedure_criticality,omitempty"`
+	IEsCriticalityDiagnostics []IEsCriticalityDiagnostics `json:"ie_criticality_diagnostics,omitempty"`
 }
 
 type IE struct {
-	ID                     string             `json:"id"`
-	Criticality            string             `json:"criticality"`
-	GlobalRANNodeID        *GlobalRANNodeIDIE `json:"global_ran_node_id,omitempty"`
-	RANNodeName            *string            `json:"ran_node_name,omitempty"`
-	SupportedTAList        []SupportedTA      `json:"supported_ta_list,omitempty"`
-	DefaultPagingDRX       *string            `json:"default_paging_drx,omitempty"`
-	UERetentionInformation *string            `json:"ue_retention_information,omitempty"`
-	AMFName                *string            `json:"amf_name,omitempty"`
-	ServedGUAMIList        []Guami            `json:"served_guami_list,omitempty"`
-	RelativeAMFCapacity    *int64             `json:"relative_amf_capacity,omitempty"`
-	PLMNSupportList        []PLMN             `json:"plmn_support_list,omitempty"`
-	// for ng setup response:
-	// CriticalityDiagnostics *CriticalityDiagnostics `aper:"valueExt,referenceFieldValue:19"`
-	// UERetentionInformation *UERetentionInformation `aper:"referenceFieldValue:147"`
+	ID                     string                  `json:"id"`
+	Criticality            string                  `json:"criticality"`
+	GlobalRANNodeID        *GlobalRANNodeIDIE      `json:"global_ran_node_id,omitempty"`
+	RANNodeName            *string                 `json:"ran_node_name,omitempty"`
+	SupportedTAList        []SupportedTA           `json:"supported_ta_list,omitempty"`
+	DefaultPagingDRX       *string                 `json:"default_paging_drx,omitempty"`
+	UERetentionInformation *string                 `json:"ue_retention_information,omitempty"`
+	AMFName                *string                 `json:"amf_name,omitempty"`
+	ServedGUAMIList        []Guami                 `json:"served_guami_list,omitempty"`
+	RelativeAMFCapacity    *int64                  `json:"relative_amf_capacity,omitempty"`
+	PLMNSupportList        []PLMN                  `json:"plmn_support_list,omitempty"`
+	CriticalityDiagnostics *CriticalityDiagnostics `json:"criticality_diagnostics,omitempty"`
 }
 
 type NGSetupRequest struct {
@@ -114,7 +125,7 @@ func DecodeNetworkLog(raw []byte) (*NGAPMessage, error) {
 		ngapMsg.SuccessfulOutcome = buildSuccessfulOutcome(so.Value)
 		return ngapMsg, nil
 	default:
-		return nil, fmt.Errorf("unknown NGAP PDU type")
+		return nil, fmt.Errorf("unknown NGAP PDU type: %d", pdu.Present)
 	}
 }
 
@@ -228,6 +239,12 @@ func buildNGSetupResponse(ngSetupResponse *ngapType.NGSetupResponse) *NGSetupRes
 				Criticality:     criticalityToString(ie.Criticality.Value),
 				PLMNSupportList: buildPLMNSupportListIE(ie.Value.PLMNSupportList),
 			})
+		case ngapType.ProtocolIEIDCriticalityDiagnostics:
+			ngSetup.IEs = append(ngSetup.IEs, IE{
+				ID:                     protocolIEIDToString(ie.Id.Value),
+				Criticality:            criticalityToString(ie.Criticality.Value),
+				CriticalityDiagnostics: buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
+			})
 		case ngapType.ProtocolIEIDUERetentionInformation:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:                     protocolIEIDToString(ie.Id.Value),
@@ -260,10 +277,10 @@ func buildServedGUAMIListIE(sgl *ngapType.ServedGUAMIList) []Guami {
 	guamiList := make([]Guami, len(sgl.List))
 	for i := 0; i < len(sgl.List); i++ {
 		guamiList[i] = Guami{
-			PLMNIdentity: hex.EncodeToString(sgl.List[i].GUAMI.PLMNIdentity.Value),
-			AMFRegionID:  bitStringToHex(&sgl.List[i].GUAMI.AMFRegionID.Value),
-			AMFSetID:     bitStringToHex(&sgl.List[i].GUAMI.AMFSetID.Value),
-			AMFPointer:   bitStringToHex(&sgl.List[i].GUAMI.AMFPointer.Value),
+			PLMNID:      plmnIDToModels(sgl.List[i].GUAMI.PLMNIdentity),
+			AMFRegionID: bitStringToHex(&sgl.List[i].GUAMI.AMFRegionID.Value),
+			AMFSetID:    bitStringToHex(&sgl.List[i].GUAMI.AMFSetID.Value),
+			AMFPointer:  bitStringToHex(&sgl.List[i].GUAMI.AMFPointer.Value),
 		}
 	}
 
@@ -284,6 +301,77 @@ func buildPLMNSupportListIE(psl *ngapType.PLMNSupportList) []PLMN {
 	}
 
 	return plmnList
+}
+
+func buildCriticalityDiagnosticsIE(cd *ngapType.CriticalityDiagnostics) *CriticalityDiagnostics {
+	if cd == nil {
+		return nil
+	}
+
+	critDiag := &CriticalityDiagnostics{}
+
+	if cd.ProcedureCode != nil {
+		procCode := procedureCodeToString(cd.ProcedureCode.Value)
+		critDiag.ProcedureCode = &procCode
+	}
+
+	if cd.TriggeringMessage != nil {
+		trigMsg := triggeringMessageToString(cd.TriggeringMessage.Value)
+		critDiag.TriggeringMessage = &trigMsg
+	}
+
+	if cd.ProcedureCriticality != nil {
+		procCrit := criticalityToString(cd.ProcedureCriticality.Value)
+		critDiag.ProcedureCriticality = &procCrit
+	}
+
+	if cd.IEsCriticalityDiagnostics != nil {
+		critDiag.IEsCriticalityDiagnostics = buildIEsCriticalityDiagnisticsList(cd.IEsCriticalityDiagnostics)
+	}
+
+	return critDiag
+}
+
+func buildIEsCriticalityDiagnisticsList(ieList *ngapType.CriticalityDiagnosticsIEList) []IEsCriticalityDiagnostics {
+	if ieList == nil {
+		return nil
+	}
+
+	ies := make([]IEsCriticalityDiagnostics, len(ieList.List))
+	for i := 0; i < len(ieList.List); i++ {
+		ie := ieList.List[i]
+		ies[i] = IEsCriticalityDiagnostics{
+			IECriticality: criticalityToString(ie.IECriticality.Value),
+			IEID:          protocolIEIDToString(ie.IEID.Value),
+			TypeOfError:   typeOfErrorToString(ie.TypeOfError.Value),
+		}
+	}
+
+	return ies
+}
+
+func typeOfErrorToString(toe aper.Enumerated) string {
+	switch toe {
+	case ngapType.TypeOfErrorPresentNotUnderstood:
+		return "NotUnderstood (0)"
+	case ngapType.TypeOfErrorPresentMissing:
+		return "Missing (1)"
+	default:
+		return fmt.Sprintf("Unknown (%d)", toe)
+	}
+}
+
+func triggeringMessageToString(tm aper.Enumerated) string {
+	switch tm {
+	case ngapType.TriggeringMessagePresentInitiatingMessage:
+		return "InitiatingMessage (0)"
+	case ngapType.TriggeringMessagePresentSuccessfulOutcome:
+		return "SuccessfulOutcome (1)"
+	case ngapType.TriggeringMessagePresentUnsuccessfullOutcome:
+		return "UnsuccessfulOutcome (2)"
+	default:
+		return fmt.Sprintf("Unknown (%d)", tm)
+	}
 }
 
 func buildGlobalRANNodeIDIE(grn *ngapType.GlobalRANNodeID) *GlobalRANNodeIDIE {
