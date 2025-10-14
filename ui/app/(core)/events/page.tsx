@@ -1,28 +1,19 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Box,
-  Typography,
-  Alert,
-  Chip,
-  Collapse,
-  IconButton,
-  Tooltip,
-} from "@mui/material";
+import { Box, Typography, Alert, Chip, Collapse, Tooltip } from "@mui/material";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import {
   DataGrid,
   GridFilterModel,
-  GridLogicOperator,
   getGridStringOperators,
   getGridSingleSelectOperators,
   getGridDateOperators,
   type GridFilterOperator,
   type GridColDef,
   type GridPaginationModel,
+  type GridRowParams,
 } from "@mui/x-data-grid";
-import VisibilityIcon from "@mui/icons-material/Visibility";
 import EastIcon from "@mui/icons-material/East";
 import WestIcon from "@mui/icons-material/West";
 import {
@@ -57,7 +48,6 @@ const PROTOCOL_EQ = getGridSingleSelectOperators().filter(
   (op) => op.value === "is",
 );
 
-// turns "2025-10-09T09:34:27.496-0400" into "...-04:00"
 const normalizeRfc3339Offset = (s: string) =>
   s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
 
@@ -76,48 +66,32 @@ function formatRfc3339WithOffset(d: Date): string {
   const mm = pad(d.getMinutes());
   const ss = pad(d.getSeconds());
   const ms = pad(d.getMilliseconds(), 3);
-
   const tzMin = -d.getTimezoneOffset();
   const sign = tzMin >= 0 ? "+" : "-";
   const tzH = pad(Math.trunc(Math.abs(tzMin) / 60));
   const tzM = pad(Math.abs(tzMin) % 60);
-
   return `${y}-${m}-${day}T${hh}:${mm}:${ss}.${ms}${sign}${tzH}:${tzM}`;
 }
 
 const ProtocolCell: React.FC<{ value?: string }> = ({ value }) => {
   if (!value) return null;
-
   const val = String(value).toUpperCase();
-
   const styles =
     val === "NGAP"
-      ? {
-          backgroundColor: "#003366",
-          color: "#fff",
-        }
+      ? { backgroundColor: "#003366", color: "#fff" }
       : val === "NAS"
-        ? {
-            backgroundColor: "#ff7300ff",
-            color: "#fff",
-          }
+        ? { backgroundColor: "#ff7300ff", color: "#fff" }
         : {
             backgroundColor: "transparent",
             color: "text.primary",
             border: "1px solid",
             borderColor: "divider",
           };
-
   return (
     <Chip
       label={val}
       size="small"
-      sx={{
-        fontWeight: 600,
-        letterSpacing: 0.25,
-        height: 22,
-        ...styles,
-      }}
+      sx={{ fontWeight: 600, letterSpacing: 0.25, height: 22, ...styles }}
       aria-label={`Protocol ${val}`}
     />
   );
@@ -139,12 +113,10 @@ function filtersToParams(
   const bucket: Record<string, string[]> = {};
   let timestampFromISO: string | undefined;
   let timestampToISO: string | undefined;
-
   const ms = (iso: string) => new Date(iso).getTime();
 
   for (const { field, operator, value } of items) {
     if (!field || value == null || value === "") continue;
-
     if (field === "timestamp" || field === "timestamp_dt") {
       const iso = toBackendTimestamp(value);
       if (!iso) continue;
@@ -157,7 +129,6 @@ function filtersToParams(
       }
       continue;
     }
-
     const arr = Array.isArray(value) ? value.map(String) : [String(value)];
     bucket[field] = (bucket[field] ?? []).concat(arr);
   }
@@ -173,14 +144,11 @@ function filtersToParams(
 
 const DirectionCell: React.FC<{ value?: string }> = ({ value }) => {
   const theme = useTheme();
-
   if (!value) return null;
-
   const Icon = value === "inbound" ? EastIcon : WestIcon;
   const title = value === "inbound" ? "Receive (inbound)" : "Send (outbound)";
   const color =
     value === "inbound" ? theme.palette.success.main : theme.palette.info.main;
-
   return (
     <Tooltip title={title}>
       <Box
@@ -388,40 +356,21 @@ const Events: React.FC = () => {
         sortable: false,
         filterOperators: STRING_EQ,
       },
-      {
-        field: "view",
-        headerName: "",
-        sortable: false,
-        filterable: false,
-        width: 60,
-        align: "center",
-        headerAlign: "center",
-        renderCell: (params) => (
-          <Tooltip title="View details">
-            <IconButton
-              color="primary"
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                const r = params.row;
-                setSelectedRow({
-                  id: String(r.id),
-                  timestamp: r.timestamp,
-                  protocol: r.protocol,
-                  messageType: r.message_type,
-                  direction: r.direction,
-                  details: r.details ?? "",
-                });
-                setViewEventDrawerOpen(true);
-              }}
-              aria-label="View details"
-            >
-              <VisibilityIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        ),
-      },
     ];
+  }, []);
+
+  const handleRowClick = useCallback((params: GridRowParams<APINetworkLog>) => {
+    const r = params.row;
+    setSelectedRow({
+      id: String(r.id),
+      timestamp: r.timestamp,
+      protocol: r.protocol,
+      messageType: r.message_type,
+      direction: r.direction,
+      local_address: r.local_address,
+      remote_address: r.remote_address,
+    });
+    setViewEventDrawerOpen(true);
   }, []);
 
   const subDescription =
@@ -486,16 +435,7 @@ const Events: React.FC = () => {
                 onFilterModelChange={onSubFilterModelChange}
                 pageSizeOptions={[10, 25, 50, 100]}
                 slots={{ toolbar: EventToolbar }}
-                slotProps={{
-                  filterPanel: {
-                    disableAddFilterButton: false,
-                    disableRemoveAllButton: false,
-                    logicOperators: [GridLogicOperator.And],
-                    filterFormProps: {
-                      logicOperatorInputProps: { sx: { display: "none" } },
-                    },
-                  },
-                }}
+                onRowClick={handleRowClick}
                 showToolbar
                 sx={{
                   border: 1,
@@ -506,6 +446,7 @@ const Events: React.FC = () => {
                     borderColor: "divider",
                   },
                   "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
+                  "& .MuiDataGrid-row:hover": { cursor: "pointer" },
                 }}
               />
             </EventToolbarContext.Provider>

@@ -52,9 +52,6 @@ func SendToRan(ran *context.AmfRan, packet []byte, msgType string) error {
 		ran.Conn.LocalAddr().String(),
 		ran.Conn.RemoteAddr().String(),
 		packet,
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranName", ran.Name),
-		zap.String("ranIP", ran.GnbIP),
 	)
 
 	return nil

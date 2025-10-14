@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -84,6 +85,62 @@ func TestNetworkLogsEndToEnd(t *testing.T) {
 
 	if len(res) != 0 {
 		t.Fatalf("Expected no setwork logs after deletion, but found %d", len(res))
+	}
+}
+
+func TestGetNetworkLogByID(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %v", err)
+	}
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %v", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	raw := `{
+		"timestamp":"2024-10-01T12:00:00Z",
+		"level":"info",
+		"component":"Network",
+		"message_type":"test_event",
+		"direction":"inbound",
+		"protocol":"ngap",
+		"details":"This is a test setwork log entry",
+		"raw":"SGVsbG8gd29ybGQh"
+	}`
+
+	if err := database.InsertNetworkLogJSON(ctx, []byte(raw)); err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	logs, total, err := database.ListNetworkLogs(ctx, 1, 10, nil)
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+
+	if total != 1 {
+		t.Fatalf("expected total 1 log, got %d", total)
+	}
+
+	if got := len(logs); got != 1 {
+		t.Fatalf("expected 1 log, got %d", got)
+	}
+
+	logID := logs[0].ID
+
+	log, err := database.GetNetworkLogByID(ctx, logID)
+	if err != nil {
+		t.Fatalf("GetNetworkLogByID failed: %v", err)
+	}
+
+	if !reflect.DeepEqual(logs[0], *log) {
+		t.Fatalf("fetched log does not match listed log")
 	}
 }
 

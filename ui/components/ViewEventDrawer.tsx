@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Drawer,
@@ -13,7 +13,6 @@ import {
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import {
-  Close as CloseIcon,
   ContentCopy as CopyIcon,
   Refresh as RefreshIcon,
 } from "@mui/icons-material";
@@ -26,23 +25,16 @@ export interface LogRow {
   id: string;
   timestamp: string;
   protocol: string;
+  local_address: string;
+  remote_address: string;
   messageType: string;
   direction: string;
-  details: string; // JSON or free text
 }
 
 interface ViewEventDrawerProps {
   open: boolean;
   onClose: () => void;
   log: LogRow | null;
-}
-
-function parseDetails(details: string): Record<string, unknown> | null {
-  try {
-    return JSON.parse(details);
-  } catch {
-    return null;
-  }
 }
 
 const MonoBlock: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -80,11 +72,6 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
       router.push("/login");
     }
   }, [authReady, accessToken, router]);
-
-  const parsedDetails = useMemo(
-    () => (log?.details ? parseDetails(log.details) : null),
-    [log?.details],
-  );
 
   const {
     data: decodedData,
@@ -206,12 +193,6 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
             {log?.protocol ?? "Log"}
           </Typography>
         </Box>
-
-        <Tooltip title="Close">
-          <IconButton onClick={onClose} aria-label="Close">
-            <CloseIcon />
-          </IconButton>
-        </Tooltip>
       </Box>
 
       <Box sx={{ px: 2, pt: 1 }}>
@@ -239,10 +220,13 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
             <strong>Timestamp:</strong> {log?.timestamp ?? "—"}
           </Typography>
           <Typography variant="body2">
-            <strong>ID:</strong> {log?.id ?? "—"}
+            <strong>Protocol:</strong> {log?.protocol ?? "—"}
           </Typography>
           <Typography variant="body2">
-            <strong>Protocol:</strong> {log?.protocol ?? "—"}
+            <strong>Local Address:</strong> {log?.local_address ?? "—"}
+          </Typography>
+          <Typography variant="body2">
+            <strong>Remote Address:</strong> {log?.remote_address ?? "—"}
           </Typography>
           <Typography variant="body2">
             <strong>Direction:</strong> {log?.direction ?? "—"}
@@ -251,50 +235,9 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
             variant="body2"
             sx={{ gridColumn: { xs: "auto", sm: "1 / span 2" } }}
           >
-            <strong>Type:</strong> {log?.messageType ?? "—"}
+            <strong>Message Type:</strong> {log?.messageType ?? "—"}
           </Typography>
         </Box>
-
-        <Divider sx={{ my: 1.5 }} />
-
-        {/* Raw Details */}
-        <Typography variant="subtitle1" sx={{ mb: 1 }}>
-          Raw Details
-        </Typography>
-
-        {parsedDetails ? (
-          <>
-            <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 0.5 }}>
-              <Tooltip title="Copy details JSON">
-                <IconButton
-                  size="small"
-                  onClick={() =>
-                    handleCopy(JSON.stringify(parsedDetails, null, 2))
-                  }
-                  aria-label="Copy raw details"
-                >
-                  <CopyIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </Box>
-            <MonoBlock>{JSON.stringify(parsedDetails, null, 2)}</MonoBlock>
-          </>
-        ) : (
-          <>
-            <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 0.5 }}>
-              <Tooltip title="Copy details">
-                <IconButton
-                  size="small"
-                  onClick={() => handleCopy(log?.details ?? "")}
-                  aria-label="Copy raw details"
-                >
-                  <CopyIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </Box>
-            <MonoBlock>{log?.details || "—"}</MonoBlock>
-          </>
-        )}
 
         <Divider sx={{ my: 1.5 }} />
 

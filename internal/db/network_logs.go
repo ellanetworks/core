@@ -41,7 +41,7 @@ const QueryCreateNetworkLogsIndex = `
 
 const (
 	insertNetworkLogStmt     = "INSERT INTO %s (timestamp, protocol, message_type, direction, local_address, remote_address, raw, details) VALUES ($NetworkLog.timestamp, $NetworkLog.protocol, $NetworkLog.message_type, $NetworkLog.direction, $NetworkLog.local_address, $NetworkLog.remote_address, $NetworkLog.raw, $NetworkLog.details)"
-	getNetworkLogByIDStmt    = "SELECT * FROM %s WHERE id = $id"
+	getNetworkLogByIDStmt    = "SELECT &NetworkLog.* FROM %s WHERE id = $NetworkLog.id"
 	deleteOldNetworkLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
 	deleteAllNetworkLogsStmt = "DELETE FROM %s"
 )
@@ -324,20 +324,16 @@ func (db *Database) GetNetworkLogByID(ctx context.Context, id int) (*NetworkLog,
 		attribute.Int("id", id),
 	)
 
-	stmt, err := sqlair.Prepare(query, struct {
-		ID int `db:"id"`
-	}{})
+	stmt, err := sqlair.Prepare(query, NetworkLog{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return nil, err
 	}
 
-	var log NetworkLog
-	args := struct {
-		ID int `db:"id"`
-	}{ID: id}
-	if err := db.conn.Query(ctx, stmt, args).Get(&log); err != nil {
+	log := NetworkLog{ID: id}
+
+	if err := db.conn.Query(ctx, stmt, log).Get(&log); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil

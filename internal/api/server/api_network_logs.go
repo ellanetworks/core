@@ -219,7 +219,7 @@ func DecodeNetworkLog(dbInstance *db.Database) http.Handler {
 
 		networkLog, err := dbInstance.GetNetworkLogByID(ctx, networkID)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve network logs", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve network log", err, logger.APILog)
 			return
 		}
 

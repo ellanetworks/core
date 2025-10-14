@@ -57,9 +57,6 @@ func Dispatch(ctx ctxt.Context, conn net.Conn, msg []byte) {
 		ran.Conn.LocalAddr().String(),
 		ran.Conn.RemoteAddr().String(),
 		msg,
-		zap.String("gnbID", ran.GnbID),
-		zap.String("ranName", ran.Name),
-		zap.String("ranIP", ran.GnbIP),
 	)
 
 	/* uecontext is found, submit the message to transaction queue*/
