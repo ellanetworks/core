@@ -17,12 +17,23 @@ type GlobalRANNodeIDIE struct {
 	GlobalN3IWFID string `json:"global_n3iwf_id,omitempty"`
 }
 
+type SNSSAI struct {
+	SST int32   `json:"sst"`
+	SD  *string `json:"sd,omitempty"`
+}
+
+type PLMN struct {
+	PLMNIdentity        string   `json:"plmn_identity"`
+	TAISliceSupportList []SNSSAI `json:"slice_support_list,omitempty"`
+}
+
 type SupportedTA struct {
-	TAC string `json:"tac"`
+	TAC               string `json:"tac"`
+	BroadcastPLMNList []PLMN `json:"broadcast_plmn_list,omitempty"`
 }
 
 type IE struct {
-	Id                     string             `json:"id"`
+	ID                     string             `json:"id"`
 	Criticality            string             `json:"criticality"`
 	GlobalRANNodeID        *GlobalRANNodeIDIE `json:"global_ran_node_id,omitempty"`
 	RANNodeName            *string            `json:"ran_node_name,omitempty"`
@@ -96,31 +107,31 @@ func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupReques
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDGlobalRANNodeID:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				Id:              protocolIEIDToString(ie.Id.Value),
+				ID:              protocolIEIDToString(ie.Id.Value),
 				Criticality:     criticalityToString(ie.Criticality.Value),
 				GlobalRANNodeID: buildGlobalRANNodeIDIE(ie.Value.GlobalRANNodeID),
 			})
 		case ngapType.ProtocolIEIDSupportedTAList:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				Id:              protocolIEIDToString(ie.Id.Value),
+				ID:              protocolIEIDToString(ie.Id.Value),
 				Criticality:     criticalityToString(ie.Criticality.Value),
 				SupportedTAList: buildSupportedTAListIE(ie.Value.SupportedTAList),
 			})
 		case ngapType.ProtocolIEIDRANNodeName:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				Id:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
 				RANNodeName: buildRanNodeNameIE(ie.Value.RANNodeName),
 			})
 		case ngapType.ProtocolIEIDDefaultPagingDRX:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				Id:               protocolIEIDToString(ie.Id.Value),
+				ID:               protocolIEIDToString(ie.Id.Value),
 				Criticality:      criticalityToString(ie.Criticality.Value),
 				DefaultPagingDRX: buildDefaultPagingDRXIE(ie.Value.DefaultPagingDRX),
 			})
 		case ngapType.ProtocolIEIDUERetentionInformation:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				Id:                     protocolIEIDToString(ie.Id.Value),
+				ID:                     protocolIEIDToString(ie.Id.Value),
 				Criticality:            criticalityToString(ie.Criticality.Value),
 				UERetentionInformation: buildUERetentionInformationIE(ie.Value.UERetentionInformation),
 			})
@@ -162,11 +173,40 @@ func buildSupportedTAListIE(stal *ngapType.SupportedTAList) []SupportedTA {
 	supportedTAs := make([]SupportedTA, len(stal.List))
 	for i := 0; i < len(stal.List); i++ {
 		supportedTAs[i] = SupportedTA{
-			TAC: hex.EncodeToString(stal.List[i].TAC.Value),
+			TAC:               hex.EncodeToString(stal.List[i].TAC.Value),
+			BroadcastPLMNList: buildPLMNList(stal.List[i].BroadcastPLMNList),
 		}
 	}
 
 	return supportedTAs
+}
+
+func buildPLMNList(bpl ngapType.BroadcastPLMNList) []PLMN {
+	plmns := make([]PLMN, len(bpl.List))
+	for i := 0; i < len(bpl.List); i++ {
+		plmns[i] = PLMN{
+			PLMNIdentity:        hex.EncodeToString(bpl.List[i].PLMNIdentity.Value),
+			TAISliceSupportList: buildSNSSAIList(bpl.List[i].TAISliceSupportList),
+		}
+	}
+
+	return plmns
+}
+
+func buildSNSSAIList(sssl ngapType.SliceSupportList) []SNSSAI {
+	snssais := make([]SNSSAI, len(sssl.List))
+	for i := 0; i < len(sssl.List); i++ {
+		snssai := SNSSAI{
+			SST: int32(sssl.List[i].SNSSAI.SST.Value[0]),
+		}
+		if sssl.List[i].SNSSAI.SD != nil {
+			sd := hex.EncodeToString(sssl.List[i].SNSSAI.SD.Value)
+			snssai.SD = &sd
+		}
+		snssais[i] = snssai
+	}
+
+	return snssais
 }
 
 func buildRanNodeNameIE(rnn *ngapType.RANNodeName) *string {
