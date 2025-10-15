@@ -29,8 +29,7 @@ type Database struct {
 	dataNetworksTable      string
 	usersTable             string
 	auditLogsTable         string
-	subscriberLogsTable    string
-	radioLogsTable         string
+	networkLogsTable       string
 	retentionPoliciesTable string
 	apiTokensTable         string
 	sessionsTable          string
@@ -123,16 +122,10 @@ func NewDatabase(databasePath string) (*Database, error) {
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateAuditLogsTable, AuditLogsTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateSubscriberLogsTable, SubscriberLogsTableName)); err != nil {
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateNetworkLogsTable, NetworkLogsTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(QueryCreateSubscriberLogsIndex); err != nil {
-		return nil, err
-	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRadioLogsTable, RadioLogsTableName)); err != nil {
-		return nil, err
-	}
-	if _, err := sqlConnection.Exec(QueryCreateRadioLogsIndex); err != nil {
+	if _, err := sqlConnection.Exec(QueryCreateNetworkLogsIndex); err != nil {
 		return nil, err
 	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateLogRetentionPolicyTable, LogRetentionPolicyTableName)); err != nil {
@@ -155,12 +148,11 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.dataNetworksTable = DataNetworksTableName
 	db.usersTable = UsersTableName
 	db.auditLogsTable = AuditLogsTableName
-	db.subscriberLogsTable = SubscriberLogsTableName
-	db.radioLogsTable = RadioLogsTableName
 	db.retentionPoliciesTable = LogRetentionPolicyTableName
 	db.apiTokensTable = APITokensTableName
 	db.sessionsTable = SessionsTableName
 	db.natSettingsTable = NATSettingsTableName
+	db.networkLogsTable = NetworkLogsTableName
 
 	err = db.Initialize()
 	if err != nil {
@@ -215,30 +207,17 @@ func (db *Database) Initialize() error {
 		logger.DBLog.Info("Initialized audit log retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
-	if !db.IsLogRetentionPolicyInitialized(context.Background(), CategorySubscriberLogs) {
+	if !db.IsLogRetentionPolicyInitialized(context.Background(), CategoryNetworkLogs) {
 		initialPolicy := &LogRetentionPolicy{
-			Category: CategorySubscriberLogs,
+			Category: CategoryNetworkLogs,
 			Days:     DefaultLogRetentionDays,
 		}
 
 		if err := db.SetLogRetentionPolicy(context.Background(), initialPolicy); err != nil {
-			return fmt.Errorf("failed to initialize subscriber log retention policy: %v", err)
+			return fmt.Errorf("failed to initialize network log retention policy: %v", err)
 		}
 
-		logger.DBLog.Info("Initialized subscriber log retention policy", zap.Int("days", DefaultLogRetentionDays))
-	}
-
-	if !db.IsLogRetentionPolicyInitialized(context.Background(), CategoryRadioLogs) {
-		initialPolicy := &LogRetentionPolicy{
-			Category: CategoryRadioLogs,
-			Days:     DefaultLogRetentionDays,
-		}
-
-		if err := db.SetLogRetentionPolicy(context.Background(), initialPolicy); err != nil {
-			return fmt.Errorf("failed to initialize radio log retention policy: %v", err)
-		}
-
-		logger.DBLog.Info("Initialized radio log retention policy", zap.Int("days", DefaultLogRetentionDays))
+		logger.DBLog.Info("Initialized network log retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
 	numDataNetworks, err := db.CountDataNetworks(context.Background())

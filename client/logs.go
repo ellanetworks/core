@@ -33,66 +33,45 @@ type ListAuditLogsResponse struct {
 	TotalCount int        `json:"total_count"`
 }
 
-type GetSubscriberLogsRetentionPolicy struct {
+type GetNetworkLogsRetentionPolicy struct {
 	Days int `json:"days"`
 }
 
-type UpdateSubscriberLogsRetentionPolicyOptions struct {
+type UpdateNetworkLogsRetentionPolicyOptions struct {
 	Days int `json:"days"`
 }
 
-type SubscriberLog struct {
-	ID        int    `json:"id"`
-	Timestamp string `json:"timestamp"`
-	Level     string `json:"level"`
-	IMSI      string `json:"imsi"`
-	Event     string `json:"event"`
-	Direction string `json:"direction"`
-	Raw       string `json:"raw"`
-	Details   string `json:"details"`
+type NetworkLog struct {
+	ID          int    `json:"id"`
+	Timestamp   string `json:"timestamp"`
+	Level       string `json:"level"`
+	Protocol    string `json:"protocol"`
+	MessageType string `json:"message_type"`
+	Direction   string `json:"direction"`
+	Raw         string `json:"raw"`
+	Details     string `json:"details"`
 }
 
-type ListSubscriberLogsResponse struct {
-	Items      []SubscriberLog `json:"items"`
-	Page       int             `json:"page"`
-	PerPage    int             `json:"per_page"`
-	TotalCount int             `json:"total_count"`
+type ListNetworkLogsResponse struct {
+	Items      []NetworkLog `json:"items"`
+	Page       int          `json:"page"`
+	PerPage    int          `json:"per_page"`
+	TotalCount int          `json:"total_count"`
 }
 
-type GetRadioLogsRetentionPolicy struct {
-	Days int `json:"days"`
-}
-
-type UpdateRadioLogsRetentionPolicyOptions struct {
-	Days int `json:"days"`
-}
-
-type RadioLog struct {
-	ID        int    `json:"id"`
-	Timestamp string `json:"timestamp"`
-	Level     string `json:"level"`
-	RanID     string `json:"ran_id"`
-	Event     string `json:"event"`
-	Direction string `json:"direction"`
-	Raw       string `json:"raw"`
-	Details   string `json:"details"`
-}
-
-type ListRadioLogsResponse struct {
-	Items      []RadioLog `json:"items"`
-	Page       int        `json:"page"`
-	PerPage    int        `json:"per_page"`
-	TotalCount int        `json:"total_count"`
-}
-
-type ListSubscriberLogsParams struct {
+type ListNetworkLogsParams struct {
 	Page          int    `json:"page"`
 	PerPage       int    `json:"per_page"`
-	IMSI          string `json:"imsi"`
+	Protocol      string `json:"protocol"`
 	Direction     string `json:"direction"`
-	Event         string `json:"event"`
+	MessageType   string `json:"message_type"`
 	TimestampFrom string `json:"timestamp_from"`
 	TimestampTo   string `json:"timestamp_to"`
+}
+
+type NetworkLogContent struct {
+	Decoded any    `json:"decoded"`
+	Raw     string `json:"raw"`
 }
 
 func (c *Client) ListAuditLogs(ctx context.Context, p *ListParams) (*ListAuditLogsResponse, error) {
@@ -165,7 +144,7 @@ func (c *Client) UpdateAuditLogRetentionPolicy(ctx context.Context, opts *Update
 	return nil
 }
 
-func (c *Client) ListSubscriberLogs(ctx context.Context, p *ListSubscriberLogsParams) (*ListSubscriberLogsResponse, error) {
+func (c *Client) ListNetworkLogs(ctx context.Context, p *ListNetworkLogsParams) (*ListNetworkLogsResponse, error) {
 	query := url.Values{}
 	if p.Page != 0 {
 		query.Set("page", fmt.Sprintf("%d", p.Page))
@@ -175,16 +154,16 @@ func (c *Client) ListSubscriberLogs(ctx context.Context, p *ListSubscriberLogsPa
 		query.Set("per_page", fmt.Sprintf("%d", p.PerPage))
 	}
 
-	if p.IMSI != "" {
-		query.Set("imsi", p.IMSI)
+	if p.Protocol != "" {
+		query.Set("protocol", p.Protocol)
 	}
 
 	if p.Direction != "" {
 		query.Set("direction", p.Direction)
 	}
 
-	if p.Event != "" {
-		query.Set("event", p.Event)
+	if p.MessageType != "" {
+		query.Set("message_type", p.MessageType)
 	}
 
 	if p.TimestampFrom != "" {
@@ -198,28 +177,28 @@ func (c *Client) ListSubscriberLogs(ctx context.Context, p *ListSubscriberLogsPa
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/logs/subscriber",
+		Path:   "api/v1/logs/network",
 		Query:  query,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	var subscriberLogs ListSubscriberLogsResponse
+	var networkLogs ListNetworkLogsResponse
 
-	err = resp.DecodeResult(&subscriberLogs)
+	err = resp.DecodeResult(&networkLogs)
 	if err != nil {
 		return nil, err
 	}
 
-	return &subscriberLogs, nil
+	return &networkLogs, nil
 }
 
-func (c *Client) ClearSubscriberLogs(ctx context.Context) error {
+func (c *Client) ClearNetworkLogs(ctx context.Context) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/logs/subscriber",
+		Path:   "api/v1/logs/network",
 	})
 	if err != nil {
 		return err
@@ -228,17 +207,17 @@ func (c *Client) ClearSubscriberLogs(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) GetSubscriberLogRetentionPolicy(ctx context.Context) (*GetSubscriberLogsRetentionPolicy, error) {
+func (c *Client) GetNetworkLogRetentionPolicy(ctx context.Context) (*GetNetworkLogsRetentionPolicy, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/logs/subscriber/retention",
+		Path:   "api/v1/logs/network/retention",
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	var policy GetSubscriberLogsRetentionPolicy
+	var policy GetNetworkLogsRetentionPolicy
 
 	err = resp.DecodeResult(&policy)
 	if err != nil {
@@ -248,7 +227,7 @@ func (c *Client) GetSubscriberLogRetentionPolicy(ctx context.Context) (*GetSubsc
 	return &policy, nil
 }
 
-func (c *Client) UpdateSubscriberLogRetentionPolicy(ctx context.Context, opts *UpdateSubscriberLogsRetentionPolicyOptions) error {
+func (c *Client) UpdateNetworkLogRetentionPolicy(ctx context.Context, opts *UpdateNetworkLogsRetentionPolicyOptions) error {
 	payload := struct {
 		Days int `json:"days"`
 	}{
@@ -265,7 +244,7 @@ func (c *Client) UpdateSubscriberLogRetentionPolicy(ctx context.Context, opts *U
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   "api/v1/logs/subscriber/retention",
+		Path:   "api/v1/logs/network/retention",
 		Body:   &body,
 	})
 	if err != nil {
@@ -274,121 +253,22 @@ func (c *Client) UpdateSubscriberLogRetentionPolicy(ctx context.Context, opts *U
 	return nil
 }
 
-type ListRadioLogsParams struct {
-	Page          int    `json:"page"`
-	PerPage       int    `json:"per_page"`
-	RanID         string `json:"ran_id"`
-	Direction     string `json:"direction"`
-	Event         string `json:"event"`
-	TimestampFrom string `json:"timestamp_from"`
-	TimestampTo   string `json:"timestamp_to"`
-}
-
-func (c *Client) ListRadioLogs(ctx context.Context, p *ListRadioLogsParams) (*ListRadioLogsResponse, error) {
-	query := url.Values{}
-	if p.Page != 0 {
-		query.Set("page", fmt.Sprintf("%d", p.Page))
-	}
-
-	if p.PerPage != 0 {
-		query.Set("per_page", fmt.Sprintf("%d", p.PerPage))
-	}
-
-	if p.RanID != "" {
-		query.Set("ran_id", p.RanID)
-	}
-
-	if p.Direction != "" {
-		query.Set("direction", p.Direction)
-	}
-
-	if p.Event != "" {
-		query.Set("event", p.Event)
-	}
-
-	if p.TimestampFrom != "" {
-		query.Set("timestamp_from", p.TimestampFrom)
-	}
-
-	if p.TimestampTo != "" {
-		query.Set("timestamp_to", p.TimestampTo)
-	}
-
+func (c *Client) GetNetworkLog(ctx context.Context, id int) (*NetworkLogContent, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/logs/radio",
-		Query:  query,
+		Path:   fmt.Sprintf("api/v1/logs/network/%d", id),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	var radioLogs ListRadioLogsResponse
+	var logContent NetworkLogContent
 
-	err = resp.DecodeResult(&radioLogs)
+	err = resp.DecodeResult(&logContent)
 	if err != nil {
 		return nil, err
 	}
 
-	return &radioLogs, nil
-}
-
-func (c *Client) ClearRadioLogs(ctx context.Context) error {
-	_, err := c.Requester.Do(ctx, &RequestOptions{
-		Type:   SyncRequest,
-		Method: "DELETE",
-		Path:   "api/v1/logs/radio",
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *Client) GetRadioLogRetentionPolicy(ctx context.Context) (*GetRadioLogsRetentionPolicy, error) {
-	resp, err := c.Requester.Do(ctx, &RequestOptions{
-		Type:   SyncRequest,
-		Method: "GET",
-		Path:   "api/v1/logs/radio/retention",
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var policy GetRadioLogsRetentionPolicy
-
-	err = resp.DecodeResult(&policy)
-	if err != nil {
-		return nil, err
-	}
-
-	return &policy, nil
-}
-
-func (c *Client) UpdateRadioLogRetentionPolicy(ctx context.Context, opts *UpdateRadioLogsRetentionPolicyOptions) error {
-	payload := struct {
-		Days int `json:"days"`
-	}{
-		Days: opts.Days,
-	}
-
-	var body bytes.Buffer
-
-	err := json.NewEncoder(&body).Encode(payload)
-	if err != nil {
-		return err
-	}
-
-	_, err = c.Requester.Do(ctx, &RequestOptions{
-		Type:   SyncRequest,
-		Method: "PUT",
-		Path:   "api/v1/logs/radio/retention",
-		Body:   &body,
-	})
-	if err != nil {
-		return err
-	}
-	return nil
+	return &logContent, nil
 }

@@ -1,29 +1,19 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Box,
-  Typography,
-  Alert,
-  Collapse,
-  IconButton,
-  Tooltip,
-  Tabs,
-  Tab,
-} from "@mui/material";
+import { Box, Typography, Alert, Chip, Collapse, Tooltip } from "@mui/material";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import {
   DataGrid,
   GridFilterModel,
-  GridLogicOperator,
   getGridStringOperators,
   getGridSingleSelectOperators,
   getGridDateOperators,
   type GridFilterOperator,
   type GridColDef,
   type GridPaginationModel,
+  type GridRowParams,
 } from "@mui/x-data-grid";
-import VisibilityIcon from "@mui/icons-material/Visibility";
 import EastIcon from "@mui/icons-material/East";
 import WestIcon from "@mui/icons-material/West";
 import {
@@ -32,33 +22,21 @@ import {
   type EventToolbarState,
 } from "@/components/EventToolbar";
 import {
-  listSubscriberLogs,
-  clearSubscriberLogs,
-  getSubscriberLogRetentionPolicy,
-  type SubscriberLogRetentionPolicy,
-  type APISubscriberLog,
-  type ListSubscriberLogsResponse,
-} from "@/queries/subscriber_logs";
+  listNetworkLogs,
+  clearNetworkLogs,
+  getNetworkLogRetentionPolicy,
+  type NetworkLogRetentionPolicy,
+  type APINetworkLog,
+  type ListNetworkLogsResponse,
+} from "@/queries/network_logs";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import {
-  listRadioLogs,
-  clearRadioLogs,
-  getRadioLogRetentionPolicy,
-  type APIRadioLog,
-  type ListRadioLogsResponse,
-  type RadioLogRetentionPolicy,
-} from "@/queries/radio_logs";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
-
 import { useAuth } from "@/contexts/AuthContext";
-import EditSubscriberLogRetentionPolicyModal from "@/components/EditSubscriberLogRetentionPolicyModal";
-import EditRadioLogRetentionPolicyModal from "@/components/EditRadioLogRetentionPolicyModal";
-import ViewLogModal from "@/components/ViewLogModal";
-import type { LogRow } from "@/components/ViewLogModal";
+import EditNetworkLogRetentionPolicyModal from "@/components/EditNetworkLogRetentionPolicyModal";
+import ViewEventDrawer from "@/components/ViewEventDrawer";
+import type { LogRow } from "@/components/ViewEventDrawer";
 
 const MAX_WIDTH = 1400;
-
-type TabKey = "subscribers" | "radio";
 
 const STRING_EQ = getGridStringOperators().filter(
   (op) => op.value === "equals",
@@ -66,12 +44,14 @@ const STRING_EQ = getGridStringOperators().filter(
 
 const DIR_EQ = getGridSingleSelectOperators().filter((op) => op.value === "is");
 
-// turns "2025-10-09T09:34:27.496-0400" into "...-04:00"
+const PROTOCOL_EQ = getGridSingleSelectOperators().filter(
+  (op) => op.value === "is",
+);
+
 const normalizeRfc3339Offset = (s: string) =>
   s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
 
-type GridSubscriberLog = APISubscriberLog & { timestamp_dt: Date | null };
-type GridRadioLog = APIRadioLog & { timestamp_dt: Date | null };
+type GridNetworkLog = APINetworkLog & { timestamp_dt: Date | null };
 
 const DATE_AFTER_BEFORE_ONLY = getGridDateOperators(true).filter(
   (op) => op.value === "after" || op.value === "before",
@@ -86,14 +66,36 @@ function formatRfc3339WithOffset(d: Date): string {
   const mm = pad(d.getMinutes());
   const ss = pad(d.getSeconds());
   const ms = pad(d.getMilliseconds(), 3);
-
   const tzMin = -d.getTimezoneOffset();
   const sign = tzMin >= 0 ? "+" : "-";
   const tzH = pad(Math.trunc(Math.abs(tzMin) / 60));
   const tzM = pad(Math.abs(tzMin) % 60);
-
   return `${y}-${m}-${day}T${hh}:${mm}:${ss}.${ms}${sign}${tzH}:${tzM}`;
 }
+
+const ProtocolCell: React.FC<{ value?: string }> = ({ value }) => {
+  if (!value) return null;
+  const val = String(value).toUpperCase();
+  const styles =
+    val === "NGAP"
+      ? { backgroundColor: "#003366", color: "#fff" }
+      : val === "NAS"
+        ? { backgroundColor: "#ff7300ff", color: "#fff" }
+        : {
+            backgroundColor: "transparent",
+            color: "text.primary",
+            border: "1px solid",
+            borderColor: "divider",
+          };
+  return (
+    <Chip
+      label={val}
+      size="small"
+      sx={{ fontWeight: 600, letterSpacing: 0.25, height: 22, ...styles }}
+      aria-label={`Protocol ${val}`}
+    />
+  );
+};
 
 function toBackendTimestamp(v: unknown): string | undefined {
   if (v instanceof Date) return formatRfc3339WithOffset(v);
@@ -111,12 +113,10 @@ function filtersToParams(
   const bucket: Record<string, string[]> = {};
   let timestampFromISO: string | undefined;
   let timestampToISO: string | undefined;
-
   const ms = (iso: string) => new Date(iso).getTime();
 
   for (const { field, operator, value } of items) {
     if (!field || value == null || value === "") continue;
-
     if (field === "timestamp" || field === "timestamp_dt") {
       const iso = toBackendTimestamp(value);
       if (!iso) continue;
@@ -129,7 +129,6 @@ function filtersToParams(
       }
       continue;
     }
-
     const arr = Array.isArray(value) ? value.map(String) : [String(value)];
     bucket[field] = (bucket[field] ?? []).concat(arr);
   }
@@ -145,14 +144,11 @@ function filtersToParams(
 
 const DirectionCell: React.FC<{ value?: string }> = ({ value }) => {
   const theme = useTheme();
-
   if (!value) return null;
-
   const Icon = value === "inbound" ? EastIcon : WestIcon;
   const title = value === "inbound" ? "Receive (inbound)" : "Send (outbound)";
   const color =
     value === "inbound" ? theme.palette.success.main : theme.palette.info.main;
-
   return (
     <Tooltip title={title}>
       <Box
@@ -189,45 +185,38 @@ const Events: React.FC = () => {
   const outerTheme = useTheme();
   const gridTheme = useMemo(() => createTheme(outerTheme), [outerTheme]);
 
-  const [tab, setTab] = useState<TabKey>("subscribers");
-
-  // ---------------- Shared UI ----------------
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
-  const [viewLogModalOpen, setViewLogModalOpen] = useState(false);
+  const [viewEventDrawerOpen, setViewEventDrawerOpen] = useState(false);
   const [selectedRow, setSelectedRow] = useState<LogRow | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const visible = usePageVisible();
 
-  // ---------------- Subscribers tab state ----------------
-  const [subRows, setSubRows] = useState<APISubscriberLog[]>([]);
+  const [networkRows, setSubRows] = useState<APINetworkLog[]>([]);
   const [subRowCount, setSubRowCount] = useState<number>(0);
   const [subPagination, setSubPagination] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 25,
   });
 
-  const [isSubscriberEditModalOpen, setSubscriberEditModalOpen] =
-    useState(false);
-  const [isSubscriberClearModalOpen, setSubscriberClearModalOpen] =
-    useState(false);
-  const [isRadioEditModalOpen, setRadioEditModalOpen] = useState(false);
-  const [subRetentionPolicy, setSubRetentionPolicy] =
-    useState<SubscriberLogRetentionPolicy | null>(null);
+  const [isNetworkEditModalOpen, setNetworkEditModalOpen] = useState(false);
+  const [isNetworkClearModalOpen, setNetworkClearModalOpen] = useState(false);
+  const [networkRetentionPolicy, setSubRetentionPolicy] =
+    useState<NetworkLogRetentionPolicy | null>(null);
   const subToolbarValue = React.useMemo<EventToolbarState>(
     () => ({
       canEdit,
-      retentionDays: subRetentionPolicy?.days ?? "…",
-      onEditRetention: () => setSubscriberEditModalOpen(true),
-      onClearAll: () => setSubscriberClearModalOpen(true),
+      retentionDays: networkRetentionPolicy?.days ?? "…",
+      onEditRetention: () => setNetworkEditModalOpen(true),
+      onClearAll: () => setNetworkClearModalOpen(true),
       isLive: autoRefresh,
       onToggleLive: () => setAutoRefresh((v) => !v),
     }),
-    [canEdit, subRetentionPolicy?.days, autoRefresh],
+    [canEdit, networkRetentionPolicy?.days, autoRefresh],
   );
-  const [subFilterModel, setSubFilterModel] = useState<GridFilterModel>({
+  const [networkFilterModel, setSubFilterModel] = useState<GridFilterModel>({
     items: [],
   });
 
@@ -236,71 +225,31 @@ const Events: React.FC = () => {
     [],
   );
 
-  // ---------------- Radio tab state ----------------
-  const [radioRows, setRadioRows] = useState<APIRadioLog[]>([]);
-  const [radioRowCount, setRadioRowCount] = useState<number>(0);
-  const [radioPagination, setRadioPagination] = useState<GridPaginationModel>({
-    page: 0,
-    pageSize: 25,
-  });
-  const [isRadioClearModalOpen, setRadioClearModalOpen] = useState(false);
-  const [radioRetentionPolicy, setRadioRetentionPolicy] =
-    useState<RadioLogRetentionPolicy | null>(null);
-  const radioToolbarValue = React.useMemo<EventToolbarState>(
-    () => ({
-      canEdit,
-      retentionDays: radioRetentionPolicy?.days ?? "…",
-      onEditRetention: () => setRadioEditModalOpen(true),
-      onClearAll: () => setRadioClearModalOpen(true),
-      isLive: autoRefresh,
-      onToggleLive: () => setAutoRefresh((v) => !v),
-    }),
-    [canEdit, radioRetentionPolicy?.days, autoRefresh],
-  );
-  const onRadioFilterModelChange = useCallback(
-    (m: GridFilterModel) => setRadioFilterModel(m),
-    [],
-  );
-  const [radioFilterModel, setRadioFilterModel] = useState<GridFilterModel>({
-    items: [],
-  });
-
-  // ---------------- Fetchers ----------------
-  const fetchSubscriberRetention = useCallback(async () => {
+  const fetchNetworkRetention = useCallback(async () => {
     if (!authReady || !accessToken) return;
     try {
-      const data = await getSubscriberLogRetentionPolicy(accessToken);
+      const data = await getNetworkLogRetentionPolicy(accessToken);
       setSubRetentionPolicy(data);
     } catch (e) {
-      console.error("Error fetching subscriber log retention policy:", e);
+      console.error("Error fetching network log retention policy:", e);
     }
   }, [accessToken, authReady]);
 
-  const fetchRadioRetention = useCallback(async () => {
-    if (!authReady || !accessToken) return;
-    try {
-      const data = await getRadioLogRetentionPolicy(accessToken);
-      setRadioRetentionPolicy(data);
-    } catch (e) {
-      console.error("Error fetching radio log retention policy:", e);
-    }
-  }, [accessToken, authReady]);
-
-  const subQuery = useQuery<ListSubscriberLogsResponse>({
+  const subQuery = useQuery<ListNetworkLogsResponse>({
     queryKey: [
-      "subscriberLogs",
+      "networkLogs",
       subPagination.page,
       subPagination.pageSize,
-      filtersToParams(subFilterModel),
+      filtersToParams(networkFilterModel),
       accessToken,
     ],
-    enabled: tab === "subscribers" && authReady && !!accessToken,
+    enabled: authReady && !!accessToken,
     refetchInterval: autoRefresh && visible ? 3000 : false,
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const pageOne = subPagination.page + 1;
-      const filterParams = filtersToParams(subFilterModel);
-      return listSubscriberLogs(
+      const filterParams = filtersToParams(networkFilterModel);
+      return listNetworkLogs(
         accessToken!,
         pageOne,
         subPagination.pageSize,
@@ -309,32 +258,9 @@ const Events: React.FC = () => {
     },
   });
 
-  const radioQuery = useQuery<ListRadioLogsResponse>({
-    queryKey: [
-      "radioLogs",
-      radioPagination.page,
-      radioPagination.pageSize,
-      filtersToParams(radioFilterModel),
-      accessToken,
-    ],
-    enabled: tab === "radio" && authReady && !!accessToken,
-    refetchInterval: autoRefresh && visible ? 3000 : false,
-    placeholderData: keepPreviousData,
-    queryFn: async () => {
-      const pageOne = radioPagination.page + 1;
-      const filterParams = filtersToParams(radioFilterModel);
-      return listRadioLogs(
-        accessToken!,
-        pageOne,
-        radioPagination.pageSize,
-        filterParams,
-      );
-    },
-  });
-
   useEffect(() => {
-    if (tab !== "subscribers" || !subQuery.data) return;
-    const items = (subQuery.data.items ?? []).map<GridSubscriberLog>((r) => ({
+    if (!subQuery.data) return;
+    const items = (subQuery.data.items ?? []).map<GridNetworkLog>((r) => ({
       ...r,
       timestamp_dt: r.timestamp
         ? new Date(normalizeRfc3339Offset(r.timestamp))
@@ -342,159 +268,41 @@ const Events: React.FC = () => {
     }));
     setSubRows(items);
     setSubRowCount(subQuery.data.total_count ?? 0);
-  }, [tab, subQuery.data]);
+  }, [subQuery.data]);
 
-  useEffect(() => {
-    if (tab !== "radio" || !radioQuery.data) return;
-    const items = (radioQuery.data.items ?? []).map<GridRadioLog>((r) => ({
-      ...r,
-      timestamp_dt: r.timestamp
-        ? new Date(normalizeRfc3339Offset(r.timestamp))
-        : null,
-    }));
-    setRadioRows(items);
-    setRadioRowCount(radioQuery.data.total_count ?? 0);
-  }, [tab, radioQuery.data]);
-
-  const handleConfirmDeleteSubscriberLogs = async () => {
-    setSubscriberClearModalOpen(false);
+  const handleConfirmDeleteNetworkLogs = async () => {
+    setNetworkClearModalOpen(false);
     if (!accessToken) return;
     try {
-      await clearSubscriberLogs(accessToken);
+      await clearNetworkLogs(accessToken);
       setAlert({
-        message: `All subscriber logs cleared successfully!`,
+        message: `All network logs cleared successfully!`,
         severity: "success",
       });
       subQuery.refetch();
     } catch (error: unknown) {
       setAlert({
-        message: `Failed to clear subscriber logs: ${String(error)}`,
-        severity: "error",
-      });
-    }
-  };
-
-  const handleConfirmDeleteRadioLogs = async () => {
-    setRadioClearModalOpen(false);
-    if (!accessToken) return;
-    try {
-      await clearRadioLogs(accessToken);
-      setAlert({
-        message: `All radio logs cleared successfully!`,
-        severity: "success",
-      });
-      radioQuery.refetch();
-    } catch (error: unknown) {
-      setAlert({
-        message: `Failed to clear radio logs: ${String(error)}`,
+        message: `Failed to clear network logs: ${String(error)}`,
         severity: "error",
       });
     }
   };
 
   useEffect(() => {
-    fetchSubscriberRetention();
-    fetchRadioRetention();
-  }, [fetchSubscriberRetention, fetchRadioRetention]);
+    fetchNetworkRetention();
+  }, [fetchNetworkRetention]);
 
-  const subscriberColumns: GridColDef<APISubscriberLog>[] = useMemo(() => {
+  const networkColumns: GridColDef<APINetworkLog>[] = useMemo(() => {
     return [
       {
         field: "timestamp_dt",
         headerName: "Timestamp",
         type: "dateTime",
-        flex: 1,
-        minWidth: 220,
-        sortable: false,
-        renderCell: (p) => (p.value ? p.value.toLocaleString() : ""),
-        filterOperators: DATE_AFTER_BEFORE_ONLY,
-      },
-      {
-        field: "imsi",
-        headerName: "IMSI",
-        flex: 1,
-        minWidth: 220,
-        sortable: false,
-        filterOperators: STRING_EQ,
-      },
-      {
-        field: "direction",
-        headerName: "Dir",
-        width: 70,
-        align: "center",
-        headerAlign: "center",
-        sortable: false,
-        type: "singleSelect",
-        valueOptions: [
-          { value: "inbound", label: "Inbound" },
-          { value: "outbound", label: "Outbound" },
-        ],
-        filterOperators: DIR_EQ,
-        renderCell: (p) => <DirectionCell value={p.row.direction} />,
-      },
-      {
-        field: "event",
-        headerName: "Event",
-        flex: 1,
-        minWidth: 200,
-        sortable: false,
-        filterOperators: STRING_EQ,
-      },
-      {
-        field: "view",
-        headerName: "",
-        sortable: false,
-        filterable: false,
-        width: 60,
-        align: "center",
-        headerAlign: "center",
-        renderCell: (params) => (
-          <Tooltip title="View details">
-            <IconButton
-              color="primary"
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                const r = params.row;
-                setSelectedRow({
-                  id: String(r.id),
-                  timestamp: r.timestamp,
-                  event_id: r.imsi,
-                  event: r.event,
-                  direction: r.direction,
-                  details: r.details ?? "",
-                });
-                setViewLogModalOpen(true);
-              }}
-              aria-label="View details"
-            >
-              <VisibilityIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        ),
-      },
-    ];
-  }, []);
-
-  const radioColumns: GridColDef<APIRadioLog>[] = useMemo(() => {
-    return [
-      {
-        field: "timestamp_dt",
-        headerName: "Timestamp",
-        type: "dateTime",
-        flex: 1,
-        minWidth: 220,
-        sortable: false,
-        renderCell: (p) => (p.value ? p.value.toLocaleString() : ""),
-        filterOperators: DATE_AFTER_BEFORE_ONLY,
-      },
-      {
-        field: "ran_id",
-        headerName: "RAN ID",
         flex: 1,
         minWidth: 180,
         sortable: false,
-        filterOperators: STRING_EQ,
+        renderCell: (p) => (p.value ? p.value.toLocaleString() : ""),
+        filterOperators: DATE_AFTER_BEFORE_ONLY,
       },
       {
         field: "direction",
@@ -512,54 +320,61 @@ const Events: React.FC = () => {
         renderCell: (p) => <DirectionCell value={p.row.direction} />,
       },
       {
-        field: "event",
-        headerName: "Event",
+        field: "protocol",
+        headerName: "Protocol",
+        type: "singleSelect",
+        valueOptions: [
+          { value: "NGAP", label: "NGAP" },
+          { value: "NAS", label: "NAS" },
+        ],
+        width: 120,
+        sortable: false,
+        filterOperators: PROTOCOL_EQ,
+        renderCell: (p) => <ProtocolCell value={p.row.protocol} />,
+      },
+      {
+        field: "message_type",
+        headerName: "Message Type",
         flex: 1,
-        minWidth: 200,
+        minWidth: 220,
         sortable: false,
         filterOperators: STRING_EQ,
       },
       {
-        field: "view",
-        headerName: "",
+        field: "local_address",
+        headerName: "Local Address",
+        flex: 1,
+        minWidth: 150,
         sortable: false,
-        filterable: false,
-        width: 60,
-        align: "center",
-        headerAlign: "center",
-        renderCell: (params) => (
-          <Tooltip title="View details">
-            <IconButton
-              color="primary"
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                const r = params.row;
-                setSelectedRow({
-                  id: String(r.id),
-                  timestamp: r.timestamp,
-                  event_id: r.ran_id,
-                  event: r.event,
-                  direction: r.direction,
-                  details: r.details ?? "",
-                });
-                setViewLogModalOpen(true);
-              }}
-              aria-label="View details"
-            >
-              <VisibilityIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        ),
+        filterOperators: STRING_EQ,
+      },
+      {
+        field: "remote_address",
+        headerName: "Remote Address",
+        flex: 1,
+        minWidth: 150,
+        sortable: false,
+        filterOperators: STRING_EQ,
       },
     ];
   }, []);
 
-  // ---------------- Render ----------------
+  const handleRowClick = useCallback((params: GridRowParams<APINetworkLog>) => {
+    const r = params.row;
+    setSelectedRow({
+      id: String(r.id),
+      timestamp: r.timestamp,
+      protocol: r.protocol,
+      messageType: r.message_type,
+      direction: r.direction,
+      local_address: r.local_address,
+      remote_address: r.remote_address,
+    });
+    setViewEventDrawerOpen(true);
+  }, []);
+
   const subDescription =
-    "Review subscriber events in Ella Core. These logs are useful for auditing and troubleshooting purposes.";
-  const radioDescription =
-    "Review radio events in Ella Core. These logs are helpful for radio onboarding, session setup, and troubleshooting.";
+    "Review network events in Ella Core. These logs are useful for auditing and troubleshooting purposes.";
 
   return (
     <Box
@@ -581,209 +396,87 @@ const Events: React.FC = () => {
             {alert.message}
           </Alert>
         </Collapse>
-
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v as TabKey)}
-          aria-label="Event tabs"
-          sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
-        >
-          <Tab value="subscribers" label="Subscribers" />
-          <Tab value="radio" label="Radio" />
-        </Tabs>
       </Box>
 
-      {/* ---------------- Subscribers Tab ---------------- */}
-      {tab === "subscribers" && (
-        <>
-          <Box
-            sx={{
-              width: "100%",
-              maxWidth: MAX_WIDTH,
-              px: { xs: 2, sm: 4 },
-              mb: 3,
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-            }}
-          >
-            <Typography variant="h4">Subscriber Events</Typography>
-            <Typography variant="body1" color="text.secondary">
-              {subDescription}
-            </Typography>
-          </Box>
+      <>
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: MAX_WIDTH,
+            px: { xs: 2, sm: 4 },
+            mb: 3,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+        >
+          <Typography variant="h4">Network Events</Typography>
+          <Typography variant="body1" color="text.secondary">
+            {subDescription}
+          </Typography>
+        </Box>
 
-          <Box
-            sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
-          >
-            <ThemeProvider theme={gridTheme}>
-              <EventToolbarContext.Provider value={subToolbarValue}>
-                <DataGrid<APISubscriberLog>
-                  rows={subRows}
-                  columns={subscriberColumns}
-                  getRowId={(row) => row.id}
-                  loading={subQuery.isFetching}
-                  paginationMode="server"
-                  rowCount={subRowCount}
-                  paginationModel={subPagination}
-                  onPaginationModelChange={setSubPagination}
-                  disableRowSelectionOnClick
-                  disableColumnMenu
-                  sortingMode="server"
-                  filterMode="server"
-                  onFilterModelChange={onSubFilterModelChange}
-                  pageSizeOptions={[10, 25, 50, 100]}
-                  slots={{ toolbar: EventToolbar }}
-                  slotProps={{
-                    filterPanel: {
-                      disableAddFilterButton: false,
-                      disableRemoveAllButton: false,
-                      logicOperators: [GridLogicOperator.And],
-                      filterFormProps: {
-                        logicOperatorInputProps: { sx: { display: "none" } },
-                      },
-                    },
-                  }}
-                  showToolbar
-                  sx={{
-                    border: 1,
+        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+          <ThemeProvider theme={gridTheme}>
+            <EventToolbarContext.Provider value={subToolbarValue}>
+              <DataGrid<APINetworkLog>
+                rows={networkRows}
+                columns={networkColumns}
+                getRowId={(row) => row.id}
+                loading={subQuery.isFetching}
+                paginationMode="server"
+                rowCount={subRowCount}
+                paginationModel={subPagination}
+                onPaginationModelChange={setSubPagination}
+                disableRowSelectionOnClick
+                disableColumnMenu
+                sortingMode="server"
+                filterMode="server"
+                onFilterModelChange={onSubFilterModelChange}
+                pageSizeOptions={[10, 25, 50, 100]}
+                slots={{ toolbar: EventToolbar }}
+                onRowClick={handleRowClick}
+                showToolbar
+                sx={{
+                  border: 1,
+                  borderColor: "divider",
+                  "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
+                  "& .MuiDataGrid-footerContainer": {
+                    borderTop: "1px solid",
                     borderColor: "divider",
-                    "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
-                    "& .MuiDataGrid-footerContainer": {
-                      borderTop: "1px solid",
-                      borderColor: "divider",
-                    },
-                    "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
-                  }}
-                />
-              </EventToolbarContext.Provider>
-            </ThemeProvider>
-          </Box>
-        </>
-      )}
+                  },
+                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
+                  "& .MuiDataGrid-row:hover": { cursor: "pointer" },
+                }}
+              />
+            </EventToolbarContext.Provider>
+          </ThemeProvider>
+        </Box>
+      </>
 
-      {/* ---------------- Radio Tab ---------------- */}
-      {tab === "radio" && (
-        <>
-          <Box
-            sx={{
-              width: "100%",
-              maxWidth: MAX_WIDTH,
-              px: { xs: 2, sm: 4 },
-              mb: 3,
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-            }}
-          >
-            <Typography variant="h4">Radio Events</Typography>
-            <Typography variant="body1" color="text.secondary">
-              {radioDescription}
-            </Typography>
-          </Box>
-
-          <Box
-            sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
-          >
-            <ThemeProvider theme={gridTheme}>
-              <EventToolbarContext.Provider value={radioToolbarValue}>
-                <DataGrid<APIRadioLog>
-                  rows={radioRows}
-                  columns={radioColumns}
-                  getRowId={(row) => row.id}
-                  loading={radioQuery.isFetching}
-                  paginationMode="server"
-                  rowCount={radioRowCount}
-                  paginationModel={radioPagination}
-                  onPaginationModelChange={setRadioPagination}
-                  disableRowSelectionOnClick
-                  disableColumnMenu
-                  sortingMode="server"
-                  filterMode="server"
-                  onFilterModelChange={onRadioFilterModelChange}
-                  pageSizeOptions={[10, 25, 50, 100]}
-                  slots={{ toolbar: EventToolbar }}
-                  slotProps={{
-                    filterPanel: {
-                      disableAddFilterButton: false,
-                      disableRemoveAllButton: false,
-                      logicOperators: [GridLogicOperator.And],
-                      filterFormProps: {
-                        logicOperatorInputProps: { sx: { display: "none" } },
-                      },
-                    },
-                  }}
-                  showToolbar
-                  sx={{
-                    width: "100%",
-                    border: 1,
-                    borderColor: "divider",
-                    "& .MuiDataGrid-cell": {
-                      borderBottom: "1px solid",
-                      borderColor: "divider",
-                    },
-                    "& .MuiDataGrid-columnHeaders": {
-                      borderBottom: "1px solid",
-                      borderColor: "divider",
-                      backgroundColor: "#F5F5F5",
-                    },
-                    "& .MuiDataGrid-footerContainer": {
-                      borderTop: "1px solid",
-                      borderColor: "divider",
-                    },
-                    "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
-                  }}
-                />
-              </EventToolbarContext.Provider>
-            </ThemeProvider>
-          </Box>
-        </>
-      )}
-
-      {/* ---------------- Modals ---------------- */}
-      <ViewLogModal
-        open={viewLogModalOpen}
-        onClose={() => setViewLogModalOpen(false)}
+      <ViewEventDrawer
+        open={viewEventDrawerOpen}
+        onClose={() => setViewEventDrawerOpen(false)}
         log={selectedRow}
       />
-
-      <EditSubscriberLogRetentionPolicyModal
-        open={isSubscriberEditModalOpen}
-        onClose={() => setSubscriberEditModalOpen(false)}
+      <EditNetworkLogRetentionPolicyModal
+        open={isNetworkEditModalOpen}
+        onClose={() => setNetworkEditModalOpen(false)}
         onSuccess={() => {
-          fetchSubscriberRetention();
+          fetchNetworkRetention();
           setAlert({
             message: "Retention policy updated!",
             severity: "success",
           });
         }}
-        initialData={subRetentionPolicy || { days: 7 }}
-      />
-      <EditRadioLogRetentionPolicyModal
-        open={isRadioEditModalOpen}
-        onClose={() => setRadioEditModalOpen(false)}
-        onSuccess={() => {
-          fetchRadioRetention();
-          setAlert({
-            message: "Retention policy updated!",
-            severity: "success",
-          });
-        }}
-        initialData={radioRetentionPolicy || { days: 7 }}
+        initialData={networkRetentionPolicy || { days: 7 }}
       />
       <DeleteConfirmationModal
-        title="Clear All Subscriber Logs"
-        description="Are you sure you want to clear all subscriber logs? This action cannot be undone."
-        open={isSubscriberClearModalOpen}
-        onClose={() => setSubscriberClearModalOpen(false)}
-        onConfirm={handleConfirmDeleteSubscriberLogs}
-      />
-      <DeleteConfirmationModal
-        title="Clear All Radio Logs"
-        description="Are you sure you want to clear all radio logs? This action cannot be undone."
-        open={isRadioClearModalOpen}
-        onClose={() => setRadioClearModalOpen(false)}
-        onConfirm={handleConfirmDeleteRadioLogs}
+        title="Clear All Network Logs"
+        description="Are you sure you want to clear all network logs? This action cannot be undone."
+        open={isNetworkClearModalOpen}
+        onClose={() => setNetworkClearModalOpen(false)}
+        onConfirm={handleConfirmDeleteNetworkLogs}
       />
     </Box>
   );

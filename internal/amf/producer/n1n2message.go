@@ -277,7 +277,6 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 				if err != nil {
 					return n1n2MessageTransferRspData, fmt.Errorf("error sending downlink nas transport: %v", err)
 				}
-				ue.GmmLog.Info("Sent GMM downlink nas transport message to UE")
 			} else {
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseAttemptingToReachUE
 				message := context.N1N2Message{

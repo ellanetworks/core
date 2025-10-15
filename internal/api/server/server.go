@@ -100,17 +100,12 @@ func NewHandler(dbInstance *db.Database, upf UPFReloader, kernel kernel.Kernel, 
 	mux.HandleFunc("PUT /api/v1/logs/audit/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermSetAuditLogRetentionPolicy, jwtSecret, UpdateAuditLogRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/logs/audit", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListAuditLogs, jwtSecret, ListAuditLogs(dbInstance))).ServeHTTP)
 
-	// Subscriber Logs (Authenticated)
-	mux.HandleFunc("GET /api/v1/logs/subscriber/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetSubscriberLogRetentionPolicy, jwtSecret, GetSubscriberLogRetentionPolicy(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/logs/subscriber/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermSetSubscriberLogRetentionPolicy, jwtSecret, UpdateSubscriberLogRetentionPolicy(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/logs/subscriber", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListSubscriberLogs, jwtSecret, ListSubscriberLogs(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/v1/logs/subscriber", Authenticate(jwtSecret, dbInstance, RequirePermission(PermClearSubscriberLogs, jwtSecret, ClearSubscriberLogs(dbInstance))).ServeHTTP)
-
-	// Radio Logs (Authenticated)
-	mux.HandleFunc("GET /api/v1/logs/radio/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetRadioLogRetentionPolicy, jwtSecret, GetRadioLogRetentionPolicy(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/logs/radio/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermSetRadioLogRetentionPolicy, jwtSecret, UpdateRadioLogRetentionPolicy(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/logs/radio", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListRadioLogs, jwtSecret, ListRadioLogs(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/v1/logs/radio", Authenticate(jwtSecret, dbInstance, RequirePermission(PermClearRadioLogs, jwtSecret, ClearRadioLogs(dbInstance))).ServeHTTP)
+	// Network Logs (Authenticated)
+	mux.HandleFunc("GET /api/v1/logs/network/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetNetworkLogRetentionPolicy, jwtSecret, GetNetworkLogRetentionPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/logs/network/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermSetNetworkLogRetentionPolicy, jwtSecret, UpdateNetworkLogRetentionPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/logs/network", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListNetworkLogs, jwtSecret, ListNetworkLogs(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/logs/network", Authenticate(jwtSecret, dbInstance, RequirePermission(PermClearNetworkLogs, jwtSecret, ClearNetworkLogs(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/logs/network/{id}", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetNetworkLog, jwtSecret, GetNetworkLog(dbInstance))).ServeHTTP)
 
 	// Fallback to UI
 	frontendHandler, err := newFrontendFileServer(embedFS)

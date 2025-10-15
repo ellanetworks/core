@@ -189,16 +189,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		// case iii) if the AMF does not have a PDU session routing context for the PDU session ID and the UE
 		// and the Request type IE is included and is set to "initial request"
 		case nasMessage.ULNASTransportRequestTypeInitialRequest:
-			gmmMessage := &nas.GmmMessage{ULNASTransport: ulNasTransport}
-			gmmMessage.GmmHeader.SetMessageType(nas.MsgTypeULNASTransport)
-			logger.LogSubscriberEvent(
-				logger.SubscriberPduSessionEstablishmentRequest,
-				logger.DirectionInbound,
-				rawGmmNasMessage(gmmMessage),
-				ue.Supi,
-				zap.Int32("pduSessionID", pduSessionID),
-			)
-
 			var (
 				snssai models.Snssai
 				dnn    string
@@ -466,7 +456,6 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
 		ue.PlmnID = PlmnIDStringToModels(plmnID)
-		ue.GmmLog.Debug("ue suci", zap.String("suci", ue.Suci), zap.String("plmnID", plmnID))
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		guamiFromUeGutiTmp, guti := util.GutiToString(mobileIdentity5GSContents)
 		guamiFromUeGuti = guamiFromUeGutiTmp
@@ -862,25 +851,21 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
-					ue.GmmLog.Info("Sent GMM downlink nas transport message to UE")
 				case models.N1MessageClassLPP:
 					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
-					ue.GmmLog.Info("Sent GMM downlink nas transport message to UE")
 				case models.N1MessageClassSMS:
 					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
-					ue.GmmLog.Info("Sent GMM downlink nas transport message to UE")
 				case models.N1MessageClassUPDP:
 					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
-					ue.GmmLog.Info("Sent GMM downlink nas transport message to UE")
 				}
 				ue.N1N2Message = nil
 				return nil
@@ -1230,7 +1215,6 @@ func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.Iden
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentityContents)
 		ue.PlmnID = PlmnIDStringToModels(plmnID)
-		ue.GmmLog.Debug("get suci", zap.String("suci", ue.Suci), zap.String("plmnID", plmnID))
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")

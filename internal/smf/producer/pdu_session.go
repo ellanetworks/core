@@ -75,14 +75,6 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 
 	if smContext.DNNInfo == nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
-		logger.LogSubscriberEvent(
-			logger.SubscriberPduSessionEstablishmentReject,
-			logger.DirectionOutbound,
-			request.BinaryDataN1SmMessage,
-			smContext.Supi,
-			zap.Int32("pduSessionID", smContext.PDUSessionID),
-			zap.String("cause", "DNN not supported or not subscribed in the slice"),
-		)
 		return "", response, nil
 	}
 
@@ -91,14 +83,6 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	ip, err := smfSelf.DBInstance.AllocateIP(ctx, smContext.Supi)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResources)
-		logger.LogSubscriberEvent(
-			logger.SubscriberPduSessionEstablishmentReject,
-			logger.DirectionOutbound,
-			request.BinaryDataN1SmMessage,
-			smContext.Supi,
-			zap.Int32("pduSessionID", smContext.PDUSessionID),
-			zap.String("cause", "Insufficient resources"),
-		)
 		return "", response, nil
 	}
 
@@ -115,27 +99,11 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	sessSubData, err := udm.GetAndSetSmData(ctx, smContext.Supi, createData.Dnn, snssai)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		logger.LogSubscriberEvent(
-			logger.SubscriberPduSessionEstablishmentReject,
-			logger.DirectionOutbound,
-			request.BinaryDataN1SmMessage,
-			smContext.Supi,
-			zap.Int32("pduSessionID", smContext.PDUSessionID),
-			zap.String("cause", "Request Rejected Unspecified"),
-		)
 		return "", response, fmt.Errorf("failed to get SM context from UDM: %v", err)
 	}
 
 	if len(sessSubData) == 0 {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		logger.LogSubscriberEvent(
-			logger.SubscriberPduSessionEstablishmentReject,
-			logger.DirectionOutbound,
-			request.BinaryDataN1SmMessage,
-			smContext.Supi,
-			zap.Int32("pduSessionID", smContext.PDUSessionID),
-			zap.String("cause", "Request Rejected Unspecified"),
-		)
 		return "", response, fmt.Errorf("SM context not found in UDM")
 	}
 
@@ -150,14 +118,6 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	smPolicyDecisionRsp, err := SendSMPolicyAssociationCreate(ctx, smContext)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		logger.LogSubscriberEvent(
-			logger.SubscriberPduSessionEstablishmentReject,
-			logger.DirectionOutbound,
-			request.BinaryDataN1SmMessage,
-			smContext.Supi,
-			zap.Int32("pduSessionID", smContext.PDUSessionID),
-			zap.String("cause", "Request Rejected Unspecified"),
-		)
 		return "", response, fmt.Errorf("failed to create policy association: %v", err)
 	}
 	smContext.SubPduSessLog.Info("Created policy association")
@@ -174,14 +134,6 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	err = defaultPath.ActivateTunnelAndPDR(smContext, 255)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		logger.LogSubscriberEvent(
-			logger.SubscriberPduSessionEstablishmentReject,
-			logger.DirectionOutbound,
-			request.BinaryDataN1SmMessage,
-			smContext.Supi,
-			zap.Int32("pduSessionID", smContext.PDUSessionID),
-			zap.String("cause", "Request Rejected Unspecified"),
-		)
 		return "", response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
 
@@ -329,14 +281,6 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 		} else {
 			n1n2Request.BinaryDataN1Message = smNasBuf
 			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
-
-			logger.LogSubscriberEvent(
-				logger.SubscriberPduSessionEstablishmentAccept,
-				logger.DirectionOutbound,
-				smNasBuf,
-				smContext.Supi,
-				zap.Int32("pduSessionID", smContext.PDUSessionID),
-			)
 		}
 
 		if n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext); err != nil {
@@ -352,15 +296,6 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 		} else {
 			n1n2Request.BinaryDataN1Message = smNasBuf
 			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
-
-			logger.LogSubscriberEvent(
-				logger.SubscriberPduSessionEstablishmentReject,
-				logger.DirectionOutbound,
-				smNasBuf,
-				smContext.Supi,
-				zap.Int32("pduSessionID", smContext.PDUSessionID),
-				zap.String("cause", "Request Rejected Unspecified"),
-			)
 		}
 	}
 	rspData, err := amf_producer.CreateN1N2MessageTransfer(ctx, smContext.Supi, n1n2Request)

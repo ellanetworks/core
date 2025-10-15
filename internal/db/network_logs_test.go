@@ -6,13 +6,14 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 )
 
-func TestSubscriberLogsEndToEnd(t *testing.T) {
+func TestNetworkLogsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
@@ -25,9 +26,9 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, total, err := database.ListSubscriberLogs(context.Background(), 1, 10, nil)
+	res, total, err := database.ListNetworkLogs(context.Background(), 1, 10, nil)
 	if err != nil {
-		t.Fatalf("couldn't list subscriber logs: %s", err)
+		t.Fatalf("couldn't list setwork logs: %s", err)
 	}
 
 	if total != 0 {
@@ -35,25 +36,25 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 	}
 
 	if len(res) != 0 {
-		t.Fatalf("Expected no subscriber logs, but found %d", len(res))
+		t.Fatalf("Expected no setwork logs, but found %d", len(res))
 	}
 
-	rawEntry1 := `{"timestamp":"2024-10-01T12:00:00Z","component":"Subscriber","event":"test_event","direction":"inbound","imsi":"test_imsi","details":"This is a test subscriber log entry", "raw":"SGVsbG8gd29ybGQh"}`
-	rawEntry2 := `{"timestamp":"2024-10-01T13:00:00Z","component":"Subscriber","event":"another_event","direction":"outbound","imsi":"another_imsi","details":"This is another test subscriber log entry", "raw":"QW5vdGhlciBsb2cgZW50cnk="}`
+	rawEntry1 := `{"timestamp":"2024-10-01T12:00:00Z","component":"Network","message_type":"test_event","direction":"inbound","protocol":"ngap","details":"This is a test setwork log entry", "raw":"SGVsbG8gd29ybGQh"}`
+	rawEntry2 := `{"timestamp":"2024-10-01T13:00:00Z","component":"Network","message_type":"another_event","direction":"outbound","protocol":"another_protocol","details":"This is another test setwork log entry", "raw":"QW5vdGhlciBsb2cgZW50cnk="}`
 
-	err = database.InsertSubscriberLogJSON(context.Background(), []byte(rawEntry1))
+	err = database.InsertNetworkLogJSON(context.Background(), []byte(rawEntry1))
 	if err != nil {
-		t.Fatalf("couldn't insert subscriber log: %s", err)
+		t.Fatalf("couldn't insert setwork log: %s", err)
 	}
 
-	err = database.InsertSubscriberLogJSON(context.Background(), []byte(rawEntry2))
+	err = database.InsertNetworkLogJSON(context.Background(), []byte(rawEntry2))
 	if err != nil {
-		t.Fatalf("couldn't insert subscriber log: %s", err)
+		t.Fatalf("couldn't insert setwork log: %s", err)
 	}
 
-	res, total, err = database.ListSubscriberLogs(context.Background(), 1, 10, nil)
+	res, total, err = database.ListNetworkLogs(context.Background(), 1, 10, nil)
 	if err != nil {
-		t.Fatalf("couldn't list subscriber logs: %s", err)
+		t.Fatalf("couldn't list setwork logs: %s", err)
 	}
 
 	if total != 2 {
@@ -61,21 +62,21 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 	}
 
 	if len(res) != 2 {
-		t.Fatalf("Expected 2 subscriber logs, but found %d", len(res))
+		t.Fatalf("Expected 2 setwork logs, but found %d", len(res))
 	}
 
-	if res[0].Event != "another_event" || res[1].Event != "test_event" {
-		t.Fatalf("Subscriber logs are not in the expected order or have incorrect data")
+	if res[0].MessageType != "another_event" || res[1].MessageType != "test_event" {
+		t.Fatalf("Network logs are not in the expected order or have incorrect data")
 	}
 
-	err = database.DeleteOldSubscriberLogs(context.Background(), 1)
+	err = database.DeleteOldNetworkLogs(context.Background(), 1)
 	if err != nil {
-		t.Fatalf("couldn't delete old subscriber logs: %s", err)
+		t.Fatalf("couldn't delete old setwork logs: %s", err)
 	}
 
-	res, total, err = database.ListSubscriberLogs(context.Background(), 1, 10, nil)
+	res, total, err = database.ListNetworkLogs(context.Background(), 1, 10, nil)
 	if err != nil {
-		t.Fatalf("couldn't list subscriber logs after deletion: %s", err)
+		t.Fatalf("couldn't list setwork logs after deletion: %s", err)
 	}
 
 	if total != 0 {
@@ -83,11 +84,67 @@ func TestSubscriberLogsEndToEnd(t *testing.T) {
 	}
 
 	if len(res) != 0 {
-		t.Fatalf("Expected no subscriber logs after deletion, but found %d", len(res))
+		t.Fatalf("Expected no setwork logs after deletion, but found %d", len(res))
 	}
 }
 
-func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
+func TestGetNetworkLogByID(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %v", err)
+	}
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %v", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	raw := `{
+		"timestamp":"2024-10-01T12:00:00Z",
+		"level":"info",
+		"component":"Network",
+		"message_type":"test_event",
+		"direction":"inbound",
+		"protocol":"ngap",
+		"details":"This is a test setwork log entry",
+		"raw":"SGVsbG8gd29ybGQh"
+	}`
+
+	if err := database.InsertNetworkLogJSON(ctx, []byte(raw)); err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	logs, total, err := database.ListNetworkLogs(ctx, 1, 10, nil)
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+
+	if total != 1 {
+		t.Fatalf("expected total 1 log, got %d", total)
+	}
+
+	if got := len(logs); got != 1 {
+		t.Fatalf("expected 1 log, got %d", got)
+	}
+
+	logID := logs[0].ID
+
+	log, err := database.GetNetworkLogByID(ctx, logID)
+	if err != nil {
+		t.Fatalf("GetNetworkLogByID failed: %v", err)
+	}
+
+	if !reflect.DeepEqual(logs[0], *log) {
+		t.Fatalf("fetched log does not match listed log")
+	}
+}
+
+func TestNetworkLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -107,14 +164,14 @@ func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 		raw := fmt.Sprintf(`{
 			"timestamp":"%s",
 			"level":"info",
-			"component":"Subscriber",
-			"event":"%s",
+			"component":"Network",
+			"message_type":"%s",
 			"direction":"inbound",
-			"imsi":"tester",
+			"protocol":"tester",
 			"details":"test",
 			"raw":"dGVzdA=="
 		}`, ts.UTC().Format(time.RFC3339), event)
-		if err := database.InsertSubscriberLogJSON(ctx, []byte(raw)); err != nil {
+		if err := database.InsertNetworkLogJSON(ctx, []byte(raw)); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)
 		}
 	}
@@ -132,7 +189,7 @@ func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	insert(boundary, "boundary_exact")
 	insert(fresh, "fresh")
 
-	logs, total, err := database.ListSubscriberLogs(ctx, 1, 10, nil)
+	logs, total, err := database.ListNetworkLogs(ctx, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("list before purge failed: %v", err)
 	}
@@ -145,12 +202,12 @@ func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 		t.Fatalf("expected 3 logs before purge, got %d", got)
 	}
 
-	if err := database.DeleteOldSubscriberLogs(ctx, policyDays); err != nil {
-		t.Fatalf("could not delete old subscriber logs: %v", err)
+	if err := database.DeleteOldNetworkLogs(ctx, policyDays); err != nil {
+		t.Fatalf("could not delete old setwork logs: %v", err)
 	}
 
 	// Verify only newer + boundary remain.
-	logs, total, err = database.ListSubscriberLogs(ctx, 1, 10, nil)
+	logs, total, err = database.ListNetworkLogs(ctx, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("list after purge failed: %v", err)
 	}
@@ -165,7 +222,7 @@ func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 
 	remaining := map[string]bool{}
 	for _, l := range logs {
-		remaining[l.Event] = true
+		remaining[l.MessageType] = true
 	}
 
 	if remaining["very_old"] {
@@ -181,7 +238,7 @@ func TestSubscriberLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	}
 }
 
-func TestListSubscriberLogsIMSIFilter(t *testing.T) {
+func TestListNetworkLogsProtocolFilter(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -197,47 +254,47 @@ func TestListSubscriberLogsIMSIFilter(t *testing.T) {
 
 	ctx := context.Background()
 
-	insert := func(imsi, event string) {
+	insert := func(protocol, event string) {
 		raw := fmt.Sprintf(`{
 			"timestamp":"%s",
 			"level":"info",
-			"component":"Subscriber",
-			"event":"%s",
+			"component":"Network",
+			"message_type":"%s",
 			"direction":"inbound",
-			"imsi":"%s",
+			"protocol":"%s",
 			"details":"test",
 			"raw":"dGVzdA=="
-		}`, time.Now().UTC().Format(time.RFC3339), event, imsi)
-		if err := database.InsertSubscriberLogJSON(ctx, []byte(raw)); err != nil {
+		}`, time.Now().UTC().Format(time.RFC3339), event, protocol)
+		if err := database.InsertNetworkLogJSON(ctx, []byte(raw)); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)
 		}
 	}
 
-	insert("imsi-001", "event-001")
-	insert("imsi-002", "event-002")
-	insert("imsi-001", "event-003")
+	insert("protocol-001", "event-001")
+	insert("protocol-002", "event-002")
+	insert("protocol-001", "event-003")
 
-	logs, total, err := database.ListSubscriberLogs(ctx, 1, 10, &db.SubscriberLogFilters{IMSI: ptr("imsi-001")})
+	logs, total, err := database.ListNetworkLogs(ctx, 1, 10, &db.NetworkLogFilters{Protocol: ptr("protocol-001")})
 	if err != nil {
-		t.Fatalf("list with IMSI filter failed: %v", err)
+		t.Fatalf("list with protocol filter failed: %v", err)
 	}
 
 	if total != 2 {
-		t.Fatalf("expected total 2 logs with IMSI filter, got %d", total)
+		t.Fatalf("expected total 2 logs with Protocol filter, got %d", total)
 	}
 
 	if got := len(logs); got != 2 {
-		t.Fatalf("expected 2 logs with IMSI filter, got %d", got)
+		t.Fatalf("expected 2 logs with Protocol filter, got %d", got)
 	}
 
 	for _, l := range logs {
-		if l.IMSI != "imsi-001" {
-			t.Fatalf("expected IMSI imsi-001 with IMSI filter, got %q", l.IMSI)
+		if l.Protocol != "protocol-001" {
+			t.Fatalf("expected protocol-001 with Protocol filter, got %q", l.Protocol)
 		}
 	}
 }
 
-func TestListSubscriberLogsTimestampFilter(t *testing.T) {
+func TestListNetworkLogsTimestampFilter(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -257,14 +314,14 @@ func TestListSubscriberLogsTimestampFilter(t *testing.T) {
 		raw := fmt.Sprintf(`{
 			"timestamp":"%s",
 			"level":"info",
-			"component":"Subscriber",
-			"event":"%s",
+			"component":"Network",
+			"message_type":"%s",
 			"direction":"inbound",
-			"imsi":"tester",
+			"protocol":"tester",
 			"details":"test",
 			"raw":"dGVzdA=="
 		}`, ts.UTC().Format(time.RFC3339), event)
-		if err := database.InsertSubscriberLogJSON(ctx, []byte(raw)); err != nil {
+		if err := database.InsertNetworkLogJSON(ctx, []byte(raw)); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)
 		}
 	}
@@ -283,7 +340,7 @@ func TestListSubscriberLogsTimestampFilter(t *testing.T) {
 	from := past2.Format(time.RFC3339)
 	to := veryNearFuture.Format(time.RFC3339)
 
-	logs, total, err := database.ListSubscriberLogs(ctx, 1, 10, &db.SubscriberLogFilters{
+	logs, total, err := database.ListNetworkLogs(ctx, 1, 10, &db.NetworkLogFilters{
 		TimestampFrom: &from,
 		TimestampTo:   &to,
 	})
@@ -305,13 +362,13 @@ func TestListSubscriberLogsTimestampFilter(t *testing.T) {
 	}
 
 	for _, l := range logs {
-		if !expectedEvents[l.Event] {
-			t.Fatalf("unexpected event %q with timestamp filter", l.Event)
+		if !expectedEvents[l.MessageType] {
+			t.Fatalf("unexpected event %q with timestamp filter", l.MessageType)
 		}
 	}
 }
 
-func TestListSubscriberLogsTimestampAndIMSIFilters(t *testing.T) {
+func TestListNetworkLogsTimestampAndProtocolFilters(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -327,18 +384,18 @@ func TestListSubscriberLogsTimestampAndIMSIFilters(t *testing.T) {
 
 	ctx := context.Background()
 
-	insert := func(ts time.Time, imsi, event string) {
+	insert := func(ts time.Time, protocol, event string) {
 		raw := fmt.Sprintf(`{
 			"timestamp":"%s",
 			"level":"info",
-			"component":"Subscriber",
-			"event":"%s",
+			"component":"Network",
+			"message_type":"%s",
 			"direction":"inbound",
-			"imsi":"%s",
+			"protocol":"%s",
 			"details":"test",
 			"raw":"dGVzdA=="
-		}`, ts.UTC().Format(time.RFC3339), event, imsi)
-		if err := database.InsertSubscriberLogJSON(ctx, []byte(raw)); err != nil {
+		}`, ts.UTC().Format(time.RFC3339), event, protocol)
+		if err := database.InsertNetworkLogJSON(ctx, []byte(raw)); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)
 		}
 	}
@@ -348,34 +405,34 @@ func TestListSubscriberLogsTimestampAndIMSIFilters(t *testing.T) {
 	past2 := now.Add(-24 * time.Hour)
 	future := now.Add(24 * time.Hour)
 
-	insert(past1, "imsi-001", "event-001")
-	insert(past2, "imsi-002", "event-002")
-	insert(now, "imsi-001", "event-003")
-	insert(future, "imsi-002", "event-004")
+	insert(past1, "protocol-001", "event-001")
+	insert(past2, "protocol-002", "event-002")
+	insert(now, "protocol-001", "event-003")
+	insert(future, "protocol-002", "event-004")
 
 	from := past2.Format(time.RFC3339)
 	to := future.Format(time.RFC3339)
-	imsi := "imsi-001"
+	protocol := "protocol-001"
 
-	logs, total, err := database.ListSubscriberLogs(ctx, 1, 10, &db.SubscriberLogFilters{
+	logs, total, err := database.ListNetworkLogs(ctx, 1, 10, &db.NetworkLogFilters{
 		TimestampFrom: &from,
 		TimestampTo:   &to,
-		IMSI:          &imsi,
+		Protocol:      &protocol,
 	})
 	if err != nil {
-		t.Fatalf("list with timestamp+IMSI filter failed: %v", err)
+		t.Fatalf("list with timestamp+Protocol filter failed: %v", err)
 	}
 
 	if total != 1 {
-		t.Fatalf("expected total 1 log with timestamp+IMSI filter, got %d", total)
+		t.Fatalf("expected total 1 log with timestamp+Protocol filter, got %d", total)
 	}
 
 	if got := len(logs); got != 1 {
-		t.Fatalf("expected 1 log with timestamp+IMSI filter, got %d", got)
+		t.Fatalf("expected 1 log with timestamp+Protocol filter, got %d", got)
 	}
 
-	if logs[0].Event != "event-003" {
-		t.Fatalf("expected event-003 with timestamp+IMSI filter, got %q", logs[0].Event)
+	if logs[0].MessageType != "event-003" {
+		t.Fatalf("expected event-003 with timestamp+Protocol filter, got %q", logs[0].MessageType)
 	}
 }
 

@@ -11,21 +11,21 @@ import {
   Collapse,
 } from "@mui/material";
 import {
-  updateRadioLogRetentionPolicy,
-  type RadioLogRetentionPolicy,
-} from "@/queries/radio_logs";
+  updateNetworkLogRetentionPolicy,
+  type NetworkLogRetentionPolicy,
+} from "@/queries/network_logs";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
-interface EditRadioLogRetentionPolicyModalProps {
+interface EditNetworkLogRetentionPolicyModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: RadioLogRetentionPolicy;
+  initialData: NetworkLogRetentionPolicy;
 }
 
-const EditRadioLogRetentionPolicyModal: React.FC<
-  EditRadioLogRetentionPolicyModalProps
+const EditNetworkLogRetentionPolicyModal: React.FC<
+  EditNetworkLogRetentionPolicyModalProps
 > = ({ open, onClose, onSuccess, initialData }) => {
   const router = useRouter();
   const { accessToken, authReady } = useAuth();
@@ -61,14 +61,14 @@ const EditRadioLogRetentionPolicyModal: React.FC<
     setAlert({ message: "" });
 
     try {
-      await updateRadioLogRetentionPolicy(accessToken, formValues.days);
+      await updateNetworkLogRetentionPolicy(accessToken, formValues.days);
       onClose();
       onSuccess();
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred.";
       setAlert({
-        message: `Failed to update radio log retention policy: ${errorMessage}`,
+        message: `Failed to update network log retention policy: ${errorMessage}`,
       });
     } finally {
       setLoading(false);
@@ -79,10 +79,10 @@ const EditRadioLogRetentionPolicyModal: React.FC<
     <Dialog
       open={open}
       onClose={onClose}
-      aria-labelledby="edit-radio-log-retention-policy-modal-title"
-      aria-describedby="edit-radio-log-retention-policy-modal-description"
+      aria-labelledby="edit-network-log-retention-policy-modal-title"
+      aria-describedby="edit-network-log-retention-policy-modal-description"
     >
-      <DialogTitle>Edit Radio Log Retention Policy</DialogTitle>
+      <DialogTitle>Edit Network Log Retention Policy</DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -94,7 +94,7 @@ const EditRadioLogRetentionPolicyModal: React.FC<
           </Alert>
         </Collapse>
         <DialogContentText>
-          Set the number of days to retain radio logs. After this period, logs
+          Set the number of days to retain network logs. After this period, logs
           will be automatically deleted.
         </DialogContentText>
         <TextField
@@ -123,4 +123,4 @@ const EditRadioLogRetentionPolicyModal: React.FC<
   );
 };
 
-export default EditRadioLogRetentionPolicyModal;
+export default EditNetworkLogRetentionPolicyModal;

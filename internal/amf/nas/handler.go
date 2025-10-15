@@ -56,6 +56,7 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
+
 	if err := Dispatch(ctx, ue.AmfUe, ue.Ran.AnType, procedureCode, msg); err != nil {
 		eeCtx := ue.AmfUe
 		eeCtx.NASLog.Error("Handle NAS Error", zap.Error(err))
@@ -71,9 +72,11 @@ func DispatchMsg(ctx ctxt.Context, amfUe *context.AmfUe, transInfo context.NasMs
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
+
 	err = Dispatch(ctx, amfUe, transInfo.AnType, transInfo.ProcedureCode, msg)
 	if err != nil {
 		return fmt.Errorf("error handling NAS message: %v", err)
 	}
+
 	return nil
 }

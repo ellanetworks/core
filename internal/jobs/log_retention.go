@@ -18,11 +18,8 @@ func StartLogRetentionWorker(database *db.Database) {
 			if err := enforceAuditLogRetention(database); err != nil {
 				logger.EllaLog.Error("error enforcing audit log retention", zap.Error(err))
 			}
-			if err := enforceSubscriberLogRetention(database); err != nil {
-				logger.EllaLog.Error("error enforcing subscriber log retention", zap.Error(err))
-			}
-			if err := enforceRadioLogRetention(database); err != nil {
-				logger.EllaLog.Error("error enforcing radio log retention", zap.Error(err))
+			if err := enforceNetworkLogRetention(database); err != nil {
+				logger.EllaLog.Error("error enforcing network log retention", zap.Error(err))
 			}
 
 			<-ticker.C
@@ -45,30 +42,15 @@ func enforceAuditLogRetention(database *db.Database) error {
 	return nil
 }
 
-func enforceSubscriberLogRetention(database *db.Database) error {
+func enforceNetworkLogRetention(database *db.Database) error {
 	ctx := context.Background()
 
-	days, err := database.GetLogRetentionPolicy(ctx, db.CategorySubscriberLogs)
+	days, err := database.GetLogRetentionPolicy(ctx, db.CategoryNetworkLogs)
 	if err != nil {
 		return err
 	}
 
-	if err := database.DeleteOldSubscriberLogs(ctx, days); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func enforceRadioLogRetention(database *db.Database) error {
-	ctx := context.Background()
-
-	days, err := database.GetLogRetentionPolicy(ctx, db.CategoryRadioLogs)
-	if err != nil {
-		return err
-	}
-
-	if err := database.DeleteOldRadioLogs(ctx, days); err != nil {
+	if err := database.DeleteOldNetworkLogs(ctx, days); err != nil {
 		return err
 	}
 

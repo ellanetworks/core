@@ -35,6 +35,7 @@ func HandleUpdateN1Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 		if err != nil {
 			return fmt.Errorf("error decoding N1SmMessage: %v", err)
 		}
+
 		switch m.GsmHeader.GetMessageType() {
 		case nas.MsgTypePDUSessionReleaseRequest:
 			smContext.SubPduSessLog.Info("N1 Msg PDU Session Release Request received")
