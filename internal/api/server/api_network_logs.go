@@ -45,8 +45,9 @@ type ListNetworkLogsResponse struct {
 	TotalCount int          `json:"total_count"`
 }
 
-type GetDecodedNetworkLogResponse struct {
-	Content *decoder.NGAPMessage `json:"content"`
+type GetNetworkLogResponse struct {
+	Raw     []byte               `json:"raw"`
+	Decoded *decoder.NGAPMessage `json:"decoded"`
 }
 
 func isRFC3339(s string) bool {
@@ -206,7 +207,7 @@ func ListNetworkLogs(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func DecodeNetworkLog(dbInstance *db.Database) http.Handler {
+func GetNetworkLog(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -229,8 +230,9 @@ func DecodeNetworkLog(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		response := GetDecodedNetworkLogResponse{
-			Content: decodedContent,
+		response := GetNetworkLogResponse{
+			Raw:     networkLog.Raw,
+			Decoded: decodedContent,
 		}
 
 		writeResponse(w, response, http.StatusOK, logger.APILog)

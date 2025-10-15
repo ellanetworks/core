@@ -69,6 +69,11 @@ type ListNetworkLogsParams struct {
 	TimestampTo   string `json:"timestamp_to"`
 }
 
+type NetworkLogContent struct {
+	Decoded any    `json:"decoded"`
+	Raw     string `json:"raw"`
+}
+
 func (c *Client) ListAuditLogs(ctx context.Context, p *ListParams) (*ListAuditLogsResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -246,4 +251,24 @@ func (c *Client) UpdateNetworkLogRetentionPolicy(ctx context.Context, opts *Upda
 		return err
 	}
 	return nil
+}
+
+func (c *Client) GetNetworkLog(ctx context.Context, id int) (*NetworkLogContent, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   fmt.Sprintf("api/v1/logs/network/%d", id),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var logContent NetworkLogContent
+
+	err = resp.DecodeResult(&logContent)
+	if err != nil {
+		return nil, err
+	}
+
+	return &logContent, nil
 }

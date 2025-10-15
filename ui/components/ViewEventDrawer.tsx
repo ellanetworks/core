@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Drawer,
@@ -16,9 +16,10 @@ import {
   Close as CloseIcon,
   ContentCopy as CopyIcon,
   Refresh as RefreshIcon,
+  WarningAmberRounded as WarningAmberRoundedIcon,
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
-import { decodeNetworkLog } from "@/queries/network_logs";
+import { getNetworkLog, type NetworkLogContent } from "@/queries/network_logs";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -76,15 +77,15 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
 
   const {
     data: decodedData,
-    isLoading: isDecoding,
-    isError: isDecodeError,
-    error: decodeError,
-    refetch: refetchDecode,
-    isFetching: isDecodeFetching,
-  } = useQuery({
+    isLoading: isRetrieving,
+    isError: isRetrieveError,
+    error: retrieveError,
+    refetch: refetchNetworkLog,
+    isFetching: isNetworkLogFetching,
+  } = useQuery<NetworkLogContent>({
     queryKey: ["decoded-log", log?.id],
     queryFn: async () => {
-      return await decodeNetworkLog(accessToken!, log!.id);
+      return await getNetworkLog(accessToken!, log!.id);
     },
     enabled: open && !!log?.id && !!accessToken,
     staleTime: 60_000,
@@ -101,8 +102,18 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
     setTimeout(() => setAlert({ message: "" }), 1500);
   };
 
-  const renderDecoded = () => {
-    if (isDecoding || isDecodeFetching) {
+  const stringify = (v: unknown): string => {
+    if (v == null) return "";
+    if (typeof v === "string") return v;
+    try {
+      return JSON.stringify(v, null, 2);
+    } catch {
+      return String(v);
+    }
+  };
+
+  const renderMessageContent = () => {
+    if (isRetrieving || isNetworkLogFetching) {
       return (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <CircularProgress size={18} />
@@ -111,7 +122,7 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
       );
     }
 
-    if (isDecodeError) {
+    if (isRetrieveError) {
       return (
         <Alert
           severity="error"
@@ -119,15 +130,15 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
             <Button
               size="small"
               startIcon={<RefreshIcon fontSize="small" />}
-              onClick={() => refetchDecode()}
+              onClick={() => refetchNetworkLog()}
             >
               Retry
             </Button>
           }
           sx={{ mt: 0.5 }}
         >
-          {decodeError instanceof Error
-            ? decodeError.message
+          {retrieveError instanceof Error
+            ? retrieveError.message
             : "Failed to decode message."}
         </Alert>
       );
@@ -137,25 +148,66 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
       return <Typography variant="body2">No decoded content.</Typography>;
     }
 
-    const maybeString =
-      typeof decodedData === "string"
-        ? decodedData
-        : JSON.stringify(decodedData, null, 2);
+    const { decoded, raw } = decodedData;
 
     return (
       <>
-        <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 0.5 }}>
-          <Tooltip title="Copy decoded message">
-            <IconButton
-              size="small"
-              onClick={() => handleCopy(maybeString)}
-              aria-label="Copy decoded message"
-            >
-              <CopyIcon fontSize="small" />
-            </IconButton>
+        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+          <Typography variant="subtitle2">Decoded</Typography>
+          <Tooltip title="Copy decoded content">
+            <span>
+              <IconButton
+                size="small"
+                onClick={() => handleCopy(stringify(decoded))}
+                aria-label="Copy decoded content"
+                disabled={decoded == null}
+              >
+                <CopyIcon fontSize="small" />
+              </IconButton>
+            </span>
           </Tooltip>
         </Box>
-        <MonoBlock>{maybeString}</MonoBlock>
+        <MonoBlock>{stringify(decoded)}</MonoBlock>
+
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.75 }}>
+          <WarningAmberRoundedIcon
+            fontSize="small"
+            sx={{ color: (t) => t.palette.warning.main }}
+            aria-hidden
+          />
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            message decoding support is partial and content may be incomplete
+          </Typography>
+        </Box>
+
+        <Divider sx={{ my: 1.5 }} />
+
+        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+          <Typography variant="subtitle2">
+            Raw (base64 encoded bytes)
+          </Typography>
+          <Tooltip title="Copy raw message">
+            <span>
+              <IconButton
+                size="small"
+                onClick={() =>
+                  handleCopy(
+                    typeof raw === "string"
+                      ? raw
+                      : stringify(Array.from(raw ?? [])),
+                  )
+                }
+                aria-label="Copy raw message"
+                disabled={!raw}
+              >
+                <CopyIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
+        <MonoBlock>
+          {typeof raw === "string" ? raw : stringify(Array.from(raw ?? []))}
+        </MonoBlock>
       </>
     );
   };
@@ -171,7 +223,6 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
           boxShadow: theme.shadows[8],
         },
       }}
-      aria-label="View network log drawer"
     >
       <Box
         sx={{
@@ -250,11 +301,11 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
           <Typography variant="subtitle1" sx={{ flex: 1 }}>
-            Decoded Message
+            Message Content
           </Typography>
         </Box>
 
-        {renderDecoded()}
+        {renderMessageContent()}
       </Box>
     </Drawer>
   );

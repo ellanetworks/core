@@ -116,7 +116,7 @@ const (
 	PermSetNetworkLogRetentionPolicy = "network_logs:set_retention"
 	PermListNetworkLogs              = "network_logs:list"
 	PermClearNetworkLogs             = "network_logs:clear"
-	PermDecodeNetworkLog             = "network_logs:decode"
+	PermGetNetworkLog                = "network_logs:get"
 )
 
 func RequirePermission(permission string, jwtSecret []byte, next http.Handler) http.Handler {

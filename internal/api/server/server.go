@@ -105,7 +105,7 @@ func NewHandler(dbInstance *db.Database, upf UPFReloader, kernel kernel.Kernel, 
 	mux.HandleFunc("PUT /api/v1/logs/network/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermSetNetworkLogRetentionPolicy, jwtSecret, UpdateNetworkLogRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/logs/network", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListNetworkLogs, jwtSecret, ListNetworkLogs(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/logs/network", Authenticate(jwtSecret, dbInstance, RequirePermission(PermClearNetworkLogs, jwtSecret, ClearNetworkLogs(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/logs/network/{id}", Authenticate(jwtSecret, dbInstance, RequirePermission(PermDecodeNetworkLog, jwtSecret, DecodeNetworkLog(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/logs/network/{id}", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetNetworkLog, jwtSecret, GetNetworkLog(dbInstance))).ServeHTTP)
 
 	// Fallback to UI
 	frontendHandler, err := newFrontendFileServer(embedFS)

@@ -131,6 +131,78 @@ This path returns the list of network logs.
 }
 ```
 
+## Get Network Log
+
+This path returns a specific network log by its ID.
+
+| Method | Path                         |
+| ------ | ---------------------------- |
+| GET    | `/api/v1/logs/networks/{id}` |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "raw": "IBUALAAABAABAAUBAGFtZgBgAAgAAADxEMr+AABWQAH/AFAACwAA8RAAABAIECAw",
+        "decoded": {
+            "successful_outcome": {
+                "procedure_code": "NGSetup",
+                "criticality": "Reject (0)",
+                "value": {
+                    "ng_setup_response": {
+                        "ies": [
+                            {
+                                "id": "AMFName (1)",
+                                "criticality": "Reject (0)",
+                                "amf_name": "amf"
+                            },
+                            {
+                                "id": "ServedGUAMIList (96)",
+                                "criticality": "Reject (0)",
+                                "served_guami_list": [
+                                    {
+                                        "plmn_id": {
+                                            "mcc": "001",
+                                            "mnc": "01"
+                                        },
+                                        "amf_id": "cafe00"
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "RelativeAMFCapacity (86)",
+                                "criticality": "Ignore (1)",
+                                "relative_amf_capacity": 255
+                            },
+                            {
+                                "id": "PLMNSupportList (80)",
+                                "criticality": "Reject (0)",
+                                "plmn_support_list": [
+                                    {
+                                        "plmn_id": {
+                                            "mcc": "001",
+                                            "mnc": "01"
+                                        },
+                                        "slice_support_list": [
+                                            {
+                                                "sst": 1,
+                                                "sd": "102030"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+
 ## Update Network Log Retention Policy
 
 This path updates the network log retention policy.

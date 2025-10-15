@@ -2,6 +2,7 @@ package client_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
@@ -369,6 +370,66 @@ func TestUpdateNetworkLogsRetentionPolicy_Failure(t *testing.T) {
 	ctx := context.Background()
 
 	err := clientObj.UpdateNetworkLogRetentionPolicy(ctx, updateOpts)
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
+func TestGetNetworkLog_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"raw": "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA", "decoded": {"pduSessionID":1}}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	logID := 1
+
+	resp, err := clientObj.GetNetworkLog(ctx, logID)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	expectedRaw := "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA"
+	if resp.Raw != expectedRaw {
+		t.Fatalf("expected raw '%s', got '%s'", expectedRaw, resp.Raw)
+	}
+
+	decodedMap, ok := resp.Decoded.(map[string]any)
+	if !ok {
+		t.Fatalf("expected decoded to be a map, got %T", resp.Decoded)
+	}
+
+	if decodedMap["pduSessionID"] != json.Number("1") { // JSON numbers are float64
+		t.Fatalf("expected decoded pduSessionID to be 1, got %v", decodedMap["pduSessionID"])
+	}
+}
+
+func TestGetNetworkLog_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 404,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Network log not found"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	logID := 999
+
+	_, err := clientObj.GetNetworkLog(ctx, logID)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
