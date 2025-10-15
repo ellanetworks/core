@@ -135,35 +135,86 @@ type UEAggregateMaximumBitRate struct {
 	UEAggregateMaximumBitRateUL int64 `json:"ue_aggregate_maximum_bit_rate_ul"`
 }
 
+type ExpectedUEActivityBehaviour struct {
+	ExpectedActivityPeriod                 *int64  `json:"expected_activity_period,omitempty"`
+	ExpectedIdlePeriod                     *int64  `json:"expected_idle_period,omitempty"`
+	SourceOfUEActivityBehaviourInformation *string `json:"source_of_ue_activity_behaviour_information,omitempty"`
+}
+
+type NGRANCGI struct {
+	NRCGI    *NRCGI    `json:"nr_ran_cgi,omitempty"`
+	EUTRACGI *EUTRACGI `json:"eutra_cgi,omitempty"`
+}
+
+type ExpectedUEMovingTrajectoryItem struct {
+	NGRANCGI         NGRANCGI `json:"ng_ran_cgi"`
+	TimeStayedInCell *int64   `json:"time_stayed_in_cell,omitempty"`
+}
+
+type ExpectedUEBehaviour struct {
+	ExpectedUEActivityBehaviour *ExpectedUEActivityBehaviour     `json:"expected_ue_activity_behaviour,omitempty"`
+	ExpectedHOInterval          *string                          `json:"expected_ho_interval,omitempty"`
+	ExpectedUEMobility          *string                          `json:"expected_ue_mobility,omitempty"`
+	ExpectedUEMovingTrajectory  []ExpectedUEMovingTrajectoryItem `json:"expected_ue_moving_trajectory,omitempty"`
+}
+
+type CoreNetworkAssistanceInformation struct {
+	UEIdentityIndexValue            string               `json:"ue_identity_index_value"`
+	UESpecificDRX                   *string              `json:"ue_specific_drx,omitempty"`
+	PeriodicRegistrationUpdateTimer string               `json:"periodic_registration_update_timer"`
+	MICOModeIndication              *string              `json:"mico_mode_indication,omitempty"`
+	TAIListForInactive              []TAI                `json:"tai_list_for_inactive,omitempty"`
+	ExpectedUEBehaviour             *ExpectedUEBehaviour `json:"expected_ue_behaviour,omitempty"`
+}
+
+type PDUSessionResourceSetupCxtReq struct {
+	PDUSessionID                           int64  `json:"pdu_session_id"`
+	NASPDU                                 []byte `json:"nas_pdu,omitempty"`
+	SNSSAI                                 SNSSAI `json:"snssai"`
+	PDUSessionResourceSetupRequestTransfer []byte `json:"pdu_session_resource_setup_request_transfer"`
+}
+
+type UESecurityCapabilities struct {
+	NRencryptionAlgorithms             string `json:"nr_encryption_algorithms"`
+	NRintegrityProtectionAlgorithms    string `json:"nr_integrity_protection_algorithms"`
+	EUTRAencryptionAlgorithms          string `json:"eutra_encryption_algorithms"`
+	EUTRAintegrityProtectionAlgorithms string `json:"eutra_integrity_protection_algorithms"`
+}
+
 type IE struct {
-	ID                        string                     `json:"id"`
-	Criticality               string                     `json:"criticality"`
-	GlobalRANNodeID           *GlobalRANNodeIDIE         `json:"global_ran_node_id,omitempty"`
-	RANNodeName               *string                    `json:"ran_node_name,omitempty"`
-	SupportedTAList           []SupportedTA              `json:"supported_ta_list,omitempty"`
-	DefaultPagingDRX          *string                    `json:"default_paging_drx,omitempty"`
-	UERetentionInformation    *string                    `json:"ue_retention_information,omitempty"`
-	AMFName                   *string                    `json:"amf_name,omitempty"`
-	ServedGUAMIList           []Guami                    `json:"served_guami_list,omitempty"`
-	RelativeAMFCapacity       *int64                     `json:"relative_amf_capacity,omitempty"`
-	PLMNSupportList           []PLMN                     `json:"plmn_support_list,omitempty"`
-	CriticalityDiagnostics    *CriticalityDiagnostics    `json:"criticality_diagnostics,omitempty"`
-	Cause                     *string                    `json:"cause,omitempty"`
-	TimeToWait                *string                    `json:"time_to_wait,omitempty"`
-	RANUENGAPID               *int64                     `json:"ran_ue_ngap_id,omitempty"`
-	NASPDU                    []byte                     `json:"nas_pdu,omitempty"`
-	UserLocationInformation   *UserLocationInformation   `json:"user_location_information,omitempty"`
-	RRCEstablishmentCause     *string                    `json:"rrc_establishment_cause,omitempty"`
-	FiveGSTMSI                *FiveGSTMSI                `json:"fiveg_stmsi,omitempty"`
-	AMFSetID                  *string                    `json:"amf_set_id,omitempty"`
-	UEContextRequest          *string                    `json:"ue_context_request,omitempty"`
-	AllowedNSSAI              []SNSSAI                   `json:"allowed_nssai,omitempty"`
-	AMFUENGAPID               *int64                     `json:"amf_ue_ngap_id,omitempty"`
-	OldAMF                    *string                    `json:"old_amf,omitempty"`
-	RANPagingPriority         *int64                     `json:"ran_paging_priority,omitempty"`
-	MobilityRestrictionList   *MobilityRestrictionList   `json:"mobility_restriction_list,omitempty"`
-	IndexToRFSP               *int64                     `json:"index_to_rfsp,omitempty"`
-	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate `json:"ue_aggregate_maximum_bit_rate,omitempty"`
+	ID                                string                            `json:"id"`
+	Criticality                       string                            `json:"criticality"`
+	GlobalRANNodeID                   *GlobalRANNodeIDIE                `json:"global_ran_node_id,omitempty"`
+	RANNodeName                       *string                           `json:"ran_node_name,omitempty"`
+	SupportedTAList                   []SupportedTA                     `json:"supported_ta_list,omitempty"`
+	DefaultPagingDRX                  *string                           `json:"default_paging_drx,omitempty"`
+	UERetentionInformation            *string                           `json:"ue_retention_information,omitempty"`
+	AMFName                           *string                           `json:"amf_name,omitempty"`
+	ServedGUAMIList                   []Guami                           `json:"served_guami_list,omitempty"`
+	RelativeAMFCapacity               *int64                            `json:"relative_amf_capacity,omitempty"`
+	PLMNSupportList                   []PLMN                            `json:"plmn_support_list,omitempty"`
+	CriticalityDiagnostics            *CriticalityDiagnostics           `json:"criticality_diagnostics,omitempty"`
+	Cause                             *string                           `json:"cause,omitempty"`
+	TimeToWait                        *string                           `json:"time_to_wait,omitempty"`
+	RANUENGAPID                       *int64                            `json:"ran_ue_ngap_id,omitempty"`
+	NASPDU                            []byte                            `json:"nas_pdu,omitempty"`
+	UserLocationInformation           *UserLocationInformation          `json:"user_location_information,omitempty"`
+	RRCEstablishmentCause             *string                           `json:"rrc_establishment_cause,omitempty"`
+	FiveGSTMSI                        *FiveGSTMSI                       `json:"fiveg_stmsi,omitempty"`
+	AMFSetID                          *string                           `json:"amf_set_id,omitempty"`
+	UEContextRequest                  *string                           `json:"ue_context_request,omitempty"`
+	AllowedNSSAI                      []SNSSAI                          `json:"allowed_nssai,omitempty"`
+	AMFUENGAPID                       *int64                            `json:"amf_ue_ngap_id,omitempty"`
+	OldAMF                            *string                           `json:"old_amf,omitempty"`
+	RANPagingPriority                 *int64                            `json:"ran_paging_priority,omitempty"`
+	MobilityRestrictionList           *MobilityRestrictionList          `json:"mobility_restriction_list,omitempty"`
+	IndexToRFSP                       *int64                            `json:"index_to_rfsp,omitempty"`
+	UEAggregateMaximumBitRate         *UEAggregateMaximumBitRate        `json:"ue_aggregate_maximum_bit_rate,omitempty"`
+	CoreNetworkAssistanceInformation  *CoreNetworkAssistanceInformation `json:"core_network_assistance_information,omitempty"`
+	GUAMI                             *Guami                            `json:"guami,omitempty"`
+	PDUSessionResourceSetupListCxtReq []PDUSessionResourceSetupCxtReq   `json:"pdu_session_resource_setup_list_cxt_req,omitempty"`
+	UESecurityCapabilities            *UESecurityCapabilities           `json:"ue_security_capabilities,omitempty"`
+	SecurityKey                       *string                           `json:"security_key,omitempty"`
 }
 
 type NGSetupRequest struct {
@@ -182,11 +233,16 @@ type UplinkNASTransport struct {
 	IEs []IE `json:"ies"`
 }
 
+type InitialContextSetupRequest struct {
+	IEs []IE `json:"ies"`
+}
+
 type InitiatingMessageValue struct {
-	NGSetupRequest       *NGSetupRequest       `json:"ng_setup_request,omitempty"`
-	InitialUEMessage     *InitialUEMessage     `json:"initial_ue_message,omitempty"`
-	DownlinkNASTransport *DownlinkNASTransport `json:"downlink_nas_transport,omitempty"`
-	UplinkNASTransport   *UplinkNASTransport   `json:"uplink_nas_transport,omitempty"`
+	NGSetupRequest             *NGSetupRequest             `json:"ng_setup_request,omitempty"`
+	InitialUEMessage           *InitialUEMessage           `json:"initial_ue_message,omitempty"`
+	DownlinkNASTransport       *DownlinkNASTransport       `json:"downlink_nas_transport,omitempty"`
+	UplinkNASTransport         *UplinkNASTransport         `json:"uplink_nas_transport,omitempty"`
+	InitialContextSetupRequest *InitialContextSetupRequest `json:"initial_context_setup_request,omitempty"`
 }
 
 type InitiatingMessage struct {
@@ -277,6 +333,9 @@ func buildInitiatingMessage(initMsg *ngapType.InitiatingMessage) *InitiatingMess
 	case ngapType.InitiatingMessagePresentUplinkNASTransport:
 		initiatingMsg.Value.UplinkNASTransport = buildUplinkNASTransport(initMsg.Value.UplinkNASTransport)
 		return initiatingMsg
+	case ngapType.InitiatingMessagePresentInitialContextSetupRequest:
+		initiatingMsg.Value.InitialContextSetupRequest = buildInitialContextSetupRequest(initMsg.Value.InitialContextSetupRequest)
+		return initiatingMsg
 	default:
 		logger.EllaLog.Warn("Unsupported procedure code", zap.Int("present", initMsg.Value.Present))
 		return initiatingMsg
@@ -322,6 +381,303 @@ func buildUnsuccessfulOutcome(unsucMsg *ngapType.UnsuccessfulOutcome) *Unsuccess
 		logger.EllaLog.Warn("Unsupported message", zap.Int("present", unsucMsg.Value.Present))
 		return unsuccessfulOutcome
 	}
+}
+
+func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.InitialContextSetupRequest) *InitialContextSetupRequest {
+	if initialContextSetupRequest == nil {
+		return nil
+	}
+
+	ieList := &InitialContextSetupRequest{}
+
+	for i := 0; i < len(initialContextSetupRequest.ProtocolIEs.List); i++ {
+		ie := initialContextSetupRequest.ProtocolIEs.List[i]
+		switch ie.Id.Value {
+		case ngapType.ProtocolIEIDAMFUENGAPID:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
+			})
+		case ngapType.ProtocolIEIDRANUENGAPID:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
+			})
+		case ngapType.ProtocolIEIDOldAMF:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				OldAMF:      &ie.Value.OldAMF.Value,
+			})
+		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				UEAggregateMaximumBitRate: &UEAggregateMaximumBitRate{
+					UEAggregateMaximumBitRateDL: ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value,
+					UEAggregateMaximumBitRateUL: ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value,
+				},
+			})
+		case ngapType.ProtocolIEIDCoreNetworkAssistanceInformation:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:                               protocolIEIDToString(ie.Id.Value),
+				Criticality:                      criticalityToString(ie.Criticality.Value),
+				CoreNetworkAssistanceInformation: buildCoreNetworkAssistanceInformation(ie.Value.CoreNetworkAssistanceInformation),
+			})
+		case ngapType.ProtocolIEIDGUAMI:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				GUAMI:       buildGUAMI(ie.Value.GUAMI),
+			})
+		case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtReq:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:                                protocolIEIDToString(ie.Id.Value),
+				Criticality:                       criticalityToString(ie.Criticality.Value),
+				PDUSessionResourceSetupListCxtReq: buildPDUSessionResourceSetupListCxtReq(ie.Value.PDUSessionResourceSetupListCxtReq),
+			})
+		case ngapType.ProtocolIEIDAllowedNSSAI:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:           protocolIEIDToString(ie.Id.Value),
+				Criticality:  criticalityToString(ie.Criticality.Value),
+				AllowedNSSAI: buildAllowedNSSAI(ie.Value.AllowedNSSAI),
+			})
+		case ngapType.ProtocolIEIDUESecurityCapabilities:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:                     protocolIEIDToString(ie.Id.Value),
+				Criticality:            criticalityToString(ie.Criticality.Value),
+				UESecurityCapabilities: buildUESecurityCapabilities(ie.Value.UESecurityCapabilities),
+			})
+		case ngapType.ProtocolIEIDSecurityKey:
+			securityKey := bitStringToHex(&ie.Value.SecurityKey.Value)
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				SecurityKey: &securityKey,
+			})
+		case ngapType.ProtocolIEIDMobilityRestrictionList:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:                      protocolIEIDToString(ie.Id.Value),
+				Criticality:             criticalityToString(ie.Criticality.Value),
+				MobilityRestrictionList: buildMobilityRestrictionListIE(ie.Value.MobilityRestrictionList),
+			})
+		case ngapType.ProtocolIEIDIndexToRFSP:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				IndexToRFSP: &ie.Value.IndexToRFSP.Value,
+			})
+		case ngapType.ProtocolIEIDNASPDU:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				NASPDU:      ie.Value.NASPDU.Value,
+			})
+		default:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+			})
+			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
+		}
+	}
+
+	// missing IEs:
+	// - TraceActivation
+	// - UERadioCapability
+	// - MaskedIMEISV
+	// - EmergencyFallbackIndicator
+	// - RRCInactiveTransitionReportRequest
+	// - UERadioCapabilityForPaging
+	// - RedirectionVoiceFallback
+
+	return ieList
+}
+
+func buildUESecurityCapabilities(uesec *ngapType.UESecurityCapabilities) *UESecurityCapabilities {
+	if uesec == nil {
+		return nil
+	}
+
+	return &UESecurityCapabilities{
+		NRencryptionAlgorithms:             bitStringToHex(&uesec.NRencryptionAlgorithms.Value),
+		NRintegrityProtectionAlgorithms:    bitStringToHex(&uesec.NRintegrityProtectionAlgorithms.Value),
+		EUTRAencryptionAlgorithms:          bitStringToHex(&uesec.EUTRAencryptionAlgorithms.Value),
+		EUTRAintegrityProtectionAlgorithms: bitStringToHex(&uesec.EUTRAintegrityProtectionAlgorithms.Value),
+	}
+}
+
+func buildPDUSessionResourceSetupListCxtReq(pduSessionResourceSetupListCxtReq *ngapType.PDUSessionResourceSetupListCxtReq) []PDUSessionResourceSetupCxtReq {
+	if pduSessionResourceSetupListCxtReq == nil {
+		return nil
+	}
+
+	var pduSessionResourceSetupList []PDUSessionResourceSetupCxtReq
+
+	for i := 0; i < len(pduSessionResourceSetupListCxtReq.List); i++ {
+		item := pduSessionResourceSetupListCxtReq.List[i]
+		pduSessionResourceSetupList = append(pduSessionResourceSetupList, PDUSessionResourceSetupCxtReq{
+			PDUSessionID:                           item.PDUSessionID.Value,
+			NASPDU:                                 item.NASPDU.Value,
+			SNSSAI:                                 *buildSNSSAI(&item.SNSSAI),
+			PDUSessionResourceSetupRequestTransfer: item.PDUSessionResourceSetupRequestTransfer,
+		})
+	}
+
+	return pduSessionResourceSetupList
+}
+
+func buildCoreNetworkAssistanceInformation(cnai *ngapType.CoreNetworkAssistanceInformation) *CoreNetworkAssistanceInformation {
+	if cnai == nil {
+		return nil
+	}
+
+	returnedCNAI := &CoreNetworkAssistanceInformation{}
+
+	switch cnai.UEIdentityIndexValue.Present {
+	case ngapType.UEIdentityIndexValuePresentIndexLength10:
+		returnedCNAI.UEIdentityIndexValue = bitStringToHex(cnai.UEIdentityIndexValue.IndexLength10)
+	default:
+		logger.EllaLog.Warn("Unsupported UEIdentityIndexValue", zap.Int("present", cnai.UEIdentityIndexValue.Present))
+	}
+
+	if cnai.UESpecificDRX != nil {
+		returnedCNAI.UESpecificDRX = buildDefaultPagingDRXIE(cnai.UESpecificDRX)
+	}
+
+	returnedCNAI.PeriodicRegistrationUpdateTimer = bitStringToHex(&cnai.PeriodicRegistrationUpdateTimer.Value)
+
+	if cnai.MICOModeIndication != nil {
+		switch cnai.MICOModeIndication.Value {
+		case ngapType.MICOModeIndicationPresentTrue:
+			returnedCNAI.MICOModeIndication = new(string)
+			*returnedCNAI.MICOModeIndication = "true"
+		default:
+			logger.EllaLog.Warn("Unsupported MICOModeIndication", zap.Int64("present", int64(cnai.MICOModeIndication.Value)))
+		}
+	}
+
+	for i := 0; i < len(cnai.TAIListForInactive.List); i++ {
+		tai := cnai.TAIListForInactive.List[i]
+		returnedCNAI.TAIListForInactive = append(returnedCNAI.TAIListForInactive, TAI{
+			PLMNID: plmnIDToModels(tai.TAI.PLMNIdentity),
+			TAC:    hex.EncodeToString(tai.TAI.TAC.Value),
+		})
+	}
+
+	if cnai.ExpectedUEBehaviour != nil {
+		returnedCNAI.ExpectedUEBehaviour = buildExpectedUEBehaviour(cnai.ExpectedUEBehaviour)
+	}
+
+	return returnedCNAI
+}
+
+func buildExpectedUEBehaviour(eub *ngapType.ExpectedUEBehaviour) *ExpectedUEBehaviour {
+	if eub == nil {
+		return nil
+	}
+
+	returnedEUB := &ExpectedUEBehaviour{}
+
+	if eub.ExpectedUEActivityBehaviour != nil {
+		returnedEUB.ExpectedUEActivityBehaviour = &ExpectedUEActivityBehaviour{}
+
+		if eub.ExpectedUEActivityBehaviour.ExpectedActivityPeriod != nil {
+			returnedEUB.ExpectedUEActivityBehaviour.ExpectedActivityPeriod = &eub.ExpectedUEActivityBehaviour.ExpectedActivityPeriod.Value
+		}
+
+		if eub.ExpectedUEActivityBehaviour.ExpectedIdlePeriod != nil {
+			returnedEUB.ExpectedUEActivityBehaviour.ExpectedIdlePeriod = &eub.ExpectedUEActivityBehaviour.ExpectedIdlePeriod.Value
+		}
+
+		if eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation != nil {
+			switch eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation.Value {
+			case ngapType.SourceOfUEActivityBehaviourInformationPresentSubscriptionInformation:
+				returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = new(string)
+				*returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = "subscription"
+			case ngapType.SourceOfUEActivityBehaviourInformationPresentStatistics:
+				returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = new(string)
+				*returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = "statistics"
+			default:
+				logger.EllaLog.Warn("Unsupported SourceOfUEActivityBehaviourInformation", zap.Int64("present", int64(eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation.Value)))
+			}
+		}
+	}
+
+	if eub.ExpectedHOInterval != nil {
+		switch eub.ExpectedHOInterval.Value {
+		case ngapType.ExpectedHOIntervalPresentSec15:
+			returnedEUB.ExpectedHOInterval = new(string)
+			*returnedEUB.ExpectedHOInterval = "sec15"
+		case ngapType.ExpectedHOIntervalPresentSec30:
+			returnedEUB.ExpectedHOInterval = new(string)
+			*returnedEUB.ExpectedHOInterval = "sec30"
+		case ngapType.ExpectedHOIntervalPresentSec60:
+			returnedEUB.ExpectedHOInterval = new(string)
+			*returnedEUB.ExpectedHOInterval = "sec60"
+		case ngapType.ExpectedHOIntervalPresentSec120:
+			returnedEUB.ExpectedHOInterval = new(string)
+			*returnedEUB.ExpectedHOInterval = "sec120"
+		case ngapType.ExpectedHOIntervalPresentSec180:
+			returnedEUB.ExpectedHOInterval = new(string)
+			*returnedEUB.ExpectedHOInterval = "sec180"
+		case ngapType.ExpectedHOIntervalPresentLongTime:
+			returnedEUB.ExpectedHOInterval = new(string)
+			*returnedEUB.ExpectedHOInterval = "long"
+		default:
+			logger.EllaLog.Warn("Unsupported ExpectedHOInterval", zap.Int64("present", int64(eub.ExpectedHOInterval.Value)))
+		}
+	}
+
+	if eub.ExpectedUEMobility != nil {
+		switch eub.ExpectedUEMobility.Value {
+		case ngapType.ExpectedUEMobilityPresentStationary:
+			returnedEUB.ExpectedUEMobility = new(string)
+			*returnedEUB.ExpectedUEMobility = "stationary"
+		case ngapType.ExpectedUEMobilityPresentMobile:
+			returnedEUB.ExpectedUEMobility = new(string)
+			*returnedEUB.ExpectedUEMobility = "mobile"
+		default:
+			logger.EllaLog.Warn("Unsupported ExpectedUEMobility", zap.Int64("present", int64(eub.ExpectedUEMobility.Value)))
+		}
+	}
+
+	for i := 0; i < len(eub.ExpectedUEMovingTrajectory.List); i++ {
+		item := eub.ExpectedUEMovingTrajectory.List[i]
+		ngRanCgi := buildNGRANCGI(item.NGRANCGI)
+		expectedUEMovingTrajectoryItem := ExpectedUEMovingTrajectoryItem{
+			NGRANCGI: ngRanCgi,
+		}
+		if item.TimeStayedInCell != nil {
+			expectedUEMovingTrajectoryItem.TimeStayedInCell = item.TimeStayedInCell
+		}
+		returnedEUB.ExpectedUEMovingTrajectory = append(returnedEUB.ExpectedUEMovingTrajectory, expectedUEMovingTrajectoryItem)
+	}
+
+	return returnedEUB
+}
+
+func buildNGRANCGI(ngRanCgi ngapType.NGRANCGI) NGRANCGI {
+	ngRANCGI := NGRANCGI{}
+
+	switch ngRanCgi.Present {
+	case ngapType.NGRANCGIPresentNRCGI:
+		ngRANCGI.NRCGI = &NRCGI{
+			PLMNID:         plmnIDToModels(ngRanCgi.NRCGI.PLMNIdentity),
+			NRCellIdentity: bitStringToHex(&ngRanCgi.NRCGI.NRCellIdentity.Value),
+		}
+	case ngapType.NGRANCGIPresentEUTRACGI:
+		ngRANCGI.EUTRACGI = &EUTRACGI{
+			PLMNID:            plmnIDToModels(ngRanCgi.EUTRACGI.PLMNIdentity),
+			EUTRACellIdentity: bitStringToHex(&ngRanCgi.EUTRACGI.EUTRACellIdentity.Value),
+		}
+	default:
+		logger.EllaLog.Warn("Unsupported NGRANCGI", zap.Int("present", ngRanCgi.Present))
+	}
+
+	return ngRANCGI
 }
 
 func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *UplinkNASTransport {
@@ -612,17 +968,28 @@ func buildAllowedNSSAI(allowedNSSAI *ngapType.AllowedNSSAI) []SNSSAI {
 
 	for i := 0; i < len(allowedNSSAI.List); i++ {
 		ngapSnssai := allowedNSSAI.List[i].SNSSAI
-		snssai := SNSSAI{
-			SST: int32(ngapSnssai.SST.Value[0]),
-		}
-		if ngapSnssai.SD != nil {
-			sd := hex.EncodeToString(ngapSnssai.SD.Value)
-			snssai.SD = &sd
-		}
-		snssaiList = append(snssaiList, snssai)
+		snssai := buildSNSSAI(&ngapSnssai)
+		snssaiList = append(snssaiList, *snssai)
 	}
 
 	return snssaiList
+}
+
+func buildSNSSAI(ngapSnssai *ngapType.SNSSAI) *SNSSAI {
+	if ngapSnssai == nil {
+		return nil
+	}
+
+	snssai := &SNSSAI{
+		SST: int32(ngapSnssai.SST.Value[0]),
+	}
+
+	if ngapSnssai.SD != nil {
+		sd := hex.EncodeToString(ngapSnssai.SD.Value)
+		snssai.SD = &sd
+	}
+
+	return snssai
 }
 
 func buildUEContextRequestIE(ueCtxReq *ngapType.UEContextRequest) *string {
@@ -1207,14 +1574,22 @@ func buildServedGUAMIListIE(sgl *ngapType.ServedGUAMIList) []Guami {
 
 	guamiList := make([]Guami, len(sgl.List))
 	for i := 0; i < len(sgl.List); i++ {
-		amfID := ngapConvert.AmfIdToModels(sgl.List[i].GUAMI.AMFRegionID.Value, sgl.List[i].GUAMI.AMFSetID.Value, sgl.List[i].GUAMI.AMFPointer.Value)
-		guamiList[i] = Guami{
-			PLMNID: plmnIDToModels(sgl.List[i].GUAMI.PLMNIdentity),
-			AMFID:  amfID,
-		}
+		guamiList[i] = *buildGUAMI(&sgl.List[i].GUAMI)
 	}
 
 	return guamiList
+}
+
+func buildGUAMI(guami *ngapType.GUAMI) *Guami {
+	if guami == nil {
+		return nil
+	}
+
+	amfID := ngapConvert.AmfIdToModels(guami.AMFRegionID.Value, guami.AMFSetID.Value, guami.AMFPointer.Value)
+	return &Guami{
+		PLMNID: plmnIDToModels(guami.PLMNIdentity),
+		AMFID:  amfID,
+	}
 }
 
 func buildPLMNSupportListIE(psl *ngapType.PLMNSupportList) []PLMN {
@@ -1357,14 +1732,8 @@ func buildPLMNList(bpl ngapType.BroadcastPLMNList) []PLMN {
 func buildSNSSAIList(sssl ngapType.SliceSupportList) []SNSSAI {
 	snssais := make([]SNSSAI, len(sssl.List))
 	for i := 0; i < len(sssl.List); i++ {
-		snssai := SNSSAI{
-			SST: int32(sssl.List[i].SNSSAI.SST.Value[0]),
-		}
-		if sssl.List[i].SNSSAI.SD != nil {
-			sd := hex.EncodeToString(sssl.List[i].SNSSAI.SD.Value)
-			snssai.SD = &sd
-		}
-		snssais[i] = snssai
+		snssai := buildSNSSAI(&sssl.List[i].SNSSAI)
+		snssais[i] = *snssai
 	}
 
 	return snssais

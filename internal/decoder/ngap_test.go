@@ -736,3 +736,239 @@ func TestDecode_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected TimeStamp=2025-10-14T21:59:45Z, got %s", *item3.UserLocationInformation.NR.TimeStamp)
 	}
 }
+
+func TestDecode_InitialContextSetupRequest(t *testing.T) {
+	const message = "AA4AgJQAAAgACgACAAQAVQACAAIAHAAHAADxEMr+AAAAAAUCARAgMAB3AAkcAA4AAAAAAAAAXgAgmoWQH+QL60OhHSJbbTHIzCPUPAVPceX9UqhcE2VOITwAJEAEAADxEAAmQDQzfgKx/lSdAX4AQgEBdwAL8gDxEMr+AAAAAAFKAwDxEFQHAADxEAAAARUFBAEQIDAhAgAA"
+
+	raw, err := decodeB64(message)
+	if err != nil {
+		t.Fatalf("base64 decode failed: %v", err)
+	}
+
+	ngap, err := decoder.DecodeNetworkLog(raw)
+	if err != nil {
+		t.Fatalf("failed to decode NGAP message: %v", err)
+	}
+
+	if ngap.InitiatingMessage == nil {
+		t.Fatalf("expected InitiatingMessage, got nil")
+	}
+
+	if ngap.InitiatingMessage.ProcedureCode != "InitialContextSetup" {
+		t.Errorf("expected ProcedureCode=InitialContextSetup, got %s", ngap.InitiatingMessage.ProcedureCode)
+	}
+
+	if ngap.InitiatingMessage.Criticality != "Reject (0)" {
+		t.Errorf("expected Criticality=Reject (0), got %s", ngap.InitiatingMessage.Criticality)
+	}
+
+	if ngap.InitiatingMessage.Value.InitialContextSetupRequest == nil {
+		t.Fatalf("expected InitialContextSetupRequest, got nil")
+	}
+
+	if len(ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs) != 8 {
+		t.Errorf("expected 8 ProtocolIEs, got %d", len(ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs))
+	}
+
+	item0 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[0]
+
+	if item0.ID != "AMFUENGAPID (10)" {
+		t.Errorf("expected ID=AMFUENGAPID (10), got %s", item0.ID)
+	}
+
+	if item0.Criticality != "Reject (0)" {
+		t.Errorf("expected Criticality=Reject (0), got %s", item0.Criticality)
+	}
+
+	if item0.AMFUENGAPID == nil {
+		t.Fatalf("expected AMFUENGAPID, got nil")
+	}
+
+	if *item0.AMFUENGAPID != 4 {
+		t.Errorf("expected AMFUENGAPID=4, got %d", *item0.AMFUENGAPID)
+	}
+
+	item1 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[1]
+
+	if item1.ID != "RANUENGAPID (85)" {
+		t.Errorf("expected ID=RANUENGAPID (85), got %s", item1.ID)
+	}
+
+	if item1.Criticality != "Reject (0)" {
+		t.Errorf("expected Criticality=Reject (0), got %s", item1.Criticality)
+	}
+
+	if item1.RANUENGAPID == nil {
+		t.Fatalf("expected RANUENGAPID, got nil")
+	}
+
+	if *item1.RANUENGAPID != 2 {
+		t.Errorf("expected RANUENGAPID=2, got %d", *item1.RANUENGAPID)
+	}
+
+	item2 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[2]
+
+	if item2.ID != "GUAMI (28)" {
+		t.Errorf("expected ID=GUAMI (28), got %s", item2.ID)
+	}
+
+	if item2.Criticality != "Reject (0)" {
+		t.Errorf("expected Criticality=Reject (0), got %s", item2.Criticality)
+	}
+
+	if item2.GUAMI == nil {
+		t.Fatalf("expected GUAMI, got nil")
+	}
+
+	if item2.GUAMI.PLMNID.Mcc != "001" {
+		t.Errorf("expected PLMNID.Mcc=001, got %s", item2.GUAMI.PLMNID.Mcc)
+	}
+
+	if item2.GUAMI.PLMNID.Mnc != "01" {
+		t.Errorf("expected PLMNID.Mnc=01, got %s", item2.GUAMI.PLMNID.Mnc)
+	}
+
+	if item2.GUAMI.AMFID != "cafe00" {
+		t.Errorf("expected AMFID=cafe00, got %s", item2.GUAMI.AMFID)
+	}
+
+	item3 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[3]
+
+	if item3.ID != "AllowedNSSAI (0)" {
+		t.Errorf("expected ID=AllowedNSSAI (0), got %s", item3.ID)
+	}
+
+	if item3.Criticality != "Reject (0)" {
+		t.Errorf("expected Criticality=Reject (0), got %s", item3.Criticality)
+	}
+
+	if item3.AllowedNSSAI == nil {
+		t.Fatalf("expected AllowedNSSAI, got nil")
+	}
+
+	if len(item3.AllowedNSSAI) != 1 {
+		t.Fatalf("expected 1 SNSSAI, got %d", len(item3.AllowedNSSAI))
+	}
+
+	snssai := item3.AllowedNSSAI[0]
+
+	if snssai.SST != 1 {
+		t.Errorf("expected SST=1, got %d", snssai.SST)
+	}
+
+	if snssai.SD == nil || *snssai.SD != "102030" {
+		t.Errorf("expected SD=%s, got %v", "102030", snssai.SD)
+	}
+
+	item4 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[4]
+
+	if item4.ID != "UESecurityCapabilities (119)" {
+		t.Errorf("expected ID=UESecurityCapabilities (119), got %s", item4.ID)
+	}
+
+	if item4.Criticality != "Reject (0)" {
+		t.Errorf("expected Criticality=Reject (0), got %s", item4.Criticality)
+	}
+
+	if item4.UESecurityCapabilities == nil {
+		t.Fatalf("expected UESecurityCapabilities, got nil")
+	}
+
+	if item4.UESecurityCapabilities.NRencryptionAlgorithms != "e000" {
+		t.Fatalf("expected NRIntegrityProtectionAlgorithms=e000, got %s", item4.UESecurityCapabilities.NRencryptionAlgorithms)
+	}
+
+	if item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms != "e000" {
+		t.Fatalf("expected NRIntegrityProtectionAlgorithms=e000, got %s", item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms)
+	}
+
+	if item4.UESecurityCapabilities.EUTRAencryptionAlgorithms != "0000" {
+		t.Fatalf("expected EUTRAencryptionAlgorithms=0000, got %s", item4.UESecurityCapabilities.EUTRAencryptionAlgorithms)
+	}
+
+	if item4.UESecurityCapabilities.EUTRAintegrityProtectionAlgorithms != "0000" {
+		t.Fatalf("expected EUTRAintegrityProtectionAlgorithms=0000, got %s", item4.UESecurityCapabilities.EUTRAintegrityProtectionAlgorithms)
+	}
+
+	item5 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[5]
+
+	if item5.ID != "SecurityKey (94)" {
+		t.Errorf("expected ID=SecurityKey (94), got %s", item5.ID)
+	}
+
+	if item5.Criticality != "Reject (0)" {
+		t.Errorf("expected Criticality=Reject (0), got %s", item5.Criticality)
+	}
+
+	if item5.SecurityKey == nil {
+		t.Fatalf("expected SecurityKey, got nil")
+	}
+
+	expectedKey := "9a85901fe40beb43a11d225b6d31c8cc23d43c054f71e5fd52a85c13654e213c"
+	if *item5.SecurityKey != expectedKey {
+		t.Errorf("expected SecurityKey=%s, got %s", expectedKey, *item5.SecurityKey)
+	}
+
+	item6 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[6]
+
+	if item6.ID != "MobilityRestrictionList (36)" {
+		t.Errorf("expected ID=MobilityRestrictionList (36), got %s", item6.ID)
+	}
+
+	if item6.Criticality != "Ignore (1)" {
+		t.Errorf("expected Criticality=Ignore (1), got %s", item6.Criticality)
+	}
+
+	if item6.MobilityRestrictionList == nil {
+		t.Fatalf("expected MobilityRestrictionList, got nil")
+	}
+
+	if item6.MobilityRestrictionList.ServingPLMN.Mcc != "001" {
+		t.Errorf("expected ServingPLMN.Mcc=001, got %s", item6.MobilityRestrictionList.ServingPLMN.Mcc)
+	}
+
+	if item6.MobilityRestrictionList.ServingPLMN.Mnc != "01" {
+		t.Errorf("expected ServingPLMN.Mnc=01, got %s", item6.MobilityRestrictionList.ServingPLMN.Mnc)
+	}
+
+	if item6.MobilityRestrictionList.EquivalentPLMNs != nil {
+		t.Fatalf("expected EquivalentPLMNs=nil, got %v", item6.MobilityRestrictionList.EquivalentPLMNs)
+	}
+
+	if item6.MobilityRestrictionList.RATRestrictions != nil {
+		t.Fatalf("expected RATRestrictions=nil, got %v", item6.MobilityRestrictionList.RATRestrictions)
+	}
+
+	if item6.MobilityRestrictionList.ForbiddenAreaInformation != nil {
+		t.Fatalf("expected ForbiddenAreaInformation=nil, got %v", item6.MobilityRestrictionList.ForbiddenAreaInformation)
+	}
+
+	if item6.MobilityRestrictionList.ServiceAreaInformation != nil {
+		t.Fatalf("expected ServiceAreaInformation=nil, got %v", item6.MobilityRestrictionList.ServiceAreaInformation)
+	}
+
+	item7 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[7]
+
+	if item7.ID != "NASPDU (38)" {
+		t.Errorf("expected ID=NASPDU (38), got %s", item7.ID)
+	}
+
+	if item7.Criticality != "Ignore (1)" {
+		t.Errorf("expected Criticality=Ignore (1), got %s", item7.Criticality)
+	}
+
+	if item7.NASPDU == nil {
+		t.Fatalf("expected NASPDU, got nil")
+	}
+
+	expectedNASPDU := "fgKx/lSdAX4AQgEBdwAL8gDxEMr+AAAAAAFKAwDxEFQHAADxEAAAARUFBAEQIDAhAgAA"
+
+	expectedNASPDUraw, err := decodeB64(expectedNASPDU)
+	if err != nil {
+		t.Fatalf("base64 decode failed: %v", err)
+	}
+
+	if string(item7.NASPDU) != string(expectedNASPDUraw) {
+		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, item7.NASPDU)
+	}
+}
