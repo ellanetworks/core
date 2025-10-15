@@ -472,7 +472,7 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 				RANPagingPriority: &ie.Value.RANPagingPriority.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
-			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value)
+			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nil)
 			if err != nil {
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}
@@ -524,7 +524,7 @@ func buildPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetu
 		}
 
 		if item.PDUSessionNASPDU != nil {
-			decodednNasPdu, err := DecodeNASMessage(item.PDUSessionNASPDU.Value)
+			decodednNasPdu, err := DecodeNASMessage(item.PDUSessionNASPDU.Value, nil)
 			if err != nil {
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}
@@ -627,7 +627,7 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 				IndexToRFSP: &ie.Value.IndexToRFSP.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
-			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value)
+			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nil)
 			if err != nil {
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}
@@ -693,7 +693,7 @@ func buildPDUSessionResourceSetupListCxtReq(pduSessionResourceSetupListCxtReq *n
 		})
 
 		if item.NASPDU != nil {
-			decodednNasPdu, err := DecodeNASMessage(item.NASPDU.Value)
+			decodednNasPdu, err := DecodeNASMessage(item.NASPDU.Value, nil)
 			if err != nil {
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}
@@ -865,10 +865,13 @@ func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *U
 
 	ieList := &UplinkNASTransport{}
 
+	AMFUENGAPID := int64(0)
+
 	for i := 0; i < len(uplinkNASTransport.ProtocolIEs.List); i++ {
 		ie := uplinkNASTransport.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
+			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
@@ -881,7 +884,11 @@ func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *U
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
-			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value)
+			nasContextInfo := &NasContextInfo{
+				Direction:   DirUplink,
+				AMFUENGAPID: AMFUENGAPID,
+			}
+			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
 			if err != nil {
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}
@@ -919,12 +926,15 @@ func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTranspo
 		return nil
 	}
 
+	AMFUENGAPID := int64(0)
+
 	ieList := &DownlinkNASTransport{}
 
 	for i := 0; i < len(downlinkNASTransport.ProtocolIEs.List); i++ {
 		ie := downlinkNASTransport.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
+			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
@@ -949,7 +959,11 @@ func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTranspo
 				RANPagingPriority: &ie.Value.RANPagingPriority.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
-			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value)
+			nasContextInfo := &NasContextInfo{
+				Direction:   DirUplink,
+				AMFUENGAPID: AMFUENGAPID,
+			}
+			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
 			if err != nil {
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}
@@ -1101,7 +1115,7 @@ func buildInitialUEMessage(initialUEMessage *ngapType.InitialUEMessage) *Initial
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
-			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value)
+			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nil)
 			if err != nil {
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}

@@ -14,7 +14,7 @@ func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	nas, err := decoder.DecodeNASMessage(raw)
+	nas, err := decoder.DecodeNASMessage(raw, nil)
 	if err != nil {
 		t.Fatalf("NAS message decode failed: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestDecodeNASMessage_AuthenticationRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	nas, err := decoder.DecodeNASMessage(raw)
+	nas, err := decoder.DecodeNASMessage(raw, nil)
 	if err != nil {
 		t.Fatalf("NAS message decode failed: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestDecodeNASMessage_AuthenticationFailure(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	nas, err := decoder.DecodeNASMessage(raw)
+	nas, err := decoder.DecodeNASMessage(raw, nil)
 	if err != nil {
 		t.Fatalf("NAS message decode failed: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestDecodeNASMessage_AuthenticationReject(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	nas, err := decoder.DecodeNASMessage(raw)
+	nas, err := decoder.DecodeNASMessage(raw, nil)
 	if err != nil {
 		t.Fatalf("NAS message decode failed: %v", err)
 	}
@@ -259,7 +259,7 @@ func TestDecodeNASMessage_AuthenticationResponse(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	nas, err := decoder.DecodeNASMessage(raw)
+	nas, err := decoder.DecodeNASMessage(raw, nil)
 	if err != nil {
 		t.Fatalf("NAS message decode failed: %v", err)
 	}
@@ -298,23 +298,5 @@ func TestDecodeNASMessage_AuthenticationResponse(t *testing.T) {
 
 	if len(nas.GmmMessage.AuthenticationResponse.AuthenticationResponseParameter.ResStar) != 16 {
 		t.Errorf("Unexpected RES* length: got %d, want 16", len(nas.GmmMessage.AuthenticationResponse.AuthenticationResponseParameter.ResStar))
-	}
-}
-
-func TestDecodeNASMessage_Ciphered(t *testing.T) {
-	const message = "fgLpGbfKA34AZwEABS4BANZREgE="
-
-	raw, err := decodeB64(message)
-	if err != nil {
-		t.Fatalf("base64 decode failed: %v", err)
-	}
-
-	_, err = decoder.DecodeNASMessage(raw)
-	if err == nil {
-		t.Fatalf("NAS message decode succeeded for NAS Ciphered: %v", err)
-	}
-
-	if err.Error() != "not yet implemented: cannot decode ciphered NAS message (IntegrityProtectedAndCiphered)" {
-		t.Fatalf("Unexpected error message: got %v, want 'not yet implemented: cannot decode ciphered NAS message (IntegrityProtectedAndCiphered)'", err)
 	}
 }

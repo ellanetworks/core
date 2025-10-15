@@ -3,7 +3,9 @@ package decoder
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 
+	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/nas"
@@ -63,15 +65,6 @@ type AuthenticationRequest struct {
 	AuthenticationParameterRAND          [16]uint8 `json:"authentication_parameter_rand,omitempty"`
 }
 
-// nasType.ExtendedProtocolDiscriminator
-// 	nasType.SpareHalfOctetAndSecurityHeaderType
-// 	nasType.AuthenticationRequestMessageIdentity
-// 	nasType.SpareHalfOctetAndNgksi
-// 	nasType.ABBA
-// 	*nasType.AuthenticationParameterRAND
-// 	*nasType.AuthenticationParameterAUTN
-// 	*nasType.EAPMessage
-
 type RegistrationRequest struct {
 	ExtendedProtocolDiscriminator       uint8                 `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8                 `json:"spare_half_octet_and_security_header_type"`
@@ -94,14 +87,6 @@ type AuthenticationReject struct {
 	AuthenticationRejectMessageIdentity string `json:"authentication_reject_message_identity"`
 }
 
-// type AuthenticationResponse struct {
-// 	nasType.ExtendedProtocolDiscriminator
-// 	nasType.SpareHalfOctetAndSecurityHeaderType
-// 	nasType.AuthenticationResponseMessageIdentity
-// 	*nasType.AuthenticationResponseParameter
-// 	*nasType.EAPMessage
-// }
-
 type AuthenticationResponseParameter struct {
 	ResStar [16]uint8 `json:"res_star"`
 }
@@ -111,16 +96,37 @@ type AuthenticationResponse struct {
 	SpareHalfOctetAndSecurityHeaderType   uint8                            `json:"spare_half_octet_and_security_header_type"`
 	AuthenticationResponseMessageIdentity string                           `json:"authentication_response_message_identity"`
 	AuthenticationResponseParameter       *AuthenticationResponseParameter `json:"authentication_response_parameter,omitempty"`
-	// EAPMessage                            *EAPMessage                      `json:"eap_message,omitempty"`
+}
+
+type RegistrationComplete struct {
+	ExtendedProtocolDiscriminator       uint8   `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType uint8   `json:"spare_half_octet_and_security_header_type"`
+	RegistrationCompleteMessageIdentity string  `json:"registration_complete_message_identity"`
+	GetSORContent                       []uint8 `json:"sor_transparent_container,omitempty"`
+}
+
+type ULNASTransport struct {
+	ExtendedProtocolDiscriminator         uint8   `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType   uint8   `json:"spare_half_octet_and_security_header_type"`
+	ULNASTRANSPORTMessageIdentity         string  `json:"ul_nas_transport_message_identity"`
+	SpareHalfOctetAndPayloadContainerType uint8   `json:"spare_half_octet_and_payload_container_type"`
+	PayloadContainer                      []byte  `json:"payload_container"`
+	PduSessionID2Value                    *uint8  `json:"pdu_session_id_2_value,omitempty"`
+	OldPDUSessionID                       *uint8  `json:"old_pdu_session_id,omitempty"`
+	RequestType                           *string `json:"request_type,omitempty"`
+	SNSSAI                                *SNSSAI `json:"snssai,omitempty"`
+	DNN                                   *string `json:"dnn,omitempty"`
 }
 
 type GmmMessage struct {
 	GmmHeader              GmmHeader               `json:"gmm_header"`
 	RegistrationRequest    *RegistrationRequest    `json:"registration_request,omitempty"`
+	RegistrationComplete   *RegistrationComplete   `json:"registration_complete,omitempty"`
 	AuthenticationRequest  *AuthenticationRequest  `json:"authentication_request,omitempty"`
 	AuthenticationFailure  *AuthenticationFailure  `json:"authentication_failure,omitempty"`
 	AuthenticationReject   *AuthenticationReject   `json:"authentication_reject,omitempty"`
 	AuthenticationResponse *AuthenticationResponse `json:"authentication_response,omitempty"`
+	ULNASTransport         *ULNASTransport         `json:"ul_nas_transport,omitempty"`
 }
 
 type GsmHeader struct {
@@ -137,10 +143,15 @@ type NASMessage struct {
 	GsmMessage     *GsmMessage    `json:"gsm_message,omitempty"`
 }
 
-func DecodeNASMessage(raw []byte) (*NASMessage, error) {
+type NasContextInfo struct {
+	Direction   Direction
+	AMFUENGAPID int64
+}
+
+func DecodeNASMessage(raw []byte, nasContextInfo *NasContextInfo) (*NASMessage, error) {
 	nasMsg := new(NASMessage)
 
-	msg, err := decodeNAS(raw)
+	msg, err := decodeNAS(raw, nasContextInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -174,6 +185,9 @@ func buildGmmMessage(msg *nas.GmmMessage) *GmmMessage {
 	case nas.MsgTypeRegistrationRequest:
 		gmmMessage.RegistrationRequest = buildRegistrationRequest(msg.RegistrationRequest)
 		return gmmMessage
+	case nas.MsgTypeRegistrationComplete:
+		gmmMessage.RegistrationComplete = buildRegistrationComplete(msg.RegistrationComplete)
+		return gmmMessage
 	case nas.MsgTypeAuthenticationRequest:
 		gmmMessage.AuthenticationRequest = buildAuthenticationRequest(msg.AuthenticationRequest)
 		return gmmMessage
@@ -185,6 +199,9 @@ func buildGmmMessage(msg *nas.GmmMessage) *GmmMessage {
 		return gmmMessage
 	case nas.MsgTypeAuthenticationResponse:
 		gmmMessage.AuthenticationResponse = buildAuthenticationResponse(msg.AuthenticationResponse)
+		return gmmMessage
+	case nas.MsgTypeULNASTransport:
+		gmmMessage.ULNASTransport = buildULNASTransport(msg.ULNASTransport)
 		return gmmMessage
 	default:
 		logger.EllaLog.Warn("GMM message type not fully implemented", zap.String("message_type", gmmMessage.GmmHeader.MessageType))
@@ -214,6 +231,80 @@ func buildAuthenticationResponse(msg *nasMessage.AuthenticationResponse) *Authen
 	}
 
 	return authResp
+}
+
+func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
+	if msg == nil {
+		return nil
+	}
+
+	ulNasTransport := &ULNASTransport{
+		ExtendedProtocolDiscriminator:         msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType:   msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		ULNASTRANSPORTMessageIdentity:         nas.MessageName(msg.ULNASTRANSPORTMessageIdentity.Octet),
+		SpareHalfOctetAndPayloadContainerType: msg.SpareHalfOctetAndPayloadContainerType.Octet,
+		PayloadContainer:                      msg.PayloadContainer.GetPayloadContainerContents(),
+	}
+
+	if msg.PduSessionID2Value != nil {
+		value := msg.PduSessionID2Value.GetPduSessionID2Value()
+		ulNasTransport.PduSessionID2Value = &value
+	}
+
+	if msg.OldPDUSessionID != nil {
+		value := msg.OldPDUSessionID.GetOldPDUSessionID()
+		ulNasTransport.OldPDUSessionID = &value
+	}
+
+	if msg.RequestType != nil {
+		value := ""
+		switch msg.RequestType.GetRequestTypeValue() {
+		case nasMessage.ULNASTransportRequestTypeInitialRequest:
+			value = "InitialRequest"
+		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
+			value = "ExistingPduSession"
+		case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
+			value = "InitialEmergencyRequest"
+		case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
+			value = "ExistingEmergencyPduSession"
+		case nasMessage.ULNASTransportRequestTypeModificationRequest:
+			value = "ModificationRequest"
+		case nasMessage.ULNASTransportRequestTypeReserved:
+			value = "Reserved"
+		}
+		ulNasTransport.RequestType = &value
+	}
+
+	if msg.SNSSAI != nil {
+		snssai := snssaiToModels(msg.SNSSAI)
+		ulNasTransport.SNSSAI = &snssai
+	}
+
+	if msg.DNN != nil {
+		dnn := string(msg.DNN.GetDNN())
+		ulNasTransport.DNN = &dnn
+	}
+
+	if msg.AdditionalInformation != nil {
+		logger.EllaLog.Warn("AdditionalInformation not yet implemented")
+	}
+
+	return ulNasTransport
+}
+
+func snssaiToModels(n *nasType.SNSSAI) SNSSAI {
+	var out SNSSAI
+	out.SST = int32(n.GetSST())
+
+	if n.Len >= 4 {
+		sd := n.Octet[1:4] // 3 bytes following SST
+		sdStr := strings.ToUpper(hex.EncodeToString(sd))
+		out.SD = &sdStr
+	} else {
+		out.SD = nil
+	}
+
+	return out
 }
 
 func buildAuthenticationReject(msg *nasMessage.AuthenticationReject) *AuthenticationReject {
@@ -279,6 +370,24 @@ func buildAuthenticationRequest(msg *nasMessage.AuthenticationRequest) *Authenti
 	}
 
 	return authenticationRequest
+}
+
+func buildRegistrationComplete(msg *nasMessage.RegistrationComplete) *RegistrationComplete {
+	if msg == nil {
+		return nil
+	}
+
+	regComplete := &RegistrationComplete{
+		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		RegistrationCompleteMessageIdentity: nas.MessageName(msg.RegistrationCompleteMessageIdentity.Octet),
+	}
+
+	if msg.SORTransparentContainer != nil {
+		regComplete.GetSORContent = msg.SORTransparentContainer.GetSORContent()
+	}
+
+	return regComplete
 }
 
 func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *RegistrationRequest {
@@ -586,7 +695,7 @@ func getGmmMessageType(msg *nas.GmmMessage) string {
 	}
 }
 
-func decodeNAS(raw []byte) (*nas.Message, error) {
+func decodeNAS(raw []byte, nasContextInfo *NasContextInfo) (*nas.Message, error) {
 	msg := new(nas.Message)
 	msg.SecurityHeaderType = nas.GetSecurityHeaderType(raw) & 0x0f
 
@@ -601,11 +710,80 @@ func decodeNAS(raw []byte) (*nas.Message, error) {
 			return nil, fmt.Errorf("failed to decode NAS message: %w", err)
 		}
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
-		return nil, fmt.Errorf("not yet implemented: cannot decode ciphered NAS message (IntegrityProtectedAndCiphered)")
+		if nasContextInfo == nil {
+			return nil, fmt.Errorf("nas context info is nil")
+		}
+
+		amf := context.AMFSelf()
+
+		ranUE := amf.RanUeFindByAmfUeNgapID(nasContextInfo.AMFUENGAPID)
+		if ranUE == nil {
+			return nil, fmt.Errorf("ran ue is nil")
+		}
+
+		if ranUE.AmfUe == nil {
+			return nil, fmt.Errorf("amf ue is nil")
+		}
+
+		decrypted, err := DecryptNASMessage(ranUE.AmfUe, nasContextInfo.Direction, raw)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt NAS message: %w", err)
+		}
+
+		err = msg.PlainNasDecode(&decrypted)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode NAS message: %w", err)
+		}
 	case nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext:
-		return nil, fmt.Errorf("not yet implemented: cannot decode ciphered NAS message (IntegrityProtectedWithNew5gNasSecurityContext)")
+		if nasContextInfo == nil {
+			return nil, fmt.Errorf("nas context info is nil")
+		}
+
+		amf := context.AMFSelf()
+
+		ranUE := amf.RanUeFindByAmfUeNgapID(nasContextInfo.AMFUENGAPID)
+		if ranUE == nil {
+			return nil, fmt.Errorf("ran ue is nil")
+		}
+
+		if ranUE.AmfUe == nil {
+			return nil, fmt.Errorf("amf ue is nil")
+		}
+
+		decrypted, err := DecryptNASMessage(ranUE.AmfUe, nasContextInfo.Direction, raw)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt NAS message: %w", err)
+		}
+
+		err = msg.PlainNasDecode(&decrypted)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode NAS message: %w", err)
+		}
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
-		return nil, fmt.Errorf("not yet implemented: cannot decode ciphered NAS message (IntegrityProtectedAndCipheredWithNew5gNasSecurityContext)")
+		if nasContextInfo == nil {
+			return nil, fmt.Errorf("nas context info is nil")
+		}
+
+		amf := context.AMFSelf()
+
+		ranUE := amf.RanUeFindByAmfUeNgapID(nasContextInfo.AMFUENGAPID)
+		if ranUE == nil {
+			return nil, fmt.Errorf("ran ue is nil")
+		}
+
+		if ranUE.AmfUe == nil {
+			return nil, fmt.Errorf("amf ue is nil")
+		}
+
+		decrypted, err := DecryptNASMessage(ranUE.AmfUe, nasContextInfo.Direction, raw)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt NAS message: %w", err)
+		}
+
+		err = msg.PlainNasDecode(&decrypted)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode NAS message: %w", err)
+		}
 	default:
 		return nil, fmt.Errorf("unsupported security header type: %d", msg.SecurityHeaderType)
 	}
