@@ -131,8 +131,8 @@ type MobilityRestrictionList struct {
 }
 
 type UEAggregateMaximumBitRate struct {
-	UEAggregateMaximumBitRateDL int64 `json:"ue_aggregate_maximum_bit_rate_dl"`
-	UEAggregateMaximumBitRateUL int64 `json:"ue_aggregate_maximum_bit_rate_ul"`
+	Downlink int64 `json:"downlink"`
+	Uplink   int64 `json:"uplink"`
 }
 
 type ExpectedUEActivityBehaviour struct {
@@ -184,6 +184,13 @@ type PDUSessionResourceFailedToSetupCxtRes struct {
 	PDUSessionResourceSetupUnsuccessfulTransfer []byte `json:"pdu_session_resource_setup_unsuccessful_transfer"`
 }
 
+type PDUSessionResourceSetupSUReq struct {
+	PDUSessionID                           int64  `json:"pdu_session_id"`
+	PDUSessionNASPDU                       []byte `json:"pdu_session_nas_pdu,omitempty"`
+	SNSSAI                                 SNSSAI `json:"snssai"`
+	PDUSessionResourceSetupRequestTransfer []byte `json:"pdu_session_resource_setup_request_transfer"`
+}
+
 type UESecurityCapabilities struct {
 	NRencryptionAlgorithms             string `json:"nr_encryption_algorithms"`
 	NRintegrityProtectionAlgorithms    string `json:"nr_integrity_protection_algorithms"`
@@ -225,6 +232,7 @@ type IE struct {
 	PDUSessionResourceSetupListCxtReq         []PDUSessionResourceSetupCxtReq         `json:"pdu_session_resource_setup_list_cxt_req,omitempty"`
 	PDUSessionResourceSetupListCxtRes         []PDUSessionResourceSetupCxtRes         `json:"pdu_session_resource_setup_list_cxt_res,omitempty"`
 	PDUSessionResourceFailedToSetupListCxtRes []PDUSessionResourceFailedToSetupCxtRes `json:"pdu_session_resource_failed_to_setup_list_cxt_res,omitempty"`
+	PDUSessionResourceSetupListSUReq          []PDUSessionResourceSetupSUReq          `json:"pdu_session_resource_setup_list_su_req,omitempty"`
 	UESecurityCapabilities                    *UESecurityCapabilities                 `json:"ue_security_capabilities,omitempty"`
 	SecurityKey                               *string                                 `json:"security_key,omitempty"`
 }
@@ -249,12 +257,17 @@ type InitialContextSetupRequest struct {
 	IEs []IE `json:"ies"`
 }
 
+type PDUSessionResourceSetupRequest struct {
+	IEs []IE `json:"ies"`
+}
+
 type InitiatingMessageValue struct {
-	NGSetupRequest             *NGSetupRequest             `json:"ng_setup_request,omitempty"`
-	InitialUEMessage           *InitialUEMessage           `json:"initial_ue_message,omitempty"`
-	DownlinkNASTransport       *DownlinkNASTransport       `json:"downlink_nas_transport,omitempty"`
-	UplinkNASTransport         *UplinkNASTransport         `json:"uplink_nas_transport,omitempty"`
-	InitialContextSetupRequest *InitialContextSetupRequest `json:"initial_context_setup_request,omitempty"`
+	NGSetupRequest                 *NGSetupRequest                 `json:"ng_setup_request,omitempty"`
+	InitialUEMessage               *InitialUEMessage               `json:"initial_ue_message,omitempty"`
+	DownlinkNASTransport           *DownlinkNASTransport           `json:"downlink_nas_transport,omitempty"`
+	UplinkNASTransport             *UplinkNASTransport             `json:"uplink_nas_transport,omitempty"`
+	InitialContextSetupRequest     *InitialContextSetupRequest     `json:"initial_context_setup_request,omitempty"`
+	PDUSessionResourceSetupRequest *PDUSessionResourceSetupRequest `json:"pdu_session_resource_setup_request,omitempty"`
 }
 
 type InitiatingMessage struct {
@@ -353,6 +366,9 @@ func buildInitiatingMessage(initMsg *ngapType.InitiatingMessage) *InitiatingMess
 	case ngapType.InitiatingMessagePresentInitialContextSetupRequest:
 		initiatingMsg.Value.InitialContextSetupRequest = buildInitialContextSetupRequest(initMsg.Value.InitialContextSetupRequest)
 		return initiatingMsg
+	case ngapType.InitiatingMessagePresentPDUSessionResourceSetupRequest:
+		initiatingMsg.Value.PDUSessionResourceSetupRequest = buildPDUSessionResourceSetupRequest(initMsg.Value.PDUSessionResourceSetupRequest)
+		return initiatingMsg
 	default:
 		logger.EllaLog.Warn("Unsupported procedure code", zap.Int("present", initMsg.Value.Present))
 		return initiatingMsg
@@ -403,6 +419,86 @@ func buildUnsuccessfulOutcome(unsucMsg *ngapType.UnsuccessfulOutcome) *Unsuccess
 	}
 }
 
+func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapType.PDUSessionResourceSetupRequest) *PDUSessionResourceSetupRequest {
+	if pduSessionResourceSetupRequest == nil {
+		return nil
+	}
+
+	ieList := &PDUSessionResourceSetupRequest{}
+
+	for i := 0; i < len(pduSessionResourceSetupRequest.ProtocolIEs.List); i++ {
+		ie := pduSessionResourceSetupRequest.ProtocolIEs.List[i]
+		switch ie.Id.Value {
+		case ngapType.ProtocolIEIDAMFUENGAPID:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
+			})
+		case ngapType.ProtocolIEIDRANUENGAPID:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
+			})
+		case ngapType.ProtocolIEIDRANPagingPriority:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:                protocolIEIDToString(ie.Id.Value),
+				Criticality:       criticalityToString(ie.Criticality.Value),
+				RANPagingPriority: &ie.Value.RANPagingPriority.Value,
+			})
+		case ngapType.ProtocolIEIDNASPDU:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				NASPDU:      ie.Value.NASPDU.Value,
+			})
+		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:                               protocolIEIDToString(ie.Id.Value),
+				Criticality:                      criticalityToString(ie.Criticality.Value),
+				PDUSessionResourceSetupListSUReq: buildPDUSessionResourceSetupListSUReq(ie.Value.PDUSessionResourceSetupListSUReq),
+			})
+		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				UEAggregateMaximumBitRate: &UEAggregateMaximumBitRate{
+					Downlink: ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value,
+					Uplink:   ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value,
+				},
+			})
+		default:
+			logger.EllaLog.Warn("Unsupported IE in PDUSessionResourceSetupRequest", zap.Int64("id", ie.Id.Value))
+		}
+	}
+
+	return ieList
+}
+
+func buildPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetupListSUReq) []PDUSessionResourceSetupSUReq {
+	if list == nil {
+		return nil
+	}
+
+	var reqList []PDUSessionResourceSetupSUReq
+	for _, item := range list.List {
+		pduSessionNASPDU := []byte{}
+		if item.PDUSessionNASPDU != nil {
+			pduSessionNASPDU = item.PDUSessionNASPDU.Value
+		}
+
+		reqList = append(reqList, PDUSessionResourceSetupSUReq{
+			PDUSessionID:                           int64(item.PDUSessionID.Value),
+			PDUSessionNASPDU:                       pduSessionNASPDU,
+			SNSSAI:                                 *buildSNSSAI(&item.SNSSAI),
+			PDUSessionResourceSetupRequestTransfer: item.PDUSessionResourceSetupRequestTransfer,
+		})
+	}
+
+	return reqList
+}
+
 func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.InitialContextSetupRequest) *InitialContextSetupRequest {
 	if initialContextSetupRequest == nil {
 		return nil
@@ -436,8 +532,8 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
 				UEAggregateMaximumBitRate: &UEAggregateMaximumBitRate{
-					UEAggregateMaximumBitRateDL: ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value,
-					UEAggregateMaximumBitRateUL: ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value,
+					Downlink: ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value,
+					Uplink:   ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value,
 				},
 			})
 		case ngapType.ProtocolIEIDCoreNetworkAssistanceInformation:
@@ -827,8 +923,8 @@ func buildUEAggregateMaximumBitRateIE(ueambr *ngapType.UEAggregateMaximumBitRate
 	}
 
 	return &UEAggregateMaximumBitRate{
-		UEAggregateMaximumBitRateDL: ueambr.UEAggregateMaximumBitRateDL.Value,
-		UEAggregateMaximumBitRateUL: ueambr.UEAggregateMaximumBitRateUL.Value,
+		Downlink: ueambr.UEAggregateMaximumBitRateDL.Value,
+		Uplink:   ueambr.UEAggregateMaximumBitRateUL.Value,
 	}
 }
 
