@@ -94,12 +94,33 @@ type AuthenticationReject struct {
 	AuthenticationRejectMessageIdentity string `json:"authentication_reject_message_identity"`
 }
 
+// type AuthenticationResponse struct {
+// 	nasType.ExtendedProtocolDiscriminator
+// 	nasType.SpareHalfOctetAndSecurityHeaderType
+// 	nasType.AuthenticationResponseMessageIdentity
+// 	*nasType.AuthenticationResponseParameter
+// 	*nasType.EAPMessage
+// }
+
+type AuthenticationResponseParameter struct {
+	ResStar [16]uint8 `json:"res_star"`
+}
+
+type AuthenticationResponse struct {
+	ExtendedProtocolDiscriminator         uint8                            `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType   uint8                            `json:"spare_half_octet_and_security_header_type"`
+	AuthenticationResponseMessageIdentity string                           `json:"authentication_response_message_identity"`
+	AuthenticationResponseParameter       *AuthenticationResponseParameter `json:"authentication_response_parameter,omitempty"`
+	// EAPMessage                            *EAPMessage                      `json:"eap_message,omitempty"`
+}
+
 type GmmMessage struct {
-	GmmHeader             GmmHeader              `json:"gmm_header"`
-	RegistrationRequest   *RegistrationRequest   `json:"registration_request,omitempty"`
-	AuthenticationRequest *AuthenticationRequest `json:"authentication_request,omitempty"`
-	AuthenticationFailure *AuthenticationFailure `json:"authentication_failure,omitempty"`
-	AuthenticationReject  *AuthenticationReject  `json:"authentication_reject,omitempty"`
+	GmmHeader              GmmHeader               `json:"gmm_header"`
+	RegistrationRequest    *RegistrationRequest    `json:"registration_request,omitempty"`
+	AuthenticationRequest  *AuthenticationRequest  `json:"authentication_request,omitempty"`
+	AuthenticationFailure  *AuthenticationFailure  `json:"authentication_failure,omitempty"`
+	AuthenticationReject   *AuthenticationReject   `json:"authentication_reject,omitempty"`
+	AuthenticationResponse *AuthenticationResponse `json:"authentication_response,omitempty"`
 }
 
 type GsmHeader struct {
@@ -162,10 +183,37 @@ func buildGmmMessage(msg *nas.GmmMessage) *GmmMessage {
 	case nas.MsgTypeAuthenticationReject:
 		gmmMessage.AuthenticationReject = buildAuthenticationReject(msg.AuthenticationReject)
 		return gmmMessage
+	case nas.MsgTypeAuthenticationResponse:
+		gmmMessage.AuthenticationResponse = buildAuthenticationResponse(msg.AuthenticationResponse)
+		return gmmMessage
 	default:
 		logger.EllaLog.Warn("GMM message type not fully implemented", zap.String("message_type", gmmMessage.GmmHeader.MessageType))
 		return gmmMessage
 	}
+}
+
+func buildAuthenticationResponse(msg *nasMessage.AuthenticationResponse) *AuthenticationResponse {
+	if msg == nil {
+		return nil
+	}
+
+	authResp := &AuthenticationResponse{
+		ExtendedProtocolDiscriminator:         msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType:   msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		AuthenticationResponseMessageIdentity: nas.MessageName(msg.AuthenticationResponseMessageIdentity.Octet),
+	}
+
+	if msg.AuthenticationResponseParameter != nil {
+		authResp.AuthenticationResponseParameter = &AuthenticationResponseParameter{
+			ResStar: msg.AuthenticationResponseParameter.GetRES(),
+		}
+	}
+
+	if msg.EAPMessage != nil {
+		logger.EllaLog.Warn("EAPMessage not yet implemented")
+	}
+
+	return authResp
 }
 
 func buildAuthenticationReject(msg *nasMessage.AuthenticationReject) *AuthenticationReject {
