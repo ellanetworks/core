@@ -191,6 +191,16 @@ type PDUSessionResourceSetupSUReq struct {
 	PDUSessionResourceSetupRequestTransfer []byte `json:"pdu_session_resource_setup_request_transfer"`
 }
 
+type PDUSessionResourceSetupSURes struct {
+	PDUSessionID                            int64  `json:"pdu_session_id"`
+	PDUSessionResourceSetupResponseTransfer []byte `json:"pdu_session_resource_setup_response_transfer"`
+}
+
+type PDUSessionResourceFailedToSetupSURes struct {
+	PDUSessionID                                int64  `json:"pdu_session_id"`
+	PDUSessionResourceSetupUnsuccessfulTransfer []byte `json:"pdu_session_resource_setup_unsuccessful_transfer"`
+}
+
 type UESecurityCapabilities struct {
 	NRencryptionAlgorithms             string `json:"nr_encryption_algorithms"`
 	NRintegrityProtectionAlgorithms    string `json:"nr_integrity_protection_algorithms"`
@@ -233,6 +243,8 @@ type IE struct {
 	PDUSessionResourceSetupListCxtRes         []PDUSessionResourceSetupCxtRes         `json:"pdu_session_resource_setup_list_cxt_res,omitempty"`
 	PDUSessionResourceFailedToSetupListCxtRes []PDUSessionResourceFailedToSetupCxtRes `json:"pdu_session_resource_failed_to_setup_list_cxt_res,omitempty"`
 	PDUSessionResourceSetupListSUReq          []PDUSessionResourceSetupSUReq          `json:"pdu_session_resource_setup_list_su_req,omitempty"`
+	PDUSessionResourceSetupListSURes          []PDUSessionResourceSetupSURes          `json:"pdu_session_resource_setup_list_su_res,omitempty"`
+	PDUSessionResourceFailedToSetupListSURes  []PDUSessionResourceFailedToSetupSURes  `json:"pdu_session_resource_failed_to_setup_list_su_res,omitempty"`
 	UESecurityCapabilities                    *UESecurityCapabilities                 `json:"ue_security_capabilities,omitempty"`
 	SecurityKey                               *string                                 `json:"security_key,omitempty"`
 }
@@ -284,9 +296,14 @@ type InitialContextSetupResponse struct {
 	IEs []IE `json:"ies"`
 }
 
+type PDUSessionResourceSetupResponse struct {
+	IEs []IE `json:"ies"`
+}
+
 type SuccessfulOutcomeValue struct {
-	NGSetupResponse             *NGSetupResponse             `json:"ng_setup_response,omitempty"`
-	InitialContextSetupResponse *InitialContextSetupResponse `json:"initial_context_setup_response,omitempty"`
+	NGSetupResponse                 *NGSetupResponse                 `json:"ng_setup_response,omitempty"`
+	InitialContextSetupResponse     *InitialContextSetupResponse     `json:"initial_context_setup_response,omitempty"`
+	PDUSessionResourceSetupResponse *PDUSessionResourceSetupResponse `json:"pdu_session_resource_setup_response,omitempty"`
 }
 
 type SuccessfulOutcome struct {
@@ -392,6 +409,9 @@ func buildSuccessfulOutcome(sucMsg *ngapType.SuccessfulOutcome) *SuccessfulOutco
 	case ngapType.SuccessfulOutcomePresentInitialContextSetupResponse:
 		successfulOutcome.Value.InitialContextSetupResponse = buildInitialContextSetupResponse(sucMsg.Value.InitialContextSetupResponse)
 		return successfulOutcome
+	case ngapType.SuccessfulOutcomePresentPDUSessionResourceSetupResponse:
+		successfulOutcome.Value.PDUSessionResourceSetupResponse = buildPDUSessionResourceSetupResponse(sucMsg.Value.PDUSessionResourceSetupResponse)
+		return successfulOutcome
 	default:
 		logger.EllaLog.Warn("Unsupported message", zap.Int("present", sucMsg.Value.Present))
 		return successfulOutcome
@@ -489,7 +509,7 @@ func buildPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetu
 		}
 
 		reqList = append(reqList, PDUSessionResourceSetupSUReq{
-			PDUSessionID:                           int64(item.PDUSessionID.Value),
+			PDUSessionID:                           item.PDUSessionID.Value,
 			PDUSessionNASPDU:                       pduSessionNASPDU,
 			SNSSAI:                                 *buildSNSSAI(&item.SNSSAI),
 			PDUSessionResourceSetupRequestTransfer: item.PDUSessionResourceSetupRequestTransfer,
@@ -1336,6 +1356,94 @@ func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupReques
 	}
 
 	return ngSetup
+}
+
+func buildPDUSessionResourceSetupResponse(pduSessionResourceSetupResponse *ngapType.PDUSessionResourceSetupResponse) *PDUSessionResourceSetupResponse {
+	if pduSessionResourceSetupResponse == nil {
+		return nil
+	}
+
+	psrs := &PDUSessionResourceSetupResponse{}
+
+	for i := 0; i < len(pduSessionResourceSetupResponse.ProtocolIEs.List); i++ {
+		ie := pduSessionResourceSetupResponse.ProtocolIEs.List[i]
+		switch ie.Id.Value {
+		case ngapType.ProtocolIEIDAMFUENGAPID:
+			psrs.IEs = append(psrs.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
+			})
+		case ngapType.ProtocolIEIDRANUENGAPID:
+			psrs.IEs = append(psrs.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
+			})
+		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes:
+			psrs.IEs = append(psrs.IEs, IE{
+				ID:                               protocolIEIDToString(ie.Id.Value),
+				Criticality:                      criticalityToString(ie.Criticality.Value),
+				PDUSessionResourceSetupListSURes: buildPDUSessionResourceSetupListSUResIE(ie.Value.PDUSessionResourceSetupListSURes),
+			})
+		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListSURes:
+			psrs.IEs = append(psrs.IEs, IE{
+				ID:                                       protocolIEIDToString(ie.Id.Value),
+				Criticality:                              criticalityToString(ie.Criticality.Value),
+				PDUSessionResourceFailedToSetupListSURes: buildPDUSessionResourceFailedToSetupListSUResIE(ie.Value.PDUSessionResourceFailedToSetupListSURes),
+			})
+		case ngapType.ProtocolIEIDCriticalityDiagnostics:
+			psrs.IEs = append(psrs.IEs, IE{
+				ID:                     protocolIEIDToString(ie.Id.Value),
+				Criticality:            criticalityToString(ie.Criticality.Value),
+				CriticalityDiagnostics: buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
+			})
+		default:
+			psrs.IEs = append(psrs.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+			})
+			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
+		}
+	}
+
+	return psrs
+}
+
+func buildPDUSessionResourceSetupListSUResIE(pduList *ngapType.PDUSessionResourceSetupListSURes) []PDUSessionResourceSetupSURes {
+	if pduList == nil {
+		return nil
+	}
+
+	pduSessionList := make([]PDUSessionResourceSetupSURes, 0)
+
+	for i := 0; i < len(pduList.List); i++ {
+		item := pduList.List[i]
+		pduSessionList = append(pduSessionList, PDUSessionResourceSetupSURes{
+			PDUSessionID:                            item.PDUSessionID.Value,
+			PDUSessionResourceSetupResponseTransfer: item.PDUSessionResourceSetupResponseTransfer,
+		})
+	}
+
+	return pduSessionList
+}
+
+func buildPDUSessionResourceFailedToSetupListSUResIE(pduList *ngapType.PDUSessionResourceFailedToSetupListSURes) []PDUSessionResourceFailedToSetupSURes {
+	if pduList == nil {
+		return nil
+	}
+
+	pduSessionList := make([]PDUSessionResourceFailedToSetupSURes, 0)
+
+	for i := 0; i < len(pduList.List); i++ {
+		item := pduList.List[i]
+		pduSessionList = append(pduSessionList, PDUSessionResourceFailedToSetupSURes{
+			PDUSessionID: item.PDUSessionID.Value,
+			PDUSessionResourceSetupUnsuccessfulTransfer: item.PDUSessionResourceSetupUnsuccessfulTransfer,
+		})
+	}
+
+	return pduSessionList
 }
 
 func buildInitialContextSetupResponse(initialContextSetupResponse *ngapType.InitialContextSetupResponse) *InitialContextSetupResponse {
