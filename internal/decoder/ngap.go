@@ -174,6 +174,16 @@ type PDUSessionResourceSetupCxtReq struct {
 	PDUSessionResourceSetupRequestTransfer []byte `json:"pdu_session_resource_setup_request_transfer"`
 }
 
+type PDUSessionResourceSetupCxtRes struct {
+	PDUSessionID                            int64  `json:"pdu_session_id"`
+	PDUSessionResourceSetupResponseTransfer []byte `json:"pdu_session_resource_setup_response_transfer"`
+}
+
+type PDUSessionResourceFailedToSetupCxtRes struct {
+	PDUSessionID                                int64  `json:"pdu_session_id"`
+	PDUSessionResourceSetupUnsuccessfulTransfer []byte `json:"pdu_session_resource_setup_unsuccessful_transfer"`
+}
+
 type UESecurityCapabilities struct {
 	NRencryptionAlgorithms             string `json:"nr_encryption_algorithms"`
 	NRintegrityProtectionAlgorithms    string `json:"nr_integrity_protection_algorithms"`
@@ -182,39 +192,41 @@ type UESecurityCapabilities struct {
 }
 
 type IE struct {
-	ID                                string                            `json:"id"`
-	Criticality                       string                            `json:"criticality"`
-	GlobalRANNodeID                   *GlobalRANNodeIDIE                `json:"global_ran_node_id,omitempty"`
-	RANNodeName                       *string                           `json:"ran_node_name,omitempty"`
-	SupportedTAList                   []SupportedTA                     `json:"supported_ta_list,omitempty"`
-	DefaultPagingDRX                  *string                           `json:"default_paging_drx,omitempty"`
-	UERetentionInformation            *string                           `json:"ue_retention_information,omitempty"`
-	AMFName                           *string                           `json:"amf_name,omitempty"`
-	ServedGUAMIList                   []Guami                           `json:"served_guami_list,omitempty"`
-	RelativeAMFCapacity               *int64                            `json:"relative_amf_capacity,omitempty"`
-	PLMNSupportList                   []PLMN                            `json:"plmn_support_list,omitempty"`
-	CriticalityDiagnostics            *CriticalityDiagnostics           `json:"criticality_diagnostics,omitempty"`
-	Cause                             *string                           `json:"cause,omitempty"`
-	TimeToWait                        *string                           `json:"time_to_wait,omitempty"`
-	RANUENGAPID                       *int64                            `json:"ran_ue_ngap_id,omitempty"`
-	NASPDU                            []byte                            `json:"nas_pdu,omitempty"`
-	UserLocationInformation           *UserLocationInformation          `json:"user_location_information,omitempty"`
-	RRCEstablishmentCause             *string                           `json:"rrc_establishment_cause,omitempty"`
-	FiveGSTMSI                        *FiveGSTMSI                       `json:"fiveg_stmsi,omitempty"`
-	AMFSetID                          *string                           `json:"amf_set_id,omitempty"`
-	UEContextRequest                  *string                           `json:"ue_context_request,omitempty"`
-	AllowedNSSAI                      []SNSSAI                          `json:"allowed_nssai,omitempty"`
-	AMFUENGAPID                       *int64                            `json:"amf_ue_ngap_id,omitempty"`
-	OldAMF                            *string                           `json:"old_amf,omitempty"`
-	RANPagingPriority                 *int64                            `json:"ran_paging_priority,omitempty"`
-	MobilityRestrictionList           *MobilityRestrictionList          `json:"mobility_restriction_list,omitempty"`
-	IndexToRFSP                       *int64                            `json:"index_to_rfsp,omitempty"`
-	UEAggregateMaximumBitRate         *UEAggregateMaximumBitRate        `json:"ue_aggregate_maximum_bit_rate,omitempty"`
-	CoreNetworkAssistanceInformation  *CoreNetworkAssistanceInformation `json:"core_network_assistance_information,omitempty"`
-	GUAMI                             *Guami                            `json:"guami,omitempty"`
-	PDUSessionResourceSetupListCxtReq []PDUSessionResourceSetupCxtReq   `json:"pdu_session_resource_setup_list_cxt_req,omitempty"`
-	UESecurityCapabilities            *UESecurityCapabilities           `json:"ue_security_capabilities,omitempty"`
-	SecurityKey                       *string                           `json:"security_key,omitempty"`
+	ID                                        string                                  `json:"id"`
+	Criticality                               string                                  `json:"criticality"`
+	GlobalRANNodeID                           *GlobalRANNodeIDIE                      `json:"global_ran_node_id,omitempty"`
+	RANNodeName                               *string                                 `json:"ran_node_name,omitempty"`
+	SupportedTAList                           []SupportedTA                           `json:"supported_ta_list,omitempty"`
+	DefaultPagingDRX                          *string                                 `json:"default_paging_drx,omitempty"`
+	UERetentionInformation                    *string                                 `json:"ue_retention_information,omitempty"`
+	AMFName                                   *string                                 `json:"amf_name,omitempty"`
+	ServedGUAMIList                           []Guami                                 `json:"served_guami_list,omitempty"`
+	RelativeAMFCapacity                       *int64                                  `json:"relative_amf_capacity,omitempty"`
+	PLMNSupportList                           []PLMN                                  `json:"plmn_support_list,omitempty"`
+	CriticalityDiagnostics                    *CriticalityDiagnostics                 `json:"criticality_diagnostics,omitempty"`
+	Cause                                     *string                                 `json:"cause,omitempty"`
+	TimeToWait                                *string                                 `json:"time_to_wait,omitempty"`
+	RANUENGAPID                               *int64                                  `json:"ran_ue_ngap_id,omitempty"`
+	NASPDU                                    []byte                                  `json:"nas_pdu,omitempty"`
+	UserLocationInformation                   *UserLocationInformation                `json:"user_location_information,omitempty"`
+	RRCEstablishmentCause                     *string                                 `json:"rrc_establishment_cause,omitempty"`
+	FiveGSTMSI                                *FiveGSTMSI                             `json:"fiveg_stmsi,omitempty"`
+	AMFSetID                                  *string                                 `json:"amf_set_id,omitempty"`
+	UEContextRequest                          *string                                 `json:"ue_context_request,omitempty"`
+	AllowedNSSAI                              []SNSSAI                                `json:"allowed_nssai,omitempty"`
+	AMFUENGAPID                               *int64                                  `json:"amf_ue_ngap_id,omitempty"`
+	OldAMF                                    *string                                 `json:"old_amf,omitempty"`
+	RANPagingPriority                         *int64                                  `json:"ran_paging_priority,omitempty"`
+	MobilityRestrictionList                   *MobilityRestrictionList                `json:"mobility_restriction_list,omitempty"`
+	IndexToRFSP                               *int64                                  `json:"index_to_rfsp,omitempty"`
+	UEAggregateMaximumBitRate                 *UEAggregateMaximumBitRate              `json:"ue_aggregate_maximum_bit_rate,omitempty"`
+	CoreNetworkAssistanceInformation          *CoreNetworkAssistanceInformation       `json:"core_network_assistance_information,omitempty"`
+	GUAMI                                     *Guami                                  `json:"guami,omitempty"`
+	PDUSessionResourceSetupListCxtReq         []PDUSessionResourceSetupCxtReq         `json:"pdu_session_resource_setup_list_cxt_req,omitempty"`
+	PDUSessionResourceSetupListCxtRes         []PDUSessionResourceSetupCxtRes         `json:"pdu_session_resource_setup_list_cxt_res,omitempty"`
+	PDUSessionResourceFailedToSetupListCxtRes []PDUSessionResourceFailedToSetupCxtRes `json:"pdu_session_resource_failed_to_setup_list_cxt_res,omitempty"`
+	UESecurityCapabilities                    *UESecurityCapabilities                 `json:"ue_security_capabilities,omitempty"`
+	SecurityKey                               *string                                 `json:"security_key,omitempty"`
 }
 
 type NGSetupRequest struct {
@@ -255,8 +267,13 @@ type NGSetupResponse struct {
 	IEs []IE `json:"ies"`
 }
 
+type InitialContextSetupResponse struct {
+	IEs []IE `json:"ies"`
+}
+
 type SuccessfulOutcomeValue struct {
-	NGSetupResponse *NGSetupResponse `json:"ng_setup_response,omitempty"`
+	NGSetupResponse             *NGSetupResponse             `json:"ng_setup_response,omitempty"`
+	InitialContextSetupResponse *InitialContextSetupResponse `json:"initial_context_setup_response,omitempty"`
 }
 
 type SuccessfulOutcome struct {
@@ -355,6 +372,9 @@ func buildSuccessfulOutcome(sucMsg *ngapType.SuccessfulOutcome) *SuccessfulOutco
 	switch sucMsg.Value.Present {
 	case ngapType.SuccessfulOutcomePresentNGSetupResponse:
 		successfulOutcome.Value.NGSetupResponse = buildNGSetupResponse(sucMsg.Value.NGSetupResponse)
+		return successfulOutcome
+	case ngapType.SuccessfulOutcomePresentInitialContextSetupResponse:
+		successfulOutcome.Value.InitialContextSetupResponse = buildInitialContextSetupResponse(sucMsg.Value.InitialContextSetupResponse)
 		return successfulOutcome
 	default:
 		logger.EllaLog.Warn("Unsupported message", zap.Int("present", sucMsg.Value.Present))
@@ -1220,6 +1240,94 @@ func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupReques
 	}
 
 	return ngSetup
+}
+
+func buildInitialContextSetupResponse(initialContextSetupResponse *ngapType.InitialContextSetupResponse) *InitialContextSetupResponse {
+	if initialContextSetupResponse == nil {
+		return nil
+	}
+
+	icsResponse := &InitialContextSetupResponse{}
+
+	for i := 0; i < len(initialContextSetupResponse.ProtocolIEs.List); i++ {
+		ie := initialContextSetupResponse.ProtocolIEs.List[i]
+		switch ie.Id.Value {
+		case ngapType.ProtocolIEIDAMFUENGAPID:
+			icsResponse.IEs = append(icsResponse.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
+			})
+		case ngapType.ProtocolIEIDRANUENGAPID:
+			icsResponse.IEs = append(icsResponse.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
+			})
+		case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtRes:
+			icsResponse.IEs = append(icsResponse.IEs, IE{
+				ID:                                protocolIEIDToString(ie.Id.Value),
+				Criticality:                       criticalityToString(ie.Criticality.Value),
+				PDUSessionResourceSetupListCxtRes: buildPDUSessionResourceSetupListCxtResIE(ie.Value.PDUSessionResourceSetupListCxtRes),
+			})
+		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtRes:
+			icsResponse.IEs = append(icsResponse.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+				PDUSessionResourceFailedToSetupListCxtRes: buildPDUSessionResourceFailedToSetupListCxtResIE(ie.Value.PDUSessionResourceFailedToSetupListCxtRes),
+			})
+		case ngapType.ProtocolIEIDCriticalityDiagnostics:
+			icsResponse.IEs = append(icsResponse.IEs, IE{
+				ID:                     protocolIEIDToString(ie.Id.Value),
+				Criticality:            criticalityToString(ie.Criticality.Value),
+				CriticalityDiagnostics: buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
+			})
+		default:
+			icsResponse.IEs = append(icsResponse.IEs, IE{
+				ID:          protocolIEIDToString(ie.Id.Value),
+				Criticality: criticalityToString(ie.Criticality.Value),
+			})
+			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
+		}
+	}
+
+	return icsResponse
+}
+
+func buildPDUSessionResourceSetupListCxtResIE(pduList *ngapType.PDUSessionResourceSetupListCxtRes) []PDUSessionResourceSetupCxtRes {
+	if pduList == nil {
+		return nil
+	}
+
+	pduSessionList := make([]PDUSessionResourceSetupCxtRes, 0)
+
+	for i := 0; i < len(pduList.List); i++ {
+		item := pduList.List[i]
+		pduSessionList = append(pduSessionList, PDUSessionResourceSetupCxtRes{
+			PDUSessionID:                            item.PDUSessionID.Value,
+			PDUSessionResourceSetupResponseTransfer: item.PDUSessionResourceSetupResponseTransfer,
+		})
+	}
+
+	return pduSessionList
+}
+
+func buildPDUSessionResourceFailedToSetupListCxtResIE(pduList *ngapType.PDUSessionResourceFailedToSetupListCxtRes) []PDUSessionResourceFailedToSetupCxtRes {
+	if pduList == nil {
+		return nil
+	}
+
+	pduSessionList := make([]PDUSessionResourceFailedToSetupCxtRes, 0)
+
+	for i := 0; i < len(pduList.List); i++ {
+		item := pduList.List[i]
+		pduSessionList = append(pduSessionList, PDUSessionResourceFailedToSetupCxtRes{
+			PDUSessionID: item.PDUSessionID.Value,
+			PDUSessionResourceSetupUnsuccessfulTransfer: item.PDUSessionResourceSetupUnsuccessfulTransfer,
+		})
+	}
+
+	return pduSessionList
 }
 
 func buildNGSetupResponse(ngSetupResponse *ngapType.NGSetupResponse) *NGSetupResponse {
