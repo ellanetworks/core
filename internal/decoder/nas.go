@@ -56,7 +56,7 @@ type UESecurityCapability struct {
 type AuthenticationRequest struct {
 	ExtendedProtocolDiscriminator        uint8     `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType  uint8     `json:"spare_half_octet_and_security_header_type"`
-	AuthenticationRequestMessageIdentity uint8     `json:"authentication_request_message_identity"`
+	AuthenticationRequestMessageIdentity string    `json:"authentication_request_message_identity"`
 	SpareHalfOctetAndNgksi               uint8     `json:"spare_half_octet_and_ngksi"`
 	ABBA                                 []uint8   `json:"abba"`
 	AuthenticationParameterAUTN          [16]uint8 `json:"authentication_parameter_autn,omitempty"`
@@ -75,16 +75,31 @@ type AuthenticationRequest struct {
 type RegistrationRequest struct {
 	ExtendedProtocolDiscriminator       uint8                 `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8                 `json:"spare_half_octet_and_security_header_type"`
-	RegistrationRequestMessageIdentity  uint8                 `json:"registration_request_message_identity"`
+	RegistrationRequestMessageIdentity  string                `json:"registration_request_message_identity"`
 	NgksiAndRegistrationType5GS         uint8                 `json:"ngksi_and_registration_type_5gs"`
 	MobileIdentity5GS                   MobileIdentity5GS     `json:"mobile_identity_5gs"`
 	UESecurityCapability                *UESecurityCapability `json:"ue_security_capability,omitempty"`
+}
+
+type AuthenticationFailure struct {
+	ExtendedProtocolDiscriminator        uint8  `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType  uint8  `json:"spare_half_octet_and_security_header_type"`
+	AuthenticationFailureMessageIdentity string `json:"authentication_failure_message_identity"`
+	Cause5GMM                            string `json:"cause"`
+}
+
+type AuthenticationReject struct {
+	ExtendedProtocolDiscriminator       uint8  `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType uint8  `json:"spare_half_octet_and_security_header_type"`
+	AuthenticationRejectMessageIdentity string `json:"authentication_reject_message_identity"`
 }
 
 type GmmMessage struct {
 	GmmHeader             GmmHeader              `json:"gmm_header"`
 	RegistrationRequest   *RegistrationRequest   `json:"registration_request,omitempty"`
 	AuthenticationRequest *AuthenticationRequest `json:"authentication_request,omitempty"`
+	AuthenticationFailure *AuthenticationFailure `json:"authentication_failure,omitempty"`
+	AuthenticationReject  *AuthenticationReject  `json:"authentication_reject,omitempty"`
 }
 
 type GsmHeader struct {
@@ -97,8 +112,8 @@ type GsmMessage struct {
 
 type NASMessage struct {
 	SecurityHeader SecurityHeader `json:"security_header"`
-	GmmMessage     *GmmMessage    `json:"gmm_message"`
-	GsmMessage     *GsmMessage    `json:"gsm_message"`
+	GmmMessage     *GmmMessage    `json:"gmm_message,omitempty"`
+	GsmMessage     *GsmMessage    `json:"gsm_message,omitempty"`
 }
 
 func DecodeNASMessage(raw []byte) (*NASMessage, error) {
@@ -141,10 +156,53 @@ func buildGmmMessage(msg *nas.GmmMessage) *GmmMessage {
 	case nas.MsgTypeAuthenticationRequest:
 		gmmMessage.AuthenticationRequest = buildAuthenticationRequest(msg.AuthenticationRequest)
 		return gmmMessage
+	case nas.MsgTypeAuthenticationFailure:
+		gmmMessage.AuthenticationFailure = buildAuthenticationFailure(msg.AuthenticationFailure)
+		return gmmMessage
+	case nas.MsgTypeAuthenticationReject:
+		gmmMessage.AuthenticationReject = buildAuthenticationReject(msg.AuthenticationReject)
+		return gmmMessage
 	default:
 		logger.EllaLog.Warn("GMM message type not fully implemented", zap.String("message_type", gmmMessage.GmmHeader.MessageType))
 		return gmmMessage
 	}
+}
+
+func buildAuthenticationReject(msg *nasMessage.AuthenticationReject) *AuthenticationReject {
+	if msg == nil {
+		return nil
+	}
+
+	authReject := &AuthenticationReject{
+		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		AuthenticationRejectMessageIdentity: nas.MessageName(msg.AuthenticationRejectMessageIdentity.Octet),
+	}
+
+	if msg.EAPMessage != nil {
+		logger.EllaLog.Warn("EAPMessage not yet implemented")
+	}
+
+	return authReject
+}
+
+func buildAuthenticationFailure(msg *nasMessage.AuthenticationFailure) *AuthenticationFailure {
+	if msg == nil {
+		return nil
+	}
+
+	authFailure := &AuthenticationFailure{
+		ExtendedProtocolDiscriminator:        msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType:  msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		AuthenticationFailureMessageIdentity: nas.MessageName(msg.AuthenticationFailureMessageIdentity.Octet),
+		Cause5GMM:                            nasMessage.Cause5GMMToString(msg.Cause5GMM.GetCauseValue()),
+	}
+
+	if msg.AuthenticationFailureParameter != nil {
+		logger.EllaLog.Warn("AuthenticationFailureParameter not yet implemented")
+	}
+
+	return authFailure
 }
 
 func buildAuthenticationRequest(msg *nasMessage.AuthenticationRequest) *AuthenticationRequest {
@@ -155,7 +213,7 @@ func buildAuthenticationRequest(msg *nasMessage.AuthenticationRequest) *Authenti
 	authenticationRequest := &AuthenticationRequest{
 		ExtendedProtocolDiscriminator:        msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType:  msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		AuthenticationRequestMessageIdentity: msg.AuthenticationRequestMessageIdentity.Octet,
+		AuthenticationRequestMessageIdentity: nas.MessageName(msg.AuthenticationRequestMessageIdentity.Octet),
 		SpareHalfOctetAndNgksi:               msg.SpareHalfOctetAndNgksi.Octet,
 		ABBA:                                 msg.ABBA.GetABBAContents(),
 	}
@@ -184,7 +242,7 @@ func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *Registration
 		MobileIdentity5GS:                  getMobileIdentity5GS(msg.MobileIdentity5GS),
 		ExtendedProtocolDiscriminator:      msg.ExtendedProtocolDiscriminator.Octet,
 		NgksiAndRegistrationType5GS:        msg.NgksiAndRegistrationType5GS.Octet,
-		RegistrationRequestMessageIdentity: msg.RegistrationRequestMessageIdentity.Octet,
+		RegistrationRequestMessageIdentity: nas.MessageName(msg.RegistrationRequestMessageIdentity.Octet),
 	}
 
 	if msg.NoncurrentNativeNASKeySetIdentifier != nil {
