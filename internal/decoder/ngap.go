@@ -332,7 +332,7 @@ type NGAPMessage struct {
 	UnsuccessfulOutcome *UnsuccessfulOutcome `json:"unsuccessful_outcome,omitempty"`
 }
 
-func DecodeNetworkLog(raw []byte) (*NGAPMessage, error) {
+func DecodeNGAPMessage(raw []byte) (*NGAPMessage, error) {
 	pdu, err := ngap.Decoder(raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode NGAP message: %w", err)
@@ -340,7 +340,6 @@ func DecodeNetworkLog(raw []byte) (*NGAPMessage, error) {
 
 	ngapMsg := &NGAPMessage{}
 
-	// Extract message type
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
 		ngapMsg.InitiatingMessage = buildInitiatingMessage(pdu.InitiatingMessage)

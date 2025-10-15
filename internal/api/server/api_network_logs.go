@@ -224,7 +224,7 @@ func GetNetworkLog(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		decodedContent, err := decoder.DecodeNetworkLog(networkLog.Raw)
+		decodedContent, err := decoder.DecodeNGAPMessage(networkLog.Raw)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to decode network log", err, logger.APILog)
 			return

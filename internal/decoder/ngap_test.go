@@ -24,7 +24,7 @@ func TestDecode_NGSetupRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestDecode_NGSetupResponse(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -315,7 +315,7 @@ func TestDecode_NGSetupFailure(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -367,7 +367,7 @@ func TestDecode_InitialUEMessage(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -518,7 +518,7 @@ func TestDecode_DownlinkNASTransport(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -612,7 +612,7 @@ func TestDecode_UplinkNASTransport(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -745,7 +745,7 @@ func TestDecode_InitialContextSetupRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -981,7 +981,7 @@ func TestDecode_InitialContextSetupResponse(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -1051,7 +1051,7 @@ func TestDecode_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -1185,7 +1185,7 @@ func TestDecode_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
