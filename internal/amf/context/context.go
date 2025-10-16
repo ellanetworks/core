@@ -340,7 +340,6 @@ func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 		return ranUe
 	}
 
-	logger.AmfLog.Error("ranUe not found with AmfUeNgapID")
 	return nil
 }
 

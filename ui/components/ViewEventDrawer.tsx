@@ -55,7 +55,11 @@ const MonoBlock: React.FC<{ children: React.ReactNode; sxProp?: object }> = ({
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
       fontSize: 13,
       lineHeight: 1.5,
-      overflowX: "auto",
+      whiteSpace: "pre-wrap",
+      wordBreak: "break-word",
+      overflowWrap: "anywhere",
+      overflowX: "hidden",
+      maxWidth: "100%",
       border: (t) => `1px solid ${t.palette.divider}`,
       ...sxProp,
     }}
@@ -194,6 +198,8 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
           </Tooltip>
         </Box>
 
+        <MonoBlock>{stringify(decoded)}</MonoBlock>
+
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.75 }}>
           <WarningAmberRoundedIcon
             fontSize="small"
@@ -230,6 +236,7 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
             </span>
           </Tooltip>
         </Box>
+
         <MonoBlock>
           {typeof raw === "string" ? raw : stringify(Array.from(raw ?? []))}
         </MonoBlock>
@@ -268,14 +275,27 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
         }}
       >
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography
-            variant="subtitle2"
-            sx={{ color: "text.secondary", lineHeight: 1 }}
-          >
-            {log?.protocol ?? "Log"}
+          <Typography variant="h6" noWrap title={log?.messageType}>
+            {log?.messageType ?? "Event details"}
           </Typography>
-        </Box>
 
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.25 }}>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              {log?.protocol ?? "Unknown protocol"}
+            </Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              • {log?.direction ?? "—"}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ color: "text.disabled", ml: "auto" }}
+            >
+              {log?.timestamp
+                ? new Date(log.timestamp).toLocaleString()
+                : "No timestamp"}
+            </Typography>
+          </Box>
+        </Box>
         <Tooltip title="Close">
           <IconButton onClick={onClose} aria-label="Close">
             <CloseIcon />
