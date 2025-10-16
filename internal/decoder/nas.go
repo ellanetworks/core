@@ -204,6 +204,14 @@ type SecurityModeCommand struct {
 	ReplayedS1UESecurityCapabilities    *UESecurityCapability            `json:"replayed_s1_ue_security_capabilities,omitempty"`
 }
 
+type SecurityModeComplete struct {
+	ExtendedProtocolDiscriminator       uint8   `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType uint8   `json:"spare_half_octet_and_security_header_type"`
+	SecurityModeCompleteMessageIdentity string  `json:"security_mode_complete_message_identity"`
+	IMEISV                              *string `json:"imeisv,omitempty"`
+	NASMessageContainer                 []byte  `json:"nas_message_container,omitempty"`
+}
+
 type GmmMessage struct {
 	GmmHeader              GmmHeader               `json:"gmm_header"`
 	RegistrationRequest    *RegistrationRequest    `json:"registration_request,omitempty"`
@@ -214,6 +222,7 @@ type GmmMessage struct {
 	AuthenticationResponse *AuthenticationResponse `json:"authentication_response,omitempty"`
 	ULNASTransport         *ULNASTransport         `json:"ul_nas_transport,omitempty"`
 	SecurityModeCommand    *SecurityModeCommand    `json:"security_mode_command,omitempty"`
+	SecurityModeComplete   *SecurityModeComplete   `json:"security_mode_complete,omitempty"`
 	ServiceRequest         *ServiceRequest         `json:"service_request,omitempty"`
 	ServiceAccept          *ServiceAccept          `json:"service_accept,omitempty"`
 	ServiceReject          *ServiceReject          `json:"service_reject,omitempty"`
@@ -295,6 +304,9 @@ func buildGmmMessage(msg *nas.GmmMessage) *GmmMessage {
 		return gmmMessage
 	case nas.MsgTypeSecurityModeCommand:
 		gmmMessage.SecurityModeCommand = buildSecurityModeCommand(msg.SecurityModeCommand)
+		return gmmMessage
+	case nas.MsgTypeSecurityModeComplete:
+		gmmMessage.SecurityModeComplete = buildSecurityModeComplete(msg.SecurityModeComplete)
 		return gmmMessage
 	case nas.MsgTypeServiceRequest:
 		gmmMessage.ServiceRequest = buildServiceRequest(msg.ServiceRequest)
@@ -536,6 +548,29 @@ func buildServiceRequest(msg *nasMessage.ServiceRequest) *ServiceRequest {
 	}
 
 	return serviceRequest
+}
+
+func buildSecurityModeComplete(msg *nasMessage.SecurityModeComplete) *SecurityModeComplete {
+	if msg == nil {
+		return nil
+	}
+
+	securityModeComplete := &SecurityModeComplete{
+		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		SecurityModeCompleteMessageIdentity: nas.MessageName(msg.SecurityModeCompleteMessageIdentity.Octet),
+	}
+
+	if msg.IMEISV != nil {
+		pei := nasConvert.PeiToString(msg.IMEISV.Octet[:])
+		securityModeComplete.IMEISV = &pei
+	}
+
+	if msg.NASMessageContainer != nil {
+		securityModeComplete.NASMessageContainer = msg.NASMessageContainer.GetNASMessageContainerContents()
+	}
+
+	return securityModeComplete
 }
 
 func buildSecurityModeCommand(msg *nasMessage.SecurityModeCommand) *SecurityModeCommand {
