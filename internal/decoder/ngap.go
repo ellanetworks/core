@@ -450,10 +450,13 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 
 	ieList := &PDUSessionResourceSetupRequest{}
 
+	AMFUENGAPID := int64(0)
+
 	for i := 0; i < len(pduSessionResourceSetupRequest.ProtocolIEs.List); i++ {
 		ie := pduSessionResourceSetupRequest.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
+			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
@@ -472,7 +475,11 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 				RANPagingPriority: &ie.Value.RANPagingPriority.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
-			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nil)
+			nasContextInfo := &NasContextInfo{
+				AMFUENGAPID: AMFUENGAPID,
+				Direction:   DirDownlink,
+			}
+			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
 			if err != nil {
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}
@@ -488,10 +495,14 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 				NASPDU:      nasPdu,
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
+			nasContextInfo := &NasContextInfo{
+				AMFUENGAPID: AMFUENGAPID,
+				Direction:   DirDownlink,
+			}
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:                               protocolIEIDToString(ie.Id.Value),
 				Criticality:                      criticalityToString(ie.Criticality.Value),
-				PDUSessionResourceSetupListSUReq: buildPDUSessionResourceSetupListSUReq(ie.Value.PDUSessionResourceSetupListSUReq),
+				PDUSessionResourceSetupListSUReq: buildPDUSessionResourceSetupListSUReq(ie.Value.PDUSessionResourceSetupListSUReq, nasContextInfo),
 			})
 		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
 			ieList.IEs = append(ieList.IEs, IE{
@@ -510,7 +521,7 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 	return ieList
 }
 
-func buildPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetupListSUReq) []PDUSessionResourceSetupSUReq {
+func buildPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetupListSUReq, nasContextInfo *NasContextInfo) []PDUSessionResourceSetupSUReq {
 	if list == nil {
 		return nil
 	}
@@ -524,7 +535,7 @@ func buildPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetu
 		}
 
 		if item.PDUSessionNASPDU != nil {
-			decodednNasPdu, err := DecodeNASMessage(item.PDUSessionNASPDU.Value, nil)
+			decodednNasPdu, err := DecodeNASMessage(item.PDUSessionNASPDU.Value, nasContextInfo)
 			if err != nil {
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}
@@ -1034,7 +1045,7 @@ func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTranspo
 			})
 		case ngapType.ProtocolIEIDNASPDU:
 			nasContextInfo := &NasContextInfo{
-				Direction:   DirUplink,
+				Direction:   DirDownlink,
 				AMFUENGAPID: AMFUENGAPID,
 			}
 			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)

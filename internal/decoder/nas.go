@@ -122,6 +122,30 @@ type ULNASTransport struct {
 	DNN                                   *string `json:"dnn,omitempty"`
 }
 
+// nasType.ExtendedProtocolDiscriminator
+// 	nasType.SpareHalfOctetAndSecurityHeaderType
+// 	nasType.DLNASTRANSPORTMessageIdentity
+// 	nasType.SpareHalfOctetAndPayloadContainerType
+// 	nasType.PayloadContainer
+// 	*nasType.PduSessionID2Value
+// 	*nasType.AdditionalInformation
+// 	*nasType.Cause5GMM
+// 	*nasType.BackoffTimerValue
+// 	Ipaddr string
+
+type DLNASTransport struct {
+	ExtendedProtocolDiscriminator         uint8   `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType   uint8   `json:"spare_half_octet_and_security_header_type"`
+	DLNASTRANSPORTMessageIdentity         string  `json:"dl_nas_transport_message_identity"`
+	SpareHalfOctetAndPayloadContainerType uint8   `json:"spare_half_octet_and_payload_container_type"`
+	PayloadContainer                      []byte  `json:"payload_container"`
+	PduSessionID2Value                    *uint8  `json:"pdu_session_id_2_value,omitempty"`
+	AdditionalInformation                 *string `json:"additional_information,omitempty"`
+	Cause5GMM                             *string `json:"cause_5gmm,omitempty"`
+	BackoffTimerValue                     *uint8  `json:"backoff_timer_value,omitempty"`
+	Ipaddr                                string  `json:"ip_addr,omitempty"`
+}
+
 type UplinkDataStatusPDU struct {
 	PDUSessionID int  `json:"pdu_session_id"`
 	Active       bool `json:"active"`
@@ -275,6 +299,7 @@ type GmmMessage struct {
 	AuthenticationReject   *AuthenticationReject   `json:"authentication_reject,omitempty"`
 	AuthenticationResponse *AuthenticationResponse `json:"authentication_response,omitempty"`
 	ULNASTransport         *ULNASTransport         `json:"ul_nas_transport,omitempty"`
+	DLNASTransport         *DLNASTransport         `json:"dl_nas_transport,omitempty"`
 	SecurityModeCommand    *SecurityModeCommand    `json:"security_mode_command,omitempty"`
 	SecurityModeComplete   *SecurityModeComplete   `json:"security_mode_complete,omitempty"`
 	ServiceRequest         *ServiceRequest         `json:"service_request,omitempty"`
@@ -358,6 +383,9 @@ func buildGmmMessage(msg *nas.GmmMessage) *GmmMessage {
 		return gmmMessage
 	case nas.MsgTypeULNASTransport:
 		gmmMessage.ULNASTransport = buildULNASTransport(msg.ULNASTransport)
+		return gmmMessage
+	case nas.MsgTypeDLNASTransport:
+		gmmMessage.DLNASTransport = buildDLNASTransport(msg.DLNASTransport)
 		return gmmMessage
 	case nas.MsgTypeSecurityModeCommand:
 		gmmMessage.SecurityModeCommand = buildSecurityModeCommand(msg.SecurityModeCommand)
@@ -722,6 +750,42 @@ func buildIMEISVRequest(msg nasType.IMEISVRequest) string {
 	default:
 		return fmt.Sprintf("Unknown(%d)", msg.GetIMEISVRequestValue())
 	}
+}
+
+func buildDLNASTransport(msg *nasMessage.DLNASTransport) *DLNASTransport {
+	if msg == nil {
+		return nil
+	}
+
+	dlNasTransport := &DLNASTransport{
+		ExtendedProtocolDiscriminator:         msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType:   msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		DLNASTRANSPORTMessageIdentity:         nas.MessageName(msg.DLNASTRANSPORTMessageIdentity.Octet),
+		SpareHalfOctetAndPayloadContainerType: msg.SpareHalfOctetAndPayloadContainerType.Octet,
+		PayloadContainer:                      msg.PayloadContainer.GetPayloadContainerContents(),
+		Ipaddr:                                msg.Ipaddr,
+	}
+
+	if msg.PduSessionID2Value != nil {
+		value := msg.PduSessionID2Value.GetPduSessionID2Value()
+		dlNasTransport.PduSessionID2Value = &value
+	}
+
+	if msg.AdditionalInformation != nil {
+		logger.EllaLog.Warn("AdditionalInformation not yet implemented")
+	}
+
+	if msg.BackoffTimerValue != nil {
+		backoffTimerValue := msg.BackoffTimerValue.GetUnitTimerValue()
+		dlNasTransport.BackoffTimerValue = &backoffTimerValue
+	}
+
+	if msg.Cause5GMM != nil {
+		cause := nasMessage.Cause5GMMToString(msg.Cause5GMM.GetCauseValue())
+		dlNasTransport.Cause5GMM = &cause
+	}
+
+	return dlNasTransport
 }
 
 func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
