@@ -223,18 +223,11 @@ func (context *AMFContext) AmfRanFindByConn(conn net.Conn) (*AmfRan, bool) {
 	return nil, false
 }
 
-func (context *AMFContext) AmfRanFindByGnbID(gnbID string) (*AmfRan, bool) {
-	if value, ok := context.AmfRanPool.Load(gnbID); ok {
-		return value.(*AmfRan), ok
-	}
-	return nil, false
-}
-
 // use ranNodeID to find RAN context, return *AmfRan and ok bit
 func (context *AMFContext) AmfRanFindByRanID(ranNodeID models.GlobalRanNodeID) (*AmfRan, bool) {
 	var ran *AmfRan
 	var ok bool
-	context.AmfRanPool.Range(func(key, value interface{}) bool {
+	context.AmfRanPool.Range(func(key, value any) bool {
 		amfRan := value.(*AmfRan)
 		switch amfRan.RanPresent {
 		case RanPresentGNbID:
@@ -347,7 +340,6 @@ func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 		return ranUe
 	}
 
-	logger.AmfLog.Error("ranUe not found with AmfUeNgapID")
 	return nil
 }
 

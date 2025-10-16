@@ -16,7 +16,7 @@ func decodeB64(s string) ([]byte, error) {
 	return nil, fmt.Errorf("not valid base64")
 }
 
-func TestDecode_NGSetupRequest(t *testing.T) {
+func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 	const message = "ABUAQQAABAAbAAkAAPEQUAAAAAEAUkAUCIBVRVJBTlNJTS1nbmItMS0xLTEAZgAQAAAAAAEAAPEQAAAQCBAgMAAVQAFA"
 
 	raw, err := decodeB64(message)
@@ -24,7 +24,7 @@ func TestDecode_NGSetupRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestDecode_NGSetupRequest(t *testing.T) {
 	}
 }
 
-func TestDecode_NGSetupResponse(t *testing.T) {
+func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 	const message = "IBUALAAABAABAAUBAGFtZgBgAAgAAADxEMr+AABWQAH/AFAACwAA8RAAABAIECAw"
 
 	raw, err := decodeB64(message)
@@ -171,7 +171,7 @@ func TestDecode_NGSetupResponse(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -307,7 +307,7 @@ func TestDecode_NGSetupResponse(t *testing.T) {
 	}
 }
 
-func TestDecode_NGSetupFailure(t *testing.T) {
+func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 	const message = "QBUACAAAAQAPQAGI"
 
 	raw, err := decodeB64(message)
@@ -315,7 +315,7 @@ func TestDecode_NGSetupFailure(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -359,7 +359,7 @@ func TestDecode_NGSetupFailure(t *testing.T) {
 	}
 }
 
-func TestDecode_InitialUEMessage(t *testing.T) {
+func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 	const message = "AA9ASAAABQBVAAIAAQAmABoZfgBBeQANAQDxEAAAAABEdGhXJS4E8PDw8AB5ABNQAPEQAAAAAQAA8RAAAAHsmTVKAFpAARgAcEABAA=="
 
 	raw, err := decodeB64(message)
@@ -367,7 +367,7 @@ func TestDecode_InitialUEMessage(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -430,8 +430,8 @@ func TestDecode_InitialUEMessage(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	if string(item1.NASPDU) != string(expectedNASPDUraw) {
-		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, item1.NASPDU)
+	if string(item1.NASPDU.Raw) != string(expectedNASPDUraw) {
+		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, item1.NASPDU.Raw)
 	}
 
 	item2 := ngap.InitiatingMessage.Value.InitialUEMessage.IEs[2]
@@ -464,7 +464,6 @@ func TestDecode_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected PLMNID.Mnc=01, got %s", item2.UserLocationInformation.NR.TAI.PLMNID.Mnc)
 	}
 
-	// read timestamp and convert to time
 	if item2.UserLocationInformation.NR.TimeStamp == nil {
 		t.Fatalf("expected TimeStamp, got nil")
 	}
@@ -510,7 +509,7 @@ func TestDecode_InitialUEMessage(t *testing.T) {
 	}
 }
 
-func TestDecode_DownlinkNASTransport(t *testing.T) {
+func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 	const message = "AARAPgAAAwAKAAIAAQBVAAIAAQAmACsqfgBWAAIAACEaBwCjbSa9vkiAkRdky8+5IBBH2jhAU2SAAE2CgCRBSs2H"
 
 	raw, err := decodeB64(message)
@@ -518,7 +517,7 @@ func TestDecode_DownlinkNASTransport(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -599,12 +598,12 @@ func TestDecode_DownlinkNASTransport(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	if string(item2.NASPDU) != string(expectedNASPDUraw) {
-		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, item2.NASPDU)
+	if string(item2.NASPDU.Raw) != string(expectedNASPDUraw) {
+		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, item2.NASPDU.Raw)
 	}
 }
 
-func TestDecode_UplinkNASTransport(t *testing.T) {
+func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 	const message = "AC5APwAABAAKAAIAAQBVAAIAAQAmABUUfgLpGbfKA34AZwEABS4BANZREgEAeUATUADxEAAAAAEAAPEQAAAB7JlGUQ=="
 
 	raw, err := decodeB64(message)
@@ -612,7 +611,7 @@ func TestDecode_UplinkNASTransport(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -693,8 +692,8 @@ func TestDecode_UplinkNASTransport(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	if string(item2.NASPDU) != string(expectedNASPDUraw) {
-		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, item2.NASPDU)
+	if string(item2.NASPDU.Raw) != string(expectedNASPDUraw) {
+		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, item2.NASPDU.Raw)
 	}
 
 	item3 := ngap.InitiatingMessage.Value.UplinkNASTransport.IEs[3]
@@ -737,7 +736,7 @@ func TestDecode_UplinkNASTransport(t *testing.T) {
 	}
 }
 
-func TestDecode_InitialContextSetupRequest(t *testing.T) {
+func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 	const message = "AA4AgJQAAAgACgACAAQAVQACAAIAHAAHAADxEMr+AAAAAAUCARAgMAB3AAkcAA4AAAAAAAAAXgAgmoWQH+QL60OhHSJbbTHIzCPUPAVPceX9UqhcE2VOITwAJEAEAADxEAAmQDQzfgKx/lSdAX4AQgEBdwAL8gDxEMr+AAAAAAFKAwDxEFQHAADxEAAAARUFBAEQIDAhAgAA"
 
 	raw, err := decodeB64(message)
@@ -745,7 +744,7 @@ func TestDecode_InitialContextSetupRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -874,12 +873,36 @@ func TestDecode_InitialContextSetupRequest(t *testing.T) {
 		t.Fatalf("expected UESecurityCapabilities, got nil")
 	}
 
-	if item4.UESecurityCapabilities.NRencryptionAlgorithms != "e000" {
-		t.Fatalf("expected NRIntegrityProtectionAlgorithms=e000, got %s", item4.UESecurityCapabilities.NRencryptionAlgorithms)
+	if len(item4.UESecurityCapabilities.NRencryptionAlgorithms) != 3 {
+		t.Fatalf("expected 3 NRencryptionAlgorithms, got %d", len(item4.UESecurityCapabilities.NRencryptionAlgorithms))
 	}
 
-	if item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms != "e000" {
-		t.Fatalf("expected NRIntegrityProtectionAlgorithms=e000, got %s", item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms)
+	if item4.UESecurityCapabilities.NRencryptionAlgorithms[0] != "NEA1" {
+		t.Fatalf("expected NRencryptionAlgorithms[0]=NEA1, got %s", item4.UESecurityCapabilities.NRencryptionAlgorithms[0])
+	}
+
+	if item4.UESecurityCapabilities.NRencryptionAlgorithms[1] != "NEA2" {
+		t.Fatalf("expected NRencryptionAlgorithms[1]=NEA2, got %s", item4.UESecurityCapabilities.NRencryptionAlgorithms[1])
+	}
+
+	if item4.UESecurityCapabilities.NRencryptionAlgorithms[2] != "NEA3" {
+		t.Fatalf("expected NRencryptionAlgorithms[2]=NEA3, got %s", item4.UESecurityCapabilities.NRencryptionAlgorithms[2])
+	}
+
+	if len(item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms) != 3 {
+		t.Fatalf("expected 3 NRintegrityProtectionAlgorithms, got %d", len(item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms))
+	}
+
+	if item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms[0] != "NIA1" {
+		t.Fatalf("expected NRintegrityProtectionAlgorithms[0]=NIA1, got %s", item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms[0])
+	}
+
+	if item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms[1] != "NIA2" {
+		t.Fatalf("expected NRintegrityProtectionAlgorithms[1]=NIA2, got %s", item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms[1])
+	}
+
+	if item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms[2] != "NIA3" {
+		t.Fatalf("expected NRintegrityProtectionAlgorithms[2]=NIA3, got %s", item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms[2])
 	}
 
 	if item4.UESecurityCapabilities.EUTRAencryptionAlgorithms != "0000" {
@@ -968,12 +991,12 @@ func TestDecode_InitialContextSetupRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	if string(item7.NASPDU) != string(expectedNASPDUraw) {
-		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, item7.NASPDU)
+	if string(item7.NASPDU.Raw) != string(expectedNASPDUraw) {
+		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, item7.NASPDU.Raw)
 	}
 }
 
-func TestDecode_InitialContextSetupResponse(t *testing.T) {
+func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 	const message = "IA4ADwAAAgAKQAIAAgBVQAIAAg=="
 
 	raw, err := decodeB64(message)
@@ -981,7 +1004,7 @@ func TestDecode_InitialContextSetupResponse(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -1043,7 +1066,7 @@ func TestDecode_InitialContextSetupResponse(t *testing.T) {
 	}
 }
 
-func TestDecode_PDUSessionResourceSetupRequest(t *testing.T) {
+func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 	const message = "AB0AgLwAAAQACgACAAEAVQACAAEASgCAmgBAAWF+AnHdg8QCfgBoAQBSLgEBwhEACf8ABjH/AQH/CQYGAMgGAMgpBQEKLQACIgQBECAweQAQASBDAQEJBAMGAMgFAwYAyHsADYAADQQICAgIABACBXglCQhpbnRlcm5ldBIBQCAQIDAvAAAEAIIACgwL68IAMAvrwgAAiwAKAfAhISHGAAAAAQCGAAEAAIgABwABAAAJAQAAbkAKDAvrwgAwC+vCAA=="
 
 	raw, err := decodeB64(message)
@@ -1051,7 +1074,7 @@ func TestDecode_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
@@ -1177,7 +1200,7 @@ func TestDecode_PDUSessionResourceSetupRequest(t *testing.T) {
 	}
 }
 
-func TestDecode_PDUSessionResourceSetupResponse(t *testing.T) {
+func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 	const message = "IB0AOwAABAAKQAIAAQBVQAIAAQBLQBEAAAENAAPgISEh0QAAAAEAAQB5QBNQAPEQAAAAAQAA8RAAAAHsmi1m"
 
 	raw, err := decodeB64(message)
@@ -1185,7 +1208,7 @@ func TestDecode_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := decoder.DecodeNetworkLog(raw)
+	ngap, err := decoder.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}

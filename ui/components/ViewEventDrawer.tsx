@@ -9,9 +9,10 @@ import {
   IconButton,
   Divider,
   CircularProgress,
+  Stack,
+  Toolbar,
   Tooltip,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 import {
   Close as CloseIcon,
   ContentCopy as CopyIcon,
@@ -39,7 +40,10 @@ interface ViewEventDrawerProps {
   log: LogRow | null;
 }
 
-const MonoBlock: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+const MonoBlock: React.FC<{ children: React.ReactNode; sxProp?: object }> = ({
+  children,
+  sxProp,
+}) => (
   <Box
     component="pre"
     sx={{
@@ -51,11 +55,38 @@ const MonoBlock: React.FC<{ children: React.ReactNode }> = ({ children }) => (
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
       fontSize: 13,
       lineHeight: 1.5,
-      overflowX: "auto",
+      whiteSpace: "pre-wrap",
+      wordBreak: "break-word",
+      overflowWrap: "anywhere",
+      overflowX: "hidden",
+      maxWidth: "100%",
       border: (t) => `1px solid ${t.palette.divider}`,
+      ...sxProp,
     }}
   >
     {children}
+  </Box>
+);
+
+const MetaRow: React.FC<{
+  label: string;
+  value?: string | null;
+  full?: boolean;
+}> = ({ label, value, full }) => (
+  <Box
+    sx={{
+      display: "grid",
+      gridTemplateColumns: full ? "180px 1fr" : "180px 1fr",
+      alignItems: "baseline",
+      gap: 1,
+    }}
+  >
+    <Typography variant="caption" sx={{ color: "text.secondary" }}>
+      {label}
+    </Typography>
+    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+      {value ?? "—"}
+    </Typography>
   </Box>
 );
 
@@ -64,7 +95,6 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
   onClose,
   log,
 }) => {
-  const theme = useTheme();
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
   const router = useRouter();
   const { accessToken, authReady } = useAuth();
@@ -167,6 +197,7 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
             </span>
           </Tooltip>
         </Box>
+
         <MonoBlock>{stringify(decoded)}</MonoBlock>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.75 }}>
@@ -205,6 +236,7 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
             </span>
           </Tooltip>
         </Box>
+
         <MonoBlock>
           {typeof raw === "string" ? raw : stringify(Array.from(raw ?? []))}
         </MonoBlock>
@@ -217,13 +249,18 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
       anchor="right"
       open={open}
       onClose={onClose}
+      variant="persistent"
       PaperProps={{
         sx: {
           width: { xs: "100%", sm: 520, md: 640 },
-          boxShadow: theme.shadows[8],
+          boxShadow: (t) => t.shadows[8],
+          display: "flex",
+          flexDirection: "column",
+          height: "100vh",
         },
       }}
     >
+      <Toolbar />
       <Box
         sx={{
           position: "sticky",
@@ -238,14 +275,27 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
         }}
       >
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography
-            variant="subtitle2"
-            sx={{ color: "text.secondary", lineHeight: 1 }}
-          >
-            {log?.protocol ?? "Log"}
+          <Typography variant="h6" noWrap title={log?.messageType}>
+            {log?.messageType ?? "Event details"}
           </Typography>
-        </Box>
 
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.25 }}>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              {log?.protocol ?? "Unknown protocol"}
+            </Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              • {log?.direction ?? "—"}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ color: "text.disabled", ml: "auto" }}
+            >
+              {log?.timestamp
+                ? new Date(log.timestamp).toLocaleString()
+                : "No timestamp"}
+            </Typography>
+          </Box>
+        </Box>
         <Tooltip title="Close">
           <IconButton onClick={onClose} aria-label="Close">
             <CloseIcon />
@@ -265,37 +315,16 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
         </Collapse>
       </Box>
 
-      <Box sx={{ px: 2, pb: 2 }}>
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-            gap: 1.25,
-            my: 1.25,
-          }}
-        >
-          <Typography variant="body2">
-            <strong>Timestamp:</strong> {log?.timestamp ?? "—"}
-          </Typography>
-          <Typography variant="body2">
-            <strong>Protocol:</strong> {log?.protocol ?? "—"}
-          </Typography>
-          <Typography variant="body2">
-            <strong>Local Address:</strong> {log?.local_address ?? "—"}
-          </Typography>
-          <Typography variant="body2">
-            <strong>Remote Address:</strong> {log?.remote_address ?? "—"}
-          </Typography>
-          <Typography variant="body2">
-            <strong>Direction:</strong> {log?.direction ?? "—"}
-          </Typography>
-          <Typography
-            variant="body2"
-            sx={{ gridColumn: { xs: "auto", sm: "1 / span 2" } }}
-          >
-            <strong>Message Type:</strong> {log?.messageType ?? "—"}
-          </Typography>
-        </Box>
+      <Box sx={{ flex: 1, overflow: "auto", px: 2, pb: 2 }}>
+        {/* Metadata */}
+        <Stack spacing={1.25} sx={{ my: 1.25 }}>
+          <MetaRow label="Timestamp" value={log?.timestamp} />
+          <MetaRow label="Protocol" value={log?.protocol} />
+          <MetaRow label="Local Address" value={log?.local_address} />
+          <MetaRow label="Remote Address" value={log?.remote_address} />
+          <MetaRow label="Direction" value={log?.direction} />
+          <MetaRow label="Message Type" value={log?.messageType} full />
+        </Stack>
 
         <Divider sx={{ my: 1.5 }} />
 

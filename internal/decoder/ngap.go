@@ -168,10 +168,10 @@ type CoreNetworkAssistanceInformation struct {
 }
 
 type PDUSessionResourceSetupCxtReq struct {
-	PDUSessionID                           int64  `json:"pdu_session_id"`
-	NASPDU                                 []byte `json:"nas_pdu,omitempty"`
-	SNSSAI                                 SNSSAI `json:"snssai"`
-	PDUSessionResourceSetupRequestTransfer []byte `json:"pdu_session_resource_setup_request_transfer"`
+	PDUSessionID                           int64   `json:"pdu_session_id"`
+	NASPDU                                 *NASPDU `json:"nas_pdu,omitempty"`
+	SNSSAI                                 SNSSAI  `json:"snssai"`
+	PDUSessionResourceSetupRequestTransfer []byte  `json:"pdu_session_resource_setup_request_transfer"`
 }
 
 type PDUSessionResourceSetupCxtRes struct {
@@ -185,10 +185,10 @@ type PDUSessionResourceFailedToSetupCxtRes struct {
 }
 
 type PDUSessionResourceSetupSUReq struct {
-	PDUSessionID                           int64  `json:"pdu_session_id"`
-	PDUSessionNASPDU                       []byte `json:"pdu_session_nas_pdu,omitempty"`
-	SNSSAI                                 SNSSAI `json:"snssai"`
-	PDUSessionResourceSetupRequestTransfer []byte `json:"pdu_session_resource_setup_request_transfer"`
+	PDUSessionID                           int64   `json:"pdu_session_id"`
+	PDUSessionNASPDU                       *NASPDU `json:"pdu_session_nas_pdu,omitempty"`
+	SNSSAI                                 SNSSAI  `json:"snssai"`
+	PDUSessionResourceSetupRequestTransfer []byte  `json:"pdu_session_resource_setup_request_transfer"`
 }
 
 type PDUSessionResourceSetupSURes struct {
@@ -202,10 +202,15 @@ type PDUSessionResourceFailedToSetupSURes struct {
 }
 
 type UESecurityCapabilities struct {
-	NRencryptionAlgorithms             string `json:"nr_encryption_algorithms"`
-	NRintegrityProtectionAlgorithms    string `json:"nr_integrity_protection_algorithms"`
-	EUTRAencryptionAlgorithms          string `json:"eutra_encryption_algorithms"`
-	EUTRAintegrityProtectionAlgorithms string `json:"eutra_integrity_protection_algorithms"`
+	NRencryptionAlgorithms             []string `json:"nr_encryption_algorithms"`
+	NRintegrityProtectionAlgorithms    []string `json:"nr_integrity_protection_algorithms"`
+	EUTRAencryptionAlgorithms          string   `json:"eutra_encryption_algorithms"`
+	EUTRAintegrityProtectionAlgorithms string   `json:"eutra_integrity_protection_algorithms"`
+}
+
+type NASPDU struct {
+	Raw     []byte      `json:"raw"`
+	Decoded *NASMessage `json:"decoded"`
 }
 
 type IE struct {
@@ -224,7 +229,7 @@ type IE struct {
 	Cause                                     *string                                 `json:"cause,omitempty"`
 	TimeToWait                                *string                                 `json:"time_to_wait,omitempty"`
 	RANUENGAPID                               *int64                                  `json:"ran_ue_ngap_id,omitempty"`
-	NASPDU                                    []byte                                  `json:"nas_pdu,omitempty"`
+	NASPDU                                    *NASPDU                                 `json:"nas_pdu,omitempty"`
 	UserLocationInformation                   *UserLocationInformation                `json:"user_location_information,omitempty"`
 	RRCEstablishmentCause                     *string                                 `json:"rrc_establishment_cause,omitempty"`
 	FiveGSTMSI                                *FiveGSTMSI                             `json:"fiveg_stmsi,omitempty"`
@@ -332,7 +337,7 @@ type NGAPMessage struct {
 	UnsuccessfulOutcome *UnsuccessfulOutcome `json:"unsuccessful_outcome,omitempty"`
 }
 
-func DecodeNetworkLog(raw []byte) (*NGAPMessage, error) {
+func DecodeNGAPMessage(raw []byte) (*NGAPMessage, error) {
 	pdu, err := ngap.Decoder(raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode NGAP message: %w", err)
@@ -340,7 +345,6 @@ func DecodeNetworkLog(raw []byte) (*NGAPMessage, error) {
 
 	ngapMsg := &NGAPMessage{}
 
-	// Extract message type
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
 		ngapMsg.InitiatingMessage = buildInitiatingMessage(pdu.InitiatingMessage)
@@ -446,10 +450,13 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 
 	ieList := &PDUSessionResourceSetupRequest{}
 
+	AMFUENGAPID := int64(0)
+
 	for i := 0; i < len(pduSessionResourceSetupRequest.ProtocolIEs.List); i++ {
 		ie := pduSessionResourceSetupRequest.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
+			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
@@ -468,16 +475,34 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 				RANPagingPriority: &ie.Value.RANPagingPriority.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
+			nasContextInfo := &NasContextInfo{
+				AMFUENGAPID: AMFUENGAPID,
+				Direction:   DirDownlink,
+			}
+			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
+			if err != nil {
+				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
+			}
+
+			nasPdu := &NASPDU{
+				Raw:     ie.Value.NASPDU.Value,
+				Decoded: decodednNasPdu,
+			}
+
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
-				NASPDU:      ie.Value.NASPDU.Value,
+				NASPDU:      nasPdu,
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
+			nasContextInfo := &NasContextInfo{
+				AMFUENGAPID: AMFUENGAPID,
+				Direction:   DirDownlink,
+			}
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:                               protocolIEIDToString(ie.Id.Value),
 				Criticality:                      criticalityToString(ie.Criticality.Value),
-				PDUSessionResourceSetupListSUReq: buildPDUSessionResourceSetupListSUReq(ie.Value.PDUSessionResourceSetupListSUReq),
+				PDUSessionResourceSetupListSUReq: buildPDUSessionResourceSetupListSUReq(ie.Value.PDUSessionResourceSetupListSUReq, nasContextInfo),
 			})
 		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
 			ieList.IEs = append(ieList.IEs, IE{
@@ -496,24 +521,31 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 	return ieList
 }
 
-func buildPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetupListSUReq) []PDUSessionResourceSetupSUReq {
+func buildPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetupListSUReq, nasContextInfo *NasContextInfo) []PDUSessionResourceSetupSUReq {
 	if list == nil {
 		return nil
 	}
 
 	var reqList []PDUSessionResourceSetupSUReq
 	for _, item := range list.List {
-		pduSessionNASPDU := []byte{}
-		if item.PDUSessionNASPDU != nil {
-			pduSessionNASPDU = item.PDUSessionNASPDU.Value
-		}
-
-		reqList = append(reqList, PDUSessionResourceSetupSUReq{
+		pduSUReq := PDUSessionResourceSetupSUReq{
 			PDUSessionID:                           item.PDUSessionID.Value,
-			PDUSessionNASPDU:                       pduSessionNASPDU,
 			SNSSAI:                                 *buildSNSSAI(&item.SNSSAI),
 			PDUSessionResourceSetupRequestTransfer: item.PDUSessionResourceSetupRequestTransfer,
-		})
+		}
+
+		if item.PDUSessionNASPDU != nil {
+			decodednNasPdu, err := DecodeNASMessage(item.PDUSessionNASPDU.Value, nasContextInfo)
+			if err != nil {
+				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
+			}
+			pduSUReq.PDUSessionNASPDU = &NASPDU{
+				Raw:     item.PDUSessionNASPDU.Value,
+				Decoded: decodednNasPdu,
+			}
+		}
+
+		reqList = append(reqList, pduSUReq)
 	}
 
 	return reqList
@@ -526,10 +558,13 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 
 	ieList := &InitialContextSetupRequest{}
 
+	AMFUENGAPID := int64(0)
+
 	for i := 0; i < len(initialContextSetupRequest.ProtocolIEs.List); i++ {
 		ie := initialContextSetupRequest.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
+			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
@@ -606,10 +641,24 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 				IndexToRFSP: &ie.Value.IndexToRFSP.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
+			nasContextInfo := &NasContextInfo{
+				Direction:   DirUplink,
+				AMFUENGAPID: AMFUENGAPID,
+			}
+			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
+			if err != nil {
+				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
+			}
+
+			nasPdu := &NASPDU{
+				Raw:     ie.Value.NASPDU.Value,
+				Decoded: decodednNasPdu,
+			}
+
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
-				NASPDU:      ie.Value.NASPDU.Value,
+				NASPDU:      nasPdu,
 			})
 		default:
 			ieList.IEs = append(ieList.IEs, IE{
@@ -632,14 +681,81 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 	return ieList
 }
 
+func decodeNRencryptionAlgorithms(bs aper.BitString) []string {
+	if bs.Bytes == nil {
+		return nil
+	}
+
+	if bs.BitLength < 8 {
+		for bs.BitLength < 8 {
+			bs.Bytes = append([]byte{0}, bs.Bytes...)
+			bs.BitLength += 8
+		}
+	}
+
+	var algos []string
+
+	b := bs.Bytes[0]
+
+	if (b>>7)&1 == 1 {
+		algos = append(algos, "NEA1")
+	}
+
+	if (b>>6)&1 == 1 {
+		algos = append(algos, "NEA2")
+	}
+
+	if (b>>5)&1 == 1 {
+		algos = append(algos, "NEA3")
+	}
+
+	if len(algos) == 0 {
+		return []string{"None or NEA0 (null ciphering)"}
+	}
+
+	return algos
+}
+
+func decodeNRintegrityAlgorithms(bs aper.BitString) []string {
+	if bs.Bytes == nil {
+		return nil
+	}
+
+	// Ensure we can safely read bs.Bytes[0]
+	if bs.BitLength < 8 {
+		for bs.BitLength < 8 {
+			bs.Bytes = append([]byte{0}, bs.Bytes...)
+			bs.BitLength += 8
+		}
+	}
+
+	var algos []string
+	b := bs.Bytes[0]
+
+	if (b>>7)&1 == 1 {
+		algos = append(algos, "NIA1")
+	}
+	if (b>>6)&1 == 1 {
+		algos = append(algos, "NIA2")
+	}
+	if (b>>5)&1 == 1 {
+		algos = append(algos, "NIA3")
+	}
+
+	if len(algos) == 0 {
+		return []string{"None or NIA0 (null integrity)"}
+	}
+	return algos
+}
+
 func buildUESecurityCapabilities(uesec *ngapType.UESecurityCapabilities) *UESecurityCapabilities {
 	if uesec == nil {
 		return nil
 	}
 
 	return &UESecurityCapabilities{
-		NRencryptionAlgorithms:             bitStringToHex(&uesec.NRencryptionAlgorithms.Value),
-		NRintegrityProtectionAlgorithms:    bitStringToHex(&uesec.NRintegrityProtectionAlgorithms.Value),
+		NRencryptionAlgorithms:             decodeNRencryptionAlgorithms(uesec.NRencryptionAlgorithms.Value),
+		NRintegrityProtectionAlgorithms:    decodeNRintegrityAlgorithms(uesec.NRintegrityProtectionAlgorithms.Value),
 		EUTRAencryptionAlgorithms:          bitStringToHex(&uesec.EUTRAencryptionAlgorithms.Value),
 		EUTRAintegrityProtectionAlgorithms: bitStringToHex(&uesec.EUTRAintegrityProtectionAlgorithms.Value),
 	}
@@ -654,12 +770,23 @@ func buildPDUSessionResourceSetupListCxtReq(pduSessionResourceSetupListCxtReq *n
 
 	for i := 0; i < len(pduSessionResourceSetupListCxtReq.List); i++ {
 		item := pduSessionResourceSetupListCxtReq.List[i]
+
 		pduSessionResourceSetupList = append(pduSessionResourceSetupList, PDUSessionResourceSetupCxtReq{
 			PDUSessionID:                           item.PDUSessionID.Value,
-			NASPDU:                                 item.NASPDU.Value,
 			SNSSAI:                                 *buildSNSSAI(&item.SNSSAI),
 			PDUSessionResourceSetupRequestTransfer: item.PDUSessionResourceSetupRequestTransfer,
 		})
+
+		if item.NASPDU != nil {
+			decodednNasPdu, err := DecodeNASMessage(item.NASPDU.Value, nil)
+			if err != nil {
+				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
+			}
+			pduSessionResourceSetupList[i].NASPDU = &NASPDU{
+				Raw:     item.NASPDU.Value,
+				Decoded: decodednNasPdu,
+			}
+		}
 	}
 
 	return pduSessionResourceSetupList
@@ -823,10 +950,13 @@ func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *U
 
 	ieList := &UplinkNASTransport{}
 
+	AMFUENGAPID := int64(0)
+
 	for i := 0; i < len(uplinkNASTransport.ProtocolIEs.List); i++ {
 		ie := uplinkNASTransport.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
+			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
@@ -839,10 +969,24 @@ func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *U
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
+			nasContextInfo := &NasContextInfo{
+				Direction:   DirUplink,
+				AMFUENGAPID: AMFUENGAPID,
+			}
+			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
+			if err != nil {
+				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
+			}
+
+			nasPdu := &NASPDU{
+				Raw:     ie.Value.NASPDU.Value,
+				Decoded: decodednNasPdu,
+			}
+
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
-				NASPDU:      ie.Value.NASPDU.Value,
+				NASPDU:      nasPdu,
 			})
 		case ngapType.ProtocolIEIDUserLocationInformation:
 			ieList.IEs = append(ieList.IEs, IE{
@@ -867,12 +1011,15 @@ func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTranspo
 		return nil
 	}
 
+	AMFUENGAPID := int64(0)
+
 	ieList := &DownlinkNASTransport{}
 
 	for i := 0; i < len(downlinkNASTransport.ProtocolIEs.List); i++ {
 		ie := downlinkNASTransport.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
+			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
@@ -897,10 +1044,22 @@ func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTranspo
 				RANPagingPriority: &ie.Value.RANPagingPriority.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
+			nasContextInfo := &NasContextInfo{
+				Direction:   DirDownlink,
+				AMFUENGAPID: AMFUENGAPID,
+			}
+			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
+			if err != nil {
+				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
+			}
+			nasPdu := &NASPDU{
+				Raw:     ie.Value.NASPDU.Value,
+				Decoded: decodednNasPdu,
+			}
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
-				NASPDU:      ie.Value.NASPDU.Value,
+				NASPDU:      nasPdu,
 			})
 		case ngapType.ProtocolIEIDMobilityRestrictionList:
 			ieList.IEs = append(ieList.IEs, IE{
@@ -1041,10 +1200,18 @@ func buildInitialUEMessage(initialUEMessage *ngapType.InitialUEMessage) *Initial
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
+			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nil)
+			if err != nil {
+				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
+			}
+			nasPdu := &NASPDU{
+				Raw:     ie.Value.NASPDU.Value,
+				Decoded: decodednNasPdu,
+			}
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
-				NASPDU:      ie.Value.NASPDU.Value,
+				NASPDU:      nasPdu,
 			})
 		case ngapType.ProtocolIEIDUserLocationInformation:
 			ieList.IEs = append(ieList.IEs, IE{
@@ -1419,6 +1586,7 @@ func buildPDUSessionResourceSetupListSUResIE(pduList *ngapType.PDUSessionResourc
 
 	for i := 0; i < len(pduList.List); i++ {
 		item := pduList.List[i]
+
 		pduSessionList = append(pduSessionList, PDUSessionResourceSetupSURes{
 			PDUSessionID:                            item.PDUSessionID.Value,
 			PDUSessionResourceSetupResponseTransfer: item.PDUSessionResourceSetupResponseTransfer,
@@ -1437,6 +1605,7 @@ func buildPDUSessionResourceFailedToSetupListSUResIE(pduList *ngapType.PDUSessio
 
 	for i := 0; i < len(pduList.List); i++ {
 		item := pduList.List[i]
+
 		pduSessionList = append(pduSessionList, PDUSessionResourceFailedToSetupSURes{
 			PDUSessionID: item.PDUSessionID.Value,
 			PDUSessionResourceSetupUnsuccessfulTransfer: item.PDUSessionResourceSetupUnsuccessfulTransfer,
@@ -1507,6 +1676,7 @@ func buildPDUSessionResourceSetupListCxtResIE(pduList *ngapType.PDUSessionResour
 
 	for i := 0; i < len(pduList.List); i++ {
 		item := pduList.List[i]
+
 		pduSessionList = append(pduSessionList, PDUSessionResourceSetupCxtRes{
 			PDUSessionID:                            item.PDUSessionID.Value,
 			PDUSessionResourceSetupResponseTransfer: item.PDUSessionResourceSetupResponseTransfer,
@@ -1525,6 +1695,7 @@ func buildPDUSessionResourceFailedToSetupListCxtResIE(pduList *ngapType.PDUSessi
 
 	for i := 0; i < len(pduList.List); i++ {
 		item := pduList.List[i]
+
 		pduSessionList = append(pduSessionList, PDUSessionResourceFailedToSetupCxtRes{
 			PDUSessionID: item.PDUSessionID.Value,
 			PDUSessionResourceSetupUnsuccessfulTransfer: item.PDUSessionResourceSetupUnsuccessfulTransfer,
