@@ -9,9 +9,9 @@ import {
   IconButton,
   Divider,
   CircularProgress,
+  Toolbar,
   Tooltip,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 import {
   Close as CloseIcon,
   ContentCopy as CopyIcon,
@@ -64,7 +64,6 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
   onClose,
   log,
 }) => {
-  const theme = useTheme();
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
   const router = useRouter();
   const { accessToken, authReady } = useAuth();
@@ -217,13 +216,18 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
       anchor="right"
       open={open}
       onClose={onClose}
+      variant="persistent"
       PaperProps={{
         sx: {
           width: { xs: "100%", sm: 520, md: 640 },
-          boxShadow: theme.shadows[8],
+          boxShadow: (t) => t.shadows[8],
+          display: "flex",
+          flexDirection: "column",
+          height: "100vh",
         },
       }}
     >
+      <Toolbar />
       <Box
         sx={{
           position: "sticky",

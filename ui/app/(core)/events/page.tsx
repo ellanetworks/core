@@ -13,6 +13,8 @@ import {
   type GridColDef,
   type GridPaginationModel,
   type GridRowParams,
+  type GridRowId,
+  type GridRowSelectionModel,
 } from "@mui/x-data-grid";
 import EastIcon from "@mui/icons-material/East";
 import WestIcon from "@mui/icons-material/West";
@@ -201,6 +203,14 @@ const Events: React.FC = () => {
     pageSize: 25,
   });
 
+  const makeSelection = (ids: GridRowId[] = []): GridRowSelectionModel => ({
+    type: "include",
+    ids: new Set<GridRowId>(ids),
+  });
+
+  const [selectionModel, setSelectionModel] =
+    useState<GridRowSelectionModel>(makeSelection());
+
   const [isNetworkEditModalOpen, setNetworkEditModalOpen] = useState(false);
   const [isNetworkClearModalOpen, setNetworkClearModalOpen] = useState(false);
   const [networkRetentionPolicy, setSubRetentionPolicy] =
@@ -361,6 +371,7 @@ const Events: React.FC = () => {
 
   const handleRowClick = useCallback((params: GridRowParams<APINetworkLog>) => {
     const r = params.row;
+    setSelectionModel(makeSelection([params.id]));
     setSelectedRow({
       id: String(r.id),
       timestamp: r.timestamp,
@@ -428,7 +439,6 @@ const Events: React.FC = () => {
                 rowCount={subRowCount}
                 paginationModel={subPagination}
                 onPaginationModelChange={setSubPagination}
-                disableRowSelectionOnClick
                 disableColumnMenu
                 sortingMode="server"
                 filterMode="server"
@@ -436,6 +446,9 @@ const Events: React.FC = () => {
                 pageSizeOptions={[10, 25, 50, 100]}
                 slots={{ toolbar: EventToolbar }}
                 onRowClick={handleRowClick}
+                rowSelectionModel={selectionModel}
+                disableRowSelectionOnClick
+                onRowSelectionModelChange={(model) => setSelectionModel(model)}
                 showToolbar
                 sx={{
                   border: 1,
@@ -447,6 +460,20 @@ const Events: React.FC = () => {
                   },
                   "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
                   "& .MuiDataGrid-row:hover": { cursor: "pointer" },
+
+                  "& .MuiDataGrid-row.Mui-selected": {
+                    backgroundColor: (t) => t.palette.action.selected,
+                    "&:hover": {
+                      backgroundColor: (t) => t.palette.action.selected,
+                    },
+                    "& .MuiDataGrid-cell": { fontWeight: 500 },
+                    "&::before": { display: "none" },
+                  },
+
+                  "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
+                    { outline: "none" },
+                  "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
+                    { outline: "none" },
                 }}
               />
             </EventToolbarContext.Provider>
