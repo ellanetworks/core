@@ -63,6 +63,7 @@ type AuthenticationRequest struct {
 	ABBA                                 []uint8   `json:"abba"`
 	AuthenticationParameterAUTN          [16]uint8 `json:"authentication_parameter_autn,omitempty"`
 	AuthenticationParameterRAND          [16]uint8 `json:"authentication_parameter_rand,omitempty"`
+	EAPMessage                           []byte    `json:"eap_message,omitempty"`
 }
 
 type RegistrationRequest struct {
@@ -85,6 +86,7 @@ type AuthenticationReject struct {
 	ExtendedProtocolDiscriminator       uint8  `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8  `json:"spare_half_octet_and_security_header_type"`
 	AuthenticationRejectMessageIdentity string `json:"authentication_reject_message_identity"`
+	EAPMessage                          []byte `json:"eap_message,omitempty"`
 }
 
 type AuthenticationResponseParameter struct {
@@ -96,6 +98,7 @@ type AuthenticationResponse struct {
 	SpareHalfOctetAndSecurityHeaderType   uint8                            `json:"spare_half_octet_and_security_header_type"`
 	AuthenticationResponseMessageIdentity string                           `json:"authentication_response_message_identity"`
 	AuthenticationResponseParameter       *AuthenticationResponseParameter `json:"authentication_response_parameter,omitempty"`
+	EAPMessage                            []byte                           `json:"eap_message,omitempty"`
 }
 
 type RegistrationComplete struct {
@@ -118,6 +121,71 @@ type ULNASTransport struct {
 	DNN                                   *string `json:"dnn,omitempty"`
 }
 
+type UplinkDataStatusPDU struct {
+	PDUSessionID int  `json:"pdu_session_id"`
+	Active       bool `json:"active"`
+}
+
+type PDUSessionStatusPDU struct {
+	PDUSessionID int  `json:"pdu_session_id"`
+	Active       bool `json:"active"`
+}
+
+type AllowedPDUSessionStatus struct {
+	PDUSessionID int  `json:"pdu_session_id"`
+	Active       bool `json:"active"`
+}
+
+type ServiceRequest struct {
+	ExtendedProtocolDiscriminator       uint8                     `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType uint8                     `json:"spare_half_octet_and_security_header_type"`
+	ServiceRequestMessageIdentity       string                    `json:"service_request_message_identity"`
+	ServiceTypeAndNgksi                 string                    `json:"service_type_and_ngksi"`
+	TMSI5GS                             TMSI5GS                   `json:"tmsi_5gs,omitempty"`
+	UplinkDataStatus                    []UplinkDataStatusPDU     `json:"uplink_data_status,omitempty"`
+	PDUSessionStatus                    []PDUSessionStatusPDU     `json:"pdu_session_status,omitempty"`
+	AllowedPDUSessionStatus             []AllowedPDUSessionStatus `json:"allowed_pdu_session_status,omitempty"`
+	NASMessageContainer                 []byte                    `json:"nas_message_container,omitempty"`
+}
+
+type PDUSessionReactivateResultPDU struct {
+	PDUSessionID int  `json:"pdu_session_id"`
+	Active       bool `json:"active"`
+}
+
+type PDUSessionCause struct {
+	PDUSessionID uint8  `json:"pdu_session_id"`
+	Cause        string `json:"cause"`
+}
+
+type ServiceAccept struct {
+	ExtendedProtocolDiscriminator          uint8                           `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType    uint8                           `json:"spare_half_octet_and_security_header_type"`
+	ServiceAcceptMessageIdentity           string                          `json:"service_accept_message_identity"`
+	PDUSessionStatus                       []PDUSessionStatusPDU           `json:"pdu_session_status,omitempty"`
+	PDUSessionReactivationResult           []PDUSessionReactivateResultPDU `json:"pdu_session_reactivation_result,omitempty"`
+	PDUSessionReactivationResultErrorCause []PDUSessionCause               `json:"pdu_session_reactivation_result_error_cause,omitempty"`
+	EAPMessage                             []byte                          `json:"eap_message,omitempty"`
+}
+
+// nasType.ExtendedProtocolDiscriminator
+// nasType.SpareHalfOctetAndSecurityHeaderType
+// nasType.ServiceRejectMessageIdentity
+// nasType.Cause5GMM
+// *nasType.PDUSessionStatus
+// *nasType.T3346Value
+// *nasType.EAPMessage
+
+type ServiceReject struct {
+	ExtendedProtocolDiscriminator       uint8                 `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType uint8                 `json:"spare_half_octet_and_security_header_type"`
+	ServiceRejectMessageIdentity        string                `json:"service_reject_message_identity"`
+	Cause5GMM                           string                `json:"cause"`
+	PDUSessionStatus                    []PDUSessionStatusPDU `json:"pdu_session_status,omitempty"`
+	T3346Value                          *uint8                `json:"t3346_value,omitempty"`
+	EAPMessage                          []byte                `json:"eap_message,omitempty"`
+}
+
 type GmmMessage struct {
 	GmmHeader              GmmHeader               `json:"gmm_header"`
 	RegistrationRequest    *RegistrationRequest    `json:"registration_request,omitempty"`
@@ -127,6 +195,9 @@ type GmmMessage struct {
 	AuthenticationReject   *AuthenticationReject   `json:"authentication_reject,omitempty"`
 	AuthenticationResponse *AuthenticationResponse `json:"authentication_response,omitempty"`
 	ULNASTransport         *ULNASTransport         `json:"ul_nas_transport,omitempty"`
+	ServiceRequest         *ServiceRequest         `json:"service_request,omitempty"`
+	ServiceAccept          *ServiceAccept          `json:"service_accept,omitempty"`
+	ServiceReject          *ServiceReject          `json:"service_reject,omitempty"`
 }
 
 type GsmHeader struct {
@@ -203,6 +274,15 @@ func buildGmmMessage(msg *nas.GmmMessage) *GmmMessage {
 	case nas.MsgTypeULNASTransport:
 		gmmMessage.ULNASTransport = buildULNASTransport(msg.ULNASTransport)
 		return gmmMessage
+	case nas.MsgTypeServiceRequest:
+		gmmMessage.ServiceRequest = buildServiceRequest(msg.ServiceRequest)
+		return gmmMessage
+	case nas.MsgTypeServiceAccept:
+		gmmMessage.ServiceAccept = buildServiceAccept(msg.ServiceAccept)
+		return gmmMessage
+	case nas.MsgTypeServiceReject:
+		gmmMessage.ServiceReject = buildServiceReject(msg.ServiceReject)
+		return gmmMessage
 	default:
 		logger.EllaLog.Warn("GMM message type not fully implemented", zap.String("message_type", gmmMessage.GmmHeader.MessageType))
 		return gmmMessage
@@ -227,10 +307,213 @@ func buildAuthenticationResponse(msg *nasMessage.AuthenticationResponse) *Authen
 	}
 
 	if msg.EAPMessage != nil {
-		logger.EllaLog.Warn("EAPMessage not yet implemented")
+		authResp.EAPMessage = msg.EAPMessage.GetEAPMessage()
 	}
 
 	return authResp
+}
+
+type TMSI5GS struct {
+	TypeOfIdentity string   `json:"type_of_identity"`
+	AMFSetID       uint16   `json:"amf_set_id"`
+	AMFPointer     uint8    `json:"amf_pointer"`
+	TMSI5G         [4]uint8 `json:"tmsi_5g"`
+}
+
+func buildTMSI5GS(tmsi5gs nasType.TMSI5GS) TMSI5GS {
+	var typeOfIdentity string
+	switch tmsi5gs.GetTypeOfIdentity() {
+	case nasMessage.MobileIdentity5GSTypeNoIdentity:
+		typeOfIdentity = "NoIdentity"
+	case nasMessage.MobileIdentity5GSTypeSuci:
+		typeOfIdentity = "Suci"
+	case nasMessage.MobileIdentity5GSType5gGuti:
+		typeOfIdentity = "5gGuti"
+	case nasMessage.MobileIdentity5GSTypeImei:
+		typeOfIdentity = "Imei"
+	case nasMessage.MobileIdentity5GSType5gSTmsi:
+		typeOfIdentity = "5gSTmsi"
+	case nasMessage.MobileIdentity5GSTypeImeisv:
+		typeOfIdentity = "Imeisv"
+	default:
+		typeOfIdentity = fmt.Sprintf("Unknown(%d)", tmsi5gs.GetTypeOfIdentity())
+	}
+
+	return TMSI5GS{
+		TypeOfIdentity: typeOfIdentity,
+		AMFSetID:       tmsi5gs.GetAMFSetID(),
+		AMFPointer:     tmsi5gs.GetAMFPointer(),
+		TMSI5G:         tmsi5gs.GetTMSI5G(),
+	}
+}
+
+func buildServiceReject(msg *nasMessage.ServiceReject) *ServiceReject {
+	if msg == nil {
+		return nil
+	}
+
+	serviceReject := &ServiceReject{
+		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		ServiceRejectMessageIdentity:        nas.MessageName(msg.ServiceRejectMessageIdentity.Octet),
+		Cause5GMM:                           nasMessage.Cause5GMMToString(msg.Cause5GMM.Octet),
+	}
+
+	if msg.PDUSessionStatus != nil {
+		pduSessionStatus := []PDUSessionStatusPDU{}
+		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
+		for pduSessionID, isActive := range psiArray {
+			pduSessionStatus = append(pduSessionStatus, PDUSessionStatusPDU{
+				PDUSessionID: pduSessionID,
+				Active:       isActive,
+			})
+		}
+		serviceReject.PDUSessionStatus = pduSessionStatus
+	}
+
+	if msg.T3346Value != nil {
+		t3346Value := msg.T3346Value.GetGPRSTimer2Value()
+		serviceReject.T3346Value = &t3346Value
+	}
+
+	if msg.EAPMessage != nil {
+		serviceReject.EAPMessage = msg.EAPMessage.GetEAPMessage()
+	}
+
+	return serviceReject
+}
+
+func buildServiceAccept(msg *nasMessage.ServiceAccept) *ServiceAccept {
+	if msg == nil {
+		return nil
+	}
+
+	serviceAccept := &ServiceAccept{
+		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		ServiceAcceptMessageIdentity:        nas.MessageName(msg.ServiceAcceptMessageIdentity.Octet),
+	}
+
+	if msg.PDUSessionStatus != nil {
+		pduSessionStatus := []PDUSessionStatusPDU{}
+		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
+		for pduSessionID, isActive := range psiArray {
+			pduSessionStatus = append(pduSessionStatus, PDUSessionStatusPDU{
+				PDUSessionID: pduSessionID,
+				Active:       isActive,
+			})
+		}
+		serviceAccept.PDUSessionStatus = pduSessionStatus
+	}
+
+	if msg.PDUSessionReactivationResult != nil {
+		pduSessionReactivationResult := []PDUSessionReactivateResultPDU{}
+		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionReactivationResult.Buffer)
+		for pduSessionID, isActive := range psiArray {
+			pduSessionReactivationResult = append(pduSessionReactivationResult, PDUSessionReactivateResultPDU{
+				PDUSessionID: pduSessionID,
+				Active:       isActive,
+			})
+		}
+		serviceAccept.PDUSessionReactivationResult = pduSessionReactivationResult
+	}
+
+	if msg.PDUSessionReactivationResultErrorCause != nil {
+		logger.EllaLog.Warn("PDUSessionReactivationResultErrorCause not yet implemented")
+		// Cause5GMMToString
+		pduSessionIDAndCause := msg.PDUSessionReactivationResultErrorCause.GetPDUSessionIDAndCauseValue()
+		pduSessionIDs, causes := bufToPDUSessionReactivationResultErrorCause(pduSessionIDAndCause)
+		if len(pduSessionIDs) != len(causes) {
+			logger.EllaLog.Warn("PDUSessionReactivationResultErrorCause: invalid length")
+		} else {
+			var pduSessionCauses []PDUSessionCause
+			for i := range pduSessionIDs {
+				pduSessionCauses = append(pduSessionCauses, PDUSessionCause{
+					PDUSessionID: pduSessionIDs[i],
+					Cause:        nasMessage.Cause5GMMToString(causes[i]),
+				})
+			}
+			serviceAccept.PDUSessionReactivationResultErrorCause = pduSessionCauses
+		}
+	}
+
+	if msg.EAPMessage != nil {
+		serviceAccept.EAPMessage = msg.EAPMessage.GetEAPMessage()
+	}
+
+	return serviceAccept
+}
+
+func bufToPDUSessionReactivationResultErrorCause(buf []uint8) (errPduSessionId, errCause []uint8) {
+	if len(buf)%2 != 0 {
+		return nil, nil
+	}
+
+	n := len(buf) / 2
+	errPduSessionId = make([]uint8, 0, n)
+	errCause = make([]uint8, 0, n)
+
+	for i := 0; i < len(buf); i += 2 {
+		errPduSessionId = append(errPduSessionId, buf[i])
+		errCause = append(errCause, buf[i+1])
+	}
+	return
+}
+
+func buildServiceRequest(msg *nasMessage.ServiceRequest) *ServiceRequest {
+	if msg == nil {
+		return nil
+	}
+
+	serviceRequest := &ServiceRequest{
+		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		ServiceRequestMessageIdentity:       nas.MessageName(msg.ServiceRequestMessageIdentity.Octet),
+		ServiceTypeAndNgksi:                 nas.MessageName(msg.ServiceTypeAndNgksi.Octet),
+		TMSI5GS:                             buildTMSI5GS(msg.TMSI5GS),
+	}
+
+	if msg.UplinkDataStatus != nil {
+		uplinkDataStatus := []UplinkDataStatusPDU{}
+		uplinkDataPsi := nasConvert.PSIToBooleanArray(msg.UplinkDataStatus.Buffer)
+		for pduSessionID, hasUplinkData := range uplinkDataPsi {
+			uplinkDataStatus = append(uplinkDataStatus, UplinkDataStatusPDU{
+				PDUSessionID: pduSessionID,
+				Active:       hasUplinkData,
+			})
+		}
+		serviceRequest.UplinkDataStatus = uplinkDataStatus
+	}
+
+	if msg.PDUSessionStatus != nil {
+		pduSessionStatus := []PDUSessionStatusPDU{}
+		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
+		for pduSessionID, isActive := range psiArray {
+			pduSessionStatus = append(pduSessionStatus, PDUSessionStatusPDU{
+				PDUSessionID: pduSessionID,
+				Active:       isActive,
+			})
+		}
+		serviceRequest.PDUSessionStatus = pduSessionStatus
+	}
+
+	if msg.AllowedPDUSessionStatus != nil {
+		allowedPduSessionStatus := []AllowedPDUSessionStatus{}
+		allowedPsis := nasConvert.PSIToBooleanArray(msg.AllowedPDUSessionStatus.Buffer)
+		for pduSessionID, isAllowed := range allowedPsis {
+			allowedPduSessionStatus = append(allowedPduSessionStatus, AllowedPDUSessionStatus{
+				PDUSessionID: pduSessionID,
+				Active:       isAllowed,
+			})
+		}
+		serviceRequest.AllowedPDUSessionStatus = allowedPduSessionStatus
+	}
+
+	if msg.NASMessageContainer != nil {
+		serviceRequest.NASMessageContainer = msg.NASMessageContainer.GetNASMessageContainerContents()
+	}
+
+	return serviceRequest
 }
 
 func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
@@ -319,7 +602,7 @@ func buildAuthenticationReject(msg *nasMessage.AuthenticationReject) *Authentica
 	}
 
 	if msg.EAPMessage != nil {
-		logger.EllaLog.Warn("EAPMessage not yet implemented")
+		authReject.EAPMessage = msg.EAPMessage.GetEAPMessage()
 	}
 
 	return authReject
@@ -366,7 +649,7 @@ func buildAuthenticationRequest(msg *nasMessage.AuthenticationRequest) *Authenti
 	}
 
 	if msg.EAPMessage != nil {
-		logger.EllaLog.Warn("EAPMessage not yet implemented")
+		authenticationRequest.EAPMessage = msg.EAPMessage.GetEAPMessage()
 	}
 
 	return authenticationRequest
