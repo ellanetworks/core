@@ -73,36 +73,36 @@ func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
 		t.Fatal("UESecurityCapability is nil")
 	}
 
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.IntegrityAlgorithm.EEA0_5G {
-		t.Error("UESecurityCapability IntegrityAlgorithm EEA0_5G is false, expected true")
+	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.IntegrityAlgorithm.NIA0 {
+		t.Error("UESecurityCapability IntegrityAlgorithm NIA0 is false, expected true")
 	}
 
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.IntegrityAlgorithm.EEA1_128_5G {
-		t.Error("UESecurityCapability IntegrityAlgorithm EEA1_128_5G is false, expected true")
+	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.IntegrityAlgorithm.NIA1 {
+		t.Error("UESecurityCapability IntegrityAlgorithm NIA1 is false, expected true")
 	}
 
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.IntegrityAlgorithm.EEA2_128_5G {
-		t.Error("UESecurityCapability IntegrityAlgorithm EEA2_128_5G is false, expected true")
+	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.IntegrityAlgorithm.NIA2 {
+		t.Error("UESecurityCapability IntegrityAlgorithm NIA2 is false, expected true")
 	}
 
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.IntegrityAlgorithm.EEA3_128_5G {
-		t.Error("UESecurityCapability IntegrityAlgorithm EEA3_128_5G is false, expected true")
+	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.IntegrityAlgorithm.NIA3 {
+		t.Error("UESecurityCapability IntegrityAlgorithm NIA3 is false, expected true")
 	}
 
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.CipheringAlgorithm.EIA0_5G {
-		t.Error("UESecurityCapability CipheringAlgorithm EIA0_5G is false, expected true")
+	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.CipheringAlgorithm.NEA0 {
+		t.Error("UESecurityCapability CipheringAlgorithm NEA0 is false, expected true")
 	}
 
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.CipheringAlgorithm.EIA1_128_5G {
-		t.Error("UESecurityCapability CipheringAlgorithm EIA1_128_5G is false, expected true")
+	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.CipheringAlgorithm.NEA1 {
+		t.Error("UESecurityCapability CipheringAlgorithm NEA1 is false, expected true")
 	}
 
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.CipheringAlgorithm.EIA2_128_5G {
-		t.Error("UESecurityCapability CipheringAlgorithm EIA2_128_5G is false, expected true")
+	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.CipheringAlgorithm.NEA2 {
+		t.Error("UESecurityCapability CipheringAlgorithm NEA2 is false, expected true")
 	}
 
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.CipheringAlgorithm.EIA3_128_5G {
-		t.Error("UESecurityCapability CipheringAlgorithm EIA3_128_5G is false, expected true")
+	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.CipheringAlgorithm.NEA3 {
+		t.Error("UESecurityCapability CipheringAlgorithm NEA3 is false, expected true")
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
+	"github.com/omec-project/nas/security"
 	"go.uber.org/zap"
 )
 
@@ -37,17 +38,17 @@ type MobileIdentity5GS struct {
 }
 
 type IntegrityAlgorithm struct {
-	EEA0_5G     bool `json:"eea0_5g"`
-	EEA1_128_5G bool `json:"eea1_128_5g"`
-	EEA2_128_5G bool `json:"eea2_128_5g"`
-	EEA3_128_5G bool `json:"eea3_128_5g"`
+	NIA0 bool `json:"nia0"`
+	NIA1 bool `json:"nia1"`
+	NIA2 bool `json:"nia2"`
+	NIA3 bool `json:"nia3"`
 }
 
 type CipheringAlgorithm struct {
-	EIA0_5G     bool `json:"eia0_5g"`
-	EIA1_128_5G bool `json:"eia1_128_5g"`
-	EIA2_128_5G bool `json:"eia2_128_5g"`
-	EIA3_128_5G bool `json:"eia3_128_5g"`
+	NEA0 bool `json:"nea0"`
+	NEA1 bool `json:"nea1"`
+	NEA2 bool `json:"nea2"`
+	NEA3 bool `json:"nea3"`
 }
 
 type UESecurityCapability struct {
@@ -168,14 +169,6 @@ type ServiceAccept struct {
 	EAPMessage                             []byte                          `json:"eap_message,omitempty"`
 }
 
-// nasType.ExtendedProtocolDiscriminator
-// nasType.SpareHalfOctetAndSecurityHeaderType
-// nasType.ServiceRejectMessageIdentity
-// nasType.Cause5GMM
-// *nasType.PDUSessionStatus
-// *nasType.T3346Value
-// *nasType.EAPMessage
-
 type ServiceReject struct {
 	ExtendedProtocolDiscriminator       uint8                 `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8                 `json:"spare_half_octet_and_security_header_type"`
@@ -184,6 +177,31 @@ type ServiceReject struct {
 	PDUSessionStatus                    []PDUSessionStatusPDU `json:"pdu_session_status,omitempty"`
 	T3346Value                          *uint8                `json:"t3346_value,omitempty"`
 	EAPMessage                          []byte                `json:"eap_message,omitempty"`
+}
+
+type Additional5GSecurityInformation struct {
+	RINMR uint8 `json:"rinmr"`
+	HDP   uint8 `json:"hdp"`
+}
+
+type SelectedNASSecurityAlgorithms struct {
+	Integrity string `json:"integrity"`
+	Ciphering string `json:"ciphering"`
+}
+
+type SecurityModeCommand struct {
+	ExtendedProtocolDiscriminator       uint8                            `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType uint8                            `json:"spare_half_octet_and_security_header_type"`
+	SecurityModeCommandMessageIdentity  string                           `json:"security_mode_command_message_identity"`
+	SelectedNASSecurityAlgorithms       SelectedNASSecurityAlgorithms    `json:"selected_nas_security_algorithms"`
+	SpareHalfOctetAndNgksi              uint8                            `json:"spare_half_octet_and_ngksi"`
+	ReplayedUESecurityCapabilities      UESecurityCapability             `json:"replayed_ue_security_capabilities"`
+	IMEISVRequest                       *string                          `json:"imeisv_request,omitempty"`
+	SelectedEPSNASSecurityAlgorithms    *string                          `json:"selected_eps_nas_security_algorithms,omitempty"`
+	Additional5GSecurityInformation     *Additional5GSecurityInformation `json:"additional_5g_security_information,omitempty"`
+	EAPMessage                          []byte                           `json:"eap_message,omitempty"`
+	ABBA                                []uint8                          `json:"abba,omitempty"`
+	ReplayedS1UESecurityCapabilities    *UESecurityCapability            `json:"replayed_s1_ue_security_capabilities,omitempty"`
 }
 
 type GmmMessage struct {
@@ -195,6 +213,7 @@ type GmmMessage struct {
 	AuthenticationReject   *AuthenticationReject   `json:"authentication_reject,omitempty"`
 	AuthenticationResponse *AuthenticationResponse `json:"authentication_response,omitempty"`
 	ULNASTransport         *ULNASTransport         `json:"ul_nas_transport,omitempty"`
+	SecurityModeCommand    *SecurityModeCommand    `json:"security_mode_command,omitempty"`
 	ServiceRequest         *ServiceRequest         `json:"service_request,omitempty"`
 	ServiceAccept          *ServiceAccept          `json:"service_accept,omitempty"`
 	ServiceReject          *ServiceReject          `json:"service_reject,omitempty"`
@@ -273,6 +292,9 @@ func buildGmmMessage(msg *nas.GmmMessage) *GmmMessage {
 		return gmmMessage
 	case nas.MsgTypeULNASTransport:
 		gmmMessage.ULNASTransport = buildULNASTransport(msg.ULNASTransport)
+		return gmmMessage
+	case nas.MsgTypeSecurityModeCommand:
+		gmmMessage.SecurityModeCommand = buildSecurityModeCommand(msg.SecurityModeCommand)
 		return gmmMessage
 	case nas.MsgTypeServiceRequest:
 		gmmMessage.ServiceRequest = buildServiceRequest(msg.ServiceRequest)
@@ -514,6 +536,100 @@ func buildServiceRequest(msg *nasMessage.ServiceRequest) *ServiceRequest {
 	}
 
 	return serviceRequest
+}
+
+func buildSecurityModeCommand(msg *nasMessage.SecurityModeCommand) *SecurityModeCommand {
+	if msg == nil {
+		return nil
+	}
+
+	securityModeCommand := &SecurityModeCommand{
+		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		SecurityModeCommandMessageIdentity:  nas.MessageName(msg.SecurityModeCommandMessageIdentity.Octet),
+		SelectedNASSecurityAlgorithms:       buildSelectedNASSecurityAlgorithms(msg.SelectedNASSecurityAlgorithms),
+		SpareHalfOctetAndNgksi:              msg.SpareHalfOctetAndNgksi.Octet,
+		ReplayedUESecurityCapabilities:      *buildReplayedUESecurityCapability(msg.ReplayedUESecurityCapabilities),
+	}
+
+	if msg.IMEISVRequest != nil {
+		value := buildIMEISVRequest(*msg.IMEISVRequest)
+		securityModeCommand.IMEISVRequest = &value
+	}
+
+	if msg.SelectedEPSNASSecurityAlgorithms != nil {
+		algo := getIntegrity(msg.SelectedEPSNASSecurityAlgorithms.GetTypeOfIntegrityProtectionAlgorithm())
+		securityModeCommand.SelectedEPSNASSecurityAlgorithms = &algo
+	}
+
+	if msg.Additional5GSecurityInformation != nil {
+		securityModeCommand.Additional5GSecurityInformation = &Additional5GSecurityInformation{
+			RINMR: msg.Additional5GSecurityInformation.GetRINMR(),
+			HDP:   msg.Additional5GSecurityInformation.GetHDP(),
+		}
+	}
+
+	if msg.EAPMessage != nil {
+		securityModeCommand.EAPMessage = msg.EAPMessage.GetEAPMessage()
+	}
+
+	if msg.ABBA != nil {
+		securityModeCommand.ABBA = msg.ABBA.GetABBAContents()
+	}
+
+	if msg.ReplayedS1UESecurityCapabilities != nil {
+		logger.EllaLog.Warn("ReplayedS1UESecurityCapabilities not yet implemented")
+	}
+
+	return securityModeCommand
+}
+
+func buildSelectedNASSecurityAlgorithms(msg nasType.SelectedNASSecurityAlgorithms) SelectedNASSecurityAlgorithms {
+	return SelectedNASSecurityAlgorithms{
+		Integrity: getIntegrity(msg.GetTypeOfIntegrityProtectionAlgorithm()),
+		Ciphering: getCiphering(msg.GetTypeOfCipheringAlgorithm()),
+	}
+}
+
+func getIntegrity(value uint8) string {
+	switch value {
+	case security.AlgIntegrity128NIA0:
+		return "NIA0"
+	case security.AlgIntegrity128NIA1:
+		return "NIA1"
+	case security.AlgIntegrity128NIA2:
+		return "NIA2"
+	case security.AlgIntegrity128NIA3:
+		return "NIA3"
+	default:
+		return fmt.Sprintf("Unknown(%d)", value)
+	}
+}
+
+func getCiphering(value uint8) string {
+	switch value {
+	case security.AlgCiphering128NEA0:
+		return "NEA0"
+	case security.AlgCiphering128NEA1:
+		return "NEA1"
+	case security.AlgCiphering128NEA2:
+		return "NEA2"
+	case security.AlgCiphering128NEA3:
+		return "NEA3"
+	default:
+		return fmt.Sprintf("Unknown(%d)", value)
+	}
+}
+
+func buildIMEISVRequest(msg nasType.IMEISVRequest) string {
+	switch msg.GetIMEISVRequestValue() {
+	case nasMessage.IMEISVNotRequested:
+		return "NotRequested"
+	case nasMessage.IMEISVRequested:
+		return "Requested"
+	default:
+		return fmt.Sprintf("Unknown(%d)", msg.GetIMEISVRequestValue())
+	}
 }
 
 func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
@@ -768,6 +884,47 @@ func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *Registration
 	return registrationRequest
 }
 
+func buildReplayedUESecurityCapability(ueSecurityCapability nasType.ReplayedUESecurityCapabilities) *UESecurityCapability {
+	ueSecCap := &UESecurityCapability{
+		IntegrityAlgorithm: IntegrityAlgorithm{},
+		CipheringAlgorithm: CipheringAlgorithm{},
+	}
+
+	if ueSecurityCapability.GetIA0_5G() == 1 {
+		ueSecCap.IntegrityAlgorithm.NIA0 = true
+	}
+
+	if ueSecurityCapability.GetIA1_128_5G() == 1 {
+		ueSecCap.IntegrityAlgorithm.NIA1 = true
+	}
+
+	if ueSecurityCapability.GetIA2_128_5G() == 1 {
+		ueSecCap.IntegrityAlgorithm.NIA2 = true
+	}
+
+	if ueSecurityCapability.GetIA3_128_5G() == 1 {
+		ueSecCap.IntegrityAlgorithm.NIA3 = true
+	}
+
+	if ueSecurityCapability.GetEA0_5G() == 1 {
+		ueSecCap.CipheringAlgorithm.NEA0 = true
+	}
+
+	if ueSecurityCapability.GetEA1_128_5G() == 1 {
+		ueSecCap.CipheringAlgorithm.NEA1 = true
+	}
+
+	if ueSecurityCapability.GetEA2_128_5G() == 1 {
+		ueSecCap.CipheringAlgorithm.NEA2 = true
+	}
+
+	if ueSecurityCapability.GetEA3_128_5G() == 1 {
+		ueSecCap.CipheringAlgorithm.NEA3 = true
+	}
+
+	return ueSecCap
+}
+
 func buildUESecurityCapability(ueSecurityCapability nasType.UESecurityCapability) *UESecurityCapability {
 	ueSecCap := &UESecurityCapability{
 		IntegrityAlgorithm: IntegrityAlgorithm{},
@@ -775,35 +932,35 @@ func buildUESecurityCapability(ueSecurityCapability nasType.UESecurityCapability
 	}
 
 	if ueSecurityCapability.GetIA0_5G() == 1 {
-		ueSecCap.IntegrityAlgorithm.EEA0_5G = true
+		ueSecCap.IntegrityAlgorithm.NIA0 = true
 	}
 
 	if ueSecurityCapability.GetIA1_128_5G() == 1 {
-		ueSecCap.IntegrityAlgorithm.EEA1_128_5G = true
+		ueSecCap.IntegrityAlgorithm.NIA1 = true
 	}
 
 	if ueSecurityCapability.GetIA2_128_5G() == 1 {
-		ueSecCap.IntegrityAlgorithm.EEA2_128_5G = true
+		ueSecCap.IntegrityAlgorithm.NIA2 = true
 	}
 
 	if ueSecurityCapability.GetIA3_128_5G() == 1 {
-		ueSecCap.IntegrityAlgorithm.EEA3_128_5G = true
+		ueSecCap.IntegrityAlgorithm.NIA3 = true
 	}
 
 	if ueSecurityCapability.GetEA0_5G() == 1 {
-		ueSecCap.CipheringAlgorithm.EIA0_5G = true
+		ueSecCap.CipheringAlgorithm.NEA0 = true
 	}
 
 	if ueSecurityCapability.GetEA1_128_5G() == 1 {
-		ueSecCap.CipheringAlgorithm.EIA1_128_5G = true
+		ueSecCap.CipheringAlgorithm.NEA1 = true
 	}
 
 	if ueSecurityCapability.GetEA2_128_5G() == 1 {
-		ueSecCap.CipheringAlgorithm.EIA2_128_5G = true
+		ueSecCap.CipheringAlgorithm.NEA2 = true
 	}
 
 	if ueSecurityCapability.GetEA3_128_5G() == 1 {
-		ueSecCap.CipheringAlgorithm.EIA3_128_5G = true
+		ueSecCap.CipheringAlgorithm.NEA3 = true
 	}
 
 	return ueSecCap
