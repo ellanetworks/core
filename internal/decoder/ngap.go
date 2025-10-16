@@ -202,10 +202,10 @@ type PDUSessionResourceFailedToSetupSURes struct {
 }
 
 type UESecurityCapabilities struct {
-	NRencryptionAlgorithms             string `json:"nr_encryption_algorithms"`
-	NRintegrityProtectionAlgorithms    string `json:"nr_integrity_protection_algorithms"`
-	EUTRAencryptionAlgorithms          string `json:"eutra_encryption_algorithms"`
-	EUTRAintegrityProtectionAlgorithms string `json:"eutra_integrity_protection_algorithms"`
+	NRencryptionAlgorithms             []string `json:"nr_encryption_algorithms"`
+	NRintegrityProtectionAlgorithms    []string `json:"nr_integrity_protection_algorithms"`
+	EUTRAencryptionAlgorithms          string   `json:"eutra_encryption_algorithms"`
+	EUTRAintegrityProtectionAlgorithms string   `json:"eutra_integrity_protection_algorithms"`
 }
 
 type NASPDU struct {
@@ -547,10 +547,13 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 
 	ieList := &InitialContextSetupRequest{}
 
+	AMFUENGAPID := int64(0)
+
 	for i := 0; i < len(initialContextSetupRequest.ProtocolIEs.List); i++ {
 		ie := initialContextSetupRequest.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
+			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
 				Criticality: criticalityToString(ie.Criticality.Value),
@@ -627,7 +630,11 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 				IndexToRFSP: &ie.Value.IndexToRFSP.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
-			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nil)
+			nasContextInfo := &NasContextInfo{
+				Direction:   DirUplink,
+				AMFUENGAPID: AMFUENGAPID,
+			}
+			decodednNasPdu, err := DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
 			if err != nil {
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}
@@ -663,14 +670,81 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 	return ieList
 }
 
+func decodeNRencryptionAlgorithms(bs aper.BitString) []string {
+	if bs.Bytes == nil {
+		return nil
+	}
+
+	if bs.BitLength < 8 {
+		for bs.BitLength < 8 {
+			bs.Bytes = append([]byte{0}, bs.Bytes...)
+			bs.BitLength += 8
+		}
+	}
+
+	var algos []string
+
+	b := bs.Bytes[0]
+
+	if (b>>7)&1 == 1 {
+		algos = append(algos, "NEA1")
+	}
+
+	if (b>>6)&1 == 1 {
+		algos = append(algos, "NEA2")
+	}
+
+	if (b>>5)&1 == 1 {
+		algos = append(algos, "NEA3")
+	}
+
+	if len(algos) == 0 {
+		return []string{"None or NEA0 (null ciphering)"}
+	}
+
+	return algos
+}
+
+func decodeNRintegrityAlgorithms(bs aper.BitString) []string {
+	if bs.Bytes == nil {
+		return nil
+	}
+
+	// Ensure we can safely read bs.Bytes[0]
+	if bs.BitLength < 8 {
+		for bs.BitLength < 8 {
+			bs.Bytes = append([]byte{0}, bs.Bytes...)
+			bs.BitLength += 8
+		}
+	}
+
+	var algos []string
+	b := bs.Bytes[0]
+
+	if (b>>7)&1 == 1 {
+		algos = append(algos, "NIA1")
+	}
+	if (b>>6)&1 == 1 {
+		algos = append(algos, "NIA2")
+	}
+	if (b>>5)&1 == 1 {
+		algos = append(algos, "NIA3")
+	}
+
+	if len(algos) == 0 {
+		return []string{"None or NIA0 (null integrity)"}
+	}
+	return algos
+}
+
 func buildUESecurityCapabilities(uesec *ngapType.UESecurityCapabilities) *UESecurityCapabilities {
 	if uesec == nil {
 		return nil
 	}
 
 	return &UESecurityCapabilities{
-		NRencryptionAlgorithms:             bitStringToHex(&uesec.NRencryptionAlgorithms.Value),
-		NRintegrityProtectionAlgorithms:    bitStringToHex(&uesec.NRintegrityProtectionAlgorithms.Value),
+		NRencryptionAlgorithms:             decodeNRencryptionAlgorithms(uesec.NRencryptionAlgorithms.Value),
+		NRintegrityProtectionAlgorithms:    decodeNRintegrityAlgorithms(uesec.NRintegrityProtectionAlgorithms.Value),
 		EUTRAencryptionAlgorithms:          bitStringToHex(&uesec.EUTRAencryptionAlgorithms.Value),
 		EUTRAintegrityProtectionAlgorithms: bitStringToHex(&uesec.EUTRAintegrityProtectionAlgorithms.Value),
 	}

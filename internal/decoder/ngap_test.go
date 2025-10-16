@@ -873,12 +873,36 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Fatalf("expected UESecurityCapabilities, got nil")
 	}
 
-	if item4.UESecurityCapabilities.NRencryptionAlgorithms != "e000" {
-		t.Fatalf("expected NRIntegrityProtectionAlgorithms=e000, got %s", item4.UESecurityCapabilities.NRencryptionAlgorithms)
+	if len(item4.UESecurityCapabilities.NRencryptionAlgorithms) != 3 {
+		t.Fatalf("expected 3 NRencryptionAlgorithms, got %d", len(item4.UESecurityCapabilities.NRencryptionAlgorithms))
 	}
 
-	if item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms != "e000" {
-		t.Fatalf("expected NRIntegrityProtectionAlgorithms=e000, got %s", item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms)
+	if item4.UESecurityCapabilities.NRencryptionAlgorithms[0] != "NEA1" {
+		t.Fatalf("expected NRencryptionAlgorithms[0]=NEA1, got %s", item4.UESecurityCapabilities.NRencryptionAlgorithms[0])
+	}
+
+	if item4.UESecurityCapabilities.NRencryptionAlgorithms[1] != "NEA2" {
+		t.Fatalf("expected NRencryptionAlgorithms[1]=NEA2, got %s", item4.UESecurityCapabilities.NRencryptionAlgorithms[1])
+	}
+
+	if item4.UESecurityCapabilities.NRencryptionAlgorithms[2] != "NEA3" {
+		t.Fatalf("expected NRencryptionAlgorithms[2]=NEA3, got %s", item4.UESecurityCapabilities.NRencryptionAlgorithms[2])
+	}
+
+	if len(item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms) != 3 {
+		t.Fatalf("expected 3 NRintegrityProtectionAlgorithms, got %d", len(item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms))
+	}
+
+	if item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms[0] != "NIA1" {
+		t.Fatalf("expected NRintegrityProtectionAlgorithms[0]=NIA1, got %s", item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms[0])
+	}
+
+	if item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms[1] != "NIA2" {
+		t.Fatalf("expected NRintegrityProtectionAlgorithms[1]=NIA2, got %s", item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms[1])
+	}
+
+	if item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms[2] != "NIA3" {
+		t.Fatalf("expected NRintegrityProtectionAlgorithms[2]=NIA3, got %s", item4.UESecurityCapabilities.NRintegrityProtectionAlgorithms[2])
 	}
 
 	if item4.UESecurityCapabilities.EUTRAencryptionAlgorithms != "0000" {
