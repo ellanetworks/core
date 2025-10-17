@@ -8,7 +8,7 @@ This reference document provides guidelines for operating Ella Core in a product
 
 ## Recommendations
 
-- **Deploy on a production-grade system**. Ensure your system meets the [production requirements](system_reqs.md#production-requirements).
+- **Deploy on a production-grade system**. Ensure your system meets the [production requirements](system_reqs.md).
 - **Deploy with the snap**: Use the [Snap installation method](../how_to/install.md#using-snap-recommended) to deploy Ella Core.
 - **Isolate network interfaces**: Use separate network interfaces for N2, N3, N6, and API traffic.
 - **Use TLS**: Configure TLS for the API interface in the configuration file. Use certificates from a trusted Certificate Authority (CA).
