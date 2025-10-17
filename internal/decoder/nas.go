@@ -911,6 +911,7 @@ func buildDLNASTransport(msg *nasMessage.DLNASTransport) *DLNASTransport {
 
 func decodeGSMMessage(raw []byte) (*GsmMessage, error) {
 	m := nas.NewMessage()
+
 	err := m.GsmMessageDecode(&raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode N1 SM message in UL NAS Transport Payload Container: %w", err)
