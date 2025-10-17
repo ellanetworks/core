@@ -110,9 +110,9 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
           fullWidth
           label="IP Pool"
           value={formValues.ip_pool}
-          onChange={(e) => handleChange("ipPool", e.target.value)}
-          error={!!errors.ipPool}
-          helperText={errors.ipPool}
+          onChange={(e) => handleChange("ip_pool", e.target.value)}
+          error={!!errors.ip_pool}
+          helperText={errors.ip_pool}
           margin="normal"
         />
         <TextField
