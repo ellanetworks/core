@@ -117,36 +117,40 @@ func BuildQosRules(smPolicyUpdates *PolicyUpdate) (QoSRules, error) {
 	}
 
 	if smPolicyUpdates.SessRuleUpdate != nil {
-		defQosRule := BuildAddDefaultQosRule(uint8(smPolicyUpdates.SessRuleUpdate.ActiveSessRule.AuthDefQos.Var5qi))
+		defQosRule, err := BuildAddDefaultQosRule(uint8(smPolicyUpdates.SessRuleUpdate.ActiveSessRule.AuthDefQos.Var5qi))
+		if err != nil {
+			return nil, fmt.Errorf("can't build default QoS rule: %v", err)
+		}
 		qosRules = append(qosRules, *defQosRule)
 	}
 
 	return qosRules, nil
 }
 
-func BuildAddDefaultQosRule(defQFI uint8) *QosRule {
-	defQosRule := &QosRule{
-		Identifier:    255,
+func BuildAddDefaultQosRule(defQFI uint8) (*QosRule, error) {
+	if defQFI == 0 || defQFI > 63 {
+		return nil, fmt.Errorf("invalid default QFI: %d", defQFI)
+	}
+
+	rule := &QosRule{
+		Identifier:    1,
 		DQR:           0x01,
 		OperationCode: OperationCodeCreateNewQoSRule,
 		Precedence:    255,
 		QFI:           defQFI,
 		PacketFilterList: []PacketFilter{
 			{
-				Identifier: 255,
+				Identifier: 1,
 				Direction:  PacketFilterDirectionBidirectional,
+				Content: []PacketFilterComponent{{
+					ComponentType: PFComponentTypeMatchAll,
+				}},
+				ContentLength: 0x01,
 			},
 		},
 	}
 
-	defPfc := PacketFilterComponent{
-		ComponentType: PFComponentTypeMatchAll,
-		// ComponentValue: NA for Match All
-	}
-	defQosRule.PacketFilterList[0].Content = []PacketFilterComponent{defPfc}
-	defQosRule.PacketFilterList[0].ContentLength = 0x01
-
-	return defQosRule
+	return rule, nil
 }
 
 func BuildAddQoSRuleFromPccRule(pccRule *models.PccRule, qosData *models.QosData, pccRuleOpCode uint8) (*QosRule, error) {
