@@ -93,8 +93,8 @@ type QosRule struct {
 	Length           uint8
 }
 
-func BuildDefaultQosRule(id uint8, qfi uint8) *QosRule {
-	rule := &QosRule{
+func BuildDefaultQosRule(id uint8, qfi uint8) QosRule {
+	rule := QosRule{
 		Identifier:    id,
 		DQR:           0x01,
 		OperationCode: OperationCodeCreateNewQoSRule,

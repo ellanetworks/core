@@ -22,7 +22,6 @@ import (
 
 const (
 	DefaultQosRuleID uint8 = 1
-	DefaultQosFlowID uint8 = 1
 )
 
 func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error) {
@@ -70,14 +69,16 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	pDUSessionEstablishmentAccept.SessionAMBR = ambr
 	pDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(pDUSessionEstablishmentAccept.SessionAMBR.Octet)))
 
-	qoSRules, err := buildQosRules(smContext)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build QoS rules: %v", err)
+	defaultQFI := smContext.SmPolicyUpdates[0].QosFlowUpdate.Add.QFI
+
+	defQosRule := qos.BuildDefaultQosRule(DefaultQosRuleID, defaultQFI)
+	qosRules := qos.QoSRules{
+		defQosRule,
 	}
 
-	logger.SmfLog.Debug("Built qos rules", zap.Any("QoS Rules", qoSRules))
+	logger.SmfLog.Debug("Built qos rules", zap.Any("QoS Rules", qosRules))
 
-	qosRulesBytes, err := qoSRules.MarshalBinary()
+	qosRulesBytes, err := qosRules.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
@@ -171,21 +172,6 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 			SetExtendedProtocolConfigurationOptionsContents(pcoContents)
 	}
 	return m.PlainNasEncode()
-}
-
-func buildQosRules(smContext *SMContext) (qos.QoSRules, error) {
-	if len(smContext.SmPolicyUpdates) == 0 {
-		return nil, fmt.Errorf("no SM Policy Update found in SM Context")
-	}
-
-	qosRules := qos.QoSRules{}
-
-	if smContext.SmPolicyUpdates[0].SessRuleUpdate != nil {
-		defQosRule := qos.BuildDefaultQosRule(DefaultQosRuleID, DefaultQosFlowID)
-		qosRules = append(qosRules, *defQosRule)
-	}
-
-	return qosRules, nil
 }
 
 func BuildGSMPDUSessionEstablishmentReject(smContext *SMContext, cause uint8) ([]byte, error) {
