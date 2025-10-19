@@ -17,7 +17,7 @@ import (
 
 // GTPTunnel represents the GTP tunnel information
 type GTPTunnel struct {
-	PDR  map[string]*PDR
+	PDR  map[uint8]*PDR
 	TEID uint32
 }
 
@@ -35,32 +35,14 @@ type DataPath struct {
 func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
 	var err error
 	var pdr *PDR
-	var flowQer *QER
 
 	destUPF := node.UPF
 
-	// Iterate through PCC Rules to install PDRs
-	pccRuleUpdate := smContext.SmPolicyUpdates[0].PccRuleUpdate
-
-	if pccRuleUpdate != nil {
-		addRules := pccRuleUpdate.GetAddPccRuleUpdate()
-
-		for name, rule := range addRules {
-			if pdr, err = destUPF.BuildCreatePdrFromPccRule(rule); err == nil {
-				if flowQer, err = node.CreatePccRuleQer(smContext, rule.RefQosData[0]); err == nil {
-					pdr.QER = append(pdr.QER, flowQer)
-				}
-				// Set PDR in Tunnel
-				node.UpLinkTunnel.PDR[name] = pdr
-			}
-		}
+	// Default PDR
+	if pdr, err = destUPF.AddPDR(); err != nil {
+		return fmt.Errorf("add PDR failed: %s", err)
 	} else {
-		// Default PDR
-		if pdr, err = destUPF.AddPDR(); err != nil {
-			return fmt.Errorf("add PDR failed: %s", err)
-		} else {
-			node.UpLinkTunnel.PDR["default"] = pdr
-		}
+		node.UpLinkTunnel.PDR[0] = pdr
 	}
 
 	if err = smContext.PutPDRtoPFCPSession(destUPF.NodeID, node.UpLinkTunnel.PDR); err != nil {
@@ -74,31 +56,15 @@ func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
 func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 	var err error
 	var pdr *PDR
-	var flowQer *QER
 
 	destUPF := node.UPF
-	// Iterate through PCC Rules to install PDRs
-	pccRuleUpdate := smContext.SmPolicyUpdates[0].PccRuleUpdate
-	if pccRuleUpdate != nil {
-		addRules := pccRuleUpdate.GetAddPccRuleUpdate()
-		for name, rule := range addRules {
-			if pdr, err = destUPF.BuildCreatePdrFromPccRule(rule); err == nil {
-				// Add PCC Rule Qos Data QER
-				if flowQer, err = node.CreatePccRuleQer(smContext, rule.RefQosData[0]); err == nil {
-					pdr.QER = append(pdr.QER, flowQer)
-				}
-				// Set PDR in Tunnel
-				node.DownLinkTunnel.PDR[name] = pdr
-			}
-		}
-	} else {
-		// Default PDR
-		pdr, err = destUPF.AddPDR()
-		if err != nil {
-			return fmt.Errorf("add PDR failed: %s", err)
-		}
-		node.DownLinkTunnel.PDR["default"] = pdr
+
+	// Default PDR
+	pdr, err = destUPF.AddPDR()
+	if err != nil {
+		return fmt.Errorf("add PDR failed: %s", err)
 	}
+	node.DownLinkTunnel.PDR[0] = pdr
 
 	// Put PDRs in PFCP session
 	if err = smContext.PutPDRtoPFCPSession(destUPF.NodeID, node.DownLinkTunnel.PDR); err != nil {
@@ -109,9 +75,9 @@ func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 }
 
 func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
-	for name, pdr := range node.UpLinkTunnel.PDR {
+	for id, pdr := range node.UpLinkTunnel.PDR {
 		if pdr == nil {
-			logger.SmfLog.Debug("PDR is nil in UpLink Tunnel", zap.String("name", name))
+			logger.SmfLog.Debug("PDR is nil in UpLink Tunnel", zap.Uint8("id", id))
 			continue
 		}
 
@@ -136,16 +102,16 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 				}
 			}
 		}
-		logger.SmfLog.Info("deactivated UpLinkTunnel PDR ", zap.String("name", name), zap.Uint16("id", pdr.PDRID))
+		logger.SmfLog.Info("deactivated UpLinkTunnel PDR ", zap.Uint8("id", id))
 	}
 
 	node.DownLinkTunnel = &GTPTunnel{}
 }
 
 func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
-	for name, pdr := range node.DownLinkTunnel.PDR {
+	for id, pdr := range node.DownLinkTunnel.PDR {
 		if pdr != nil {
-			logger.SmfLog.Info("deactivated DownLinkTunnel PDR", zap.String("name", name), zap.Uint16("id", pdr.PDRID))
+			logger.SmfLog.Info("deactivated DownLinkTunnel PDR", zap.Uint8("id", id), zap.Uint16("pdrId", pdr.PDRID))
 
 			// Remove PDR from PFCP Session
 			smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
@@ -192,42 +158,6 @@ func (dataPath *DataPath) ActivateUlDlTunnel(smContext *SMContext) error {
 	return nil
 }
 
-func (node *DataPathNode) CreatePccRuleQer(smContext *SMContext, qosData string) (*QER, error) {
-	smPolicyDec := smContext.SmPolicyUpdates[0].SmPolicyDecision
-	refQos := qos.GetQoSDataFromPolicyDecision(smPolicyDec, qosData)
-
-	// Get Flow Status
-	gateStatus := GateOpen
-
-	var flowQER *QER
-
-	newQER, err := node.UPF.AddQER()
-	if err != nil {
-		return nil, fmt.Errorf("failed to add QER: %v", err)
-	}
-	qfi, err := qos.GetQosFlowIDFromQosID(refQos.QosID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get QosFlowID from QosID %s: %v", refQos.QosID, err)
-	}
-	newQER.QFI.QFI = qfi
-
-	// Flow Status
-	newQER.GateStatus = &GateStatus{
-		ULGate: gateStatus,
-		DLGate: gateStatus,
-	}
-
-	// Rates
-	newQER.MBR = &MBR{
-		ULMBR: util.BitRateTokbps(refQos.MaxbrUl),
-		DLMBR: util.BitRateTokbps(refQos.MaxbrDl),
-	}
-
-	flowQER = newQER
-
-	return flowQER, nil
-}
-
 func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) {
 	var flowQER *QER
 
@@ -244,12 +174,7 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) 
 		logger.SmfLog.Error("new QER failed")
 		return nil, err
 	} else {
-		qfi, err := qos.GetQosFlowIDFromQosID(defQosData.QosID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get QosFlowID from QosID %s: %v", defQosData.QosID, err)
-		}
-
-		newQER.QFI.QFI = qfi
+		newQER.QFI.QFI = defQosData.QFI
 		newQER.GateStatus = &GateStatus{
 			ULGate: GateOpen,
 			DLGate: GateOpen,
@@ -329,7 +254,7 @@ func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER, d
 		DLPDR.PDI.UEIPAddress = &ueIPAddr
 		if anIP := smContext.Tunnel.ANInformation.IPAddress; anIP != nil {
 			ANUPF := dataPath.DPNode
-			DefaultDLPDR := ANUPF.DownLinkTunnel.PDR["default"]
+			DefaultDLPDR := ANUPF.DownLinkTunnel.PDR[0]
 			DLFAR := DefaultDLPDR.FAR
 			DLFAR.ForwardingParameters = new(ForwardingParameters)
 			DLFAR.ForwardingParameters.DestinationInterface.InterfaceValue = DestinationInterfaceAccess

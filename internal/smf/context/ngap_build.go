@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/omec-project/ngap/aper"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
@@ -86,71 +85,63 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	}
 	resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
 
-	// Get Qos Flows
-	var qosAddFlows map[string]*models.QosData
+	// Get Qos Flow
+	var qosAddFlow *models.QosData
 
-	// Initialise QosFlows with existing Ctxt QosFlows, if any
-	if len(ctx.SmPolicyData.SmCtxtQosData.QosData) > 0 {
-		qosAddFlows = ctx.SmPolicyData.SmCtxtQosData.QosData
+	if ctx.SmPolicyData.SmCtxtQosData.QosData != nil {
+		qosAddFlow = ctx.SmPolicyData.SmCtxtQosData.QosData
 	}
 
 	// PCF has provided some update
 	if len(ctx.SmPolicyUpdates) > 0 {
 		smPolicyUpdates := ctx.SmPolicyUpdates[0]
 		if smPolicyUpdates.QosFlowUpdate != nil && smPolicyUpdates.QosFlowUpdate.GetAddQosFlowUpdate() != nil {
-			qosAddFlows = smPolicyUpdates.QosFlowUpdate.GetAddQosFlowUpdate()
+			qosAddFlow = smPolicyUpdates.QosFlowUpdate.GetAddQosFlowUpdate()
 		}
 	}
 
 	// QoS Flow Setup Request List
-	if len(qosAddFlows) > 0 {
+	if qosAddFlow != nil {
 		ie = ngapType.PDUSessionResourceSetupRequestTransferIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDQosFlowSetupRequestList
 		ie.Criticality.Value = ngapType.CriticalityPresentReject
 
 		var qosFlowsList []ngapType.QosFlowSetupRequestItem
-		for _, qosFlow := range qosAddFlows {
-			arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-			if qosFlow.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
-				arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
-			}
+		arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
+		if qosAddFlow.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
+			arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
+		}
 
-			arpPreemptVul := ngapType.PreEmptionVulnerabilityPresentNotPreEmptable
-			if qosFlow.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
-				arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
-			}
+		arpPreemptVul := ngapType.PreEmptionVulnerabilityPresentNotPreEmptable
+		if qosAddFlow.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
+			arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
+		}
 
-			qosFlowID, err := qos.GetQosFlowIDFromQosID(qosFlow.QosID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get QosFlowID from QosID %s: %w", qosFlow.QosID, err)
-			}
-
-			qosFlowItem := ngapType.QosFlowSetupRequestItem{
-				QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(qosFlowID)},
-				QosFlowLevelQosParameters: ngapType.QosFlowLevelQosParameters{
-					QosCharacteristics: ngapType.QosCharacteristics{
-						Present: ngapType.QosCharacteristicsPresentNonDynamic5QI,
-						NonDynamic5QI: &ngapType.NonDynamic5QIDescriptor{
-							FiveQI: ngapType.FiveQI{
-								Value: int64(qosFlow.Var5qi),
-							},
-						},
-					},
-					AllocationAndRetentionPriority: ngapType.AllocationAndRetentionPriority{
-						PriorityLevelARP: ngapType.PriorityLevelARP{
-							Value: int64(qosFlow.Arp.PriorityLevel),
-						},
-						PreEmptionCapability: ngapType.PreEmptionCapability{
-							Value: arpPreemptCap,
-						},
-						PreEmptionVulnerability: ngapType.PreEmptionVulnerability{
-							Value: arpPreemptVul,
+		qosFlowItem := ngapType.QosFlowSetupRequestItem{
+			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(qosAddFlow.QFI)},
+			QosFlowLevelQosParameters: ngapType.QosFlowLevelQosParameters{
+				QosCharacteristics: ngapType.QosCharacteristics{
+					Present: ngapType.QosCharacteristicsPresentNonDynamic5QI,
+					NonDynamic5QI: &ngapType.NonDynamic5QIDescriptor{
+						FiveQI: ngapType.FiveQI{
+							Value: int64(qosAddFlow.Var5qi),
 						},
 					},
 				},
-			}
-			qosFlowsList = append(qosFlowsList, qosFlowItem)
+				AllocationAndRetentionPriority: ngapType.AllocationAndRetentionPriority{
+					PriorityLevelARP: ngapType.PriorityLevelARP{
+						Value: int64(qosAddFlow.Arp.PriorityLevel),
+					},
+					PreEmptionCapability: ngapType.PreEmptionCapability{
+						Value: arpPreemptCap,
+					},
+					PreEmptionVulnerability: ngapType.PreEmptionVulnerability{
+						Value: arpPreemptVul,
+					},
+				},
+			},
 		}
+		qosFlowsList = append(qosFlowsList, qosFlowItem)
 
 		ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
 			Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentQosFlowSetupRequestList,

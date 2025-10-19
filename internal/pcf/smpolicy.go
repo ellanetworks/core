@@ -22,14 +22,6 @@ func deepCopySessionRule(src *models.SessionRule) *models.SessionRule {
 	return &copiedSessionRule
 }
 
-func deepCopyPccRule(src *models.PccRule) *models.PccRule {
-	if src == nil {
-		return nil
-	}
-	copiedPccRule := *src
-	return &copiedPccRule
-}
-
 func deepCopyQosData(src *models.QosData) *models.QosData {
 	if src == nil {
 		return nil
@@ -103,14 +95,11 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 		return nil, fmt.Errorf("can't find corresponding AM Policy")
 	}
 
-	decision := &models.SmPolicyDecision{
-		SessRules: make(map[string]*models.SessionRule),
-		PccRules:  make(map[string]*models.PccRule),
-		QosDecs:   make(map[string]*models.QosData),
-	}
+	decision := &models.SmPolicyDecision{}
 
 	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
 	sliceid := sstStr + request.SliceInfo.Sd
+
 	subscriberPolicy, err := GetSubscriberPolicy(ctx, ue.Supi)
 	if err != nil {
 		return nil, fmt.Errorf("can't find subscriber policy for subscriber %s: %s", ue.Supi, err)
@@ -119,27 +108,20 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 	if subscriberPolicy == nil {
 		return nil, fmt.Errorf("subscriber policy is nil for subscriber %s", ue.Supi)
 	}
-	PccPolicy, ok := subscriberPolicy.PccPolicy[sliceid]
+
+	pccPolicy, ok := subscriberPolicy.PccPolicy[sliceid]
 	if !ok {
 		return nil, fmt.Errorf("can't find PCC policy for slice %s", sliceid)
 	}
 
-	sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]
+	sessPolicy, exist := pccPolicy.SessionPolicy[request.Dnn]
 	if !exist {
 		return nil, fmt.Errorf("can't find session policy for dnn %s", request.Dnn)
 	}
 
-	for _, sessRule := range sessPolicy.SessionRules {
-		decision.SessRules[sessRule.SessRuleID] = deepCopySessionRule(sessRule)
-	}
+	decision.SessRule = deepCopySessionRule(sessPolicy.SessionRule)
 
-	for key, pccRule := range PccPolicy.PccRules {
-		decision.PccRules[key] = deepCopyPccRule(pccRule)
-	}
-
-	for key, qosData := range PccPolicy.QosDecs {
-		decision.QosDecs[key] = deepCopyQosData(qosData)
-	}
+	decision.QosDecs = deepCopyQosData(pccPolicy.QosDecs)
 
 	dnnData, err := GetSMPolicyDnnData(*smData, request.SliceInfo, request.Dnn)
 	if err != nil {

@@ -114,14 +114,12 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	smContext.HandlePDUSessionEstablishmentRequest(establishmentRequest)
 
 	// PCF Policy Association
-	var smPolicyDecision *models.SmPolicyDecision
-	smPolicyDecisionRsp, err := SendSMPolicyAssociationCreate(ctx, smContext)
+	smPolicyDecision, err := SendSMPolicyAssociationCreate(ctx, smContext)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("failed to create policy association: %v", err)
 	}
 	smContext.SubPduSessLog.Info("Created policy association")
-	smPolicyDecision = smPolicyDecisionRsp
 
 	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, smPolicyDecision)
 	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)

@@ -24,8 +24,8 @@ func TestActivateUpLinkPdr(t *testing.T) {
 	node := &context.DataPathNode{
 		UPF: &context.UPF{},
 		UpLinkTunnel: &context.GTPTunnel{
-			PDR: map[string]*context.PDR{
-				"default": {
+			PDR: map[uint8]*context.PDR{
+				0: {
 					Precedence: 0,
 					FAR:        &context.FAR{},
 				},
@@ -38,7 +38,7 @@ func TestActivateUpLinkPdr(t *testing.T) {
 		t.Errorf("expected no error, got %v", err)
 	}
 
-	pdr := node.UpLinkTunnel.PDR["default"]
+	pdr := node.UpLinkTunnel.PDR[0]
 	if pdr == nil {
 		t.Fatalf("expected pdr to be not nil")
 	}
@@ -88,8 +88,8 @@ func TestActivateDlLinkPdr(t *testing.T) {
 	node := &context.DataPathNode{
 		UPF: &context.UPF{},
 		DownLinkTunnel: &context.GTPTunnel{
-			PDR: map[string]*context.PDR{
-				"default": {
+			PDR: map[uint8]*context.PDR{
+				0: {
 					Precedence: 0,
 					FAR:        &context.FAR{},
 				},
@@ -106,7 +106,7 @@ func TestActivateDlLinkPdr(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	pdr := node.DownLinkTunnel.PDR["default"]
+	pdr := node.DownLinkTunnel.PDR[0]
 	if pdr == nil {
 		t.Fatalf("expected pdr to be not nil")
 	}

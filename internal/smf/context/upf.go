@@ -11,11 +11,9 @@ import (
 	"fmt"
 	"math"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/omec-project/nas/nasMessage"
 )
@@ -120,61 +118,6 @@ func (upf *UPF) qerID() (uint32, error) {
 	return qerID, nil
 }
 
-func (upf *UPF) BuildCreatePdrFromPccRule(rule *models.PccRule) (*PDR, error) {
-	var pdr *PDR
-	var err error
-
-	// create empty PDR
-	if pdr, err = upf.AddPDR(); err != nil {
-		return nil, err
-	}
-
-	// SDF Filter
-	sdfFilter := SDFFilter{}
-
-	// First Flow
-	flow := rule.FlowInfos[0]
-
-	// Flow Description
-	if flow.FlowDescription != "" {
-		sdfFilter.Fd = true
-		sdfFilter.FlowDescription = []byte(flow.FlowDescription)
-		sdfFilter.LengthOfFlowDescription = uint16(len(sdfFilter.FlowDescription))
-		if id, err := strconv.ParseUint(flow.PackFiltID, 10, 32); err != nil {
-			return nil, err
-		} else {
-			sdfFilter.SdfFilterID = uint32(id)
-		}
-	}
-
-	// ToS Traffic Class
-	if flow.TosTrafficClass != "" {
-		sdfFilter.Ttc = true
-		sdfFilter.TosTrafficClass = []byte(flow.TosTrafficClass)
-	}
-
-	// Flow Label
-	if flow.FlowLabel != "" {
-		sdfFilter.Fl = true
-		sdfFilter.FlowLabel = []byte(flow.FlowLabel)
-	}
-
-	// Security Parameter Index
-	if flow.Spi != "" {
-		sdfFilter.Spi = true
-		sdfFilter.SecurityParameterIndex = []byte(flow.Spi)
-	}
-
-	pdi := PDI{
-		SDFFilter: &sdfFilter,
-	}
-
-	pdr.PDI = pdi
-	pdr.Precedence = uint32(rule.Precedence)
-
-	return pdr, nil
-}
-
 func (upf *UPF) AddPDR() (*PDR, error) {
 	pdr := new(PDR)
 	if PDRID, err := upf.pdrID(); err != nil {
@@ -253,8 +196,8 @@ func (upf *UPF) RemoveQER(qer *QER) {
 
 func GenerateDataPath(upf *UPF, smContext *SMContext) *DataPath {
 	curDataPathNode := &DataPathNode{
-		UpLinkTunnel:   &GTPTunnel{PDR: make(map[string]*PDR)},
-		DownLinkTunnel: &GTPTunnel{PDR: make(map[string]*PDR)},
+		UpLinkTunnel:   &GTPTunnel{PDR: make(map[uint8]*PDR)},
+		DownLinkTunnel: &GTPTunnel{PDR: make(map[uint8]*PDR)},
 		UPF:            upf,
 	}
 

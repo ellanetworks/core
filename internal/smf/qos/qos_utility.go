@@ -14,68 +14,21 @@ func QosDataString(q *models.QosData) string {
 	if q == nil {
 		return ""
 	}
-	return fmt.Sprintf("QosData:[QosID:[%v], Var5QI:[%v], MaxBrUl:[%v], MaxBrDl:[%v], GBrUl:[%v], GBrDl:[%v], PriorityLevel:[%v], ARP:[%v], DQFI:[%v]]",
-		q.QosID, q.Var5qi, q.MaxbrUl, q.MaxbrDl, q.GbrUl, q.GbrDl, q.PriorityLevel, q.Arp, q.DefQosFlowIndication)
+	return fmt.Sprintf("QosData:[QFI:[%v], Var5QI:[%v], MaxBrUl:[%v], MaxBrDl:[%v], GBrUl:[%v], GBrDl:[%v], PriorityLevel:[%v], ARP:[%v], DQFI:[%v]]",
+		q.QFI, q.Var5qi, q.MaxbrUl, q.MaxbrDl, q.GbrUl, q.GbrDl, q.PriorityLevel, q.Arp, q.DefQosFlowIndication)
 }
 
 func SessRuleString(s *models.SessionRule) string {
 	if s == nil {
 		return ""
 	}
-	return fmt.Sprintf("SessRule:[RuleId:[%v], Ambr:[Dl:[%v], Ul:[%v]], AuthDefQos:[Var5QI:[%v], PriorityLevel:[%v], ARP:[%v]]]",
-		s.SessRuleID, s.AuthSessAmbr.Downlink, s.AuthSessAmbr.Uplink, s.AuthDefQos.Var5qi, s.AuthDefQos.PriorityLevel, s.AuthDefQos.Arp)
-}
-
-func PccRuleString(pcc *models.PccRule) string {
-	if pcc == nil {
-		return ""
-	}
-
-	return fmt.Sprintf("PccRule:[RuleId:[%v], Precdence:[%v], RefQosData:[%v], flow:[%v]]",
-		pcc.PccRuleID, pcc.Precedence, pcc.RefQosData[0], PccFlowInfosString(pcc.FlowInfos))
-}
-
-func PccFlowInfosString(flows []models.FlowInformation) []string {
-	var flowStrs []string
-	for _, flow := range flows {
-		str := fmt.Sprintf("\nFlowInfo:[flowDesc:[%v], PFId:[%v], direction:[%v]]",
-			flow.FlowDescription, flow.PackFiltID, flow.FlowDirection)
-
-		flowStrs = append(flowStrs, str)
-	}
-	return flowStrs
+	return fmt.Sprintf("SessRule:Ambr:[Dl:[%v], Ul:[%v]], AuthDefQos:[Var5QI:[%v], PriorityLevel:[%v], ARP:[%v]]]",
+		s.AuthSessAmbr.Downlink, s.AuthSessAmbr.Uplink, s.AuthDefQos.Var5qi, s.AuthDefQos.PriorityLevel, s.AuthDefQos.Arp)
 }
 
 func (obj PolicyUpdate) String() string {
-	return fmt.Sprintf("Policy Update:[\nPccRule:[%v], \nSessRules:[%v], \nQosData:[%v]]",
-		obj.PccRuleUpdate, obj.SessRuleUpdate, obj.QosFlowUpdate)
-}
-
-func (upd PccRulesUpdate) String() string {
-	str := "\nPCC Rule Changes:"
-
-	// To be added
-	strAdd := ""
-	for name, rule := range upd.add {
-		strAdd += fmt.Sprintf("\n[name:[%v], %v", name, PccRuleString(rule))
-	}
-	str += fmt.Sprintf("\n[to add:[%v]]", strAdd)
-
-	// To be modified
-	strMod := ""
-	for name, rule := range upd.mod {
-		strMod += fmt.Sprintf("\n[name:[%v], %v", name, PccRuleString(rule))
-	}
-	str += fmt.Sprintf("\n[to mod:[%v]]", strMod)
-
-	// To be deleted
-	strDel := ""
-	for name, rule := range upd.del {
-		strDel += fmt.Sprintf("\n[name:[%v], %v", name, PccRuleString(rule))
-	}
-	str += fmt.Sprintf("\n[to del:[%v]]", strDel)
-
-	return str
+	return fmt.Sprintf("Policy Update:\nSessRules:[%v], \nQosData:[%v]]",
+		obj.SessRuleUpdate, obj.QosFlowUpdate)
 }
 
 func (obj SessRulesUpdate) String() string {
@@ -83,22 +36,22 @@ func (obj SessRulesUpdate) String() string {
 
 	// To be added
 	strAdd := ""
-	for name, rule := range obj.add {
-		strAdd += fmt.Sprintf("\n[name:[%v], %v", name, SessRuleString(rule))
+	if obj.add != nil {
+		strAdd += fmt.Sprintf("\n%v", SessRuleString(obj.add))
 	}
 	str += fmt.Sprintf("\n[to add:[%v]]", strAdd)
 
 	// To be modified
 	strMod := ""
-	for name, rule := range obj.mod {
-		strMod += fmt.Sprintf("\n[name:[%v], %v", name, SessRuleString(rule))
+	if obj.mod != nil {
+		strMod += fmt.Sprintf("\n%v", SessRuleString(obj.mod))
 	}
 	str += fmt.Sprintf("\n[to mod:[%v]]", strMod)
 
 	// To be deleted
 	strDel := ""
-	for name, rule := range obj.del {
-		strDel += fmt.Sprintf("\n[name:[%v], %v", name, SessRuleString(rule))
+	if obj.del != nil {
+		strDel += fmt.Sprintf("\n%v", SessRuleString(obj.del))
 	}
 	str += fmt.Sprintf("\n[to del:[%v]]", strDel)
 
@@ -110,22 +63,22 @@ func (upd QosFlowsUpdate) String() string {
 
 	// To be added
 	strAdd := ""
-	for name, val := range upd.add {
-		strAdd += fmt.Sprintf("\n[name:[%v], %v", name, QosDataString(val))
+	if upd.Add != nil {
+		strAdd += fmt.Sprintf("\n%v", QosDataString(upd.Add))
 	}
 	str += fmt.Sprintf("\n[to add:[%v]]", strAdd)
 
 	// To be modified
 	strMod := ""
-	for name, val := range upd.mod {
-		strMod += fmt.Sprintf("\n[name:[%v], %v", name, QosDataString(val))
+	if upd.mod != nil {
+		strMod += fmt.Sprintf("\n%v", QosDataString(upd.mod))
 	}
 	str += fmt.Sprintf("\n[to mod:[%v]]", strMod)
 
 	// To be deleted
 	strDel := ""
-	for name, val := range upd.del {
-		strDel += fmt.Sprintf("\n[name:[%v], %v", name, QosDataString(val))
+	if upd.del != nil {
+		strDel += fmt.Sprintf("\n%v", QosDataString(upd.del))
 	}
 	str += fmt.Sprintf("\n[to del:[%v]]", strDel)
 

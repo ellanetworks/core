@@ -7,7 +7,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pcf"
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/util"
 )
 
 // SendSMPolicyAssociationCreate creates the SM Policy Decision
@@ -19,23 +18,9 @@ func SendSMPolicyAssociationCreate(ctx ctxt.Context, smContext *context.SMContex
 
 	smPolicyData := models.SmPolicyContextData{}
 	smPolicyData.Supi = smContext.Supi
-	smPolicyData.PduSessionID = smContext.PDUSessionID
 	smPolicyData.Dnn = smContext.Dnn
-	smPolicyData.PduSessionType = util.PDUSessionTypeToModels(smContext.SelectedPDUSessionType)
 	smPolicyData.AccessType = smContext.AnType
-	smPolicyData.RatType = smContext.RatType
-	smPolicyData.IPv4Address = smContext.PDUAddress.IP.To4().String()
-	smPolicyData.SubsSessAmbr = &models.Ambr{
-		Uplink:   smContext.DnnConfiguration.SessionAmbr.Uplink,
-		Downlink: smContext.DnnConfiguration.SessionAmbr.Downlink,
-	}
-	smPolicyData.SubsDefQos = &models.SubscribedDefaultQos{
-		Arp: &models.Arp{
-			PriorityLevel: smContext.DnnConfiguration.Var5gQosProfile.Arp.PriorityLevel,
-			PreemptCap:    smContext.DnnConfiguration.Var5gQosProfile.Arp.PreemptCap,
-			PreemptVuln:   smContext.DnnConfiguration.Var5gQosProfile.Arp.PreemptVuln,
-		},
-	}
+
 	smPolicyData.SliceInfo = &models.Snssai{
 		Sst: smContext.Snssai.Sst,
 		Sd:  smContext.Snssai.Sd,
@@ -66,14 +51,21 @@ func SendSMPolicyAssociationDelete(ctx ctxt.Context, supi string, pduSessionID i
 
 func validateSmPolicyDecision(smPolicy *models.SmPolicyDecision) error {
 	// Validate just presence of important IEs as of now
-	for _, rule := range smPolicy.SessRules {
-		if rule.AuthSessAmbr == nil {
-			return fmt.Errorf("authorised session ambr missing")
-		}
-
-		if rule.AuthDefQos == nil {
-			return fmt.Errorf("authorised default qos missing")
-		}
+	if smPolicy == nil {
+		return fmt.Errorf("sm policy decision is nil")
 	}
+
+	if smPolicy.SessRule == nil {
+		return fmt.Errorf("session rule missing")
+	}
+
+	if smPolicy.SessRule.AuthSessAmbr == nil {
+		return fmt.Errorf("authorised session ambr missing")
+	}
+
+	if smPolicy.SessRule.AuthDefQos == nil {
+		return fmt.Errorf("authorised default qos missing")
+	}
+
 	return nil
 }

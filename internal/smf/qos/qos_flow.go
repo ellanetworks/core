@@ -14,6 +14,8 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 )
 
+const DefaultQFI uint8 = 1
+
 // TS 24.501 Table 9.11.4.12
 /*
 -	01H (5QI);
@@ -78,37 +80,23 @@ type QosFlowParameter struct {
 }
 
 type QosFlowsUpdate struct {
-	add, mod, del map[string]*models.QosData
-}
-
-func GetQosFlowIDFromQosID(qosID string) (uint8, error) {
-	id, err := strconv.Atoi(qosID)
-	if err != nil {
-		return 0, fmt.Errorf("string can not be converted to integer: %w", err)
-	}
-	if id < 0 || id > 255 {
-		return 0, fmt.Errorf("QosID %s is out of range [0-255]", qosID)
-	}
-	return uint8(id), nil
+	Add, mod, del *models.QosData
 }
 
 // Build Qos Flow Description to be sent to UE
-func BuildAuthorizedQosFlowDescriptions(smPolicyUpdates *PolicyUpdate) (*QosFlowDescriptionsAuthorized, error) {
+func BuildAuthorizedQosFlowDescription(qosData *models.QosData) (*QosFlowDescriptionsAuthorized, error) {
+	if qosData == nil {
+		return nil, fmt.Errorf("qos data is nil")
+	}
+
 	QFDescriptions := QosFlowDescriptionsAuthorized{
 		IeType:  nasMessage.PDUSessionEstablishmentAcceptAuthorizedQosFlowDescriptionsType,
 		Content: make([]byte, 0),
 	}
 
-	qosFlowUpdate := smPolicyUpdates.QosFlowUpdate
-
-	// QoS Flow Description to be Added
-	if qosFlowUpdate != nil {
-		for _, qosFlow := range qosFlowUpdate.add {
-			err := QFDescriptions.BuildAddQosFlowDescFromQoSDesc(qosFlow)
-			if err != nil {
-				return nil, fmt.Errorf("error building QoS Flow Description from QoS Data %s: %v", qosFlow.QosID, err)
-			}
-		}
+	err := QFDescriptions.BuildAddQosFlowDescFromQoSDesc(qosData)
+	if err != nil {
+		return nil, fmt.Errorf("error building QoS Flow Description from QoS Data %d: %v", qosData.QFI, err)
 	}
 
 	return &QFDescriptions, nil
@@ -117,12 +105,7 @@ func BuildAuthorizedQosFlowDescriptions(smPolicyUpdates *PolicyUpdate) (*QosFlow
 func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *models.QosData) error {
 	qfd := QoSFlowDescription{QFDLen: QFDFixLen}
 
-	// Set QFI
-	qosFlowID, err := GetQosFlowIDFromQosID(qosData.QosID)
-	if err != nil {
-		return fmt.Errorf("error getting QosFlowID from QosID %s: %v", qosData.QosID, err)
-	}
-	qfd.SetQoSFlowDescQfi(qosFlowID)
+	qfd.SetQoSFlowDescQfi(qosData.QFI)
 
 	// Operation Code
 	qfd.SetQoSFlowDescOpCode(QFDOpCreate)
@@ -259,72 +242,50 @@ func (q *QoSFlowDescription) addQosFlowRateParam(rate string, rateType uint8) {
 	q.QFDLen += 5 //(Id-1 + len-1 + Content-3)
 }
 
-func GetQosFlowDescUpdate(pcfQosData, ctxtQosData map[string]*models.QosData) *QosFlowsUpdate {
-	if len(pcfQosData) == 0 {
+func GetQosFlowDescUpdate(pcfQosData, ctxtQosData *models.QosData) *QosFlowsUpdate {
+	if pcfQosData == nil && ctxtQosData == nil {
 		return nil
 	}
 
-	update := QosFlowsUpdate{
-		add: make(map[string]*models.QosData),
-		mod: make(map[string]*models.QosData),
-		del: make(map[string]*models.QosData),
+	update := QosFlowsUpdate{}
+
+	// deleted flow
+	if pcfQosData == nil && ctxtQosData != nil {
+		update.del = ctxtQosData
+		return &update
 	}
 
-	// Iterate through pcf qos data to identify find add/mod/del qos flows
-	for name, pcfQF := range pcfQosData {
-		// if pcfQF is null then rule is deleted
-		if pcfQF == nil {
-			update.del[name] = pcfQF // nil
-			continue
-		}
-
-		// Flows to add
-		if ctxtQF := ctxtQosData[name]; ctxtQF == nil {
-			update.add[name] = pcfQF
-		} else if GetQosDataChanges(pcfQF, ctxtQF) {
-			update.mod[name] = pcfQF
-		}
+	// added flow
+	if pcfQosData != nil && ctxtQosData == nil {
+		update.Add = pcfQosData
+		update.Add.QFI = DefaultQFI
+		return &update
 	}
 
+	// modified flow
+	update.mod = pcfQosData
 	return &update
 }
 
 func CommitQosFlowDescUpdate(smCtxtPolData *SmCtxtPolicyData, update *QosFlowsUpdate) {
-	// Iterate through Add/Mod/Del Qos Flows
-
 	// Add new Flows
-	if len(update.add) > 0 {
-		for name, qosData := range update.add {
-			smCtxtPolData.SmCtxtQosData.QosData[name] = qosData
-		}
+	if update.Add != nil {
+		smCtxtPolData.SmCtxtQosData.QosData = update.Add
 	}
 
-	// Del flows
-	if len(update.del) > 0 {
-		for name := range update.del {
-			delete(smCtxtPolData.SmCtxtQosData.QosData, name)
-		}
+	// Delete Flows
+	if update.del != nil {
+		smCtxtPolData.SmCtxtQosData.QosData = nil
 	}
 }
 
-// Compare if any change in QoS Data
-func GetQosDataChanges(qf1, qf2 *models.QosData) bool {
-	return false
-}
-
-func GetQoSDataFromPolicyDecision(smPolicyDecision *models.SmPolicyDecision, refQosData string) *models.QosData {
-	return smPolicyDecision.QosDecs[refQosData]
-}
-
-func (upd *QosFlowsUpdate) GetAddQosFlowUpdate() map[string]*models.QosData {
-	return upd.add
+func (upd *QosFlowsUpdate) GetAddQosFlowUpdate() *models.QosData {
+	return upd.Add
 }
 
 func GetDefaultQoSDataFromPolicyDecision(smPolicyDecision *models.SmPolicyDecision) *models.QosData {
-	for _, qosData := range smPolicyDecision.QosDecs {
-		if qosData.DefQosFlowIndication {
-			return qosData
-		}
+	if smPolicyDecision.QosDecs != nil && smPolicyDecision.QosDecs.DefQosFlowIndication {
+		return smPolicyDecision.QosDecs
 	}
 
 	return nil
