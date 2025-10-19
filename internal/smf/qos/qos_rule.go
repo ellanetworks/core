@@ -12,10 +12,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-
-	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
-	"go.uber.org/zap"
 )
 
 const (
@@ -97,47 +93,13 @@ type QosRule struct {
 	Length           uint8
 }
 
-func BuildQosRules(smPolicyUpdates *PolicyUpdate) (QoSRules, error) {
-	qosRules := QoSRules{}
-
-	smPolicyDecision := smPolicyUpdates.SmPolicyDecision
-	pccRulesUpdate := smPolicyUpdates.PccRuleUpdate
-
-	// New Rules to be added
-	if pccRulesUpdate != nil {
-		for pccRuleName, pccRuleVal := range pccRulesUpdate.add {
-			logger.SmfLog.Info("Building QoS Rule from PCC rule", zap.String("name", pccRuleName))
-			refQosData := GetQoSDataFromPolicyDecision(smPolicyDecision, pccRuleVal.RefQosData[0])
-			qosRule, err := BuildAddQoSRuleFromPccRule(pccRuleVal, refQosData, OperationCodeCreateNewQoSRule)
-			if err != nil {
-				return nil, fmt.Errorf("error building QoS rule from PCC rule %s: %v", pccRuleName, err)
-			}
-			qosRules = append(qosRules, *qosRule)
-		}
-	}
-
-	if smPolicyUpdates.SessRuleUpdate != nil {
-		defQosRule, err := BuildAddDefaultQosRule(uint8(smPolicyUpdates.SessRuleUpdate.ActiveSessRule.AuthDefQos.Var5qi))
-		if err != nil {
-			return nil, fmt.Errorf("can't build default QoS rule: %v", err)
-		}
-		qosRules = append(qosRules, *defQosRule)
-	}
-
-	return qosRules, nil
-}
-
-func BuildAddDefaultQosRule(defQFI uint8) (*QosRule, error) {
-	if defQFI == 0 || defQFI > 63 {
-		return nil, fmt.Errorf("invalid default QFI: %d", defQFI)
-	}
-
+func BuildDefaultQosRule(id uint8, qfi uint8) *QosRule {
 	rule := &QosRule{
-		Identifier:    1,
+		Identifier:    id,
 		DQR:           0x01,
 		OperationCode: OperationCodeCreateNewQoSRule,
 		Precedence:    255,
-		QFI:           defQFI,
+		QFI:           qfi,
 		PacketFilterList: []PacketFilter{
 			{
 				Identifier: 1,
@@ -150,86 +112,7 @@ func BuildAddDefaultQosRule(defQFI uint8) (*QosRule, error) {
 		},
 	}
 
-	return rule, nil
-}
-
-func BuildAddQoSRuleFromPccRule(pccRule *models.PccRule, qosData *models.QosData, pccRuleOpCode uint8) (*QosRule, error) {
-	qosFlowID, err := GetQosFlowIDFromQosID(qosData.QosID)
-	if err != nil {
-		return nil, fmt.Errorf("error getting QosFlowID from QosID %s: %v", qosData.QosID, err)
-	}
-
-	qRule := QosRule{
-		Identifier:    GetQosRuleIDFromPccRuleID(pccRule.PccRuleID),
-		DQR:           btou(qosData.DefQosFlowIndication),
-		OperationCode: pccRuleOpCode,
-		Precedence:    uint8(pccRule.Precedence),
-		QFI:           qosFlowID,
-	}
-
-	qRule.BuildPacketFilterListFromPccRule(pccRule)
-
-	return &qRule, nil
-}
-
-func btou(b bool) uint8 {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-func GetQosRuleIDFromPccRuleID(pccRuleID string) uint8 {
-	if id, err := strconv.ParseUint(pccRuleID, 10, 8); err != nil {
-		return 0
-	} else {
-		return uint8(id)
-	}
-}
-
-func (r *QosRule) BuildPacketFilterListFromPccRule(pccRule *models.PccRule) {
-	pfList := []PacketFilter{}
-
-	// Iterate through
-	for _, flow := range pccRule.FlowInfos {
-		pf := GetPacketFilterFromFlowInfo(&flow)
-		pfList = append(pfList, pf)
-	}
-	r.PacketFilterList = pfList
-}
-
-func GetPacketFilterFromFlowInfo(flowInfo *models.FlowInformation) PacketFilter {
-	pf := &PacketFilter{
-		Identifier: GetPfID(flowInfo.PackFiltID),
-		Direction:  GetPfDirectionFromPccFlowInfo(flowInfo.FlowDirection),
-	}
-
-	// Fill PF component contents
-	pf.GetPfContent(flowInfo.FlowDescription)
-
-	return *pf
-}
-
-func GetPfID(ids string) uint8 {
-	if id, err := strconv.ParseUint(ids, 10, 8); err != nil {
-		return 0
-	} else {
-		return (uint8(id) & PacketFilterIDBitmask)
-	}
-}
-
-// Get Packet Filter Directions
-func GetPfDirectionFromPccFlowInfo(flowDir models.FlowDirectionRm) uint8 {
-	switch flowDir {
-	case models.FlowDirectionRmUplink:
-		return PacketFilterDirectionUplink
-	case models.FlowDirectionRmDownlink:
-		return PacketFilterDirectionDownlink
-	case models.FlowDirectionRmBidirectional:
-		return PacketFilterDirectionBidirectional
-	default:
-		return PacketFilterDirectionBidirectional
-	}
+	return rule
 }
 
 // e.x. permit out ip-proto from x.x.x.x/maskbits port/port-range to assigned(x.x.x.x/maskbits) port/port-range

@@ -10,59 +10,44 @@ import (
 
 // Handle Session Rule related info
 type SessRulesUpdate struct {
-	add, mod, del  map[string]*models.SessionRule
+	add, mod, del  *models.SessionRule
 	ActiveSessRule *models.SessionRule
-	activeRuleName string
+	activeRuleName uint8
 }
 
 // Get Session rule changes delta
-func GetSessionRulesUpdate(pcfSessRules, ctxtSessRules map[string]*models.SessionRule) *SessRulesUpdate {
-	if len(pcfSessRules) == 0 {
-		return nil
+func GetSessionRulesUpdate(pcfSessRule, ctxtSessRule *models.SessionRule) *SessRulesUpdate {
+	change := SessRulesUpdate{}
+
+	// deleted rule
+	if pcfSessRule == nil && ctxtSessRule != nil {
+		change.del = ctxtSessRule
 	}
 
-	change := SessRulesUpdate{
-		add: make(map[string]*models.SessionRule),
-		mod: make(map[string]*models.SessionRule),
-		del: make(map[string]*models.SessionRule),
+	/// added rule
+	if pcfSessRule != nil && ctxtSessRule == nil {
+		change.add = pcfSessRule
+		change.ActiveSessRule = pcfSessRule
 	}
 
-	for name, sessRule := range pcfSessRules {
-		// Rules to be deleted
-		if sessRule == nil {
-			change.del[name] = sessRule // nil
-			continue
-		}
-
-		// Rules to be added
-		if ctxtSessRules[name] == nil {
-			change.add[name] = sessRule
-
-			// Activate last rule
-			change.activeRuleName = name
-			change.ActiveSessRule = sessRule
-		} else {
-			change.mod[name] = sessRule
-		}
+	// modified rule
+	if pcfSessRule != nil && ctxtSessRule != nil {
+		change.mod = pcfSessRule
+		change.ActiveSessRule = pcfSessRule
 	}
+
 	return &change
 }
 
 func CommitSessionRulesUpdate(smCtxtPolData *SmCtxtPolicyData, update *SessRulesUpdate) {
-	// Iterate through Add/Mod/Del rules
-
-	// Add new Rules
-	if len(update.add) > 0 {
-		for name, rule := range update.add {
-			smCtxtPolData.SmCtxtSessionRules.SessionRules[name] = rule
-		}
+	// Add new Rule
+	if update.add != nil {
+		smCtxtPolData.SmCtxtSessionRules.SessionRule = update.add
 	}
 
-	// Del Rules
-	if len(update.del) > 0 {
-		for name := range update.del {
-			delete(smCtxtPolData.SmCtxtSessionRules.SessionRules, name)
-		}
+	// Delete Rule
+	if update.del != nil {
+		smCtxtPolData.SmCtxtSessionRules.SessionRule = nil
 	}
 
 	// Set Active Rule

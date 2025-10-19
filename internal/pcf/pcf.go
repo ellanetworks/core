@@ -3,16 +3,12 @@
 package pcf
 
 import (
-	"math"
-
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/util/idgenerator"
 )
 
 func Start(dbInstance *db.Database) error {
 	pcfCtx = &PCFContext{
-		SessionRuleIDGenerator: idgenerator.NewGenerator(1, math.MaxInt64),
-		DBInstance:             dbInstance,
+		DBInstance: dbInstance,
 	}
 	return nil
 }

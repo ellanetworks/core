@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/util"
+	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/google/uuid"
 	"github.com/omec-project/nas/nasMessage"
 	"go.uber.org/zap"
@@ -65,6 +66,7 @@ type SMContext struct {
 	SubPfcpLog                     *zap.Logger
 	SubPduSessLog                  *zap.Logger
 	SubCtxLog                      *zap.Logger
+	QFIGenerator                   *idgenerator.IDGenerator
 	SmPolicyUpdates                []*qos.PolicyUpdate
 	SmPolicyData                   qos.SmCtxtPolicyData
 	PFCPContext                    map[string]*PFCPSessionContext
@@ -100,8 +102,8 @@ func decSMContextActive() {
 	atomic.AddUint64(&smContextActive, ^uint64(0))
 }
 
-func NewSMContext(identifier string, pduSessID int32) (smContext *SMContext) {
-	smContext = new(SMContext)
+func NewSMContext(identifier string, pduSessID int32) *SMContext {
+	smContext := new(SMContext)
 	// Create Ref and identifier
 	smContext.Ref = uuid.New().URN()
 	smContextPool.Store(smContext.Ref, smContext)
@@ -113,7 +115,6 @@ func NewSMContext(identifier string, pduSessID int32) (smContext *SMContext) {
 
 	// initialize SM Policy Data
 	smContext.SmPolicyUpdates = make([]*qos.PolicyUpdate, 0)
-	smContext.SmPolicyData.Initialize()
 
 	smContext.ProtocolConfigurationOptions = &ProtocolConfigurationOptions{
 		DNSIPv4Request: false,
@@ -253,7 +254,7 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) err
 	return nil
 }
 
-func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[string]*PDR) error {
+func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[uint8]*PDR) error {
 	NodeIDtoIP := nodeID.ResolveNodeIDToIP().String()
 	if pfcpSessCtx, exist := smContext.PFCPContext[NodeIDtoIP]; exist {
 		for name, pdr := range pdrList {

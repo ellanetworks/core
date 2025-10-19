@@ -20,7 +20,28 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	DefaultQosRuleID uint8 = 1
+	DefaultQosFlowID uint8 = 1
+)
+
 func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error) {
+	if smContext == nil {
+		return nil, fmt.Errorf("SM Context is nil")
+	}
+
+	if len(smContext.SmPolicyUpdates) == 0 {
+		return nil, fmt.Errorf("no SM Policy Update found in SM Context")
+	}
+
+	if smContext.SmPolicyUpdates[0].SessRuleUpdate == nil {
+		return nil, fmt.Errorf("no Session Rule Update found in SM Policy Update")
+	}
+
+	if smContext.SmPolicyUpdates[0].QosFlowUpdate == nil {
+		return nil, fmt.Errorf("no Qos Flow Update found in SM Policy Update")
+	}
+
 	m := nas.NewMessage()
 	m.GsmMessage = nas.NewGsmMessage()
 	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionEstablishmentAccept)
@@ -49,7 +70,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	pDUSessionEstablishmentAccept.SessionAMBR = ambr
 	pDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(pDUSessionEstablishmentAccept.SessionAMBR.Octet)))
 
-	qoSRules, err := qos.BuildQosRules(smContext.SmPolicyUpdates[0])
+	qoSRules, err := buildQosRules(smContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build QoS rules: %v", err)
 	}
@@ -73,7 +94,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	}
 
 	// Get Authorized QoS Flow Descriptions
-	authQfd, err := qos.BuildAuthorizedQosFlowDescriptions(smContext.SmPolicyUpdates[0])
+	authQfd, err := qos.BuildAuthorizedQosFlowDescription(smContext.SmPolicyUpdates[0].QosFlowUpdate.Add)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build Authorized QoS Flow Descriptions: %v", err)
 	}
@@ -150,6 +171,21 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 			SetExtendedProtocolConfigurationOptionsContents(pcoContents)
 	}
 	return m.PlainNasEncode()
+}
+
+func buildQosRules(smContext *SMContext) (qos.QoSRules, error) {
+	if len(smContext.SmPolicyUpdates) == 0 {
+		return nil, fmt.Errorf("no SM Policy Update found in SM Context")
+	}
+
+	qosRules := qos.QoSRules{}
+
+	if smContext.SmPolicyUpdates[0].SessRuleUpdate != nil {
+		defQosRule := qos.BuildDefaultQosRule(DefaultQosRuleID, DefaultQosFlowID)
+		qosRules = append(qosRules, *defQosRule)
+	}
+
+	return qosRules, nil
 }
 
 func BuildGSMPDUSessionEstablishmentReject(smContext *SMContext, cause uint8) ([]byte, error) {

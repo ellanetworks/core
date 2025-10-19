@@ -26,6 +26,12 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 						},
 					},
 				},
+				QosFlowUpdate: &qos.QosFlowsUpdate{
+					Add: &models.QosData{
+						QFI:    1,
+						Var5qi: 9,
+					},
+				},
 			},
 		},
 		Snssai: &models.Snssai{
@@ -79,6 +85,12 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
 						AuthDefQos: &models.AuthorizedDefaultQos{
 							Var5qi: 9,
 						},
+					},
+				},
+				QosFlowUpdate: &qos.QosFlowsUpdate{
+					Add: &models.QosData{
+						QFI:    1,
+						Var5qi: 9,
 					},
 				},
 			},

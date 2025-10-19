@@ -11,7 +11,6 @@ import (
 // Define SMF Session-Rule/PccRule/Rule-Qos-Data
 type PolicyUpdate struct {
 	SessRuleUpdate *SessRulesUpdate
-	PccRuleUpdate  *PccRulesUpdate
 	QosFlowUpdate  *QosFlowsUpdate
 
 	// relevant SM Policy Decision from PCF
@@ -20,7 +19,6 @@ type PolicyUpdate struct {
 
 type SmCtxtPolicyData struct {
 	// maintain all session rule-info and current active sess rule
-	SmCtxtPccRules     SmCtxtPccRulesInfo
 	SmCtxtQosData      SmCtxtQosData
 	SmCtxtSessionRules SmCtxtSessionRulesInfo
 }
@@ -28,22 +26,12 @@ type SmCtxtPolicyData struct {
 // maintain all session rule-info and current active sess rule
 type SmCtxtSessionRulesInfo struct {
 	ActiveRule     *models.SessionRule
-	SessionRules   map[string]*models.SessionRule
-	ActiveRuleName string
-}
-
-type SmCtxtPccRulesInfo struct {
-	PccRules map[string]*models.PccRule
+	SessionRule    *models.SessionRule
+	ActiveRuleName uint8
 }
 
 type SmCtxtQosData struct {
-	QosData map[string]*models.QosData
-}
-
-func (upd *SmCtxtPolicyData) Initialize() {
-	upd.SmCtxtSessionRules.SessionRules = make(map[string]*models.SessionRule)
-	upd.SmCtxtPccRules.PccRules = make(map[string]*models.PccRule)
-	upd.SmCtxtQosData.QosData = make(map[string]*models.QosData)
+	QosData *models.QosData
 }
 
 func BuildSmPolicyUpdate(smCtxtPolData *SmCtxtPolicyData, smPolicyDecision *models.SmPolicyDecision) *PolicyUpdate {
@@ -55,11 +43,8 @@ func BuildSmPolicyUpdate(smCtxtPolData *SmCtxtPolicyData, smPolicyDecision *mode
 	// Qos Flows update
 	update.QosFlowUpdate = GetQosFlowDescUpdate(smPolicyDecision.QosDecs, smCtxtPolData.SmCtxtQosData.QosData)
 
-	// Pcc Rules update
-	update.PccRuleUpdate = GetPccRulesUpdate(smPolicyDecision.PccRules, smCtxtPolData.SmCtxtPccRules.PccRules)
-
-	// Session Rules update
-	update.SessRuleUpdate = GetSessionRulesUpdate(smPolicyDecision.SessRules, smCtxtPolData.SmCtxtSessionRules.SessionRules)
+	// Session Rule update
+	update.SessRuleUpdate = GetSessionRulesUpdate(smPolicyDecision.SessRule, smCtxtPolData.SmCtxtSessionRules.SessionRule)
 
 	return update
 }
@@ -68,11 +53,6 @@ func CommitSmPolicyDecision(smCtxtPolData *SmCtxtPolicyData, smPolicyUpdate *Pol
 	// Update Qos Flows
 	if smPolicyUpdate.QosFlowUpdate != nil {
 		CommitQosFlowDescUpdate(smCtxtPolData, smPolicyUpdate.QosFlowUpdate)
-	}
-
-	// Update PCC Rules
-	if smPolicyUpdate.PccRuleUpdate != nil {
-		CommitPccRulesUpdate(smCtxtPolData, smPolicyUpdate.PccRuleUpdate)
 	}
 
 	// Update Session Rules
