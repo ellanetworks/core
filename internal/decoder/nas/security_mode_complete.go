@@ -1,0 +1,38 @@
+package nas
+
+import (
+	"github.com/omec-project/nas"
+	"github.com/omec-project/nas/nasConvert"
+	"github.com/omec-project/nas/nasMessage"
+)
+
+type SecurityModeComplete struct {
+	ExtendedProtocolDiscriminator       uint8   `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType uint8   `json:"spare_half_octet_and_security_header_type"`
+	SecurityModeCompleteMessageIdentity string  `json:"security_mode_complete_message_identity"`
+	IMEISV                              *string `json:"imeisv,omitempty"`
+	NASMessageContainer                 []byte  `json:"nas_message_container,omitempty"`
+}
+
+func buildSecurityModeComplete(msg *nasMessage.SecurityModeComplete) *SecurityModeComplete {
+	if msg == nil {
+		return nil
+	}
+
+	securityModeComplete := &SecurityModeComplete{
+		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		SecurityModeCompleteMessageIdentity: nas.MessageName(msg.SecurityModeCompleteMessageIdentity.Octet),
+	}
+
+	if msg.IMEISV != nil {
+		pei := nasConvert.PeiToString(msg.IMEISV.Octet[:])
+		securityModeComplete.IMEISV = &pei
+	}
+
+	if msg.NASMessageContainer != nil {
+		securityModeComplete.NASMessageContainer = msg.NASMessageContainer.GetNASMessageContainerContents()
+	}
+
+	return securityModeComplete
+}

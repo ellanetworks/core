@@ -1,9 +1,9 @@
-package decoder_test
+package nas_test
 
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/decoder"
+	"github.com/ellanetworks/core/internal/decoder/nas"
 	"github.com/ellanetworks/core/internal/smf/qos"
 )
 
@@ -31,7 +31,7 @@ func TestUnmarshalQosRules(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rules, err := decoder.UnmarshalQosRules(qosRulesBytes)
+	rules, err := nas.UnmarshalQosRules(qosRulesBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
