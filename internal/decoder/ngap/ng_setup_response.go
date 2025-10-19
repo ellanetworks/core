@@ -79,43 +79,43 @@ func buildNGSetupResponse(ngSetupResponse *ngapType.NGSetupResponse) *NGSetupRes
 		case ngapType.ProtocolIEIDAMFName:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				AMFName:     buildAMFNameIE(ie.Value.AMFName),
 			})
 		case ngapType.ProtocolIEIDServedGUAMIList:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:              protocolIEIDToString(ie.Id.Value),
-				Criticality:     criticalityToString(ie.Criticality.Value),
+				Criticality:     criticalityToEnum(ie.Criticality.Value),
 				ServedGUAMIList: buildServedGUAMIListIE(ie.Value.ServedGUAMIList),
 			})
 		case ngapType.ProtocolIEIDRelativeAMFCapacity:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:                  protocolIEIDToString(ie.Id.Value),
-				Criticality:         criticalityToString(ie.Criticality.Value),
+				Criticality:         criticalityToEnum(ie.Criticality.Value),
 				RelativeAMFCapacity: &ie.Value.RelativeAMFCapacity.Value,
 			})
 		case ngapType.ProtocolIEIDPLMNSupportList:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:              protocolIEIDToString(ie.Id.Value),
-				Criticality:     criticalityToString(ie.Criticality.Value),
+				Criticality:     criticalityToEnum(ie.Criticality.Value),
 				PLMNSupportList: buildPLMNSupportListIE(ie.Value.PLMNSupportList),
 			})
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:                     protocolIEIDToString(ie.Id.Value),
-				Criticality:            criticalityToString(ie.Criticality.Value),
+				Criticality:            criticalityToEnum(ie.Criticality.Value),
 				CriticalityDiagnostics: buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
 			})
 		case ngapType.ProtocolIEIDUERetentionInformation:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:                     protocolIEIDToString(ie.Id.Value),
-				Criticality:            criticalityToString(ie.Criticality.Value),
+				Criticality:            criticalityToEnum(ie.Criticality.Value),
 				UERetentionInformation: buildUERetentionInformationIE(ie.Value.UERetentionInformation),
 			})
 		default:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 			})
 			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}
@@ -132,7 +132,7 @@ func buildCriticalityDiagnosticsIE(cd *ngapType.CriticalityDiagnostics) *Critica
 	critDiag := &CriticalityDiagnostics{}
 
 	if cd.ProcedureCode != nil {
-		procCode := procedureCodeToString(cd.ProcedureCode.Value)
+		procCode := procedureCodeToEnum(cd.ProcedureCode.Value)
 		critDiag.ProcedureCode = &procCode
 	}
 
@@ -142,7 +142,7 @@ func buildCriticalityDiagnosticsIE(cd *ngapType.CriticalityDiagnostics) *Critica
 	}
 
 	if cd.ProcedureCriticality != nil {
-		procCrit := criticalityToString(cd.ProcedureCriticality.Value)
+		procCrit := criticalityToEnum(cd.ProcedureCriticality.Value)
 		critDiag.ProcedureCriticality = &procCrit
 	}
 
@@ -175,7 +175,7 @@ func buildIEsCriticalityDiagnisticsList(ieList *ngapType.CriticalityDiagnosticsI
 	for i := 0; i < len(ieList.List); i++ {
 		ie := ieList.List[i]
 		ies[i] = IEsCriticalityDiagnostics{
-			IECriticality: criticalityToString(ie.IECriticality.Value),
+			IECriticality: criticalityToEnum(ie.IECriticality.Value),
 			IEID:          protocolIEIDToString(ie.IEID.Value),
 			TypeOfError:   typeOfErrorToString(ie.TypeOfError.Value),
 		}

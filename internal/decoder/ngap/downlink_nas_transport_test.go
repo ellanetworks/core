@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/ngap"
+	"github.com/omec-project/ngap/ngapType"
 )
 
 func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
@@ -23,12 +24,20 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 		t.Fatalf("expected InitiatingMessage, got nil")
 	}
 
-	if ngap.InitiatingMessage.ProcedureCode != "DownlinkNASTransport" {
-		t.Errorf("expected ProcedureCode=DownlinkNASTransport, got %s", ngap.InitiatingMessage.ProcedureCode)
+	if ngap.InitiatingMessage.ProcedureCode.Label != "DownlinkNASTransport" {
+		t.Errorf("expected ProcedureCode=DownlinkNASTransport, got %v", ngap.InitiatingMessage.ProcedureCode)
 	}
 
-	if ngap.InitiatingMessage.Criticality != "Ignore (1)" {
-		t.Errorf("expected Criticality=Ignore (1), got %s", ngap.InitiatingMessage.Criticality)
+	if ngap.InitiatingMessage.ProcedureCode.Value != int(ngapType.ProcedureCodeDownlinkNASTransport) {
+		t.Errorf("expected ProcedureCode value=3, got %d", ngap.InitiatingMessage.ProcedureCode.Value)
+	}
+
+	if ngap.InitiatingMessage.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore, got %v", ngap.InitiatingMessage.Criticality)
+	}
+
+	if ngap.InitiatingMessage.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", ngap.InitiatingMessage.Criticality.Value)
 	}
 
 	if ngap.InitiatingMessage.Value.DownlinkNASTransport == nil {
@@ -45,8 +54,12 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 		t.Errorf("expected ID=AMFUENGAPID (10), got %s", item0.ID)
 	}
 
-	if item0.Criticality != "Reject (0)" {
-		t.Errorf("expected Criticality=Reject (0), got %s", item0.Criticality)
+	if item0.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item0.Criticality)
+	}
+
+	if item0.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
 	}
 
 	if item0.AMFUENGAPID == nil {
@@ -63,8 +76,12 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 		t.Errorf("expected ID=RANUENGAPID (85), got %s", item1.ID)
 	}
 
-	if item1.Criticality != "Reject (0)" {
-		t.Errorf("expected Criticality=Reject (0), got %s", item1.Criticality)
+	if item1.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item1.Criticality)
+	}
+
+	if item1.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item1.Criticality.Value)
 	}
 
 	if item1.RANUENGAPID == nil {
@@ -81,8 +98,12 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 		t.Errorf("expected ID=NASPDU (38), got %s", item2.ID)
 	}
 
-	if item2.Criticality != "Reject (0)" {
-		t.Errorf("expected Criticality=Reject (0), got %s", item2.Criticality)
+	if item2.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item2.Criticality)
+	}
+
+	if item2.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item2.Criticality.Value)
 	}
 
 	if item2.NASPDU == nil {

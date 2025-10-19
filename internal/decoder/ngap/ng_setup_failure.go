@@ -26,25 +26,25 @@ func buildNGSetupFailure(ngSetupFailure *ngapType.NGSetupFailure) *NGSetupFailur
 		case ngapType.ProtocolIEIDCause:
 			ngFail.IEs = append(ngFail.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Cause:       strPtr(causeToString(ie.Value.Cause)),
 			})
 		case ngapType.ProtocolIEIDTimeToWait:
 			ngFail.IEs = append(ngFail.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				TimeToWait:  buildTimeToWaitIE(ie.Value.TimeToWait),
 			})
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			ngFail.IEs = append(ngFail.IEs, IE{
 				ID:                     protocolIEIDToString(ie.Id.Value),
-				Criticality:            criticalityToString(ie.Criticality.Value),
+				Criticality:            criticalityToEnum(ie.Criticality.Value),
 				CriticalityDiagnostics: buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
 			})
 		default:
 			ngFail.IEs = append(ngFail.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 			})
 			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}

@@ -23,37 +23,37 @@ func buildPDUSessionResourceSetupResponse(pduSessionResourceSetupResponse *ngapT
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			psrs.IEs = append(psrs.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			psrs.IEs = append(psrs.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes:
 			psrs.IEs = append(psrs.IEs, IE{
 				ID:                               protocolIEIDToString(ie.Id.Value),
-				Criticality:                      criticalityToString(ie.Criticality.Value),
+				Criticality:                      criticalityToEnum(ie.Criticality.Value),
 				PDUSessionResourceSetupListSURes: buildPDUSessionResourceSetupListSUResIE(ie.Value.PDUSessionResourceSetupListSURes),
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListSURes:
 			psrs.IEs = append(psrs.IEs, IE{
 				ID:                                       protocolIEIDToString(ie.Id.Value),
-				Criticality:                              criticalityToString(ie.Criticality.Value),
+				Criticality:                              criticalityToEnum(ie.Criticality.Value),
 				PDUSessionResourceFailedToSetupListSURes: buildPDUSessionResourceFailedToSetupListSUResIE(ie.Value.PDUSessionResourceFailedToSetupListSURes),
 			})
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			psrs.IEs = append(psrs.IEs, IE{
 				ID:                     protocolIEIDToString(ie.Id.Value),
-				Criticality:            criticalityToString(ie.Criticality.Value),
+				Criticality:            criticalityToEnum(ie.Criticality.Value),
 				CriticalityDiagnostics: buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
 			})
 		default:
 			psrs.IEs = append(psrs.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 			})
 			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}

@@ -116,37 +116,37 @@ func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupReques
 		case ngapType.ProtocolIEIDGlobalRANNodeID:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:              protocolIEIDToString(ie.Id.Value),
-				Criticality:     criticalityToString(ie.Criticality.Value),
+				Criticality:     criticalityToEnum(ie.Criticality.Value),
 				GlobalRANNodeID: buildGlobalRANNodeIDIE(ie.Value.GlobalRANNodeID),
 			})
 		case ngapType.ProtocolIEIDSupportedTAList:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:              protocolIEIDToString(ie.Id.Value),
-				Criticality:     criticalityToString(ie.Criticality.Value),
+				Criticality:     criticalityToEnum(ie.Criticality.Value),
 				SupportedTAList: buildSupportedTAListIE(ie.Value.SupportedTAList),
 			})
 		case ngapType.ProtocolIEIDRANNodeName:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				RANNodeName: buildRanNodeNameIE(ie.Value.RANNodeName),
 			})
 		case ngapType.ProtocolIEIDDefaultPagingDRX:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:               protocolIEIDToString(ie.Id.Value),
-				Criticality:      criticalityToString(ie.Criticality.Value),
+				Criticality:      criticalityToEnum(ie.Criticality.Value),
 				DefaultPagingDRX: buildDefaultPagingDRXIE(ie.Value.DefaultPagingDRX),
 			})
 		case ngapType.ProtocolIEIDUERetentionInformation:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:                     protocolIEIDToString(ie.Id.Value),
-				Criticality:            criticalityToString(ie.Criticality.Value),
+				Criticality:            criticalityToEnum(ie.Criticality.Value),
 				UERetentionInformation: buildUERetentionInformationIE(ie.Value.UERetentionInformation),
 			})
 		default:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 			})
 			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}

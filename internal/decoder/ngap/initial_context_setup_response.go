@@ -23,37 +23,37 @@ func buildInitialContextSetupResponse(initialContextSetupResponse *ngapType.Init
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			icsResponse.IEs = append(icsResponse.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			icsResponse.IEs = append(icsResponse.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtRes:
 			icsResponse.IEs = append(icsResponse.IEs, IE{
 				ID:                                protocolIEIDToString(ie.Id.Value),
-				Criticality:                       criticalityToString(ie.Criticality.Value),
+				Criticality:                       criticalityToEnum(ie.Criticality.Value),
 				PDUSessionResourceSetupListCxtRes: buildPDUSessionResourceSetupListCxtResIE(ie.Value.PDUSessionResourceSetupListCxtRes),
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtRes:
 			icsResponse.IEs = append(icsResponse.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				PDUSessionResourceFailedToSetupListCxtRes: buildPDUSessionResourceFailedToSetupListCxtResIE(ie.Value.PDUSessionResourceFailedToSetupListCxtRes),
 			})
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			icsResponse.IEs = append(icsResponse.IEs, IE{
 				ID:                     protocolIEIDToString(ie.Id.Value),
-				Criticality:            criticalityToString(ie.Criticality.Value),
+				Criticality:            criticalityToEnum(ie.Criticality.Value),
 				CriticalityDiagnostics: buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
 			})
 		default:
 			icsResponse.IEs = append(icsResponse.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 			})
 			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}

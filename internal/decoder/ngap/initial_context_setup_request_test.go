@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/ngap"
+	"github.com/omec-project/ngap/ngapType"
 )
 
 func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
@@ -23,12 +24,20 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Fatalf("expected InitiatingMessage, got nil")
 	}
 
-	if ngap.InitiatingMessage.ProcedureCode != "InitialContextSetup" {
-		t.Errorf("expected ProcedureCode=InitialContextSetup, got %s", ngap.InitiatingMessage.ProcedureCode)
+	if ngap.InitiatingMessage.ProcedureCode.Label != "InitialContextSetup" {
+		t.Errorf("expected ProcedureCode=InitialContextSetup, got %v", ngap.InitiatingMessage.ProcedureCode)
 	}
 
-	if ngap.InitiatingMessage.Criticality != "Reject (0)" {
-		t.Errorf("expected Criticality=Reject (0), got %s", ngap.InitiatingMessage.Criticality)
+	if ngap.InitiatingMessage.ProcedureCode.Value != int(ngapType.ProcedureCodeInitialContextSetup) {
+		t.Errorf("expected ProcedureCode value=1, got %d", ngap.InitiatingMessage.ProcedureCode.Value)
+	}
+
+	if ngap.InitiatingMessage.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", ngap.InitiatingMessage.Criticality)
+	}
+
+	if ngap.InitiatingMessage.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", ngap.InitiatingMessage.Criticality.Value)
 	}
 
 	if ngap.InitiatingMessage.Value.InitialContextSetupRequest == nil {
@@ -45,8 +54,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=AMFUENGAPID (10), got %s", item0.ID)
 	}
 
-	if item0.Criticality != "Reject (0)" {
-		t.Errorf("expected Criticality=Reject (0), got %s", item0.Criticality)
+	if item0.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item0.Criticality)
+	}
+
+	if item0.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
 	}
 
 	if item0.AMFUENGAPID == nil {
@@ -63,8 +76,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=RANUENGAPID (85), got %s", item1.ID)
 	}
 
-	if item1.Criticality != "Reject (0)" {
-		t.Errorf("expected Criticality=Reject (0), got %s", item1.Criticality)
+	if item1.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item1.Criticality)
+	}
+
+	if item1.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item1.Criticality.Value)
 	}
 
 	if item1.RANUENGAPID == nil {
@@ -81,8 +98,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=GUAMI (28), got %s", item2.ID)
 	}
 
-	if item2.Criticality != "Reject (0)" {
-		t.Errorf("expected Criticality=Reject (0), got %s", item2.Criticality)
+	if item2.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item2.Criticality)
+	}
+
+	if item2.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item2.Criticality.Value)
 	}
 
 	if item2.GUAMI == nil {
@@ -107,8 +128,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=AllowedNSSAI (0), got %s", item3.ID)
 	}
 
-	if item3.Criticality != "Reject (0)" {
-		t.Errorf("expected Criticality=Reject (0), got %s", item3.Criticality)
+	if item3.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item3.Criticality)
+	}
+
+	if item3.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item3.Criticality.Value)
 	}
 
 	if item3.AllowedNSSAI == nil {
@@ -135,8 +160,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=UESecurityCapabilities (119), got %s", item4.ID)
 	}
 
-	if item4.Criticality != "Reject (0)" {
-		t.Errorf("expected Criticality=Reject (0), got %s", item4.Criticality)
+	if item4.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item4.Criticality)
+	}
+
+	if item4.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item4.Criticality.Value)
 	}
 
 	if item4.UESecurityCapabilities == nil {
@@ -189,8 +218,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=SecurityKey (94), got %s", item5.ID)
 	}
 
-	if item5.Criticality != "Reject (0)" {
-		t.Errorf("expected Criticality=Reject (0), got %s", item5.Criticality)
+	if item5.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item5.Criticality)
+	}
+
+	if item5.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item5.Criticality.Value)
 	}
 
 	if item5.SecurityKey == nil {
@@ -208,8 +241,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=MobilityRestrictionList (36), got %s", item6.ID)
 	}
 
-	if item6.Criticality != "Ignore (1)" {
-		t.Errorf("expected Criticality=Ignore (1), got %s", item6.Criticality)
+	if item6.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore, got %v", item6.Criticality)
+	}
+
+	if item6.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", item6.Criticality.Value)
 	}
 
 	if item6.MobilityRestrictionList == nil {
@@ -246,8 +283,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=NASPDU (38), got %s", item7.ID)
 	}
 
-	if item7.Criticality != "Ignore (1)" {
-		t.Errorf("expected Criticality=Ignore (1), got %s", item7.Criticality)
+	if item7.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore, got %v", item7.Criticality)
+	}
+
+	if item7.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", item7.Criticality.Value)
 	}
 
 	if item7.NASPDU == nil {

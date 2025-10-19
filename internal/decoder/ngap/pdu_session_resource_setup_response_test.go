@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/ngap"
+	"github.com/omec-project/ngap/ngapType"
 )
 
 func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
@@ -23,12 +24,20 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Fatalf("expected SuccessfulOutcome, got nil")
 	}
 
-	if ngap.SuccessfulOutcome.ProcedureCode != "PDUSessionResourceSetup" {
-		t.Errorf("expected ProcedureCode=PDUSessionResourceSetup, got %s", ngap.SuccessfulOutcome.ProcedureCode)
+	if ngap.SuccessfulOutcome.ProcedureCode.Label != "PDUSessionResourceSetup" {
+		t.Errorf("expected ProcedureCode=PDUSessionResourceSetup, got %v", ngap.SuccessfulOutcome.ProcedureCode)
 	}
 
-	if ngap.SuccessfulOutcome.Criticality != "Reject (0)" {
-		t.Errorf("expected Criticality=Reject (0), got %s", ngap.SuccessfulOutcome.Criticality)
+	if ngap.SuccessfulOutcome.ProcedureCode.Value != int(ngapType.ProcedureCodePDUSessionResourceSetup) {
+		t.Errorf("expected ProcedureCode value=21, got %d", ngap.SuccessfulOutcome.ProcedureCode.Value)
+	}
+
+	if ngap.SuccessfulOutcome.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", ngap.SuccessfulOutcome.Criticality)
+	}
+
+	if ngap.SuccessfulOutcome.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", ngap.SuccessfulOutcome.Criticality.Value)
 	}
 
 	if ngap.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse == nil {
@@ -45,8 +54,12 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=AMFUENGAPID (10), got %s", item0.ID)
 	}
 
-	if item0.Criticality != "Ignore (1)" {
-		t.Errorf("expected Criticality=Ignore (1), got %s", item0.Criticality)
+	if item0.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore, got %v", item0.Criticality)
+	}
+
+	if item0.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
 	}
 
 	if item0.AMFUENGAPID == nil {
@@ -63,8 +76,12 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=RANUENGAPID (85), got %s", item1.ID)
 	}
 
-	if item1.Criticality != "Ignore (1)" {
-		t.Errorf("expected Criticality=Ignore (1), got %s", item1.Criticality)
+	if item1.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore, got %v", item1.Criticality)
+	}
+
+	if item1.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", item1.Criticality.Value)
 	}
 
 	if item1.RANUENGAPID == nil {
@@ -81,8 +98,12 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=PDUSessionResourceSetupListSURes (75), got %s", item2.ID)
 	}
 
-	if item2.Criticality != "Ignore (1)" {
-		t.Errorf("expected Criticality=Ignore (1), got %s", item2.Criticality)
+	if item2.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore, got %v", item2.Criticality)
+	}
+
+	if item2.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", item2.Criticality.Value)
 	}
 
 	if item2.PDUSessionResourceSetupListSURes == nil {
@@ -119,7 +140,11 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=UserLocationInformation (121), got %s", item3.ID)
 	}
 
-	if item3.Criticality != "Ignore (1)" {
-		t.Errorf("expected Criticality=Ignore (1), got %s", item3.Criticality)
+	if item3.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore, got %v", item3.Criticality)
+	}
+
+	if item3.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
 	}
 }

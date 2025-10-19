@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/ngap"
+	"github.com/omec-project/ngap/ngapType"
 )
 
 func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
@@ -23,12 +24,20 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Fatalf("expected UnsuccessfulOutcome, got nil")
 	}
 
-	if ngap.UnsuccessfulOutcome.ProcedureCode != "NGSetup" {
-		t.Errorf("expected ProcedureCode=NGSetup, got %s", ngap.UnsuccessfulOutcome.ProcedureCode)
+	if ngap.UnsuccessfulOutcome.ProcedureCode.Label != "NGSetup" {
+		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngap.UnsuccessfulOutcome.ProcedureCode)
 	}
 
-	if ngap.UnsuccessfulOutcome.Criticality != "Reject (0)" {
-		t.Errorf("expected Criticality=Reject (0), got %s", ngap.UnsuccessfulOutcome.Criticality)
+	if ngap.UnsuccessfulOutcome.ProcedureCode.Value != int(ngapType.ProcedureCodeNGSetup) {
+		t.Errorf("expected ProcedureCode value=1, got %d", ngap.UnsuccessfulOutcome.ProcedureCode.Value)
+	}
+
+	if ngap.UnsuccessfulOutcome.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", ngap.UnsuccessfulOutcome.Criticality)
+	}
+
+	if ngap.UnsuccessfulOutcome.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", ngap.UnsuccessfulOutcome.Criticality.Value)
 	}
 
 	if ngap.UnsuccessfulOutcome.Value.NGSetupFailure == nil {
@@ -45,8 +54,12 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected ID=Cause (15), got %s", item0.ID)
 	}
 
-	if item0.Criticality != "Ignore (1)" {
-		t.Errorf("expected Criticality=Ignore (1), got %s", item0.Criticality)
+	if item0.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore, got %v", item0.Criticality)
+	}
+
+	if item0.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
 	}
 
 	if item0.Cause == nil {

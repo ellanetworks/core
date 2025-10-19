@@ -25,19 +25,19 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANPagingPriority:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:                protocolIEIDToString(ie.Id.Value),
-				Criticality:       criticalityToString(ie.Criticality.Value),
+				Criticality:       criticalityToEnum(ie.Criticality.Value),
 				RANPagingPriority: &ie.Value.RANPagingPriority.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
@@ -57,7 +57,7 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				NASPDU:      nasPdu,
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
@@ -67,13 +67,13 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 			}
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:                               protocolIEIDToString(ie.Id.Value),
-				Criticality:                      criticalityToString(ie.Criticality.Value),
+				Criticality:                      criticalityToEnum(ie.Criticality.Value),
 				PDUSessionResourceSetupListSUReq: buildPDUSessionResourceSetupListSUReq(ie.Value.PDUSessionResourceSetupListSUReq, nasContextInfo),
 			})
 		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				UEAggregateMaximumBitRate: &UEAggregateMaximumBitRate{
 					Downlink: ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value,
 					Uplink:   ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value,

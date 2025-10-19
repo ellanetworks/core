@@ -31,25 +31,25 @@ func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTranspo
 			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDOldAMF:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				OldAMF:      buildAMFNameIE(ie.Value.OldAMF),
 			})
 		case ngapType.ProtocolIEIDRANPagingPriority:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:                protocolIEIDToString(ie.Id.Value),
-				Criticality:       criticalityToString(ie.Criticality.Value),
+				Criticality:       criticalityToEnum(ie.Criticality.Value),
 				RANPagingPriority: &ie.Value.RANPagingPriority.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
@@ -67,37 +67,37 @@ func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTranspo
 			}
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				NASPDU:      nasPdu,
 			})
 		case ngapType.ProtocolIEIDMobilityRestrictionList:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:                      protocolIEIDToString(ie.Id.Value),
-				Criticality:             criticalityToString(ie.Criticality.Value),
+				Criticality:             criticalityToEnum(ie.Criticality.Value),
 				MobilityRestrictionList: buildMobilityRestrictionListIE(ie.Value.MobilityRestrictionList),
 			})
 		case ngapType.ProtocolIEIDIndexToRFSP:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				IndexToRFSP: &ie.Value.IndexToRFSP.Value,
 			})
 		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:                        protocolIEIDToString(ie.Id.Value),
-				Criticality:               criticalityToString(ie.Criticality.Value),
+				Criticality:               criticalityToEnum(ie.Criticality.Value),
 				UEAggregateMaximumBitRate: buildUEAggregateMaximumBitRateIE(ie.Value.UEAggregateMaximumBitRate),
 			})
 		case ngapType.ProtocolIEIDAllowedNSSAI:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:           protocolIEIDToString(ie.Id.Value),
-				Criticality:  criticalityToString(ie.Criticality.Value),
+				Criticality:  criticalityToEnum(ie.Criticality.Value),
 				AllowedNSSAI: buildAllowedNSSAI(ie.Value.AllowedNSSAI),
 			})
 		default:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 			})
 			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}

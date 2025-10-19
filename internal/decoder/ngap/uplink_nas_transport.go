@@ -27,13 +27,13 @@ func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *U
 			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
@@ -53,19 +53,19 @@ func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *U
 
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				NASPDU:      nasPdu,
 			})
 		case ngapType.ProtocolIEIDUserLocationInformation:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:                      protocolIEIDToString(ie.Id.Value),
-				Criticality:             criticalityToString(ie.Criticality.Value),
+				Criticality:             criticalityToEnum(ie.Criticality.Value),
 				UserLocationInformation: buildUserLocationInformationIE(ie.Value.UserLocationInformation),
 			})
 		default:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 			})
 			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}

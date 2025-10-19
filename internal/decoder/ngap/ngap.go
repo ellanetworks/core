@@ -45,15 +45,15 @@ type Guami struct {
 }
 
 type IEsCriticalityDiagnostics struct {
-	IECriticality string `json:"ie_criticality"`
-	IEID          string `json:"ie_id"`
-	TypeOfError   string `json:"type_of_error"`
+	IECriticality EnumField `json:"ie_criticality"`
+	IEID          string    `json:"ie_id"`
+	TypeOfError   string    `json:"type_of_error"`
 }
 
 type CriticalityDiagnostics struct {
-	ProcedureCode             *string                     `json:"procedure_code,omitempty"`
+	ProcedureCode             *EnumField                  `json:"procedure_code,omitempty"`
 	TriggeringMessage         *string                     `json:"triggering_message,omitempty"`
-	ProcedureCriticality      *string                     `json:"procedure_criticality,omitempty"`
+	ProcedureCriticality      *EnumField                  `json:"procedure_criticality,omitempty"`
 	IEsCriticalityDiagnostics []IEsCriticalityDiagnostics `json:"ie_criticality_diagnostics,omitempty"`
 }
 
@@ -210,7 +210,7 @@ type NASPDU struct {
 
 type IE struct {
 	ID                                        string                                  `json:"id"`
-	Criticality                               string                                  `json:"criticality"`
+	Criticality                               EnumField                               `json:"criticality"`
 	GlobalRANNodeID                           *GlobalRANNodeIDIE                      `json:"global_ran_node_id,omitempty"`
 	RANNodeName                               *string                                 `json:"ran_node_name,omitempty"`
 	SupportedTAList                           []SupportedTA                           `json:"supported_ta_list,omitempty"`
@@ -266,9 +266,14 @@ type InitiatingMessageValue struct {
 	PDUSessionResourceSetupRequest *PDUSessionResourceSetupRequest `json:"pdu_session_resource_setup_request,omitempty"`
 }
 
+type EnumField struct {
+	Value int    `json:"value"`
+	Label string `json:"label"`
+}
+
 type InitiatingMessage struct {
-	ProcedureCode string                 `json:"procedure_code"`
-	Criticality   string                 `json:"criticality"`
+	ProcedureCode EnumField              `json:"procedure_code"`
+	Criticality   EnumField              `json:"criticality"`
 	Value         InitiatingMessageValue `json:"value"`
 }
 
@@ -279,8 +284,8 @@ type SuccessfulOutcomeValue struct {
 }
 
 type SuccessfulOutcome struct {
-	ProcedureCode string                 `json:"procedure_code"`
-	Criticality   string                 `json:"criticality"`
+	ProcedureCode EnumField              `json:"procedure_code"`
+	Criticality   EnumField              `json:"criticality"`
 	Value         SuccessfulOutcomeValue `json:"value"`
 }
 
@@ -289,8 +294,8 @@ type UnsuccessfulOutcomeValue struct {
 }
 
 type UnsuccessfulOutcome struct {
-	ProcedureCode string                   `json:"procedure_code"`
-	Criticality   string                   `json:"criticality"`
+	ProcedureCode EnumField                `json:"procedure_code"`
+	Criticality   EnumField                `json:"criticality"`
 	Value         UnsuccessfulOutcomeValue `json:"value"`
 }
 
@@ -329,8 +334,8 @@ func buildInitiatingMessage(initMsg *ngapType.InitiatingMessage) *InitiatingMess
 	}
 
 	initiatingMsg := &InitiatingMessage{
-		ProcedureCode: procedureCodeToString(initMsg.ProcedureCode.Value),
-		Criticality:   criticalityToString(initMsg.Criticality.Value),
+		ProcedureCode: procedureCodeToEnum(initMsg.ProcedureCode.Value),
+		Criticality:   criticalityToEnum(initMsg.Criticality.Value),
 		Value:         InitiatingMessageValue{},
 	}
 
@@ -364,8 +369,8 @@ func buildSuccessfulOutcome(sucMsg *ngapType.SuccessfulOutcome) *SuccessfulOutco
 		return nil
 	}
 	successfulOutcome := &SuccessfulOutcome{
-		ProcedureCode: procedureCodeToString(sucMsg.ProcedureCode.Value),
-		Criticality:   criticalityToString(sucMsg.Criticality.Value),
+		ProcedureCode: procedureCodeToEnum(sucMsg.ProcedureCode.Value),
+		Criticality:   criticalityToEnum(sucMsg.Criticality.Value),
 		Value:         SuccessfulOutcomeValue{},
 	}
 
@@ -391,8 +396,8 @@ func buildUnsuccessfulOutcome(unsucMsg *ngapType.UnsuccessfulOutcome) *Unsuccess
 	}
 
 	unsuccessfulOutcome := &UnsuccessfulOutcome{
-		ProcedureCode: procedureCodeToString(unsucMsg.ProcedureCode.Value),
-		Criticality:   criticalityToString(unsucMsg.Criticality.Value),
+		ProcedureCode: procedureCodeToEnum(unsucMsg.ProcedureCode.Value),
+		Criticality:   criticalityToEnum(unsucMsg.Criticality.Value),
 		Value:         UnsuccessfulOutcomeValue{},
 	}
 
@@ -406,23 +411,22 @@ func buildUnsuccessfulOutcome(unsucMsg *ngapType.UnsuccessfulOutcome) *Unsuccess
 	}
 }
 
-func criticalityToString(c aper.Enumerated) string {
+func criticalityToEnum(c aper.Enumerated) EnumField {
 	switch c {
 	case ngapType.CriticalityPresentReject:
-		return "Reject (0)"
+		return EnumField{Label: "Reject", Value: int(c)}
 	case ngapType.CriticalityPresentIgnore:
-		return "Ignore (1)"
+		return EnumField{Label: "Ignore", Value: int(c)}
 	case ngapType.CriticalityPresentNotify:
-		return "Notify (2)"
+		return EnumField{Label: "Notify", Value: int(c)}
 	default:
-		return fmt.Sprintf("Unknown (%d)", c)
+		return EnumField{Label: "Unknown", Value: int(c)}
 	}
 }
 
-func procedureCodeToString(code int64) string {
-	name := ngapType.ProcedureName(code)
-	if name == "" {
-		return fmt.Sprintf("Unknown (%d)", code)
+func procedureCodeToEnum(code int64) EnumField {
+	return EnumField{
+		Label: ngapType.ProcedureName(code),
+		Value: int(code),
 	}
-	return name
 }

@@ -30,25 +30,25 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDOldAMF:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				OldAMF:      &ie.Value.OldAMF.Value,
 			})
 		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				UEAggregateMaximumBitRate: &UEAggregateMaximumBitRate{
 					Downlink: ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value,
 					Uplink:   ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value,
@@ -57,50 +57,50 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 		case ngapType.ProtocolIEIDCoreNetworkAssistanceInformation:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:                               protocolIEIDToString(ie.Id.Value),
-				Criticality:                      criticalityToString(ie.Criticality.Value),
+				Criticality:                      criticalityToEnum(ie.Criticality.Value),
 				CoreNetworkAssistanceInformation: buildCoreNetworkAssistanceInformation(ie.Value.CoreNetworkAssistanceInformation),
 			})
 		case ngapType.ProtocolIEIDGUAMI:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				GUAMI:       buildGUAMI(ie.Value.GUAMI),
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtReq:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:                                protocolIEIDToString(ie.Id.Value),
-				Criticality:                       criticalityToString(ie.Criticality.Value),
+				Criticality:                       criticalityToEnum(ie.Criticality.Value),
 				PDUSessionResourceSetupListCxtReq: buildPDUSessionResourceSetupListCxtReq(ie.Value.PDUSessionResourceSetupListCxtReq),
 			})
 		case ngapType.ProtocolIEIDAllowedNSSAI:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:           protocolIEIDToString(ie.Id.Value),
-				Criticality:  criticalityToString(ie.Criticality.Value),
+				Criticality:  criticalityToEnum(ie.Criticality.Value),
 				AllowedNSSAI: buildAllowedNSSAI(ie.Value.AllowedNSSAI),
 			})
 		case ngapType.ProtocolIEIDUESecurityCapabilities:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:                     protocolIEIDToString(ie.Id.Value),
-				Criticality:            criticalityToString(ie.Criticality.Value),
+				Criticality:            criticalityToEnum(ie.Criticality.Value),
 				UESecurityCapabilities: buildUESecurityCapabilities(ie.Value.UESecurityCapabilities),
 			})
 		case ngapType.ProtocolIEIDSecurityKey:
 			securityKey := bitStringToHex(&ie.Value.SecurityKey.Value)
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				SecurityKey: &securityKey,
 			})
 		case ngapType.ProtocolIEIDMobilityRestrictionList:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:                      protocolIEIDToString(ie.Id.Value),
-				Criticality:             criticalityToString(ie.Criticality.Value),
+				Criticality:             criticalityToEnum(ie.Criticality.Value),
 				MobilityRestrictionList: buildMobilityRestrictionListIE(ie.Value.MobilityRestrictionList),
 			})
 		case ngapType.ProtocolIEIDIndexToRFSP:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				IndexToRFSP: &ie.Value.IndexToRFSP.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
@@ -120,13 +120,13 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 				NASPDU:      nasPdu,
 			})
 		default:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToString(ie.Id.Value),
-				Criticality: criticalityToString(ie.Criticality.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
 			})
 			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}
