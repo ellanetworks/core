@@ -3,6 +3,7 @@ package decoder
 import (
 	"encoding/hex"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/ellanetworks/core/internal/amf/context"
@@ -109,41 +110,35 @@ type RegistrationComplete struct {
 	GetSORContent                       []uint8 `json:"sor_transparent_container,omitempty"`
 }
 
-type ULNASTransport struct {
-	ExtendedProtocolDiscriminator         uint8   `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType   uint8   `json:"spare_half_octet_and_security_header_type"`
-	ULNASTRANSPORTMessageIdentity         string  `json:"ul_nas_transport_message_identity"`
-	SpareHalfOctetAndPayloadContainerType uint8   `json:"spare_half_octet_and_payload_container_type"`
-	PayloadContainer                      []byte  `json:"payload_container"`
-	PduSessionID2Value                    *uint8  `json:"pdu_session_id_2_value,omitempty"`
-	OldPDUSessionID                       *uint8  `json:"old_pdu_session_id,omitempty"`
-	RequestType                           *string `json:"request_type,omitempty"`
-	SNSSAI                                *SNSSAI `json:"snssai,omitempty"`
-	DNN                                   *string `json:"dnn,omitempty"`
+type PayloadContainer struct {
+	Raw        []byte      `json:"raw"`
+	GsmMessage *GsmMessage `json:"gsm_message,omitempty"`
 }
 
-// nasType.ExtendedProtocolDiscriminator
-// 	nasType.SpareHalfOctetAndSecurityHeaderType
-// 	nasType.DLNASTRANSPORTMessageIdentity
-// 	nasType.SpareHalfOctetAndPayloadContainerType
-// 	nasType.PayloadContainer
-// 	*nasType.PduSessionID2Value
-// 	*nasType.AdditionalInformation
-// 	*nasType.Cause5GMM
-// 	*nasType.BackoffTimerValue
-// 	Ipaddr string
+type ULNASTransport struct {
+	ExtendedProtocolDiscriminator         uint8            `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType   uint8            `json:"spare_half_octet_and_security_header_type"`
+	ULNASTRANSPORTMessageIdentity         string           `json:"ul_nas_transport_message_identity"`
+	SpareHalfOctetAndPayloadContainerType uint8            `json:"spare_half_octet_and_payload_container_type"`
+	PayloadContainer                      PayloadContainer `json:"payload_container"`
+	PduSessionID2Value                    *uint8           `json:"pdu_session_id_2_value,omitempty"`
+	OldPDUSessionID                       *uint8           `json:"old_pdu_session_id,omitempty"`
+	RequestType                           *string          `json:"request_type,omitempty"`
+	SNSSAI                                *SNSSAI          `json:"snssai,omitempty"`
+	DNN                                   *string          `json:"dnn,omitempty"`
+}
 
 type DLNASTransport struct {
-	ExtendedProtocolDiscriminator         uint8   `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType   uint8   `json:"spare_half_octet_and_security_header_type"`
-	DLNASTRANSPORTMessageIdentity         string  `json:"dl_nas_transport_message_identity"`
-	SpareHalfOctetAndPayloadContainerType uint8   `json:"spare_half_octet_and_payload_container_type"`
-	PayloadContainer                      []byte  `json:"payload_container"`
-	PduSessionID2Value                    *uint8  `json:"pdu_session_id_2_value,omitempty"`
-	AdditionalInformation                 *string `json:"additional_information,omitempty"`
-	Cause5GMM                             *string `json:"cause_5gmm,omitempty"`
-	BackoffTimerValue                     *uint8  `json:"backoff_timer_value,omitempty"`
-	Ipaddr                                string  `json:"ip_addr,omitempty"`
+	ExtendedProtocolDiscriminator         uint8            `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType   uint8            `json:"spare_half_octet_and_security_header_type"`
+	DLNASTRANSPORTMessageIdentity         string           `json:"dl_nas_transport_message_identity"`
+	SpareHalfOctetAndPayloadContainerType uint8            `json:"spare_half_octet_and_payload_container_type"`
+	PayloadContainer                      PayloadContainer `json:"payload_container"`
+	PduSessionID2Value                    *uint8           `json:"pdu_session_id_2_value,omitempty"`
+	AdditionalInformation                 *string          `json:"additional_information,omitempty"`
+	Cause5GMM                             *string          `json:"cause_5gmm,omitempty"`
+	BackoffTimerValue                     *uint8           `json:"backoff_timer_value,omitempty"`
+	Ipaddr                                string           `json:"ip_addr,omitempty"`
 }
 
 type UplinkDataStatusPDU struct {
@@ -289,10 +284,18 @@ type RegistrationAccept struct {
 	NetworkFeatureSupport5GS            *NetworkFeatureSupport5GS `json:"network_feature_support_5gs,omitempty"`
 }
 
+type RegistrationReject struct {
+	ExtendedProtocolDiscriminator       uint8  `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType uint8  `json:"spare_half_octet_and_security_header_type"`
+	RegistrationRejectMessageIdentity   string `json:"registration_reject_message_identity"`
+	Cause5GMM                           string `json:"cause_5gmm"`
+}
+
 type GmmMessage struct {
 	GmmHeader              GmmHeader               `json:"gmm_header"`
 	RegistrationRequest    *RegistrationRequest    `json:"registration_request,omitempty"`
 	RegistrationAccept     *RegistrationAccept     `json:"registration_accept,omitempty"`
+	RegistrationReject     *RegistrationReject     `json:"registration_reject,omitempty"`
 	RegistrationComplete   *RegistrationComplete   `json:"registration_complete,omitempty"`
 	AuthenticationRequest  *AuthenticationRequest  `json:"authentication_request,omitempty"`
 	AuthenticationFailure  *AuthenticationFailure  `json:"authentication_failure,omitempty"`
@@ -311,8 +314,113 @@ type GsmHeader struct {
 	MessageType string `json:"message_type"`
 }
 
+type IntegrityProtectionMaximumDataRate struct {
+	Uplink   uint8 `json:"uplink"`
+	Downlink uint8 `json:"downlink"`
+}
+
+type Capability5GSM struct {
+	RqoS   uint8 `json:"rqo_s"`
+	MH6PDU uint8 `json:"mh_6_pdu"`
+}
+
+type ExtendedProtocolConfigurationOptions struct {
+	PCSCFIPv6AddressRequestUL                                     *bool `json:"pcscf_ipv6_address_request_ul,omitempty"`
+	IMCNSubsystemSignalingFlagUL                                  *bool `json:"imcn_subsystem_signaling_flag_ul,omitempty"`
+	DNSServerIPv6AddressRequestUL                                 *bool `json:"dns_server_ipv6_address_request_ul,omitempty"`
+	NotSupportedUL                                                *bool `json:"not_supported_ul,omitempty"`
+	MSSupportOfNetworkRequestedBearerControlIndicatorUL           *bool `json:"ms_support_of_network_requested_bearer_control_indicator_ul,omitempty"`
+	DSMIPv6HomeAgentAddressRequestUL                              *bool `json:"dsm_ipv6_home_agent_address_request_ul,omitempty"`
+	DSMIPv6HomeNetworkPrefixRequestUL                             *bool `json:"dsm_ipv6_home_network_prefix_request_ul,omitempty"`
+	DSMIPv6IPv4HomeAgentAddressRequestUL                          *bool `json:"dsm_ipv6_ipv4_home_agent_address_request_ul,omitempty"`
+	IPAddressAllocationViaNASSignallingUL                         *bool `json:"ip_address_allocation_via_nas_signalling_ul,omitempty"`
+	IPv4AddressAllocationViaDHCPv4UL                              *bool `json:"ipv4_address_allocation_via_dhcpv4_ul,omitempty"`
+	PCSCFIPv4AddressRequestUL                                     *bool `json:"pcscf_ipv4_address_request_ul,omitempty"`
+	DNSServerIPv4AddressRequestUL                                 *bool `json:"dns_server_ipv4_address_request_ul,omitempty"`
+	MSISDNRequestUL                                               *bool `json:"msisdn_request_ul,omitempty"`
+	IFOMSupportRequestUL                                          *bool `json:"ifom_support_request_ul,omitempty"`
+	MSSupportOfLocalAddressInTFTIndicatorUL                       *bool `json:"ms_support_of_local_address_in_tft_indicator_ul,omitempty"`
+	PCSCFReSelectionSupportUL                                     *bool `json:"pcscf_re_selection_support_ul,omitempty"`
+	NBIFOMRequestIndicatorUL                                      *bool `json:"nbifom_request_indicator_ul,omitempty"`
+	NBIFOMModeUL                                                  *bool `json:"nbifom_mode_ul,omitempty"`
+	NonIPLinkMTURequestUL                                         *bool `json:"non_ip_link_mtu_request_ul,omitempty"`
+	APNRateControlSupportIndicatorUL                              *bool `json:"apn_rate_control_support_indicator_ul,omitempty"`
+	UEStatus3GPPPSDataOffUL                                       *bool `json:"ue_status_3gpp_ps_data_off_ul,omitempty"`
+	ReliableDataServiceRequestIndicatorUL                         *bool `json:"reliable_data_service_request_indicator_ul,omitempty"`
+	AdditionalAPNRateControlForExceptionDataSupportIndicatorUL    *bool `json:"additional_apn_rate_control_for_exception_data_support_indicator_ul,omitempty"`
+	PDUSessionIDUL                                                *bool `json:"pdu_session_id_ul,omitempty"`
+	EthernetFramePayloadMTURequestUL                              *bool `json:"ethernet_frame_payload_mtu_request_ul,omitempty"`
+	UnstructuredLinkMTURequestUL                                  *bool `json:"unstructured_link_mtu_request_ul,omitempty"`
+	I5GSMCauseValueUL                                             *bool `json:"i5gsm_cause_value_ul,omitempty"`
+	QoSRulesWithTheLengthOfTwoOctetsSupportIndicatorUL            *bool `json:"qos_rules_with_the_length_of_two_octets_support_indicator_ul,omitempty"`
+	QoSFlowDescriptionsWithTheLengthOfTwoOctetsSupportIndicatorUL *bool `json:"qos_flow_descriptions_with_the_length_of_two_octets_support_indicator_ul,omitempty"`
+	LinkControlProtocolUL                                         *bool `json:"link_control_protocol_ul,omitempty"`
+	PushAccessControlProtocolUL                                   *bool `json:"push_access_control_protocol_ul,omitempty"`
+	ChallengeHandshakeAuthenticationProtocolUL                    *bool `json:"challenge_handshake_authentication_protocol_ul,omitempty"`
+	InternetProtocolControlProtocolUL                             *bool `json:"internet_protocol_control_protocol_ul,omitempty"`
+}
+
+type PDUSessionEstablishmentRequest struct {
+	ExtendedProtocolDiscriminator                 uint8                                 `json:"extended_protocol_discriminator"`
+	PDUSessionID                                  uint8                                 `json:"pdu_session_id"`
+	PTI                                           uint8                                 `json:"pti"`
+	PDUSESSIONESTABLISHMENTREQUESTMessageIdentity uint8                                 `json:"pdu_session_establishment_request_message_identity"`
+	IntegrityProtectionMaximumDataRate            IntegrityProtectionMaximumDataRate    `json:"integrity_protection_maximum_data_rate"`
+	PDUSessionType                                *string                               `json:"pdu_session_type,omitempty"`
+	SSCMode                                       *uint8                                `json:"ssc_mode,omitempty"`
+	Capability5GSM                                *Capability5GSM                       `json:"capability_5g_s_m,omitempty"`
+	ExtendedProtocolConfigurationOptions          *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
+}
+
+// nasType.ExtendedProtocolDiscriminator
+// 	nasType.PDUSessionID
+// 	nasType.PTI
+// 	nasType.PDUSESSIONESTABLISHMENTACCEPTMessageIdentity
+// 	nasType.SelectedSSCModeAndSelectedPDUSessionType
+// 	nasType.AuthorizedQosRules
+// 	nasType.SessionAMBR
+// 	*nasType.Cause5GSM
+// 	*nasType.PDUAddress
+// 	*nasType.RQTimerValue
+// 	*nasType.SNSSAI
+// 	*nasType.AlwaysonPDUSessionIndication
+// 	*nasType.MappedEPSBearerContexts
+// 	*nasType.EAPMessage
+// 	*nasType.AuthorizedQosFlowDescriptions
+// 	*nasType.ExtendedProtocolConfigurationOptions
+// 	*nasType.DNN
+
+type AMBR struct {
+	Value uint64 `json:"value"`
+	Unit  string `json:"unit"`
+}
+
+type SessionAMBR struct {
+	Uplink   AMBR `json:"uplink"`
+	Downlink AMBR `json:"downlink"`
+}
+
+type PDUSessionEstablishmentAccept struct {
+	ExtendedProtocolDiscriminator                uint8                                 `json:"extended_protocol_discriminator"`
+	PDUSessionID                                 uint8                                 `json:"pdu_session_id"`
+	PTI                                          uint8                                 `json:"pti"`
+	PDUSESSIONESTABLISHMENTACCEPTMessageIdentity uint8                                 `json:"pdu_session_establishment_accept_message_identity"`
+	SelectedSSCMode                              uint8                                 `json:"selected_ssc_mode"`
+	SelectedPDUSessionType                       string                                `json:"selected_pdu_session_type"`
+	AuthorizedQosRules                           []QosRule                             `json:"authorized_qos_rules"`
+	SessionAMBR                                  SessionAMBR                           `json:"session_ambr"`
+	Cause5GSM                                    *string                               `json:"cause_5g_s_m,omitempty"`
+	PDUAddress                                   *string                               `json:"pdu_address,omitempty"`
+	SNSSAI                                       *SNSSAI                               `json:"snssai,omitempty"`
+	AuthorizedQosFlowDescriptions                []QoSFlowDescription                  `json:"authorized_qos_flow_descriptions,omitempty"`
+	ExtendedProtocolConfigurationOptions         *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
+	DNN                                          *string                               `json:"dnn,omitempty"`
+}
+
 type GsmMessage struct {
-	GsmHeader GsmHeader `json:"gsm_header"`
+	GsmHeader                      GsmHeader                       `json:"gsm_header"`
+	PDUSessionEstablishmentRequest *PDUSessionEstablishmentRequest `json:"pdu_session_establishment_request,omitempty"`
+	PDUSessionEstablishmentAccept  *PDUSessionEstablishmentAccept  `json:"pdu_session_establishment_accept,omitempty"`
 }
 
 type NASMessage struct {
@@ -366,6 +474,9 @@ func buildGmmMessage(msg *nas.GmmMessage) *GmmMessage {
 	case nas.MsgTypeRegistrationAccept:
 		gmmMessage.RegistrationAccept = buildRegistrationAccept(msg.RegistrationAccept)
 		return gmmMessage
+	case nas.MsgTypeRegistrationReject:
+		gmmMessage.RegistrationReject = buildRegistrationReject(msg.RegistrationReject)
+		return gmmMessage
 	case nas.MsgTypeRegistrationComplete:
 		gmmMessage.RegistrationComplete = buildRegistrationComplete(msg.RegistrationComplete)
 		return gmmMessage
@@ -406,6 +517,32 @@ func buildGmmMessage(msg *nas.GmmMessage) *GmmMessage {
 		logger.EllaLog.Warn("GMM message type not fully implemented", zap.String("message_type", gmmMessage.GmmHeader.MessageType))
 		return gmmMessage
 	}
+}
+
+func buildRegistrationReject(msg *nasMessage.RegistrationReject) *RegistrationReject {
+	if msg == nil {
+		return nil
+	}
+	regRej := &RegistrationReject{
+		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		RegistrationRejectMessageIdentity:   nas.MessageName(msg.RegistrationRejectMessageIdentity.Octet),
+		Cause5GMM:                           nasMessage.Cause5GMMToString(msg.Cause5GMM.Octet),
+	}
+
+	if msg.T3346Value != nil {
+		logger.EllaLog.Warn("T3346Value in RegistrationReject is not implemented")
+	}
+
+	if msg.T3502Value != nil {
+		logger.EllaLog.Warn("T3502Value in RegistrationReject is not implemented")
+	}
+
+	if msg.EAPMessage != nil {
+		logger.EllaLog.Warn("EAPMessage in RegistrationReject is not implemented")
+	}
+
+	return regRej
 }
 
 func buildAuthenticationResponse(msg *nasMessage.AuthenticationResponse) *AuthenticationResponse {
@@ -762,9 +899,10 @@ func buildDLNASTransport(msg *nasMessage.DLNASTransport) *DLNASTransport {
 		SpareHalfOctetAndSecurityHeaderType:   msg.SpareHalfOctetAndSecurityHeaderType.Octet,
 		DLNASTRANSPORTMessageIdentity:         nas.MessageName(msg.DLNASTRANSPORTMessageIdentity.Octet),
 		SpareHalfOctetAndPayloadContainerType: msg.SpareHalfOctetAndPayloadContainerType.Octet,
-		PayloadContainer:                      msg.PayloadContainer.GetPayloadContainerContents(),
 		Ipaddr:                                msg.Ipaddr,
 	}
+
+	dlNasTransport.PayloadContainer = buildDLNASPayloadContainer(msg)
 
 	if msg.PduSessionID2Value != nil {
 		value := msg.PduSessionID2Value.GetPduSessionID2Value()
@@ -788,6 +926,480 @@ func buildDLNASTransport(msg *nasMessage.DLNASTransport) *DLNASTransport {
 	return dlNasTransport
 }
 
+func decodeGSMMessage(raw []byte) (*GsmMessage, error) {
+	m := nas.NewMessage()
+
+	err := m.GsmMessageDecode(&raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode N1 SM message in UL NAS Transport Payload Container: %w", err)
+	}
+
+	gsmMessage := &GsmMessage{
+		GsmHeader: GsmHeader{
+			MessageType: getGsmMessageType(m.GsmMessage),
+		},
+	}
+
+	switch m.GsmMessage.GetMessageType() {
+	case nas.MsgTypePDUSessionEstablishmentRequest:
+		gsmMessage.PDUSessionEstablishmentRequest = buildPDUSessionEstablishmentRequest(m.GsmMessage.PDUSessionEstablishmentRequest)
+	case nas.MsgTypePDUSessionEstablishmentAccept:
+		gsmMessage.PDUSessionEstablishmentAccept = buildPDUSessionEstablishmentAccept(m.GsmMessage.PDUSessionEstablishmentAccept)
+	default:
+		logger.EllaLog.Warn("GSM message type not yet implemented", zap.String("message_type", gsmMessage.GsmHeader.MessageType))
+	}
+
+	return gsmMessage, nil
+}
+
+func buildPDUSessionType(sessType uint8) string {
+	switch sessType {
+	case nasMessage.PDUSessionTypeIPv4:
+		return "IPv4"
+	case nasMessage.PDUSessionTypeIPv6:
+		return "IPv6"
+	case nasMessage.PDUSessionTypeIPv4IPv6:
+		return "IPv4v6"
+	case nasMessage.PDUSessionTypeUnstructured:
+		return "Unstructured"
+	case nasMessage.PDUSessionTypeEthernet:
+		return "Ethernet"
+	default:
+		return fmt.Sprintf("Unknown(%d)", sessType)
+	}
+}
+
+func buildAuthorizedQosRules(rules nasType.AuthorizedQosRules) []QosRule {
+	qosRulesBytes := rules.GetQosRule()
+
+	qosRules, err := UnmarshalQosRules(qosRulesBytes)
+	if err != nil {
+		logger.EllaLog.Warn("failed to unmarshal authorized QoS rules", zap.Error(err))
+		return nil
+	}
+
+	return qosRules
+}
+
+func buildPDUAddress(msg *nasMessage.PDUSessionEstablishmentAccept) string {
+	if msg.PDUAddress == nil {
+		return ""
+	}
+
+	address := msg.GetPDUAddressInformation()
+
+	pduAddr := net.IPv4(address[0], address[1], address[2], address[3])
+
+	return pduAddr.String()
+}
+
+// func strToAMBRUnit(unit string) uint8 {
+// 	switch unit {
+// 	case "bps":
+// 		return nasMessage.SessionAMBRUnitNotUsed
+// 	case "Kbps":
+// 		return nasMessage.SessionAMBRUnit1Kbps
+// 	case "Mbps":
+// 		return nasMessage.SessionAMBRUnit1Mbps
+// 	case "Gbps":
+// 		return nasMessage.SessionAMBRUnit1Gbps
+// 	case "Tbps":
+// 		return nasMessage.SessionAMBRUnit1Tbps
+// 	case "Pbps":
+// 		return nasMessage.SessionAMBRUnit1Pbps
+// 	}
+// 	return nasMessage.SessionAMBRUnitNotUsed
+// }
+
+func ambrUnitToString(unit uint8) string {
+	switch unit {
+	case nasMessage.SessionAMBRUnitNotUsed:
+		return "bps"
+	case nasMessage.SessionAMBRUnit1Kbps:
+		return "Kbps"
+	case nasMessage.SessionAMBRUnit1Mbps:
+		return "Mbps"
+	case nasMessage.SessionAMBRUnit1Gbps:
+		return "Gbps"
+	case nasMessage.SessionAMBRUnit1Tbps:
+		return "Tbps"
+	case nasMessage.SessionAMBRUnit1Pbps:
+		return "Pbps"
+	default:
+		return fmt.Sprintf("Unknown(%d)", unit)
+	}
+}
+
+func buildSessionAMBR(ambr nasType.SessionAMBR) SessionAMBR {
+	uplink := ambr.GetSessionAMBRForUplink()
+	downlink := ambr.GetSessionAMBRForDownlink()
+
+	uplinkUint64 := uint64(uplink[0])<<8 | uint64(uplink[1])
+	downlinkUint64 := uint64(downlink[0])<<8 | uint64(downlink[1])
+
+	uplinkUnit := ambr.GetUnitForSessionAMBRForDownlink()
+	uplinkUnitStr := ambrUnitToString(uplinkUnit)
+
+	downlinkUnit := ambr.GetUnitForSessionAMBRForDownlink()
+	downlinkUnitStr := ambrUnitToString(downlinkUnit)
+
+	return SessionAMBR{
+		Uplink:   AMBR{Value: uplinkUint64, Unit: uplinkUnitStr},
+		Downlink: AMBR{Value: downlinkUint64, Unit: downlinkUnitStr},
+	}
+}
+
+func cause5GSMToString(causeValue uint8) string {
+	switch causeValue {
+	case nasMessage.Cause5GSMInsufficientResources:
+		return "Insufficient Resources"
+	case nasMessage.Cause5GSMMissingOrUnknownDNN:
+		return "Missing Or Unknown DNN"
+	case nasMessage.Cause5GSMUnknownPDUSessionType:
+		return "Unknown PDU Session Type"
+	case nasMessage.Cause5GSMUserAuthenticationOrAuthorizationFailed:
+		return "User Authentication Or Authorization Failed"
+	case nasMessage.Cause5GSMRequestRejectedUnspecified:
+		return "Request Rejected Unspecified"
+	case nasMessage.Cause5GSMServiceOptionTemporarilyOutOfOrder:
+		return "Service Option Temporarily Out Of Order"
+	case nasMessage.Cause5GSMPTIAlreadyInUse:
+		return "PTI Already In Use"
+	case nasMessage.Cause5GSMRegularDeactivation:
+		return "Regular Deactivation"
+	case nasMessage.Cause5GSMReactivationRequested:
+		return "Reactivation Requested"
+	case nasMessage.Cause5GSMInvalidPDUSessionIdentity:
+		return "Invalid PDU Session Identity"
+	case nasMessage.Cause5GSMSemanticErrorsInPacketFilter:
+		return "Semantic Errors In Packet Filter"
+	case nasMessage.Cause5GSMSyntacticalErrorInPacketFilter:
+		return "Syntactical Error In Packet Filter"
+	case nasMessage.Cause5GSMOutOfLADNServiceArea:
+		return "Out Of LADN Service Area"
+	case nasMessage.Cause5GSMPTIMismatch:
+		return "PTI Mismatch"
+	case nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed:
+		return "PDU Session Type IPv4 Only Allowed"
+	case nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed:
+		return "PDU Session Type IPv6 Only Allowed"
+	case nasMessage.Cause5GSMPDUSessionDoesNotExist:
+		return "PDU Session Does Not Exist"
+	case nasMessage.Cause5GSMInsufficientResourcesForSpecificSliceAndDNN:
+		return "Insufficient Resources For Specific Slice And DNN"
+	case nasMessage.Cause5GSMNotSupportedSSCMode:
+		return "Not Supported SSC Mode"
+	case nasMessage.Cause5GSMInsufficientResourcesForSpecificSlice:
+		return "Insufficient Resources For Specific Slice"
+	case nasMessage.Cause5GSMMissingOrUnknownDNNInASlice:
+		return "Missing Or Unknown DNN In A Slice"
+	case nasMessage.Cause5GSMInvalidPTIValue:
+		return "Invalid PTI Value"
+	case nasMessage.Cause5GSMMaximumDataRatePerUEForUserPlaneIntegrityProtectionIsTooLow:
+		return "Maximum Data Rate Per UE For User Plane Integrity Protection Is Too Low"
+	case nasMessage.Cause5GSMSemanticErrorInTheQoSOperation:
+		return "Semantic Error In The QoS Operation"
+	case nasMessage.Cause5GSMSyntacticalErrorInTheQoSOperation:
+		return "Syntactical Error In The QoS Operation"
+	case nasMessage.Cause5GSMInvalidMappedEPSBearerIdentity:
+		return "Invalid Mapped EPS Bearer Identity"
+	case nasMessage.Cause5GSMSemanticallyIncorrectMessage:
+		return "Semantically Incorrect Message"
+	case nasMessage.Cause5GSMInvalidMandatoryInformation:
+		return "Invalid Mandatory Information"
+	case nasMessage.Cause5GSMMessageTypeNonExistentOrNotImplemented:
+		return "Message Type Non Existent Or Not Implemented"
+	case nasMessage.Cause5GSMMessageTypeNotCompatibleWithTheProtocolState:
+		return "Message Type Not Compatible With The Protocol State"
+	case nasMessage.Cause5GSMInformationElementNonExistentOrNotImplemented:
+		return "Information Element Non Existent Or Not Implemented"
+	case nasMessage.Cause5GSMConditionalIEError:
+		return "Conditional IE Error"
+	case nasMessage.Cause5GSMMessageNotCompatibleWithTheProtocolState:
+		return "Message Not Compatible With The Protocol State"
+	case nasMessage.Cause5GSMProtocolErrorUnspecified:
+		return "Protocol Error Unspecified"
+	default:
+		return fmt.Sprintf("Unknown(%d)", causeValue)
+	}
+}
+
+func buildAuthorizedQosFlowDescriptions(desc *nasType.AuthorizedQosFlowDescriptions) []QoSFlowDescription {
+	if desc == nil {
+		return nil
+	}
+
+	data := desc.GetQoSFlowDescriptions()
+
+	flowDesc, err := ParseAuthorizedQosFlowDescriptions(data)
+	if err != nil {
+		logger.EllaLog.Warn("failed to parse AuthorizedQosFlowDescriptions", zap.Error(err))
+		return nil
+	}
+
+	return flowDesc
+}
+
+func buildPDUSessionEstablishmentAccept(msg *nasMessage.PDUSessionEstablishmentAccept) *PDUSessionEstablishmentAccept {
+	if msg == nil {
+		return nil
+	}
+
+	estAcc := &PDUSessionEstablishmentAccept{
+		ExtendedProtocolDiscriminator: msg.ExtendedProtocolDiscriminator.Octet,
+		PDUSessionID:                  msg.PDUSessionID.GetPDUSessionID(),
+		PTI:                           msg.PTI.GetPTI(),
+		PDUSESSIONESTABLISHMENTACCEPTMessageIdentity: msg.PDUSESSIONESTABLISHMENTACCEPTMessageIdentity.GetMessageType(),
+		SelectedSSCMode:        msg.SelectedSSCModeAndSelectedPDUSessionType.GetSSCMode(),
+		SelectedPDUSessionType: buildPDUSessionType(msg.SelectedSSCModeAndSelectedPDUSessionType.GetPDUSessionType()),
+		AuthorizedQosRules:     buildAuthorizedQosRules(msg.AuthorizedQosRules),
+		SessionAMBR:            buildSessionAMBR(msg.SessionAMBR),
+	}
+
+	if msg.Cause5GSM != nil {
+		cause := cause5GSMToString(msg.Cause5GSM.GetCauseValue())
+		estAcc.Cause5GSM = &cause
+	}
+
+	if msg.PDUAddress != nil {
+		address := buildPDUAddress(msg)
+		estAcc.PDUAddress = &address
+	}
+
+	if msg.RQTimerValue != nil {
+		logger.EllaLog.Warn("RQTimerValue not yet implemented")
+	}
+
+	if msg.SNSSAI != nil {
+		snssai := buildNASNSSAI(msg.SNSSAI)
+		estAcc.SNSSAI = &snssai
+	}
+
+	if msg.AlwaysonPDUSessionIndication != nil {
+		logger.EllaLog.Warn("AlwaysonPDUSessionIndication not yet implemented")
+	}
+
+	if msg.MappedEPSBearerContexts != nil {
+		logger.EllaLog.Warn("MappedEPSBearerContexts not yet implemented")
+	}
+
+	if msg.EAPMessage != nil {
+		logger.EllaLog.Warn("EAPMessage not yet implemented")
+	}
+
+	if msg.AuthorizedQosFlowDescriptions != nil {
+		estAcc.AuthorizedQosFlowDescriptions = buildAuthorizedQosFlowDescriptions(msg.AuthorizedQosFlowDescriptions)
+	}
+
+	if msg.ExtendedProtocolConfigurationOptions != nil {
+		estAcc.ExtendedProtocolConfigurationOptions = buildExtendedProtocolConfigurationOptions(msg.ExtendedProtocolConfigurationOptions)
+	}
+
+	if msg.DNN != nil {
+		dnn := string(msg.DNN.GetDNN())
+		estAcc.DNN = &dnn
+	}
+
+	return estAcc
+}
+
+func buildPDUSessionEstablishmentRequest(msg *nasMessage.PDUSessionEstablishmentRequest) *PDUSessionEstablishmentRequest {
+	if msg == nil {
+		return nil
+	}
+
+	estReq := &PDUSessionEstablishmentRequest{
+		ExtendedProtocolDiscriminator: msg.ExtendedProtocolDiscriminator.Octet,
+		PDUSessionID:                  msg.PDUSessionID.GetPDUSessionID(),
+		PTI:                           msg.PTI.GetPTI(),
+		PDUSESSIONESTABLISHMENTREQUESTMessageIdentity: msg.PDUSESSIONESTABLISHMENTREQUESTMessageIdentity.GetMessageType(),
+		IntegrityProtectionMaximumDataRate: IntegrityProtectionMaximumDataRate{
+			Uplink:   msg.IntegrityProtectionMaximumDataRate.GetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForUpLink(),
+			Downlink: msg.IntegrityProtectionMaximumDataRate.GetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForDownLink(),
+		},
+	}
+
+	if msg.PDUSessionType != nil {
+		sessionType := buildPDUSessionType(msg.PDUSessionType.GetPDUSessionTypeValue())
+		estReq.PDUSessionType = &sessionType
+	}
+
+	if msg.SSCMode != nil {
+		sscMode := msg.SSCMode.GetSSCMode()
+		estReq.SSCMode = &sscMode
+	}
+
+	if msg.Capability5GSM != nil {
+		estReq.Capability5GSM = buildCapability5GSM(*msg.Capability5GSM)
+	}
+
+	if msg.MaximumNumberOfSupportedPacketFilters != nil {
+		logger.EllaLog.Warn("MaximumNumberOfSupportedPacketFilters not yet implemented")
+	}
+
+	if msg.AlwaysonPDUSessionRequested != nil {
+		logger.EllaLog.Warn("AlwaysonPDUSessionRequested not yet implemented")
+	}
+
+	if msg.SMPDUDNRequestContainer != nil {
+		logger.EllaLog.Warn("SMPDUDNRequestContainer not yet implemented")
+	}
+
+	if msg.ExtendedProtocolConfigurationOptions != nil {
+		estReq.ExtendedProtocolConfigurationOptions = buildExtendedProtocolConfigurationOptions(msg.ExtendedProtocolConfigurationOptions)
+	}
+
+	return estReq
+}
+
+func ptr(b bool) *bool { return &b }
+
+func buildExtendedProtocolConfigurationOptions(opts *nasType.ExtendedProtocolConfigurationOptions) *ExtendedProtocolConfigurationOptions {
+	content := opts.GetExtendedProtocolConfigurationOptionsContents()
+
+	pco := nasConvert.NewProtocolConfigurationOptions()
+
+	unmarshalErr := pco.UnMarshal(content)
+	if unmarshalErr != nil {
+		logger.EllaLog.Warn("failed to parse extended protocol configuration options content", zap.Error(unmarshalErr))
+		return nil
+	}
+
+	extOpts := &ExtendedProtocolConfigurationOptions{}
+
+	for _, container := range pco.ProtocolOrContainerList {
+		switch container.ProtocolOrContainerID {
+		case nasMessage.PCSCFIPv6AddressRequestUL:
+			extOpts.PCSCFIPv6AddressRequestUL = ptr(true)
+		case nasMessage.IMCNSubsystemSignalingFlagUL:
+			extOpts.IMCNSubsystemSignalingFlagUL = ptr(true)
+		case nasMessage.DNSServerIPv6AddressRequestUL:
+			extOpts.DNSServerIPv6AddressRequestUL = ptr(true)
+		case nasMessage.NotSupportedUL:
+			extOpts.NotSupportedUL = ptr(true)
+		case nasMessage.MSSupportOfNetworkRequestedBearerControlIndicatorUL:
+			extOpts.MSSupportOfNetworkRequestedBearerControlIndicatorUL = ptr(true)
+		case nasMessage.DSMIPv6HomeAgentAddressRequestUL:
+			extOpts.DSMIPv6HomeAgentAddressRequestUL = ptr(true)
+		case nasMessage.DSMIPv6HomeNetworkPrefixRequestUL:
+			extOpts.DSMIPv6HomeNetworkPrefixRequestUL = ptr(true)
+		case nasMessage.DSMIPv6IPv4HomeAgentAddressRequestUL:
+			extOpts.DSMIPv6IPv4HomeAgentAddressRequestUL = ptr(true)
+		case nasMessage.IPAddressAllocationViaNASSignallingUL:
+			extOpts.IPAddressAllocationViaNASSignallingUL = ptr(true)
+		case nasMessage.IPv4AddressAllocationViaDHCPv4UL:
+			extOpts.IPv4AddressAllocationViaDHCPv4UL = ptr(true)
+		case nasMessage.PCSCFIPv4AddressRequestUL:
+			extOpts.PCSCFIPv4AddressRequestUL = ptr(true)
+		case nasMessage.DNSServerIPv4AddressRequestUL:
+			extOpts.DNSServerIPv4AddressRequestUL = ptr(true)
+		case nasMessage.MSISDNRequestUL:
+			extOpts.MSISDNRequestUL = ptr(true)
+		case nasMessage.IFOMSupportRequestUL:
+			extOpts.IFOMSupportRequestUL = ptr(true)
+		case nasMessage.MSSupportOfLocalAddressInTFTIndicatorUL:
+			extOpts.MSSupportOfLocalAddressInTFTIndicatorUL = ptr(true)
+		case nasMessage.PCSCFReSelectionSupportUL:
+			extOpts.PCSCFReSelectionSupportUL = ptr(true)
+		case nasMessage.NBIFOMRequestIndicatorUL:
+			extOpts.NBIFOMRequestIndicatorUL = ptr(true)
+		case nasMessage.NBIFOMModeUL:
+			extOpts.NBIFOMModeUL = ptr(true)
+		case nasMessage.NonIPLinkMTURequestUL:
+			extOpts.NonIPLinkMTURequestUL = ptr(true)
+		case nasMessage.APNRateControlSupportIndicatorUL:
+			extOpts.APNRateControlSupportIndicatorUL = ptr(true)
+		case nasMessage.UEStatus3GPPPSDataOffUL:
+			extOpts.UEStatus3GPPPSDataOffUL = ptr(true)
+		case nasMessage.ReliableDataServiceRequestIndicatorUL:
+			extOpts.ReliableDataServiceRequestIndicatorUL = ptr(true)
+		case nasMessage.AdditionalAPNRateControlForExceptionDataSupportIndicatorUL:
+			extOpts.AdditionalAPNRateControlForExceptionDataSupportIndicatorUL = ptr(true)
+		case nasMessage.PDUSessionIDUL:
+			extOpts.PDUSessionIDUL = ptr(true)
+		case nasMessage.EthernetFramePayloadMTURequestUL:
+			extOpts.EthernetFramePayloadMTURequestUL = ptr(true)
+		case nasMessage.UnstructuredLinkMTURequestUL:
+			extOpts.UnstructuredLinkMTURequestUL = ptr(true)
+		case nasMessage.I5GSMCauseValueUL:
+			extOpts.I5GSMCauseValueUL = ptr(true)
+		case nasMessage.QoSRulesWithTheLengthOfTwoOctetsSupportIndicatorUL:
+			extOpts.QoSRulesWithTheLengthOfTwoOctetsSupportIndicatorUL = ptr(true)
+		case nasMessage.QoSFlowDescriptionsWithTheLengthOfTwoOctetsSupportIndicatorUL:
+			extOpts.QoSFlowDescriptionsWithTheLengthOfTwoOctetsSupportIndicatorUL = ptr(true)
+		case nasMessage.LinkControlProtocolUL:
+			extOpts.LinkControlProtocolUL = ptr(true)
+		case nasMessage.PushAccessControlProtocolUL:
+			extOpts.PushAccessControlProtocolUL = ptr(true)
+		case nasMessage.ChallengeHandshakeAuthenticationProtocolUL:
+			extOpts.ChallengeHandshakeAuthenticationProtocolUL = ptr(true)
+		case nasMessage.InternetProtocolControlProtocolUL:
+			extOpts.InternetProtocolControlProtocolUL = ptr(true)
+		default:
+			logger.EllaLog.Warn("Unknown Container ID", zap.Uint16("ContainerID", container.ProtocolOrContainerID))
+		}
+	}
+
+	return extOpts
+}
+
+func buildCapability5GSM(msg nasType.Capability5GSM) *Capability5GSM {
+	return &Capability5GSM{
+		RqoS:   msg.GetRqoS(),
+		MH6PDU: msg.GetMH6PDU(),
+	}
+}
+
+func buildDLNASPayloadContainer(msg *nasMessage.DLNASTransport) PayloadContainer {
+	containerType := msg.GetPayloadContainerType()
+
+	payloadContainer := PayloadContainer{
+		Raw: msg.GetPayloadContainerContents(),
+	}
+
+	if containerType != nasMessage.PayloadContainerTypeN1SMInfo {
+		logger.EllaLog.Warn("Payload container type not yet implemented", zap.Uint8("type", containerType))
+		return payloadContainer
+	}
+
+	rawBytes := msg.GetPayloadContainerContents()
+
+	gsmMessage, err := decodeGSMMessage(rawBytes)
+	if err != nil {
+		logger.EllaLog.Warn("Failed to decode N1 SM message in DL NAS Transport Payload Container", zap.Error(err))
+		return payloadContainer
+	}
+
+	payloadContainer.GsmMessage = gsmMessage
+
+	return payloadContainer
+}
+
+func buildULNASPayloadContainer(msg *nasMessage.ULNASTransport) PayloadContainer {
+	containerType := msg.GetPayloadContainerType()
+
+	payloadContainer := PayloadContainer{
+		Raw: msg.GetPayloadContainerContents(),
+	}
+
+	if containerType != nasMessage.PayloadContainerTypeN1SMInfo {
+		logger.EllaLog.Warn("Payload container type not yet implemented", zap.Uint8("type", containerType))
+		return payloadContainer
+	}
+
+	rawBytes := msg.GetPayloadContainerContents()
+
+	gsmMessage, err := decodeGSMMessage(rawBytes)
+	if err != nil {
+		logger.EllaLog.Warn("Failed to decode N1 SM message in UL NAS Transport Payload Container", zap.Error(err))
+		return payloadContainer
+	}
+
+	payloadContainer.GsmMessage = gsmMessage
+
+	return payloadContainer
+}
+
 func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	if msg == nil {
 		return nil
@@ -798,8 +1410,9 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 		SpareHalfOctetAndSecurityHeaderType:   msg.SpareHalfOctetAndSecurityHeaderType.Octet,
 		ULNASTRANSPORTMessageIdentity:         nas.MessageName(msg.ULNASTRANSPORTMessageIdentity.Octet),
 		SpareHalfOctetAndPayloadContainerType: msg.SpareHalfOctetAndPayloadContainerType.Octet,
-		PayloadContainer:                      msg.PayloadContainer.GetPayloadContainerContents(),
 	}
+
+	ulNasTransport.PayloadContainer = buildULNASPayloadContainer(msg)
 
 	if msg.PduSessionID2Value != nil {
 		value := msg.PduSessionID2Value.GetPduSessionID2Value()
@@ -831,7 +1444,7 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	}
 
 	if msg.SNSSAI != nil {
-		snssai := snssaiToModels(msg.SNSSAI)
+		snssai := buildNASNSSAI(msg.SNSSAI)
 		ulNasTransport.SNSSAI = &snssai
 	}
 
@@ -847,7 +1460,7 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	return ulNasTransport
 }
 
-func snssaiToModels(n *nasType.SNSSAI) SNSSAI {
+func buildNASNSSAI(n *nasType.SNSSAI) SNSSAI {
 	var out SNSSAI
 	out.SST = int32(n.GetSST())
 
