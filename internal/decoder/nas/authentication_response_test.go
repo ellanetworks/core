@@ -7,8 +7,8 @@ import (
 	naslib "github.com/omec-project/nas"
 )
 
-func TestDecodeNASMessage_AuthenticationReject(t *testing.T) {
-	const message = "fgBY"
+func TestDecodeNASMessage_AuthenticationResponse(t *testing.T) {
+	const message = "fgBXLRAr/v+SKtfNKW4evtLp2SKq"
 
 	raw, err := decodeB64(message)
 	if err != nil {
@@ -37,15 +37,23 @@ func TestDecodeNASMessage_AuthenticationReject(t *testing.T) {
 		t.Fatal("GmmMessage is nil")
 	}
 
-	if nas.GmmMessage.GmmHeader.MessageType.Label != "AuthenticationReject" {
+	if nas.GmmMessage.GmmHeader.MessageType.Label != "AuthenticationResponse" {
 		t.Errorf("Unexpected GmmMessage Type: got %v", nas.GmmMessage.GmmHeader.MessageType.Label)
 	}
 
-	if nas.GmmMessage.GmmHeader.MessageType.Value != naslib.MsgTypeAuthenticationReject {
+	if nas.GmmMessage.GmmHeader.MessageType.Value != naslib.MsgTypeAuthenticationResponse {
 		t.Errorf("Unexpected GmmMessage Type value: got %d", nas.GmmMessage.GmmHeader.MessageType.Value)
 	}
 
-	if nas.GmmMessage.AuthenticationReject == nil {
-		t.Fatal("AuthenticationReject is nil")
+	if nas.GmmMessage.AuthenticationResponse == nil {
+		t.Fatal("AuthenticationResponse is nil")
+	}
+
+	if nas.GmmMessage.AuthenticationResponse.AuthenticationResponseParameter == nil {
+		t.Fatal("AuthenticationResponseParameter is nil")
+	}
+
+	if len(nas.GmmMessage.AuthenticationResponse.AuthenticationResponseParameter.ResStar) != 16 {
+		t.Errorf("Unexpected RES* length: got %d, want 16", len(nas.GmmMessage.AuthenticationResponse.AuthenticationResponseParameter.ResStar))
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/ngap"
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/ngap/ngapType"
 )
 
@@ -25,7 +26,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected ProcedureCode=InitialUEMessage, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != int(ngapType.ProcedureCodeInitialUEMessage) {
+	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeInitialUEMessage {
 		t.Errorf("expected ProcedureCode value=9, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -43,7 +44,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected ID=RANUENGAPID, got %s", item0.ID.Label)
 	}
 
-	if item0.ID.Value != int(ngapType.ProtocolIEIDRANUENGAPID) {
+	if item0.ID.Value != ngapType.ProtocolIEIDRANUENGAPID {
 		t.Errorf("expected ID value=85, got %d", item0.ID.Value)
 	}
 
@@ -70,7 +71,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected ID=NASPDU, got %s", item1.ID.Label)
 	}
 
-	if item1.ID.Value != int(ngapType.ProtocolIEIDNASPDU) {
+	if item1.ID.Value != ngapType.ProtocolIEIDNASPDU {
 		t.Errorf("expected ID value=38, got %d", item1.ID.Value)
 	}
 
@@ -103,7 +104,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected ID=UserLocationInformation, got %s", item2.ID.Label)
 	}
 
-	if item2.ID.Value != int(ngapType.ProtocolIEIDUserLocationInformation) {
+	if item2.ID.Value != ngapType.ProtocolIEIDUserLocationInformation {
 		t.Errorf("expected ID value=116, got %d", item2.ID.Value)
 	}
 
@@ -150,7 +151,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected ID=RRCEstablishmentCause, got %s", item3.ID.Label)
 	}
 
-	if item3.ID.Value != int(ngapType.ProtocolIEIDRRCEstablishmentCause) {
+	if item3.ID.Value != ngapType.ProtocolIEIDRRCEstablishmentCause {
 		t.Errorf("expected ID value=90, got %d", item3.ID.Value)
 	}
 
@@ -162,7 +163,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
 	}
 
-	rrcEstabCause, ok := item3.Value.(ngap.EnumField)
+	rrcEstabCause, ok := item3.Value.(utils.EnumField[uint64])
 	if !ok {
 		t.Fatalf("expected RRCEstablishmentCause to be of type ngap.EnumField, got %T", item3.Value)
 	}
@@ -171,7 +172,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected RRCEstablishmentCause=MoSignalling, got %s", rrcEstabCause.Label)
 	}
 
-	if rrcEstabCause.Value != int(ngapType.RRCEstablishmentCausePresentMoSignalling) {
+	if rrcEstabCause.Value != uint64(ngapType.RRCEstablishmentCausePresentMoSignalling) {
 		t.Errorf("expected RRCEstablishmentCause value=3, got %d", rrcEstabCause.Value)
 	}
 
@@ -181,7 +182,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected ID=UEContextRequest, got %s", item4.ID.Label)
 	}
 
-	if item4.ID.Value != int(ngapType.ProtocolIEIDUEContextRequest) {
+	if item4.ID.Value != ngapType.ProtocolIEIDUEContextRequest {
 		t.Errorf("expected ID value=112, got %d", item4.ID.Value)
 	}
 
@@ -193,7 +194,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item4.Criticality.Value)
 	}
 
-	ueContextRequest, ok := item4.Value.(ngap.EnumField)
+	ueContextRequest, ok := item4.Value.(utils.EnumField[uint64])
 	if !ok {
 		t.Fatalf("expected UEContextRequest to be of type ngap.EnumField, got %T", item4.Value)
 	}
@@ -202,7 +203,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected UEContextRequest=Requested, got %v", ueContextRequest.Label)
 	}
 
-	if ueContextRequest.Value != int(ngapType.UEContextRequestPresentRequested) {
+	if ueContextRequest.Value != uint64(ngapType.UEContextRequestPresentRequested) {
 		t.Errorf("expected UEContextRequest value=0, got %d", ueContextRequest.Value)
 	}
 }

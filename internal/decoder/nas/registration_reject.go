@@ -1,16 +1,18 @@
 package nas
 
 import (
-	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/nas"
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/nas/nasMessage"
 )
 
 type RegistrationReject struct {
-	ExtendedProtocolDiscriminator       uint8  `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType uint8  `json:"spare_half_octet_and_security_header_type"`
-	RegistrationRejectMessageIdentity   string `json:"registration_reject_message_identity"`
-	Cause5GMM                           string `json:"cause_5gmm"`
+	ExtendedProtocolDiscriminator       uint8                  `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType uint8                  `json:"spare_half_octet_and_security_header_type"`
+	Cause5GMM                           utils.EnumField[uint8] `json:"cause_5gmm"`
+
+	T3346Value *UnsupportedIE `json:"t3346_value,omitempty"`
+	T3502Value *UnsupportedIE `json:"t3502_value,omitempty"`
+	EAPMessage *UnsupportedIE `json:"eap_message,omitempty"`
 }
 
 func buildRegistrationReject(msg *nasMessage.RegistrationReject) *RegistrationReject {
@@ -20,20 +22,19 @@ func buildRegistrationReject(msg *nasMessage.RegistrationReject) *RegistrationRe
 	regRej := &RegistrationReject{
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		RegistrationRejectMessageIdentity:   nas.MessageName(msg.RegistrationRejectMessageIdentity.Octet),
-		Cause5GMM:                           nasMessage.Cause5GMMToString(msg.Cause5GMM.Octet),
+		Cause5GMM:                           cause5GMMToEnum(msg.Cause5GMM.Octet),
 	}
 
 	if msg.T3346Value != nil {
-		logger.EllaLog.Warn("T3346Value in RegistrationReject is not implemented")
+		regRej.T3346Value = makeUnsupportedIE()
 	}
 
 	if msg.T3502Value != nil {
-		logger.EllaLog.Warn("T3502Value in RegistrationReject is not implemented")
+		regRej.T3502Value = makeUnsupportedIE()
 	}
 
 	if msg.EAPMessage != nil {
-		logger.EllaLog.Warn("EAPMessage in RegistrationReject is not implemented")
+		regRej.EAPMessage = makeUnsupportedIE()
 	}
 
 	return regRej

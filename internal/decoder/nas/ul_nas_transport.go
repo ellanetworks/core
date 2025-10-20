@@ -5,29 +5,31 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
-	"go.uber.org/zap"
 )
 
 type PayloadContainer struct {
 	Raw        []byte      `json:"raw"`
 	GsmMessage *GsmMessage `json:"gsm_message,omitempty"`
+
+	Error string `json:"error,omitempty"` // Reserved field for decoding errors
 }
 
 type ULNASTransport struct {
-	ExtendedProtocolDiscriminator         uint8            `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType   uint8            `json:"spare_half_octet_and_security_header_type"`
-	ULNASTRANSPORTMessageIdentity         string           `json:"ul_nas_transport_message_identity"`
-	SpareHalfOctetAndPayloadContainerType uint8            `json:"spare_half_octet_and_payload_container_type"`
-	PayloadContainer                      PayloadContainer `json:"payload_container"`
-	PduSessionID2Value                    *uint8           `json:"pdu_session_id_2_value,omitempty"`
-	OldPDUSessionID                       *uint8           `json:"old_pdu_session_id,omitempty"`
-	RequestType                           *string          `json:"request_type,omitempty"`
-	SNSSAI                                *SNSSAI          `json:"snssai,omitempty"`
-	DNN                                   *string          `json:"dnn,omitempty"`
+	ExtendedProtocolDiscriminator         uint8                   `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType   uint8                   `json:"spare_half_octet_and_security_header_type"`
+	SpareHalfOctetAndPayloadContainerType uint8                   `json:"spare_half_octet_and_payload_container_type"`
+	PayloadContainer                      PayloadContainer        `json:"payload_container"`
+	PduSessionID2Value                    *uint8                  `json:"pdu_session_id_2_value,omitempty"`
+	OldPDUSessionID                       *uint8                  `json:"old_pdu_session_id,omitempty"`
+	RequestType                           *utils.EnumField[uint8] `json:"request_type,omitempty"`
+	SNSSAI                                *SNSSAI                 `json:"snssai,omitempty"`
+	DNN                                   *string                 `json:"dnn,omitempty"`
+
+	AdditionalInformation *UnsupportedIE `json:"additional_information,omitempty"`
 }
 
 func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
@@ -38,7 +40,6 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	ulNasTransport := &ULNASTransport{
 		ExtendedProtocolDiscriminator:         msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType:   msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		ULNASTRANSPORTMessageIdentity:         nas.MessageName(msg.ULNASTRANSPORTMessageIdentity.Octet),
 		SpareHalfOctetAndPayloadContainerType: msg.SpareHalfOctetAndPayloadContainerType.Octet,
 	}
 
@@ -55,21 +56,7 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	}
 
 	if msg.RequestType != nil {
-		value := ""
-		switch msg.RequestType.GetRequestTypeValue() {
-		case nasMessage.ULNASTransportRequestTypeInitialRequest:
-			value = "InitialRequest"
-		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
-			value = "ExistingPduSession"
-		case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
-			value = "InitialEmergencyRequest"
-		case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
-			value = "ExistingEmergencyPduSession"
-		case nasMessage.ULNASTransportRequestTypeModificationRequest:
-			value = "ModificationRequest"
-		case nasMessage.ULNASTransportRequestTypeReserved:
-			value = "Reserved"
-		}
+		value := buildRequestTypeEnum(msg.RequestType.GetRequestTypeValue())
 		ulNasTransport.RequestType = &value
 	}
 
@@ -84,10 +71,29 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	}
 
 	if msg.AdditionalInformation != nil {
-		logger.EllaLog.Warn("AdditionalInformation not yet implemented")
+		ulNasTransport.AdditionalInformation = makeUnsupportedIE()
 	}
 
 	return ulNasTransport
+}
+
+func buildRequestTypeEnum(rt uint8) utils.EnumField[uint8] {
+	switch rt {
+	case nasMessage.ULNASTransportRequestTypeInitialRequest:
+		return utils.MakeEnum(rt, "InitialRequest", false)
+	case nasMessage.ULNASTransportRequestTypeExistingPduSession:
+		return utils.MakeEnum(rt, "ExistingPduSession", false)
+	case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
+		return utils.MakeEnum(rt, "InitialEmergencyRequest", false)
+	case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
+		return utils.MakeEnum(rt, "ExistingEmergencyPduSession", false)
+	case nasMessage.ULNASTransportRequestTypeModificationRequest:
+		return utils.MakeEnum(rt, "ModificationRequest", false)
+	case nasMessage.ULNASTransportRequestTypeReserved:
+		return utils.MakeEnum(rt, "Reserved", false)
+	default:
+		return utils.MakeEnum(rt, "", true)
+	}
 }
 
 func buildULNASPayloadContainer(msg *nasMessage.ULNASTransport) PayloadContainer {
@@ -98,7 +104,7 @@ func buildULNASPayloadContainer(msg *nasMessage.ULNASTransport) PayloadContainer
 	}
 
 	if containerType != nasMessage.PayloadContainerTypeN1SMInfo {
-		logger.EllaLog.Warn("Payload container type not yet implemented", zap.Uint8("type", containerType))
+		payloadContainer.Error = fmt.Sprintf("payload container type %d not yet implemented", containerType)
 		return payloadContainer
 	}
 
@@ -106,7 +112,7 @@ func buildULNASPayloadContainer(msg *nasMessage.ULNASTransport) PayloadContainer
 
 	gsmMessage, err := decodeGSMMessage(rawBytes)
 	if err != nil {
-		logger.EllaLog.Warn("Failed to decode N1 SM message in UL NAS Transport Payload Container", zap.Error(err))
+		payloadContainer.Error = fmt.Sprintf("failed to decode N1 SM message in UL NAS Transport Payload Container: %v", err)
 		return payloadContainer
 	}
 
@@ -150,7 +156,7 @@ func decodeGSMMessage(raw []byte) (*GsmMessage, error) {
 	case nas.MsgTypePDUSessionEstablishmentAccept:
 		gsmMessage.PDUSessionEstablishmentAccept = buildPDUSessionEstablishmentAccept(m.GsmMessage.PDUSessionEstablishmentAccept)
 	default:
-		logger.EllaLog.Warn("GSM message type not yet implemented", zap.String("message_type", gsmMessage.GsmHeader.MessageType))
+		gsmMessage.Error = fmt.Sprintf("GSM message type %d not yet implemented", m.GsmMessage.GetMessageType())
 	}
 
 	return gsmMessage, nil

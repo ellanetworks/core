@@ -4,8 +4,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
 	"go.uber.org/zap"
@@ -41,26 +41,45 @@ type SNSSAI struct {
 type RegistrationAccept struct {
 	ExtendedProtocolDiscriminator       uint8                     `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8                     `json:"spare_half_octet_and_security_header_type"`
-	RegistrationAcceptMessageIdentity   string                    `json:"registration_accept_message_identity"`
-	RegistrationResult5GS               string                    `json:"registration_result_5gs"`
+	RegistrationResult5GS               utils.EnumField[uint8]    `json:"registration_result_5gs"`
 	GUTI5G                              *string                   `json:"guti_5g,omitempty"`
 	EquivalentPLMNs                     []PLMNID                  `json:"equivalent_plmns,omitempty"`
 	TAIList                             []TAI                     `json:"tai_list,omitempty"`
 	AllowedNSSAI                        []SNSSAI                  `json:"allowed_nssai,omitempty"`
 	NetworkFeatureSupport5GS            *NetworkFeatureSupport5GS `json:"network_feature_support_5gs,omitempty"`
+
+	RejectedNSSAI                            *UnsupportedIE `json:"rejected_nssai,omitempty"`
+	ConfiguredNSSAI                          *UnsupportedIE `json:"configured_nssai,omitempty"`
+	PDUSessionStatus                         *UnsupportedIE `json:"pdu_session_status,omitempty"`
+	PDUSessionReactivationResult             *UnsupportedIE `json:"pdu_session_reactivation_result,omitempty"`
+	PDUSessionReactivationResultErrorCause   *UnsupportedIE `json:"pdu_session_reactivation_result_error_cause,omitempty"`
+	LADNInformation                          *UnsupportedIE `json:"ladn_information,omitempty"`
+	MICOIndication                           *UnsupportedIE `json:"mico_indication,omitempty"`
+	NetworkSlicingIndication                 *UnsupportedIE `json:"network_slicing_indication,omitempty"`
+	ServiceAreaList                          *UnsupportedIE `json:"service_area_list,omitempty"`
+	T3512Value                               *UnsupportedIE `json:"t3512_value,omitempty"`
+	Non3GppDeregistrationTimerValue          *UnsupportedIE `json:"non_3gpp_deregistration_timer_value,omitempty"`
+	T3502Value                               *UnsupportedIE `json:"t3502_value,omitempty"`
+	EmergencyNumberList                      *UnsupportedIE `json:"emergency_number_list,omitempty"`
+	ExtendedEmergencyNumberList              *UnsupportedIE `json:"extended_emergency_number_list,omitempty"`
+	SORTransparentContainer                  *UnsupportedIE `json:"sor_transparent_container,omitempty"`
+	EAPMessage                               *UnsupportedIE `json:"eap_message,omitempty"`
+	NSSAIInclusionMode                       *UnsupportedIE `json:"nssai_inclusion_mode,omitempty"`
+	OperatordefinedAccessCategoryDefinitions *UnsupportedIE `json:"operatordefined_access_category_definitions,omitempty"`
+	NegotiatedDRXParameters                  *UnsupportedIE `json:"negotiated_drx_parameters,omitempty"`
 }
 
-func buildRegistrationResult5GS(msg nasType.RegistrationResult5GS) string {
+func buildRegistrationResult5GS(msg nasType.RegistrationResult5GS) utils.EnumField[uint8] {
 	value := msg.GetRegistrationResultValue5GS()
 	switch {
 	case value&(nasMessage.AccessType3GPP|nasMessage.AccessTypeNon3GPP) == (nasMessage.AccessType3GPP | nasMessage.AccessTypeNon3GPP):
-		return "3GPP and Non-3GPP"
+		return utils.MakeEnum(value, "3GPP and Non-3GPP", false)
 	case value&nasMessage.AccessType3GPP != 0:
-		return "3GPP only"
+		return utils.MakeEnum(value, "3GPP only", false)
 	case value&nasMessage.AccessTypeNon3GPP != 0:
-		return "Non-3GPP only"
+		return utils.MakeEnum(value, "Non-3GPP only", false)
 	default:
-		return fmt.Sprintf("Unknown(%d)", value)
+		return utils.MakeEnum(value, "", true)
 	}
 }
 
@@ -72,7 +91,6 @@ func buildRegistrationAccept(msg *nasMessage.RegistrationAccept) *RegistrationAc
 	registrationAccept := &RegistrationAccept{
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		RegistrationAcceptMessageIdentity:   nas.MessageName(msg.RegistrationAcceptMessageIdentity.Octet),
 		RegistrationResult5GS:               buildRegistrationResult5GS(msg.RegistrationResult5GS),
 	}
 
@@ -96,11 +114,11 @@ func buildRegistrationAccept(msg *nasMessage.RegistrationAccept) *RegistrationAc
 	}
 
 	if msg.RejectedNSSAI != nil {
-		logger.EllaLog.Warn("RejectedNSSAI not yet implemented")
+		registrationAccept.RejectedNSSAI = makeUnsupportedIE()
 	}
 
 	if msg.ConfiguredNSSAI != nil {
-		logger.EllaLog.Warn("ConfiguredNSSAI not yet implemented")
+		registrationAccept.ConfiguredNSSAI = makeUnsupportedIE()
 	}
 
 	if msg.NetworkFeatureSupport5GS != nil {
@@ -109,71 +127,75 @@ func buildRegistrationAccept(msg *nasMessage.RegistrationAccept) *RegistrationAc
 	}
 
 	if msg.PDUSessionStatus != nil {
-		logger.EllaLog.Warn("PDUSessionStatus not yet implemented")
+		registrationAccept.PDUSessionStatus = makeUnsupportedIE()
 	}
 
 	if msg.PDUSessionReactivationResult != nil {
-		logger.EllaLog.Warn("PDUSessionReactivationResult not yet implemented")
+		registrationAccept.PDUSessionReactivationResult = makeUnsupportedIE()
 	}
 
 	if msg.PDUSessionReactivationResultErrorCause != nil {
-		logger.EllaLog.Warn("PDUSessionReactivationResultErrorCause not yet implemented")
+		registrationAccept.PDUSessionReactivationResultErrorCause = makeUnsupportedIE()
 	}
 
 	if msg.LADNInformation != nil {
-		logger.EllaLog.Warn("LADNInformation not yet implemented")
+		registrationAccept.LADNInformation = makeUnsupportedIE()
 	}
 
 	if msg.MICOIndication != nil {
-		logger.EllaLog.Warn("MICOIndication not yet implemented")
+		registrationAccept.MICOIndication = makeUnsupportedIE()
 	}
 
 	if msg.NetworkSlicingIndication != nil {
-		logger.EllaLog.Warn("NetworkSlicingIndication not yet implemented")
+		registrationAccept.NetworkSlicingIndication = makeUnsupportedIE()
 	}
 
 	if msg.ServiceAreaList != nil {
-		logger.EllaLog.Warn("ServiceAreaList not yet implemented")
+		registrationAccept.ServiceAreaList = makeUnsupportedIE()
 	}
 
 	if msg.ServiceAreaList != nil {
-		logger.EllaLog.Warn("ServiceAreaList not yet implemented")
+		registrationAccept.ServiceAreaList = makeUnsupportedIE()
 	}
 
 	if msg.T3512Value != nil {
-		logger.EllaLog.Warn("T3512Value not yet implemented")
+		registrationAccept.T3512Value = makeUnsupportedIE()
 	}
 
 	if msg.Non3GppDeregistrationTimerValue != nil {
-		logger.EllaLog.Warn("Non3GppDeregistrationTimerValue not yet implemented")
+		registrationAccept.Non3GppDeregistrationTimerValue = makeUnsupportedIE()
 	}
+
 	if msg.T3502Value != nil {
-		logger.EllaLog.Warn("T3502Value not yet implemented")
+		registrationAccept.T3502Value = makeUnsupportedIE()
 	}
+
 	if msg.EmergencyNumberList != nil {
-		logger.EllaLog.Warn("EmergencyNumberList not yet implemented")
+		registrationAccept.EmergencyNumberList = makeUnsupportedIE()
 	}
+
 	if msg.ExtendedEmergencyNumberList != nil {
-		logger.EllaLog.Warn("ExtendedEmergencyNumberList not yet implemented")
+		registrationAccept.ExtendedEmergencyNumberList = makeUnsupportedIE()
 	}
+
 	if msg.SORTransparentContainer != nil {
-		logger.EllaLog.Warn("SORTransparentContainer not yet implemented")
+		registrationAccept.SORTransparentContainer = makeUnsupportedIE()
 	}
 
 	if msg.EAPMessage != nil {
-		logger.EllaLog.Warn("EAPMessage not yet implemented")
+		registrationAccept.EAPMessage = makeUnsupportedIE()
 	}
 
 	if msg.NSSAIInclusionMode != nil {
-		logger.EllaLog.Warn("NSSAIInclusionMode not yet implemented")
+		registrationAccept.NSSAIInclusionMode = makeUnsupportedIE()
 	}
 
 	if msg.OperatordefinedAccessCategoryDefinitions != nil {
-		logger.EllaLog.Warn("OperatordefinedAccessCategoryDefinitions not yet implemented")
+		registrationAccept.OperatordefinedAccessCategoryDefinitions = makeUnsupportedIE()
 	}
 
 	if msg.NegotiatedDRXParameters != nil {
-		logger.EllaLog.Warn("NegotiatedDRXParameters not yet implemented")
+		registrationAccept.NegotiatedDRXParameters = makeUnsupportedIE()
 	}
 
 	return registrationAccept

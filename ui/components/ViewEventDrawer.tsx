@@ -23,6 +23,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getNetworkLog, type NetworkLogContent } from "@/queries/network_logs";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { GenericMessageView } from "@/components/EventMessageRender"; // adjust path
 
 export interface LogRow {
   id: string;
@@ -180,38 +181,102 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
 
     const { decoded, raw } = decodedData;
 
+    const pretty = (
+      <GenericMessageView
+        decoded={decoded}
+        // Optional chips if present:
+        headerChips={
+          log?.protocol?.toUpperCase() === "NGAP" && decoded
+            ? ([
+                decoded?.pdu_type
+                  ? { label: String(decoded.pdu_type) }
+                  : undefined,
+                decoded?.procedure_code?.label
+                  ? { label: String(decoded.procedure_code.label) }
+                  : undefined,
+                decoded?.criticality?.label
+                  ? {
+                      label: `Criticality: ${String(decoded.criticality.label)}`,
+                    }
+                  : undefined,
+              ].filter(Boolean) as Array<{ label: string }>)
+            : undefined
+        }
+      />
+    );
+
     return (
       <>
-        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-          <Typography variant="subtitle2">Decoded</Typography>
-          <Tooltip title="Copy decoded content">
-            <span>
-              <IconButton
-                size="small"
-                onClick={() => handleCopy(stringify(decoded))}
-                aria-label="Copy decoded content"
-                disabled={decoded == null}
-              >
-                <CopyIcon fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-        </Box>
+        {pretty && (
+          <>
+            <Box
+              sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}
+            >
+              <Typography variant="subtitle2">Decoded</Typography>
+              <Tooltip title="Copy decoded content">
+                <span>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleCopy(stringify(decoded))}
+                    aria-label="Copy decoded content"
+                    disabled={decoded == null}
+                  >
+                    <CopyIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Box>
+            <Box
+              sx={{
+                p: 1.25,
+                border: (t) => `1px solid ${t.palette.divider}`,
+                borderRadius: 1,
+              }}
+            >
+              {pretty}
+            </Box>
 
-        <MonoBlock>{stringify(decoded)}</MonoBlock>
+            <Box
+              sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.75 }}
+            >
+              <WarningAmberRoundedIcon
+                fontSize="small"
+                sx={{ color: (t) => t.palette.warning.main }}
+                aria-hidden
+              />
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                message decoding support is partial and content may be
+                incomplete
+              </Typography>
+            </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.75 }}>
-          <WarningAmberRoundedIcon
-            fontSize="small"
-            sx={{ color: (t) => t.palette.warning.main }}
-            aria-hidden
-          />
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            message decoding support is partial and content may be incomplete
-          </Typography>
-        </Box>
+            <Divider sx={{ my: 1.5 }} />
+          </>
+        )}
 
-        <Divider sx={{ my: 1.5 }} />
+        {!pretty && (
+          <>
+            <Box
+              sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}
+            >
+              <Typography variant="subtitle2">Decoded (raw JSON)</Typography>
+              <Tooltip title="Copy decoded content">
+                <span>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleCopy(stringify(decoded))}
+                    aria-label="Copy decoded content"
+                    disabled={decoded == null}
+                  >
+                    <CopyIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Box>
+            <MonoBlock>{stringify(decoded)}</MonoBlock>
+            <Divider sx={{ my: 1.5 }} />
+          </>
+        )}
 
         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
           <Typography variant="subtitle2">

@@ -1,11 +1,12 @@
 package nas
 
 import (
-	"github.com/ellanetworks/core/internal/logger"
+	"fmt"
+
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
-	"go.uber.org/zap"
 )
 
 type IntegrityProtectionMaximumDataRate struct {
@@ -52,6 +53,8 @@ type ExtendedProtocolConfigurationOptions struct {
 	PushAccessControlProtocolUL                                   *bool `json:"push_access_control_protocol_ul,omitempty"`
 	ChallengeHandshakeAuthenticationProtocolUL                    *bool `json:"challenge_handshake_authentication_protocol_ul,omitempty"`
 	InternetProtocolControlProtocolUL                             *bool `json:"internet_protocol_control_protocol_ul,omitempty"`
+
+	Error string `json:"error,omitempty"` // Reserved field for decoding errors
 }
 
 type PDUSessionEstablishmentRequest struct {
@@ -60,10 +63,14 @@ type PDUSessionEstablishmentRequest struct {
 	PTI                                           uint8                                 `json:"pti"`
 	PDUSESSIONESTABLISHMENTREQUESTMessageIdentity uint8                                 `json:"pdu_session_establishment_request_message_identity"`
 	IntegrityProtectionMaximumDataRate            IntegrityProtectionMaximumDataRate    `json:"integrity_protection_maximum_data_rate"`
-	PDUSessionType                                *string                               `json:"pdu_session_type,omitempty"`
+	PDUSessionType                                *utils.EnumField[uint8]               `json:"pdu_session_type,omitempty"`
 	SSCMode                                       *uint8                                `json:"ssc_mode,omitempty"`
 	Capability5GSM                                *Capability5GSM                       `json:"capability_5g_s_m,omitempty"`
 	ExtendedProtocolConfigurationOptions          *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
+
+	MaximumNumberOfSupportedPacketFilters *UnsupportedIE `json:"maximum_number_of_supported_packet_filters,omitempty"`
+	AlwaysonPDUSessionRequested           *UnsupportedIE `json:"alwayson_pdu_session_requested,omitempty"`
+	SMPDUDNRequestContainer               *UnsupportedIE `json:"smpdu_dn_request_container,omitempty"`
 }
 
 func buildPDUSessionEstablishmentRequest(msg *nasMessage.PDUSessionEstablishmentRequest) *PDUSessionEstablishmentRequest {
@@ -97,15 +104,15 @@ func buildPDUSessionEstablishmentRequest(msg *nasMessage.PDUSessionEstablishment
 	}
 
 	if msg.MaximumNumberOfSupportedPacketFilters != nil {
-		logger.EllaLog.Warn("MaximumNumberOfSupportedPacketFilters not yet implemented")
+		estReq.MaximumNumberOfSupportedPacketFilters = makeUnsupportedIE()
 	}
 
 	if msg.AlwaysonPDUSessionRequested != nil {
-		logger.EllaLog.Warn("AlwaysonPDUSessionRequested not yet implemented")
+		estReq.AlwaysonPDUSessionRequested = makeUnsupportedIE()
 	}
 
 	if msg.SMPDUDNRequestContainer != nil {
-		logger.EllaLog.Warn("SMPDUDNRequestContainer not yet implemented")
+		estReq.SMPDUDNRequestContainer = makeUnsupportedIE()
 	}
 
 	if msg.ExtendedProtocolConfigurationOptions != nil {
@@ -129,13 +136,13 @@ func buildExtendedProtocolConfigurationOptions(opts *nasType.ExtendedProtocolCon
 
 	pco := nasConvert.NewProtocolConfigurationOptions()
 
-	unmarshalErr := pco.UnMarshal(content)
-	if unmarshalErr != nil {
-		logger.EllaLog.Warn("failed to parse extended protocol configuration options content", zap.Error(unmarshalErr))
-		return nil
-	}
-
 	extOpts := &ExtendedProtocolConfigurationOptions{}
+
+	err := pco.UnMarshal(content)
+	if err != nil {
+		extOpts.Error = fmt.Sprintf("failed to parse extended protocol configuration options content: %v", err)
+		return extOpts
+	}
 
 	for _, container := range pco.ProtocolOrContainerList {
 		switch container.ProtocolOrContainerID {
@@ -206,7 +213,7 @@ func buildExtendedProtocolConfigurationOptions(opts *nasType.ExtendedProtocolCon
 		case nasMessage.InternetProtocolControlProtocolUL:
 			extOpts.InternetProtocolControlProtocolUL = ptr(true)
 		default:
-			logger.EllaLog.Warn("Unknown Container ID", zap.Uint16("ContainerID", container.ProtocolOrContainerID))
+			extOpts.Error = fmt.Sprintf("unknown container ID %d", container.ProtocolOrContainerID)
 		}
 	}
 

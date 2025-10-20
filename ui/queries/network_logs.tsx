@@ -65,8 +65,21 @@ export async function listNetworkLogs(
   return json.result;
 }
 
+export type EnumField = {
+  label: string;
+  value: number;
+  type: "enum";
+};
+
+export type DecodedNetworkLog = {
+  pdu_type: string;
+  procedure_code: EnumField;
+  criticality: EnumField;
+  value: unknown;
+};
+
 export type NetworkLogContent = {
-  decoded: unknown;
+  decoded: DecodedNetworkLog;
   raw: string;
 };
 
@@ -156,7 +169,7 @@ export const updateNetworkLogRetentionPolicy = async (
   authToken: string,
   days: number,
 ) => {
-  const response = await fetch(`/api/v1/logs/subscriber/retention`, {
+  const response = await fetch(`/api/v1/logs/network/retention`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",

@@ -48,24 +48,13 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest ngapType
 				Direction:   nas.DirDownlink,
 			}
 
-			var nasPdu NASPDU
-			decodednNasPdu, err := nas.DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
-			if err != nil {
-				nasPdu = NASPDU{
-					Raw:   ie.Value.NASPDU.Value,
-					Error: err.Error(),
-				}
-			} else {
-				nasPdu = NASPDU{
-					Raw:     ie.Value.NASPDU.Value,
-					Decoded: decodednNasPdu,
-				}
-			}
-
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       nasPdu,
+				Value: NASPDU{
+					Raw:     ie.Value.NASPDU.Value,
+					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo),
+				},
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
 			nasContextInfo := &nas.NasContextInfo{
@@ -107,20 +96,10 @@ func buildPDUSessionResourceSetupListSUReq(list ngapType.PDUSessionResourceSetup
 		}
 
 		if item.PDUSessionNASPDU != nil {
-			var nasPdu NASPDU
-			decodednNasPdu, err := nas.DecodeNASMessage(item.PDUSessionNASPDU.Value, nasContextInfo)
-			if err != nil {
-				nasPdu = NASPDU{
-					Raw:   item.PDUSessionNASPDU.Value,
-					Error: err.Error(),
-				}
-			} else {
-				nasPdu = NASPDU{
-					Raw:     item.PDUSessionNASPDU.Value,
-					Decoded: decodednNasPdu,
-				}
+			pduSUReq.PDUSessionNASPDU = &NASPDU{
+				Raw:     item.PDUSessionNASPDU.Value,
+				Decoded: nas.DecodeNASMessage(item.PDUSessionNASPDU.Value, nasContextInfo),
 			}
-			pduSUReq.PDUSessionNASPDU = &nasPdu
 		}
 
 		reqList = append(reqList, pduSUReq)

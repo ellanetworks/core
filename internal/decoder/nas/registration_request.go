@@ -6,7 +6,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
@@ -26,10 +25,29 @@ type MobileIdentity5GS struct {
 type RegistrationRequest struct {
 	ExtendedProtocolDiscriminator       uint8                 `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8                 `json:"spare_half_octet_and_security_header_type"`
-	RegistrationRequestMessageIdentity  string                `json:"registration_request_message_identity"`
 	NgksiAndRegistrationType5GS         uint8                 `json:"ngksi_and_registration_type_5gs"`
 	MobileIdentity5GS                   MobileIdentity5GS     `json:"mobile_identity_5gs"`
 	UESecurityCapability                *UESecurityCapability `json:"ue_security_capability,omitempty"`
+
+	NoncurrentNativeNASKeySetIdentifier *UnsupportedIE `json:"noncurrent_native_nas_key_set_identifier,omitempty"`
+	Capability5GMM                      *UnsupportedIE `json:"capability_5gmm,omitempty"`
+	RequestedNSSAI                      *UnsupportedIE `json:"requested_nssai,omitempty"`
+	LastVisitedRegisteredTAI            *UnsupportedIE `json:"last_visited_registered_tai,omitempty"`
+	S1UENetworkCapability               *UnsupportedIE `json:"s1_ue_network_capability,omitempty"`
+	UplinkDataStatus                    *UnsupportedIE `json:"uplink_data_status,omitempty"`
+	PDUSessionStatus                    *UnsupportedIE `json:"pdu_session_status,omitempty"`
+	MICOIndication                      *UnsupportedIE `json:"mico_indication,omitempty"`
+	UEStatus                            *UnsupportedIE `json:"ue_status,omitempty"`
+	AdditionalGUTI                      *UnsupportedIE `json:"additional_guti,omitempty"`
+	AllowedPDUSessionStatus             *UnsupportedIE `json:"allowed_pdu_session_status,omitempty"`
+	UesUsageSetting                     *UnsupportedIE `json:"ues_usage_setting,omitempty"`
+	RequestedDRXParameters              *UnsupportedIE `json:"requested_drx_parameters,omitempty"`
+	EPSNASMessageContainer              *UnsupportedIE `json:"eps_nas_message_container,omitempty"`
+	LADNIndication                      *UnsupportedIE `json:"ladn_indication,omitempty"`
+	PayloadContainer                    *UnsupportedIE `json:"payload_container,omitempty"`
+	NetworkSlicingIndication            *UnsupportedIE `json:"network_slicing_indication,omitempty"`
+	UpdateType5GS                       *UnsupportedIE `json:"update_type_5gs,omitempty"`
+	NASMessageContainer                 *UnsupportedIE `json:"nas_message_container,omitempty"`
 }
 
 func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *RegistrationRequest {
@@ -38,18 +56,17 @@ func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *Registration
 	}
 
 	registrationRequest := &RegistrationRequest{
-		MobileIdentity5GS:                  getMobileIdentity5GS(msg.MobileIdentity5GS),
-		ExtendedProtocolDiscriminator:      msg.ExtendedProtocolDiscriminator.Octet,
-		NgksiAndRegistrationType5GS:        msg.NgksiAndRegistrationType5GS.Octet,
-		RegistrationRequestMessageIdentity: nas.MessageName(msg.RegistrationRequestMessageIdentity.Octet),
+		MobileIdentity5GS:             getMobileIdentity5GS(msg.MobileIdentity5GS),
+		ExtendedProtocolDiscriminator: msg.ExtendedProtocolDiscriminator.Octet,
+		NgksiAndRegistrationType5GS:   msg.NgksiAndRegistrationType5GS.Octet,
 	}
 
 	if msg.NoncurrentNativeNASKeySetIdentifier != nil {
-		logger.EllaLog.Warn("NoncurrentNativeNASKeySetIdentifier not yet implemented")
+		registrationRequest.NoncurrentNativeNASKeySetIdentifier = makeUnsupportedIE()
 	}
 
 	if msg.Capability5GMM != nil {
-		logger.EllaLog.Warn("Capability5GMM not yet implemented")
+		registrationRequest.Capability5GMM = makeUnsupportedIE()
 	}
 
 	if msg.UESecurityCapability != nil {
@@ -57,71 +74,71 @@ func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *Registration
 	}
 
 	if msg.RequestedNSSAI != nil {
-		logger.EllaLog.Warn("RequestedNSSAI not yet implemented")
+		registrationRequest.RequestedNSSAI = makeUnsupportedIE()
 	}
 
 	if msg.LastVisitedRegisteredTAI != nil {
-		logger.EllaLog.Warn("LastVisitedRegisteredTAI not yet implemented")
+		registrationRequest.LastVisitedRegisteredTAI = makeUnsupportedIE()
 	}
 
 	if msg.S1UENetworkCapability != nil {
-		logger.EllaLog.Warn("S1UENetworkCapability not yet implemented")
+		registrationRequest.S1UENetworkCapability = makeUnsupportedIE()
 	}
 
 	if msg.UplinkDataStatus != nil {
-		logger.EllaLog.Warn("UplinkDataStatus not yet implemented")
+		registrationRequest.UplinkDataStatus = makeUnsupportedIE()
 	}
 
 	if msg.PDUSessionStatus != nil {
-		logger.EllaLog.Warn("PDUSessionStatus not yet implemented")
+		registrationRequest.PDUSessionStatus = makeUnsupportedIE()
 	}
 
 	if msg.MICOIndication != nil {
-		logger.EllaLog.Warn("MICOIndication not yet implemented")
+		registrationRequest.MICOIndication = makeUnsupportedIE()
 	}
 
 	if msg.UEStatus != nil {
-		logger.EllaLog.Warn("UEStatus not yet implemented")
+		registrationRequest.UEStatus = makeUnsupportedIE()
 	}
 
 	if msg.AdditionalGUTI != nil {
-		logger.EllaLog.Warn("AdditionalGUTI not yet implemented")
+		registrationRequest.AdditionalGUTI = makeUnsupportedIE()
 	}
 
 	if msg.AllowedPDUSessionStatus != nil {
-		logger.EllaLog.Warn("AllowedPDUSessionStatus not yet implemented")
+		registrationRequest.AllowedPDUSessionStatus = makeUnsupportedIE()
 	}
 
 	if msg.UesUsageSetting != nil {
-		logger.EllaLog.Warn("UesUsageSetting not yet implemented")
+		registrationRequest.UesUsageSetting = makeUnsupportedIE()
 	}
 
 	if msg.RequestedDRXParameters != nil {
-		logger.EllaLog.Warn("RequestedDRXParameters not yet implemented")
+		registrationRequest.RequestedDRXParameters = makeUnsupportedIE()
 	}
 
 	if msg.EPSNASMessageContainer != nil {
-		logger.EllaLog.Warn("EPSNASMessageContainer not yet implemented")
+		registrationRequest.EPSNASMessageContainer = makeUnsupportedIE()
 	}
 
 	if msg.LADNIndication != nil {
-		logger.EllaLog.Warn("LADNIndication not yet implemented")
+		registrationRequest.LADNIndication = makeUnsupportedIE()
 	}
 
 	if msg.PayloadContainer != nil {
-		logger.EllaLog.Warn("PayloadContainer not yet implemented")
+		registrationRequest.PayloadContainer = makeUnsupportedIE()
 	}
 
 	if msg.NetworkSlicingIndication != nil {
-		logger.EllaLog.Warn("NetworkSlicingIndication not yet implemented")
+		registrationRequest.NetworkSlicingIndication = makeUnsupportedIE()
 	}
 
 	if msg.UpdateType5GS != nil {
-		logger.EllaLog.Warn("UpdateType5GS not yet implemented")
+		registrationRequest.UpdateType5GS = makeUnsupportedIE()
 	}
 
 	if msg.NASMessageContainer != nil {
-		logger.EllaLog.Warn("NASMessageContainer not yet implemented")
+		registrationRequest.NASMessageContainer = makeUnsupportedIE()
 	}
 
 	return registrationRequest

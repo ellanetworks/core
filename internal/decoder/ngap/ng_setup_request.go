@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/ngap/ngapType"
 )
 
@@ -93,18 +94,18 @@ func buildRanNodeNameIE(rnn ngapType.RANNodeName) string {
 	return rnn.Value
 }
 
-func buildDefaultPagingDRXIE(dpd ngapType.PagingDRX) EnumField {
+func buildDefaultPagingDRXIE(dpd ngapType.PagingDRX) utils.EnumField[uint64] {
 	switch dpd.Value {
 	case ngapType.PagingDRXPresentV32:
-		return makeEnum(int(dpd.Value), "v32", false)
+		return utils.MakeEnum(uint64(dpd.Value), "v32", false)
 	case ngapType.PagingDRXPresentV64:
-		return makeEnum(int(dpd.Value), "v64", false)
+		return utils.MakeEnum(uint64(dpd.Value), "v64", false)
 	case ngapType.PagingDRXPresentV128:
-		return makeEnum(int(dpd.Value), "v128", false)
+		return utils.MakeEnum(uint64(dpd.Value), "v128", false)
 	case ngapType.PagingDRXPresentV256:
-		return makeEnum(int(dpd.Value), "v256", false)
+		return utils.MakeEnum(uint64(dpd.Value), "v256", false)
 	default:
-		return makeEnum(int(dpd.Value), "", true)
+		return utils.MakeEnum(uint64(dpd.Value), "", true)
 	}
 }
 
@@ -159,11 +160,11 @@ func buildNGSetupRequest(ngSetupRequest ngapType.NGSetupRequest) NGAPMessageValu
 	}
 }
 
-func buildUERetentionInformationIE(uri ngapType.UERetentionInformation) EnumField {
+func buildUERetentionInformationIE(uri ngapType.UERetentionInformation) utils.EnumField[uint64] {
 	switch uri.Value {
 	case ngapType.UERetentionInformationPresentUesRetained:
-		return makeEnum(int(ngapType.UERetentionInformationPresentUesRetained), "UesRetained", false)
+		return utils.MakeEnum(uint64(ngapType.UERetentionInformationPresentUesRetained), "UesRetained", false)
 	default:
-		return makeEnum(int(uri.Value), "", true)
+		return utils.MakeEnum(uint64(uri.Value), "", true)
 	}
 }

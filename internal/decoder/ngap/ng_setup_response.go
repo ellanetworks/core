@@ -3,6 +3,7 @@ package ngap
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/ngap/aper"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
@@ -14,15 +15,15 @@ type Guami struct {
 }
 
 type IEsCriticalityDiagnostics struct {
-	IECriticality EnumField `json:"ie_criticality"`
-	IEID          EnumField `json:"ie_id"`
-	TypeOfError   EnumField `json:"type_of_error"`
+	IECriticality utils.EnumField[uint64] `json:"ie_criticality"`
+	IEID          utils.EnumField[int64]  `json:"ie_id"`
+	TypeOfError   utils.EnumField[uint64] `json:"type_of_error"`
 }
 
 type CriticalityDiagnostics struct {
-	ProcedureCode             *EnumField                  `json:"procedure_code,omitempty"`
-	TriggeringMessage         *EnumField                  `json:"triggering_message,omitempty"`
-	ProcedureCriticality      *EnumField                  `json:"procedure_criticality,omitempty"`
+	ProcedureCode             *utils.EnumField[int64]     `json:"procedure_code,omitempty"`
+	TriggeringMessage         *utils.EnumField[uint64]    `json:"triggering_message,omitempty"`
+	ProcedureCriticality      *utils.EnumField[uint64]    `json:"procedure_criticality,omitempty"`
 	IEsCriticalityDiagnostics []IEsCriticalityDiagnostics `json:"ie_criticality_diagnostics,omitempty"`
 }
 
@@ -145,16 +146,16 @@ func buildCriticalityDiagnosticsIE(cd *ngapType.CriticalityDiagnostics) Critical
 	return critDiag
 }
 
-func triggeringMessageToString(tm aper.Enumerated) EnumField {
+func triggeringMessageToString(tm aper.Enumerated) utils.EnumField[uint64] {
 	switch tm {
 	case ngapType.TriggeringMessagePresentInitiatingMessage:
-		return makeEnum(int(tm), "InitiatingMessage", false)
+		return utils.MakeEnum(uint64(tm), "InitiatingMessage", false)
 	case ngapType.TriggeringMessagePresentSuccessfulOutcome:
-		return makeEnum(int(tm), "SuccessfulOutcome", false)
+		return utils.MakeEnum(uint64(tm), "SuccessfulOutcome", false)
 	case ngapType.TriggeringMessagePresentUnsuccessfullOutcome:
-		return makeEnum(int(tm), "UnsuccessfulOutcome", false)
+		return utils.MakeEnum(uint64(tm), "UnsuccessfulOutcome", false)
 	default:
-		return makeEnum(int(tm), "", true)
+		return utils.MakeEnum(uint64(tm), "", true)
 	}
 }
 
@@ -176,13 +177,13 @@ func buildIEsCriticalityDiagnisticsList(ieList *ngapType.CriticalityDiagnosticsI
 	return ies
 }
 
-func typeOfErrorToString(toe aper.Enumerated) EnumField {
+func typeOfErrorToString(toe aper.Enumerated) utils.EnumField[uint64] {
 	switch toe {
 	case ngapType.TypeOfErrorPresentNotUnderstood:
-		return makeEnum(int(toe), "NotUnderstood", false)
+		return utils.MakeEnum(uint64(toe), "NotUnderstood", false)
 	case ngapType.TypeOfErrorPresentMissing:
-		return makeEnum(int(toe), "Missing", false)
+		return utils.MakeEnum(uint64(toe), "Missing", false)
 	default:
-		return makeEnum(int(toe), "", true)
+		return utils.MakeEnum(uint64(toe), "", true)
 	}
 }

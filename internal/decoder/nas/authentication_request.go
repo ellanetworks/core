@@ -1,19 +1,17 @@
 package nas
 
 import (
-	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 )
 
 type AuthenticationRequest struct {
-	ExtendedProtocolDiscriminator        uint8     `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType  uint8     `json:"spare_half_octet_and_security_header_type"`
-	AuthenticationRequestMessageIdentity string    `json:"authentication_request_message_identity"`
-	SpareHalfOctetAndNgksi               uint8     `json:"spare_half_octet_and_ngksi"`
-	ABBA                                 []uint8   `json:"abba"`
-	AuthenticationParameterAUTN          [16]uint8 `json:"authentication_parameter_autn,omitempty"`
-	AuthenticationParameterRAND          [16]uint8 `json:"authentication_parameter_rand,omitempty"`
-	EAPMessage                           []byte    `json:"eap_message,omitempty"`
+	ExtendedProtocolDiscriminator       uint8     `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType uint8     `json:"spare_half_octet_and_security_header_type"`
+	SpareHalfOctetAndNgksi              uint8     `json:"spare_half_octet_and_ngksi"`
+	ABBA                                []uint8   `json:"abba"`
+	AuthenticationParameterAUTN         [16]uint8 `json:"authentication_parameter_autn,omitempty"`
+	AuthenticationParameterRAND         [16]uint8 `json:"authentication_parameter_rand,omitempty"`
+	EAPMessage                          []byte    `json:"eap_message,omitempty"`
 }
 
 func buildAuthenticationRequest(msg *nasMessage.AuthenticationRequest) *AuthenticationRequest {
@@ -22,11 +20,10 @@ func buildAuthenticationRequest(msg *nasMessage.AuthenticationRequest) *Authenti
 	}
 
 	authenticationRequest := &AuthenticationRequest{
-		ExtendedProtocolDiscriminator:        msg.ExtendedProtocolDiscriminator.Octet,
-		SpareHalfOctetAndSecurityHeaderType:  msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		AuthenticationRequestMessageIdentity: nas.MessageName(msg.AuthenticationRequestMessageIdentity.Octet),
-		SpareHalfOctetAndNgksi:               msg.SpareHalfOctetAndNgksi.Octet,
-		ABBA:                                 msg.ABBA.GetABBAContents(),
+		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		SpareHalfOctetAndNgksi:              msg.SpareHalfOctetAndNgksi.Octet,
+		ABBA:                                msg.ABBA.GetABBAContents(),
 	}
 
 	if msg.AuthenticationParameterRAND != nil {

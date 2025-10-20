@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
+	naslib "github.com/omec-project/nas"
+	"github.com/omec-project/nas/nasMessage"
 )
 
 func TestDecodeNASMessage_AuthenticationFailure(t *testing.T) {
@@ -14,36 +16,45 @@ func TestDecodeNASMessage_AuthenticationFailure(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	nas, err := nas.DecodeNASMessage(raw, nil)
-	if err != nil {
-		t.Fatalf("NAS message decode failed: %v", err)
-	}
+	nasMsg := nas.DecodeNASMessage(raw, nil)
 
-	if nas == nil {
+	if nasMsg == nil {
 		t.Fatal("Decoded NAS message is nil")
 	}
 
-	if nas.SecurityHeader.SecurityHeaderType != "Plain NAS" {
-		t.Errorf("Unexpected SecurityHeaderType: got %v", nas.SecurityHeader.SecurityHeaderType)
+	if nasMsg.SecurityHeader.SecurityHeaderType.Label != "Plain NAS" {
+		t.Errorf("Unexpected SecurityHeaderType: got %v", nasMsg.SecurityHeader.SecurityHeaderType.Label)
 	}
 
-	if nas.GsmMessage != nil {
+	if nasMsg.SecurityHeader.SecurityHeaderType.Value != naslib.SecurityHeaderTypePlainNas {
+		t.Errorf("Unexpected SecurityHeaderType value: got %d", nasMsg.SecurityHeader.SecurityHeaderType.Value)
+	}
+
+	if nasMsg.GsmMessage != nil {
 		t.Fatal("GsmMessage is not nil")
 	}
 
-	if nas.GmmMessage == nil {
+	if nasMsg.GmmMessage == nil {
 		t.Fatal("GmmMessage is nil")
 	}
 
-	if nas.GmmMessage.GmmHeader.MessageType != "AuthenticationFailure (89)" {
-		t.Errorf("Unexpected GmmMessage Type: got %v", nas.GmmMessage.GmmHeader.MessageType)
+	if nasMsg.GmmMessage.GmmHeader.MessageType.Label != "AuthenticationFailure" {
+		t.Errorf("Unexpected GmmMessage Type: got %v", nasMsg.GmmMessage.GmmHeader.MessageType.Label)
 	}
 
-	if nas.GmmMessage.AuthenticationFailure == nil {
+	if nasMsg.GmmMessage.GmmHeader.MessageType.Value != naslib.MsgTypeAuthenticationFailure {
+		t.Errorf("Unexpected GmmMessage Type value: got %d", nasMsg.GmmMessage.GmmHeader.MessageType.Value)
+	}
+
+	if nasMsg.GmmMessage.AuthenticationFailure == nil {
 		t.Fatal("AuthenticationFailure is nil")
 	}
 
-	if nas.GmmMessage.AuthenticationFailure.Cause5GMM != "MAC failure (20)" {
-		t.Errorf("Unexpected Cause5GMM: got %v, want 'MAC failure (20)'", nas.GmmMessage.AuthenticationFailure.Cause5GMM)
+	if nasMsg.GmmMessage.AuthenticationFailure.Cause5GMM.Label != "MAC failure" {
+		t.Errorf("Unexpected Cause5GMM: got %v, want 'MAC failure'", nasMsg.GmmMessage.AuthenticationFailure.Cause5GMM)
+	}
+
+	if nasMsg.GmmMessage.AuthenticationFailure.Cause5GMM.Value != nasMessage.Cause5GMMMACFailure {
+		t.Errorf("Unexpected Cause5GMM value: got %d, want %d", nasMsg.GmmMessage.AuthenticationFailure.Cause5GMM.Value, nasMessage.Cause5GMMMACFailure)
 	}
 }
