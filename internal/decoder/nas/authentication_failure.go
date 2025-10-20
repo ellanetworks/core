@@ -5,16 +5,6 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 )
 
-type UnsupportedIE struct {
-	Status string `json:"status"`
-}
-
-func makeUnsupportedIE() *UnsupportedIE {
-	return &UnsupportedIE{
-		Status: "Unsupported",
-	}
-}
-
 type AuthenticationFailure struct {
 	ExtendedProtocolDiscriminator       uint8                  `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8                  `json:"spare_half_octet_and_security_header_type"`

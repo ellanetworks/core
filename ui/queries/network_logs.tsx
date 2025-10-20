@@ -156,7 +156,7 @@ export const updateNetworkLogRetentionPolicy = async (
   authToken: string,
   days: number,
 ) => {
-  const response = await fetch(`/api/v1/logs/subscriber/retention`, {
+  const response = await fetch(`/api/v1/logs/network/retention`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
