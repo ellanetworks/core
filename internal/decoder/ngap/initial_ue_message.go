@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 )
@@ -23,7 +24,8 @@ type UserLocationInformationEUTRA struct {
 	EUTRACGI  EUTRACGI `json:"eutra_cgi"`
 	TAI       TAI      `json:"tai"`
 	TimeStamp *string  `json:"timestamp,omitempty"`
-	Error     string   `json:"error,omitempty"`
+
+	Error string `json:"error,omitempty"` // Reserved field for decoding errors
 }
 
 type NRCGI struct {
@@ -35,7 +37,8 @@ type UserLocationInformationNR struct {
 	NRCGI     NRCGI   `json:"nr_cgi"`
 	TAI       TAI     `json:"tai"`
 	TimeStamp *string `json:"timestamp,omitempty"`
-	Error     string  `json:"error,omitempty"`
+
+	Error string `json:"error,omitempty"` // Reserved field for decoding errors
 }
 
 type UserLocationInformationN3IWF struct {
@@ -47,7 +50,8 @@ type UserLocationInformation struct {
 	EUTRA *UserLocationInformationEUTRA `json:"eutra,omitempty"`
 	NR    *UserLocationInformationNR    `json:"nr,omitempty"`
 	N3IWF *UserLocationInformationN3IWF `json:"n3iwf,omitempty"`
-	Error string                        `json:"error,omitempty"`
+
+	Error string `json:"error,omitempty"` // Reserved field for decoding errors
 }
 
 type FiveGSTMSI struct {
@@ -71,18 +75,9 @@ func buildInitialUEMessage(initialUEMessage ngapType.InitialUEMessage) NGAPMessa
 			})
 		case ngapType.ProtocolIEIDNASPDU:
 			var nasPdu NASPDU
-			decodednNasPdu, err := nas.DecodeNASMessage(ie.Value.NASPDU.Value, nil)
-			if err != nil {
-				nasPdu = NASPDU{
-					Raw:     ie.Value.NASPDU.Value,
-					Decoded: decodednNasPdu,
-					Error:   err.Error(),
-				}
-			} else {
-				nasPdu = NASPDU{
-					Raw:     ie.Value.NASPDU.Value,
-					Decoded: decodednNasPdu,
-				}
+			nasPdu = NASPDU{
+				Raw:     ie.Value.NASPDU.Value,
+				Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value, nil),
 			}
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
@@ -149,41 +144,41 @@ func buildFiveGSTMSIIE(fivegStmsi ngapType.FiveGSTMSI) FiveGSTMSI {
 	return fiveg
 }
 
-func buildRRCEstablishmentCauseIE(rrc ngapType.RRCEstablishmentCause) EnumField {
+func buildRRCEstablishmentCauseIE(rrc ngapType.RRCEstablishmentCause) utils.EnumField[uint64] {
 	switch rrc.Value {
 	case ngapType.RRCEstablishmentCausePresentEmergency:
-		return makeEnum(int(rrc.Value), "Emergency", false)
+		return utils.MakeEnum(uint64(rrc.Value), "Emergency", false)
 	case ngapType.RRCEstablishmentCausePresentHighPriorityAccess:
-		return makeEnum(int(rrc.Value), "HighPriorityAccess", false)
+		return utils.MakeEnum(uint64(rrc.Value), "HighPriorityAccess", false)
 	case ngapType.RRCEstablishmentCausePresentMtAccess:
-		return makeEnum(int(rrc.Value), "MtAccess", false)
+		return utils.MakeEnum(uint64(rrc.Value), "MtAccess", false)
 	case ngapType.RRCEstablishmentCausePresentMoSignalling:
-		return makeEnum(int(rrc.Value), "MoSignalling", false)
+		return utils.MakeEnum(uint64(rrc.Value), "MoSignalling", false)
 	case ngapType.RRCEstablishmentCausePresentMoData:
-		return makeEnum(int(rrc.Value), "MoData", false)
+		return utils.MakeEnum(uint64(rrc.Value), "MoData", false)
 	case ngapType.RRCEstablishmentCausePresentMoVoiceCall:
-		return makeEnum(int(rrc.Value), "MoVoiceCall", false)
+		return utils.MakeEnum(uint64(rrc.Value), "MoVoiceCall", false)
 	case ngapType.RRCEstablishmentCausePresentMoVideoCall:
-		return makeEnum(int(rrc.Value), "MoVideoCall", false)
+		return utils.MakeEnum(uint64(rrc.Value), "MoVideoCall", false)
 	case ngapType.RRCEstablishmentCausePresentMoSMS:
-		return makeEnum(int(rrc.Value), "MoSMS", false)
+		return utils.MakeEnum(uint64(rrc.Value), "MoSMS", false)
 	case ngapType.RRCEstablishmentCausePresentMpsPriorityAccess:
-		return makeEnum(int(rrc.Value), "MpsPriorityAccess", false)
+		return utils.MakeEnum(uint64(rrc.Value), "MpsPriorityAccess", false)
 	case ngapType.RRCEstablishmentCausePresentMcsPriorityAccess:
-		return makeEnum(int(rrc.Value), "McsPriorityAccess", false)
+		return utils.MakeEnum(uint64(rrc.Value), "McsPriorityAccess", false)
 	case ngapType.RRCEstablishmentCausePresentNotAvailable:
-		return makeEnum(int(rrc.Value), "NotAvailable", false)
+		return utils.MakeEnum(uint64(rrc.Value), "NotAvailable", false)
 	default:
-		return makeEnum(int(rrc.Value), "", true)
+		return utils.MakeEnum(uint64(rrc.Value), "", true)
 	}
 }
 
-func buildUEContextRequestIE(ueCtxReq ngapType.UEContextRequest) EnumField {
+func buildUEContextRequestIE(ueCtxReq ngapType.UEContextRequest) utils.EnumField[uint64] {
 	switch ueCtxReq.Value {
 	case ngapType.UEContextRequestPresentRequested:
-		return makeEnum(int(ueCtxReq.Value), "Requested", false)
+		return utils.MakeEnum(uint64(ueCtxReq.Value), "Requested", false)
 	default:
-		return makeEnum(int(ueCtxReq.Value), "", true)
+		return utils.MakeEnum(uint64(ueCtxReq.Value), "", true)
 	}
 }
 

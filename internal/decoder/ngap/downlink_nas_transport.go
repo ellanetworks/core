@@ -12,7 +12,6 @@ import (
 type NASPDU struct {
 	Raw     []byte          `json:"raw"`
 	Decoded *nas.NASMessage `json:"decoded"`
-	Error   string          `json:"error,omitempty"`
 }
 
 type RATRestriction struct {
@@ -43,11 +42,6 @@ type UEAggregateMaximumBitRate struct {
 	Downlink int64 `json:"downlink"`
 	Uplink   int64 `json:"uplink"`
 }
-
-//	type NGAPMessageValue struct {
-//		IEs   []IE   `json:"ies,omitempty"`
-//		Error string `json:"error,omitempty"`
-//	}
 
 func buildDownlinkNASTransport(downlinkNASTransport ngapType.DownlinkNASTransport) NGAPMessageValue {
 	AMFUENGAPID := int64(0)
@@ -88,23 +82,13 @@ func buildDownlinkNASTransport(downlinkNASTransport ngapType.DownlinkNASTranspor
 				AMFUENGAPID: AMFUENGAPID,
 			}
 
-			var nasPdu NASPDU
-			decodednNasPdu, err := nas.DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
-			if err != nil {
-				nasPdu = NASPDU{
-					Raw:   ie.Value.NASPDU.Value,
-					Error: err.Error(),
-				}
-			} else {
-				nasPdu = NASPDU{
-					Raw:     ie.Value.NASPDU.Value,
-					Decoded: decodednNasPdu,
-				}
-			}
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       nasPdu,
+				Value: NASPDU{
+					Raw:     ie.Value.NASPDU.Value,
+					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo),
+				},
 			})
 		case ngapType.ProtocolIEIDMobilityRestrictionList:
 			ies = append(ies, IE{

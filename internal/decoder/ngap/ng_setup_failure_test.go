@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/ngap"
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/ngap/ngapType"
 )
 
@@ -25,7 +26,7 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != int(ngapType.ProcedureCodeNGSetup) {
+	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeNGSetup {
 		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -47,7 +48,7 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected ID=Cause, got %v", item0.ID)
 	}
 
-	if item0.ID.Value != int(ngapType.ProtocolIEIDCause) {
+	if item0.ID.Value != ngapType.ProtocolIEIDCause {
 		t.Errorf("expected ID value=15, got %d", item0.ID.Value)
 	}
 
@@ -59,7 +60,7 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
 	}
 
-	cause, ok := item0.Value.(ngap.EnumField)
+	cause, ok := item0.Value.(utils.EnumField[uint64])
 	if !ok {
 		t.Fatalf("expected Cause, got %T", item0.Value)
 	}
@@ -68,7 +69,7 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected Cause=UnknownPLMN, got %v", cause.Label)
 	}
 
-	if cause.Value != int(ngapType.CauseMiscPresentUnknownPLMN) {
+	if cause.Value != uint64(ngapType.CauseMiscPresentUnknownPLMN) {
 		t.Errorf("expected Cause value=%d, got %d", ngapType.CauseMiscPresentUnknownPLMN, cause.Value)
 	}
 }

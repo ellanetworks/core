@@ -3,7 +3,6 @@ package nas
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
@@ -51,7 +50,8 @@ type SecurityModeCommand struct {
 	Additional5GSecurityInformation     *Additional5GSecurityInformation `json:"additional_5g_security_information,omitempty"`
 	EAPMessage                          []byte                           `json:"eap_message,omitempty"`
 	ABBA                                []uint8                          `json:"abba,omitempty"`
-	ReplayedS1UESecurityCapabilities    *UESecurityCapability            `json:"replayed_s1_ue_security_capabilities,omitempty"`
+
+	ReplayedS1UESecurityCapabilities *UnsupportedIE `json:"replayed_s1_ue_security_capabilities,omitempty"`
 }
 
 func buildSecurityModeCommand(msg *nasMessage.SecurityModeCommand) *SecurityModeCommand {
@@ -94,7 +94,7 @@ func buildSecurityModeCommand(msg *nasMessage.SecurityModeCommand) *SecurityMode
 	}
 
 	if msg.ReplayedS1UESecurityCapabilities != nil {
-		logger.EllaLog.Warn("ReplayedS1UESecurityCapabilities not yet implemented")
+		securityModeCommand.ReplayedS1UESecurityCapabilities = makeUnsupportedIE()
 	}
 
 	return securityModeCommand

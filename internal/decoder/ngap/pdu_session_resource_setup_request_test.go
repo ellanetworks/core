@@ -25,7 +25,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Errorf("expected ProcedureCode=PDUSessionResourceSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != int(ngapType.ProcedureCodePDUSessionResourceSetup) {
+	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodePDUSessionResourceSetup {
 		t.Errorf("expected ProcedureCode value=21, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -47,7 +47,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
 	}
 
-	if item0.ID.Value != int(ngapType.ProtocolIEIDAMFUENGAPID) {
+	if item0.ID.Value != ngapType.ProtocolIEIDAMFUENGAPID {
 		t.Errorf("expected ID value=10, got %d", item0.ID.Value)
 	}
 
@@ -74,7 +74,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=RANUENGAPID, got %v", item1.ID)
 	}
 
-	if item1.ID.Value != int(ngapType.ProtocolIEIDRANUENGAPID) {
+	if item1.ID.Value != ngapType.ProtocolIEIDRANUENGAPID {
 		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
 	}
 
@@ -101,7 +101,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=PDUSessionResourceSetupListSUReq, got %s", item2.ID.Label)
 	}
 
-	if item2.ID.Value != int(ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq) {
+	if item2.ID.Value != ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq {
 		t.Errorf("expected ID value=74, got %d", item2.ID.Value)
 	}
 
@@ -148,7 +148,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=UEAggregateMaximumBitRate, got %v", item3.ID)
 	}
 
-	if item3.ID.Value != int(ngapType.ProtocolIEIDUEAggregateMaximumBitRate) {
+	if item3.ID.Value != ngapType.ProtocolIEIDUEAggregateMaximumBitRate {
 		t.Errorf("expected ID value=110, got %d", item3.ID.Value)
 	}
 

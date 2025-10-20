@@ -1,6 +1,7 @@
 package nas
 
 import (
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
@@ -8,8 +9,8 @@ import (
 )
 
 type PDUSessionCause struct {
-	PDUSessionID uint8  `json:"pdu_session_id"`
-	Cause        string `json:"cause"`
+	PDUSessionID uint8                  `json:"pdu_session_id"`
+	Cause        utils.EnumField[uint8] `json:"cause"`
 }
 
 type PDUSessionReactivateResultPDU struct {
@@ -63,8 +64,6 @@ func buildServiceAccept(msg *nasMessage.ServiceAccept) *ServiceAccept {
 	}
 
 	if msg.PDUSessionReactivationResultErrorCause != nil {
-		logger.EllaLog.Warn("PDUSessionReactivationResultErrorCause not yet implemented")
-		// Cause5GMMToString
 		pduSessionIDAndCause := msg.PDUSessionReactivationResultErrorCause.GetPDUSessionIDAndCauseValue()
 		pduSessionIDs, causes := bufToPDUSessionReactivationResultErrorCause(pduSessionIDAndCause)
 		if len(pduSessionIDs) != len(causes) {
@@ -74,7 +73,7 @@ func buildServiceAccept(msg *nasMessage.ServiceAccept) *ServiceAccept {
 			for i := range pduSessionIDs {
 				pduSessionCauses = append(pduSessionCauses, PDUSessionCause{
 					PDUSessionID: pduSessionIDs[i],
-					Cause:        nasMessage.Cause5GMMToString(causes[i]),
+					Cause:        cause5GMMToEnum(causes[i]),
 				})
 			}
 			serviceAccept.PDUSessionReactivationResultErrorCause = pduSessionCauses

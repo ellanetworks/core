@@ -25,7 +25,7 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 		t.Errorf("expected ProcedureCode=InitialContextSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != int(ngapType.ProcedureCodeInitialContextSetup) {
+	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeInitialContextSetup {
 		t.Errorf("expected ProcedureCode value=14, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -47,7 +47,7 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=AMFUENGAPID, got %v", item0.ID)
 	}
 
-	if item0.ID.Value != int(ngapType.ProtocolIEIDAMFUENGAPID) {
+	if item0.ID.Value != ngapType.ProtocolIEIDAMFUENGAPID {
 		t.Errorf("expected ID value=10, got %d", item0.ID.Value)
 	}
 
@@ -74,7 +74,7 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=RANUENGAPID, got %v", item1.ID)
 	}
 
-	if item1.ID.Value != int(ngapType.ProtocolIEIDRANUENGAPID) {
+	if item1.ID.Value != ngapType.ProtocolIEIDRANUENGAPID {
 		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
 	}
 

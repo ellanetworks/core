@@ -34,24 +34,13 @@ func buildUplinkNASTransport(uplinkNASTransport ngapType.UplinkNASTransport) NGA
 				AMFUENGAPID: AMFUENGAPID,
 			}
 
-			var nasPdu NASPDU
-			decodednNasPdu, err := nas.DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
-			if err != nil {
-				nasPdu = NASPDU{
-					Raw:   ie.Value.NASPDU.Value,
-					Error: err.Error(),
-				}
-			} else {
-				nasPdu = NASPDU{
-					Raw:     ie.Value.NASPDU.Value,
-					Decoded: decodednNasPdu,
-				}
-			}
-
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       nasPdu,
+				Value: NASPDU{
+					Raw:     ie.Value.NASPDU.Value,
+					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo),
+				},
 			})
 		case ngapType.ProtocolIEIDUserLocationInformation:
 			ies = append(ies, IE{

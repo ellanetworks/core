@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
+	naslib "github.com/omec-project/nas"
 )
 
 func TestDecodeNASMessage_AuthenticationRequest(t *testing.T) {
@@ -14,17 +15,18 @@ func TestDecodeNASMessage_AuthenticationRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	nas, err := nas.DecodeNASMessage(raw, nil)
-	if err != nil {
-		t.Fatalf("NAS message decode failed: %v", err)
-	}
+	nas := nas.DecodeNASMessage(raw, nil)
 
 	if nas == nil {
 		t.Fatal("Decoded NAS message is nil")
 	}
 
-	if nas.SecurityHeader.SecurityHeaderType != "Plain NAS" {
-		t.Errorf("Unexpected SecurityHeaderType: got %v", nas.SecurityHeader.SecurityHeaderType)
+	if nas.SecurityHeader.SecurityHeaderType.Label != "Plain NAS" {
+		t.Errorf("Unexpected SecurityHeaderType: got %v", nas.SecurityHeader.SecurityHeaderType.Label)
+	}
+
+	if nas.SecurityHeader.SecurityHeaderType.Value != naslib.SecurityHeaderTypePlainNas {
+		t.Errorf("Unexpected SecurityHeaderType value: got %d", nas.SecurityHeader.SecurityHeaderType.Value)
 	}
 
 	if nas.GsmMessage != nil {
@@ -35,8 +37,12 @@ func TestDecodeNASMessage_AuthenticationRequest(t *testing.T) {
 		t.Fatal("GmmMessage is nil")
 	}
 
-	if nas.GmmMessage.GmmHeader.MessageType != "AuthenticationRequest (86)" {
-		t.Errorf("Unexpected GmmMessage Type: got %v", nas.GmmMessage.GmmHeader.MessageType)
+	if nas.GmmMessage.GmmHeader.MessageType.Label != "AuthenticationRequest" {
+		t.Errorf("Unexpected GmmMessage Type: got %v", nas.GmmMessage.GmmHeader.MessageType.Label)
+	}
+
+	if nas.GmmMessage.GmmHeader.MessageType.Value != naslib.MsgTypeAuthenticationRequest {
+		t.Errorf("Unexpected GmmMessage Type value: got %d", nas.GmmMessage.GmmHeader.MessageType.Value)
 	}
 
 	if nas.GmmMessage.AuthenticationRequest == nil {

@@ -35,6 +35,11 @@ type PDUSessionEstablishmentAccept struct {
 	AuthorizedQosFlowDescriptions                []QoSFlowDescription                  `json:"authorized_qos_flow_descriptions,omitempty"`
 	ExtendedProtocolConfigurationOptions         *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
 	DNN                                          *string                               `json:"dnn,omitempty"`
+
+	RQTimerValue                 *UnsupportedIE `json:"rq_timer_value,omitempty"`
+	AlwaysonPDUSessionIndication *UnsupportedIE `json:"alwayson_pdu_session_indication,omitempty"`
+	MappedEPSBearerContexts      *UnsupportedIE `json:"mapped_eps_bearer_contexts,omitempty"`
+	EAPMessage                   *UnsupportedIE `json:"eap_message,omitempty"`
 }
 
 func buildPDUSessionEstablishmentAccept(msg *nasMessage.PDUSessionEstablishmentAccept) *PDUSessionEstablishmentAccept {
@@ -64,7 +69,7 @@ func buildPDUSessionEstablishmentAccept(msg *nasMessage.PDUSessionEstablishmentA
 	}
 
 	if msg.RQTimerValue != nil {
-		logger.EllaLog.Warn("RQTimerValue not yet implemented")
+		estAcc.RQTimerValue = makeUnsupportedIE()
 	}
 
 	if msg.SNSSAI != nil {
@@ -73,15 +78,15 @@ func buildPDUSessionEstablishmentAccept(msg *nasMessage.PDUSessionEstablishmentA
 	}
 
 	if msg.AlwaysonPDUSessionIndication != nil {
-		logger.EllaLog.Warn("AlwaysonPDUSessionIndication not yet implemented")
+		estAcc.AlwaysonPDUSessionIndication = makeUnsupportedIE()
 	}
 
 	if msg.MappedEPSBearerContexts != nil {
-		logger.EllaLog.Warn("MappedEPSBearerContexts not yet implemented")
+		estAcc.MappedEPSBearerContexts = makeUnsupportedIE()
 	}
 
 	if msg.EAPMessage != nil {
-		logger.EllaLog.Warn("EAPMessage not yet implemented")
+		estAcc.EAPMessage = makeUnsupportedIE()
 	}
 
 	if msg.AuthorizedQosFlowDescriptions != nil {
