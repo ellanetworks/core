@@ -46,13 +46,18 @@ func UpdateSmContext(ctx ctxt.Context, smContextRef string, updateSmContextReque
 	}
 
 	smContext := context.GetSMContext(smContextRef)
+	if smContext == nil {
+		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
+	}
 
 	rsp, err := producer.HandlePDUSessionSMContextUpdate(ctx, updateSmContextRequest, smContext)
 	if err != nil {
 		return rsp, fmt.Errorf("error updating pdu session: %v ", err.Error())
 	}
+
 	if rsp == nil {
 		return nil, fmt.Errorf("response is nil")
 	}
+
 	return rsp, nil
 }
