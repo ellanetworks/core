@@ -61,14 +61,14 @@ func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTranspo
 			if err != nil {
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}
-			nasPdu := &NASPDU{
+			nasPdu := NASPDU{
 				Raw:     ie.Value.NASPDU.Value,
 				Decoded: decodednNasPdu,
 			}
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				NASPDU:      nasPdu,
+				Value:       nasPdu,
 			})
 		case ngapType.ProtocolIEIDMobilityRestrictionList:
 			ieList.IEs = append(ieList.IEs, IE{

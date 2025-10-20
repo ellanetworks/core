@@ -15,36 +15,36 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := ngap.DecodeNGAPMessage(raw)
+	ngapMsg, err := ngap.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
 
-	if ngap.InitiatingMessage == nil {
+	if ngapMsg.InitiatingMessage == nil {
 		t.Fatalf("expected InitiatingMessage, got nil")
 	}
 
-	if ngap.InitiatingMessage.ProcedureCode.Label != "InitialUEMessage" {
-		t.Errorf("expected ProcedureCode=InitialUEMessage, got %v", ngap.InitiatingMessage.ProcedureCode)
+	if ngapMsg.InitiatingMessage.ProcedureCode.Label != "InitialUEMessage" {
+		t.Errorf("expected ProcedureCode=InitialUEMessage, got %v", ngapMsg.InitiatingMessage.ProcedureCode)
 	}
 
-	if ngap.InitiatingMessage.ProcedureCode.Value != int(ngapType.ProcedureCodeInitialUEMessage) {
-		t.Errorf("expected ProcedureCode value=9, got %d", ngap.InitiatingMessage.ProcedureCode.Value)
+	if ngapMsg.InitiatingMessage.ProcedureCode.Value != int(ngapType.ProcedureCodeInitialUEMessage) {
+		t.Errorf("expected ProcedureCode value=9, got %d", ngapMsg.InitiatingMessage.ProcedureCode.Value)
 	}
 
-	if ngap.InitiatingMessage.Criticality.Value != 1 {
-		t.Errorf("expected Criticality=Ignore (1), got %d", ngap.InitiatingMessage.Criticality.Value)
+	if ngapMsg.InitiatingMessage.Criticality.Value != 1 {
+		t.Errorf("expected Criticality=Ignore (1), got %d", ngapMsg.InitiatingMessage.Criticality.Value)
 	}
 
-	if ngap.InitiatingMessage.Value.InitialUEMessage == nil {
+	if ngapMsg.InitiatingMessage.Value.InitialUEMessage == nil {
 		t.Fatalf("expected InitialUEMessage, got nil")
 	}
 
-	if len(ngap.InitiatingMessage.Value.InitialUEMessage.IEs) != 5 {
-		t.Errorf("expected 5 ProtocolIEs, got %d", len(ngap.InitiatingMessage.Value.InitialUEMessage.IEs))
+	if len(ngapMsg.InitiatingMessage.Value.InitialUEMessage.IEs) != 5 {
+		t.Errorf("expected 5 ProtocolIEs, got %d", len(ngapMsg.InitiatingMessage.Value.InitialUEMessage.IEs))
 	}
 
-	item0 := ngap.InitiatingMessage.Value.InitialUEMessage.IEs[0]
+	item0 := ngapMsg.InitiatingMessage.Value.InitialUEMessage.IEs[0]
 
 	if item0.ID.Label != "RANUENGAPID" {
 		t.Errorf("expected ID=RANUENGAPID, got %s", item0.ID.Label)
@@ -71,7 +71,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected RANUENGAPID=1, got %d", ranUENGAPID)
 	}
 
-	item1 := ngap.InitiatingMessage.Value.InitialUEMessage.IEs[1]
+	item1 := ngapMsg.InitiatingMessage.Value.InitialUEMessage.IEs[1]
 
 	if item1.ID.Label != "NASPDU" {
 		t.Errorf("expected ID=NASPDU, got %s", item1.ID.Label)
@@ -89,8 +89,9 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item1.Criticality.Value)
 	}
 
-	if item1.NASPDU == nil {
-		t.Fatalf("expected NASPDU, got nil")
+	nasPdu, ok := item1.Value.(ngap.NASPDU)
+	if !ok {
+		t.Fatalf("expected NASPDU to be of type ngap.NASPDU, got %T", item1.Value)
 	}
 
 	expectedNASPDU := "fgBBeQANAQDxEAAAAABEdGhXJS4E8PDw8A=="
@@ -99,11 +100,11 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	if string(item1.NASPDU.Raw) != string(expectedNASPDUraw) {
-		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, item1.NASPDU.Raw)
+	if string(nasPdu.Raw) != string(expectedNASPDUraw) {
+		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, nasPdu.Raw)
 	}
 
-	item2 := ngap.InitiatingMessage.Value.InitialUEMessage.IEs[2]
+	item2 := ngapMsg.InitiatingMessage.Value.InitialUEMessage.IEs[2]
 
 	if item2.ID.Label != "UserLocationInformation" {
 		t.Errorf("expected ID=UserLocationInformation, got %s", item2.ID.Label)
@@ -149,7 +150,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected TimeStamp=2025-10-14T20:47:06Z, got %s", *item2.UserLocationInformation.NR.TimeStamp)
 	}
 
-	item3 := ngap.InitiatingMessage.Value.InitialUEMessage.IEs[3]
+	item3 := ngapMsg.InitiatingMessage.Value.InitialUEMessage.IEs[3]
 
 	if item3.ID.Label != "RRCEstablishmentCause" {
 		t.Errorf("expected ID=RRCEstablishmentCause, got %s", item3.ID.Label)
@@ -175,7 +176,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected RRCEstablishmentCause=MoSignalling, got %s", *item3.RRCEstablishmentCause)
 	}
 
-	item4 := ngap.InitiatingMessage.Value.InitialUEMessage.IEs[4]
+	item4 := ngapMsg.InitiatingMessage.Value.InitialUEMessage.IEs[4]
 
 	if item4.ID.Label != "UEContextRequest" {
 		t.Errorf("expected ID=UEContextRequest, got %s", item4.ID.Label)

@@ -15,40 +15,40 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := ngap.DecodeNGAPMessage(raw)
+	ngapMsg, err := ngap.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
 
-	if ngap.InitiatingMessage == nil {
+	if ngapMsg.InitiatingMessage == nil {
 		t.Fatalf("expected InitiatingMessage, got nil")
 	}
 
-	if ngap.InitiatingMessage.ProcedureCode.Label != "DownlinkNASTransport" {
-		t.Errorf("expected ProcedureCode=DownlinkNASTransport, got %v", ngap.InitiatingMessage.ProcedureCode)
+	if ngapMsg.InitiatingMessage.ProcedureCode.Label != "DownlinkNASTransport" {
+		t.Errorf("expected ProcedureCode=DownlinkNASTransport, got %v", ngapMsg.InitiatingMessage.ProcedureCode)
 	}
 
-	if ngap.InitiatingMessage.ProcedureCode.Value != int(ngapType.ProcedureCodeDownlinkNASTransport) {
-		t.Errorf("expected ProcedureCode value=3, got %d", ngap.InitiatingMessage.ProcedureCode.Value)
+	if ngapMsg.InitiatingMessage.ProcedureCode.Value != int(ngapType.ProcedureCodeDownlinkNASTransport) {
+		t.Errorf("expected ProcedureCode value=3, got %d", ngapMsg.InitiatingMessage.ProcedureCode.Value)
 	}
 
-	if ngap.InitiatingMessage.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", ngap.InitiatingMessage.Criticality)
+	if ngapMsg.InitiatingMessage.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore, got %v", ngapMsg.InitiatingMessage.Criticality)
 	}
 
-	if ngap.InitiatingMessage.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", ngap.InitiatingMessage.Criticality.Value)
+	if ngapMsg.InitiatingMessage.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", ngapMsg.InitiatingMessage.Criticality.Value)
 	}
 
-	if ngap.InitiatingMessage.Value.DownlinkNASTransport == nil {
+	if ngapMsg.InitiatingMessage.Value.DownlinkNASTransport == nil {
 		t.Fatalf("expected DownlinkNASTransport, got nil")
 	}
 
-	if len(ngap.InitiatingMessage.Value.DownlinkNASTransport.IEs) != 3 {
-		t.Errorf("expected 3 ProtocolIEs, got %d", len(ngap.InitiatingMessage.Value.DownlinkNASTransport.IEs))
+	if len(ngapMsg.InitiatingMessage.Value.DownlinkNASTransport.IEs) != 3 {
+		t.Errorf("expected 3 ProtocolIEs, got %d", len(ngapMsg.InitiatingMessage.Value.DownlinkNASTransport.IEs))
 	}
 
-	item0 := ngap.InitiatingMessage.Value.DownlinkNASTransport.IEs[0]
+	item0 := ngapMsg.InitiatingMessage.Value.DownlinkNASTransport.IEs[0]
 
 	if item0.ID.Label != "AMFUENGAPID" {
 		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
@@ -74,7 +74,7 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 		t.Errorf("expected AMFUENGAPID=1, got %d", *item0.AMFUENGAPID)
 	}
 
-	item1 := ngap.InitiatingMessage.Value.DownlinkNASTransport.IEs[1]
+	item1 := ngapMsg.InitiatingMessage.Value.DownlinkNASTransport.IEs[1]
 
 	if item1.ID.Label != "RANUENGAPID" {
 		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
@@ -101,7 +101,7 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 		t.Errorf("expected RANUENGAPID=1, got %d", ranUENGAPID)
 	}
 
-	item2 := ngap.InitiatingMessage.Value.DownlinkNASTransport.IEs[2]
+	item2 := ngapMsg.InitiatingMessage.Value.DownlinkNASTransport.IEs[2]
 
 	if item2.ID.Label != "NASPDU" {
 		t.Errorf("expected ID=NASPDU, got %v", item2.ID)
@@ -119,8 +119,9 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item2.Criticality.Value)
 	}
 
-	if item2.NASPDU == nil {
-		t.Fatalf("expected NASPDU, got nil")
+	nasPdu, ok := item2.Value.(ngap.NASPDU)
+	if !ok {
+		t.Fatalf("expected NASPDU to be of type NASPDU, got %T", item2.Value)
 	}
 
 	expectedNASPDU := "fgBWAAIAACEaBwCjbSa9vkiAkRdky8+5IBBH2jhAU2SAAE2CgCRBSs2H"
@@ -129,7 +130,7 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	if string(item2.NASPDU.Raw) != string(expectedNASPDUraw) {
-		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, item2.NASPDU.Raw)
+	if string(nasPdu.Raw) != string(expectedNASPDUraw) {
+		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, nasPdu.Raw)
 	}
 }

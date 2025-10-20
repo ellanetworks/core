@@ -33,14 +33,14 @@ func buildInitialUEMessage(initialUEMessage *ngapType.InitialUEMessage) *Initial
 			if err != nil {
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}
-			nasPdu := &NASPDU{
+			nasPdu := NASPDU{
 				Raw:     ie.Value.NASPDU.Value,
 				Decoded: decodednNasPdu,
 			}
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				NASPDU:      nasPdu,
+				Value:       nasPdu,
 			})
 		case ngapType.ProtocolIEIDUserLocationInformation:
 			ieList.IEs = append(ieList.IEs, IE{

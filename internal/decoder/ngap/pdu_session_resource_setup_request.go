@@ -51,7 +51,7 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}
 
-			nasPdu := &NASPDU{
+			nasPdu := NASPDU{
 				Raw:     ie.Value.NASPDU.Value,
 				Decoded: decodednNasPdu,
 			}
@@ -59,7 +59,7 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				NASPDU:      nasPdu,
+				Value:       nasPdu,
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
 			nasContextInfo := &nas.NasContextInfo{

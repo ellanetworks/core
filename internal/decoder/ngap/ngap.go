@@ -167,7 +167,6 @@ type IE struct {
 	Criticality EnumField `json:"criticality"`
 	Value       any       `json:"value,omitempty"`
 
-	NASPDU                                    *NASPDU                                 `json:"nas_pdu,omitempty"`
 	UserLocationInformation                   *UserLocationInformation                `json:"user_location_information,omitempty"`
 	RRCEstablishmentCause                     *string                                 `json:"rrc_establishment_cause,omitempty"`
 	FiveGSTMSI                                *FiveGSTMSI                             `json:"fiveg_stmsi,omitempty"`

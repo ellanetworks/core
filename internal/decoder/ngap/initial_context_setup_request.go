@@ -114,7 +114,7 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
 			}
 
-			nasPdu := &NASPDU{
+			nasPdu := NASPDU{
 				Raw:     ie.Value.NASPDU.Value,
 				Decoded: decodednNasPdu,
 			}
@@ -122,7 +122,7 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				NASPDU:      nasPdu,
+				Value:       nasPdu,
 			})
 		default:
 			ieList.IEs = append(ieList.IEs, IE{
