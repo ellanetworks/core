@@ -6,7 +6,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
 	"go.uber.org/zap"
@@ -42,7 +41,6 @@ type SNSSAI struct {
 type RegistrationAccept struct {
 	ExtendedProtocolDiscriminator       uint8                     `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8                     `json:"spare_half_octet_and_security_header_type"`
-	RegistrationAcceptMessageIdentity   string                    `json:"registration_accept_message_identity"`
 	RegistrationResult5GS               utils.EnumField[uint8]    `json:"registration_result_5gs"`
 	GUTI5G                              *string                   `json:"guti_5g,omitempty"`
 	EquivalentPLMNs                     []PLMNID                  `json:"equivalent_plmns,omitempty"`
@@ -93,7 +91,6 @@ func buildRegistrationAccept(msg *nasMessage.RegistrationAccept) *RegistrationAc
 	registrationAccept := &RegistrationAccept{
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		RegistrationAcceptMessageIdentity:   nas.MessageName(msg.RegistrationAcceptMessageIdentity.Octet),
 		RegistrationResult5GS:               buildRegistrationResult5GS(msg.RegistrationResult5GS),
 	}
 

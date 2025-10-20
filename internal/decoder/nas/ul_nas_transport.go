@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
@@ -18,16 +19,15 @@ type PayloadContainer struct {
 }
 
 type ULNASTransport struct {
-	ExtendedProtocolDiscriminator         uint8            `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType   uint8            `json:"spare_half_octet_and_security_header_type"`
-	ULNASTRANSPORTMessageIdentity         string           `json:"ul_nas_transport_message_identity"`
-	SpareHalfOctetAndPayloadContainerType uint8            `json:"spare_half_octet_and_payload_container_type"`
-	PayloadContainer                      PayloadContainer `json:"payload_container"`
-	PduSessionID2Value                    *uint8           `json:"pdu_session_id_2_value,omitempty"`
-	OldPDUSessionID                       *uint8           `json:"old_pdu_session_id,omitempty"`
-	RequestType                           *string          `json:"request_type,omitempty"`
-	SNSSAI                                *SNSSAI          `json:"snssai,omitempty"`
-	DNN                                   *string          `json:"dnn,omitempty"`
+	ExtendedProtocolDiscriminator         uint8                   `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType   uint8                   `json:"spare_half_octet_and_security_header_type"`
+	SpareHalfOctetAndPayloadContainerType uint8                   `json:"spare_half_octet_and_payload_container_type"`
+	PayloadContainer                      PayloadContainer        `json:"payload_container"`
+	PduSessionID2Value                    *uint8                  `json:"pdu_session_id_2_value,omitempty"`
+	OldPDUSessionID                       *uint8                  `json:"old_pdu_session_id,omitempty"`
+	RequestType                           *utils.EnumField[uint8] `json:"request_type,omitempty"`
+	SNSSAI                                *SNSSAI                 `json:"snssai,omitempty"`
+	DNN                                   *string                 `json:"dnn,omitempty"`
 
 	AdditionalInformation *UnsupportedIE `json:"additional_information,omitempty"`
 }
@@ -40,7 +40,6 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	ulNasTransport := &ULNASTransport{
 		ExtendedProtocolDiscriminator:         msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType:   msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		ULNASTRANSPORTMessageIdentity:         nas.MessageName(msg.ULNASTRANSPORTMessageIdentity.Octet),
 		SpareHalfOctetAndPayloadContainerType: msg.SpareHalfOctetAndPayloadContainerType.Octet,
 	}
 
@@ -57,21 +56,7 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	}
 
 	if msg.RequestType != nil {
-		value := ""
-		switch msg.RequestType.GetRequestTypeValue() {
-		case nasMessage.ULNASTransportRequestTypeInitialRequest:
-			value = "InitialRequest"
-		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
-			value = "ExistingPduSession"
-		case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
-			value = "InitialEmergencyRequest"
-		case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
-			value = "ExistingEmergencyPduSession"
-		case nasMessage.ULNASTransportRequestTypeModificationRequest:
-			value = "ModificationRequest"
-		case nasMessage.ULNASTransportRequestTypeReserved:
-			value = "Reserved"
-		}
+		value := buildRequestTypeEnum(msg.RequestType.GetRequestTypeValue())
 		ulNasTransport.RequestType = &value
 	}
 
@@ -90,6 +75,25 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	}
 
 	return ulNasTransport
+}
+
+func buildRequestTypeEnum(rt uint8) utils.EnumField[uint8] {
+	switch rt {
+	case nasMessage.ULNASTransportRequestTypeInitialRequest:
+		return utils.MakeEnum(rt, "InitialRequest", false)
+	case nasMessage.ULNASTransportRequestTypeExistingPduSession:
+		return utils.MakeEnum(rt, "ExistingPduSession", false)
+	case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
+		return utils.MakeEnum(rt, "InitialEmergencyRequest", false)
+	case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
+		return utils.MakeEnum(rt, "ExistingEmergencyPduSession", false)
+	case nasMessage.ULNASTransportRequestTypeModificationRequest:
+		return utils.MakeEnum(rt, "ModificationRequest", false)
+	case nasMessage.ULNASTransportRequestTypeReserved:
+		return utils.MakeEnum(rt, "Reserved", false)
+	default:
+		return utils.MakeEnum(rt, "", true)
+	}
 }
 
 func buildULNASPayloadContainer(msg *nasMessage.ULNASTransport) PayloadContainer {

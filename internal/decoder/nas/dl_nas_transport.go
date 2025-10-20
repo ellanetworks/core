@@ -2,14 +2,12 @@ package nas
 
 import (
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 )
 
 type DLNASTransport struct {
 	ExtendedProtocolDiscriminator         uint8                   `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType   uint8                   `json:"spare_half_octet_and_security_header_type"`
-	DLNASTRANSPORTMessageIdentity         string                  `json:"dl_nas_transport_message_identity"`
 	SpareHalfOctetAndPayloadContainerType uint8                   `json:"spare_half_octet_and_payload_container_type"`
 	PayloadContainer                      PayloadContainer        `json:"payload_container"`
 	PduSessionID2Value                    *uint8                  `json:"pdu_session_id_2_value,omitempty"`
@@ -28,7 +26,6 @@ func buildDLNASTransport(msg *nasMessage.DLNASTransport) *DLNASTransport {
 	dlNasTransport := &DLNASTransport{
 		ExtendedProtocolDiscriminator:         msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType:   msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		DLNASTRANSPORTMessageIdentity:         nas.MessageName(msg.DLNASTRANSPORTMessageIdentity.Octet),
 		SpareHalfOctetAndPayloadContainerType: msg.SpareHalfOctetAndPayloadContainerType.Octet,
 		Ipaddr:                                msg.Ipaddr,
 	}

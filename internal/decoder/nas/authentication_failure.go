@@ -2,7 +2,6 @@ package nas
 
 import (
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 )
 
@@ -17,10 +16,9 @@ func makeUnsupportedIE() *UnsupportedIE {
 }
 
 type AuthenticationFailure struct {
-	ExtendedProtocolDiscriminator        uint8                  `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType  uint8                  `json:"spare_half_octet_and_security_header_type"`
-	AuthenticationFailureMessageIdentity string                 `json:"authentication_failure_message_identity"`
-	Cause5GMM                            utils.EnumField[uint8] `json:"cause"`
+	ExtendedProtocolDiscriminator       uint8                  `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType uint8                  `json:"spare_half_octet_and_security_header_type"`
+	Cause5GMM                           utils.EnumField[uint8] `json:"cause"`
 
 	AuthenticationFailureParameter *UnsupportedIE `json:"authentication_failure_parameter,omitempty"`
 }
@@ -31,10 +29,9 @@ func buildAuthenticationFailure(msg *nasMessage.AuthenticationFailure) *Authenti
 	}
 
 	authFailure := &AuthenticationFailure{
-		ExtendedProtocolDiscriminator:        msg.ExtendedProtocolDiscriminator.Octet,
-		SpareHalfOctetAndSecurityHeaderType:  msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		AuthenticationFailureMessageIdentity: nas.MessageName(msg.AuthenticationFailureMessageIdentity.Octet),
-		Cause5GMM:                            cause5GMMToEnum(msg.Cause5GMM.GetCauseValue()),
+		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
+		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
+		Cause5GMM:                           cause5GMMToEnum(msg.Cause5GMM.GetCauseValue()),
 	}
 
 	if msg.AuthenticationFailureParameter != nil {

@@ -1,8 +1,7 @@
 package nas
 
 import (
-	"fmt"
-
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
@@ -10,33 +9,34 @@ import (
 )
 
 type TMSI5GS struct {
-	TypeOfIdentity string   `json:"type_of_identity"`
-	AMFSetID       uint16   `json:"amf_set_id"`
-	AMFPointer     uint8    `json:"amf_pointer"`
-	TMSI5G         [4]uint8 `json:"tmsi_5g"`
+	TypeOfIdentity utils.EnumField[uint8] `json:"type_of_identity"`
+	AMFSetID       uint16                 `json:"amf_set_id"`
+	AMFPointer     uint8                  `json:"amf_pointer"`
+	TMSI5G         [4]uint8               `json:"tmsi_5g"`
+}
+
+func buildTypeOfIdentityEnum(toi uint8) utils.EnumField[uint8] {
+	switch toi {
+	case nasMessage.MobileIdentity5GSTypeNoIdentity:
+		return utils.MakeEnum(toi, "NoIdentity", false)
+	case nasMessage.MobileIdentity5GSTypeSuci:
+		return utils.MakeEnum(toi, "Suci", false)
+	case nasMessage.MobileIdentity5GSType5gGuti:
+		return utils.MakeEnum(toi, "5gGuti", false)
+	case nasMessage.MobileIdentity5GSTypeImei:
+		return utils.MakeEnum(toi, "Imei", false)
+	case nasMessage.MobileIdentity5GSType5gSTmsi:
+		return utils.MakeEnum(toi, "5gSTmsi", false)
+	case nasMessage.MobileIdentity5GSTypeImeisv:
+		return utils.MakeEnum(toi, "Imeisv", false)
+	default:
+		return utils.MakeEnum(toi, "", true)
+	}
 }
 
 func buildTMSI5GS(tmsi5gs nasType.TMSI5GS) TMSI5GS {
-	var typeOfIdentity string
-	switch tmsi5gs.GetTypeOfIdentity() {
-	case nasMessage.MobileIdentity5GSTypeNoIdentity:
-		typeOfIdentity = "NoIdentity"
-	case nasMessage.MobileIdentity5GSTypeSuci:
-		typeOfIdentity = "Suci"
-	case nasMessage.MobileIdentity5GSType5gGuti:
-		typeOfIdentity = "5gGuti"
-	case nasMessage.MobileIdentity5GSTypeImei:
-		typeOfIdentity = "Imei"
-	case nasMessage.MobileIdentity5GSType5gSTmsi:
-		typeOfIdentity = "5gSTmsi"
-	case nasMessage.MobileIdentity5GSTypeImeisv:
-		typeOfIdentity = "Imeisv"
-	default:
-		typeOfIdentity = fmt.Sprintf("Unknown(%d)", tmsi5gs.GetTypeOfIdentity())
-	}
-
 	return TMSI5GS{
-		TypeOfIdentity: typeOfIdentity,
+		TypeOfIdentity: buildTypeOfIdentityEnum(tmsi5gs.GetTypeOfIdentity()),
 		AMFSetID:       tmsi5gs.GetAMFSetID(),
 		AMFPointer:     tmsi5gs.GetAMFPointer(),
 		TMSI5G:         tmsi5gs.GetTMSI5G(),
@@ -61,7 +61,6 @@ type AllowedPDUSessionStatus struct {
 type ServiceRequest struct {
 	ExtendedProtocolDiscriminator       uint8                     `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8                     `json:"spare_half_octet_and_security_header_type"`
-	ServiceRequestMessageIdentity       string                    `json:"service_request_message_identity"`
 	ServiceTypeAndNgksi                 string                    `json:"service_type_and_ngksi"`
 	TMSI5GS                             TMSI5GS                   `json:"tmsi_5gs,omitempty"`
 	UplinkDataStatus                    []UplinkDataStatusPDU     `json:"uplink_data_status,omitempty"`
@@ -78,7 +77,6 @@ func buildServiceRequest(msg *nasMessage.ServiceRequest) *ServiceRequest {
 	serviceRequest := &ServiceRequest{
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		ServiceRequestMessageIdentity:       nas.MessageName(msg.ServiceRequestMessageIdentity.Octet),
 		ServiceTypeAndNgksi:                 nas.MessageName(msg.ServiceTypeAndNgksi.Octet),
 		TMSI5GS:                             buildTMSI5GS(msg.TMSI5GS),
 	}

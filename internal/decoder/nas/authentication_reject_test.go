@@ -48,8 +48,4 @@ func TestDecodeNASMessage_AuthenticationReject(t *testing.T) {
 	if nas.GmmMessage.AuthenticationReject == nil {
 		t.Fatal("AuthenticationReject is nil")
 	}
-
-	if nas.GmmMessage.AuthenticationReject.AuthenticationRejectMessageIdentity != "AuthenticationReject" {
-		t.Errorf("Unexpected AuthenticationRejectMessageIdentity: got %v, want AuthenticationReject", nas.GmmMessage.AuthenticationReject.AuthenticationRejectMessageIdentity)
-	}
 }

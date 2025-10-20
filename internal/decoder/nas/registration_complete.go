@@ -1,14 +1,12 @@
 package nas
 
 import (
-	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 )
 
 type RegistrationComplete struct {
 	ExtendedProtocolDiscriminator       uint8   `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8   `json:"spare_half_octet_and_security_header_type"`
-	RegistrationCompleteMessageIdentity string  `json:"registration_complete_message_identity"`
 	GetSORContent                       []uint8 `json:"sor_transparent_container,omitempty"`
 }
 
@@ -20,7 +18,6 @@ func buildRegistrationComplete(msg *nasMessage.RegistrationComplete) *Registrati
 	regComplete := &RegistrationComplete{
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		RegistrationCompleteMessageIdentity: nas.MessageName(msg.RegistrationCompleteMessageIdentity.Octet),
 	}
 
 	if msg.SORTransparentContainer != nil {

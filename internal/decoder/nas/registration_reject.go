@@ -2,14 +2,12 @@ package nas
 
 import (
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 )
 
 type RegistrationReject struct {
 	ExtendedProtocolDiscriminator       uint8                  `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8                  `json:"spare_half_octet_and_security_header_type"`
-	RegistrationRejectMessageIdentity   string                 `json:"registration_reject_message_identity"`
 	Cause5GMM                           utils.EnumField[uint8] `json:"cause_5gmm"`
 
 	T3346Value *UnsupportedIE `json:"t3346_value,omitempty"`
@@ -24,7 +22,6 @@ func buildRegistrationReject(msg *nasMessage.RegistrationReject) *RegistrationRe
 	regRej := &RegistrationReject{
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		RegistrationRejectMessageIdentity:   nas.MessageName(msg.RegistrationRejectMessageIdentity.Octet),
 		Cause5GMM:                           cause5GMMToEnum(msg.Cause5GMM.Octet),
 	}
 

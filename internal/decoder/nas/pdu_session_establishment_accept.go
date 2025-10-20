@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
@@ -26,10 +27,10 @@ type PDUSessionEstablishmentAccept struct {
 	PTI                                          uint8                                 `json:"pti"`
 	PDUSESSIONESTABLISHMENTACCEPTMessageIdentity uint8                                 `json:"pdu_session_establishment_accept_message_identity"`
 	SelectedSSCMode                              uint8                                 `json:"selected_ssc_mode"`
-	SelectedPDUSessionType                       string                                `json:"selected_pdu_session_type"`
+	SelectedPDUSessionType                       utils.EnumField[uint8]                `json:"selected_pdu_session_type"`
 	AuthorizedQosRules                           []QosRule                             `json:"authorized_qos_rules"`
 	SessionAMBR                                  SessionAMBR                           `json:"session_ambr"`
-	Cause5GSM                                    *string                               `json:"cause_5g_s_m,omitempty"`
+	Cause5GSM                                    *utils.EnumField[uint8]               `json:"cause_5g_s_m,omitempty"`
 	PDUAddress                                   *string                               `json:"pdu_address,omitempty"`
 	SNSSAI                                       *SNSSAI                               `json:"snssai,omitempty"`
 	AuthorizedQosFlowDescriptions                []QoSFlowDescription                  `json:"authorized_qos_flow_descriptions,omitempty"`
@@ -121,20 +122,20 @@ func buildAuthorizedQosFlowDescriptions(desc *nasType.AuthorizedQosFlowDescripti
 	return flowDesc
 }
 
-func buildPDUSessionType(sessType uint8) string {
+func buildPDUSessionType(sessType uint8) utils.EnumField[uint8] {
 	switch sessType {
 	case nasMessage.PDUSessionTypeIPv4:
-		return "IPv4"
+		return utils.MakeEnum(sessType, "IPv4", false)
 	case nasMessage.PDUSessionTypeIPv6:
-		return "IPv6"
+		return utils.MakeEnum(sessType, "IPv6", false)
 	case nasMessage.PDUSessionTypeIPv4IPv6:
-		return "IPv4v6"
+		return utils.MakeEnum(sessType, "IPv4v6", false)
 	case nasMessage.PDUSessionTypeUnstructured:
-		return "Unstructured"
+		return utils.MakeEnum(sessType, "Unstructured", false)
 	case nasMessage.PDUSessionTypeEthernet:
-		return "Ethernet"
+		return utils.MakeEnum(sessType, "Ethernet", false)
 	default:
-		return fmt.Sprintf("Unknown(%d)", sessType)
+		return utils.MakeEnum(sessType, "", true)
 	}
 }
 
@@ -200,77 +201,77 @@ func ambrUnitToString(unit uint8) string {
 	}
 }
 
-func cause5GSMToString(causeValue uint8) string {
+func cause5GSMToString(causeValue uint8) utils.EnumField[uint8] {
 	switch causeValue {
 	case nasMessage.Cause5GSMInsufficientResources:
-		return "Insufficient Resources"
+		return utils.MakeEnum(causeValue, "Insufficient Resources", false)
 	case nasMessage.Cause5GSMMissingOrUnknownDNN:
-		return "Missing Or Unknown DNN"
+		return utils.MakeEnum(causeValue, "Missing Or Unknown DNN", false)
 	case nasMessage.Cause5GSMUnknownPDUSessionType:
-		return "Unknown PDU Session Type"
+		return utils.MakeEnum(causeValue, "Unknown PDU Session Type", false)
 	case nasMessage.Cause5GSMUserAuthenticationOrAuthorizationFailed:
-		return "User Authentication Or Authorization Failed"
+		return utils.MakeEnum(causeValue, "User Authentication Or Authorization Failed", false)
 	case nasMessage.Cause5GSMRequestRejectedUnspecified:
-		return "Request Rejected Unspecified"
+		return utils.MakeEnum(causeValue, "Request Rejected Unspecified", false)
 	case nasMessage.Cause5GSMServiceOptionTemporarilyOutOfOrder:
-		return "Service Option Temporarily Out Of Order"
+		return utils.MakeEnum(causeValue, "Service Option Temporarily Out Of Order", false)
 	case nasMessage.Cause5GSMPTIAlreadyInUse:
-		return "PTI Already In Use"
+		return utils.MakeEnum(causeValue, "PTI Already In Use", false)
 	case nasMessage.Cause5GSMRegularDeactivation:
-		return "Regular Deactivation"
+		return utils.MakeEnum(causeValue, "Regular Deactivation", false)
 	case nasMessage.Cause5GSMReactivationRequested:
-		return "Reactivation Requested"
+		return utils.MakeEnum(causeValue, "Reactivation Requested", false)
 	case nasMessage.Cause5GSMInvalidPDUSessionIdentity:
-		return "Invalid PDU Session Identity"
+		return utils.MakeEnum(causeValue, "Invalid PDU Session Identity", false)
 	case nasMessage.Cause5GSMSemanticErrorsInPacketFilter:
-		return "Semantic Errors In Packet Filter"
+		return utils.MakeEnum(causeValue, "Semantic Errors In Packet Filter", false)
 	case nasMessage.Cause5GSMSyntacticalErrorInPacketFilter:
-		return "Syntactical Error In Packet Filter"
+		return utils.MakeEnum(causeValue, "Syntactical Error In Packet Filter", false)
 	case nasMessage.Cause5GSMOutOfLADNServiceArea:
-		return "Out Of LADN Service Area"
+		return utils.MakeEnum(causeValue, "Out Of LADN Service Area", false)
 	case nasMessage.Cause5GSMPTIMismatch:
-		return "PTI Mismatch"
+		return utils.MakeEnum(causeValue, "PTI Mismatch", false)
 	case nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed:
-		return "PDU Session Type IPv4 Only Allowed"
+		return utils.MakeEnum(causeValue, "PDU Session Type IPv4 Only Allowed", false)
 	case nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed:
-		return "PDU Session Type IPv6 Only Allowed"
+		return utils.MakeEnum(causeValue, "PDU Session Type IPv6 Only Allowed", false)
 	case nasMessage.Cause5GSMPDUSessionDoesNotExist:
-		return "PDU Session Does Not Exist"
+		return utils.MakeEnum(causeValue, "PDU Session Does Not Exist", false)
 	case nasMessage.Cause5GSMInsufficientResourcesForSpecificSliceAndDNN:
-		return "Insufficient Resources For Specific Slice And DNN"
+		return utils.MakeEnum(causeValue, "Insufficient Resources For Specific Slice And DNN", false)
 	case nasMessage.Cause5GSMNotSupportedSSCMode:
-		return "Not Supported SSC Mode"
+		return utils.MakeEnum(causeValue, "Not Supported SSC Mode", false)
 	case nasMessage.Cause5GSMInsufficientResourcesForSpecificSlice:
-		return "Insufficient Resources For Specific Slice"
+		return utils.MakeEnum(causeValue, "Insufficient Resources For Specific Slice", false)
 	case nasMessage.Cause5GSMMissingOrUnknownDNNInASlice:
-		return "Missing Or Unknown DNN In A Slice"
+		return utils.MakeEnum(causeValue, "Missing Or Unknown DNN In A Slice", false)
 	case nasMessage.Cause5GSMInvalidPTIValue:
-		return "Invalid PTI Value"
+		return utils.MakeEnum(causeValue, "Invalid PTI Value", false)
 	case nasMessage.Cause5GSMMaximumDataRatePerUEForUserPlaneIntegrityProtectionIsTooLow:
-		return "Maximum Data Rate Per UE For User Plane Integrity Protection Is Too Low"
+		return utils.MakeEnum(causeValue, "Maximum Data Rate Per UE For User Plane Integrity Protection Is Too Low", false)
 	case nasMessage.Cause5GSMSemanticErrorInTheQoSOperation:
-		return "Semantic Error In The QoS Operation"
+		return utils.MakeEnum(causeValue, "Semantic Error In The QoS Operation", false)
 	case nasMessage.Cause5GSMSyntacticalErrorInTheQoSOperation:
-		return "Syntactical Error In The QoS Operation"
+		return utils.MakeEnum(causeValue, "Syntactical Error In The QoS Operation", false)
 	case nasMessage.Cause5GSMInvalidMappedEPSBearerIdentity:
-		return "Invalid Mapped EPS Bearer Identity"
+		return utils.MakeEnum(causeValue, "Invalid Mapped EPS Bearer Identity", false)
 	case nasMessage.Cause5GSMSemanticallyIncorrectMessage:
-		return "Semantically Incorrect Message"
+		return utils.MakeEnum(causeValue, "Semantically Incorrect Message", false)
 	case nasMessage.Cause5GSMInvalidMandatoryInformation:
-		return "Invalid Mandatory Information"
+		return utils.MakeEnum(causeValue, "Invalid Mandatory Information", false)
 	case nasMessage.Cause5GSMMessageTypeNonExistentOrNotImplemented:
-		return "Message Type Non Existent Or Not Implemented"
+		return utils.MakeEnum(causeValue, "Message Type Non Existent Or Not Implemented", false)
 	case nasMessage.Cause5GSMMessageTypeNotCompatibleWithTheProtocolState:
-		return "Message Type Not Compatible With The Protocol State"
+		return utils.MakeEnum(causeValue, "Message Type Not Compatible With The Protocol State", false)
 	case nasMessage.Cause5GSMInformationElementNonExistentOrNotImplemented:
-		return "Information Element Non Existent Or Not Implemented"
+		return utils.MakeEnum(causeValue, "Information Element Non Existent Or Not Implemented", false)
 	case nasMessage.Cause5GSMConditionalIEError:
-		return "Conditional IE Error"
+		return utils.MakeEnum(causeValue, "Conditional IE Error", false)
 	case nasMessage.Cause5GSMMessageNotCompatibleWithTheProtocolState:
-		return "Message Not Compatible With The Protocol State"
+		return utils.MakeEnum(causeValue, "Message Not Compatible With The Protocol State", false)
 	case nasMessage.Cause5GSMProtocolErrorUnspecified:
-		return "Protocol Error Unspecified"
+		return utils.MakeEnum(causeValue, "Protocol Error Unspecified", false)
 	default:
-		return fmt.Sprintf("Unknown(%d)", causeValue)
+		return utils.MakeEnum(causeValue, "", true)
 	}
 }

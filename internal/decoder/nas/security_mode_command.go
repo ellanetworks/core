@@ -1,17 +1,15 @@
 package nas
 
 import (
-	"fmt"
-
-	"github.com/omec-project/nas"
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/nas/security"
 )
 
 type SelectedNASSecurityAlgorithms struct {
-	Integrity string `json:"integrity"`
-	Ciphering string `json:"ciphering"`
+	Integrity utils.EnumField[uint8] `json:"integrity"`
+	Ciphering utils.EnumField[uint8] `json:"ciphering"`
 }
 
 type IntegrityAlgorithm struct {
@@ -41,12 +39,11 @@ type Additional5GSecurityInformation struct {
 type SecurityModeCommand struct {
 	ExtendedProtocolDiscriminator       uint8                            `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8                            `json:"spare_half_octet_and_security_header_type"`
-	SecurityModeCommandMessageIdentity  string                           `json:"security_mode_command_message_identity"`
 	SelectedNASSecurityAlgorithms       SelectedNASSecurityAlgorithms    `json:"selected_nas_security_algorithms"`
 	SpareHalfOctetAndNgksi              uint8                            `json:"spare_half_octet_and_ngksi"`
 	ReplayedUESecurityCapabilities      UESecurityCapability             `json:"replayed_ue_security_capabilities"`
-	IMEISVRequest                       *string                          `json:"imeisv_request,omitempty"`
-	SelectedEPSNASSecurityAlgorithms    *string                          `json:"selected_eps_nas_security_algorithms,omitempty"`
+	IMEISVRequest                       *utils.EnumField[uint8]          `json:"imeisv_request,omitempty"`
+	SelectedEPSNASSecurityAlgorithms    *utils.EnumField[uint8]          `json:"selected_eps_nas_security_algorithms,omitempty"`
 	Additional5GSecurityInformation     *Additional5GSecurityInformation `json:"additional_5g_security_information,omitempty"`
 	EAPMessage                          []byte                           `json:"eap_message,omitempty"`
 	ABBA                                []uint8                          `json:"abba,omitempty"`
@@ -62,7 +59,6 @@ func buildSecurityModeCommand(msg *nasMessage.SecurityModeCommand) *SecurityMode
 	securityModeCommand := &SecurityModeCommand{
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		SecurityModeCommandMessageIdentity:  nas.MessageName(msg.SecurityModeCommandMessageIdentity.Octet),
 		SelectedNASSecurityAlgorithms:       buildSelectedNASSecurityAlgorithms(msg.SelectedNASSecurityAlgorithms),
 		SpareHalfOctetAndNgksi:              msg.SpareHalfOctetAndNgksi.Octet,
 		ReplayedUESecurityCapabilities:      *buildReplayedUESecurityCapability(msg.ReplayedUESecurityCapabilities),
@@ -141,14 +137,14 @@ func buildReplayedUESecurityCapability(ueSecurityCapability nasType.ReplayedUESe
 	return ueSecCap
 }
 
-func buildIMEISVRequest(msg nasType.IMEISVRequest) string {
+func buildIMEISVRequest(msg nasType.IMEISVRequest) utils.EnumField[uint8] {
 	switch msg.GetIMEISVRequestValue() {
 	case nasMessage.IMEISVNotRequested:
-		return "NotRequested"
+		return utils.MakeEnum(msg.GetIMEISVRequestValue(), "NotRequested", false)
 	case nasMessage.IMEISVRequested:
-		return "Requested"
+		return utils.MakeEnum(msg.GetIMEISVRequestValue(), "Requested", false)
 	default:
-		return fmt.Sprintf("Unknown(%d)", msg.GetIMEISVRequestValue())
+		return utils.MakeEnum(msg.GetIMEISVRequestValue(), "", true)
 	}
 }
 
@@ -159,32 +155,32 @@ func buildSelectedNASSecurityAlgorithms(msg nasType.SelectedNASSecurityAlgorithm
 	}
 }
 
-func getIntegrity(value uint8) string {
+func getIntegrity(value uint8) utils.EnumField[uint8] {
 	switch value {
 	case security.AlgIntegrity128NIA0:
-		return "NIA0"
+		return utils.MakeEnum(value, "NIA0", false)
 	case security.AlgIntegrity128NIA1:
-		return "NIA1"
+		return utils.MakeEnum(value, "NIA1", false)
 	case security.AlgIntegrity128NIA2:
-		return "NIA2"
+		return utils.MakeEnum(value, "NIA2", false)
 	case security.AlgIntegrity128NIA3:
-		return "NIA3"
+		return utils.MakeEnum(value, "NIA3", false)
 	default:
-		return fmt.Sprintf("Unknown(%d)", value)
+		return utils.MakeEnum(value, "", true)
 	}
 }
 
-func getCiphering(value uint8) string {
+func getCiphering(value uint8) utils.EnumField[uint8] {
 	switch value {
 	case security.AlgCiphering128NEA0:
-		return "NEA0"
+		return utils.MakeEnum(value, "NEA0", false)
 	case security.AlgCiphering128NEA1:
-		return "NEA1"
+		return utils.MakeEnum(value, "NEA1", false)
 	case security.AlgCiphering128NEA2:
-		return "NEA2"
+		return utils.MakeEnum(value, "NEA2", false)
 	case security.AlgCiphering128NEA3:
-		return "NEA3"
+		return utils.MakeEnum(value, "NEA3", false)
 	default:
-		return fmt.Sprintf("Unknown(%d)", value)
+		return utils.MakeEnum(value, "", true)
 	}
 }

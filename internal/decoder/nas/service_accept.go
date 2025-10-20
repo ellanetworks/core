@@ -3,7 +3,6 @@ package nas
 import (
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 )
@@ -21,7 +20,6 @@ type PDUSessionReactivateResultPDU struct {
 type ServiceAccept struct {
 	ExtendedProtocolDiscriminator          uint8                           `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType    uint8                           `json:"spare_half_octet_and_security_header_type"`
-	ServiceAcceptMessageIdentity           string                          `json:"service_accept_message_identity"`
 	PDUSessionStatus                       []PDUSessionStatusPDU           `json:"pdu_session_status,omitempty"`
 	PDUSessionReactivationResult           []PDUSessionReactivateResultPDU `json:"pdu_session_reactivation_result,omitempty"`
 	PDUSessionReactivationResultErrorCause []PDUSessionCause               `json:"pdu_session_reactivation_result_error_cause,omitempty"`
@@ -36,7 +34,6 @@ func buildServiceAccept(msg *nasMessage.ServiceAccept) *ServiceAccept {
 	serviceAccept := &ServiceAccept{
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		ServiceAcceptMessageIdentity:        nas.MessageName(msg.ServiceAcceptMessageIdentity.Octet),
 	}
 
 	if msg.PDUSessionStatus != nil {

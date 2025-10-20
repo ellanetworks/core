@@ -6,7 +6,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
@@ -26,7 +25,6 @@ type MobileIdentity5GS struct {
 type RegistrationRequest struct {
 	ExtendedProtocolDiscriminator       uint8                 `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8                 `json:"spare_half_octet_and_security_header_type"`
-	RegistrationRequestMessageIdentity  string                `json:"registration_request_message_identity"`
 	NgksiAndRegistrationType5GS         uint8                 `json:"ngksi_and_registration_type_5gs"`
 	MobileIdentity5GS                   MobileIdentity5GS     `json:"mobile_identity_5gs"`
 	UESecurityCapability                *UESecurityCapability `json:"ue_security_capability,omitempty"`
@@ -58,10 +56,9 @@ func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *Registration
 	}
 
 	registrationRequest := &RegistrationRequest{
-		MobileIdentity5GS:                  getMobileIdentity5GS(msg.MobileIdentity5GS),
-		ExtendedProtocolDiscriminator:      msg.ExtendedProtocolDiscriminator.Octet,
-		NgksiAndRegistrationType5GS:        msg.NgksiAndRegistrationType5GS.Octet,
-		RegistrationRequestMessageIdentity: nas.MessageName(msg.RegistrationRequestMessageIdentity.Octet),
+		MobileIdentity5GS:             getMobileIdentity5GS(msg.MobileIdentity5GS),
+		ExtendedProtocolDiscriminator: msg.ExtendedProtocolDiscriminator.Octet,
+		NgksiAndRegistrationType5GS:   msg.NgksiAndRegistrationType5GS.Octet,
 	}
 
 	if msg.NoncurrentNativeNASKeySetIdentifier != nil {

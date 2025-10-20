@@ -48,8 +48,12 @@ func TestUnmarshalQosRules(t *testing.T) {
 		t.Fatalf("Expected OperationCode 1, got %d", rules[0].OperationCode)
 	}
 
-	if rules[0].DQR != "default" {
-		t.Fatalf("Expected DQR 'default', got %s", rules[0].DQR)
+	if rules[0].DQR.Label != "default" {
+		t.Fatalf("Expected DQR 'default', got %s", rules[0].DQR.Label)
+	}
+
+	if rules[0].DQR.Value != 1 {
+		t.Fatalf("Expected DQR 'default', got %d", rules[0].DQR.Value)
 	}
 
 	if rules[0].Precedence != 255 {
@@ -68,7 +72,11 @@ func TestUnmarshalQosRules(t *testing.T) {
 		t.Fatalf("Expected Packet Filter Identifier 1, got %d", rules[0].PacketFilterList[0].Identifier)
 	}
 
-	if rules[0].PacketFilterList[0].Direction != "bidirectional" {
-		t.Fatalf("Expected Packet Filter Direction bidirectional, got %v", rules[0].PacketFilterList[0].Direction)
+	if rules[0].PacketFilterList[0].Direction.Label != "bidirectional" {
+		t.Fatalf("Expected Packet Filter Direction bidirectional, got %v", rules[0].PacketFilterList[0].Direction.Label)
+	}
+
+	if rules[0].PacketFilterList[0].Direction.Value != 0x03 {
+		t.Fatalf("Expected Packet Filter Direction bidirectional, got %v", rules[0].PacketFilterList[0].Direction.Value)
 	}
 }

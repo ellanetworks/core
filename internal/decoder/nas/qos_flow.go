@@ -1,6 +1,10 @@
 package nas
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ellanetworks/core/internal/decoder/utils"
+)
 
 type QosFlowParameter struct {
 	ParamContent []byte `json:"param_content"`
@@ -9,12 +13,12 @@ type QosFlowParameter struct {
 }
 
 type QoSFlowDescription struct {
-	ParamList  []QosFlowParameter `json:"param_list"`
-	Qfi        uint8              `json:"qfi"`
-	OpCode     string             `json:"op_code"`     // "Create" | "Modify" | "Delete" | "Unknown(0x..)"
-	EBit       bool               `json:"e_bit"`       // extracted from NumOfParam byte
-	ParamCount uint8              `json:"param_count"` // lower 6 bits only
-	QFDLen     uint8              `json:"qfd_len"`
+	ParamList  []QosFlowParameter     `json:"param_list"`
+	Qfi        uint8                  `json:"qfi"`
+	OpCode     utils.EnumField[uint8] `json:"op_code"`     // "Create" | "Modify" | "Delete" | "Unknown(0x..)"
+	EBit       bool                   `json:"e_bit"`       // extracted from NumOfParam byte
+	ParamCount uint8                  `json:"param_count"` // lower 6 bits only
+	QFDLen     uint8                  `json:"qfd_len"`
 }
 
 const (
@@ -27,17 +31,16 @@ const (
 	QFDEbit          uint8 = 0x40 // bit 6 (0x40) in the NumOfParam octet
 )
 
-// helper: map opcode to label
-func qfdOpcodeToString(op byte) string {
+func qfdOpcodeToEnum(op byte) utils.EnumField[uint8] {
 	switch op & QFDOpCodeBitmask {
 	case 0x20:
-		return "Create"
+		return utils.MakeEnum(op&QFDOpCodeBitmask, "Create", false)
 	case 0x40:
-		return "Modify"
+		return utils.MakeEnum(op&QFDOpCodeBitmask, "Modify", false)
 	case 0x60:
-		return "Delete"
+		return utils.MakeEnum(op&QFDOpCodeBitmask, "Delete", false)
 	default:
-		return fmt.Sprintf("Unknown(0x%02X)", op&QFDOpCodeBitmask)
+		return utils.MakeEnum(op&QFDOpCodeBitmask, "", true)
 	}
 }
 
@@ -58,7 +61,7 @@ func ParseAuthorizedQosFlowDescriptions(content []byte) ([]QoSFlowDescription, e
 
 		// OpCode -> string
 		op := content[i]
-		d.OpCode = qfdOpcodeToString(op)
+		d.OpCode = qfdOpcodeToEnum(op)
 		i++
 
 		// NumOfParam byte: E-bit + count

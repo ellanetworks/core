@@ -3,6 +3,7 @@ package nas
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
@@ -62,7 +63,7 @@ type PDUSessionEstablishmentRequest struct {
 	PTI                                           uint8                                 `json:"pti"`
 	PDUSESSIONESTABLISHMENTREQUESTMessageIdentity uint8                                 `json:"pdu_session_establishment_request_message_identity"`
 	IntegrityProtectionMaximumDataRate            IntegrityProtectionMaximumDataRate    `json:"integrity_protection_maximum_data_rate"`
-	PDUSessionType                                *string                               `json:"pdu_session_type,omitempty"`
+	PDUSessionType                                *utils.EnumField[uint8]               `json:"pdu_session_type,omitempty"`
 	SSCMode                                       *uint8                                `json:"ssc_mode,omitempty"`
 	Capability5GSM                                *Capability5GSM                       `json:"capability_5g_s_m,omitempty"`
 	ExtendedProtocolConfigurationOptions          *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`

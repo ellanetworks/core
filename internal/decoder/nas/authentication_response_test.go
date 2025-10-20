@@ -49,10 +49,6 @@ func TestDecodeNASMessage_AuthenticationResponse(t *testing.T) {
 		t.Fatal("AuthenticationResponse is nil")
 	}
 
-	if nas.GmmMessage.AuthenticationResponse.AuthenticationResponseMessageIdentity != "AuthenticationResponse" {
-		t.Errorf("Unexpected AuthenticationResponseMessageIdentity: got %v, want AuthenticationResponse", nas.GmmMessage.AuthenticationResponse.AuthenticationResponseMessageIdentity)
-	}
-
 	if nas.GmmMessage.AuthenticationResponse.AuthenticationResponseParameter == nil {
 		t.Fatal("AuthenticationResponseParameter is nil")
 	}
