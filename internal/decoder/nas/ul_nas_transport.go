@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
-	"go.uber.org/zap"
 )
 
 type PayloadContainer struct {
 	Raw        []byte      `json:"raw"`
 	GsmMessage *GsmMessage `json:"gsm_message,omitempty"`
+
+	Error string `json:"error,omitempty"` // Reserved field for decoding errors
 }
 
 type ULNASTransport struct {
@@ -28,6 +28,8 @@ type ULNASTransport struct {
 	RequestType                           *string          `json:"request_type,omitempty"`
 	SNSSAI                                *SNSSAI          `json:"snssai,omitempty"`
 	DNN                                   *string          `json:"dnn,omitempty"`
+
+	AdditionalInformation *UnsupportedIE `json:"additional_information,omitempty"`
 }
 
 func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
@@ -84,7 +86,7 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	}
 
 	if msg.AdditionalInformation != nil {
-		logger.EllaLog.Warn("AdditionalInformation not yet implemented")
+		ulNasTransport.AdditionalInformation = makeUnsupportedIE()
 	}
 
 	return ulNasTransport
@@ -98,7 +100,7 @@ func buildULNASPayloadContainer(msg *nasMessage.ULNASTransport) PayloadContainer
 	}
 
 	if containerType != nasMessage.PayloadContainerTypeN1SMInfo {
-		logger.EllaLog.Warn("Payload container type not yet implemented", zap.Uint8("type", containerType))
+		payloadContainer.Error = fmt.Sprintf("payload container type %d not yet implemented", containerType)
 		return payloadContainer
 	}
 
@@ -106,7 +108,7 @@ func buildULNASPayloadContainer(msg *nasMessage.ULNASTransport) PayloadContainer
 
 	gsmMessage, err := decodeGSMMessage(rawBytes)
 	if err != nil {
-		logger.EllaLog.Warn("Failed to decode N1 SM message in UL NAS Transport Payload Container", zap.Error(err))
+		payloadContainer.Error = fmt.Sprintf("failed to decode N1 SM message in UL NAS Transport Payload Container: %v", err)
 		return payloadContainer
 	}
 
@@ -150,7 +152,7 @@ func decodeGSMMessage(raw []byte) (*GsmMessage, error) {
 	case nas.MsgTypePDUSessionEstablishmentAccept:
 		gsmMessage.PDUSessionEstablishmentAccept = buildPDUSessionEstablishmentAccept(m.GsmMessage.PDUSessionEstablishmentAccept)
 	default:
-		logger.EllaLog.Warn("GSM message type not yet implemented", zap.String("message_type", gsmMessage.GsmHeader.MessageType))
+		gsmMessage.Error = fmt.Sprintf("GSM message type %d not yet implemented", m.GsmMessage.GetMessageType())
 	}
 
 	return gsmMessage, nil

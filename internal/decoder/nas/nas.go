@@ -4,25 +4,19 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
-	"go.uber.org/zap"
 )
 
-type SecurityHeader struct {
-	ProtocolDiscriminator     uint8  `json:"protocol_discriminator"`
-	SecurityHeaderType        string `json:"security_header_type"`
-	MessageAuthenticationCode uint32 `json:"message_authentication_code,omitempty"`
-	SequenceNumber            uint8  `json:"sequence_number"`
-}
-
 type GmmHeader struct {
-	MessageType string `json:"message_type"`
+	MessageType utils.EnumField[uint8] `json:"message_type"`
 }
 
 type GmmMessage struct {
-	GmmHeader              GmmHeader               `json:"gmm_header"`
+	GmmHeader GmmHeader `json:"gmm_header"`
+	Error     string    `json:"error,omitempty"`
+
 	RegistrationRequest    *RegistrationRequest    `json:"registration_request,omitempty"`
 	RegistrationAccept     *RegistrationAccept     `json:"registration_accept,omitempty"`
 	RegistrationReject     *RegistrationReject     `json:"registration_reject,omitempty"`
@@ -41,19 +35,30 @@ type GmmMessage struct {
 }
 
 type GsmHeader struct {
-	MessageType string `json:"message_type"`
+	MessageType utils.EnumField[uint8] `json:"message_type"`
 }
 
 type GsmMessage struct {
-	GsmHeader                      GsmHeader                       `json:"gsm_header"`
+	GsmHeader GsmHeader `json:"gsm_header"`
+	Error     string    `json:"error,omitempty"`
+
 	PDUSessionEstablishmentRequest *PDUSessionEstablishmentRequest `json:"pdu_session_establishment_request,omitempty"`
 	PDUSessionEstablishmentAccept  *PDUSessionEstablishmentAccept  `json:"pdu_session_establishment_accept,omitempty"`
+}
+
+type SecurityHeader struct {
+	ProtocolDiscriminator     utils.EnumField[uint8] `json:"protocol_discriminator"`
+	SecurityHeaderType        utils.EnumField[uint8] `json:"security_header_type"`
+	MessageAuthenticationCode uint32                 `json:"authentication_code,omitempty"`
+	SequenceNumber            uint8                  `json:"sequence_number"`
 }
 
 type NASMessage struct {
 	SecurityHeader SecurityHeader `json:"security_header"`
 	GmmMessage     *GmmMessage    `json:"gmm_message,omitempty"`
 	GsmMessage     *GsmMessage    `json:"gsm_message,omitempty"`
+
+	Error string `json:"error,omitempty"` // Reserved field for decoding errors
 }
 
 type NasContextInfo struct {
@@ -61,33 +66,42 @@ type NasContextInfo struct {
 	AMFUENGAPID int64
 }
 
-func DecodeNASMessage(raw []byte, nasContextInfo *NasContextInfo) (*NASMessage, error) {
-	nasMsg := new(NASMessage)
-
+func DecodeNASMessage(raw []byte, nasContextInfo *NasContextInfo) *NASMessage {
 	msg, err := decodeNAS(raw, nasContextInfo)
 	if err != nil {
-		return nil, err
+		return &NASMessage{
+			Error: fmt.Sprintf("failed to decode NAS message: %v", err),
+		}
 	}
 
-	nasMsg.SecurityHeader = buildSecurityHeader(msg)
+	nasMsg := &NASMessage{
+		SecurityHeader: SecurityHeader{
+			SecurityHeaderType:        securityHeaderTypeToEnum(msg.SecurityHeaderType),
+			MessageAuthenticationCode: msg.MessageAuthenticationCode,
+			SequenceNumber:            msg.SequenceNumber,
+		},
+	}
 
 	epd := nas.GetEPD(raw)
 	switch epd {
 	case nasMessage.Epd5GSMobilityManagementMessage:
 		nasMsg.GmmMessage = buildGmmMessage(msg.GmmMessage)
+		nasMsg.SecurityHeader.ProtocolDiscriminator = utils.MakeEnum(epd, "5GSMobilityManagementMessage", false)
 	case nasMessage.Epd5GSSessionManagementMessage:
 		nasMsg.GsmMessage = buildGsmMessage(msg.GsmMessage)
+		nasMsg.SecurityHeader.ProtocolDiscriminator = utils.MakeEnum(epd, "5GSSessionManagementMessage", false)
 	default:
-		return nil, fmt.Errorf("unsupported EPD: %d", epd)
+		nasMsg.SecurityHeader.ProtocolDiscriminator = utils.MakeEnum(epd, "", true)
 	}
 
-	return nasMsg, nil
+	return nasMsg
 }
 
 func buildGmmMessage(msg *nas.GmmMessage) *GmmMessage {
 	if msg == nil {
 		return nil
 	}
+
 	gmmMessage := &GmmMessage{
 		GmmHeader: GmmHeader{
 			MessageType: getGmmMessageType(msg),
@@ -141,7 +155,7 @@ func buildGmmMessage(msg *nas.GmmMessage) *GmmMessage {
 		gmmMessage.ServiceReject = buildServiceReject(msg.ServiceReject)
 		return gmmMessage
 	default:
-		logger.EllaLog.Warn("GMM message type not fully implemented", zap.String("message_type", gmmMessage.GmmHeader.MessageType))
+		gmmMessage.Error = fmt.Sprintf("GMM message type %d not implemented", msg.GetMessageType())
 		return gmmMessage
 	}
 }
@@ -158,105 +172,105 @@ func buildGsmMessage(msg *nas.GsmMessage) *GsmMessage {
 	}
 }
 
-func getGsmMessageType(msg *nas.GsmMessage) string {
+func getGsmMessageType(msg *nas.GsmMessage) utils.EnumField[uint8] {
 	switch msg.GetMessageType() {
 	case nas.MsgTypePDUSessionEstablishmentRequest:
-		return fmt.Sprintf("PDUSessionEstablishmentRequest (%v)", nas.MsgTypePDUSessionEstablishmentRequest)
+		return utils.MakeEnum(nas.MsgTypePDUSessionEstablishmentRequest, "PDUSessionEstablishmentRequest", false)
 	case nas.MsgTypePDUSessionEstablishmentAccept:
-		return fmt.Sprintf("PDUSessionEstablishmentAccept (%v)", nas.MsgTypePDUSessionEstablishmentAccept)
+		return utils.MakeEnum(nas.MsgTypePDUSessionEstablishmentAccept, "PDUSessionEstablishmentAccept", false)
 	case nas.MsgTypePDUSessionEstablishmentReject:
-		return fmt.Sprintf("PDUSessionEstablishmentReject (%v)", nas.MsgTypePDUSessionEstablishmentReject)
+		return utils.MakeEnum(nas.MsgTypePDUSessionEstablishmentReject, "PDUSessionEstablishmentReject", false)
 	case nas.MsgTypePDUSessionAuthenticationCommand:
-		return fmt.Sprintf("PDUSessionAuthenticationCommand (%v)", nas.MsgTypePDUSessionAuthenticationCommand)
+		return utils.MakeEnum(nas.MsgTypePDUSessionAuthenticationCommand, "PDUSessionAuthenticationCommand", false)
 	case nas.MsgTypePDUSessionAuthenticationComplete:
-		return fmt.Sprintf("PDUSessionAuthenticationComplete (%v)", nas.MsgTypePDUSessionAuthenticationComplete)
+		return utils.MakeEnum(nas.MsgTypePDUSessionAuthenticationComplete, "PDUSessionAuthenticationComplete", false)
 	case nas.MsgTypePDUSessionAuthenticationResult:
-		return fmt.Sprintf("PDUSessionAuthenticationResult (%v)", nas.MsgTypePDUSessionAuthenticationResult)
+		return utils.MakeEnum(nas.MsgTypePDUSessionAuthenticationResult, "PDUSessionAuthenticationResult", false)
 	case nas.MsgTypePDUSessionModificationRequest:
-		return fmt.Sprintf("PDUSessionModificationRequest (%v)", nas.MsgTypePDUSessionModificationRequest)
+		return utils.MakeEnum(nas.MsgTypePDUSessionModificationRequest, "PDUSessionModificationRequest", false)
 	case nas.MsgTypePDUSessionModificationReject:
-		return fmt.Sprintf("PDUSessionModificationReject (%v)", nas.MsgTypePDUSessionModificationReject)
+		return utils.MakeEnum(nas.MsgTypePDUSessionModificationReject, "PDUSessionModificationReject", false)
 	case nas.MsgTypePDUSessionModificationCommand:
-		return fmt.Sprintf("PDUSessionModificationCommand (%v)", nas.MsgTypePDUSessionModificationCommand)
+		return utils.MakeEnum(nas.MsgTypePDUSessionModificationCommand, "PDUSessionModificationCommand", false)
 	case nas.MsgTypePDUSessionModificationComplete:
-		return fmt.Sprintf("PDUSessionModificationComplete (%v)", nas.MsgTypePDUSessionModificationComplete)
+		return utils.MakeEnum(nas.MsgTypePDUSessionModificationComplete, "PDUSessionModificationComplete", false)
 	case nas.MsgTypePDUSessionModificationCommandReject:
-		return fmt.Sprintf("PDUSessionModificationCommandReject (%v)", nas.MsgTypePDUSessionModificationCommandReject)
+		return utils.MakeEnum(nas.MsgTypePDUSessionModificationCommandReject, "PDUSessionModificationCommandReject", false)
 	case nas.MsgTypePDUSessionReleaseRequest:
-		return fmt.Sprintf("PDUSessionReleaseRequest (%v)", nas.MsgTypePDUSessionReleaseRequest)
+		return utils.MakeEnum(nas.MsgTypePDUSessionReleaseRequest, "PDUSessionReleaseRequest", false)
 	case nas.MsgTypePDUSessionReleaseReject:
-		return fmt.Sprintf("PDUSessionReleaseReject (%v)", nas.MsgTypePDUSessionReleaseReject)
+		return utils.MakeEnum(nas.MsgTypePDUSessionReleaseReject, "PDUSessionReleaseReject", false)
 	case nas.MsgTypePDUSessionReleaseCommand:
-		return fmt.Sprintf("PDUSessionReleaseCommand (%v)", nas.MsgTypePDUSessionReleaseCommand)
+		return utils.MakeEnum(nas.MsgTypePDUSessionReleaseCommand, "PDUSessionReleaseCommand", false)
 	case nas.MsgTypePDUSessionReleaseComplete:
-		return fmt.Sprintf("PDUSessionReleaseComplete (%v)", nas.MsgTypePDUSessionReleaseComplete)
+		return utils.MakeEnum(nas.MsgTypePDUSessionReleaseComplete, "PDUSessionReleaseComplete", false)
 	case nas.MsgTypeStatus5GSM:
-		return fmt.Sprintf("Status5GSM (%v)", nas.MsgTypeStatus5GSM)
+		return utils.MakeEnum(nas.MsgTypeStatus5GSM, "Status5GSM", false)
 	default:
-		return fmt.Sprintf("Unknown (%v)", msg.GetMessageType())
+		return utils.MakeEnum(msg.GetMessageType(), "", false)
 	}
 }
 
-func getGmmMessageType(msg *nas.GmmMessage) string {
+func getGmmMessageType(msg *nas.GmmMessage) utils.EnumField[uint8] {
 	switch msg.GetMessageType() {
 	case nas.MsgTypeRegistrationRequest:
-		return fmt.Sprintf("RegistrationRequest (%v)", nas.MsgTypeRegistrationRequest)
+		return utils.MakeEnum(nas.MsgTypeRegistrationRequest, "RegistrationRequest", false)
 	case nas.MsgTypeRegistrationAccept:
-		return fmt.Sprintf("RegistrationAccept (%v)", nas.MsgTypeRegistrationAccept)
+		return utils.MakeEnum(nas.MsgTypeRegistrationAccept, "RegistrationAccept", false)
 	case nas.MsgTypeRegistrationComplete:
-		return fmt.Sprintf("RegistrationComplete (%v)", nas.MsgTypeRegistrationComplete)
+		return utils.MakeEnum(nas.MsgTypeRegistrationComplete, "RegistrationComplete", false)
 	case nas.MsgTypeRegistrationReject:
-		return fmt.Sprintf("RegistrationReject (%v)", nas.MsgTypeRegistrationReject)
+		return utils.MakeEnum(nas.MsgTypeRegistrationReject, "RegistrationReject", false)
 	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
-		return fmt.Sprintf("DeregistrationRequestUEOriginatingDeregistration (%v)", nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration)
+		return utils.MakeEnum(nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration, "DeregistrationRequestUEOriginatingDeregistration", false)
 	case nas.MsgTypeDeregistrationAcceptUEOriginatingDeregistration:
-		return fmt.Sprintf("DeregistrationAcceptUEOriginatingDeregistration (%v)", nas.MsgTypeDeregistrationAcceptUEOriginatingDeregistration)
+		return utils.MakeEnum(nas.MsgTypeDeregistrationAcceptUEOriginatingDeregistration, "DeregistrationAcceptUEOriginatingDeregistration", false)
 	case nas.MsgTypeDeregistrationRequestUETerminatedDeregistration:
-		return fmt.Sprintf("DeregistrationRequestUETerminatedDeregistration (%v)", nas.MsgTypeDeregistrationRequestUETerminatedDeregistration)
+		return utils.MakeEnum(nas.MsgTypeDeregistrationRequestUETerminatedDeregistration, "DeregistrationRequestUETerminatedDeregistration", false)
 	case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
-		return fmt.Sprintf("DeregistrationAcceptUETerminatedDeregistration (%v)", nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration)
+		return utils.MakeEnum(nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration, "DeregistrationAcceptUETerminatedDeregistration", false)
 	case nas.MsgTypeServiceRequest:
-		return fmt.Sprintf("ServiceRequest (%v)", nas.MsgTypeServiceRequest)
+		return utils.MakeEnum(nas.MsgTypeServiceRequest, "ServiceRequest", false)
 	case nas.MsgTypeServiceReject:
-		return fmt.Sprintf("ServiceReject (%v)", nas.MsgTypeServiceReject)
+		return utils.MakeEnum(nas.MsgTypeServiceReject, "ServiceReject", false)
 	case nas.MsgTypeServiceAccept:
-		return fmt.Sprintf("ServiceAccept (%v)", nas.MsgTypeServiceAccept)
+		return utils.MakeEnum(nas.MsgTypeServiceAccept, "ServiceAccept", false)
 	case nas.MsgTypeConfigurationUpdateCommand:
-		return fmt.Sprintf("ConfigurationUpdateCommand (%v)", nas.MsgTypeConfigurationUpdateCommand)
+		return utils.MakeEnum(nas.MsgTypeConfigurationUpdateCommand, "ConfigurationUpdateCommand", false)
 	case nas.MsgTypeConfigurationUpdateComplete:
-		return fmt.Sprintf("ConfigurationUpdateComplete (%v)", nas.MsgTypeConfigurationUpdateComplete)
+		return utils.MakeEnum(nas.MsgTypeConfigurationUpdateComplete, "ConfigurationUpdateComplete", false)
 	case nas.MsgTypeAuthenticationRequest:
-		return fmt.Sprintf("AuthenticationRequest (%v)", nas.MsgTypeAuthenticationRequest)
+		return utils.MakeEnum(nas.MsgTypeAuthenticationRequest, "AuthenticationRequest", false)
 	case nas.MsgTypeAuthenticationResponse:
-		return fmt.Sprintf("AuthenticationResponse (%v)", nas.MsgTypeAuthenticationResponse)
+		return utils.MakeEnum(nas.MsgTypeAuthenticationResponse, "AuthenticationResponse", false)
 	case nas.MsgTypeAuthenticationReject:
-		return fmt.Sprintf("AuthenticationReject (%v)", nas.MsgTypeAuthenticationReject)
+		return utils.MakeEnum(nas.MsgTypeAuthenticationReject, "AuthenticationReject", false)
 	case nas.MsgTypeAuthenticationFailure:
-		return fmt.Sprintf("AuthenticationFailure (%v)", nas.MsgTypeAuthenticationFailure)
+		return utils.MakeEnum(nas.MsgTypeAuthenticationFailure, "AuthenticationFailure", false)
 	case nas.MsgTypeAuthenticationResult:
-		return fmt.Sprintf("AuthenticationResult (%v)", nas.MsgTypeAuthenticationResult)
+		return utils.MakeEnum(nas.MsgTypeAuthenticationResult, "AuthenticationResult", false)
 	case nas.MsgTypeIdentityRequest:
-		return fmt.Sprintf("IdentityRequest (%v)", nas.MsgTypeIdentityRequest)
+		return utils.MakeEnum(nas.MsgTypeIdentityRequest, "IdentityRequest", false)
 	case nas.MsgTypeIdentityResponse:
-		return fmt.Sprintf("IdentityResponse (%v)", nas.MsgTypeIdentityResponse)
+		return utils.MakeEnum(nas.MsgTypeIdentityResponse, "IdentityResponse", false)
 	case nas.MsgTypeSecurityModeCommand:
-		return fmt.Sprintf("SecurityModeCommand (%v)", nas.MsgTypeSecurityModeCommand)
+		return utils.MakeEnum(nas.MsgTypeSecurityModeCommand, "SecurityModeCommand", false)
 	case nas.MsgTypeSecurityModeComplete:
-		return fmt.Sprintf("SecurityModeComplete (%v)", nas.MsgTypeSecurityModeComplete)
+		return utils.MakeEnum(nas.MsgTypeSecurityModeComplete, "SecurityModeComplete", false)
 	case nas.MsgTypeSecurityModeReject:
-		return fmt.Sprintf("SecurityModeReject (%v)", nas.MsgTypeSecurityModeReject)
+		return utils.MakeEnum(nas.MsgTypeSecurityModeReject, "SecurityModeReject", false)
 	case nas.MsgTypeStatus5GMM:
-		return fmt.Sprintf("Status5GMM (%v)", nas.MsgTypeStatus5GMM)
+		return utils.MakeEnum(nas.MsgTypeStatus5GMM, "Status5GMM", false)
 	case nas.MsgTypeNotification:
-		return fmt.Sprintf("Notification (%v)", nas.MsgTypeNotification)
+		return utils.MakeEnum(nas.MsgTypeNotification, "Notification", false)
 	case nas.MsgTypeNotificationResponse:
-		return fmt.Sprintf("NotificationResponse (%v)", nas.MsgTypeNotificationResponse)
+		return utils.MakeEnum(nas.MsgTypeNotificationResponse, "NotificationResponse", false)
 	case nas.MsgTypeULNASTransport:
-		return fmt.Sprintf("ULNASTransport (%v)", nas.MsgTypeULNASTransport)
+		return utils.MakeEnum(nas.MsgTypeULNASTransport, "ULNASTransport", false)
 	case nas.MsgTypeDLNASTransport:
-		return fmt.Sprintf("DLNASTransport (%v)", nas.MsgTypeDLNASTransport)
+		return utils.MakeEnum(nas.MsgTypeDLNASTransport, "DLNASTransport", false)
 	default:
-		return fmt.Sprintf("Unknown (%v)", msg.GetMessageType())
+		return utils.MakeEnum(msg.GetMessageType(), "", true)
 	}
 }
 
@@ -356,27 +370,19 @@ func decodeNAS(raw []byte, nasContextInfo *NasContextInfo) (*nas.Message, error)
 	return msg, nil
 }
 
-func buildSecurityHeader(msg *nas.Message) SecurityHeader {
-	securityHeaderType := ""
-	switch msg.SecurityHeaderType {
+func securityHeaderTypeToEnum(msgType uint8) utils.EnumField[uint8] {
+	switch msgType {
 	case nas.SecurityHeaderTypePlainNas:
-		securityHeaderType = "Plain NAS"
+		return utils.MakeEnum(msgType, "Plain NAS", false)
 	case nas.SecurityHeaderTypeIntegrityProtected:
-		securityHeaderType = "Integrity Protected"
+		return utils.MakeEnum(msgType, "Integrity Protected", false)
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
-		securityHeaderType = "Integrity Protected and Ciphered"
+		return utils.MakeEnum(msgType, "Integrity Protected and Ciphered", false)
 	case nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext:
-		securityHeaderType = "Integrity Protected with New 5G NAS Security Context"
+		return utils.MakeEnum(msgType, "Integrity Protected with New 5G NAS Security Context", false)
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
-		securityHeaderType = "Integrity Protected and Ciphered with New 5G NAS Security Context"
+		return utils.MakeEnum(msgType, "Integrity Protected and Ciphered with New 5G NAS Security Context", false)
 	default:
-		securityHeaderType = "Unknown"
-	}
-
-	return SecurityHeader{
-		ProtocolDiscriminator:     msg.ProtocolDiscriminator,
-		SecurityHeaderType:        securityHeaderType,
-		MessageAuthenticationCode: msg.MessageAuthenticationCode,
-		SequenceNumber:            msg.SequenceNumber,
+		return utils.MakeEnum(msgType, "", true)
 	}
 }

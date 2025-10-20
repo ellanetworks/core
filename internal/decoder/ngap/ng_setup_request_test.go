@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/ngap"
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/ngap/ngapType"
 )
 
@@ -25,7 +26,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != int(ngapType.ProcedureCodeNGSetup) {
+	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeNGSetup {
 		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -47,7 +48,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=GlobalRANNodeID, got %v", item0.ID)
 	}
 
-	if item0.ID.Value != int(ngapType.ProtocolIEIDGlobalRANNodeID) {
+	if item0.ID.Value != ngapType.ProtocolIEIDGlobalRANNodeID {
 		t.Errorf("expected ID value=27, got %d", item0.ID.Value)
 	}
 
@@ -82,7 +83,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=RANNodeName, got %v", item1.ID)
 	}
 
-	if item1.ID.Value != int(ngapType.ProtocolIEIDRANNodeName) {
+	if item1.ID.Value != ngapType.ProtocolIEIDRANNodeName {
 		t.Errorf("expected ID value=82, got %d", item1.ID.Value)
 	}
 
@@ -109,7 +110,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=SupportedTAList, got %s", item2.ID.Label)
 	}
 
-	if item2.ID.Value != int(ngapType.ProtocolIEIDSupportedTAList) {
+	if item2.ID.Value != ngapType.ProtocolIEIDSupportedTAList {
 		t.Errorf("expected ID value=102, got %d", item2.ID.Value)
 	}
 
@@ -172,7 +173,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=DefaultPagingDRX, got %s", item3.ID.Label)
 	}
 
-	if item3.ID.Value != int(ngapType.ProtocolIEIDDefaultPagingDRX) {
+	if item3.ID.Value != ngapType.ProtocolIEIDDefaultPagingDRX {
 		t.Errorf("expected ID value=21, got %d", item3.ID.Value)
 	}
 
@@ -184,7 +185,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
 	}
 
-	defaultPagingDRX, ok := item3.Value.(ngap.EnumField)
+	defaultPagingDRX, ok := item3.Value.(utils.EnumField[uint64])
 	if !ok {
 		t.Fatalf("expected EnumField, got %T", item3.Value)
 	}
@@ -193,7 +194,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected DefaultPagingDRX=v128, got %s", defaultPagingDRX.Label)
 	}
 
-	if defaultPagingDRX.Value != int(ngapType.PagingDRXPresentV128) {
+	if defaultPagingDRX.Value != uint64(ngapType.PagingDRXPresentV128) {
 		t.Errorf("expected DefaultPagingDRX value=2, got %d", defaultPagingDRX.Value)
 	}
 }

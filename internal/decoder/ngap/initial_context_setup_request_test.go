@@ -25,8 +25,8 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ProcedureCode=InitialContextSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != int(ngapType.ProcedureCodeInitialContextSetup) {
-		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
+	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeInitialContextSetup {
+		t.Errorf("expected ProcedureCode value=14, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
 	if ngapMsg.Criticality.Label != "Reject" {
@@ -47,7 +47,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
 	}
 
-	if item0.ID.Value != int(ngapType.ProtocolIEIDAMFUENGAPID) {
+	if item0.ID.Value != ngapType.ProtocolIEIDAMFUENGAPID {
 		t.Errorf("expected ID value=85, got %d", item0.ID.Value)
 	}
 
@@ -74,7 +74,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
 	}
 
-	if item1.ID.Value != int(ngapType.ProtocolIEIDRANUENGAPID) {
+	if item1.ID.Value != ngapType.ProtocolIEIDRANUENGAPID {
 		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
 	}
 
@@ -101,7 +101,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=GUAMI, got %s", item2.ID.Label)
 	}
 
-	if item2.ID.Value != int(ngapType.ProtocolIEIDGUAMI) {
+	if item2.ID.Value != ngapType.ProtocolIEIDGUAMI {
 		t.Errorf("expected ID value=0, got %d", item2.ID.Value)
 	}
 
@@ -136,7 +136,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=AllowedNSSAI, got %s", item3.ID.Label)
 	}
 
-	if item3.ID.Value != int(ngapType.ProtocolIEIDAllowedNSSAI) {
+	if item3.ID.Value != ngapType.ProtocolIEIDAllowedNSSAI {
 		t.Errorf("expected ID value=0, got %d", item3.ID.Value)
 	}
 
@@ -173,7 +173,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=UESecurityCapabilities, got %s", item4.ID.Label)
 	}
 
-	if item4.ID.Value != int(ngapType.ProtocolIEIDUESecurityCapabilities) {
+	if item4.ID.Value != ngapType.ProtocolIEIDUESecurityCapabilities {
 		t.Errorf("expected ID value=93, got %d", item4.ID.Value)
 	}
 
@@ -236,7 +236,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=SecurityKey, got %s", item5.ID.Label)
 	}
 
-	if item5.ID.Value != int(ngapType.ProtocolIEIDSecurityKey) {
+	if item5.ID.Value != ngapType.ProtocolIEIDSecurityKey {
 		t.Errorf("expected ID value=96, got %d", item5.ID.Value)
 	}
 
@@ -264,7 +264,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=MobilityRestrictionList, got %v", item6.ID)
 	}
 
-	if item6.ID.Value != int(ngapType.ProtocolIEIDMobilityRestrictionList) {
+	if item6.ID.Value != ngapType.ProtocolIEIDMobilityRestrictionList {
 		t.Errorf("expected ID value=128, got %d", item6.ID.Value)
 	}
 
@@ -311,7 +311,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=NASPDU, got %s", item7.ID.Label)
 	}
 
-	if item7.ID.Value != int(ngapType.ProtocolIEIDNASPDU) {
+	if item7.ID.Value != ngapType.ProtocolIEIDNASPDU {
 		t.Errorf("expected ID value=38, got %d", item7.ID.Value)
 	}
 

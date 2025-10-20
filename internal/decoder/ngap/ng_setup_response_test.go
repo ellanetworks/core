@@ -25,7 +25,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != int(ngapType.ProcedureCodeNGSetup) {
+	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeNGSetup {
 		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -47,7 +47,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=AMFName, got %s", item0.ID.Label)
 	}
 
-	if item0.ID.Value != int(ngapType.ProtocolIEIDAMFName) {
+	if item0.ID.Value != ngapType.ProtocolIEIDAMFName {
 		t.Errorf("expected ID value=1, got %d", item0.ID.Value)
 	}
 
@@ -74,7 +74,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=ServedGUAMIList, got %s", item1.ID.Label)
 	}
 
-	if item1.ID.Value != int(ngapType.ProtocolIEIDServedGUAMIList) {
+	if item1.ID.Value != ngapType.ProtocolIEIDServedGUAMIList {
 		t.Errorf("expected ID value=96, got %d", item1.ID.Value)
 	}
 
@@ -119,7 +119,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=RelativeAMFCapacity, got %s", item2.ID.Label)
 	}
 
-	if item2.ID.Value != int(ngapType.ProtocolIEIDRelativeAMFCapacity) {
+	if item2.ID.Value != ngapType.ProtocolIEIDRelativeAMFCapacity {
 		t.Errorf("expected ID value=86, got %d", item2.ID.Value)
 	}
 
@@ -146,7 +146,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=PLMNSupportList, got %s", item3.ID.Label)
 	}
 
-	if item3.ID.Value != int(ngapType.ProtocolIEIDPLMNSupportList) {
+	if item3.ID.Value != ngapType.ProtocolIEIDPLMNSupportList {
 		t.Errorf("expected ID value=80, got %d", item3.ID.Value)
 	}
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/ngap/aper"
 	"github.com/omec-project/ngap/ngapType"
 )
@@ -14,10 +15,11 @@ import (
 const ntpToUnixOffset = 2208988800 // seconds between 1900-01-01 and 1970-01-01
 
 type IE struct {
-	ID          EnumField `json:"id"`
-	Criticality EnumField `json:"criticality"`
-	Value       any       `json:"value,omitempty"`
-	Error       string    `json:"error,omitempty"`
+	ID          utils.EnumField[int64]  `json:"id"`
+	Criticality utils.EnumField[uint64] `json:"criticality"`
+	Value       any                     `json:"value,omitempty"`
+
+	Error string `json:"error,omitempty"` // Reserved field for decoding errors
 }
 
 func timeStampToRFC3339(timeStampNgap aper.OctetString) (string, error) {
@@ -54,330 +56,330 @@ func plmnIDToModels(ngapPlmnID ngapType.PLMNIdentity) PLMNID {
 	return modelsPlmnid
 }
 
-func protocolIEIDToEnum(id int64) EnumField {
+func protocolIEIDToEnum(id int64) utils.EnumField[int64] {
 	switch id {
 	case ngapType.ProtocolIEIDAllowedNSSAI:
-		return makeEnum(int(id), "AllowedNSSAI", false)
+		return utils.MakeEnum(id, "AllowedNSSAI", false)
 	case ngapType.ProtocolIEIDAMFName:
-		return makeEnum(int(id), "AMFName", false)
+		return utils.MakeEnum(id, "AMFName", false)
 	case ngapType.ProtocolIEIDAMFOverloadResponse:
-		return makeEnum(int(id), "AMFOverloadResponse", false)
+		return utils.MakeEnum(id, "AMFOverloadResponse", false)
 	case ngapType.ProtocolIEIDAMFSetID:
-		return makeEnum(int(id), "AMFSetID", false)
+		return utils.MakeEnum(id, "AMFSetID", false)
 	case ngapType.ProtocolIEIDAMFTNLAssociationFailedToSetupList:
-		return makeEnum(int(id), "AMFTNLAssociationFailedToSetupList", false)
+		return utils.MakeEnum(id, "AMFTNLAssociationFailedToSetupList", false)
 	case ngapType.ProtocolIEIDAMFTNLAssociationSetupList:
-		return makeEnum(int(id), "AMFTNLAssociationSetupList", false)
+		return utils.MakeEnum(id, "AMFTNLAssociationSetupList", false)
 	case ngapType.ProtocolIEIDAMFTNLAssociationToAddList:
-		return makeEnum(int(id), "AMFTNLAssociationToAddList", false)
+		return utils.MakeEnum(id, "AMFTNLAssociationToAddList", false)
 	case ngapType.ProtocolIEIDAMFTNLAssociationToRemoveList:
-		return makeEnum(int(id), "AMFTNLAssociationToRemoveList", false)
+		return utils.MakeEnum(id, "AMFTNLAssociationToRemoveList", false)
 	case ngapType.ProtocolIEIDAMFTNLAssociationToUpdateList:
-		return makeEnum(int(id), "AMFTNLAssociationToUpdateList", false)
+		return utils.MakeEnum(id, "AMFTNLAssociationToUpdateList", false)
 	case ngapType.ProtocolIEIDAMFTrafficLoadReductionIndication:
-		return makeEnum(int(id), "AMFTrafficLoadReductionIndication", false)
+		return utils.MakeEnum(id, "AMFTrafficLoadReductionIndication", false)
 	case ngapType.ProtocolIEIDAMFUENGAPID:
-		return makeEnum(int(id), "AMFUENGAPID", false)
+		return utils.MakeEnum(id, "AMFUENGAPID", false)
 	case ngapType.ProtocolIEIDAssistanceDataForPaging:
-		return makeEnum(int(id), "AssistanceDataForPaging", false)
+		return utils.MakeEnum(id, "AssistanceDataForPaging", false)
 	case ngapType.ProtocolIEIDBroadcastCancelledAreaList:
-		return makeEnum(int(id), "BroadcastCancelledAreaList", false)
+		return utils.MakeEnum(id, "BroadcastCancelledAreaList", false)
 	case ngapType.ProtocolIEIDBroadcastCompletedAreaList:
-		return makeEnum(int(id), "BroadcastCompletedAreaList", false)
+		return utils.MakeEnum(id, "BroadcastCompletedAreaList", false)
 	case ngapType.ProtocolIEIDCancelAllWarningMessages:
-		return makeEnum(int(id), "CancelAllWarningMessages", false)
+		return utils.MakeEnum(id, "CancelAllWarningMessages", false)
 	case ngapType.ProtocolIEIDCause:
-		return makeEnum(int(id), "Cause", false)
+		return utils.MakeEnum(id, "Cause", false)
 	case ngapType.ProtocolIEIDCellIDListForRestart:
-		return makeEnum(int(id), "CellIDListForRestart", false)
+		return utils.MakeEnum(id, "CellIDListForRestart", false)
 	case ngapType.ProtocolIEIDConcurrentWarningMessageInd:
-		return makeEnum(int(id), "ConcurrentWarningMessageInd", false)
+		return utils.MakeEnum(id, "ConcurrentWarningMessageInd", false)
 	case ngapType.ProtocolIEIDCoreNetworkAssistanceInformation:
-		return makeEnum(int(id), "CoreNetworkAssistanceInformation", false)
+		return utils.MakeEnum(id, "CoreNetworkAssistanceInformation", false)
 	case ngapType.ProtocolIEIDCriticalityDiagnostics:
-		return makeEnum(int(id), "CriticalityDiagnostics", false)
+		return utils.MakeEnum(id, "CriticalityDiagnostics", false)
 	case ngapType.ProtocolIEIDDataCodingScheme:
-		return makeEnum(int(id), "DataCodingScheme", false)
+		return utils.MakeEnum(id, "DataCodingScheme", false)
 	case ngapType.ProtocolIEIDDefaultPagingDRX:
-		return makeEnum(int(id), "DefaultPagingDRX", false)
+		return utils.MakeEnum(id, "DefaultPagingDRX", false)
 	case ngapType.ProtocolIEIDDirectForwardingPathAvailability:
-		return makeEnum(int(id), "DirectForwardingPathAvailability", false)
+		return utils.MakeEnum(id, "DirectForwardingPathAvailability", false)
 	case ngapType.ProtocolIEIDEmergencyAreaIDListForRestart:
-		return makeEnum(int(id), "EmergencyAreaIDListForRestart", false)
+		return utils.MakeEnum(id, "EmergencyAreaIDListForRestart", false)
 	case ngapType.ProtocolIEIDEmergencyFallbackIndicator:
-		return makeEnum(int(id), "EmergencyFallbackIndicator", false)
+		return utils.MakeEnum(id, "EmergencyFallbackIndicator", false)
 	case ngapType.ProtocolIEIDEUTRACGI:
-		return makeEnum(int(id), "EUTRACGI", false)
+		return utils.MakeEnum(id, "EUTRACGI", false)
 	case ngapType.ProtocolIEIDFiveGSTMSI:
-		return makeEnum(int(id), "FiveGSTMSI", false)
+		return utils.MakeEnum(id, "FiveGSTMSI", false)
 	case ngapType.ProtocolIEIDGlobalRANNodeID:
-		return makeEnum(int(id), "GlobalRANNodeID", false)
+		return utils.MakeEnum(id, "GlobalRANNodeID", false)
 	case ngapType.ProtocolIEIDGUAMI:
-		return makeEnum(int(id), "GUAMI", false)
+		return utils.MakeEnum(id, "GUAMI", false)
 	case ngapType.ProtocolIEIDHandoverType:
-		return makeEnum(int(id), "HandoverType", false)
+		return utils.MakeEnum(id, "HandoverType", false)
 	case ngapType.ProtocolIEIDIMSVoiceSupportIndicator:
-		return makeEnum(int(id), "IMSVoiceSupportIndicator", false)
+		return utils.MakeEnum(id, "IMSVoiceSupportIndicator", false)
 	case ngapType.ProtocolIEIDIndexToRFSP:
-		return makeEnum(int(id), "IndexToRFSP", false)
+		return utils.MakeEnum(id, "IndexToRFSP", false)
 	case ngapType.ProtocolIEIDInfoOnRecommendedCellsAndRANNodesForPaging:
-		return makeEnum(int(id), "InfoOnRecommendedCellsAndRANNodesForPaging", false)
+		return utils.MakeEnum(id, "InfoOnRecommendedCellsAndRANNodesForPaging", false)
 	case ngapType.ProtocolIEIDLocationReportingRequestType:
-		return makeEnum(int(id), "LocationReportingRequestType", false)
+		return utils.MakeEnum(id, "LocationReportingRequestType", false)
 	case ngapType.ProtocolIEIDMaskedIMEISV:
-		return makeEnum(int(id), "MaskedIMEISV", false)
+		return utils.MakeEnum(id, "MaskedIMEISV", false)
 	case ngapType.ProtocolIEIDMessageIdentifier:
-		return makeEnum(int(id), "MessageIdentifier", false)
+		return utils.MakeEnum(id, "MessageIdentifier", false)
 	case ngapType.ProtocolIEIDMobilityRestrictionList:
-		return makeEnum(int(id), "MobilityRestrictionList", false)
+		return utils.MakeEnum(id, "MobilityRestrictionList", false)
 	case ngapType.ProtocolIEIDNASC:
-		return makeEnum(int(id), "NASC", false)
+		return utils.MakeEnum(id, "NASC", false)
 	case ngapType.ProtocolIEIDNASPDU:
-		return makeEnum(int(id), "NASPDU", false)
+		return utils.MakeEnum(id, "NASPDU", false)
 	case ngapType.ProtocolIEIDNASSecurityParametersFromNGRAN:
-		return makeEnum(int(id), "NASSecurityParametersFromNGRAN", false)
+		return utils.MakeEnum(id, "NASSecurityParametersFromNGRAN", false)
 	case ngapType.ProtocolIEIDNewAMFUENGAPID:
-		return makeEnum(int(id), "NewAMFUENGAPID", false)
+		return utils.MakeEnum(id, "NewAMFUENGAPID", false)
 	case ngapType.ProtocolIEIDNewSecurityContextInd:
-		return makeEnum(int(id), "NewSecurityContextInd", false)
+		return utils.MakeEnum(id, "NewSecurityContextInd", false)
 	case ngapType.ProtocolIEIDNGAPMessage:
-		return makeEnum(int(id), "NGAPMessage", false)
+		return utils.MakeEnum(id, "NGAPMessage", false)
 	case ngapType.ProtocolIEIDNGRANCGI:
-		return makeEnum(int(id), "NGRANCGI", false)
+		return utils.MakeEnum(id, "NGRANCGI", false)
 	case ngapType.ProtocolIEIDNGRANTraceID:
-		return makeEnum(int(id), "NGRANTraceID", false)
+		return utils.MakeEnum(id, "NGRANTraceID", false)
 	case ngapType.ProtocolIEIDNRCGI:
-		return makeEnum(int(id), "NRCGI", false)
+		return utils.MakeEnum(id, "NRCGI", false)
 	case ngapType.ProtocolIEIDNRPPaPDU:
-		return makeEnum(int(id), "NRPPaPDU", false)
+		return utils.MakeEnum(id, "NRPPaPDU", false)
 	case ngapType.ProtocolIEIDNumberOfBroadcastsRequested:
-		return makeEnum(int(id), "NumberOfBroadcastsRequested", false)
+		return utils.MakeEnum(id, "NumberOfBroadcastsRequested", false)
 	case ngapType.ProtocolIEIDOldAMF:
-		return makeEnum(int(id), "OldAMF", false)
+		return utils.MakeEnum(id, "OldAMF", false)
 	case ngapType.ProtocolIEIDOverloadStartNSSAIList:
-		return makeEnum(int(id), "OverloadStartNSSAIList", false)
+		return utils.MakeEnum(id, "OverloadStartNSSAIList", false)
 	case ngapType.ProtocolIEIDPagingDRX:
-		return makeEnum(int(id), "PagingDRX", false)
+		return utils.MakeEnum(id, "PagingDRX", false)
 	case ngapType.ProtocolIEIDPagingOrigin:
-		return makeEnum(int(id), "PagingOrigin", false)
+		return utils.MakeEnum(id, "PagingOrigin", false)
 	case ngapType.ProtocolIEIDPagingPriority:
-		return makeEnum(int(id), "PagingPriority", false)
+		return utils.MakeEnum(id, "PagingPriority", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceAdmittedList:
-		return makeEnum(int(id), "PDUSessionResourceAdmittedList", false)
+		return utils.MakeEnum(id, "PDUSessionResourceAdmittedList", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToModifyListModRes:
-		return makeEnum(int(id), "PDUSessionResourceFailedToModifyListModRes", false)
+		return utils.MakeEnum(id, "PDUSessionResourceFailedToModifyListModRes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtRes:
-		return makeEnum(int(id), "PDUSessionResourceFailedToSetupListCxtRes", false)
+		return utils.MakeEnum(id, "PDUSessionResourceFailedToSetupListCxtRes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListHOAck:
-		return makeEnum(int(id), "PDUSessionResourceFailedToSetupListHOAck", false)
+		return utils.MakeEnum(id, "PDUSessionResourceFailedToSetupListHOAck", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListPSReq:
-		return makeEnum(int(id), "PDUSessionResourceFailedToSetupListPSReq", false)
+		return utils.MakeEnum(id, "PDUSessionResourceFailedToSetupListPSReq", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListSURes:
-		return makeEnum(int(id), "PDUSessionResourceFailedToSetupListSURes", false)
+		return utils.MakeEnum(id, "PDUSessionResourceFailedToSetupListSURes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceHandoverList:
-		return makeEnum(int(id), "PDUSessionResourceHandoverList", false)
+		return utils.MakeEnum(id, "PDUSessionResourceHandoverList", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceListCxtRelCpl:
-		return makeEnum(int(id), "PDUSessionResourceListCxtRelCpl", false)
+		return utils.MakeEnum(id, "PDUSessionResourceListCxtRelCpl", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceListHORqd:
-		return makeEnum(int(id), "PDUSessionResourceListHORqd", false)
+		return utils.MakeEnum(id, "PDUSessionResourceListHORqd", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceModifyListModCfm:
-		return makeEnum(int(id), "PDUSessionResourceModifyListModCfm", false)
+		return utils.MakeEnum(id, "PDUSessionResourceModifyListModCfm", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceModifyListModInd:
-		return makeEnum(int(id), "PDUSessionResourceModifyListModInd", false)
+		return utils.MakeEnum(id, "PDUSessionResourceModifyListModInd", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceModifyListModReq:
-		return makeEnum(int(id), "PDUSessionResourceModifyListModReq", false)
+		return utils.MakeEnum(id, "PDUSessionResourceModifyListModReq", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceModifyListModRes:
-		return makeEnum(int(id), "PDUSessionResourceModifyListModRes", false)
+		return utils.MakeEnum(id, "PDUSessionResourceModifyListModRes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceNotifyList:
-		return makeEnum(int(id), "PDUSessionResourceNotifyList", false)
+		return utils.MakeEnum(id, "PDUSessionResourceNotifyList", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceReleasedListNot:
-		return makeEnum(int(id), "PDUSessionResourceReleasedListNot", false)
+		return utils.MakeEnum(id, "PDUSessionResourceReleasedListNot", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceReleasedListPSAck:
-		return makeEnum(int(id), "PDUSessionResourceReleasedListPSAck", false)
+		return utils.MakeEnum(id, "PDUSessionResourceReleasedListPSAck", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceReleasedListPSFail:
-		return makeEnum(int(id), "PDUSessionResourceReleasedListPSFail", false)
+		return utils.MakeEnum(id, "PDUSessionResourceReleasedListPSFail", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceReleasedListRelRes:
-		return makeEnum(int(id), "PDUSessionResourceReleasedListRelRes", false)
+		return utils.MakeEnum(id, "PDUSessionResourceReleasedListRelRes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtReq:
-		return makeEnum(int(id), "PDUSessionResourceSetupListCxtReq", false)
+		return utils.MakeEnum(id, "PDUSessionResourceSetupListCxtReq", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtRes:
-		return makeEnum(int(id), "PDUSessionResourceSetupListCxtRes", false)
+		return utils.MakeEnum(id, "PDUSessionResourceSetupListCxtRes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListHOReq:
-		return makeEnum(int(id), "PDUSessionResourceSetupListHOReq", false)
+		return utils.MakeEnum(id, "PDUSessionResourceSetupListHOReq", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
-		return makeEnum(int(id), "PDUSessionResourceSetupListSUReq", false)
+		return utils.MakeEnum(id, "PDUSessionResourceSetupListSUReq", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes:
-		return makeEnum(int(id), "PDUSessionResourceSetupListSURes", false)
+		return utils.MakeEnum(id, "PDUSessionResourceSetupListSURes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceToBeSwitchedDLList:
-		return makeEnum(int(id), "PDUSessionResourceToBeSwitchedDLList", false)
+		return utils.MakeEnum(id, "PDUSessionResourceToBeSwitchedDLList", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSwitchedList:
-		return makeEnum(int(id), "PDUSessionResourceSwitchedList", false)
+		return utils.MakeEnum(id, "PDUSessionResourceSwitchedList", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceToReleaseListHOCmd:
-		return makeEnum(int(id), "PDUSessionResourceToReleaseListHOCmd", false)
+		return utils.MakeEnum(id, "PDUSessionResourceToReleaseListHOCmd", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceToReleaseListRelCmd:
-		return makeEnum(int(id), "PDUSessionResourceToReleaseListRelCmd", false)
+		return utils.MakeEnum(id, "PDUSessionResourceToReleaseListRelCmd", false)
 	case ngapType.ProtocolIEIDPLMNSupportList:
-		return makeEnum(int(id), "PLMNSupportList", false)
+		return utils.MakeEnum(id, "PLMNSupportList", false)
 	case ngapType.ProtocolIEIDPWSFailedCellIDList:
-		return makeEnum(int(id), "PWSFailedCellIDList", false)
+		return utils.MakeEnum(id, "PWSFailedCellIDList", false)
 	case ngapType.ProtocolIEIDRANNodeName:
-		return makeEnum(int(id), "RANNodeName", false)
+		return utils.MakeEnum(id, "RANNodeName", false)
 	case ngapType.ProtocolIEIDRANPagingPriority:
-		return makeEnum(int(id), "RANPagingPriority", false)
+		return utils.MakeEnum(id, "RANPagingPriority", false)
 	case ngapType.ProtocolIEIDRANStatusTransferTransparentContainer:
-		return makeEnum(int(id), "RANStatusTransferTransparentContainer", false)
+		return utils.MakeEnum(id, "RANStatusTransferTransparentContainer", false)
 	case ngapType.ProtocolIEIDRANUENGAPID:
-		return makeEnum(int(id), "RANUENGAPID", false)
+		return utils.MakeEnum(id, "RANUENGAPID", false)
 	case ngapType.ProtocolIEIDRelativeAMFCapacity:
-		return makeEnum(int(id), "RelativeAMFCapacity", false)
+		return utils.MakeEnum(id, "RelativeAMFCapacity", false)
 	case ngapType.ProtocolIEIDRepetitionPeriod:
-		return makeEnum(int(id), "RepetitionPeriod", false)
+		return utils.MakeEnum(id, "RepetitionPeriod", false)
 	case ngapType.ProtocolIEIDResetType:
-		return makeEnum(int(id), "ResetType", false)
+		return utils.MakeEnum(id, "ResetType", false)
 	case ngapType.ProtocolIEIDRoutingID:
-		return makeEnum(int(id), "RoutingID", false)
+		return utils.MakeEnum(id, "RoutingID", false)
 	case ngapType.ProtocolIEIDRRCEstablishmentCause:
-		return makeEnum(int(id), "RRCEstablishmentCause", false)
+		return utils.MakeEnum(id, "RRCEstablishmentCause", false)
 	case ngapType.ProtocolIEIDRRCInactiveTransitionReportRequest:
-		return makeEnum(int(id), "RRCInactiveTransitionReportRequest", false)
+		return utils.MakeEnum(id, "RRCInactiveTransitionReportRequest", false)
 	case ngapType.ProtocolIEIDRRCState:
-		return makeEnum(int(id), "RRCState", false)
+		return utils.MakeEnum(id, "RRCState", false)
 	case ngapType.ProtocolIEIDSecurityContext:
-		return makeEnum(int(id), "SecurityContext", false)
+		return utils.MakeEnum(id, "SecurityContext", false)
 	case ngapType.ProtocolIEIDSecurityKey:
-		return makeEnum(int(id), "SecurityKey", false)
+		return utils.MakeEnum(id, "SecurityKey", false)
 	case ngapType.ProtocolIEIDSerialNumber:
-		return makeEnum(int(id), "SerialNumber", false)
+		return utils.MakeEnum(id, "SerialNumber", false)
 	case ngapType.ProtocolIEIDServedGUAMIList:
-		return makeEnum(int(id), "ServedGUAMIList", false)
+		return utils.MakeEnum(id, "ServedGUAMIList", false)
 	case ngapType.ProtocolIEIDSliceSupportList:
-		return makeEnum(int(id), "SliceSupportList", false)
+		return utils.MakeEnum(id, "SliceSupportList", false)
 	case ngapType.ProtocolIEIDSONConfigurationTransferDL:
-		return makeEnum(int(id), "SONConfigurationTransferDL", false)
+		return utils.MakeEnum(id, "SONConfigurationTransferDL", false)
 	case ngapType.ProtocolIEIDSONConfigurationTransferUL:
-		return makeEnum(int(id), "SONConfigurationTransferUL", false)
+		return utils.MakeEnum(id, "SONConfigurationTransferUL", false)
 	case ngapType.ProtocolIEIDSourceAMFUENGAPID:
-		return makeEnum(int(id), "SourceAMFUENGAPID", false)
+		return utils.MakeEnum(id, "SourceAMFUENGAPID", false)
 	case ngapType.ProtocolIEIDSourceToTargetTransparentContainer:
-		return makeEnum(int(id), "SourceToTargetTransparentContainer", false)
+		return utils.MakeEnum(id, "SourceToTargetTransparentContainer", false)
 	case ngapType.ProtocolIEIDSupportedTAList:
-		return makeEnum(int(id), "SupportedTAList", false)
+		return utils.MakeEnum(id, "SupportedTAList", false)
 	case ngapType.ProtocolIEIDTAIListForPaging:
-		return makeEnum(int(id), "TAIListForPaging", false)
+		return utils.MakeEnum(id, "TAIListForPaging", false)
 	case ngapType.ProtocolIEIDTAIListForRestart:
-		return makeEnum(int(id), "TAIListForRestart", false)
+		return utils.MakeEnum(id, "TAIListForRestart", false)
 	case ngapType.ProtocolIEIDTargetID:
-		return makeEnum(int(id), "TargetID", false)
+		return utils.MakeEnum(id, "TargetID", false)
 	case ngapType.ProtocolIEIDTargetToSourceTransparentContainer:
-		return makeEnum(int(id), "TargetToSourceTransparentContainer", false)
+		return utils.MakeEnum(id, "TargetToSourceTransparentContainer", false)
 	case ngapType.ProtocolIEIDTimeToWait:
-		return makeEnum(int(id), "TimeToWait", false)
+		return utils.MakeEnum(id, "TimeToWait", false)
 	case ngapType.ProtocolIEIDTraceActivation:
-		return makeEnum(int(id), "TraceActivation", false)
+		return utils.MakeEnum(id, "TraceActivation", false)
 	case ngapType.ProtocolIEIDTraceCollectionEntityIPAddress:
-		return makeEnum(int(id), "TraceCollectionEntityIPAddress", false)
+		return utils.MakeEnum(id, "TraceCollectionEntityIPAddress", false)
 	case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
-		return makeEnum(int(id), "UEAggregateMaximumBitRate", false)
+		return utils.MakeEnum(id, "UEAggregateMaximumBitRate", false)
 	case ngapType.ProtocolIEIDUEAssociatedLogicalNGConnectionList:
-		return makeEnum(int(id), "UEAssociatedLogicalNGConnectionList", false)
+		return utils.MakeEnum(id, "UEAssociatedLogicalNGConnectionList", false)
 	case ngapType.ProtocolIEIDUEContextRequest:
-		return makeEnum(int(id), "UEContextRequest", false)
+		return utils.MakeEnum(id, "UEContextRequest", false)
 	case ngapType.ProtocolIEIDUENGAPIDs:
-		return makeEnum(int(id), "UENGAPIDs", false)
+		return utils.MakeEnum(id, "UENGAPIDs", false)
 	case ngapType.ProtocolIEIDUEPagingIdentity:
-		return makeEnum(int(id), "UEPagingIdentity", false)
+		return utils.MakeEnum(id, "UEPagingIdentity", false)
 	case ngapType.ProtocolIEIDUEPresenceInAreaOfInterestList:
-		return makeEnum(int(id), "UEPresenceInAreaOfInterestList", false)
+		return utils.MakeEnum(id, "UEPresenceInAreaOfInterestList", false)
 	case ngapType.ProtocolIEIDUERadioCapability:
-		return makeEnum(int(id), "UERadioCapability", false)
+		return utils.MakeEnum(id, "UERadioCapability", false)
 	case ngapType.ProtocolIEIDUERadioCapabilityForPaging:
-		return makeEnum(int(id), "UERadioCapabilityForPaging", false)
+		return utils.MakeEnum(id, "UERadioCapabilityForPaging", false)
 	case ngapType.ProtocolIEIDUESecurityCapabilities:
-		return makeEnum(int(id), "UESecurityCapabilities", false)
+		return utils.MakeEnum(id, "UESecurityCapabilities", false)
 	case ngapType.ProtocolIEIDUnavailableGUAMIList:
-		return makeEnum(int(id), "UnavailableGUAMIList", false)
+		return utils.MakeEnum(id, "UnavailableGUAMIList", false)
 	case ngapType.ProtocolIEIDUserLocationInformation:
-		return makeEnum(int(id), "UserLocationInformation", false)
+		return utils.MakeEnum(id, "UserLocationInformation", false)
 	case ngapType.ProtocolIEIDWarningAreaList:
-		return makeEnum(int(id), "WarningAreaList", false)
+		return utils.MakeEnum(id, "WarningAreaList", false)
 	case ngapType.ProtocolIEIDWarningMessageContents:
-		return makeEnum(int(id), "WarningMessageContents", false)
+		return utils.MakeEnum(id, "WarningMessageContents", false)
 	case ngapType.ProtocolIEIDWarningSecurityInfo:
-		return makeEnum(int(id), "WarningSecurityInfo", false)
+		return utils.MakeEnum(id, "WarningSecurityInfo", false)
 	case ngapType.ProtocolIEIDWarningType:
-		return makeEnum(int(id), "WarningType", false)
+		return utils.MakeEnum(id, "WarningType", false)
 	case ngapType.ProtocolIEIDAdditionalULNGUUPTNLInformation:
-		return makeEnum(int(id), "AdditionalULNGUUPTNLInformation", false)
+		return utils.MakeEnum(id, "AdditionalULNGUUPTNLInformation", false)
 	case ngapType.ProtocolIEIDDataForwardingNotPossible:
-		return makeEnum(int(id), "DataForwardingNotPossible", false)
+		return utils.MakeEnum(id, "DataForwardingNotPossible", false)
 	case ngapType.ProtocolIEIDDLNGUUPTNLInformation:
-		return makeEnum(int(id), "DLNGUUPTNLInformation", false)
+		return utils.MakeEnum(id, "DLNGUUPTNLInformation", false)
 	case ngapType.ProtocolIEIDNetworkInstance:
-		return makeEnum(int(id), "NetworkInstance", false)
+		return utils.MakeEnum(id, "NetworkInstance", false)
 	case ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate:
-		return makeEnum(int(id), "PDUSessionAggregateMaximumBitRate", false)
+		return utils.MakeEnum(id, "PDUSessionAggregateMaximumBitRate", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToModifyListModCfm:
-		return makeEnum(int(id), "PDUSessionResourceFailedToModifyListModCfm", false)
+		return utils.MakeEnum(id, "PDUSessionResourceFailedToModifyListModCfm", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtFail:
-		return makeEnum(int(id), "PDUSessionResourceFailedToSetupListCxtFail", false)
+		return utils.MakeEnum(id, "PDUSessionResourceFailedToSetupListCxtFail", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceListCxtRelReq:
-		return makeEnum(int(id), "PDUSessionResourceListCxtRelReq", false)
+		return utils.MakeEnum(id, "PDUSessionResourceListCxtRelReq", false)
 	case ngapType.ProtocolIEIDPDUSessionType:
-		return makeEnum(int(id), "PDUSessionType", false)
+		return utils.MakeEnum(id, "PDUSessionType", false)
 	case ngapType.ProtocolIEIDQosFlowAddOrModifyRequestList:
-		return makeEnum(int(id), "QosFlowAddOrModifyRequestList", false)
+		return utils.MakeEnum(id, "QosFlowAddOrModifyRequestList", false)
 	case ngapType.ProtocolIEIDQosFlowSetupRequestList:
-		return makeEnum(int(id), "QosFlowSetupRequestList", false)
+		return utils.MakeEnum(id, "QosFlowSetupRequestList", false)
 	case ngapType.ProtocolIEIDQosFlowToReleaseList:
-		return makeEnum(int(id), "QosFlowToReleaseList", false)
+		return utils.MakeEnum(id, "QosFlowToReleaseList", false)
 	case ngapType.ProtocolIEIDSecurityIndication:
-		return makeEnum(int(id), "SecurityIndication", false)
+		return utils.MakeEnum(id, "SecurityIndication", false)
 	case ngapType.ProtocolIEIDULNGUUPTNLInformation:
-		return makeEnum(int(id), "ULNGUUPTNLInformation", false)
+		return utils.MakeEnum(id, "ULNGUUPTNLInformation", false)
 	case ngapType.ProtocolIEIDULNGUUPTNLModifyList:
-		return makeEnum(int(id), "ULNGUUPTNLModifyList", false)
+		return utils.MakeEnum(id, "ULNGUUPTNLModifyList", false)
 	case ngapType.ProtocolIEIDWarningAreaCoordinates:
-		return makeEnum(int(id), "WarningAreaCoordinates", false)
+		return utils.MakeEnum(id, "WarningAreaCoordinates", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSecondaryRATUsageList:
-		return makeEnum(int(id), "PDUSessionResourceSecondaryRATUsageList", false)
+		return utils.MakeEnum(id, "PDUSessionResourceSecondaryRATUsageList", false)
 	case ngapType.ProtocolIEIDHandoverFlag:
-		return makeEnum(int(id), "HandoverFlag", false)
+		return utils.MakeEnum(id, "HandoverFlag", false)
 	case ngapType.ProtocolIEIDSecondaryRATUsageInformation:
-		return makeEnum(int(id), "SecondaryRATUsageInformation", false)
+		return utils.MakeEnum(id, "SecondaryRATUsageInformation", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceReleaseResponseTransfer:
-		return makeEnum(int(id), "PDUSessionResourceReleaseResponseTransfer", false)
+		return utils.MakeEnum(id, "PDUSessionResourceReleaseResponseTransfer", false)
 	case ngapType.ProtocolIEIDRedirectionVoiceFallback:
-		return makeEnum(int(id), "RedirectionVoiceFallback", false)
+		return utils.MakeEnum(id, "RedirectionVoiceFallback", false)
 	case ngapType.ProtocolIEIDUERetentionInformation:
-		return makeEnum(int(id), "UERetentionInformation", false)
+		return utils.MakeEnum(id, "UERetentionInformation", false)
 	case ngapType.ProtocolIEIDSNSSAI:
-		return makeEnum(int(id), "SNSSAI", false)
+		return utils.MakeEnum(id, "SNSSAI", false)
 	case ngapType.ProtocolIEIDPSCellInformation:
-		return makeEnum(int(id), "PSCellInformation", false)
+		return utils.MakeEnum(id, "PSCellInformation", false)
 	case ngapType.ProtocolIEIDLastEUTRANPLMNIdentity:
-		return makeEnum(int(id), "LastEUTRANPLMNIdentity", false)
+		return utils.MakeEnum(id, "LastEUTRANPLMNIdentity", false)
 	case ngapType.ProtocolIEIDMaximumIntegrityProtectedDataRateDL:
-		return makeEnum(int(id), "MaximumIntegrityProtectedDataRateDL", false)
+		return utils.MakeEnum(id, "MaximumIntegrityProtectedDataRateDL", false)
 	case ngapType.ProtocolIEIDAdditionalDLForwardingUPTNLInformation:
-		return makeEnum(int(id), "AdditionalDLForwardingUPTNLInformation", false)
+		return utils.MakeEnum(id, "AdditionalDLForwardingUPTNLInformation", false)
 	case ngapType.ProtocolIEIDAdditionalDLUPTNLInformationForHOList:
-		return makeEnum(int(id), "AdditionalDLUPTNLInformationForHOList", false)
+		return utils.MakeEnum(id, "AdditionalDLUPTNLInformationForHOList", false)
 	case ngapType.ProtocolIEIDAdditionalNGUUPTNLInformation:
-		return makeEnum(int(id), "AdditionalNGUUPTNLInformation", false)
+		return utils.MakeEnum(id, "AdditionalNGUUPTNLInformation", false)
 	case ngapType.ProtocolIEIDAdditionalDLQosFlowPerTNLInformation:
-		return makeEnum(int(id), "AdditionalDLQosFlowPerTNLInformation", false)
+		return utils.MakeEnum(id, "AdditionalDLQosFlowPerTNLInformation", false)
 	case ngapType.ProtocolIEIDSecurityResult:
-		return makeEnum(int(id), "SecurityResult", false)
+		return utils.MakeEnum(id, "SecurityResult", false)
 	case ngapType.ProtocolIEIDENDCSONConfigurationTransferDL:
-		return makeEnum(157, "ENDCSONConfigurationTransferDL", false)
+		return utils.MakeEnum(id, "ENDCSONConfigurationTransferDL", false)
 	case ngapType.ProtocolIEIDENDCSONConfigurationTransferUL:
-		return makeEnum(158, "ENDCSONConfigurationTransferUL", false)
+		return utils.MakeEnum(id, "ENDCSONConfigurationTransferUL", false)
 	default:
-		return makeEnum(int(id), "", true)
+		return utils.MakeEnum(id, "", true)
 	}
 }
 
-func causeToEnum(cause ngapType.Cause) EnumField {
+func causeToEnum(cause ngapType.Cause) utils.EnumField[uint64] {
 	switch cause.Present {
 	case ngapType.CausePresentRadioNetwork:
 		return radioNetworkCauseToEnum(*cause.RadioNetwork)
@@ -390,173 +392,173 @@ func causeToEnum(cause ngapType.Cause) EnumField {
 	case ngapType.CausePresentMisc:
 		return miscCauseToEnum(*cause.Misc)
 	default:
-		return makeEnum(cause.Present, "", true)
+		return utils.MakeEnum(uint64(cause.Present), "", true)
 	}
 }
 
-func radioNetworkCauseToEnum(cause ngapType.CauseRadioNetwork) EnumField {
+func radioNetworkCauseToEnum(cause ngapType.CauseRadioNetwork) utils.EnumField[uint64] {
 	switch cause.Value {
 	case ngapType.CauseRadioNetworkPresentUnspecified:
-		return makeEnum(int(cause.Value), "Unspecified", false)
+		return utils.MakeEnum(uint64(cause.Value), "Unspecified", false)
 	case ngapType.CauseRadioNetworkPresentTxnrelocoverallExpiry:
-		return makeEnum(int(cause.Value), "TxNRelocOverallExpiry", false)
+		return utils.MakeEnum(uint64(cause.Value), "TxNRelocOverallExpiry", false)
 	case ngapType.CauseRadioNetworkPresentSuccessfulHandover:
-		return makeEnum(int(cause.Value), "SuccessfulHandover", false)
+		return utils.MakeEnum(uint64(cause.Value), "SuccessfulHandover", false)
 	case ngapType.CauseRadioNetworkPresentReleaseDueToNgranGeneratedReason:
-		return makeEnum(int(cause.Value), "ReleaseDueToNgranGeneratedReason", false)
+		return utils.MakeEnum(uint64(cause.Value), "ReleaseDueToNgranGeneratedReason", false)
 	case ngapType.CauseRadioNetworkPresentReleaseDueTo5gcGeneratedReason:
-		return makeEnum(int(cause.Value), "ReleaseDueTo5gcGeneratedReason", false)
+		return utils.MakeEnum(uint64(cause.Value), "ReleaseDueTo5gcGeneratedReason", false)
 	case ngapType.CauseRadioNetworkPresentHandoverCancelled:
-		return makeEnum(int(cause.Value), "HandoverCancelled", false)
+		return utils.MakeEnum(uint64(cause.Value), "HandoverCancelled", false)
 	case ngapType.CauseRadioNetworkPresentPartialHandover:
-		return makeEnum(int(cause.Value), "PartialHandover", false)
+		return utils.MakeEnum(uint64(cause.Value), "PartialHandover", false)
 	case ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem:
-		return makeEnum(int(cause.Value), "HoFailureInTarget5GCNgranNodeOrTargetSystem", false)
+		return utils.MakeEnum(uint64(cause.Value), "HoFailureInTarget5GCNgranNodeOrTargetSystem", false)
 	case ngapType.CauseRadioNetworkPresentHoTargetNotAllowed:
-		return makeEnum(int(cause.Value), "HoTargetNotAllowed", false)
+		return utils.MakeEnum(uint64(cause.Value), "HoTargetNotAllowed", false)
 	case ngapType.CauseRadioNetworkPresentTngrelocoverallExpiry:
-		return makeEnum(int(cause.Value), "TngRelocOverallExpiry", false)
+		return utils.MakeEnum(uint64(cause.Value), "TngRelocOverallExpiry", false)
 	case ngapType.CauseRadioNetworkPresentTngrelocprepExpiry:
-		return makeEnum(int(cause.Value), "TngRelocPrepExpiry", false)
+		return utils.MakeEnum(uint64(cause.Value), "TngRelocPrepExpiry", false)
 	case ngapType.CauseRadioNetworkPresentCellNotAvailable:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentCellNotAvailable), "CellNotAvailable", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentCellNotAvailable), "CellNotAvailable", false)
 	case ngapType.CauseRadioNetworkPresentUnknownTargetID:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentUnknownTargetID), "UnknownTargetID", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentUnknownTargetID), "UnknownTargetID", false)
 	case ngapType.CauseRadioNetworkPresentNoRadioResourcesAvailableInTargetCell:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentNoRadioResourcesAvailableInTargetCell), "NoRadioResourcesAvailableInTargetCell", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentNoRadioResourcesAvailableInTargetCell), "NoRadioResourcesAvailableInTargetCell", false)
 	case ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID), "UnknownLocalUENGAPID", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID), "UnknownLocalUENGAPID", false)
 	case ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID), "InconsistentRemoteUENGAPID", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID), "InconsistentRemoteUENGAPID", false)
 	case ngapType.CauseRadioNetworkPresentHandoverDesirableForRadioReason:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentHandoverDesirableForRadioReason), "HandoverDesirableForRadioReason", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentHandoverDesirableForRadioReason), "HandoverDesirableForRadioReason", false)
 	case ngapType.CauseRadioNetworkPresentTimeCriticalHandover:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentTimeCriticalHandover), "TimeCriticalHandover", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentTimeCriticalHandover), "TimeCriticalHandover", false)
 	case ngapType.CauseRadioNetworkPresentResourceOptimisationHandover:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentResourceOptimisationHandover), "ResourceOptimisationHandover", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentResourceOptimisationHandover), "ResourceOptimisationHandover", false)
 	case ngapType.CauseRadioNetworkPresentReduceLoadInServingCell:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentReduceLoadInServingCell), "ReduceLoadInServingCell", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentReduceLoadInServingCell), "ReduceLoadInServingCell", false)
 	case ngapType.CauseRadioNetworkPresentUserInactivity:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentUserInactivity), "UserInactivity", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentUserInactivity), "UserInactivity", false)
 	case ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost), "RadioConnectionWithUeLost", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost), "RadioConnectionWithUeLost", false)
 	case ngapType.CauseRadioNetworkPresentRadioResourcesNotAvailable:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentRadioResourcesNotAvailable), "RadioResourcesNotAvailable", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentRadioResourcesNotAvailable), "RadioResourcesNotAvailable", false)
 	case ngapType.CauseRadioNetworkPresentInvalidQosCombination:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentInvalidQosCombination), "InvalidQosCombination", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentInvalidQosCombination), "InvalidQosCombination", false)
 	case ngapType.CauseRadioNetworkPresentFailureInRadioInterfaceProcedure:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentFailureInRadioInterfaceProcedure), "FailureInRadioInterfaceProcedure", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentFailureInRadioInterfaceProcedure), "FailureInRadioInterfaceProcedure", false)
 	case ngapType.CauseRadioNetworkPresentInteractionWithOtherProcedure:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentInteractionWithOtherProcedure), "InteractionWithOtherProcedure", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentInteractionWithOtherProcedure), "InteractionWithOtherProcedure", false)
 	case ngapType.CauseRadioNetworkPresentUnknownPDUSessionID:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentUnknownPDUSessionID), "UnknownPDUSessionID", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentUnknownPDUSessionID), "UnknownPDUSessionID", false)
 	case ngapType.CauseRadioNetworkPresentUnkownQosFlowID:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentUnkownQosFlowID), "UnkownQosFlowID", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentUnkownQosFlowID), "UnkownQosFlowID", false)
 	case ngapType.CauseRadioNetworkPresentMultiplePDUSessionIDInstances:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentMultiplePDUSessionIDInstances), "MultiplePDUSessionIDInstances", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentMultiplePDUSessionIDInstances), "MultiplePDUSessionIDInstances", false)
 	case ngapType.CauseRadioNetworkPresentMultipleQosFlowIDInstances:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentMultipleQosFlowIDInstances), "MultipleQosFlowIDInstances", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentMultipleQosFlowIDInstances), "MultipleQosFlowIDInstances", false)
 	case ngapType.CauseRadioNetworkPresentEncryptionAndOrIntegrityProtectionAlgorithmsNotSupported:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentEncryptionAndOrIntegrityProtectionAlgorithmsNotSupported), "EncryptionAndOrIntegrityProtectionAlgorithmsNotSupported", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentEncryptionAndOrIntegrityProtectionAlgorithmsNotSupported), "EncryptionAndOrIntegrityProtectionAlgorithmsNotSupported", false)
 	case ngapType.CauseRadioNetworkPresentNgIntraSystemHandoverTriggered:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentNgIntraSystemHandoverTriggered), "NgIntraSystemHandoverTriggered", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentNgIntraSystemHandoverTriggered), "NgIntraSystemHandoverTriggered", false)
 	case ngapType.CauseRadioNetworkPresentNgInterSystemHandoverTriggered:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentNgInterSystemHandoverTriggered), "NgInterSystemHandoverTriggered", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentNgInterSystemHandoverTriggered), "NgInterSystemHandoverTriggered", false)
 	case ngapType.CauseRadioNetworkPresentXnHandoverTriggered:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentXnHandoverTriggered), "XnHandoverTriggered", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentXnHandoverTriggered), "XnHandoverTriggered", false)
 	case ngapType.CauseRadioNetworkPresentNotSupported5QIValue:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentNotSupported5QIValue), "NotSupported5QIValue", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentNotSupported5QIValue), "NotSupported5QIValue", false)
 	case ngapType.CauseRadioNetworkPresentUeContextTransfer:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentUeContextTransfer), "UeContextTransfer", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentUeContextTransfer), "UeContextTransfer", false)
 	case ngapType.CauseRadioNetworkPresentImsVoiceEpsFallbackOrRatFallbackTriggered:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentImsVoiceEpsFallbackOrRatFallbackTriggered), "ImsVoiceEpsFallbackOrRatFallbackTriggered", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentImsVoiceEpsFallbackOrRatFallbackTriggered), "ImsVoiceEpsFallbackOrRatFallbackTriggered", false)
 	case ngapType.CauseRadioNetworkPresentUpIntegrityProtectionNotPossible:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentUpIntegrityProtectionNotPossible), "UpIntegrityProtectionNotPossible", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentUpIntegrityProtectionNotPossible), "UpIntegrityProtectionNotPossible", false)
 	case ngapType.CauseRadioNetworkPresentUpConfidentialityProtectionNotPossible:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentUpConfidentialityProtectionNotPossible), "UpConfidentialityProtectionNotPossible", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentUpConfidentialityProtectionNotPossible), "UpConfidentialityProtectionNotPossible", false)
 	case ngapType.CauseRadioNetworkPresentSliceNotSupported:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentSliceNotSupported), "SliceNotSupported", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentSliceNotSupported), "SliceNotSupported", false)
 	case ngapType.CauseRadioNetworkPresentUeInRrcInactiveStateNotReachable:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentUeInRrcInactiveStateNotReachable), "UeInRrcInactiveStateNotReachable", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentUeInRrcInactiveStateNotReachable), "UeInRrcInactiveStateNotReachable", false)
 	case ngapType.CauseRadioNetworkPresentRedirection:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentRedirection), "Redirection", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentRedirection), "Redirection", false)
 	case ngapType.CauseRadioNetworkPresentResourcesNotAvailableForTheSlice:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentResourcesNotAvailableForTheSlice), "ResourcesNotAvailableForTheSlice", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentResourcesNotAvailableForTheSlice), "ResourcesNotAvailableForTheSlice", false)
 	case ngapType.CauseRadioNetworkPresentUeMaxIntegrityProtectedDataRateReason:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentUeMaxIntegrityProtectedDataRateReason), "UeMaxIntegrityProtectedDataRateReason", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentUeMaxIntegrityProtectedDataRateReason), "UeMaxIntegrityProtectedDataRateReason", false)
 	case ngapType.CauseRadioNetworkPresentReleaseDueToCnDetectedMobility:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentReleaseDueToCnDetectedMobility), "ReleaseDueToCnDetectedMobility", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentReleaseDueToCnDetectedMobility), "ReleaseDueToCnDetectedMobility", false)
 	case ngapType.CauseRadioNetworkPresentN26InterfaceNotAvailable:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentN26InterfaceNotAvailable), "N26InterfaceNotAvailable", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentN26InterfaceNotAvailable), "N26InterfaceNotAvailable", false)
 	case ngapType.CauseRadioNetworkPresentReleaseDueToPreEmption:
-		return makeEnum(int(ngapType.CauseRadioNetworkPresentReleaseDueToPreEmption), "ReleaseDueToPreEmption", false)
+		return utils.MakeEnum(uint64(ngapType.CauseRadioNetworkPresentReleaseDueToPreEmption), "ReleaseDueToPreEmption", false)
 	default:
-		return makeEnum(int(cause.Value), "", true)
+		return utils.MakeEnum(uint64(cause.Value), "", true)
 	}
 }
 
-func transportCauseToEnum(cause ngapType.CauseTransport) EnumField {
+func transportCauseToEnum(cause ngapType.CauseTransport) utils.EnumField[uint64] {
 	switch cause.Value {
 	case ngapType.CauseTransportPresentTransportResourceUnavailable:
-		return makeEnum(int(cause.Value), "TransportResourceUnavailable", false)
+		return utils.MakeEnum(uint64(cause.Value), "TransportResourceUnavailable", false)
 	case ngapType.CauseTransportPresentUnspecified:
-		return makeEnum(int(cause.Value), "Unspecified", false)
+		return utils.MakeEnum(uint64(cause.Value), "Unspecified", false)
 	default:
-		return makeEnum(int(cause.Value), "", true)
+		return utils.MakeEnum(uint64(cause.Value), "", true)
 	}
 }
 
-func nasCauseToEnum(cause ngapType.CauseNas) EnumField {
+func nasCauseToEnum(cause ngapType.CauseNas) utils.EnumField[uint64] {
 	switch cause.Value {
 	case ngapType.CauseNasPresentNormalRelease:
-		return makeEnum(int(cause.Value), "NormalRelease", false)
+		return utils.MakeEnum(uint64(cause.Value), "NormalRelease", false)
 	case ngapType.CauseNasPresentAuthenticationFailure:
-		return makeEnum(int(cause.Value), "AuthenticationFailure", false)
+		return utils.MakeEnum(uint64(cause.Value), "AuthenticationFailure", false)
 	case ngapType.CauseNasPresentDeregister:
-		return makeEnum(int(cause.Value), "Deregister", false)
+		return utils.MakeEnum(uint64(cause.Value), "Deregister", false)
 	case ngapType.CauseNasPresentUnspecified:
-		return makeEnum(int(cause.Value), "Unspecified", false)
+		return utils.MakeEnum(uint64(cause.Value), "Unspecified", false)
 	default:
-		return makeEnum(int(cause.Value), "", true)
+		return utils.MakeEnum(uint64(cause.Value), "", true)
 	}
 }
 
-func protocolCauseToEnum(cause ngapType.CauseProtocol) EnumField {
+func protocolCauseToEnum(cause ngapType.CauseProtocol) utils.EnumField[uint64] {
 	switch cause.Value {
 	case ngapType.CauseProtocolPresentTransferSyntaxError:
-		return makeEnum(int(cause.Value), "TransferSyntaxError", false)
+		return utils.MakeEnum(uint64(cause.Value), "TransferSyntaxError", false)
 	case ngapType.CauseProtocolPresentAbstractSyntaxErrorReject:
-		return makeEnum(int(cause.Value), "AbstractSyntaxErrorReject", false)
+		return utils.MakeEnum(uint64(cause.Value), "AbstractSyntaxErrorReject", false)
 	case ngapType.CauseProtocolPresentAbstractSyntaxErrorIgnoreAndNotify:
-		return makeEnum(int(cause.Value), "AbstractSyntaxErrorIgnoreAndNotify", false)
+		return utils.MakeEnum(uint64(cause.Value), "AbstractSyntaxErrorIgnoreAndNotify", false)
 	case ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState:
-		return makeEnum(int(cause.Value), "MessageNotCompatibleWithReceiverState", false)
+		return utils.MakeEnum(uint64(cause.Value), "MessageNotCompatibleWithReceiverState", false)
 	case ngapType.CauseProtocolPresentSemanticError:
-		return makeEnum(int(cause.Value), "SemanticError", false)
+		return utils.MakeEnum(uint64(cause.Value), "SemanticError", false)
 	case ngapType.CauseProtocolPresentAbstractSyntaxErrorFalselyConstructedMessage:
-		return makeEnum(int(cause.Value), "AbstractSyntaxErrorFalselyConstructedMessage", false)
+		return utils.MakeEnum(uint64(cause.Value), "AbstractSyntaxErrorFalselyConstructedMessage", false)
 	case ngapType.CauseProtocolPresentUnspecified:
-		return makeEnum(int(cause.Value), "Unspecified", false)
+		return utils.MakeEnum(uint64(cause.Value), "Unspecified", false)
 	default:
-		return makeEnum(int(cause.Value), "", true)
+		return utils.MakeEnum(uint64(cause.Value), "", true)
 	}
 }
 
-func miscCauseToEnum(cause ngapType.CauseMisc) EnumField {
+func miscCauseToEnum(cause ngapType.CauseMisc) utils.EnumField[uint64] {
 	switch cause.Value {
 	case ngapType.CauseMiscPresentControlProcessingOverload:
-		return makeEnum(int(cause.Value), "ControlProcessingOverload", false)
+		return utils.MakeEnum(uint64(cause.Value), "ControlProcessingOverload", false)
 	case ngapType.CauseMiscPresentNotEnoughUserPlaneProcessingResources:
-		return makeEnum(int(cause.Value), "NotEnoughUserPlaneProcessingResources", false)
+		return utils.MakeEnum(uint64(cause.Value), "NotEnoughUserPlaneProcessingResources", false)
 	case ngapType.CauseMiscPresentHardwareFailure:
-		return makeEnum(int(cause.Value), "HardwareFailure", false)
+		return utils.MakeEnum(uint64(cause.Value), "HardwareFailure", false)
 	case ngapType.CauseMiscPresentOmIntervention:
-		return makeEnum(int(cause.Value), "OmIntervention", false)
+		return utils.MakeEnum(uint64(cause.Value), "OmIntervention", false)
 	case ngapType.CauseMiscPresentUnknownPLMN:
-		return makeEnum(int(cause.Value), "UnknownPLMN", false)
+		return utils.MakeEnum(uint64(cause.Value), "UnknownPLMN", false)
 	case ngapType.CauseMiscPresentUnspecified:
-		return makeEnum(int(cause.Value), "Unspecified", false)
+		return utils.MakeEnum(uint64(cause.Value), "Unspecified", false)
 	default:
-		return makeEnum(int(cause.Value), "", true)
+		return utils.MakeEnum(uint64(cause.Value), "", true)
 	}
 }

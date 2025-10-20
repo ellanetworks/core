@@ -3,6 +3,7 @@ package ngap
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/ngap/ngapType"
 )
 
@@ -45,21 +46,21 @@ func buildNGSetupFailure(ngSetupFailure ngapType.NGSetupFailure) NGAPMessageValu
 	}
 }
 
-func buildTimeToWaitIE(timeToWait ngapType.TimeToWait) EnumField {
+func buildTimeToWaitIE(timeToWait ngapType.TimeToWait) utils.EnumField[uint64] {
 	switch timeToWait.Value {
 	case ngapType.TimeToWaitPresentV1s:
-		return makeEnum(int(ngapType.TimeToWaitPresentV1s), "V1s", false)
+		return utils.MakeEnum(uint64(ngapType.TimeToWaitPresentV1s), "V1s", false)
 	case ngapType.TimeToWaitPresentV2s:
-		return makeEnum(int(ngapType.TimeToWaitPresentV2s), "V2s", false)
+		return utils.MakeEnum(uint64(ngapType.TimeToWaitPresentV2s), "V2s", false)
 	case ngapType.TimeToWaitPresentV5s:
-		return makeEnum(int(ngapType.TimeToWaitPresentV5s), "V5s", false)
+		return utils.MakeEnum(uint64(ngapType.TimeToWaitPresentV5s), "V5s", false)
 	case ngapType.TimeToWaitPresentV10s:
-		return makeEnum(int(ngapType.TimeToWaitPresentV10s), "V10s", false)
+		return utils.MakeEnum(uint64(ngapType.TimeToWaitPresentV10s), "V10s", false)
 	case ngapType.TimeToWaitPresentV20s:
-		return makeEnum(int(ngapType.TimeToWaitPresentV20s), "V20s", false)
+		return utils.MakeEnum(uint64(ngapType.TimeToWaitPresentV20s), "V20s", false)
 	case ngapType.TimeToWaitPresentV60s:
-		return makeEnum(int(ngapType.TimeToWaitPresentV60s), "V60s", false)
+		return utils.MakeEnum(uint64(ngapType.TimeToWaitPresentV60s), "V60s", false)
 	default:
-		return makeEnum(int(timeToWait.Value), "", true)
+		return utils.MakeEnum(uint64(timeToWait.Value), "", true)
 	}
 }

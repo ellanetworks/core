@@ -1,23 +1,23 @@
 package nas
 
 import (
-	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
-	"go.uber.org/zap"
 )
 
 type DLNASTransport struct {
-	ExtendedProtocolDiscriminator         uint8            `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType   uint8            `json:"spare_half_octet_and_security_header_type"`
-	DLNASTRANSPORTMessageIdentity         string           `json:"dl_nas_transport_message_identity"`
-	SpareHalfOctetAndPayloadContainerType uint8            `json:"spare_half_octet_and_payload_container_type"`
-	PayloadContainer                      PayloadContainer `json:"payload_container"`
-	PduSessionID2Value                    *uint8           `json:"pdu_session_id_2_value,omitempty"`
-	AdditionalInformation                 *string          `json:"additional_information,omitempty"`
-	Cause5GMM                             *string          `json:"cause_5gmm,omitempty"`
-	BackoffTimerValue                     *uint8           `json:"backoff_timer_value,omitempty"`
-	Ipaddr                                string           `json:"ip_addr,omitempty"`
+	ExtendedProtocolDiscriminator         uint8                   `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType   uint8                   `json:"spare_half_octet_and_security_header_type"`
+	DLNASTRANSPORTMessageIdentity         string                  `json:"dl_nas_transport_message_identity"`
+	SpareHalfOctetAndPayloadContainerType uint8                   `json:"spare_half_octet_and_payload_container_type"`
+	PayloadContainer                      PayloadContainer        `json:"payload_container"`
+	PduSessionID2Value                    *uint8                  `json:"pdu_session_id_2_value,omitempty"`
+	Cause5GMM                             *utils.EnumField[uint8] `json:"cause_5gmm,omitempty"`
+	BackoffTimerValue                     *uint8                  `json:"backoff_timer_value,omitempty"`
+	Ipaddr                                string                  `json:"ip_addr,omitempty"`
+
+	AdditionalInformation *UnsupportedIE `json:"additional_information,omitempty"`
 }
 
 func buildDLNASTransport(msg *nasMessage.DLNASTransport) *DLNASTransport {
@@ -41,7 +41,7 @@ func buildDLNASTransport(msg *nasMessage.DLNASTransport) *DLNASTransport {
 	}
 
 	if msg.AdditionalInformation != nil {
-		logger.EllaLog.Warn("AdditionalInformation not yet implemented")
+		dlNasTransport.AdditionalInformation = makeUnsupportedIE()
 	}
 
 	if msg.BackoffTimerValue != nil {
@@ -50,7 +50,7 @@ func buildDLNASTransport(msg *nasMessage.DLNASTransport) *DLNASTransport {
 	}
 
 	if msg.Cause5GMM != nil {
-		cause := nasMessage.Cause5GMMToString(msg.Cause5GMM.GetCauseValue())
+		cause := cause5GMMToEnum(msg.Cause5GMM.GetCauseValue())
 		dlNasTransport.Cause5GMM = &cause
 	}
 
@@ -65,7 +65,7 @@ func buildDLNASPayloadContainer(msg *nasMessage.DLNASTransport) PayloadContainer
 	}
 
 	if containerType != nasMessage.PayloadContainerTypeN1SMInfo {
-		logger.EllaLog.Warn("Payload container type not yet implemented", zap.Uint8("type", containerType))
+		payloadContainer.Error = "Payload container type not yet implemented"
 		return payloadContainer
 	}
 
@@ -73,7 +73,7 @@ func buildDLNASPayloadContainer(msg *nasMessage.DLNASTransport) PayloadContainer
 
 	gsmMessage, err := decodeGSMMessage(rawBytes)
 	if err != nil {
-		logger.EllaLog.Warn("Failed to decode N1 SM message in DL NAS Transport Payload Container", zap.Error(err))
+		payloadContainer.Error = "Failed to decode N1 SM message: " + err.Error()
 		return payloadContainer
 	}
 
