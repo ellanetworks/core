@@ -65,8 +65,21 @@ export async function listNetworkLogs(
   return json.result;
 }
 
+export type EnumField = {
+  label: string;
+  value: number;
+  type: "enum";
+};
+
+export type DecodedNetworkLog = {
+  pdu_type: string;
+  procedure_code: EnumField;
+  criticality: EnumField;
+  value: unknown;
+};
+
 export type NetworkLogContent = {
-  decoded: unknown;
+  decoded: DecodedNetworkLog;
   raw: string;
 };
 

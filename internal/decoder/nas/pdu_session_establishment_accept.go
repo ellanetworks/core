@@ -22,20 +22,19 @@ type SessionAMBR struct {
 }
 
 type PDUSessionEstablishmentAccept struct {
-	ExtendedProtocolDiscriminator                uint8                                 `json:"extended_protocol_discriminator"`
-	PDUSessionID                                 uint8                                 `json:"pdu_session_id"`
-	PTI                                          uint8                                 `json:"pti"`
-	PDUSESSIONESTABLISHMENTACCEPTMessageIdentity uint8                                 `json:"pdu_session_establishment_accept_message_identity"`
-	SelectedSSCMode                              uint8                                 `json:"selected_ssc_mode"`
-	SelectedPDUSessionType                       utils.EnumField[uint8]                `json:"selected_pdu_session_type"`
-	AuthorizedQosRules                           []QosRule                             `json:"authorized_qos_rules"`
-	SessionAMBR                                  SessionAMBR                           `json:"session_ambr"`
-	Cause5GSM                                    *utils.EnumField[uint8]               `json:"cause_5g_s_m,omitempty"`
-	PDUAddress                                   *string                               `json:"pdu_address,omitempty"`
-	SNSSAI                                       *SNSSAI                               `json:"snssai,omitempty"`
-	AuthorizedQosFlowDescriptions                []QoSFlowDescription                  `json:"authorized_qos_flow_descriptions,omitempty"`
-	ExtendedProtocolConfigurationOptions         *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
-	DNN                                          *string                               `json:"dnn,omitempty"`
+	ExtendedProtocolDiscriminator        uint8                                 `json:"extended_protocol_discriminator"`
+	PDUSessionID                         uint8                                 `json:"pdu_session_id"`
+	PTI                                  uint8                                 `json:"pti"`
+	SelectedSSCMode                      uint8                                 `json:"selected_ssc_mode"`
+	SelectedPDUSessionType               utils.EnumField[uint8]                `json:"selected_pdu_session_type"`
+	AuthorizedQosRules                   []QosRule                             `json:"authorized_qos_rules"`
+	SessionAMBR                          SessionAMBR                           `json:"session_ambr"`
+	Cause5GSM                            *utils.EnumField[uint8]               `json:"cause_5g_s_m,omitempty"`
+	PDUAddress                           *string                               `json:"pdu_address,omitempty"`
+	SNSSAI                               *SNSSAI                               `json:"snssai,omitempty"`
+	AuthorizedQosFlowDescriptions        []QoSFlowDescription                  `json:"authorized_qos_flow_descriptions,omitempty"`
+	ExtendedProtocolConfigurationOptions *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
+	DNN                                  *string                               `json:"dnn,omitempty"`
 
 	RQTimerValue                 *UnsupportedIE `json:"rq_timer_value,omitempty"`
 	AlwaysonPDUSessionIndication *UnsupportedIE `json:"alwayson_pdu_session_indication,omitempty"`
@@ -52,11 +51,10 @@ func buildPDUSessionEstablishmentAccept(msg *nasMessage.PDUSessionEstablishmentA
 		ExtendedProtocolDiscriminator: msg.ExtendedProtocolDiscriminator.Octet,
 		PDUSessionID:                  msg.PDUSessionID.GetPDUSessionID(),
 		PTI:                           msg.PTI.GetPTI(),
-		PDUSESSIONESTABLISHMENTACCEPTMessageIdentity: msg.PDUSESSIONESTABLISHMENTACCEPTMessageIdentity.GetMessageType(),
-		SelectedSSCMode:        msg.SelectedSSCModeAndSelectedPDUSessionType.GetSSCMode(),
-		SelectedPDUSessionType: buildPDUSessionType(msg.SelectedSSCModeAndSelectedPDUSessionType.GetPDUSessionType()),
-		AuthorizedQosRules:     buildAuthorizedQosRules(msg.AuthorizedQosRules),
-		SessionAMBR:            buildSessionAMBR(msg.SessionAMBR),
+		SelectedSSCMode:               msg.SelectedSSCModeAndSelectedPDUSessionType.GetSSCMode(),
+		SelectedPDUSessionType:        buildPDUSessionType(msg.SelectedSSCModeAndSelectedPDUSessionType.GetPDUSessionType()),
+		AuthorizedQosRules:            buildAuthorizedQosRules(msg.AuthorizedQosRules),
+		SessionAMBR:                   buildSessionAMBR(msg.SessionAMBR),
 	}
 
 	if msg.Cause5GSM != nil {
