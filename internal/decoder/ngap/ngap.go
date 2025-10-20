@@ -9,9 +9,14 @@ import (
 )
 
 type EnumField struct {
-	Type  string `json:"type" default:"enum"`
-	Value int    `json:"value"`
-	Label string `json:"label"`
+	Type    string `json:"type"` // always "enum"
+	Value   int    `json:"value"`
+	Label   string `json:"label"`
+	Unknown bool   `json:"unknown"`
+}
+
+func makeEnum(v int, label string, unknown bool) EnumField {
+	return EnumField{Type: "enum", Value: v, Label: label, Unknown: unknown}
 }
 
 type NGAPMessageValue struct {
@@ -118,19 +123,125 @@ func buildUnsuccessfulOutcome(unsucMsg ngapType.UnsuccessfulOutcome) NGAPMessage
 func criticalityToEnum(c aper.Enumerated) EnumField {
 	switch c {
 	case ngapType.CriticalityPresentReject:
-		return EnumField{Label: "Reject", Value: int(c)}
+		return makeEnum(int(c), "Reject", false)
 	case ngapType.CriticalityPresentIgnore:
-		return EnumField{Label: "Ignore", Value: int(c)}
+		return makeEnum(int(c), "Ignore", false)
 	case ngapType.CriticalityPresentNotify:
-		return EnumField{Label: "Notify", Value: int(c)}
+		return makeEnum(int(c), "Notify", false)
 	default:
-		return EnumField{Label: "Unknown", Value: int(c)}
+		return makeEnum(int(c), "", true)
 	}
 }
 
 func procedureCodeToEnum(code int64) EnumField {
-	return EnumField{
-		Label: ngapType.ProcedureName(code),
-		Value: int(code),
+	switch code {
+	case ngapType.ProcedureCodeAMFConfigurationUpdate:
+		return makeEnum(int(code), "AMFConfigurationUpdate", false)
+	case ngapType.ProcedureCodeAMFStatusIndication:
+		return makeEnum(int(code), "AMFStatusIndication", false)
+	case ngapType.ProcedureCodeCellTrafficTrace:
+		return makeEnum(int(code), "CellTrafficTrace", false)
+	case ngapType.ProcedureCodeDeactivateTrace:
+		return makeEnum(int(code), "DeactivateTrace", false)
+	case ngapType.ProcedureCodeDownlinkNASTransport:
+		return makeEnum(int(code), "DownlinkNASTransport", false)
+	case ngapType.ProcedureCodeDownlinkNonUEAssociatedNRPPaTransport:
+		return makeEnum(int(code), "DownlinkNonUEAssociatedNRPPaTransport", false)
+	case ngapType.ProcedureCodeDownlinkRANConfigurationTransfer:
+		return makeEnum(int(code), "DownlinkRANConfigurationTransfer", false)
+	case ngapType.ProcedureCodeDownlinkRANStatusTransfer:
+		return makeEnum(int(code), "DownlinkRANStatusTransfer", false)
+	case ngapType.ProcedureCodeDownlinkUEAssociatedNRPPaTransport:
+		return makeEnum(int(code), "DownlinkUEAssociatedNRPPaTransport", false)
+	case ngapType.ProcedureCodeErrorIndication:
+		return makeEnum(int(code), "ErrorIndication", false)
+	case ngapType.ProcedureCodeHandoverCancel:
+		return makeEnum(int(code), "HandoverCancel", false)
+	case ngapType.ProcedureCodeHandoverNotification:
+		return makeEnum(int(code), "HandoverNotification", false)
+	case ngapType.ProcedureCodeHandoverPreparation:
+		return makeEnum(int(code), "HandoverPreparation", false)
+	case ngapType.ProcedureCodeHandoverResourceAllocation:
+		return makeEnum(int(code), "HandoverResourceAllocation", false)
+	case ngapType.ProcedureCodeInitialContextSetup:
+		return makeEnum(int(code), "InitialContextSetup", false)
+	case ngapType.ProcedureCodeInitialUEMessage:
+		return makeEnum(int(code), "InitialUEMessage", false)
+	case ngapType.ProcedureCodeLocationReportingControl:
+		return makeEnum(int(code), "LocationReportingControl", false)
+	case ngapType.ProcedureCodeLocationReportingFailureIndication:
+		return makeEnum(int(code), "LocationReportingFailureIndication", false)
+	case ngapType.ProcedureCodeLocationReport:
+		return makeEnum(int(code), "LocationReport", false)
+	case ngapType.ProcedureCodeNASNonDeliveryIndication:
+		return makeEnum(int(code), "NASNonDeliveryIndication", false)
+	case ngapType.ProcedureCodeNGReset:
+		return makeEnum(int(code), "NGReset", false)
+	case ngapType.ProcedureCodeNGSetup:
+		return makeEnum(int(code), "NGSetup", false)
+	case ngapType.ProcedureCodeOverloadStart:
+		return makeEnum(int(code), "OverloadStart", false)
+	case ngapType.ProcedureCodeOverloadStop:
+		return makeEnum(int(code), "OverloadStop", false)
+	case ngapType.ProcedureCodePaging:
+		return makeEnum(int(code), "Paging", false)
+	case ngapType.ProcedureCodePathSwitchRequest:
+		return makeEnum(int(code), "PathSwitchRequest", false)
+	case ngapType.ProcedureCodePDUSessionResourceModify:
+		return makeEnum(int(code), "PDUSessionResourceModify", false)
+	case ngapType.ProcedureCodePDUSessionResourceModifyIndication:
+		return makeEnum(int(code), "PDUSessionResourceModifyIndication", false)
+	case ngapType.ProcedureCodePDUSessionResourceRelease:
+		return makeEnum(int(code), "PDUSessionResourceRelease", false)
+	case ngapType.ProcedureCodePDUSessionResourceSetup:
+		return makeEnum(int(code), "PDUSessionResourceSetup", false)
+	case ngapType.ProcedureCodePDUSessionResourceNotify:
+		return makeEnum(int(code), "PDUSessionResourceNotify", false)
+	case ngapType.ProcedureCodePrivateMessage:
+		return makeEnum(int(code), "PrivateMessage", false)
+	case ngapType.ProcedureCodePWSCancel:
+		return makeEnum(int(code), "PWSCancel", false)
+	case ngapType.ProcedureCodePWSFailureIndication:
+		return makeEnum(int(code), "PWSFailureIndication", false)
+	case ngapType.ProcedureCodePWSRestartIndication:
+		return makeEnum(int(code), "PWSRestartIndication", false)
+	case ngapType.ProcedureCodeRANConfigurationUpdate:
+		return makeEnum(int(code), "RANConfigurationUpdate", false)
+	case ngapType.ProcedureCodeRerouteNASRequest:
+		return makeEnum(int(code), "RerouteNASRequest", false)
+	case ngapType.ProcedureCodeRRCInactiveTransitionReport:
+		return makeEnum(int(code), "RRCInactiveTransitionReport", false)
+	case ngapType.ProcedureCodeTraceFailureIndication:
+		return makeEnum(int(code), "TraceFailureIndication", false)
+	case ngapType.ProcedureCodeTraceStart:
+		return makeEnum(int(code), "TraceStart", false)
+	case ngapType.ProcedureCodeUEContextModification:
+		return makeEnum(int(code), "UEContextModification", false)
+	case ngapType.ProcedureCodeUEContextRelease:
+		return makeEnum(int(code), "UEContextRelease", false)
+	case ngapType.ProcedureCodeUEContextReleaseRequest:
+		return makeEnum(int(code), "UEContextReleaseRequest", false)
+	case ngapType.ProcedureCodeUERadioCapabilityCheck:
+		return makeEnum(int(code), "UERadioCapabilityCheck", false)
+	case ngapType.ProcedureCodeUERadioCapabilityInfoIndication:
+		return makeEnum(int(code), "UERadioCapabilityInfoIndication", false)
+	case ngapType.ProcedureCodeUETNLABindingRelease:
+		return makeEnum(int(code), "UETNLABindingRelease", false)
+	case ngapType.ProcedureCodeUplinkNASTransport:
+		return makeEnum(int(code), "UplinkNASTransport", false)
+	case ngapType.ProcedureCodeUplinkNonUEAssociatedNRPPaTransport:
+		return makeEnum(int(code), "UplinkNonUEAssociatedNRPPaTransport", false)
+	case ngapType.ProcedureCodeUplinkRANConfigurationTransfer:
+		return makeEnum(int(code), "UplinkRANConfigurationTransfer", false)
+	case ngapType.ProcedureCodeUplinkRANStatusTransfer:
+		return makeEnum(int(code), "UplinkRANStatusTransfer", false)
+	case ngapType.ProcedureCodeUplinkUEAssociatedNRPPaTransport:
+		return makeEnum(int(code), "UplinkUEAssociatedNRPPaTransport", false)
+	case ngapType.ProcedureCodeWriteReplaceWarning:
+		return makeEnum(int(code), "WriteReplaceWarning", false)
+	case ngapType.ProcedureCodeSecondaryRATDataUsageReport:
+		return makeEnum(int(code), "SecondaryRATDataUsageReport", false)
+	default:
+		return makeEnum(int(code), "", true)
 	}
 }

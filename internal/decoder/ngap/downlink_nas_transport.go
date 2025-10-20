@@ -6,14 +6,13 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 type NASPDU struct {
 	Raw     []byte          `json:"raw"`
 	Decoded *nas.NASMessage `json:"decoded"`
+	Error   string          `json:"error,omitempty"`
 }
 
 type RATRestriction struct {
@@ -88,13 +87,19 @@ func buildDownlinkNASTransport(downlinkNASTransport ngapType.DownlinkNASTranspor
 				Direction:   nas.DirDownlink,
 				AMFUENGAPID: AMFUENGAPID,
 			}
+
+			var nasPdu NASPDU
 			decodednNasPdu, err := nas.DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
 			if err != nil {
-				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
-			}
-			nasPdu := NASPDU{
-				Raw:     ie.Value.NASPDU.Value,
-				Decoded: decodednNasPdu,
+				nasPdu = NASPDU{
+					Raw:   ie.Value.NASPDU.Value,
+					Error: err.Error(),
+				}
+			} else {
+				nasPdu = NASPDU{
+					Raw:     ie.Value.NASPDU.Value,
+					Decoded: decodednNasPdu,
+				}
 			}
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
@@ -129,9 +134,7 @@ func buildDownlinkNASTransport(downlinkNASTransport ngapType.DownlinkNASTranspor
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value: UnknownIE{
-					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-				},
+				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
 			})
 		}
 	}

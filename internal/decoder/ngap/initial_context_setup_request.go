@@ -5,21 +5,20 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap/aper"
 	"github.com/omec-project/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 type ExpectedUEActivityBehaviour struct {
-	ExpectedActivityPeriod                 *int64  `json:"expected_activity_period,omitempty"`
-	ExpectedIdlePeriod                     *int64  `json:"expected_idle_period,omitempty"`
-	SourceOfUEActivityBehaviourInformation *string `json:"source_of_ue_activity_behaviour_information,omitempty"`
+	ExpectedActivityPeriod                 *int64     `json:"expected_activity_period,omitempty"`
+	ExpectedIdlePeriod                     *int64     `json:"expected_idle_period,omitempty"`
+	SourceOfUEActivityBehaviourInformation *EnumField `json:"source_of_ue_activity_behaviour_information,omitempty"`
 }
 
 type NGRANCGI struct {
 	NRCGI    *NRCGI    `json:"nr_ran_cgi,omitempty"`
 	EUTRACGI *EUTRACGI `json:"eutra_cgi,omitempty"`
+	Error    string    `json:"error,omitempty"`
 }
 
 type ExpectedUEMovingTrajectoryItem struct {
@@ -29,8 +28,8 @@ type ExpectedUEMovingTrajectoryItem struct {
 
 type ExpectedUEBehaviour struct {
 	ExpectedUEActivityBehaviour *ExpectedUEActivityBehaviour     `json:"expected_ue_activity_behaviour,omitempty"`
-	ExpectedHOInterval          *string                          `json:"expected_ho_interval,omitempty"`
-	ExpectedUEMobility          *string                          `json:"expected_ue_mobility,omitempty"`
+	ExpectedHOInterval          *EnumField                       `json:"expected_ho_interval,omitempty"`
+	ExpectedUEMobility          *EnumField                       `json:"expected_ue_mobility,omitempty"`
 	ExpectedUEMovingTrajectory  []ExpectedUEMovingTrajectoryItem `json:"expected_ue_moving_trajectory,omitempty"`
 }
 
@@ -91,10 +90,16 @@ func buildInitialContextSetupRequest(initialContextSetupRequest ngapType.Initial
 				Value:       buildUEAggregateMaximumBitRateIE(*ie.Value.UEAggregateMaximumBitRate),
 			})
 		case ngapType.ProtocolIEIDCoreNetworkAssistanceInformation:
+			value, err := buildCoreNetworkAssistanceInformation(*ie.Value.CoreNetworkAssistanceInformation)
+			ieErr := ""
+			if err != nil {
+				ieErr = fmt.Sprintf("failed to build CoreNetworkAssistanceInformation: %v", err)
+			}
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildCoreNetworkAssistanceInformation(*ie.Value.CoreNetworkAssistanceInformation),
+				Value:       value,
+				Error:       ieErr,
 			})
 		case ngapType.ProtocolIEIDGUAMI:
 			ies = append(ies, IE{
@@ -143,16 +148,20 @@ func buildInitialContextSetupRequest(initialContextSetupRequest ngapType.Initial
 				Direction:   nas.DirUplink,
 				AMFUENGAPID: AMFUENGAPID,
 			}
+
 			decodednNasPdu, err := nas.DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
+			var nasPdu NASPDU
 			if err != nil {
-				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
+				nasPdu = NASPDU{
+					Raw:   ie.Value.NASPDU.Value,
+					Error: err.Error(),
+				}
+			} else {
+				nasPdu = NASPDU{
+					Raw:     ie.Value.NASPDU.Value,
+					Decoded: decodednNasPdu,
+				}
 			}
-
-			nasPdu := NASPDU{
-				Raw:     ie.Value.NASPDU.Value,
-				Decoded: decodednNasPdu,
-			}
-
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
@@ -162,9 +171,7 @@ func buildInitialContextSetupRequest(initialContextSetupRequest ngapType.Initial
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value: UnknownIE{
-					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-				},
+				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
 			})
 		}
 	}
@@ -189,11 +196,15 @@ func buildPDUSessionResourceSetupListCxtReq(pduSessionResourceSetupListCxtReq ng
 		if item.NASPDU != nil {
 			decodednNasPdu, err := nas.DecodeNASMessage(item.NASPDU.Value, nil)
 			if err != nil {
-				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
-			}
-			pduSessionResourceSetupList[i].NASPDU = &NASPDU{
-				Raw:     item.NASPDU.Value,
-				Decoded: decodednNasPdu,
+				pduSessionResourceSetupList[i].NASPDU = &NASPDU{
+					Raw:   item.NASPDU.Value,
+					Error: err.Error(),
+				}
+			} else {
+				pduSessionResourceSetupList[i].NASPDU = &NASPDU{
+					Raw:     item.NASPDU.Value,
+					Decoded: decodednNasPdu,
+				}
 			}
 		}
 	}
@@ -277,14 +288,14 @@ func decodeNRencryptionAlgorithms(bs aper.BitString) []string {
 	return algos
 }
 
-func buildCoreNetworkAssistanceInformation(cnai ngapType.CoreNetworkAssistanceInformation) CoreNetworkAssistanceInformation {
+func buildCoreNetworkAssistanceInformation(cnai ngapType.CoreNetworkAssistanceInformation) (CoreNetworkAssistanceInformation, error) {
 	returnedCNAI := CoreNetworkAssistanceInformation{}
 
 	switch cnai.UEIdentityIndexValue.Present {
 	case ngapType.UEIdentityIndexValuePresentIndexLength10:
 		returnedCNAI.UEIdentityIndexValue = bitStringToHex(cnai.UEIdentityIndexValue.IndexLength10)
 	default:
-		logger.EllaLog.Warn("Unsupported UEIdentityIndexValue", zap.Int("present", cnai.UEIdentityIndexValue.Present))
+		return returnedCNAI, fmt.Errorf("unsupported UEIdentityIndexValue present: %d", cnai.UEIdentityIndexValue.Present)
 	}
 
 	if cnai.UESpecificDRX != nil {
@@ -300,7 +311,7 @@ func buildCoreNetworkAssistanceInformation(cnai ngapType.CoreNetworkAssistanceIn
 			returnedCNAI.MICOModeIndication = new(string)
 			*returnedCNAI.MICOModeIndication = "true"
 		default:
-			logger.EllaLog.Warn("Unsupported MICOModeIndication", zap.Int64("present", int64(cnai.MICOModeIndication.Value)))
+			return returnedCNAI, fmt.Errorf("unsupported MICOModeIndication present: %d", cnai.MICOModeIndication.Value)
 		}
 	}
 
@@ -313,18 +324,15 @@ func buildCoreNetworkAssistanceInformation(cnai ngapType.CoreNetworkAssistanceIn
 	}
 
 	if cnai.ExpectedUEBehaviour != nil {
-		returnedCNAI.ExpectedUEBehaviour = buildExpectedUEBehaviour(cnai.ExpectedUEBehaviour)
+		expectedUEBehaviour := buildExpectedUEBehaviour(*cnai.ExpectedUEBehaviour)
+		returnedCNAI.ExpectedUEBehaviour = &expectedUEBehaviour
 	}
 
-	return returnedCNAI
+	return returnedCNAI, nil
 }
 
-func buildExpectedUEBehaviour(eub *ngapType.ExpectedUEBehaviour) *ExpectedUEBehaviour {
-	if eub == nil {
-		return nil
-	}
-
-	returnedEUB := &ExpectedUEBehaviour{}
+func buildExpectedUEBehaviour(eub ngapType.ExpectedUEBehaviour) ExpectedUEBehaviour {
+	returnedEUB := ExpectedUEBehaviour{}
 
 	if eub.ExpectedUEActivityBehaviour != nil {
 		returnedEUB.ExpectedUEActivityBehaviour = &ExpectedUEActivityBehaviour{}
@@ -340,13 +348,11 @@ func buildExpectedUEBehaviour(eub *ngapType.ExpectedUEBehaviour) *ExpectedUEBeha
 		if eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation != nil {
 			switch eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation.Value {
 			case ngapType.SourceOfUEActivityBehaviourInformationPresentSubscriptionInformation:
-				returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = new(string)
-				*returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = "subscription"
+				*returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = makeEnum(int(eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation.Value), "subscription_information", false)
 			case ngapType.SourceOfUEActivityBehaviourInformationPresentStatistics:
-				returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = new(string)
-				*returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = "statistics"
+				*returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = makeEnum(int(eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation.Value), "statistics", false)
 			default:
-				logger.EllaLog.Warn("Unsupported SourceOfUEActivityBehaviourInformation", zap.Int64("present", int64(eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation.Value)))
+				*returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = makeEnum(int(eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation.Value), "", true)
 			}
 		}
 	}
@@ -354,38 +360,30 @@ func buildExpectedUEBehaviour(eub *ngapType.ExpectedUEBehaviour) *ExpectedUEBeha
 	if eub.ExpectedHOInterval != nil {
 		switch eub.ExpectedHOInterval.Value {
 		case ngapType.ExpectedHOIntervalPresentSec15:
-			returnedEUB.ExpectedHOInterval = new(string)
-			*returnedEUB.ExpectedHOInterval = "sec15"
+			*returnedEUB.ExpectedHOInterval = makeEnum(int(eub.ExpectedHOInterval.Value), "sec15", false)
 		case ngapType.ExpectedHOIntervalPresentSec30:
-			returnedEUB.ExpectedHOInterval = new(string)
-			*returnedEUB.ExpectedHOInterval = "sec30"
+			*returnedEUB.ExpectedHOInterval = makeEnum(int(eub.ExpectedHOInterval.Value), "sec30", false)
 		case ngapType.ExpectedHOIntervalPresentSec60:
-			returnedEUB.ExpectedHOInterval = new(string)
-			*returnedEUB.ExpectedHOInterval = "sec60"
+			*returnedEUB.ExpectedHOInterval = makeEnum(int(eub.ExpectedHOInterval.Value), "sec60", false)
 		case ngapType.ExpectedHOIntervalPresentSec120:
-			returnedEUB.ExpectedHOInterval = new(string)
-			*returnedEUB.ExpectedHOInterval = "sec120"
+			*returnedEUB.ExpectedHOInterval = makeEnum(int(eub.ExpectedHOInterval.Value), "sec120", false)
 		case ngapType.ExpectedHOIntervalPresentSec180:
-			returnedEUB.ExpectedHOInterval = new(string)
-			*returnedEUB.ExpectedHOInterval = "sec180"
+			*returnedEUB.ExpectedHOInterval = makeEnum(int(eub.ExpectedHOInterval.Value), "sec180", false)
 		case ngapType.ExpectedHOIntervalPresentLongTime:
-			returnedEUB.ExpectedHOInterval = new(string)
-			*returnedEUB.ExpectedHOInterval = "long"
+			*returnedEUB.ExpectedHOInterval = makeEnum(int(eub.ExpectedHOInterval.Value), "long_time", false)
 		default:
-			logger.EllaLog.Warn("Unsupported ExpectedHOInterval", zap.Int64("present", int64(eub.ExpectedHOInterval.Value)))
+			*returnedEUB.ExpectedHOInterval = makeEnum(int(eub.ExpectedHOInterval.Value), "", true)
 		}
 	}
 
 	if eub.ExpectedUEMobility != nil {
 		switch eub.ExpectedUEMobility.Value {
 		case ngapType.ExpectedUEMobilityPresentStationary:
-			returnedEUB.ExpectedUEMobility = new(string)
-			*returnedEUB.ExpectedUEMobility = "stationary"
+			*returnedEUB.ExpectedUEMobility = makeEnum(int(eub.ExpectedUEMobility.Value), "stationary", false)
 		case ngapType.ExpectedUEMobilityPresentMobile:
-			returnedEUB.ExpectedUEMobility = new(string)
-			*returnedEUB.ExpectedUEMobility = "mobile"
+			*returnedEUB.ExpectedUEMobility = makeEnum(int(eub.ExpectedUEMobility.Value), "mobile", false)
 		default:
-			logger.EllaLog.Warn("Unsupported ExpectedUEMobility", zap.Int64("present", int64(eub.ExpectedUEMobility.Value)))
+			*returnedEUB.ExpectedUEMobility = makeEnum(int(eub.ExpectedUEMobility.Value), "", true)
 		}
 	}
 
@@ -419,7 +417,7 @@ func buildNGRANCGI(ngRanCgi ngapType.NGRANCGI) NGRANCGI {
 			EUTRACellIdentity: bitStringToHex(&ngRanCgi.EUTRACGI.EUTRACellIdentity.Value),
 		}
 	default:
-		logger.EllaLog.Warn("Unsupported NGRANCGI", zap.Int("present", ngRanCgi.Present))
+		ngRANCGI.Error = fmt.Sprintf("unsupported NGRANCGI present: %d", ngRanCgi.Present)
 	}
 
 	return ngRANCGI

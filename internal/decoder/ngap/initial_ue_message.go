@@ -5,10 +5,8 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 type EUTRACGI struct {
@@ -25,6 +23,7 @@ type UserLocationInformationEUTRA struct {
 	EUTRACGI  EUTRACGI `json:"eutra_cgi"`
 	TAI       TAI      `json:"tai"`
 	TimeStamp *string  `json:"timestamp,omitempty"`
+	Error     string   `json:"error,omitempty"`
 }
 
 type NRCGI struct {
@@ -36,6 +35,7 @@ type UserLocationInformationNR struct {
 	NRCGI     NRCGI   `json:"nr_cgi"`
 	TAI       TAI     `json:"tai"`
 	TimeStamp *string `json:"timestamp,omitempty"`
+	Error     string  `json:"error,omitempty"`
 }
 
 type UserLocationInformationN3IWF struct {
@@ -47,6 +47,7 @@ type UserLocationInformation struct {
 	EUTRA *UserLocationInformationEUTRA `json:"eutra,omitempty"`
 	NR    *UserLocationInformationNR    `json:"nr,omitempty"`
 	N3IWF *UserLocationInformationN3IWF `json:"n3iwf,omitempty"`
+	Error string                        `json:"error,omitempty"`
 }
 
 type FiveGSTMSI struct {
@@ -69,13 +70,19 @@ func buildInitialUEMessage(initialUEMessage ngapType.InitialUEMessage) NGAPMessa
 				Value:       ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
+			var nasPdu NASPDU
 			decodednNasPdu, err := nas.DecodeNASMessage(ie.Value.NASPDU.Value, nil)
 			if err != nil {
-				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
-			}
-			nasPdu := NASPDU{
-				Raw:     ie.Value.NASPDU.Value,
-				Decoded: decodednNasPdu,
+				nasPdu = NASPDU{
+					Raw:     ie.Value.NASPDU.Value,
+					Decoded: decodednNasPdu,
+					Error:   err.Error(),
+				}
+			} else {
+				nasPdu = NASPDU{
+					Raw:     ie.Value.NASPDU.Value,
+					Decoded: decodednNasPdu,
+				}
 			}
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
@@ -122,9 +129,7 @@ func buildInitialUEMessage(initialUEMessage ngapType.InitialUEMessage) NGAPMessa
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value: UnknownIE{
-					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-				},
+				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
 			})
 		}
 	}
@@ -147,38 +152,38 @@ func buildFiveGSTMSIIE(fivegStmsi ngapType.FiveGSTMSI) FiveGSTMSI {
 func buildRRCEstablishmentCauseIE(rrc ngapType.RRCEstablishmentCause) EnumField {
 	switch rrc.Value {
 	case ngapType.RRCEstablishmentCausePresentEmergency:
-		return EnumField{Label: "Emergency", Value: int(ngapType.RRCEstablishmentCausePresentEmergency)}
+		return makeEnum(int(rrc.Value), "Emergency", false)
 	case ngapType.RRCEstablishmentCausePresentHighPriorityAccess:
-		return EnumField{Label: "HighPriorityAccess", Value: int(ngapType.RRCEstablishmentCausePresentHighPriorityAccess)}
+		return makeEnum(int(rrc.Value), "HighPriorityAccess", false)
 	case ngapType.RRCEstablishmentCausePresentMtAccess:
-		return EnumField{Label: "MtAccess", Value: int(ngapType.RRCEstablishmentCausePresentMtAccess)}
+		return makeEnum(int(rrc.Value), "MtAccess", false)
 	case ngapType.RRCEstablishmentCausePresentMoSignalling:
-		return EnumField{Label: "MoSignalling", Value: int(ngapType.RRCEstablishmentCausePresentMoSignalling)}
+		return makeEnum(int(rrc.Value), "MoSignalling", false)
 	case ngapType.RRCEstablishmentCausePresentMoData:
-		return EnumField{Label: "MoData", Value: int(ngapType.RRCEstablishmentCausePresentMoData)}
+		return makeEnum(int(rrc.Value), "MoData", false)
 	case ngapType.RRCEstablishmentCausePresentMoVoiceCall:
-		return EnumField{Label: "MoVoiceCall", Value: int(ngapType.RRCEstablishmentCausePresentMoVoiceCall)}
+		return makeEnum(int(rrc.Value), "MoVoiceCall", false)
 	case ngapType.RRCEstablishmentCausePresentMoVideoCall:
-		return EnumField{Label: "MoVideoCall", Value: int(ngapType.RRCEstablishmentCausePresentMoVideoCall)}
+		return makeEnum(int(rrc.Value), "MoVideoCall", false)
 	case ngapType.RRCEstablishmentCausePresentMoSMS:
-		return EnumField{Label: "MoSMS", Value: int(ngapType.RRCEstablishmentCausePresentMoSMS)}
+		return makeEnum(int(rrc.Value), "MoSMS", false)
 	case ngapType.RRCEstablishmentCausePresentMpsPriorityAccess:
-		return EnumField{Label: "MpsPriorityAccess", Value: int(ngapType.RRCEstablishmentCausePresentMpsPriorityAccess)}
+		return makeEnum(int(rrc.Value), "MpsPriorityAccess", false)
 	case ngapType.RRCEstablishmentCausePresentMcsPriorityAccess:
-		return EnumField{Label: "McsPriorityAccess", Value: int(ngapType.RRCEstablishmentCausePresentMcsPriorityAccess)}
+		return makeEnum(int(rrc.Value), "McsPriorityAccess", false)
 	case ngapType.RRCEstablishmentCausePresentNotAvailable:
-		return EnumField{Label: "NotAvailable", Value: int(ngapType.RRCEstablishmentCausePresentNotAvailable)}
+		return makeEnum(int(rrc.Value), "NotAvailable", false)
 	default:
-		return EnumField{Label: "Unknown", Value: int(rrc.Value)}
+		return makeEnum(int(rrc.Value), "", true)
 	}
 }
 
 func buildUEContextRequestIE(ueCtxReq ngapType.UEContextRequest) EnumField {
 	switch ueCtxReq.Value {
 	case ngapType.UEContextRequestPresentRequested:
-		return EnumField{Label: "Requested", Value: int(ngapType.UEContextRequestPresentRequested)}
+		return makeEnum(int(ueCtxReq.Value), "Requested", false)
 	default:
-		return EnumField{Label: "Unknown", Value: int(ueCtxReq.Value)}
+		return makeEnum(int(ueCtxReq.Value), "", true)
 	}
 }
 
@@ -205,7 +210,7 @@ func buildUserLocationInformationIE(uli ngapType.UserLocationInformation) UserLo
 	case ngapType.UserLocationInformationPresentUserLocationInformationN3IWF:
 		userLocationInfo.N3IWF = buildUserLocationInformationN3IWF(uli.UserLocationInformationN3IWF)
 	default:
-		logger.EllaLog.Warn("Unsupported UserLocationInformation type", zap.Int("present", uli.Present))
+		userLocationInfo.Error = fmt.Sprintf("unsupported UserLocationInformation type: %d", uli.Present)
 	}
 
 	return userLocationInfo
@@ -231,7 +236,7 @@ func buildUserLocationInformationEUTRA(uliEUTRA *ngapType.UserLocationInformatio
 	if uliEUTRA.TimeStamp != nil {
 		tsStr, err := timeStampToRFC3339(uliEUTRA.TimeStamp.Value)
 		if err != nil {
-			logger.EllaLog.Warn("failed to convert NGAP timestamp to RFC3339", zap.Error(err))
+			eutra.Error = fmt.Sprintf("failed to convert NGAP timestamp to RFC3339: %v", err)
 		} else {
 			eutra.TimeStamp = &tsStr
 		}
@@ -260,7 +265,7 @@ func buildUserLocationInformationNR(uliNR *ngapType.UserLocationInformationNR) *
 	if uliNR.TimeStamp != nil {
 		tsStr, err := timeStampToRFC3339(uliNR.TimeStamp.Value)
 		if err != nil {
-			logger.EllaLog.Warn("failed to convert NGAP timestamp to RFC3339", zap.Error(err))
+			nr.Error = fmt.Sprintf("failed to convert NGAP timestamp to RFC3339: %v", err)
 		} else {
 			nr.TimeStamp = &tsStr
 		}

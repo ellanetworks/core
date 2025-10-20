@@ -17,10 +17,7 @@ type IE struct {
 	ID          EnumField `json:"id"`
 	Criticality EnumField `json:"criticality"`
 	Value       any       `json:"value,omitempty"`
-}
-
-type UnknownIE struct {
-	Reason string `json:"reason"`
+	Error       string    `json:"error,omitempty"`
 }
 
 func timeStampToRFC3339(timeStampNgap aper.OctetString) (string, error) {
@@ -60,530 +57,506 @@ func plmnIDToModels(ngapPlmnID ngapType.PLMNIdentity) PLMNID {
 func protocolIEIDToEnum(id int64) EnumField {
 	switch id {
 	case ngapType.ProtocolIEIDAllowedNSSAI:
-		return EnumField{Label: "AllowedNSSAI", Value: int(id)}
+		return makeEnum(int(id), "AllowedNSSAI", false)
 	case ngapType.ProtocolIEIDAMFName:
-		return EnumField{Label: "AMFName", Value: int(id)}
+		return makeEnum(int(id), "AMFName", false)
 	case ngapType.ProtocolIEIDAMFOverloadResponse:
-		return EnumField{Label: "AMFOverloadResponse", Value: int(id)}
+		return makeEnum(int(id), "AMFOverloadResponse", false)
 	case ngapType.ProtocolIEIDAMFSetID:
-		return EnumField{Label: "AMFSetID", Value: int(id)}
+		return makeEnum(int(id), "AMFSetID", false)
 	case ngapType.ProtocolIEIDAMFTNLAssociationFailedToSetupList:
-		return EnumField{Label: "AMFTNLAssociationFailedToSetupList", Value: int(id)}
+		return makeEnum(int(id), "AMFTNLAssociationFailedToSetupList", false)
 	case ngapType.ProtocolIEIDAMFTNLAssociationSetupList:
-		return EnumField{Label: "AMFTNLAssociationSetupList", Value: int(id)}
+		return makeEnum(int(id), "AMFTNLAssociationSetupList", false)
 	case ngapType.ProtocolIEIDAMFTNLAssociationToAddList:
-		return EnumField{Label: "AMFTNLAssociationToAddList", Value: int(id)}
+		return makeEnum(int(id), "AMFTNLAssociationToAddList", false)
 	case ngapType.ProtocolIEIDAMFTNLAssociationToRemoveList:
-		return EnumField{Label: "AMFTNLAssociationToRemoveList", Value: int(id)}
+		return makeEnum(int(id), "AMFTNLAssociationToRemoveList", false)
 	case ngapType.ProtocolIEIDAMFTNLAssociationToUpdateList:
-		return EnumField{Label: "AMFTNLAssociationToUpdateList", Value: int(id)}
+		return makeEnum(int(id), "AMFTNLAssociationToUpdateList", false)
 	case ngapType.ProtocolIEIDAMFTrafficLoadReductionIndication:
-		return EnumField{Label: "AMFTrafficLoadReductionIndication", Value: int(id)}
+		return makeEnum(int(id), "AMFTrafficLoadReductionIndication", false)
 	case ngapType.ProtocolIEIDAMFUENGAPID:
-		return EnumField{Label: "AMFUENGAPID", Value: int(id)}
+		return makeEnum(int(id), "AMFUENGAPID", false)
 	case ngapType.ProtocolIEIDAssistanceDataForPaging:
-		return EnumField{Label: "AssistanceDataForPaging", Value: int(id)}
+		return makeEnum(int(id), "AssistanceDataForPaging", false)
 	case ngapType.ProtocolIEIDBroadcastCancelledAreaList:
-		return EnumField{Label: "BroadcastCancelledAreaList", Value: int(id)}
+		return makeEnum(int(id), "BroadcastCancelledAreaList", false)
 	case ngapType.ProtocolIEIDBroadcastCompletedAreaList:
-		return EnumField{Label: "BroadcastCompletedAreaList", Value: int(id)}
+		return makeEnum(int(id), "BroadcastCompletedAreaList", false)
 	case ngapType.ProtocolIEIDCancelAllWarningMessages:
-		return EnumField{Label: "CancelAllWarningMessages", Value: int(id)}
+		return makeEnum(int(id), "CancelAllWarningMessages", false)
 	case ngapType.ProtocolIEIDCause:
-		return EnumField{Label: "Cause", Value: int(id)}
+		return makeEnum(int(id), "Cause", false)
 	case ngapType.ProtocolIEIDCellIDListForRestart:
-		return EnumField{Label: "CellIDListForRestart", Value: int(id)}
+		return makeEnum(int(id), "CellIDListForRestart", false)
 	case ngapType.ProtocolIEIDConcurrentWarningMessageInd:
-		return EnumField{Label: "ConcurrentWarningMessageInd", Value: int(id)}
+		return makeEnum(int(id), "ConcurrentWarningMessageInd", false)
 	case ngapType.ProtocolIEIDCoreNetworkAssistanceInformation:
-		return EnumField{Label: "CoreNetworkAssistanceInformation", Value: int(id)}
+		return makeEnum(int(id), "CoreNetworkAssistanceInformation", false)
 	case ngapType.ProtocolIEIDCriticalityDiagnostics:
-		return EnumField{Label: "CriticalityDiagnostics", Value: int(id)}
+		return makeEnum(int(id), "CriticalityDiagnostics", false)
 	case ngapType.ProtocolIEIDDataCodingScheme:
-		return EnumField{Label: "DataCodingScheme", Value: int(id)}
+		return makeEnum(int(id), "DataCodingScheme", false)
 	case ngapType.ProtocolIEIDDefaultPagingDRX:
-		return EnumField{Label: "DefaultPagingDRX", Value: int(id)}
+		return makeEnum(int(id), "DefaultPagingDRX", false)
 	case ngapType.ProtocolIEIDDirectForwardingPathAvailability:
-		return EnumField{Label: "DirectForwardingPathAvailability", Value: int(id)}
+		return makeEnum(int(id), "DirectForwardingPathAvailability", false)
 	case ngapType.ProtocolIEIDEmergencyAreaIDListForRestart:
-		return EnumField{Label: "EmergencyAreaIDListForRestart", Value: int(id)}
+		return makeEnum(int(id), "EmergencyAreaIDListForRestart", false)
 	case ngapType.ProtocolIEIDEmergencyFallbackIndicator:
-		return EnumField{Label: "EmergencyFallbackIndicator", Value: int(id)}
+		return makeEnum(int(id), "EmergencyFallbackIndicator", false)
 	case ngapType.ProtocolIEIDEUTRACGI:
-		return EnumField{Label: "EUTRACGI", Value: int(id)}
+		return makeEnum(int(id), "EUTRACGI", false)
 	case ngapType.ProtocolIEIDFiveGSTMSI:
-		return EnumField{Label: "FiveGSTMSI", Value: int(id)}
+		return makeEnum(int(id), "FiveGSTMSI", false)
 	case ngapType.ProtocolIEIDGlobalRANNodeID:
-		return EnumField{Label: "GlobalRANNodeID", Value: int(id)}
+		return makeEnum(int(id), "GlobalRANNodeID", false)
 	case ngapType.ProtocolIEIDGUAMI:
-		return EnumField{Label: "GUAMI", Value: int(id)}
+		return makeEnum(int(id), "GUAMI", false)
 	case ngapType.ProtocolIEIDHandoverType:
-		return EnumField{Label: "HandoverType", Value: int(id)}
+		return makeEnum(int(id), "HandoverType", false)
 	case ngapType.ProtocolIEIDIMSVoiceSupportIndicator:
-		return EnumField{Label: "IMSVoiceSupportIndicator", Value: int(id)}
+		return makeEnum(int(id), "IMSVoiceSupportIndicator", false)
 	case ngapType.ProtocolIEIDIndexToRFSP:
-		return EnumField{Label: "IndexToRFSP", Value: int(id)}
+		return makeEnum(int(id), "IndexToRFSP", false)
 	case ngapType.ProtocolIEIDInfoOnRecommendedCellsAndRANNodesForPaging:
-		return EnumField{Label: "InfoOnRecommendedCellsAndRANNodesForPaging", Value: int(id)}
+		return makeEnum(int(id), "InfoOnRecommendedCellsAndRANNodesForPaging", false)
 	case ngapType.ProtocolIEIDLocationReportingRequestType:
-		return EnumField{Label: "LocationReportingRequestType", Value: int(id)}
+		return makeEnum(int(id), "LocationReportingRequestType", false)
 	case ngapType.ProtocolIEIDMaskedIMEISV:
-		return EnumField{Label: "MaskedIMEISV", Value: int(id)}
+		return makeEnum(int(id), "MaskedIMEISV", false)
 	case ngapType.ProtocolIEIDMessageIdentifier:
-		return EnumField{Label: "MessageIdentifier", Value: int(id)}
+		return makeEnum(int(id), "MessageIdentifier", false)
 	case ngapType.ProtocolIEIDMobilityRestrictionList:
-		return EnumField{Label: "MobilityRestrictionList", Value: int(id)}
+		return makeEnum(int(id), "MobilityRestrictionList", false)
 	case ngapType.ProtocolIEIDNASC:
-		return EnumField{Label: "NASC", Value: int(id)}
+		return makeEnum(int(id), "NASC", false)
 	case ngapType.ProtocolIEIDNASPDU:
-		return EnumField{Label: "NASPDU", Value: int(id)}
+		return makeEnum(int(id), "NASPDU", false)
 	case ngapType.ProtocolIEIDNASSecurityParametersFromNGRAN:
-		return EnumField{Label: "NASSecurityParametersFromNGRAN", Value: int(id)}
+		return makeEnum(int(id), "NASSecurityParametersFromNGRAN", false)
 	case ngapType.ProtocolIEIDNewAMFUENGAPID:
-		return EnumField{Label: "NewAMFUENGAPID", Value: int(id)}
+		return makeEnum(int(id), "NewAMFUENGAPID", false)
 	case ngapType.ProtocolIEIDNewSecurityContextInd:
-		return EnumField{Label: "NewSecurityContextInd", Value: int(id)}
+		return makeEnum(int(id), "NewSecurityContextInd", false)
 	case ngapType.ProtocolIEIDNGAPMessage:
-		return EnumField{Label: "NGAPMessage", Value: int(id)}
+		return makeEnum(int(id), "NGAPMessage", false)
 	case ngapType.ProtocolIEIDNGRANCGI:
-		return EnumField{Label: "NGRANCGI", Value: int(id)}
+		return makeEnum(int(id), "NGRANCGI", false)
 	case ngapType.ProtocolIEIDNGRANTraceID:
-		return EnumField{Label: "NGRANTraceID", Value: int(id)}
+		return makeEnum(int(id), "NGRANTraceID", false)
 	case ngapType.ProtocolIEIDNRCGI:
-		return EnumField{Label: "NRCGI", Value: int(id)}
+		return makeEnum(int(id), "NRCGI", false)
 	case ngapType.ProtocolIEIDNRPPaPDU:
-		return EnumField{Label: "NRPPaPDU", Value: int(id)}
+		return makeEnum(int(id), "NRPPaPDU", false)
 	case ngapType.ProtocolIEIDNumberOfBroadcastsRequested:
-		return EnumField{Label: "NumberOfBroadcastsRequested", Value: int(id)}
+		return makeEnum(int(id), "NumberOfBroadcastsRequested", false)
 	case ngapType.ProtocolIEIDOldAMF:
-		return EnumField{Label: "OldAMF", Value: int(id)}
+		return makeEnum(int(id), "OldAMF", false)
 	case ngapType.ProtocolIEIDOverloadStartNSSAIList:
-		return EnumField{Label: "OverloadStartNSSAIList", Value: int(id)}
+		return makeEnum(int(id), "OverloadStartNSSAIList", false)
 	case ngapType.ProtocolIEIDPagingDRX:
-		return EnumField{Label: "PagingDRX", Value: int(id)}
+		return makeEnum(int(id), "PagingDRX", false)
 	case ngapType.ProtocolIEIDPagingOrigin:
-		return EnumField{Label: "PagingOrigin", Value: int(id)}
+		return makeEnum(int(id), "PagingOrigin", false)
 	case ngapType.ProtocolIEIDPagingPriority:
-		return EnumField{Label: "PagingPriority", Value: int(id)}
+		return makeEnum(int(id), "PagingPriority", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceAdmittedList:
-		return EnumField{Label: "PDUSessionResourceAdmittedList", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceAdmittedList", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToModifyListModRes:
-		return EnumField{Label: "PDUSessionResourceFailedToModifyListModRes", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceFailedToModifyListModRes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtRes:
-		return EnumField{Label: "PDUSessionResourceFailedToSetupListCxtRes", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceFailedToSetupListCxtRes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListHOAck:
-		return EnumField{Label: "PDUSessionResourceFailedToSetupListHOAck", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceFailedToSetupListHOAck", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListPSReq:
-		return EnumField{Label: "PDUSessionResourceFailedToSetupListPSReq", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceFailedToSetupListPSReq", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListSURes:
-		return EnumField{Label: "PDUSessionResourceFailedToSetupListSURes", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceFailedToSetupListSURes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceHandoverList:
-		return EnumField{Label: "PDUSessionResourceHandoverList", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceHandoverList", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceListCxtRelCpl:
-		return EnumField{Label: "PDUSessionResourceListCxtRelCpl", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceListCxtRelCpl", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceListHORqd:
-		return EnumField{Label: "PDUSessionResourceListHORqd", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceListHORqd", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceModifyListModCfm:
-		return EnumField{Label: "PDUSessionResourceModifyListModCfm", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceModifyListModCfm", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceModifyListModInd:
-		return EnumField{Label: "PDUSessionResourceModifyListModInd", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceModifyListModInd", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceModifyListModReq:
-		return EnumField{Label: "PDUSessionResourceModifyListModReq", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceModifyListModReq", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceModifyListModRes:
-		return EnumField{Label: "PDUSessionResourceModifyListModRes", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceModifyListModRes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceNotifyList:
-		return EnumField{Label: "PDUSessionResourceNotifyList", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceNotifyList", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceReleasedListNot:
-		return EnumField{Label: "PDUSessionResourceReleasedListNot", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceReleasedListNot", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceReleasedListPSAck:
-		return EnumField{Label: "PDUSessionResourceReleasedListPSAck", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceReleasedListPSAck", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceReleasedListPSFail:
-		return EnumField{Label: "PDUSessionResourceReleasedListPSFail", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceReleasedListPSFail", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceReleasedListRelRes:
-		return EnumField{Label: "PDUSessionResourceReleasedListRelRes", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceReleasedListRelRes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtReq:
-		return EnumField{Label: "PDUSessionResourceSetupListCxtReq", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceSetupListCxtReq", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtRes:
-		return EnumField{Label: "PDUSessionResourceSetupListCxtRes", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceSetupListCxtRes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListHOReq:
-		return EnumField{Label: "PDUSessionResourceSetupListHOReq", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceSetupListHOReq", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
-		return EnumField{Label: "PDUSessionResourceSetupListSUReq", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceSetupListSUReq", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes:
-		return EnumField{Label: "PDUSessionResourceSetupListSURes", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceSetupListSURes", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceToBeSwitchedDLList:
-		return EnumField{Label: "PDUSessionResourceToBeSwitchedDLList", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceToBeSwitchedDLList", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSwitchedList:
-		return EnumField{Label: "PDUSessionResourceSwitchedList", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceSwitchedList", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceToReleaseListHOCmd:
-		return EnumField{Label: "PDUSessionResourceToReleaseListHOCmd", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceToReleaseListHOCmd", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceToReleaseListRelCmd:
-		return EnumField{Label: "PDUSessionResourceToReleaseListRelCmd", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceToReleaseListRelCmd", false)
 	case ngapType.ProtocolIEIDPLMNSupportList:
-		return EnumField{Label: "PLMNSupportList", Value: int(id)}
+		return makeEnum(int(id), "PLMNSupportList", false)
 	case ngapType.ProtocolIEIDPWSFailedCellIDList:
-		return EnumField{Label: "PWSFailedCellIDList", Value: int(id)}
+		return makeEnum(int(id), "PWSFailedCellIDList", false)
 	case ngapType.ProtocolIEIDRANNodeName:
-		return EnumField{Label: "RANNodeName", Value: int(id)}
+		return makeEnum(int(id), "RANNodeName", false)
 	case ngapType.ProtocolIEIDRANPagingPriority:
-		return EnumField{Label: "RANPagingPriority", Value: int(id)}
+		return makeEnum(int(id), "RANPagingPriority", false)
 	case ngapType.ProtocolIEIDRANStatusTransferTransparentContainer:
-		return EnumField{Label: "RANStatusTransferTransparentContainer", Value: int(id)}
+		return makeEnum(int(id), "RANStatusTransferTransparentContainer", false)
 	case ngapType.ProtocolIEIDRANUENGAPID:
-		return EnumField{Label: "RANUENGAPID", Value: int(id)}
+		return makeEnum(int(id), "RANUENGAPID", false)
 	case ngapType.ProtocolIEIDRelativeAMFCapacity:
-		return EnumField{Label: "RelativeAMFCapacity", Value: int(id)}
+		return makeEnum(int(id), "RelativeAMFCapacity", false)
 	case ngapType.ProtocolIEIDRepetitionPeriod:
-		return EnumField{Label: "RepetitionPeriod", Value: int(id)}
+		return makeEnum(int(id), "RepetitionPeriod", false)
 	case ngapType.ProtocolIEIDResetType:
-		return EnumField{Label: "ResetType", Value: int(id)}
+		return makeEnum(int(id), "ResetType", false)
 	case ngapType.ProtocolIEIDRoutingID:
-		return EnumField{Label: "RoutingID", Value: int(id)}
+		return makeEnum(int(id), "RoutingID", false)
 	case ngapType.ProtocolIEIDRRCEstablishmentCause:
-		return EnumField{Label: "RRCEstablishmentCause", Value: int(id)}
+		return makeEnum(int(id), "RRCEstablishmentCause", false)
 	case ngapType.ProtocolIEIDRRCInactiveTransitionReportRequest:
-		return EnumField{Label: "RRCInactiveTransitionReportRequest", Value: int(id)}
+		return makeEnum(int(id), "RRCInactiveTransitionReportRequest", false)
 	case ngapType.ProtocolIEIDRRCState:
-		return EnumField{Label: "RRCState", Value: int(id)}
+		return makeEnum(int(id), "RRCState", false)
 	case ngapType.ProtocolIEIDSecurityContext:
-		return EnumField{Label: "SecurityContext", Value: int(id)}
+		return makeEnum(int(id), "SecurityContext", false)
 	case ngapType.ProtocolIEIDSecurityKey:
-		return EnumField{Label: "SecurityKey", Value: int(id)}
+		return makeEnum(int(id), "SecurityKey", false)
 	case ngapType.ProtocolIEIDSerialNumber:
-		return EnumField{Label: "SerialNumber", Value: int(id)}
+		return makeEnum(int(id), "SerialNumber", false)
 	case ngapType.ProtocolIEIDServedGUAMIList:
-		return EnumField{Label: "ServedGUAMIList", Value: int(id)}
+		return makeEnum(int(id), "ServedGUAMIList", false)
 	case ngapType.ProtocolIEIDSliceSupportList:
-		return EnumField{Label: "SliceSupportList", Value: int(id)}
+		return makeEnum(int(id), "SliceSupportList", false)
 	case ngapType.ProtocolIEIDSONConfigurationTransferDL:
-		return EnumField{Label: "SONConfigurationTransferDL", Value: int(id)}
+		return makeEnum(int(id), "SONConfigurationTransferDL", false)
 	case ngapType.ProtocolIEIDSONConfigurationTransferUL:
-		return EnumField{Label: "SONConfigurationTransferUL", Value: int(id)}
+		return makeEnum(int(id), "SONConfigurationTransferUL", false)
 	case ngapType.ProtocolIEIDSourceAMFUENGAPID:
-		return EnumField{Label: "SourceAMFUENGAPID", Value: int(id)}
+		return makeEnum(int(id), "SourceAMFUENGAPID", false)
 	case ngapType.ProtocolIEIDSourceToTargetTransparentContainer:
-		return EnumField{Label: "SourceToTargetTransparentContainer", Value: int(id)}
+		return makeEnum(int(id), "SourceToTargetTransparentContainer", false)
 	case ngapType.ProtocolIEIDSupportedTAList:
-		return EnumField{Label: "SupportedTAList", Value: int(id)}
+		return makeEnum(int(id), "SupportedTAList", false)
 	case ngapType.ProtocolIEIDTAIListForPaging:
-		return EnumField{Label: "TAIListForPaging", Value: int(id)}
+		return makeEnum(int(id), "TAIListForPaging", false)
 	case ngapType.ProtocolIEIDTAIListForRestart:
-		return EnumField{Label: "TAIListForRestart", Value: int(id)}
+		return makeEnum(int(id), "TAIListForRestart", false)
 	case ngapType.ProtocolIEIDTargetID:
-		return EnumField{Label: "TargetID", Value: int(id)}
+		return makeEnum(int(id), "TargetID", false)
 	case ngapType.ProtocolIEIDTargetToSourceTransparentContainer:
-		return EnumField{Label: "TargetToSourceTransparentContainer", Value: int(id)}
+		return makeEnum(int(id), "TargetToSourceTransparentContainer", false)
 	case ngapType.ProtocolIEIDTimeToWait:
-		return EnumField{Label: "TimeToWait", Value: int(id)}
+		return makeEnum(int(id), "TimeToWait", false)
 	case ngapType.ProtocolIEIDTraceActivation:
-		return EnumField{Label: "TraceActivation", Value: int(id)}
+		return makeEnum(int(id), "TraceActivation", false)
 	case ngapType.ProtocolIEIDTraceCollectionEntityIPAddress:
-		return EnumField{Label: "TraceCollectionEntityIPAddress", Value: int(id)}
+		return makeEnum(int(id), "TraceCollectionEntityIPAddress", false)
 	case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
-		return EnumField{Label: "UEAggregateMaximumBitRate", Value: int(id)}
+		return makeEnum(int(id), "UEAggregateMaximumBitRate", false)
 	case ngapType.ProtocolIEIDUEAssociatedLogicalNGConnectionList:
-		return EnumField{Label: "UEAssociatedLogicalNGConnectionList", Value: int(id)}
+		return makeEnum(int(id), "UEAssociatedLogicalNGConnectionList", false)
 	case ngapType.ProtocolIEIDUEContextRequest:
-		return EnumField{Label: "UEContextRequest", Value: int(id)}
+		return makeEnum(int(id), "UEContextRequest", false)
 	case ngapType.ProtocolIEIDUENGAPIDs:
-		return EnumField{Label: "UENGAPIDs", Value: int(id)}
+		return makeEnum(int(id), "UENGAPIDs", false)
 	case ngapType.ProtocolIEIDUEPagingIdentity:
-		return EnumField{Label: "UEPagingIdentity", Value: int(id)}
+		return makeEnum(int(id), "UEPagingIdentity", false)
 	case ngapType.ProtocolIEIDUEPresenceInAreaOfInterestList:
-		return EnumField{Label: "UEPresenceInAreaOfInterestList", Value: int(id)}
+		return makeEnum(int(id), "UEPresenceInAreaOfInterestList", false)
 	case ngapType.ProtocolIEIDUERadioCapability:
-		return EnumField{Label: "UERadioCapability", Value: int(id)}
+		return makeEnum(int(id), "UERadioCapability", false)
 	case ngapType.ProtocolIEIDUERadioCapabilityForPaging:
-		return EnumField{Label: "UERadioCapabilityForPaging", Value: int(id)}
+		return makeEnum(int(id), "UERadioCapabilityForPaging", false)
 	case ngapType.ProtocolIEIDUESecurityCapabilities:
-		return EnumField{Label: "UESecurityCapabilities", Value: int(id)}
+		return makeEnum(int(id), "UESecurityCapabilities", false)
 	case ngapType.ProtocolIEIDUnavailableGUAMIList:
-		return EnumField{Label: "UnavailableGUAMIList", Value: int(id)}
+		return makeEnum(int(id), "UnavailableGUAMIList", false)
 	case ngapType.ProtocolIEIDUserLocationInformation:
-		return EnumField{Label: "UserLocationInformation", Value: int(id)}
+		return makeEnum(int(id), "UserLocationInformation", false)
 	case ngapType.ProtocolIEIDWarningAreaList:
-		return EnumField{Label: "WarningAreaList", Value: int(id)}
+		return makeEnum(int(id), "WarningAreaList", false)
 	case ngapType.ProtocolIEIDWarningMessageContents:
-		return EnumField{Label: "WarningMessageContents", Value: int(id)}
+		return makeEnum(int(id), "WarningMessageContents", false)
 	case ngapType.ProtocolIEIDWarningSecurityInfo:
-		return EnumField{Label: "WarningSecurityInfo", Value: int(id)}
+		return makeEnum(int(id), "WarningSecurityInfo", false)
 	case ngapType.ProtocolIEIDWarningType:
-		return EnumField{Label: "WarningType", Value: int(id)}
+		return makeEnum(int(id), "WarningType", false)
 	case ngapType.ProtocolIEIDAdditionalULNGUUPTNLInformation:
-		return EnumField{Label: "AdditionalULNGUUPTNLInformation", Value: int(id)}
+		return makeEnum(int(id), "AdditionalULNGUUPTNLInformation", false)
 	case ngapType.ProtocolIEIDDataForwardingNotPossible:
-		return EnumField{Label: "DataForwardingNotPossible", Value: int(id)}
+		return makeEnum(int(id), "DataForwardingNotPossible", false)
 	case ngapType.ProtocolIEIDDLNGUUPTNLInformation:
-		return EnumField{Label: "DLNGUUPTNLInformation", Value: int(id)}
+		return makeEnum(int(id), "DLNGUUPTNLInformation", false)
 	case ngapType.ProtocolIEIDNetworkInstance:
-		return EnumField{Label: "NetworkInstance", Value: int(id)}
+		return makeEnum(int(id), "NetworkInstance", false)
 	case ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate:
-		return EnumField{Label: "PDUSessionAggregateMaximumBitRate", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionAggregateMaximumBitRate", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToModifyListModCfm:
-		return EnumField{Label: "PDUSessionResourceFailedToModifyListModCfm", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceFailedToModifyListModCfm", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtFail:
-		return EnumField{Label: "PDUSessionResourceFailedToSetupListCxtFail", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceFailedToSetupListCxtFail", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceListCxtRelReq:
-		return EnumField{Label: "PDUSessionResourceListCxtRelReq", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceListCxtRelReq", false)
 	case ngapType.ProtocolIEIDPDUSessionType:
-		return EnumField{Label: "PDUSessionType", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionType", false)
 	case ngapType.ProtocolIEIDQosFlowAddOrModifyRequestList:
-		return EnumField{Label: "QosFlowAddOrModifyRequestList", Value: int(id)}
+		return makeEnum(int(id), "QosFlowAddOrModifyRequestList", false)
 	case ngapType.ProtocolIEIDQosFlowSetupRequestList:
-		return EnumField{Label: "QosFlowSetupRequestList", Value: int(id)}
+		return makeEnum(int(id), "QosFlowSetupRequestList", false)
 	case ngapType.ProtocolIEIDQosFlowToReleaseList:
-		return EnumField{Label: "QosFlowToReleaseList", Value: int(id)}
+		return makeEnum(int(id), "QosFlowToReleaseList", false)
 	case ngapType.ProtocolIEIDSecurityIndication:
-		return EnumField{Label: "SecurityIndication", Value: int(id)}
+		return makeEnum(int(id), "SecurityIndication", false)
 	case ngapType.ProtocolIEIDULNGUUPTNLInformation:
-		return EnumField{Label: "ULNGUUPTNLInformation", Value: int(id)}
+		return makeEnum(int(id), "ULNGUUPTNLInformation", false)
 	case ngapType.ProtocolIEIDULNGUUPTNLModifyList:
-		return EnumField{Label: "ULNGUUPTNLModifyList", Value: int(id)}
+		return makeEnum(int(id), "ULNGUUPTNLModifyList", false)
 	case ngapType.ProtocolIEIDWarningAreaCoordinates:
-		return EnumField{Label: "WarningAreaCoordinates", Value: int(id)}
+		return makeEnum(int(id), "WarningAreaCoordinates", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceSecondaryRATUsageList:
-		return EnumField{Label: "PDUSessionResourceSecondaryRATUsageList", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceSecondaryRATUsageList", false)
 	case ngapType.ProtocolIEIDHandoverFlag:
-		return EnumField{Label: "HandoverFlag", Value: int(id)}
+		return makeEnum(int(id), "HandoverFlag", false)
 	case ngapType.ProtocolIEIDSecondaryRATUsageInformation:
-		return EnumField{Label: "SecondaryRATUsageInformation", Value: int(id)}
+		return makeEnum(int(id), "SecondaryRATUsageInformation", false)
 	case ngapType.ProtocolIEIDPDUSessionResourceReleaseResponseTransfer:
-		return EnumField{Label: "PDUSessionResourceReleaseResponseTransfer", Value: int(id)}
+		return makeEnum(int(id), "PDUSessionResourceReleaseResponseTransfer", false)
 	case ngapType.ProtocolIEIDRedirectionVoiceFallback:
-		return EnumField{Label: "RedirectionVoiceFallback", Value: int(id)}
+		return makeEnum(int(id), "RedirectionVoiceFallback", false)
 	case ngapType.ProtocolIEIDUERetentionInformation:
-		return EnumField{Label: "UERetentionInformation", Value: int(id)}
+		return makeEnum(int(id), "UERetentionInformation", false)
 	case ngapType.ProtocolIEIDSNSSAI:
-		return EnumField{Label: "SNSSAI", Value: int(id)}
+		return makeEnum(int(id), "SNSSAI", false)
 	case ngapType.ProtocolIEIDPSCellInformation:
-		return EnumField{Label: "PSCellInformation", Value: int(id)}
+		return makeEnum(int(id), "PSCellInformation", false)
 	case ngapType.ProtocolIEIDLastEUTRANPLMNIdentity:
-		return EnumField{Label: "LastEUTRANPLMNIdentity", Value: int(id)}
+		return makeEnum(int(id), "LastEUTRANPLMNIdentity", false)
 	case ngapType.ProtocolIEIDMaximumIntegrityProtectedDataRateDL:
-		return EnumField{Label: "MaximumIntegrityProtectedDataRateDL", Value: int(id)}
+		return makeEnum(int(id), "MaximumIntegrityProtectedDataRateDL", false)
 	case ngapType.ProtocolIEIDAdditionalDLForwardingUPTNLInformation:
-		return EnumField{Label: "AdditionalDLForwardingUPTNLInformation", Value: int(id)}
+		return makeEnum(int(id), "AdditionalDLForwardingUPTNLInformation", false)
 	case ngapType.ProtocolIEIDAdditionalDLUPTNLInformationForHOList:
-		return EnumField{Label: "AdditionalDLUPTNLInformationForHOList", Value: int(id)}
+		return makeEnum(int(id), "AdditionalDLUPTNLInformationForHOList", false)
 	case ngapType.ProtocolIEIDAdditionalNGUUPTNLInformation:
-		return EnumField{Label: "AdditionalNGUUPTNLInformation", Value: int(id)}
+		return makeEnum(int(id), "AdditionalNGUUPTNLInformation", false)
 	case ngapType.ProtocolIEIDAdditionalDLQosFlowPerTNLInformation:
-		return EnumField{Label: "AdditionalDLQosFlowPerTNLInformation", Value: int(id)}
+		return makeEnum(int(id), "AdditionalDLQosFlowPerTNLInformation", false)
 	case ngapType.ProtocolIEIDSecurityResult:
-		return EnumField{Label: "SecurityResult", Value: int(id)}
+		return makeEnum(int(id), "SecurityResult", false)
 	case ngapType.ProtocolIEIDENDCSONConfigurationTransferDL:
-		return EnumField{Label: "ENDCSONConfigurationTransferDL", Value: 157}
+		return makeEnum(157, "ENDCSONConfigurationTransferDL", false)
 	case ngapType.ProtocolIEIDENDCSONConfigurationTransferUL:
-		return EnumField{Label: "ENDCSONConfigurationTransferUL", Value: 158}
+		return makeEnum(158, "ENDCSONConfigurationTransferUL", false)
 	default:
-		return EnumField{Label: "Unknown", Value: int(id)}
+		return makeEnum(int(id), "", true)
 	}
 }
 
-func causeToEnum(cause *ngapType.Cause) EnumField {
-	if cause == nil {
-		return EnumField{Label: "nil", Value: -1}
-	}
-
+func causeToEnum(cause ngapType.Cause) EnumField {
 	switch cause.Present {
 	case ngapType.CausePresentRadioNetwork:
-		return radioNetworkCauseToEnum(cause.RadioNetwork)
+		return radioNetworkCauseToEnum(*cause.RadioNetwork)
 	case ngapType.CausePresentTransport:
-		return transportCauseToEnum(cause.Transport)
+		return transportCauseToEnum(*cause.Transport)
 	case ngapType.CausePresentNas:
-		return nasCauseToEnum(cause.Nas)
+		return nasCauseToEnum(*cause.Nas)
 	case ngapType.CausePresentProtocol:
-		return protocolCauseToEnum(cause.Protocol)
+		return protocolCauseToEnum(*cause.Protocol)
 	case ngapType.CausePresentMisc:
-		return miscCauseToEnum(cause.Misc)
+		return miscCauseToEnum(*cause.Misc)
 	default:
-		return EnumField{Label: "Unknown", Value: cause.Present}
+		return makeEnum(cause.Present, "", true)
 	}
 }
 
-func radioNetworkCauseToEnum(cause *ngapType.CauseRadioNetwork) EnumField {
-	if cause == nil {
-		return EnumField{Label: "nil", Value: -1}
-	}
-
+func radioNetworkCauseToEnum(cause ngapType.CauseRadioNetwork) EnumField {
 	switch cause.Value {
 	case ngapType.CauseRadioNetworkPresentUnspecified:
-		return EnumField{Label: "Unspecified", Value: int(ngapType.CauseRadioNetworkPresentUnspecified)}
+		return makeEnum(int(cause.Value), "Unspecified", false)
 	case ngapType.CauseRadioNetworkPresentTxnrelocoverallExpiry:
-		return EnumField{Label: "TxNRelocOverallExpiry", Value: int(ngapType.CauseRadioNetworkPresentTxnrelocoverallExpiry)}
+		return makeEnum(int(cause.Value), "TxNRelocOverallExpiry", false)
 	case ngapType.CauseRadioNetworkPresentSuccessfulHandover:
-		return EnumField{Label: "SuccessfulHandover", Value: int(ngapType.CauseRadioNetworkPresentSuccessfulHandover)}
+		return makeEnum(int(cause.Value), "SuccessfulHandover", false)
 	case ngapType.CauseRadioNetworkPresentReleaseDueToNgranGeneratedReason:
-		return EnumField{Label: "ReleaseDueToNgranGeneratedReason", Value: int(ngapType.CauseRadioNetworkPresentReleaseDueToNgranGeneratedReason)}
+		return makeEnum(int(cause.Value), "ReleaseDueToNgranGeneratedReason", false)
 	case ngapType.CauseRadioNetworkPresentReleaseDueTo5gcGeneratedReason:
-		return EnumField{Label: "ReleaseDueTo5gcGeneratedReason", Value: int(ngapType.CauseRadioNetworkPresentReleaseDueTo5gcGeneratedReason)}
+		return makeEnum(int(cause.Value), "ReleaseDueTo5gcGeneratedReason", false)
 	case ngapType.CauseRadioNetworkPresentHandoverCancelled:
-		return EnumField{Label: "HandoverCancelled", Value: int(ngapType.CauseRadioNetworkPresentHandoverCancelled)}
+		return makeEnum(int(cause.Value), "HandoverCancelled", false)
 	case ngapType.CauseRadioNetworkPresentPartialHandover:
-		return EnumField{Label: "PartialHandover", Value: int(ngapType.CauseRadioNetworkPresentPartialHandover)}
+		return makeEnum(int(cause.Value), "PartialHandover", false)
 	case ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem:
-		return EnumField{Label: "HoFailureInTarget5GCNgranNodeOrTargetSystem", Value: int(ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem)}
+		return makeEnum(int(cause.Value), "HoFailureInTarget5GCNgranNodeOrTargetSystem", false)
 	case ngapType.CauseRadioNetworkPresentHoTargetNotAllowed:
-		return EnumField{Label: "HoTargetNotAllowed", Value: int(ngapType.CauseRadioNetworkPresentHoTargetNotAllowed)}
+		return makeEnum(int(cause.Value), "HoTargetNotAllowed", false)
 	case ngapType.CauseRadioNetworkPresentTngrelocoverallExpiry:
-		return EnumField{Label: "TngRelocOverallExpiry", Value: int(ngapType.CauseRadioNetworkPresentTngrelocoverallExpiry)}
+		return makeEnum(int(cause.Value), "TngRelocOverallExpiry", false)
 	case ngapType.CauseRadioNetworkPresentTngrelocprepExpiry:
-		return EnumField{Label: "TngRelocPrepExpiry", Value: int(ngapType.CauseRadioNetworkPresentTngrelocprepExpiry)}
+		return makeEnum(int(cause.Value), "TngRelocPrepExpiry", false)
 	case ngapType.CauseRadioNetworkPresentCellNotAvailable:
-		return EnumField{Label: "CellNotAvailable", Value: int(ngapType.CauseRadioNetworkPresentCellNotAvailable)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentCellNotAvailable), "CellNotAvailable", false)
 	case ngapType.CauseRadioNetworkPresentUnknownTargetID:
-		return EnumField{Label: "UnknownTargetID", Value: int(ngapType.CauseRadioNetworkPresentUnknownTargetID)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentUnknownTargetID), "UnknownTargetID", false)
 	case ngapType.CauseRadioNetworkPresentNoRadioResourcesAvailableInTargetCell:
-		return EnumField{Label: "NoRadioResourcesAvailableInTargetCell", Value: int(ngapType.CauseRadioNetworkPresentNoRadioResourcesAvailableInTargetCell)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentNoRadioResourcesAvailableInTargetCell), "NoRadioResourcesAvailableInTargetCell", false)
 	case ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID:
-		return EnumField{Label: "UnknownLocalUENGAPID", Value: int(ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID), "UnknownLocalUENGAPID", false)
 	case ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID:
-		return EnumField{Label: "InconsistentRemoteUENGAPID", Value: int(ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID), "InconsistentRemoteUENGAPID", false)
 	case ngapType.CauseRadioNetworkPresentHandoverDesirableForRadioReason:
-		return EnumField{Label: "HandoverDesirableForRadioReason", Value: int(ngapType.CauseRadioNetworkPresentHandoverDesirableForRadioReason)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentHandoverDesirableForRadioReason), "HandoverDesirableForRadioReason", false)
 	case ngapType.CauseRadioNetworkPresentTimeCriticalHandover:
-		return EnumField{Label: "TimeCriticalHandover", Value: int(ngapType.CauseRadioNetworkPresentTimeCriticalHandover)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentTimeCriticalHandover), "TimeCriticalHandover", false)
 	case ngapType.CauseRadioNetworkPresentResourceOptimisationHandover:
-		return EnumField{Label: "ResourceOptimisationHandover", Value: int(ngapType.CauseRadioNetworkPresentResourceOptimisationHandover)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentResourceOptimisationHandover), "ResourceOptimisationHandover", false)
 	case ngapType.CauseRadioNetworkPresentReduceLoadInServingCell:
-		return EnumField{Label: "ReduceLoadInServingCell", Value: int(ngapType.CauseRadioNetworkPresentReduceLoadInServingCell)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentReduceLoadInServingCell), "ReduceLoadInServingCell", false)
 	case ngapType.CauseRadioNetworkPresentUserInactivity:
-		return EnumField{Label: "UserInactivity", Value: int(ngapType.CauseRadioNetworkPresentUserInactivity)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentUserInactivity), "UserInactivity", false)
 	case ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost:
-		return EnumField{Label: "RadioConnectionWithUeLost", Value: int(ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost), "RadioConnectionWithUeLost", false)
 	case ngapType.CauseRadioNetworkPresentRadioResourcesNotAvailable:
-		return EnumField{Label: "RadioResourcesNotAvailable", Value: int(ngapType.CauseRadioNetworkPresentRadioResourcesNotAvailable)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentRadioResourcesNotAvailable), "RadioResourcesNotAvailable", false)
 	case ngapType.CauseRadioNetworkPresentInvalidQosCombination:
-		return EnumField{Label: "InvalidQosCombination", Value: int(ngapType.CauseRadioNetworkPresentInvalidQosCombination)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentInvalidQosCombination), "InvalidQosCombination", false)
 	case ngapType.CauseRadioNetworkPresentFailureInRadioInterfaceProcedure:
-		return EnumField{Label: "FailureInRadioInterfaceProcedure", Value: int(ngapType.CauseRadioNetworkPresentFailureInRadioInterfaceProcedure)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentFailureInRadioInterfaceProcedure), "FailureInRadioInterfaceProcedure", false)
 	case ngapType.CauseRadioNetworkPresentInteractionWithOtherProcedure:
-		return EnumField{Label: "InteractionWithOtherProcedure", Value: int(ngapType.CauseRadioNetworkPresentInteractionWithOtherProcedure)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentInteractionWithOtherProcedure), "InteractionWithOtherProcedure", false)
 	case ngapType.CauseRadioNetworkPresentUnknownPDUSessionID:
-		return EnumField{Label: "UnknownPDUSessionID", Value: int(ngapType.CauseRadioNetworkPresentUnknownPDUSessionID)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentUnknownPDUSessionID), "UnknownPDUSessionID", false)
 	case ngapType.CauseRadioNetworkPresentUnkownQosFlowID:
-		return EnumField{Label: "UnkownQosFlowID", Value: int(ngapType.CauseRadioNetworkPresentUnkownQosFlowID)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentUnkownQosFlowID), "UnkownQosFlowID", false)
 	case ngapType.CauseRadioNetworkPresentMultiplePDUSessionIDInstances:
-		return EnumField{Label: "MultiplePDUSessionIDInstances", Value: int(ngapType.CauseRadioNetworkPresentMultiplePDUSessionIDInstances)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentMultiplePDUSessionIDInstances), "MultiplePDUSessionIDInstances", false)
 	case ngapType.CauseRadioNetworkPresentMultipleQosFlowIDInstances:
-		return EnumField{Label: "MultipleQosFlowIDInstances", Value: int(ngapType.CauseRadioNetworkPresentMultipleQosFlowIDInstances)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentMultipleQosFlowIDInstances), "MultipleQosFlowIDInstances", false)
 	case ngapType.CauseRadioNetworkPresentEncryptionAndOrIntegrityProtectionAlgorithmsNotSupported:
-		return EnumField{Label: "EncryptionAndOrIntegrityProtectionAlgorithmsNotSupported", Value: int(ngapType.CauseRadioNetworkPresentEncryptionAndOrIntegrityProtectionAlgorithmsNotSupported)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentEncryptionAndOrIntegrityProtectionAlgorithmsNotSupported), "EncryptionAndOrIntegrityProtectionAlgorithmsNotSupported", false)
 	case ngapType.CauseRadioNetworkPresentNgIntraSystemHandoverTriggered:
-		return EnumField{Label: "NgIntraSystemHandoverTriggered", Value: int(ngapType.CauseRadioNetworkPresentNgIntraSystemHandoverTriggered)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentNgIntraSystemHandoverTriggered), "NgIntraSystemHandoverTriggered", false)
 	case ngapType.CauseRadioNetworkPresentNgInterSystemHandoverTriggered:
-		return EnumField{Label: "NgInterSystemHandoverTriggered", Value: int(ngapType.CauseRadioNetworkPresentNgInterSystemHandoverTriggered)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentNgInterSystemHandoverTriggered), "NgInterSystemHandoverTriggered", false)
 	case ngapType.CauseRadioNetworkPresentXnHandoverTriggered:
-		return EnumField{Label: "XnHandoverTriggered", Value: int(ngapType.CauseRadioNetworkPresentXnHandoverTriggered)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentXnHandoverTriggered), "XnHandoverTriggered", false)
 	case ngapType.CauseRadioNetworkPresentNotSupported5QIValue:
-		return EnumField{Label: "NotSupported5QIValue", Value: int(ngapType.CauseRadioNetworkPresentNotSupported5QIValue)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentNotSupported5QIValue), "NotSupported5QIValue", false)
 	case ngapType.CauseRadioNetworkPresentUeContextTransfer:
-		return EnumField{Label: "UeContextTransfer", Value: int(ngapType.CauseRadioNetworkPresentUeContextTransfer)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentUeContextTransfer), "UeContextTransfer", false)
 	case ngapType.CauseRadioNetworkPresentImsVoiceEpsFallbackOrRatFallbackTriggered:
-		return EnumField{Label: "ImsVoiceEpsFallbackOrRatFallbackTriggered", Value: int(ngapType.CauseRadioNetworkPresentImsVoiceEpsFallbackOrRatFallbackTriggered)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentImsVoiceEpsFallbackOrRatFallbackTriggered), "ImsVoiceEpsFallbackOrRatFallbackTriggered", false)
 	case ngapType.CauseRadioNetworkPresentUpIntegrityProtectionNotPossible:
-		return EnumField{Label: "UpIntegrityProtectionNotPossible", Value: int(ngapType.CauseRadioNetworkPresentUpIntegrityProtectionNotPossible)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentUpIntegrityProtectionNotPossible), "UpIntegrityProtectionNotPossible", false)
 	case ngapType.CauseRadioNetworkPresentUpConfidentialityProtectionNotPossible:
-		return EnumField{Label: "UpConfidentialityProtectionNotPossible", Value: int(ngapType.CauseRadioNetworkPresentUpConfidentialityProtectionNotPossible)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentUpConfidentialityProtectionNotPossible), "UpConfidentialityProtectionNotPossible", false)
 	case ngapType.CauseRadioNetworkPresentSliceNotSupported:
-		return EnumField{Label: "SliceNotSupported", Value: int(ngapType.CauseRadioNetworkPresentSliceNotSupported)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentSliceNotSupported), "SliceNotSupported", false)
 	case ngapType.CauseRadioNetworkPresentUeInRrcInactiveStateNotReachable:
-		return EnumField{Label: "UeInRrcInactiveStateNotReachable", Value: int(ngapType.CauseRadioNetworkPresentUeInRrcInactiveStateNotReachable)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentUeInRrcInactiveStateNotReachable), "UeInRrcInactiveStateNotReachable", false)
 	case ngapType.CauseRadioNetworkPresentRedirection:
-		return EnumField{Label: "Redirection", Value: int(ngapType.CauseRadioNetworkPresentRedirection)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentRedirection), "Redirection", false)
 	case ngapType.CauseRadioNetworkPresentResourcesNotAvailableForTheSlice:
-		return EnumField{Label: "ResourcesNotAvailableForTheSlice", Value: int(ngapType.CauseRadioNetworkPresentResourcesNotAvailableForTheSlice)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentResourcesNotAvailableForTheSlice), "ResourcesNotAvailableForTheSlice", false)
 	case ngapType.CauseRadioNetworkPresentUeMaxIntegrityProtectedDataRateReason:
-		return EnumField{Label: "UeMaxIntegrityProtectedDataRateReason", Value: int(ngapType.CauseRadioNetworkPresentUeMaxIntegrityProtectedDataRateReason)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentUeMaxIntegrityProtectedDataRateReason), "UeMaxIntegrityProtectedDataRateReason", false)
 	case ngapType.CauseRadioNetworkPresentReleaseDueToCnDetectedMobility:
-		return EnumField{Label: "ReleaseDueToCnDetectedMobility", Value: int(ngapType.CauseRadioNetworkPresentReleaseDueToCnDetectedMobility)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentReleaseDueToCnDetectedMobility), "ReleaseDueToCnDetectedMobility", false)
 	case ngapType.CauseRadioNetworkPresentN26InterfaceNotAvailable:
-		return EnumField{Label: "N26InterfaceNotAvailable", Value: int(ngapType.CauseRadioNetworkPresentN26InterfaceNotAvailable)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentN26InterfaceNotAvailable), "N26InterfaceNotAvailable", false)
 	case ngapType.CauseRadioNetworkPresentReleaseDueToPreEmption:
-		return EnumField{Label: "ReleaseDueToPreEmption", Value: int(ngapType.CauseRadioNetworkPresentReleaseDueToPreEmption)}
+		return makeEnum(int(ngapType.CauseRadioNetworkPresentReleaseDueToPreEmption), "ReleaseDueToPreEmption", false)
 	default:
-		return EnumField{Label: "unknown", Value: int(cause.Value)}
+		return makeEnum(int(cause.Value), "", true)
 	}
 }
 
-func transportCauseToEnum(cause *ngapType.CauseTransport) EnumField {
-	if cause == nil {
-		return EnumField{Label: "nil", Value: 0}
-	}
-
+func transportCauseToEnum(cause ngapType.CauseTransport) EnumField {
 	switch cause.Value {
 	case ngapType.CauseTransportPresentTransportResourceUnavailable:
-		return EnumField{Label: "TransportResourceUnavailable", Value: int(ngapType.CauseTransportPresentTransportResourceUnavailable)}
+		return makeEnum(int(cause.Value), "TransportResourceUnavailable", false)
 	case ngapType.CauseTransportPresentUnspecified:
-		return EnumField{Label: "Unspecified", Value: int(ngapType.CauseTransportPresentUnspecified)}
+		return makeEnum(int(cause.Value), "Unspecified", false)
 	default:
-		return EnumField{Label: "Unknown", Value: int(cause.Value)}
+		return makeEnum(int(cause.Value), "", true)
 	}
 }
 
-func nasCauseToEnum(cause *ngapType.CauseNas) EnumField {
-	if cause == nil {
-		return EnumField{Label: "nil", Value: 0}
-	}
-
+func nasCauseToEnum(cause ngapType.CauseNas) EnumField {
 	switch cause.Value {
 	case ngapType.CauseNasPresentNormalRelease:
-		return EnumField{Label: "NormalRelease", Value: int(ngapType.CauseNasPresentNormalRelease)}
+		return makeEnum(int(cause.Value), "NormalRelease", false)
 	case ngapType.CauseNasPresentAuthenticationFailure:
-		return EnumField{Label: "AuthenticationFailure", Value: int(ngapType.CauseNasPresentAuthenticationFailure)}
+		return makeEnum(int(cause.Value), "AuthenticationFailure", false)
 	case ngapType.CauseNasPresentDeregister:
-		return EnumField{Label: "Deregister", Value: int(ngapType.CauseNasPresentDeregister)}
+		return makeEnum(int(cause.Value), "Deregister", false)
 	case ngapType.CauseNasPresentUnspecified:
-		return EnumField{Label: "Unspecified", Value: int(ngapType.CauseNasPresentUnspecified)}
+		return makeEnum(int(cause.Value), "Unspecified", false)
 	default:
-		return EnumField{Label: "Unknown", Value: int(cause.Value)}
+		return makeEnum(int(cause.Value), "", true)
 	}
 }
 
-func protocolCauseToEnum(cause *ngapType.CauseProtocol) EnumField {
-	if cause == nil {
-		return EnumField{Label: "nil", Value: 0}
-	}
-
+func protocolCauseToEnum(cause ngapType.CauseProtocol) EnumField {
 	switch cause.Value {
 	case ngapType.CauseProtocolPresentTransferSyntaxError:
-		return EnumField{Label: "TransferSyntaxError", Value: int(ngapType.CauseProtocolPresentTransferSyntaxError)}
+		return makeEnum(int(cause.Value), "TransferSyntaxError", false)
 	case ngapType.CauseProtocolPresentAbstractSyntaxErrorReject:
-		return EnumField{Label: "AbstractSyntaxErrorReject", Value: int(ngapType.CauseProtocolPresentAbstractSyntaxErrorReject)}
+		return makeEnum(int(cause.Value), "AbstractSyntaxErrorReject", false)
 	case ngapType.CauseProtocolPresentAbstractSyntaxErrorIgnoreAndNotify:
-		return EnumField{Label: "AbstractSyntaxErrorIgnoreAndNotify", Value: int(ngapType.CauseProtocolPresentAbstractSyntaxErrorIgnoreAndNotify)}
+		return makeEnum(int(cause.Value), "AbstractSyntaxErrorIgnoreAndNotify", false)
 	case ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState:
-		return EnumField{Label: "MessageNotCompatibleWithReceiverState", Value: int(ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState)}
+		return makeEnum(int(cause.Value), "MessageNotCompatibleWithReceiverState", false)
 	case ngapType.CauseProtocolPresentSemanticError:
-		return EnumField{Label: "SemanticError", Value: int(ngapType.CauseProtocolPresentSemanticError)}
+		return makeEnum(int(cause.Value), "SemanticError", false)
 	case ngapType.CauseProtocolPresentAbstractSyntaxErrorFalselyConstructedMessage:
-		return EnumField{Label: "AbstractSyntaxErrorFalselyConstructedMessage", Value: int(ngapType.CauseProtocolPresentAbstractSyntaxErrorFalselyConstructedMessage)}
+		return makeEnum(int(cause.Value), "AbstractSyntaxErrorFalselyConstructedMessage", false)
 	case ngapType.CauseProtocolPresentUnspecified:
-		return EnumField{Label: "Unspecified", Value: int(ngapType.CauseProtocolPresentUnspecified)}
+		return makeEnum(int(cause.Value), "Unspecified", false)
 	default:
-		return EnumField{Label: "Unknown", Value: int(cause.Value)}
+		return makeEnum(int(cause.Value), "", true)
 	}
 }
 
-func miscCauseToEnum(cause *ngapType.CauseMisc) EnumField {
-	if cause == nil {
-		return EnumField{Label: "nil", Value: 0}
-	}
-
+func miscCauseToEnum(cause ngapType.CauseMisc) EnumField {
 	switch cause.Value {
 	case ngapType.CauseMiscPresentControlProcessingOverload:
-		return EnumField{Label: "ControlProcessingOverload", Value: int(ngapType.CauseMiscPresentControlProcessingOverload)}
+		return makeEnum(int(cause.Value), "ControlProcessingOverload", false)
 	case ngapType.CauseMiscPresentNotEnoughUserPlaneProcessingResources:
-		return EnumField{Label: "NotEnoughUserPlaneProcessingResources", Value: int(ngapType.CauseMiscPresentNotEnoughUserPlaneProcessingResources)}
+		return makeEnum(int(cause.Value), "NotEnoughUserPlaneProcessingResources", false)
 	case ngapType.CauseMiscPresentHardwareFailure:
-		return EnumField{Label: "HardwareFailure", Value: int(ngapType.CauseMiscPresentHardwareFailure)}
+		return makeEnum(int(cause.Value), "HardwareFailure", false)
 	case ngapType.CauseMiscPresentOmIntervention:
-		return EnumField{Label: "OmIntervention", Value: int(ngapType.CauseMiscPresentOmIntervention)}
+		return makeEnum(int(cause.Value), "OmIntervention", false)
 	case ngapType.CauseMiscPresentUnknownPLMN:
-		return EnumField{Label: "UnknownPLMN", Value: int(ngapType.CauseMiscPresentUnknownPLMN)}
+		return makeEnum(int(cause.Value), "UnknownPLMN", false)
 	case ngapType.CauseMiscPresentUnspecified:
-		return EnumField{Label: "Unspecified", Value: int(ngapType.CauseMiscPresentUnspecified)}
+		return makeEnum(int(cause.Value), "Unspecified", false)
 	default:
-		return EnumField{Label: "Unknown", Value: int(cause.Value)}
+		return makeEnum(int(cause.Value), "", true)
 	}
 }

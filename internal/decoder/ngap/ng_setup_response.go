@@ -16,12 +16,12 @@ type Guami struct {
 type IEsCriticalityDiagnostics struct {
 	IECriticality EnumField `json:"ie_criticality"`
 	IEID          EnumField `json:"ie_id"`
-	TypeOfError   string    `json:"type_of_error"`
+	TypeOfError   EnumField `json:"type_of_error"`
 }
 
 type CriticalityDiagnostics struct {
 	ProcedureCode             *EnumField                  `json:"procedure_code,omitempty"`
-	TriggeringMessage         *string                     `json:"triggering_message,omitempty"`
+	TriggeringMessage         *EnumField                  `json:"triggering_message,omitempty"`
 	ProcedureCriticality      *EnumField                  `json:"procedure_criticality,omitempty"`
 	IEsCriticalityDiagnostics []IEsCriticalityDiagnostics `json:"ie_criticality_diagnostics,omitempty"`
 }
@@ -110,9 +110,7 @@ func buildNGSetupResponse(ngSetupResponse ngapType.NGSetupResponse) NGAPMessageV
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value: UnknownIE{
-					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-				},
+				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
 			})
 		}
 	}
@@ -147,16 +145,16 @@ func buildCriticalityDiagnosticsIE(cd *ngapType.CriticalityDiagnostics) Critical
 	return critDiag
 }
 
-func triggeringMessageToString(tm aper.Enumerated) string {
+func triggeringMessageToString(tm aper.Enumerated) EnumField {
 	switch tm {
 	case ngapType.TriggeringMessagePresentInitiatingMessage:
-		return "InitiatingMessage (0)"
+		return makeEnum(int(tm), "InitiatingMessage", false)
 	case ngapType.TriggeringMessagePresentSuccessfulOutcome:
-		return "SuccessfulOutcome (1)"
+		return makeEnum(int(tm), "SuccessfulOutcome", false)
 	case ngapType.TriggeringMessagePresentUnsuccessfullOutcome:
-		return "UnsuccessfulOutcome (2)"
+		return makeEnum(int(tm), "UnsuccessfulOutcome", false)
 	default:
-		return fmt.Sprintf("Unknown (%d)", tm)
+		return makeEnum(int(tm), "", true)
 	}
 }
 
@@ -178,13 +176,13 @@ func buildIEsCriticalityDiagnisticsList(ieList *ngapType.CriticalityDiagnosticsI
 	return ies
 }
 
-func typeOfErrorToString(toe aper.Enumerated) string {
+func typeOfErrorToString(toe aper.Enumerated) EnumField {
 	switch toe {
 	case ngapType.TypeOfErrorPresentNotUnderstood:
-		return "NotUnderstood (0)"
+		return makeEnum(int(toe), "NotUnderstood", false)
 	case ngapType.TypeOfErrorPresentMissing:
-		return "Missing (1)"
+		return makeEnum(int(toe), "Missing", false)
 	default:
-		return fmt.Sprintf("Unknown (%d)", toe)
+		return makeEnum(int(toe), "", true)
 	}
 }

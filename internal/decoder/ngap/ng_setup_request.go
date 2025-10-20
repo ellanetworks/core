@@ -96,15 +96,15 @@ func buildRanNodeNameIE(rnn ngapType.RANNodeName) string {
 func buildDefaultPagingDRXIE(dpd ngapType.PagingDRX) EnumField {
 	switch dpd.Value {
 	case ngapType.PagingDRXPresentV32:
-		return EnumField{Label: "v32", Value: int(dpd.Value)}
+		return makeEnum(int(dpd.Value), "v32", false)
 	case ngapType.PagingDRXPresentV64:
-		return EnumField{Label: "v64", Value: int(dpd.Value)}
+		return makeEnum(int(dpd.Value), "v64", false)
 	case ngapType.PagingDRXPresentV128:
-		return EnumField{Label: "v128", Value: int(dpd.Value)}
+		return makeEnum(int(dpd.Value), "v128", false)
 	case ngapType.PagingDRXPresentV256:
-		return EnumField{Label: "v256", Value: int(dpd.Value)}
+		return makeEnum(int(dpd.Value), "v256", false)
 	default:
-		return EnumField{Label: "Unknown", Value: int(dpd.Value)}
+		return makeEnum(int(dpd.Value), "", true)
 	}
 }
 
@@ -149,9 +149,7 @@ func buildNGSetupRequest(ngSetupRequest ngapType.NGSetupRequest) NGAPMessageValu
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value: UnknownIE{
-					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-				},
+				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
 			})
 		}
 	}
@@ -164,8 +162,8 @@ func buildNGSetupRequest(ngSetupRequest ngapType.NGSetupRequest) NGAPMessageValu
 func buildUERetentionInformationIE(uri ngapType.UERetentionInformation) EnumField {
 	switch uri.Value {
 	case ngapType.UERetentionInformationPresentUesRetained:
-		return EnumField{Label: "present", Value: int(uri.Value)}
+		return makeEnum(int(ngapType.UERetentionInformationPresentUesRetained), "UesRetained", false)
 	default:
-		return EnumField{Label: "unknown ", Value: int(uri.Value)}
+		return makeEnum(int(uri.Value), "", true)
 	}
 }

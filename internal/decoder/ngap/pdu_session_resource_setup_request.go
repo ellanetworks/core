@@ -5,9 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 type PDUSessionResourceSetupSUReq struct {
@@ -49,14 +47,19 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest ngapType
 				AMFUENGAPID: AMFUENGAPID,
 				Direction:   nas.DirDownlink,
 			}
+
+			var nasPdu NASPDU
 			decodednNasPdu, err := nas.DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo)
 			if err != nil {
-				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
-			}
-
-			nasPdu := NASPDU{
-				Raw:     ie.Value.NASPDU.Value,
-				Decoded: decodednNasPdu,
+				nasPdu = NASPDU{
+					Raw:   ie.Value.NASPDU.Value,
+					Error: err.Error(),
+				}
+			} else {
+				nasPdu = NASPDU{
+					Raw:     ie.Value.NASPDU.Value,
+					Decoded: decodednNasPdu,
+				}
 			}
 
 			ies = append(ies, IE{
@@ -84,9 +87,7 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest ngapType
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value: UnknownIE{
-					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-				},
+				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
 			})
 		}
 	}
@@ -106,14 +107,20 @@ func buildPDUSessionResourceSetupListSUReq(list ngapType.PDUSessionResourceSetup
 		}
 
 		if item.PDUSessionNASPDU != nil {
+			var nasPdu NASPDU
 			decodednNasPdu, err := nas.DecodeNASMessage(item.PDUSessionNASPDU.Value, nasContextInfo)
 			if err != nil {
-				logger.EllaLog.Warn("Failed to decode NAS PDU", zap.Error(err))
+				nasPdu = NASPDU{
+					Raw:   item.PDUSessionNASPDU.Value,
+					Error: err.Error(),
+				}
+			} else {
+				nasPdu = NASPDU{
+					Raw:     item.PDUSessionNASPDU.Value,
+					Decoded: decodednNasPdu,
+				}
 			}
-			pduSUReq.PDUSessionNASPDU = &NASPDU{
-				Raw:     item.PDUSessionNASPDU.Value,
-				Decoded: decodednNasPdu,
-			}
+			pduSUReq.PDUSessionNASPDU = &nasPdu
 		}
 
 		reqList = append(reqList, pduSUReq)
