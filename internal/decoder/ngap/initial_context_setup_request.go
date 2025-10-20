@@ -38,13 +38,13 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
+				Value:       ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDOldAMF:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				OldAMF:      &ie.Value.OldAMF.Value,
+				Value:       ie.Value.OldAMF.Value,
 			})
 		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
 			ieList.IEs = append(ieList.IEs, IE{
@@ -264,7 +264,8 @@ func buildCoreNetworkAssistanceInformation(cnai *ngapType.CoreNetworkAssistanceI
 	}
 
 	if cnai.UESpecificDRX != nil {
-		returnedCNAI.UESpecificDRX = buildDefaultPagingDRXIE(cnai.UESpecificDRX)
+		pagingDRX := buildDefaultPagingDRXIE(*cnai.UESpecificDRX)
+		returnedCNAI.UESpecificDRX = &pagingDRX
 	}
 
 	returnedCNAI.PeriodicRegistrationUpdateTimer = bitStringToHex(&cnai.PeriodicRegistrationUpdateTimer.Value)

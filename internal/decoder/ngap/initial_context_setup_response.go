@@ -30,7 +30,7 @@ func buildInitialContextSetupResponse(initialContextSetupResponse *ngapType.Init
 			icsResponse.IEs = append(icsResponse.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
+				Value:       ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtRes:
 			icsResponse.IEs = append(icsResponse.IEs, IE{

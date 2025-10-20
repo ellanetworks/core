@@ -167,7 +167,6 @@ type IE struct {
 	Criticality EnumField `json:"criticality"`
 	Value       any       `json:"value,omitempty"`
 
-	RANUENGAPID                               *int64                                  `json:"ran_ue_ngap_id,omitempty"`
 	NASPDU                                    *NASPDU                                 `json:"nas_pdu,omitempty"`
 	UserLocationInformation                   *UserLocationInformation                `json:"user_location_information,omitempty"`
 	RRCEstablishmentCause                     *string                                 `json:"rrc_establishment_cause,omitempty"`
@@ -176,7 +175,6 @@ type IE struct {
 	UEContextRequest                          *string                                 `json:"ue_context_request,omitempty"`
 	AllowedNSSAI                              []SNSSAI                                `json:"allowed_nssai,omitempty"`
 	AMFUENGAPID                               *int64                                  `json:"amf_ue_ngap_id,omitempty"`
-	OldAMF                                    *string                                 `json:"old_amf,omitempty"`
 	RANPagingPriority                         *int64                                  `json:"ran_paging_priority,omitempty"`
 	MobilityRestrictionList                   *MobilityRestrictionList                `json:"mobility_restriction_list,omitempty"`
 	IndexToRFSP                               *int64                                  `json:"index_to_rfsp,omitempty"`

@@ -92,12 +92,13 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item1.Criticality.Value)
 	}
 
-	if item1.RANUENGAPID == nil {
-		t.Fatalf("expected RANUENGAPID, got nil")
+	ranUENGAPID, ok := item1.Value.(int64)
+	if !ok {
+		t.Fatalf("expected RANUENGAPID to be of type int64, got %T", item1.Value)
 	}
 
-	if *item1.RANUENGAPID != 1 {
-		t.Errorf("expected RANUENGAPID=1, got %d", *item1.RANUENGAPID)
+	if ranUENGAPID != 1 {
+		t.Errorf("expected RANUENGAPID=1, got %d", ranUENGAPID)
 	}
 
 	item2 := ngap.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse.IEs[2]

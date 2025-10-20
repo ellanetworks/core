@@ -62,12 +62,13 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
 	}
 
-	if item0.RANUENGAPID == nil {
-		t.Fatalf("expected RANUENGAPID, got nil")
+	ranUENGAPID, ok := item0.Value.(int64)
+	if !ok {
+		t.Fatalf("expected RANUENGAPID to be of type int64, got %T", item0.Value)
 	}
 
-	if *item0.RANUENGAPID != 1 {
-		t.Errorf("expected RANUENGAPID=1, got %d", *item0.RANUENGAPID)
+	if ranUENGAPID != 1 {
+		t.Errorf("expected RANUENGAPID=1, got %d", ranUENGAPID)
 	}
 
 	item1 := ngap.InitiatingMessage.Value.InitialUEMessage.IEs[1]

@@ -38,13 +38,13 @@ func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTranspo
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
+				Value:       ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDOldAMF:
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				OldAMF:      buildAMFNameIE(ie.Value.OldAMF),
+				Value:       buildAMFNameIE(*ie.Value.OldAMF),
 			})
 		case ngapType.ProtocolIEIDRANPagingPriority:
 			ieList.IEs = append(ieList.IEs, IE{

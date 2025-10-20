@@ -26,7 +26,7 @@ func buildInitialUEMessage(initialUEMessage *ngapType.InitialUEMessage) *Initial
 			ieList.IEs = append(ieList.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
+				Value:       ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
 			decodednNasPdu, err := nas.DecodeNASMessage(ie.Value.NASPDU.Value, nil)

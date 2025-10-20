@@ -30,7 +30,7 @@ func buildPDUSessionResourceSetupResponse(pduSessionResourceSetupResponse *ngapT
 			psrs.IEs = append(psrs.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
+				Value:       ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes:
 			psrs.IEs = append(psrs.IEs, IE{

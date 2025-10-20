@@ -30,14 +30,8 @@ type CriticalityDiagnostics struct {
 	IEsCriticalityDiagnostics []IEsCriticalityDiagnostics `json:"ie_criticality_diagnostics,omitempty"`
 }
 
-func buildAMFNameIE(an *ngapType.AMFName) *string {
-	if an == nil || an.Value == "" {
-		return nil
-	}
-
-	s := an.Value
-
-	return &s
+func buildAMFNameIE(an ngapType.AMFName) string {
+	return an.Value
 }
 
 func buildGUAMI(guami *ngapType.GUAMI) *Guami {
@@ -52,11 +46,7 @@ func buildGUAMI(guami *ngapType.GUAMI) *Guami {
 	}
 }
 
-func buildServedGUAMIListIE(sgl *ngapType.ServedGUAMIList) []Guami {
-	if sgl == nil {
-		return nil
-	}
-
+func buildServedGUAMIListIE(sgl ngapType.ServedGUAMIList) []Guami {
 	guamiList := make([]Guami, len(sgl.List))
 	for i := 0; i < len(sgl.List); i++ {
 		guamiList[i] = *buildGUAMI(&sgl.List[i].GUAMI)
@@ -96,19 +86,19 @@ func buildNGSetupResponse(ngSetupResponse *ngapType.NGSetupResponse) *NGSetupRes
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildAMFNameIE(ie.Value.AMFName),
+				Value:       buildAMFNameIE(*ie.Value.AMFName),
 			})
 		case ngapType.ProtocolIEIDServedGUAMIList:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildServedGUAMIListIE(ie.Value.ServedGUAMIList),
+				Value:       buildServedGUAMIListIE(*ie.Value.ServedGUAMIList),
 			})
 		case ngapType.ProtocolIEIDRelativeAMFCapacity:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       &ie.Value.RelativeAMFCapacity.Value,
+				Value:       ie.Value.RelativeAMFCapacity.Value,
 			})
 		case ngapType.ProtocolIEIDPLMNSupportList:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
@@ -126,7 +116,7 @@ func buildNGSetupResponse(ngSetupResponse *ngapType.NGSetupResponse) *NGSetupRes
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildUERetentionInformationIE(ie.Value.UERetentionInformation),
+				Value:       buildUERetentionInformationIE(*ie.Value.UERetentionInformation),
 			})
 		default:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
@@ -142,12 +132,8 @@ func buildNGSetupResponse(ngSetupResponse *ngapType.NGSetupResponse) *NGSetupRes
 	return ngSetup
 }
 
-func buildCriticalityDiagnosticsIE(cd *ngapType.CriticalityDiagnostics) *CriticalityDiagnostics {
-	if cd == nil {
-		return nil
-	}
-
-	critDiag := &CriticalityDiagnostics{}
+func buildCriticalityDiagnosticsIE(cd *ngapType.CriticalityDiagnostics) CriticalityDiagnostics {
+	critDiag := CriticalityDiagnostics{}
 
 	if cd.ProcedureCode != nil {
 		procCode := procedureCodeToEnum(cd.ProcedureCode.Value)

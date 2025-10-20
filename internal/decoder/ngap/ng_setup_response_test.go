@@ -66,17 +66,13 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
 	}
 
-	amfName, ok := item0.Value.(*string)
+	amfName, ok := item0.Value.(string)
 	if !ok {
-		t.Fatalf("expected AMFName, got %T", item0.Value)
+		t.Fatalf("expected string, got %T", item0.Value)
 	}
 
-	if amfName == nil {
-		t.Fatalf("expected AMFName, got nil")
-	}
-
-	if *amfName != "amf" {
-		t.Errorf("expected AMFName=amf, got %s", *amfName)
+	if amfName != "amf" {
+		t.Errorf("expected AMFName=amf, got %s", amfName)
 	}
 
 	item1 := ngapMsg.SuccessfulOutcome.Value.NGSetupResponse.IEs[1]
@@ -142,17 +138,13 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item2.Criticality.Value)
 	}
 
-	relativeAMFCapacity, ok := item2.Value.(*int64)
+	relativeAMFCapacity, ok := item2.Value.(int64)
 	if !ok {
-		t.Fatalf("expected RelativeAMFCapacity, got %T", item2.Value)
+		t.Fatalf("expected int64, got %T", item2.Value)
 	}
 
-	if relativeAMFCapacity == nil {
-		t.Fatalf("expected RelativeAMFCapacity, got nil")
-	}
-
-	if *relativeAMFCapacity != 255 {
-		t.Errorf("expected RelativeAMFCapacity=255, got %d", *relativeAMFCapacity)
+	if relativeAMFCapacity != 255 {
+		t.Errorf("expected RelativeAMFCapacity=255, got %d", relativeAMFCapacity)
 	}
 
 	item3 := ngapMsg.SuccessfulOutcome.Value.NGSetupResponse.IEs[3]

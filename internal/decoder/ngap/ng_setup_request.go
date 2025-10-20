@@ -37,12 +37,8 @@ type PLMN struct {
 	SliceSupportList []SNSSAI `json:"slice_support_list,omitempty"`
 }
 
-func buildGlobalRANNodeIDIE(grn *ngapType.GlobalRANNodeID) *GlobalRANNodeIDIE {
-	if grn == nil {
-		return nil
-	}
-
-	ie := &GlobalRANNodeIDIE{}
+func buildGlobalRANNodeIDIE(grn ngapType.GlobalRANNodeID) GlobalRANNodeIDIE {
+	ie := GlobalRANNodeIDIE{}
 
 	if grn.GlobalGNBID != nil && grn.GlobalGNBID.GNBID.GNBID != nil {
 		ie.GlobalGNBID = bitStringToHex(grn.GlobalGNBID.GNBID.GNBID)
@@ -97,32 +93,22 @@ func buildSNSSAIList(sssl ngapType.SliceSupportList) []SNSSAI {
 	return snssais
 }
 
-func buildRanNodeNameIE(rnn *ngapType.RANNodeName) *string {
-	if rnn == nil || rnn.Value == "" {
-		return nil
-	}
-
-	s := rnn.Value
-
-	return &s
+func buildRanNodeNameIE(rnn ngapType.RANNodeName) string {
+	return rnn.Value
 }
 
-func buildDefaultPagingDRXIE(dpd *ngapType.PagingDRX) *EnumField {
-	if dpd == nil {
-		return nil
-	}
-
+func buildDefaultPagingDRXIE(dpd ngapType.PagingDRX) EnumField {
 	switch dpd.Value {
 	case ngapType.PagingDRXPresentV32:
-		return &EnumField{Label: "v32", Value: int(dpd.Value)}
+		return EnumField{Label: "v32", Value: int(dpd.Value)}
 	case ngapType.PagingDRXPresentV64:
-		return &EnumField{Label: "v64", Value: int(dpd.Value)}
+		return EnumField{Label: "v64", Value: int(dpd.Value)}
 	case ngapType.PagingDRXPresentV128:
-		return &EnumField{Label: "v128", Value: int(dpd.Value)}
+		return EnumField{Label: "v128", Value: int(dpd.Value)}
 	case ngapType.PagingDRXPresentV256:
-		return &EnumField{Label: "v256", Value: int(dpd.Value)}
+		return EnumField{Label: "v256", Value: int(dpd.Value)}
 	default:
-		return &EnumField{Label: "Unknown", Value: int(dpd.Value)}
+		return EnumField{Label: "Unknown", Value: int(dpd.Value)}
 	}
 }
 
@@ -141,7 +127,7 @@ func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupReques
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildGlobalRANNodeIDIE(ie.Value.GlobalRANNodeID),
+				Value:       buildGlobalRANNodeIDIE(*ie.Value.GlobalRANNodeID),
 			})
 		case ngapType.ProtocolIEIDSupportedTAList:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
@@ -153,19 +139,19 @@ func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupReques
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildRanNodeNameIE(ie.Value.RANNodeName),
+				Value:       buildRanNodeNameIE(*ie.Value.RANNodeName),
 			})
 		case ngapType.ProtocolIEIDDefaultPagingDRX:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildDefaultPagingDRXIE(ie.Value.DefaultPagingDRX),
+				Value:       buildDefaultPagingDRXIE(*ie.Value.DefaultPagingDRX),
 			})
 		case ngapType.ProtocolIEIDUERetentionInformation:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildUERetentionInformationIE(ie.Value.UERetentionInformation),
+				Value:       buildUERetentionInformationIE(*ie.Value.UERetentionInformation),
 			})
 		default:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
@@ -181,15 +167,11 @@ func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupReques
 	return ngSetup
 }
 
-func buildUERetentionInformationIE(uri *ngapType.UERetentionInformation) *EnumField {
-	if uri == nil {
-		return nil
-	}
-
+func buildUERetentionInformationIE(uri ngapType.UERetentionInformation) EnumField {
 	switch uri.Value {
 	case ngapType.UERetentionInformationPresentUesRetained:
-		return &EnumField{Label: "present", Value: int(uri.Value)}
+		return EnumField{Label: "present", Value: int(uri.Value)}
 	default:
-		return &EnumField{Label: "unknown ", Value: int(uri.Value)}
+		return EnumField{Label: "unknown ", Value: int(uri.Value)}
 	}
 }

@@ -66,7 +66,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
 	}
 
-	globalRANNodeID, ok := item0.Value.(*ngap.GlobalRANNodeIDIE)
+	globalRANNodeID, ok := item0.Value.(ngap.GlobalRANNodeIDIE)
 	if !ok {
 		t.Fatalf("expected GlobalRANNodeIDIE, got %T", item0.Value)
 	}
@@ -101,17 +101,13 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item1.Criticality.Value)
 	}
 
-	ranNodeName, ok := item1.Value.(*string)
+	ranNodeName, ok := item1.Value.(string)
 	if !ok {
-		t.Fatalf("expected RANNodeName, got %T", item1.Value)
+		t.Fatalf("expected string, got %T", item1.Value)
 	}
 
-	if ranNodeName == nil {
-		t.Fatalf("expected RANNodeName, got nil")
-	}
-
-	if *ranNodeName != "UERANSIM-gnb-1-1-1" {
-		t.Errorf("expected RANNodeName=UERANSIM-gnb-1-1-1, got %s", *ranNodeName)
+	if ranNodeName != "UERANSIM-gnb-1-1-1" {
+		t.Errorf("expected RANNodeName=UERANSIM-gnb-1-1-1, got %s", ranNodeName)
 	}
 
 	item2 := ngapMsg.InitiatingMessage.Value.NGSetupRequest.IEs[2]
@@ -195,13 +191,9 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
 	}
 
-	defaultPagingDRX, ok := item3.Value.(*ngap.EnumField)
+	defaultPagingDRX, ok := item3.Value.(ngap.EnumField)
 	if !ok {
-		t.Fatalf("expected DefaultPagingDRX, got %T", item3.Value)
-	}
-
-	if defaultPagingDRX == nil {
-		t.Fatalf("expected DefaultPagingDRX, got nil")
+		t.Fatalf("expected EnumField, got %T", item3.Value)
 	}
 
 	if defaultPagingDRX.Label != "v128" {
