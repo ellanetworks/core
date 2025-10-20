@@ -148,7 +148,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 		}
 	}
 
-	if ue.AmPolicyAssociation.ServAreaRes != nil {
+	if ue.AmPolicyAssociation != nil && ue.AmPolicyAssociation.ServAreaRes != nil {
 		mobilityRestrictionList.ServiceAreaInformation = new(ngapType.ServiceAreaInformation)
 		serviceAreaInformation := mobilityRestrictionList.ServiceAreaInformation
 
