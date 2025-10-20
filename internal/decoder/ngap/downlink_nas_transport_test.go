@@ -50,8 +50,12 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 
 	item0 := ngap.InitiatingMessage.Value.DownlinkNASTransport.IEs[0]
 
-	if item0.ID != "AMFUENGAPID (10)" {
-		t.Errorf("expected ID=AMFUENGAPID (10), got %s", item0.ID)
+	if item0.ID.Label != "AMFUENGAPID" {
+		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
+	}
+
+	if item0.ID.Value != int(ngapType.ProtocolIEIDAMFUENGAPID) {
+		t.Errorf("expected ID value=85, got %d", item0.ID.Value)
 	}
 
 	if item0.Criticality.Label != "Reject" {
@@ -72,8 +76,12 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 
 	item1 := ngap.InitiatingMessage.Value.DownlinkNASTransport.IEs[1]
 
-	if item1.ID != "RANUENGAPID (85)" {
-		t.Errorf("expected ID=RANUENGAPID (85), got %s", item1.ID)
+	if item1.ID.Label != "RANUENGAPID" {
+		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
+	}
+
+	if item1.ID.Value != int(ngapType.ProtocolIEIDRANUENGAPID) {
+		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
 	}
 
 	if item1.Criticality.Label != "Reject" {
@@ -94,8 +102,12 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 
 	item2 := ngap.InitiatingMessage.Value.DownlinkNASTransport.IEs[2]
 
-	if item2.ID != "NASPDU (38)" {
-		t.Errorf("expected ID=NASPDU (38), got %s", item2.ID)
+	if item2.ID.Label != "NASPDU" {
+		t.Errorf("expected ID=NASPDU, got %v", item2.ID)
+	}
+
+	if item2.ID.Value != int(ngapType.ProtocolIEIDNASPDU) {
+		t.Errorf("expected ID value=38, got %d", item2.ID.Value)
 	}
 
 	if item2.Criticality.Label != "Reject" {

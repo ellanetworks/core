@@ -15,43 +15,47 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := ngap.DecodeNGAPMessage(raw)
+	ngapMsg, err := ngap.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
 
-	if ngap.SuccessfulOutcome == nil {
+	if ngapMsg.SuccessfulOutcome == nil {
 		t.Fatalf("expected SuccessfulOutcome, got nil")
 	}
 
-	if ngap.SuccessfulOutcome.ProcedureCode.Label != "NGSetup" {
-		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngap.SuccessfulOutcome.ProcedureCode)
+	if ngapMsg.SuccessfulOutcome.ProcedureCode.Label != "NGSetup" {
+		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.SuccessfulOutcome.ProcedureCode)
 	}
 
-	if ngap.SuccessfulOutcome.ProcedureCode.Value != int(ngapType.ProcedureCodeNGSetup) {
-		t.Errorf("expected ProcedureCode value=1, got %d", ngap.SuccessfulOutcome.ProcedureCode.Value)
+	if ngapMsg.SuccessfulOutcome.ProcedureCode.Value != int(ngapType.ProcedureCodeNGSetup) {
+		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.SuccessfulOutcome.ProcedureCode.Value)
 	}
 
-	if ngap.SuccessfulOutcome.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", ngap.SuccessfulOutcome.Criticality)
+	if ngapMsg.SuccessfulOutcome.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.SuccessfulOutcome.Criticality)
 	}
 
-	if ngap.SuccessfulOutcome.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", ngap.SuccessfulOutcome.Criticality.Value)
+	if ngapMsg.SuccessfulOutcome.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", ngapMsg.SuccessfulOutcome.Criticality.Value)
 	}
 
-	if ngap.SuccessfulOutcome.Value.NGSetupResponse == nil {
+	if ngapMsg.SuccessfulOutcome.Value.NGSetupResponse == nil {
 		t.Fatalf("expected NGSetupResponse, got nil")
 	}
 
-	if len(ngap.SuccessfulOutcome.Value.NGSetupResponse.IEs) != 4 {
-		t.Errorf("expected 4 ProtocolIEs, got %d", len(ngap.SuccessfulOutcome.Value.NGSetupResponse.IEs))
+	if len(ngapMsg.SuccessfulOutcome.Value.NGSetupResponse.IEs) != 4 {
+		t.Errorf("expected 4 ProtocolIEs, got %d", len(ngapMsg.SuccessfulOutcome.Value.NGSetupResponse.IEs))
 	}
 
-	item0 := ngap.SuccessfulOutcome.Value.NGSetupResponse.IEs[0]
+	item0 := ngapMsg.SuccessfulOutcome.Value.NGSetupResponse.IEs[0]
 
-	if item0.ID != "AMFName (1)" {
-		t.Errorf("expected ID=AMFName (1), got %s", item0.ID)
+	if item0.ID.Label != "AMFName" {
+		t.Errorf("expected ID=AMFName, got %s", item0.ID.Label)
+	}
+
+	if item0.ID.Value != int(ngapType.ProtocolIEIDAMFName) {
+		t.Errorf("expected ID value=1, got %d", item0.ID.Value)
 	}
 
 	if item0.Criticality.Label != "Reject" {
@@ -62,18 +66,27 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
 	}
 
-	if item0.AMFName == nil {
+	amfName, ok := item0.Value.(*string)
+	if !ok {
+		t.Fatalf("expected AMFName, got %T", item0.Value)
+	}
+
+	if amfName == nil {
 		t.Fatalf("expected AMFName, got nil")
 	}
 
-	if *item0.AMFName != "amf" {
-		t.Errorf("expected AMFName=amf, got %s", *item0.AMFName)
+	if *amfName != "amf" {
+		t.Errorf("expected AMFName=amf, got %s", *amfName)
 	}
 
-	item1 := ngap.SuccessfulOutcome.Value.NGSetupResponse.IEs[1]
+	item1 := ngapMsg.SuccessfulOutcome.Value.NGSetupResponse.IEs[1]
 
-	if item1.ID != "ServedGUAMIList (96)" {
-		t.Errorf("expected ID=ServedGUAMIList (96), got %s", item1.ID)
+	if item1.ID.Label != "ServedGUAMIList" {
+		t.Errorf("expected ID=ServedGUAMIList, got %s", item1.ID.Label)
+	}
+
+	if item1.ID.Value != int(ngapType.ProtocolIEIDServedGUAMIList) {
+		t.Errorf("expected ID value=96, got %d", item1.ID.Value)
 	}
 
 	if item1.Criticality.Label != "Reject" {
@@ -84,15 +97,20 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item1.Criticality.Value)
 	}
 
-	if item1.ServedGUAMIList == nil {
+	servedGUAMIList, ok := item1.Value.([]ngap.Guami)
+	if !ok {
+		t.Fatalf("expected ServedGUAMIList, got %T", item1.Value)
+	}
+
+	if servedGUAMIList == nil {
 		t.Fatalf("expected ServedGUAMIList, got nil")
 	}
 
-	if len(item1.ServedGUAMIList) != 1 {
-		t.Fatalf("expected 1 GUAMI, got %d", len(item1.ServedGUAMIList))
+	if len(servedGUAMIList) != 1 {
+		t.Fatalf("expected 1 GUAMI, got %d", len(servedGUAMIList))
 	}
 
-	guami := item1.ServedGUAMIList[0]
+	guami := servedGUAMIList[0]
 
 	if guami.PLMNID.Mcc != "001" {
 		t.Errorf("expected PLMNID.Mcc=001, got %s", guami.PLMNID.Mcc)
@@ -106,10 +124,14 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected AMFID=cafe00, got %s", guami.AMFID)
 	}
 
-	item2 := ngap.SuccessfulOutcome.Value.NGSetupResponse.IEs[2]
+	item2 := ngapMsg.SuccessfulOutcome.Value.NGSetupResponse.IEs[2]
 
-	if item2.ID != "RelativeAMFCapacity (86)" {
-		t.Errorf("expected ID=RelativeAMFCapacity (86), got %s", item2.ID)
+	if item2.ID.Label != "RelativeAMFCapacity" {
+		t.Errorf("expected ID=RelativeAMFCapacity, got %s", item2.ID.Label)
+	}
+
+	if item2.ID.Value != int(ngapType.ProtocolIEIDRelativeAMFCapacity) {
+		t.Errorf("expected ID value=86, got %d", item2.ID.Value)
 	}
 
 	if item2.Criticality.Label != "Ignore" {
@@ -120,18 +142,27 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item2.Criticality.Value)
 	}
 
-	if item2.RelativeAMFCapacity == nil {
+	relativeAMFCapacity, ok := item2.Value.(*int64)
+	if !ok {
+		t.Fatalf("expected RelativeAMFCapacity, got %T", item2.Value)
+	}
+
+	if relativeAMFCapacity == nil {
 		t.Fatalf("expected RelativeAMFCapacity, got nil")
 	}
 
-	if *item2.RelativeAMFCapacity != 255 {
-		t.Errorf("expected RelativeAMFCapacity=255, got %d", *item2.RelativeAMFCapacity)
+	if *relativeAMFCapacity != 255 {
+		t.Errorf("expected RelativeAMFCapacity=255, got %d", *relativeAMFCapacity)
 	}
 
-	item3 := ngap.SuccessfulOutcome.Value.NGSetupResponse.IEs[3]
+	item3 := ngapMsg.SuccessfulOutcome.Value.NGSetupResponse.IEs[3]
 
-	if item3.ID != "PLMNSupportList (80)" {
-		t.Errorf("expected ID=PLMNSupportList (80), got %s", item3.ID)
+	if item3.ID.Label != "PLMNSupportList" {
+		t.Errorf("expected ID=PLMNSupportList, got %s", item3.ID.Label)
+	}
+
+	if item3.ID.Value != int(ngapType.ProtocolIEIDPLMNSupportList) {
+		t.Errorf("expected ID value=80, got %d", item3.ID.Value)
 	}
 
 	if item3.Criticality.Label != "Reject" {
@@ -142,15 +173,20 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item3.Criticality.Value)
 	}
 
-	if item3.PLMNSupportList == nil {
+	plmnSupportList, ok := item3.Value.([]ngap.PLMN)
+	if !ok {
+		t.Fatalf("expected PLMNSupportList, got %T", item3.Value)
+	}
+
+	if plmnSupportList == nil {
 		t.Fatalf("expected PLMNSupportList, got nil")
 	}
 
-	if len(item3.PLMNSupportList) != 1 {
-		t.Fatalf("expected 1 PLMNSupportItem, got %d", len(item3.PLMNSupportList))
+	if len(plmnSupportList) != 1 {
+		t.Fatalf("expected 1 PLMNSupportItem, got %d", len(plmnSupportList))
 	}
 
-	plmnItem := item3.PLMNSupportList[0]
+	plmnItem := plmnSupportList[0]
 
 	if plmnItem.PLMNID.Mcc != "001" {
 		t.Errorf("expected Mcc=001, got %s", plmnItem.PLMNID.Mcc)

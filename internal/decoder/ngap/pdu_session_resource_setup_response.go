@@ -1,9 +1,9 @@
 package ngap
 
 import (
-	"github.com/ellanetworks/core/internal/logger"
+	"fmt"
+
 	"github.com/omec-project/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 type PDUSessionResourceSetupResponse struct {
@@ -22,40 +22,42 @@ func buildPDUSessionResourceSetupResponse(pduSessionResourceSetupResponse *ngapT
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			psrs.IEs = append(psrs.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			psrs.IEs = append(psrs.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes:
 			psrs.IEs = append(psrs.IEs, IE{
-				ID:                               protocolIEIDToString(ie.Id.Value),
+				ID:                               protocolIEIDToEnum(ie.Id.Value),
 				Criticality:                      criticalityToEnum(ie.Criticality.Value),
 				PDUSessionResourceSetupListSURes: buildPDUSessionResourceSetupListSUResIE(ie.Value.PDUSessionResourceSetupListSURes),
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListSURes:
 			psrs.IEs = append(psrs.IEs, IE{
-				ID:                                       protocolIEIDToString(ie.Id.Value),
+				ID:                                       protocolIEIDToEnum(ie.Id.Value),
 				Criticality:                              criticalityToEnum(ie.Criticality.Value),
 				PDUSessionResourceFailedToSetupListSURes: buildPDUSessionResourceFailedToSetupListSUResIE(ie.Value.PDUSessionResourceFailedToSetupListSURes),
 			})
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			psrs.IEs = append(psrs.IEs, IE{
-				ID:                     protocolIEIDToString(ie.Id.Value),
-				Criticality:            criticalityToEnum(ie.Criticality.Value),
-				CriticalityDiagnostics: buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
 			})
 		default:
 			psrs.IEs = append(psrs.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value: UnknownIE{
+					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
+				},
 			})
-			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}
 	}
 

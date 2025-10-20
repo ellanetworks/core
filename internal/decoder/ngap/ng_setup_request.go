@@ -4,10 +4,38 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap/ngapType"
-	"go.uber.org/zap"
 )
+
+type NGSetupRequest struct {
+	IEs []IE `json:"ies"`
+}
+
+type SNSSAI struct {
+	SST int32   `json:"sst"`
+	SD  *string `json:"sd,omitempty"`
+}
+
+type GlobalRANNodeIDIE struct {
+	GlobalGNBID   string `json:"global_gnb_id,omitempty"`
+	GlobalNgENBID string `json:"global_ng_enb_id,omitempty"`
+	GlobalN3IWFID string `json:"global_n3iwf_id,omitempty"`
+}
+
+type SupportedTA struct {
+	TAC               string `json:"tac"`
+	BroadcastPLMNList []PLMN `json:"broadcast_plmn_list,omitempty"`
+}
+
+type PLMNID struct {
+	Mcc string `json:"mcc"`
+	Mnc string `json:"mnc"`
+}
+
+type PLMN struct {
+	PLMNID           PLMNID   `json:"plmn_id"`
+	SliceSupportList []SNSSAI `json:"slice_support_list,omitempty"`
+}
 
 func buildGlobalRANNodeIDIE(grn *ngapType.GlobalRANNodeID) *GlobalRANNodeIDIE {
 	if grn == nil {
@@ -79,27 +107,23 @@ func buildRanNodeNameIE(rnn *ngapType.RANNodeName) *string {
 	return &s
 }
 
-func buildDefaultPagingDRXIE(dpd *ngapType.PagingDRX) *string {
+func buildDefaultPagingDRXIE(dpd *ngapType.PagingDRX) *EnumField {
 	if dpd == nil {
 		return nil
 	}
 
 	switch dpd.Value {
 	case ngapType.PagingDRXPresentV32:
-		return strPtr("v32")
+		return &EnumField{Label: "v32", Value: int(dpd.Value)}
 	case ngapType.PagingDRXPresentV64:
-		return strPtr("v64")
+		return &EnumField{Label: "v64", Value: int(dpd.Value)}
 	case ngapType.PagingDRXPresentV128:
-		return strPtr("v128")
+		return &EnumField{Label: "v128", Value: int(dpd.Value)}
 	case ngapType.PagingDRXPresentV256:
-		return strPtr("v256")
+		return &EnumField{Label: "v256", Value: int(dpd.Value)}
 	default:
-		return strPtr(fmt.Sprintf("Unknown (%d)", dpd.Value))
+		return &EnumField{Label: "Unknown", Value: int(dpd.Value)}
 	}
-}
-
-type NGSetupRequest struct {
-	IEs []IE `json:"ies"`
 }
 
 func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupRequest {
@@ -115,55 +139,57 @@ func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupReques
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDGlobalRANNodeID:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				ID:              protocolIEIDToString(ie.Id.Value),
-				Criticality:     criticalityToEnum(ie.Criticality.Value),
-				GlobalRANNodeID: buildGlobalRANNodeIDIE(ie.Value.GlobalRANNodeID),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildGlobalRANNodeIDIE(ie.Value.GlobalRANNodeID),
 			})
 		case ngapType.ProtocolIEIDSupportedTAList:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				ID:              protocolIEIDToString(ie.Id.Value),
-				Criticality:     criticalityToEnum(ie.Criticality.Value),
-				SupportedTAList: buildSupportedTAListIE(ie.Value.SupportedTAList),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildSupportedTAListIE(ie.Value.SupportedTAList),
 			})
 		case ngapType.ProtocolIEIDRANNodeName:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				RANNodeName: buildRanNodeNameIE(ie.Value.RANNodeName),
+				Value:       buildRanNodeNameIE(ie.Value.RANNodeName),
 			})
 		case ngapType.ProtocolIEIDDefaultPagingDRX:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				ID:               protocolIEIDToString(ie.Id.Value),
-				Criticality:      criticalityToEnum(ie.Criticality.Value),
-				DefaultPagingDRX: buildDefaultPagingDRXIE(ie.Value.DefaultPagingDRX),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildDefaultPagingDRXIE(ie.Value.DefaultPagingDRX),
 			})
 		case ngapType.ProtocolIEIDUERetentionInformation:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				ID:                     protocolIEIDToString(ie.Id.Value),
-				Criticality:            criticalityToEnum(ie.Criticality.Value),
-				UERetentionInformation: buildUERetentionInformationIE(ie.Value.UERetentionInformation),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildUERetentionInformationIE(ie.Value.UERetentionInformation),
 			})
 		default:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value: UnknownIE{
+					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
+				},
 			})
-			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}
 	}
 
 	return ngSetup
 }
 
-func buildUERetentionInformationIE(uri *ngapType.UERetentionInformation) *string {
+func buildUERetentionInformationIE(uri *ngapType.UERetentionInformation) *EnumField {
 	if uri == nil {
 		return nil
 	}
 
 	switch uri.Value {
 	case ngapType.UERetentionInformationPresentUesRetained:
-		return strPtr("present")
+		return &EnumField{Label: "present", Value: int(uri.Value)}
 	default:
-		return strPtr(fmt.Sprintf("unknown (%d)", uri.Value))
+		return &EnumField{Label: "unknown ", Value: int(uri.Value)}
 	}
 }

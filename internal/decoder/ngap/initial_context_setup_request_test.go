@@ -50,8 +50,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 
 	item0 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[0]
 
-	if item0.ID != "AMFUENGAPID (10)" {
-		t.Errorf("expected ID=AMFUENGAPID (10), got %s", item0.ID)
+	if item0.ID.Label != "AMFUENGAPID" {
+		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
+	}
+
+	if item0.ID.Value != int(ngapType.ProtocolIEIDAMFUENGAPID) {
+		t.Errorf("expected ID value=85, got %d", item0.ID.Value)
 	}
 
 	if item0.Criticality.Label != "Reject" {
@@ -72,8 +76,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 
 	item1 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[1]
 
-	if item1.ID != "RANUENGAPID (85)" {
-		t.Errorf("expected ID=RANUENGAPID (85), got %s", item1.ID)
+	if item1.ID.Label != "RANUENGAPID" {
+		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
+	}
+
+	if item1.ID.Value != int(ngapType.ProtocolIEIDRANUENGAPID) {
+		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
 	}
 
 	if item1.Criticality.Label != "Reject" {
@@ -94,8 +102,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 
 	item2 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[2]
 
-	if item2.ID != "GUAMI (28)" {
-		t.Errorf("expected ID=GUAMI (28), got %s", item2.ID)
+	if item2.ID.Label != "GUAMI" {
+		t.Errorf("expected ID=GUAMI, got %s", item2.ID.Label)
+	}
+
+	if item2.ID.Value != int(ngapType.ProtocolIEIDGUAMI) {
+		t.Errorf("expected ID value=0, got %d", item2.ID.Value)
 	}
 
 	if item2.Criticality.Label != "Reject" {
@@ -124,8 +136,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 
 	item3 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[3]
 
-	if item3.ID != "AllowedNSSAI (0)" {
-		t.Errorf("expected ID=AllowedNSSAI (0), got %s", item3.ID)
+	if item3.ID.Label != "AllowedNSSAI" {
+		t.Errorf("expected ID=AllowedNSSAI, got %s", item3.ID.Label)
+	}
+
+	if item3.ID.Value != int(ngapType.ProtocolIEIDAllowedNSSAI) {
+		t.Errorf("expected ID value=0, got %d", item3.ID.Value)
 	}
 
 	if item3.Criticality.Label != "Reject" {
@@ -156,8 +172,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 
 	item4 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[4]
 
-	if item4.ID != "UESecurityCapabilities (119)" {
-		t.Errorf("expected ID=UESecurityCapabilities (119), got %s", item4.ID)
+	if item4.ID.Label != "UESecurityCapabilities" {
+		t.Errorf("expected ID=UESecurityCapabilities, got %s", item4.ID.Label)
+	}
+
+	if item4.ID.Value != int(ngapType.ProtocolIEIDUESecurityCapabilities) {
+		t.Errorf("expected ID value=93, got %d", item4.ID.Value)
 	}
 
 	if item4.Criticality.Label != "Reject" {
@@ -214,8 +234,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 
 	item5 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[5]
 
-	if item5.ID != "SecurityKey (94)" {
-		t.Errorf("expected ID=SecurityKey (94), got %s", item5.ID)
+	if item5.ID.Label != "SecurityKey" {
+		t.Errorf("expected ID=SecurityKey, got %s", item5.ID.Label)
+	}
+
+	if item5.ID.Value != int(ngapType.ProtocolIEIDSecurityKey) {
+		t.Errorf("expected ID value=96, got %d", item5.ID.Value)
 	}
 
 	if item5.Criticality.Label != "Reject" {
@@ -237,8 +261,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 
 	item6 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[6]
 
-	if item6.ID != "MobilityRestrictionList (36)" {
-		t.Errorf("expected ID=MobilityRestrictionList (36), got %s", item6.ID)
+	if item6.ID.Label != "MobilityRestrictionList" {
+		t.Errorf("expected ID=MobilityRestrictionList, got %v", item6.ID)
+	}
+
+	if item6.ID.Value != int(ngapType.ProtocolIEIDMobilityRestrictionList) {
+		t.Errorf("expected ID value=128, got %d", item6.ID.Value)
 	}
 
 	if item6.Criticality.Label != "Ignore" {
@@ -279,8 +307,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 
 	item7 := ngap.InitiatingMessage.Value.InitialContextSetupRequest.IEs[7]
 
-	if item7.ID != "NASPDU (38)" {
-		t.Errorf("expected ID=NASPDU (38), got %s", item7.ID)
+	if item7.ID.Label != "NASPDU" {
+		t.Errorf("expected ID=NASPDU, got %s", item7.ID.Label)
+	}
+
+	if item7.ID.Value != int(ngapType.ProtocolIEIDNASPDU) {
+		t.Errorf("expected ID value=38, got %d", item7.ID.Value)
 	}
 
 	if item7.Criticality.Label != "Ignore" {

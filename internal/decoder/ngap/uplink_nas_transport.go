@@ -1,6 +1,8 @@
 package ngap
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/decoder/nas"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap/ngapType"
@@ -26,13 +28,13 @@ func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *U
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
@@ -52,22 +54,24 @@ func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *U
 			}
 
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				NASPDU:      nasPdu,
 			})
 		case ngapType.ProtocolIEIDUserLocationInformation:
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:                      protocolIEIDToString(ie.Id.Value),
+				ID:                      protocolIEIDToEnum(ie.Id.Value),
 				Criticality:             criticalityToEnum(ie.Criticality.Value),
 				UserLocationInformation: buildUserLocationInformationIE(ie.Value.UserLocationInformation),
 			})
 		default:
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value: UnknownIE{
+					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
+				},
 			})
-			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}
 	}
 

@@ -50,8 +50,12 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 
 	item0 := ngap.SuccessfulOutcome.Value.InitialContextSetupResponse.IEs[0]
 
-	if item0.ID != "AMFUENGAPID (10)" {
-		t.Errorf("expected ID=AMFUENGAPID (10), got %s", item0.ID)
+	if item0.ID.Label != "AMFUENGAPID" {
+		t.Errorf("expected ID=AMFUENGAPID, got %v", item0.ID)
+	}
+
+	if item0.ID.Value != int(ngapType.ProtocolIEIDAMFUENGAPID) {
+		t.Errorf("expected ID value=10, got %d", item0.ID.Value)
 	}
 
 	if item0.Criticality.Label != "Ignore" {
@@ -72,8 +76,12 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 
 	item1 := ngap.SuccessfulOutcome.Value.InitialContextSetupResponse.IEs[1]
 
-	if item1.ID != "RANUENGAPID (85)" {
-		t.Errorf("expected ID=RANUENGAPID (85), got %s", item1.ID)
+	if item1.ID.Label != "RANUENGAPID" {
+		t.Errorf("expected ID=RANUENGAPID, got %v", item1.ID)
+	}
+
+	if item1.ID.Value != int(ngapType.ProtocolIEIDRANUENGAPID) {
+		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
 	}
 
 	if item1.Criticality.Label != "Ignore" {

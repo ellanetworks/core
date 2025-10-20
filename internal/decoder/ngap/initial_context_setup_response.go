@@ -1,9 +1,9 @@
 package ngap
 
 import (
-	"github.com/ellanetworks/core/internal/logger"
+	"fmt"
+
 	"github.com/omec-project/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 type InitialContextSetupResponse struct {
@@ -22,40 +22,42 @@ func buildInitialContextSetupResponse(initialContextSetupResponse *ngapType.Init
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			icsResponse.IEs = append(icsResponse.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			icsResponse.IEs = append(icsResponse.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtRes:
 			icsResponse.IEs = append(icsResponse.IEs, IE{
-				ID:                                protocolIEIDToString(ie.Id.Value),
+				ID:                                protocolIEIDToEnum(ie.Id.Value),
 				Criticality:                       criticalityToEnum(ie.Criticality.Value),
 				PDUSessionResourceSetupListCxtRes: buildPDUSessionResourceSetupListCxtResIE(ie.Value.PDUSessionResourceSetupListCxtRes),
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtRes:
 			icsResponse.IEs = append(icsResponse.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				PDUSessionResourceFailedToSetupListCxtRes: buildPDUSessionResourceFailedToSetupListCxtResIE(ie.Value.PDUSessionResourceFailedToSetupListCxtRes),
 			})
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			icsResponse.IEs = append(icsResponse.IEs, IE{
-				ID:                     protocolIEIDToString(ie.Id.Value),
-				Criticality:            criticalityToEnum(ie.Criticality.Value),
-				CriticalityDiagnostics: buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
 			})
 		default:
 			icsResponse.IEs = append(icsResponse.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value: UnknownIE{
+					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
+				},
 			})
-			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}
 	}
 

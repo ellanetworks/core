@@ -50,8 +50,12 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 
 	item0 := ngap.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse.IEs[0]
 
-	if item0.ID != "AMFUENGAPID (10)" {
-		t.Errorf("expected ID=AMFUENGAPID (10), got %s", item0.ID)
+	if item0.ID.Label != "AMFUENGAPID" {
+		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
+	}
+
+	if item0.ID.Value != int(ngapType.ProtocolIEIDAMFUENGAPID) {
+		t.Errorf("expected ID value=10, got %d", item0.ID.Value)
 	}
 
 	if item0.Criticality.Label != "Ignore" {
@@ -72,8 +76,12 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 
 	item1 := ngap.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse.IEs[1]
 
-	if item1.ID != "RANUENGAPID (85)" {
-		t.Errorf("expected ID=RANUENGAPID (85), got %s", item1.ID)
+	if item1.ID.Label != "RANUENGAPID" {
+		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
+	}
+
+	if item1.ID.Value != int(ngapType.ProtocolIEIDRANUENGAPID) {
+		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
 	}
 
 	if item1.Criticality.Label != "Ignore" {
@@ -94,8 +102,12 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 
 	item2 := ngap.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse.IEs[2]
 
-	if item2.ID != "PDUSessionResourceSetupListSURes (75)" {
-		t.Errorf("expected ID=PDUSessionResourceSetupListSURes (75), got %s", item2.ID)
+	if item2.ID.Label != "PDUSessionResourceSetupListSURes" {
+		t.Errorf("expected ID=PDUSessionResourceSetupListSURes, got %s", item2.ID.Label)
+	}
+
+	if item2.ID.Value != int(ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes) {
+		t.Errorf("expected ID value=75, got %d", item2.ID.Value)
 	}
 
 	if item2.Criticality.Label != "Ignore" {
@@ -136,8 +148,12 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 
 	item3 := ngap.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse.IEs[3]
 
-	if item3.ID != "UserLocationInformation (121)" {
-		t.Errorf("expected ID=UserLocationInformation (121), got %s", item3.ID)
+	if item3.ID.Label != "UserLocationInformation" {
+		t.Errorf("expected ID=UserLocationInformation, got %v", item3.ID)
+	}
+
+	if item3.ID.Value != int(ngapType.ProtocolIEIDUserLocationInformation) {
+		t.Errorf("expected ID value=121, got %d", item3.ID.Value)
 	}
 
 	if item3.Criticality.Label != "Ignore" {

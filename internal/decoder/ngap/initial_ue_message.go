@@ -24,7 +24,7 @@ func buildInitialUEMessage(initialUEMessage *ngapType.InitialUEMessage) *Initial
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
@@ -38,53 +38,55 @@ func buildInitialUEMessage(initialUEMessage *ngapType.InitialUEMessage) *Initial
 				Decoded: decodednNasPdu,
 			}
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				NASPDU:      nasPdu,
 			})
 		case ngapType.ProtocolIEIDUserLocationInformation:
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:                      protocolIEIDToString(ie.Id.Value),
+				ID:                      protocolIEIDToEnum(ie.Id.Value),
 				Criticality:             criticalityToEnum(ie.Criticality.Value),
 				UserLocationInformation: buildUserLocationInformationIE(ie.Value.UserLocationInformation),
 			})
 		case ngapType.ProtocolIEIDRRCEstablishmentCause:
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:                    protocolIEIDToString(ie.Id.Value),
+				ID:                    protocolIEIDToEnum(ie.Id.Value),
 				Criticality:           criticalityToEnum(ie.Criticality.Value),
 				RRCEstablishmentCause: buildRRCEstablishmentCauseIE(ie.Value.RRCEstablishmentCause),
 			})
 		case ngapType.ProtocolIEIDFiveGSTMSI:
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				FiveGSTMSI:  buildFiveGSTMSIIE(ie.Value.FiveGSTMSI),
 			})
 		case ngapType.ProtocolIEIDAMFSetID:
 			amfSetID := bitStringToHex(&ie.Value.AMFSetID.Value)
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				AMFSetID:    &amfSetID,
 			})
 		case ngapType.ProtocolIEIDUEContextRequest:
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:               protocolIEIDToString(ie.Id.Value),
+				ID:               protocolIEIDToEnum(ie.Id.Value),
 				Criticality:      criticalityToEnum(ie.Criticality.Value),
 				UEContextRequest: buildUEContextRequestIE(ie.Value.UEContextRequest),
 			})
 		case ngapType.ProtocolIEIDAllowedNSSAI:
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:           protocolIEIDToString(ie.Id.Value),
+				ID:           protocolIEIDToEnum(ie.Id.Value),
 				Criticality:  criticalityToEnum(ie.Criticality.Value),
 				AllowedNSSAI: buildAllowedNSSAI(ie.Value.AllowedNSSAI),
 			})
 		default:
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value: UnknownIE{
+					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
+				},
 			})
-			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}
 	}
 

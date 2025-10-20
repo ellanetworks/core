@@ -2,6 +2,7 @@ package ngap
 
 import (
 	"encoding/hex"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
 	"github.com/ellanetworks/core/internal/logger"
@@ -24,19 +25,19 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				RANUENGAPID: &ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANPagingPriority:
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:                protocolIEIDToString(ie.Id.Value),
+				ID:                protocolIEIDToEnum(ie.Id.Value),
 				Criticality:       criticalityToEnum(ie.Criticality.Value),
 				RANPagingPriority: &ie.Value.RANPagingPriority.Value,
 			})
@@ -56,7 +57,7 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 			}
 
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				NASPDU:      nasPdu,
 			})
@@ -66,13 +67,13 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 				Direction:   nas.DirDownlink,
 			}
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:                               protocolIEIDToString(ie.Id.Value),
+				ID:                               protocolIEIDToEnum(ie.Id.Value),
 				Criticality:                      criticalityToEnum(ie.Criticality.Value),
 				PDUSessionResourceSetupListSUReq: buildPDUSessionResourceSetupListSUReq(ie.Value.PDUSessionResourceSetupListSUReq, nasContextInfo),
 			})
 		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
 			ieList.IEs = append(ieList.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				UEAggregateMaximumBitRate: &UEAggregateMaximumBitRate{
 					Downlink: ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value,
@@ -80,7 +81,13 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 				},
 			})
 		default:
-			logger.EllaLog.Warn("Unsupported IE in PDUSessionResourceSetupRequest", zap.Int64("id", ie.Id.Value))
+			ieList.IEs = append(ieList.IEs, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value: UnknownIE{
+					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
+				},
+			})
 		}
 	}
 

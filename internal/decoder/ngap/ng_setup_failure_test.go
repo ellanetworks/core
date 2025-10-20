@@ -15,43 +15,47 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := ngap.DecodeNGAPMessage(raw)
+	ngapMsg, err := ngap.DecodeNGAPMessage(raw)
 	if err != nil {
 		t.Fatalf("failed to decode NGAP message: %v", err)
 	}
 
-	if ngap.UnsuccessfulOutcome == nil {
+	if ngapMsg.UnsuccessfulOutcome == nil {
 		t.Fatalf("expected UnsuccessfulOutcome, got nil")
 	}
 
-	if ngap.UnsuccessfulOutcome.ProcedureCode.Label != "NGSetup" {
-		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngap.UnsuccessfulOutcome.ProcedureCode)
+	if ngapMsg.UnsuccessfulOutcome.ProcedureCode.Label != "NGSetup" {
+		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.UnsuccessfulOutcome.ProcedureCode)
 	}
 
-	if ngap.UnsuccessfulOutcome.ProcedureCode.Value != int(ngapType.ProcedureCodeNGSetup) {
-		t.Errorf("expected ProcedureCode value=1, got %d", ngap.UnsuccessfulOutcome.ProcedureCode.Value)
+	if ngapMsg.UnsuccessfulOutcome.ProcedureCode.Value != int(ngapType.ProcedureCodeNGSetup) {
+		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.UnsuccessfulOutcome.ProcedureCode.Value)
 	}
 
-	if ngap.UnsuccessfulOutcome.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", ngap.UnsuccessfulOutcome.Criticality)
+	if ngapMsg.UnsuccessfulOutcome.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.UnsuccessfulOutcome.Criticality)
 	}
 
-	if ngap.UnsuccessfulOutcome.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", ngap.UnsuccessfulOutcome.Criticality.Value)
+	if ngapMsg.UnsuccessfulOutcome.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", ngapMsg.UnsuccessfulOutcome.Criticality.Value)
 	}
 
-	if ngap.UnsuccessfulOutcome.Value.NGSetupFailure == nil {
+	if ngapMsg.UnsuccessfulOutcome.Value.NGSetupFailure == nil {
 		t.Fatalf("expected NGSetupFailure, got nil")
 	}
 
-	if len(ngap.UnsuccessfulOutcome.Value.NGSetupFailure.IEs) != 1 {
-		t.Errorf("expected 1 ProtocolIEs, got %d", len(ngap.UnsuccessfulOutcome.Value.NGSetupFailure.IEs))
+	if len(ngapMsg.UnsuccessfulOutcome.Value.NGSetupFailure.IEs) != 1 {
+		t.Errorf("expected 1 ProtocolIEs, got %d", len(ngapMsg.UnsuccessfulOutcome.Value.NGSetupFailure.IEs))
 	}
 
-	item0 := ngap.UnsuccessfulOutcome.Value.NGSetupFailure.IEs[0]
+	item0 := ngapMsg.UnsuccessfulOutcome.Value.NGSetupFailure.IEs[0]
 
-	if item0.ID != "Cause (15)" {
-		t.Errorf("expected ID=Cause (15), got %s", item0.ID)
+	if item0.ID.Label != "Cause" {
+		t.Errorf("expected ID=Cause, got %v", item0.ID)
+	}
+
+	if item0.ID.Value != int(ngapType.ProtocolIEIDCause) {
+		t.Errorf("expected ID value=15, got %d", item0.ID.Value)
 	}
 
 	if item0.Criticality.Label != "Ignore" {
@@ -62,11 +66,16 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
 	}
 
-	if item0.Cause == nil {
-		t.Fatalf("expected Cause, got nil")
+	cause, ok := item0.Value.(ngap.EnumField)
+	if !ok {
+		t.Fatalf("expected Cause, got %T", item0.Value)
 	}
 
-	if *item0.Cause != "UnknownPLMN (4)" {
-		t.Errorf("expected Cause=UnknownPLMN (4), got %s", *item0.Cause)
+	if cause.Label != "UnknownPLMN" {
+		t.Errorf("expected Cause=UnknownPLMN, got %v", cause.Label)
+	}
+
+	if cause.Value != int(ngapType.CauseMiscPresentUnknownPLMN) {
+		t.Errorf("expected Cause value=%d, got %d", ngapType.CauseMiscPresentUnknownPLMN, cause.Value)
 	}
 }

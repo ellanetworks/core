@@ -11,6 +11,12 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
+const ntpToUnixOffset = 2208988800 // seconds between 1900-01-01 and 1970-01-01
+
+type UnknownIE struct {
+	Reason string `json:"reason"`
+}
+
 func timeStampToRFC3339(timeStampNgap aper.OctetString) (string, error) {
 	if len(timeStampNgap) != 4 {
 		return "", fmt.Errorf("invalid NGAP timestamp length: got %d, want 4", len(timeStampNgap))
@@ -20,10 +26,6 @@ func timeStampToRFC3339(timeStampNgap aper.OctetString) (string, error) {
 	unixSeconds := int64(ntpSeconds) - ntpToUnixOffset
 	t := time.Unix(unixSeconds, 0).UTC()
 	return t.Format(time.RFC3339), nil
-}
-
-func strPtr(s string) *string {
-	return &s
 }
 
 func bitStringToHex(bitString *aper.BitString) string {
@@ -49,533 +51,533 @@ func plmnIDToModels(ngapPlmnID ngapType.PLMNIdentity) PLMNID {
 	return modelsPlmnid
 }
 
-func protocolIEIDToString(id int64) string {
+func protocolIEIDToEnum(id int64) EnumField {
 	switch id {
 	case ngapType.ProtocolIEIDAllowedNSSAI:
-		return "AllowedNSSAI (0)"
+		return EnumField{Label: "AllowedNSSAI", Value: int(id)}
 	case ngapType.ProtocolIEIDAMFName:
-		return "AMFName (1)"
+		return EnumField{Label: "AMFName", Value: int(id)}
 	case ngapType.ProtocolIEIDAMFOverloadResponse:
-		return "AMFOverloadResponse (2)"
+		return EnumField{Label: "AMFOverloadResponse", Value: int(id)}
 	case ngapType.ProtocolIEIDAMFSetID:
-		return "AMFSetID (3)"
+		return EnumField{Label: "AMFSetID", Value: int(id)}
 	case ngapType.ProtocolIEIDAMFTNLAssociationFailedToSetupList:
-		return "AMFTNLAssociationFailedToSetupList (4)"
+		return EnumField{Label: "AMFTNLAssociationFailedToSetupList", Value: int(id)}
 	case ngapType.ProtocolIEIDAMFTNLAssociationSetupList:
-		return "AMFTNLAssociationSetupList (5)"
+		return EnumField{Label: "AMFTNLAssociationSetupList", Value: int(id)}
 	case ngapType.ProtocolIEIDAMFTNLAssociationToAddList:
-		return "AMFTNLAssociationToAddList (6)"
+		return EnumField{Label: "AMFTNLAssociationToAddList", Value: int(id)}
 	case ngapType.ProtocolIEIDAMFTNLAssociationToRemoveList:
-		return "AMFTNLAssociationToRemoveList (7)"
+		return EnumField{Label: "AMFTNLAssociationToRemoveList", Value: int(id)}
 	case ngapType.ProtocolIEIDAMFTNLAssociationToUpdateList:
-		return "AMFTNLAssociationToUpdateList (8)"
+		return EnumField{Label: "AMFTNLAssociationToUpdateList", Value: int(id)}
 	case ngapType.ProtocolIEIDAMFTrafficLoadReductionIndication:
-		return "AMFTrafficLoadReductionIndication (9)"
+		return EnumField{Label: "AMFTrafficLoadReductionIndication", Value: int(id)}
 	case ngapType.ProtocolIEIDAMFUENGAPID:
-		return "AMFUENGAPID (10)"
+		return EnumField{Label: "AMFUENGAPID", Value: int(id)}
 	case ngapType.ProtocolIEIDAssistanceDataForPaging:
-		return "AssistanceDataForPaging (11)"
+		return EnumField{Label: "AssistanceDataForPaging", Value: int(id)}
 	case ngapType.ProtocolIEIDBroadcastCancelledAreaList:
-		return "BroadcastCancelledAreaList (12)"
+		return EnumField{Label: "BroadcastCancelledAreaList", Value: int(id)}
 	case ngapType.ProtocolIEIDBroadcastCompletedAreaList:
-		return "BroadcastCompletedAreaList (13)"
+		return EnumField{Label: "BroadcastCompletedAreaList", Value: int(id)}
 	case ngapType.ProtocolIEIDCancelAllWarningMessages:
-		return "CancelAllWarningMessages (14)"
+		return EnumField{Label: "CancelAllWarningMessages", Value: int(id)}
 	case ngapType.ProtocolIEIDCause:
-		return "Cause (15)"
+		return EnumField{Label: "Cause", Value: int(id)}
 	case ngapType.ProtocolIEIDCellIDListForRestart:
-		return "CellIDListForRestart (16)"
+		return EnumField{Label: "CellIDListForRestart", Value: int(id)}
 	case ngapType.ProtocolIEIDConcurrentWarningMessageInd:
-		return "ConcurrentWarningMessageInd (17)"
+		return EnumField{Label: "ConcurrentWarningMessageInd", Value: int(id)}
 	case ngapType.ProtocolIEIDCoreNetworkAssistanceInformation:
-		return "CoreNetworkAssistanceInformation (18)"
+		return EnumField{Label: "CoreNetworkAssistanceInformation", Value: int(id)}
 	case ngapType.ProtocolIEIDCriticalityDiagnostics:
-		return "CriticalityDiagnostics (19)"
+		return EnumField{Label: "CriticalityDiagnostics", Value: int(id)}
 	case ngapType.ProtocolIEIDDataCodingScheme:
-		return "DataCodingScheme (20)"
+		return EnumField{Label: "DataCodingScheme", Value: int(id)}
 	case ngapType.ProtocolIEIDDefaultPagingDRX:
-		return "DefaultPagingDRX (21)"
+		return EnumField{Label: "DefaultPagingDRX", Value: int(id)}
 	case ngapType.ProtocolIEIDDirectForwardingPathAvailability:
-		return "DirectForwardingPathAvailability (22)"
+		return EnumField{Label: "DirectForwardingPathAvailability", Value: int(id)}
 	case ngapType.ProtocolIEIDEmergencyAreaIDListForRestart:
-		return "EmergencyAreaIDListForRestart (23)"
+		return EnumField{Label: "EmergencyAreaIDListForRestart", Value: int(id)}
 	case ngapType.ProtocolIEIDEmergencyFallbackIndicator:
-		return "EmergencyFallbackIndicator (24)"
+		return EnumField{Label: "EmergencyFallbackIndicator", Value: int(id)}
 	case ngapType.ProtocolIEIDEUTRACGI:
-		return "EUTRACGI (25)"
+		return EnumField{Label: "EUTRACGI", Value: int(id)}
 	case ngapType.ProtocolIEIDFiveGSTMSI:
-		return "FiveGSTMSI (26)"
+		return EnumField{Label: "FiveGSTMSI", Value: int(id)}
 	case ngapType.ProtocolIEIDGlobalRANNodeID:
-		return "GlobalRANNodeID (27)"
+		return EnumField{Label: "GlobalRANNodeID", Value: int(id)}
 	case ngapType.ProtocolIEIDGUAMI:
-		return "GUAMI (28)"
+		return EnumField{Label: "GUAMI", Value: int(id)}
 	case ngapType.ProtocolIEIDHandoverType:
-		return "HandoverType (29)"
+		return EnumField{Label: "HandoverType", Value: int(id)}
 	case ngapType.ProtocolIEIDIMSVoiceSupportIndicator:
-		return "IMSVoiceSupportIndicator (30)"
+		return EnumField{Label: "IMSVoiceSupportIndicator", Value: int(id)}
 	case ngapType.ProtocolIEIDIndexToRFSP:
-		return "IndexToRFSP (31)"
+		return EnumField{Label: "IndexToRFSP", Value: int(id)}
 	case ngapType.ProtocolIEIDInfoOnRecommendedCellsAndRANNodesForPaging:
-		return "InfoOnRecommendedCellsAndRANNodesForPaging (32)"
+		return EnumField{Label: "InfoOnRecommendedCellsAndRANNodesForPaging", Value: int(id)}
 	case ngapType.ProtocolIEIDLocationReportingRequestType:
-		return "LocationReportingRequestType (33)"
+		return EnumField{Label: "LocationReportingRequestType", Value: int(id)}
 	case ngapType.ProtocolIEIDMaskedIMEISV:
-		return "MaskedIMEISV (34)"
+		return EnumField{Label: "MaskedIMEISV", Value: int(id)}
 	case ngapType.ProtocolIEIDMessageIdentifier:
-		return "MessageIdentifier (35)"
+		return EnumField{Label: "MessageIdentifier", Value: int(id)}
 	case ngapType.ProtocolIEIDMobilityRestrictionList:
-		return "MobilityRestrictionList (36)"
+		return EnumField{Label: "MobilityRestrictionList", Value: int(id)}
 	case ngapType.ProtocolIEIDNASC:
-		return "NASC (37)"
+		return EnumField{Label: "NASC", Value: int(id)}
 	case ngapType.ProtocolIEIDNASPDU:
-		return "NASPDU (38)"
+		return EnumField{Label: "NASPDU", Value: int(id)}
 	case ngapType.ProtocolIEIDNASSecurityParametersFromNGRAN:
-		return "NASSecurityParametersFromNGRAN (39)"
+		return EnumField{Label: "NASSecurityParametersFromNGRAN", Value: int(id)}
 	case ngapType.ProtocolIEIDNewAMFUENGAPID:
-		return "NewAMFUENGAPID (40)"
+		return EnumField{Label: "NewAMFUENGAPID", Value: int(id)}
 	case ngapType.ProtocolIEIDNewSecurityContextInd:
-		return "NewSecurityContextInd (41)"
+		return EnumField{Label: "NewSecurityContextInd", Value: int(id)}
 	case ngapType.ProtocolIEIDNGAPMessage:
-		return "NGAPMessage (42)"
+		return EnumField{Label: "NGAPMessage", Value: int(id)}
 	case ngapType.ProtocolIEIDNGRANCGI:
-		return "NGRANCGI (43)"
+		return EnumField{Label: "NGRANCGI", Value: int(id)}
 	case ngapType.ProtocolIEIDNGRANTraceID:
-		return "NGRANTraceID (44)"
+		return EnumField{Label: "NGRANTraceID", Value: int(id)}
 	case ngapType.ProtocolIEIDNRCGI:
-		return "NRCGI (45)"
+		return EnumField{Label: "NRCGI", Value: int(id)}
 	case ngapType.ProtocolIEIDNRPPaPDU:
-		return "NRPPaPDU (46)"
+		return EnumField{Label: "NRPPaPDU", Value: int(id)}
 	case ngapType.ProtocolIEIDNumberOfBroadcastsRequested:
-		return "NumberOfBroadcastsRequested (47)"
+		return EnumField{Label: "NumberOfBroadcastsRequested", Value: int(id)}
 	case ngapType.ProtocolIEIDOldAMF:
-		return "OldAMF (48)"
+		return EnumField{Label: "OldAMF", Value: int(id)}
 	case ngapType.ProtocolIEIDOverloadStartNSSAIList:
-		return "OverloadStartNSSAIList (49)"
+		return EnumField{Label: "OverloadStartNSSAIList", Value: int(id)}
 	case ngapType.ProtocolIEIDPagingDRX:
-		return "PagingDRX (50)"
+		return EnumField{Label: "PagingDRX", Value: int(id)}
 	case ngapType.ProtocolIEIDPagingOrigin:
-		return "PagingOrigin (51)"
+		return EnumField{Label: "PagingOrigin", Value: int(id)}
 	case ngapType.ProtocolIEIDPagingPriority:
-		return "PagingPriority (52)"
+		return EnumField{Label: "PagingPriority", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceAdmittedList:
-		return "PDUSessionResourceAdmittedList (53)"
+		return EnumField{Label: "PDUSessionResourceAdmittedList", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToModifyListModRes:
-		return "PDUSessionResourceFailedToModifyListModRes (54)"
+		return EnumField{Label: "PDUSessionResourceFailedToModifyListModRes", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtRes:
-		return "PDUSessionResourceFailedToSetupListCxtRes (55)"
+		return EnumField{Label: "PDUSessionResourceFailedToSetupListCxtRes", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListHOAck:
-		return "PDUSessionResourceFailedToSetupListHOAck (56)"
+		return EnumField{Label: "PDUSessionResourceFailedToSetupListHOAck", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListPSReq:
-		return "PDUSessionResourceFailedToSetupListPSReq (57)"
+		return EnumField{Label: "PDUSessionResourceFailedToSetupListPSReq", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListSURes:
-		return "PDUSessionResourceFailedToSetupListSURes (58)"
+		return EnumField{Label: "PDUSessionResourceFailedToSetupListSURes", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceHandoverList:
-		return "PDUSessionResourceHandoverList (59)"
+		return EnumField{Label: "PDUSessionResourceHandoverList", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceListCxtRelCpl:
-		return "PDUSessionResourceListCxtRelCpl (60)"
+		return EnumField{Label: "PDUSessionResourceListCxtRelCpl", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceListHORqd:
-		return "PDUSessionResourceListHORqd (61)"
+		return EnumField{Label: "PDUSessionResourceListHORqd", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceModifyListModCfm:
-		return "PDUSessionResourceModifyListModCfm (62)"
+		return EnumField{Label: "PDUSessionResourceModifyListModCfm", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceModifyListModInd:
-		return "PDUSessionResourceModifyListModInd (63)"
+		return EnumField{Label: "PDUSessionResourceModifyListModInd", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceModifyListModReq:
-		return "PDUSessionResourceModifyListModReq (64)"
+		return EnumField{Label: "PDUSessionResourceModifyListModReq", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceModifyListModRes:
-		return "PDUSessionResourceModifyListModRes (65)"
+		return EnumField{Label: "PDUSessionResourceModifyListModRes", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceNotifyList:
-		return "PDUSessionResourceNotifyList (66)"
+		return EnumField{Label: "PDUSessionResourceNotifyList", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceReleasedListNot:
-		return "PDUSessionResourceReleasedListNot (67)"
+		return EnumField{Label: "PDUSessionResourceReleasedListNot", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceReleasedListPSAck:
-		return "PDUSessionResourceReleasedListPSAck (68)"
+		return EnumField{Label: "PDUSessionResourceReleasedListPSAck", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceReleasedListPSFail:
-		return "PDUSessionResourceReleasedListPSFail (69)"
+		return EnumField{Label: "PDUSessionResourceReleasedListPSFail", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceReleasedListRelRes:
-		return "PDUSessionResourceReleasedListRelRes (70)"
+		return EnumField{Label: "PDUSessionResourceReleasedListRelRes", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtReq:
-		return "PDUSessionResourceSetupListCxtReq (71)"
+		return EnumField{Label: "PDUSessionResourceSetupListCxtReq", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtRes:
-		return "PDUSessionResourceSetupListCxtRes (72)"
+		return EnumField{Label: "PDUSessionResourceSetupListCxtRes", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListHOReq:
-		return "PDUSessionResourceSetupListHOReq (73)"
+		return EnumField{Label: "PDUSessionResourceSetupListHOReq", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
-		return "PDUSessionResourceSetupListSUReq (74)"
+		return EnumField{Label: "PDUSessionResourceSetupListSUReq", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes:
-		return "PDUSessionResourceSetupListSURes (75)"
+		return EnumField{Label: "PDUSessionResourceSetupListSURes", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceToBeSwitchedDLList:
-		return "PDUSessionResourceToBeSwitchedDLList (76)"
+		return EnumField{Label: "PDUSessionResourceToBeSwitchedDLList", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceSwitchedList:
-		return "PDUSessionResourceSwitchedList (77)"
+		return EnumField{Label: "PDUSessionResourceSwitchedList", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceToReleaseListHOCmd:
-		return "PDUSessionResourceToReleaseListHOCmd (78)"
+		return EnumField{Label: "PDUSessionResourceToReleaseListHOCmd", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceToReleaseListRelCmd:
-		return "PDUSessionResourceToReleaseListRelCmd (79)"
+		return EnumField{Label: "PDUSessionResourceToReleaseListRelCmd", Value: int(id)}
 	case ngapType.ProtocolIEIDPLMNSupportList:
-		return "PLMNSupportList (80)"
+		return EnumField{Label: "PLMNSupportList", Value: int(id)}
 	case ngapType.ProtocolIEIDPWSFailedCellIDList:
-		return "PWSFailedCellIDList (81)"
+		return EnumField{Label: "PWSFailedCellIDList", Value: int(id)}
 	case ngapType.ProtocolIEIDRANNodeName:
-		return "RANNodeName (82)"
+		return EnumField{Label: "RANNodeName", Value: int(id)}
 	case ngapType.ProtocolIEIDRANPagingPriority:
-		return "RANPagingPriority (83)"
+		return EnumField{Label: "RANPagingPriority", Value: int(id)}
 	case ngapType.ProtocolIEIDRANStatusTransferTransparentContainer:
-		return "RANStatusTransferTransparentContainer (84)"
+		return EnumField{Label: "RANStatusTransferTransparentContainer", Value: int(id)}
 	case ngapType.ProtocolIEIDRANUENGAPID:
-		return "RANUENGAPID (85)"
+		return EnumField{Label: "RANUENGAPID", Value: int(id)}
 	case ngapType.ProtocolIEIDRelativeAMFCapacity:
-		return "RelativeAMFCapacity (86)"
+		return EnumField{Label: "RelativeAMFCapacity", Value: int(id)}
 	case ngapType.ProtocolIEIDRepetitionPeriod:
-		return "RepetitionPeriod (87)"
+		return EnumField{Label: "RepetitionPeriod", Value: int(id)}
 	case ngapType.ProtocolIEIDResetType:
-		return "ResetType (88)"
+		return EnumField{Label: "ResetType", Value: int(id)}
 	case ngapType.ProtocolIEIDRoutingID:
-		return "RoutingID (89)"
+		return EnumField{Label: "RoutingID", Value: int(id)}
 	case ngapType.ProtocolIEIDRRCEstablishmentCause:
-		return "RRCEstablishmentCause (90)"
+		return EnumField{Label: "RRCEstablishmentCause", Value: int(id)}
 	case ngapType.ProtocolIEIDRRCInactiveTransitionReportRequest:
-		return "RRCInactiveTransitionReportRequest (91)"
+		return EnumField{Label: "RRCInactiveTransitionReportRequest", Value: int(id)}
 	case ngapType.ProtocolIEIDRRCState:
-		return "RRCState (92)"
+		return EnumField{Label: "RRCState", Value: int(id)}
 	case ngapType.ProtocolIEIDSecurityContext:
-		return "SecurityContext (93)"
+		return EnumField{Label: "SecurityContext", Value: int(id)}
 	case ngapType.ProtocolIEIDSecurityKey:
-		return "SecurityKey (94)"
+		return EnumField{Label: "SecurityKey", Value: int(id)}
 	case ngapType.ProtocolIEIDSerialNumber:
-		return "SerialNumber (95)"
+		return EnumField{Label: "SerialNumber", Value: int(id)}
 	case ngapType.ProtocolIEIDServedGUAMIList:
-		return "ServedGUAMIList (96)"
+		return EnumField{Label: "ServedGUAMIList", Value: int(id)}
 	case ngapType.ProtocolIEIDSliceSupportList:
-		return "SliceSupportList (97)"
+		return EnumField{Label: "SliceSupportList", Value: int(id)}
 	case ngapType.ProtocolIEIDSONConfigurationTransferDL:
-		return "SONConfigurationTransferDL (98)"
+		return EnumField{Label: "SONConfigurationTransferDL", Value: int(id)}
 	case ngapType.ProtocolIEIDSONConfigurationTransferUL:
-		return "SONConfigurationTransferUL (99)"
+		return EnumField{Label: "SONConfigurationTransferUL", Value: int(id)}
 	case ngapType.ProtocolIEIDSourceAMFUENGAPID:
-		return "SourceAMFUENGAPID (100)"
+		return EnumField{Label: "SourceAMFUENGAPID", Value: int(id)}
 	case ngapType.ProtocolIEIDSourceToTargetTransparentContainer:
-		return "SourceToTargetTransparentContainer (101)"
+		return EnumField{Label: "SourceToTargetTransparentContainer", Value: int(id)}
 	case ngapType.ProtocolIEIDSupportedTAList:
-		return "SupportedTAList (102)"
+		return EnumField{Label: "SupportedTAList", Value: int(id)}
 	case ngapType.ProtocolIEIDTAIListForPaging:
-		return "TAIListForPaging (103)"
+		return EnumField{Label: "TAIListForPaging", Value: int(id)}
 	case ngapType.ProtocolIEIDTAIListForRestart:
-		return "TAIListForRestart (104)"
+		return EnumField{Label: "TAIListForRestart", Value: int(id)}
 	case ngapType.ProtocolIEIDTargetID:
-		return "TargetID (105)"
+		return EnumField{Label: "TargetID", Value: int(id)}
 	case ngapType.ProtocolIEIDTargetToSourceTransparentContainer:
-		return "TargetToSourceTransparentContainer (106)"
+		return EnumField{Label: "TargetToSourceTransparentContainer", Value: int(id)}
 	case ngapType.ProtocolIEIDTimeToWait:
-		return "TimeToWait (107)"
+		return EnumField{Label: "TimeToWait", Value: int(id)}
 	case ngapType.ProtocolIEIDTraceActivation:
-		return "TraceActivation (108)"
+		return EnumField{Label: "TraceActivation", Value: int(id)}
 	case ngapType.ProtocolIEIDTraceCollectionEntityIPAddress:
-		return "TraceCollectionEntityIPAddress (109)"
+		return EnumField{Label: "TraceCollectionEntityIPAddress", Value: int(id)}
 	case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
-		return "UEAggregateMaximumBitRate (110)"
+		return EnumField{Label: "UEAggregateMaximumBitRate", Value: int(id)}
 	case ngapType.ProtocolIEIDUEAssociatedLogicalNGConnectionList:
-		return "UEAssociatedLogicalNGConnectionList (111)"
+		return EnumField{Label: "UEAssociatedLogicalNGConnectionList", Value: int(id)}
 	case ngapType.ProtocolIEIDUEContextRequest:
-		return "UEContextRequest (112)"
+		return EnumField{Label: "UEContextRequest", Value: int(id)}
 	case ngapType.ProtocolIEIDUENGAPIDs:
-		return "UENGAPIDs (114)"
+		return EnumField{Label: "UENGAPIDs", Value: int(id)}
 	case ngapType.ProtocolIEIDUEPagingIdentity:
-		return "UEPagingIdentity (115)"
+		return EnumField{Label: "UEPagingIdentity", Value: int(id)}
 	case ngapType.ProtocolIEIDUEPresenceInAreaOfInterestList:
-		return "UEPresenceInAreaOfInterestList (116)"
+		return EnumField{Label: "UEPresenceInAreaOfInterestList", Value: int(id)}
 	case ngapType.ProtocolIEIDUERadioCapability:
-		return "UERadioCapability (117)"
+		return EnumField{Label: "UERadioCapability", Value: int(id)}
 	case ngapType.ProtocolIEIDUERadioCapabilityForPaging:
-		return "UERadioCapabilityForPaging (118)"
+		return EnumField{Label: "UERadioCapabilityForPaging", Value: int(id)}
 	case ngapType.ProtocolIEIDUESecurityCapabilities:
-		return "UESecurityCapabilities (119)"
+		return EnumField{Label: "UESecurityCapabilities", Value: int(id)}
 	case ngapType.ProtocolIEIDUnavailableGUAMIList:
-		return "UnavailableGUAMIList (120)"
+		return EnumField{Label: "UnavailableGUAMIList", Value: int(id)}
 	case ngapType.ProtocolIEIDUserLocationInformation:
-		return "UserLocationInformation (121)"
+		return EnumField{Label: "UserLocationInformation", Value: int(id)}
 	case ngapType.ProtocolIEIDWarningAreaList:
-		return "WarningAreaList (122)"
+		return EnumField{Label: "WarningAreaList", Value: int(id)}
 	case ngapType.ProtocolIEIDWarningMessageContents:
-		return "WarningMessageContents (123)"
+		return EnumField{Label: "WarningMessageContents", Value: int(id)}
 	case ngapType.ProtocolIEIDWarningSecurityInfo:
-		return "WarningSecurityInfo (124)"
+		return EnumField{Label: "WarningSecurityInfo", Value: int(id)}
 	case ngapType.ProtocolIEIDWarningType:
-		return "WarningType (125)"
+		return EnumField{Label: "WarningType", Value: int(id)}
 	case ngapType.ProtocolIEIDAdditionalULNGUUPTNLInformation:
-		return "AdditionalULNGUUPTNLInformation (126)"
+		return EnumField{Label: "AdditionalULNGUUPTNLInformation", Value: int(id)}
 	case ngapType.ProtocolIEIDDataForwardingNotPossible:
-		return "DataForwardingNotPossible (127)"
+		return EnumField{Label: "DataForwardingNotPossible", Value: int(id)}
 	case ngapType.ProtocolIEIDDLNGUUPTNLInformation:
-		return "DLNGUUPTNLInformation (128)"
+		return EnumField{Label: "DLNGUUPTNLInformation", Value: int(id)}
 	case ngapType.ProtocolIEIDNetworkInstance:
-		return "NetworkInstance (129)"
+		return EnumField{Label: "NetworkInstance", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate:
-		return "PDUSessionAggregateMaximumBitRate (130)"
+		return EnumField{Label: "PDUSessionAggregateMaximumBitRate", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToModifyListModCfm:
-		return "PDUSessionResourceFailedToModifyListModCfm (131)"
+		return EnumField{Label: "PDUSessionResourceFailedToModifyListModCfm", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtFail:
-		return "PDUSessionResourceFailedToSetupListCxtFail (132)"
+		return EnumField{Label: "PDUSessionResourceFailedToSetupListCxtFail", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceListCxtRelReq:
-		return "PDUSessionResourceListCxtRelReq (133)"
+		return EnumField{Label: "PDUSessionResourceListCxtRelReq", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionType:
-		return "PDUSessionType (134)"
+		return EnumField{Label: "PDUSessionType", Value: int(id)}
 	case ngapType.ProtocolIEIDQosFlowAddOrModifyRequestList:
-		return "QosFlowAddOrModifyRequestList (135)"
+		return EnumField{Label: "QosFlowAddOrModifyRequestList", Value: int(id)}
 	case ngapType.ProtocolIEIDQosFlowSetupRequestList:
-		return "QosFlowSetupRequestList (136)"
+		return EnumField{Label: "QosFlowSetupRequestList", Value: int(id)}
 	case ngapType.ProtocolIEIDQosFlowToReleaseList:
-		return "QosFlowToReleaseList (137)"
+		return EnumField{Label: "QosFlowToReleaseList", Value: int(id)}
 	case ngapType.ProtocolIEIDSecurityIndication:
-		return "SecurityIndication (138)"
+		return EnumField{Label: "SecurityIndication", Value: int(id)}
 	case ngapType.ProtocolIEIDULNGUUPTNLInformation:
-		return "ULNGUUPTNLInformation (139)"
+		return EnumField{Label: "ULNGUUPTNLInformation", Value: int(id)}
 	case ngapType.ProtocolIEIDULNGUUPTNLModifyList:
-		return "ULNGUUPTNLModifyList (140)"
+		return EnumField{Label: "ULNGUUPTNLModifyList", Value: int(id)}
 	case ngapType.ProtocolIEIDWarningAreaCoordinates:
-		return "WarningAreaCoordinates (141)"
+		return EnumField{Label: "WarningAreaCoordinates", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceSecondaryRATUsageList:
-		return "PDUSessionResourceSecondaryRATUsageList (142)"
+		return EnumField{Label: "PDUSessionResourceSecondaryRATUsageList", Value: int(id)}
 	case ngapType.ProtocolIEIDHandoverFlag:
-		return "HandoverFlag (143)"
+		return EnumField{Label: "HandoverFlag", Value: int(id)}
 	case ngapType.ProtocolIEIDSecondaryRATUsageInformation:
-		return "SecondaryRATUsageInformation (144)"
+		return EnumField{Label: "SecondaryRATUsageInformation", Value: int(id)}
 	case ngapType.ProtocolIEIDPDUSessionResourceReleaseResponseTransfer:
-		return "PDUSessionResourceReleaseResponseTransfer (145)"
+		return EnumField{Label: "PDUSessionResourceReleaseResponseTransfer", Value: int(id)}
 	case ngapType.ProtocolIEIDRedirectionVoiceFallback:
-		return "RedirectionVoiceFallback (146)"
+		return EnumField{Label: "RedirectionVoiceFallback", Value: int(id)}
 	case ngapType.ProtocolIEIDUERetentionInformation:
-		return "UERetentionInformation (147)"
+		return EnumField{Label: "UERetentionInformation", Value: int(id)}
 	case ngapType.ProtocolIEIDSNSSAI:
-		return "SNSSAI (148)"
+		return EnumField{Label: "SNSSAI", Value: int(id)}
 	case ngapType.ProtocolIEIDPSCellInformation:
-		return "PSCellInformation (149)"
+		return EnumField{Label: "PSCellInformation", Value: int(id)}
 	case ngapType.ProtocolIEIDLastEUTRANPLMNIdentity:
-		return "LastEUTRANPLMNIdentity (150)"
+		return EnumField{Label: "LastEUTRANPLMNIdentity", Value: int(id)}
 	case ngapType.ProtocolIEIDMaximumIntegrityProtectedDataRateDL:
-		return "MaximumIntegrityProtectedDataRateDL (151)"
+		return EnumField{Label: "MaximumIntegrityProtectedDataRateDL", Value: int(id)}
 	case ngapType.ProtocolIEIDAdditionalDLForwardingUPTNLInformation:
-		return "AdditionalDLForwardingUPTNLInformation (152)"
+		return EnumField{Label: "AdditionalDLForwardingUPTNLInformation", Value: int(id)}
 	case ngapType.ProtocolIEIDAdditionalDLUPTNLInformationForHOList:
-		return "AdditionalDLUPTNLInformationForHOList (153)"
+		return EnumField{Label: "AdditionalDLUPTNLInformationForHOList", Value: int(id)}
 	case ngapType.ProtocolIEIDAdditionalNGUUPTNLInformation:
-		return "AdditionalNGUUPTNLInformation (154)"
+		return EnumField{Label: "AdditionalNGUUPTNLInformation", Value: int(id)}
 	case ngapType.ProtocolIEIDAdditionalDLQosFlowPerTNLInformation:
-		return "AdditionalDLQosFlowPerTNLInformation (155)"
+		return EnumField{Label: "AdditionalDLQosFlowPerTNLInformation", Value: int(id)}
 	case ngapType.ProtocolIEIDSecurityResult:
-		return "SecurityResult (156)"
+		return EnumField{Label: "SecurityResult", Value: int(id)}
 	case ngapType.ProtocolIEIDENDCSONConfigurationTransferDL:
-		return "ENDCSONConfigurationTransferDL (157)"
+		return EnumField{Label: "ENDCSONConfigurationTransferDL", Value: 157}
 	case ngapType.ProtocolIEIDENDCSONConfigurationTransferUL:
-		return "ENDCSONConfigurationTransferUL (158)"
+		return EnumField{Label: "ENDCSONConfigurationTransferUL", Value: 158}
 	default:
-		return fmt.Sprintf("Unknown (%d)", id)
+		return EnumField{Label: "Unknown", Value: int(id)}
 	}
 }
 
-func causeToString(cause *ngapType.Cause) string {
+func causeToEnum(cause *ngapType.Cause) EnumField {
 	if cause == nil {
-		return "nil"
+		return EnumField{Label: "nil", Value: -1}
 	}
 
 	switch cause.Present {
 	case ngapType.CausePresentRadioNetwork:
-		return radioNetworkCauseToString(cause.RadioNetwork)
+		return radioNetworkCauseToEnum(cause.RadioNetwork)
 	case ngapType.CausePresentTransport:
-		return transportCauseToString(cause.Transport)
+		return transportCauseToEnum(cause.Transport)
 	case ngapType.CausePresentNas:
-		return nasCauseToString(cause.Nas)
+		return nasCauseToEnum(cause.Nas)
 	case ngapType.CausePresentProtocol:
-		return protocolCauseToString(cause.Protocol)
+		return protocolCauseToEnum(cause.Protocol)
 	case ngapType.CausePresentMisc:
-		return miscCauseToString(cause.Misc)
+		return miscCauseToEnum(cause.Misc)
 	default:
-		return fmt.Sprintf("Unknown (%d)", cause.Present)
+		return EnumField{Label: "Unknown", Value: cause.Present}
 	}
 }
 
-func radioNetworkCauseToString(cause *ngapType.CauseRadioNetwork) string {
+func radioNetworkCauseToEnum(cause *ngapType.CauseRadioNetwork) EnumField {
 	if cause == nil {
-		return "nil"
+		return EnumField{Label: "nil", Value: -1}
 	}
 
 	switch cause.Value {
 	case ngapType.CauseRadioNetworkPresentUnspecified:
-		return "Unspecified (0)"
+		return EnumField{Label: "Unspecified", Value: int(ngapType.CauseRadioNetworkPresentUnspecified)}
 	case ngapType.CauseRadioNetworkPresentTxnrelocoverallExpiry:
-		return "TxNRelocOverallExpiry (1)"
+		return EnumField{Label: "TxNRelocOverallExpiry", Value: int(ngapType.CauseRadioNetworkPresentTxnrelocoverallExpiry)}
 	case ngapType.CauseRadioNetworkPresentSuccessfulHandover:
-		return "SuccessfulHandover (2)"
+		return EnumField{Label: "SuccessfulHandover", Value: int(ngapType.CauseRadioNetworkPresentSuccessfulHandover)}
 	case ngapType.CauseRadioNetworkPresentReleaseDueToNgranGeneratedReason:
-		return "ReleaseDueToNgranGeneratedReason (3)"
+		return EnumField{Label: "ReleaseDueToNgranGeneratedReason", Value: int(ngapType.CauseRadioNetworkPresentReleaseDueToNgranGeneratedReason)}
 	case ngapType.CauseRadioNetworkPresentReleaseDueTo5gcGeneratedReason:
-		return "ReleaseDueTo5gcGeneratedReason (4)"
+		return EnumField{Label: "ReleaseDueTo5gcGeneratedReason", Value: int(ngapType.CauseRadioNetworkPresentReleaseDueTo5gcGeneratedReason)}
 	case ngapType.CauseRadioNetworkPresentHandoverCancelled:
-		return "HandoverCancelled (5)"
+		return EnumField{Label: "HandoverCancelled", Value: int(ngapType.CauseRadioNetworkPresentHandoverCancelled)}
 	case ngapType.CauseRadioNetworkPresentPartialHandover:
-		return "PartialHandover (6)"
+		return EnumField{Label: "PartialHandover", Value: int(ngapType.CauseRadioNetworkPresentPartialHandover)}
 	case ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem:
-		return "HoFailureInTarget5GCNgranNodeOrTargetSystem (7)"
+		return EnumField{Label: "HoFailureInTarget5GCNgranNodeOrTargetSystem", Value: int(ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem)}
 	case ngapType.CauseRadioNetworkPresentHoTargetNotAllowed:
-		return "HoTargetNotAllowed (8)"
+		return EnumField{Label: "HoTargetNotAllowed", Value: int(ngapType.CauseRadioNetworkPresentHoTargetNotAllowed)}
 	case ngapType.CauseRadioNetworkPresentTngrelocoverallExpiry:
-		return "TngRelocOverallExpiry (9)"
+		return EnumField{Label: "TngRelocOverallExpiry", Value: int(ngapType.CauseRadioNetworkPresentTngrelocoverallExpiry)}
 	case ngapType.CauseRadioNetworkPresentTngrelocprepExpiry:
-		return "TngRelocPrepExpiry (10)"
+		return EnumField{Label: "TngRelocPrepExpiry", Value: int(ngapType.CauseRadioNetworkPresentTngrelocprepExpiry)}
 	case ngapType.CauseRadioNetworkPresentCellNotAvailable:
-		return "CellNotAvailable (11)"
+		return EnumField{Label: "CellNotAvailable", Value: int(ngapType.CauseRadioNetworkPresentCellNotAvailable)}
 	case ngapType.CauseRadioNetworkPresentUnknownTargetID:
-		return "UnknownTargetID (12)"
+		return EnumField{Label: "UnknownTargetID", Value: int(ngapType.CauseRadioNetworkPresentUnknownTargetID)}
 	case ngapType.CauseRadioNetworkPresentNoRadioResourcesAvailableInTargetCell:
-		return "NoRadioResourcesAvailableInTargetCell (13)"
+		return EnumField{Label: "NoRadioResourcesAvailableInTargetCell", Value: int(ngapType.CauseRadioNetworkPresentNoRadioResourcesAvailableInTargetCell)}
 	case ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID:
-		return "UnknownLocalUENGAPID (14)"
+		return EnumField{Label: "UnknownLocalUENGAPID", Value: int(ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)}
 	case ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID:
-		return "InconsistentRemoteUENGAPID (15)"
+		return EnumField{Label: "InconsistentRemoteUENGAPID", Value: int(ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID)}
 	case ngapType.CauseRadioNetworkPresentHandoverDesirableForRadioReason:
-		return "HandoverDesirableForRadioReason (16)"
+		return EnumField{Label: "HandoverDesirableForRadioReason", Value: int(ngapType.CauseRadioNetworkPresentHandoverDesirableForRadioReason)}
 	case ngapType.CauseRadioNetworkPresentTimeCriticalHandover:
-		return "TimeCriticalHandover (17)"
+		return EnumField{Label: "TimeCriticalHandover", Value: int(ngapType.CauseRadioNetworkPresentTimeCriticalHandover)}
 	case ngapType.CauseRadioNetworkPresentResourceOptimisationHandover:
-		return "ResourceOptimisationHandover (18)"
+		return EnumField{Label: "ResourceOptimisationHandover", Value: int(ngapType.CauseRadioNetworkPresentResourceOptimisationHandover)}
 	case ngapType.CauseRadioNetworkPresentReduceLoadInServingCell:
-		return "ReduceLoadInServingCell (19)"
+		return EnumField{Label: "ReduceLoadInServingCell", Value: int(ngapType.CauseRadioNetworkPresentReduceLoadInServingCell)}
 	case ngapType.CauseRadioNetworkPresentUserInactivity:
-		return "UserInactivity (20)"
+		return EnumField{Label: "UserInactivity", Value: int(ngapType.CauseRadioNetworkPresentUserInactivity)}
 	case ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost:
-		return "RadioConnectionWithUeLost (21)"
+		return EnumField{Label: "RadioConnectionWithUeLost", Value: int(ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost)}
 	case ngapType.CauseRadioNetworkPresentRadioResourcesNotAvailable:
-		return "RadioResourcesNotAvailable (22)"
+		return EnumField{Label: "RadioResourcesNotAvailable", Value: int(ngapType.CauseRadioNetworkPresentRadioResourcesNotAvailable)}
 	case ngapType.CauseRadioNetworkPresentInvalidQosCombination:
-		return "InvalidQosCombination (23)"
+		return EnumField{Label: "InvalidQosCombination", Value: int(ngapType.CauseRadioNetworkPresentInvalidQosCombination)}
 	case ngapType.CauseRadioNetworkPresentFailureInRadioInterfaceProcedure:
-		return "FailureInRadioInterfaceProcedure (24)"
+		return EnumField{Label: "FailureInRadioInterfaceProcedure", Value: int(ngapType.CauseRadioNetworkPresentFailureInRadioInterfaceProcedure)}
 	case ngapType.CauseRadioNetworkPresentInteractionWithOtherProcedure:
-		return "InteractionWithOtherProcedure (25)"
+		return EnumField{Label: "InteractionWithOtherProcedure", Value: int(ngapType.CauseRadioNetworkPresentInteractionWithOtherProcedure)}
 	case ngapType.CauseRadioNetworkPresentUnknownPDUSessionID:
-		return "UnknownPDUSessionID (26)"
+		return EnumField{Label: "UnknownPDUSessionID", Value: int(ngapType.CauseRadioNetworkPresentUnknownPDUSessionID)}
 	case ngapType.CauseRadioNetworkPresentUnkownQosFlowID:
-		return "UnkownQosFlowID (27)"
+		return EnumField{Label: "UnkownQosFlowID", Value: int(ngapType.CauseRadioNetworkPresentUnkownQosFlowID)}
 	case ngapType.CauseRadioNetworkPresentMultiplePDUSessionIDInstances:
-		return "MultiplePDUSessionIDInstances (28)"
+		return EnumField{Label: "MultiplePDUSessionIDInstances", Value: int(ngapType.CauseRadioNetworkPresentMultiplePDUSessionIDInstances)}
 	case ngapType.CauseRadioNetworkPresentMultipleQosFlowIDInstances:
-		return "MultipleQosFlowIDInstances (29)"
+		return EnumField{Label: "MultipleQosFlowIDInstances", Value: int(ngapType.CauseRadioNetworkPresentMultipleQosFlowIDInstances)}
 	case ngapType.CauseRadioNetworkPresentEncryptionAndOrIntegrityProtectionAlgorithmsNotSupported:
-		return "EncryptionAndOrIntegrityProtectionAlgorithmsNotSupported (30)"
+		return EnumField{Label: "EncryptionAndOrIntegrityProtectionAlgorithmsNotSupported", Value: int(ngapType.CauseRadioNetworkPresentEncryptionAndOrIntegrityProtectionAlgorithmsNotSupported)}
 	case ngapType.CauseRadioNetworkPresentNgIntraSystemHandoverTriggered:
-		return "NgIntraSystemHandoverTriggered (31)"
+		return EnumField{Label: "NgIntraSystemHandoverTriggered", Value: int(ngapType.CauseRadioNetworkPresentNgIntraSystemHandoverTriggered)}
 	case ngapType.CauseRadioNetworkPresentNgInterSystemHandoverTriggered:
-		return "NgInterSystemHandoverTriggered (32)"
+		return EnumField{Label: "NgInterSystemHandoverTriggered", Value: int(ngapType.CauseRadioNetworkPresentNgInterSystemHandoverTriggered)}
 	case ngapType.CauseRadioNetworkPresentXnHandoverTriggered:
-		return "XnHandoverTriggered (33)"
+		return EnumField{Label: "XnHandoverTriggered", Value: int(ngapType.CauseRadioNetworkPresentXnHandoverTriggered)}
 	case ngapType.CauseRadioNetworkPresentNotSupported5QIValue:
-		return "NotSupported5QIValue (34)"
+		return EnumField{Label: "NotSupported5QIValue", Value: int(ngapType.CauseRadioNetworkPresentNotSupported5QIValue)}
 	case ngapType.CauseRadioNetworkPresentUeContextTransfer:
-		return "UeContextTransfer (35)"
+		return EnumField{Label: "UeContextTransfer", Value: int(ngapType.CauseRadioNetworkPresentUeContextTransfer)}
 	case ngapType.CauseRadioNetworkPresentImsVoiceEpsFallbackOrRatFallbackTriggered:
-		return "ImsVoiceEpsFallbackOrRatFallbackTriggered (36)"
+		return EnumField{Label: "ImsVoiceEpsFallbackOrRatFallbackTriggered", Value: int(ngapType.CauseRadioNetworkPresentImsVoiceEpsFallbackOrRatFallbackTriggered)}
 	case ngapType.CauseRadioNetworkPresentUpIntegrityProtectionNotPossible:
-		return "UpIntegrityProtectionNotPossible (37)"
+		return EnumField{Label: "UpIntegrityProtectionNotPossible", Value: int(ngapType.CauseRadioNetworkPresentUpIntegrityProtectionNotPossible)}
 	case ngapType.CauseRadioNetworkPresentUpConfidentialityProtectionNotPossible:
-		return "UpConfidentialityProtectionNotPossible (38)"
+		return EnumField{Label: "UpConfidentialityProtectionNotPossible", Value: int(ngapType.CauseRadioNetworkPresentUpConfidentialityProtectionNotPossible)}
 	case ngapType.CauseRadioNetworkPresentSliceNotSupported:
-		return "SliceNotSupported (39)"
+		return EnumField{Label: "SliceNotSupported", Value: int(ngapType.CauseRadioNetworkPresentSliceNotSupported)}
 	case ngapType.CauseRadioNetworkPresentUeInRrcInactiveStateNotReachable:
-		return "UeInRrcInactiveStateNotReachable (40)"
+		return EnumField{Label: "UeInRrcInactiveStateNotReachable", Value: int(ngapType.CauseRadioNetworkPresentUeInRrcInactiveStateNotReachable)}
 	case ngapType.CauseRadioNetworkPresentRedirection:
-		return "Redirection (41)"
+		return EnumField{Label: "Redirection", Value: int(ngapType.CauseRadioNetworkPresentRedirection)}
 	case ngapType.CauseRadioNetworkPresentResourcesNotAvailableForTheSlice:
-		return "ResourcesNotAvailableForTheSlice (42)"
+		return EnumField{Label: "ResourcesNotAvailableForTheSlice", Value: int(ngapType.CauseRadioNetworkPresentResourcesNotAvailableForTheSlice)}
 	case ngapType.CauseRadioNetworkPresentUeMaxIntegrityProtectedDataRateReason:
-		return "UeMaxIntegrityProtectedDataRateReason (43)"
+		return EnumField{Label: "UeMaxIntegrityProtectedDataRateReason", Value: int(ngapType.CauseRadioNetworkPresentUeMaxIntegrityProtectedDataRateReason)}
 	case ngapType.CauseRadioNetworkPresentReleaseDueToCnDetectedMobility:
-		return "ReleaseDueToCnDetectedMobility (44)"
+		return EnumField{Label: "ReleaseDueToCnDetectedMobility", Value: int(ngapType.CauseRadioNetworkPresentReleaseDueToCnDetectedMobility)}
 	case ngapType.CauseRadioNetworkPresentN26InterfaceNotAvailable:
-		return "N26InterfaceNotAvailable (45)"
+		return EnumField{Label: "N26InterfaceNotAvailable", Value: int(ngapType.CauseRadioNetworkPresentN26InterfaceNotAvailable)}
 	case ngapType.CauseRadioNetworkPresentReleaseDueToPreEmption:
-		return "ReleaseDueToPreEmption (46)"
+		return EnumField{Label: "ReleaseDueToPreEmption", Value: int(ngapType.CauseRadioNetworkPresentReleaseDueToPreEmption)}
 	default:
-		return fmt.Sprintf("Unknown (%d)", cause.Value)
+		return EnumField{Label: "unknown", Value: int(cause.Value)}
 	}
 }
 
-func transportCauseToString(cause *ngapType.CauseTransport) string {
+func transportCauseToEnum(cause *ngapType.CauseTransport) EnumField {
 	if cause == nil {
-		return "nil"
+		return EnumField{Label: "nil", Value: 0}
 	}
 
 	switch cause.Value {
 	case ngapType.CauseTransportPresentTransportResourceUnavailable:
-		return "TransportResourceUnavailable (0)"
+		return EnumField{Label: "TransportResourceUnavailable", Value: int(ngapType.CauseTransportPresentTransportResourceUnavailable)}
 	case ngapType.CauseTransportPresentUnspecified:
-		return "Unspecified (1)"
+		return EnumField{Label: "Unspecified", Value: int(ngapType.CauseTransportPresentUnspecified)}
 	default:
-		return fmt.Sprintf("Unknown (%d)", cause.Value)
+		return EnumField{Label: "Unknown", Value: int(cause.Value)}
 	}
 }
 
-func nasCauseToString(cause *ngapType.CauseNas) string {
+func nasCauseToEnum(cause *ngapType.CauseNas) EnumField {
 	if cause == nil {
-		return "nil"
+		return EnumField{Label: "nil", Value: 0}
 	}
 
 	switch cause.Value {
 	case ngapType.CauseNasPresentNormalRelease:
-		return "NormalRelease (0)"
+		return EnumField{Label: "NormalRelease", Value: int(ngapType.CauseNasPresentNormalRelease)}
 	case ngapType.CauseNasPresentAuthenticationFailure:
-		return "AuthenticationFailure (1)"
+		return EnumField{Label: "AuthenticationFailure", Value: int(ngapType.CauseNasPresentAuthenticationFailure)}
 	case ngapType.CauseNasPresentDeregister:
-		return "Deregister (2)"
+		return EnumField{Label: "Deregister", Value: int(ngapType.CauseNasPresentDeregister)}
 	case ngapType.CauseNasPresentUnspecified:
-		return "Unspecified (3)"
+		return EnumField{Label: "Unspecified", Value: int(ngapType.CauseNasPresentUnspecified)}
 	default:
-		return fmt.Sprintf("Unknown (%d)", cause.Value)
+		return EnumField{Label: "Unknown", Value: int(cause.Value)}
 	}
 }
 
-func protocolCauseToString(cause *ngapType.CauseProtocol) string {
+func protocolCauseToEnum(cause *ngapType.CauseProtocol) EnumField {
 	if cause == nil {
-		return "nil"
+		return EnumField{Label: "nil", Value: 0}
 	}
 
 	switch cause.Value {
 	case ngapType.CauseProtocolPresentTransferSyntaxError:
-		return "TransferSyntaxError (0)"
+		return EnumField{Label: "TransferSyntaxError", Value: int(ngapType.CauseProtocolPresentTransferSyntaxError)}
 	case ngapType.CauseProtocolPresentAbstractSyntaxErrorReject:
-		return "AbstractSyntaxErrorReject (1)"
+		return EnumField{Label: "AbstractSyntaxErrorReject", Value: int(ngapType.CauseProtocolPresentAbstractSyntaxErrorReject)}
 	case ngapType.CauseProtocolPresentAbstractSyntaxErrorIgnoreAndNotify:
-		return "AbstractSyntaxErrorIgnoreAndNotify (2)"
+		return EnumField{Label: "AbstractSyntaxErrorIgnoreAndNotify", Value: int(ngapType.CauseProtocolPresentAbstractSyntaxErrorIgnoreAndNotify)}
 	case ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState:
-		return "MessageNotCompatibleWithReceiverState (3)"
+		return EnumField{Label: "MessageNotCompatibleWithReceiverState", Value: int(ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState)}
 	case ngapType.CauseProtocolPresentSemanticError:
-		return "SemanticError (4)"
+		return EnumField{Label: "SemanticError", Value: int(ngapType.CauseProtocolPresentSemanticError)}
 	case ngapType.CauseProtocolPresentAbstractSyntaxErrorFalselyConstructedMessage:
-		return "AbstractSyntaxErrorFalselyConstructedMessage (5)"
+		return EnumField{Label: "AbstractSyntaxErrorFalselyConstructedMessage", Value: int(ngapType.CauseProtocolPresentAbstractSyntaxErrorFalselyConstructedMessage)}
 	case ngapType.CauseProtocolPresentUnspecified:
-		return "Unspecified (6)"
+		return EnumField{Label: "Unspecified", Value: int(ngapType.CauseProtocolPresentUnspecified)}
 	default:
-		return fmt.Sprintf("Unknown (%d)", cause.Value)
+		return EnumField{Label: "Unknown", Value: int(cause.Value)}
 	}
 }
 
-func miscCauseToString(cause *ngapType.CauseMisc) string {
+func miscCauseToEnum(cause *ngapType.CauseMisc) EnumField {
 	if cause == nil {
-		return "nil"
+		return EnumField{Label: "nil", Value: 0}
 	}
 
 	switch cause.Value {
 	case ngapType.CauseMiscPresentControlProcessingOverload:
-		return "ControlProcessingOverload (0)"
+		return EnumField{Label: "ControlProcessingOverload", Value: int(ngapType.CauseMiscPresentControlProcessingOverload)}
 	case ngapType.CauseMiscPresentNotEnoughUserPlaneProcessingResources:
-		return "NotEnoughUserPlaneProcessingResources (1)"
+		return EnumField{Label: "NotEnoughUserPlaneProcessingResources", Value: int(ngapType.CauseMiscPresentNotEnoughUserPlaneProcessingResources)}
 	case ngapType.CauseMiscPresentHardwareFailure:
-		return "HardwareFailure (2)"
+		return EnumField{Label: "HardwareFailure", Value: int(ngapType.CauseMiscPresentHardwareFailure)}
 	case ngapType.CauseMiscPresentOmIntervention:
-		return "OmIntervention (3)"
+		return EnumField{Label: "OmIntervention", Value: int(ngapType.CauseMiscPresentOmIntervention)}
 	case ngapType.CauseMiscPresentUnknownPLMN:
-		return "UnknownPLMN (4)"
+		return EnumField{Label: "UnknownPLMN", Value: int(ngapType.CauseMiscPresentUnknownPLMN)}
 	case ngapType.CauseMiscPresentUnspecified:
-		return "Unspecified (5)"
+		return EnumField{Label: "Unspecified", Value: int(ngapType.CauseMiscPresentUnspecified)}
 	default:
-		return fmt.Sprintf("Unknown (%d)", cause.Value)
+		return EnumField{Label: "Unknown", Value: int(cause.Value)}
 	}
 }

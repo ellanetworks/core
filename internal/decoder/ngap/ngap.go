@@ -11,52 +11,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const ntpToUnixOffset = 2208988800 // seconds between 1900-01-01 and 1970-01-01
-
-type GlobalRANNodeIDIE struct {
-	GlobalGNBID   string `json:"global_gnb_id,omitempty"`
-	GlobalNgENBID string `json:"global_ng_enb_id,omitempty"`
-	GlobalN3IWFID string `json:"global_n3iwf_id,omitempty"`
-}
-
-type SNSSAI struct {
-	SST int32   `json:"sst"`
-	SD  *string `json:"sd,omitempty"`
-}
-
-type PLMNID struct {
-	Mcc string `json:"mcc"`
-	Mnc string `json:"mnc"`
-}
-
-type PLMN struct {
-	PLMNID           PLMNID   `json:"plmn_id"`
-	SliceSupportList []SNSSAI `json:"slice_support_list,omitempty"`
-}
-
-type SupportedTA struct {
-	TAC               string `json:"tac"`
-	BroadcastPLMNList []PLMN `json:"broadcast_plmn_list,omitempty"`
-}
-
-type Guami struct {
-	PLMNID PLMNID `json:"plmn_id"`
-	AMFID  string `json:"amf_id"`
-}
-
-type IEsCriticalityDiagnostics struct {
-	IECriticality EnumField `json:"ie_criticality"`
-	IEID          string    `json:"ie_id"`
-	TypeOfError   string    `json:"type_of_error"`
-}
-
-type CriticalityDiagnostics struct {
-	ProcedureCode             *EnumField                  `json:"procedure_code,omitempty"`
-	TriggeringMessage         *string                     `json:"triggering_message,omitempty"`
-	ProcedureCriticality      *EnumField                  `json:"procedure_criticality,omitempty"`
-	IEsCriticalityDiagnostics []IEsCriticalityDiagnostics `json:"ie_criticality_diagnostics,omitempty"`
-}
-
 type EUTRACGI struct {
 	PLMNID            PLMNID `json:"plmn_id"`
 	EUTRACellIdentity string `json:"eutra_cell_identity"`
@@ -155,7 +109,7 @@ type ExpectedUEBehaviour struct {
 
 type CoreNetworkAssistanceInformation struct {
 	UEIdentityIndexValue            string               `json:"ue_identity_index_value"`
-	UESpecificDRX                   *string              `json:"ue_specific_drx,omitempty"`
+	UESpecificDRX                   *EnumField           `json:"ue_specific_drx,omitempty"`
 	PeriodicRegistrationUpdateTimer string               `json:"periodic_registration_update_timer"`
 	MICOModeIndication              *string              `json:"mico_mode_indication,omitempty"`
 	TAIListForInactive              []TAI                `json:"tai_list_for_inactive,omitempty"`
@@ -209,20 +163,10 @@ type NASPDU struct {
 }
 
 type IE struct {
-	ID                                        string                                  `json:"id"`
-	Criticality                               EnumField                               `json:"criticality"`
-	GlobalRANNodeID                           *GlobalRANNodeIDIE                      `json:"global_ran_node_id,omitempty"`
-	RANNodeName                               *string                                 `json:"ran_node_name,omitempty"`
-	SupportedTAList                           []SupportedTA                           `json:"supported_ta_list,omitempty"`
-	DefaultPagingDRX                          *string                                 `json:"default_paging_drx,omitempty"`
-	UERetentionInformation                    *string                                 `json:"ue_retention_information,omitempty"`
-	AMFName                                   *string                                 `json:"amf_name,omitempty"`
-	ServedGUAMIList                           []Guami                                 `json:"served_guami_list,omitempty"`
-	RelativeAMFCapacity                       *int64                                  `json:"relative_amf_capacity,omitempty"`
-	PLMNSupportList                           []PLMN                                  `json:"plmn_support_list,omitempty"`
-	CriticalityDiagnostics                    *CriticalityDiagnostics                 `json:"criticality_diagnostics,omitempty"`
-	Cause                                     *string                                 `json:"cause,omitempty"`
-	TimeToWait                                *string                                 `json:"time_to_wait,omitempty"`
+	ID          EnumField `json:"id"`
+	Criticality EnumField `json:"criticality"`
+	Value       any       `json:"value,omitempty"`
+
 	RANUENGAPID                               *int64                                  `json:"ran_ue_ngap_id,omitempty"`
 	NASPDU                                    *NASPDU                                 `json:"nas_pdu,omitempty"`
 	UserLocationInformation                   *UserLocationInformation                `json:"user_location_information,omitempty"`
@@ -267,6 +211,7 @@ type InitiatingMessageValue struct {
 }
 
 type EnumField struct {
+	Type  string `json:"type" default:"enum"`
 	Value int    `json:"value"`
 	Label string `json:"label"`
 }

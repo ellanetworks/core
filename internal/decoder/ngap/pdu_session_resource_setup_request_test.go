@@ -50,8 +50,12 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 
 	item0 := ngap.InitiatingMessage.Value.PDUSessionResourceSetupRequest.IEs[0]
 
-	if item0.ID != "AMFUENGAPID (10)" {
-		t.Errorf("expected ID=AMFUENGAPID (10), got %s", item0.ID)
+	if item0.ID.Label != "AMFUENGAPID" {
+		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
+	}
+
+	if item0.ID.Value != int(ngapType.ProtocolIEIDAMFUENGAPID) {
+		t.Errorf("expected ID value=10, got %d", item0.ID.Value)
 	}
 
 	if item0.Criticality.Label != "Reject" {
@@ -72,8 +76,12 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 
 	item1 := ngap.InitiatingMessage.Value.PDUSessionResourceSetupRequest.IEs[1]
 
-	if item1.ID != "RANUENGAPID (85)" {
-		t.Errorf("expected ID=RANUENGAPID (85), got %s", item1.ID)
+	if item1.ID.Label != "RANUENGAPID" {
+		t.Errorf("expected ID=RANUENGAPID, got %v", item1.ID)
+	}
+
+	if item1.ID.Value != int(ngapType.ProtocolIEIDRANUENGAPID) {
+		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
 	}
 
 	if item1.Criticality.Label != "Reject" {
@@ -94,8 +102,12 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 
 	item2 := ngap.InitiatingMessage.Value.PDUSessionResourceSetupRequest.IEs[2]
 
-	if item2.ID != "PDUSessionResourceSetupListSUReq (74)" {
-		t.Errorf("expected ID=PDUSessionResourceSetupListSUReq (74), got %s", item2.ID)
+	if item2.ID.Label != "PDUSessionResourceSetupListSUReq" {
+		t.Errorf("expected ID=PDUSessionResourceSetupListSUReq, got %s", item2.ID.Label)
+	}
+
+	if item2.ID.Value != int(ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq) {
+		t.Errorf("expected ID value=74, got %d", item2.ID.Value)
 	}
 
 	if item2.Criticality.Label != "Reject" {
@@ -136,8 +148,12 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 
 	item3 := ngap.InitiatingMessage.Value.PDUSessionResourceSetupRequest.IEs[3]
 
-	if item3.ID != "UEAggregateMaximumBitRate (110)" {
-		t.Errorf("expected ID=UEAggregateMaximumBitRate (110), got %s", item3.ID)
+	if item3.ID.Label != "UEAggregateMaximumBitRate" {
+		t.Errorf("expected ID=UEAggregateMaximumBitRate, got %v", item3.ID)
+	}
+
+	if item3.ID.Value != int(ngapType.ProtocolIEIDUEAggregateMaximumBitRate) {
+		t.Errorf("expected ID value=110, got %d", item3.ID.Value)
 	}
 
 	if item3.Criticality.Label != "Ignore" {

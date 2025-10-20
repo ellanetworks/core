@@ -3,9 +3,7 @@ package ngap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 type NGSetupFailure struct {
@@ -25,57 +23,55 @@ func buildNGSetupFailure(ngSetupFailure *ngapType.NGSetupFailure) *NGSetupFailur
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDCause:
 			ngFail.IEs = append(ngFail.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Cause:       strPtr(causeToString(ie.Value.Cause)),
+				Value:       causeToEnum(ie.Value.Cause),
 			})
 		case ngapType.ProtocolIEIDTimeToWait:
 			ngFail.IEs = append(ngFail.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				TimeToWait:  buildTimeToWaitIE(ie.Value.TimeToWait),
+				Value:       buildTimeToWaitIE(ie.Value.TimeToWait),
 			})
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			ngFail.IEs = append(ngFail.IEs, IE{
-				ID:                     protocolIEIDToString(ie.Id.Value),
-				Criticality:            criticalityToEnum(ie.Criticality.Value),
-				CriticalityDiagnostics: buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
 			})
 		default:
 			ngFail.IEs = append(ngFail.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value: UnknownIE{
+					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
+				},
 			})
-			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}
 	}
 
 	return ngFail
 }
 
-func buildTimeToWaitIE(timeToWait *ngapType.TimeToWait) *string {
+func buildTimeToWaitIE(timeToWait *ngapType.TimeToWait) *EnumField {
 	if timeToWait == nil {
 		return nil
 	}
 
-	var str string
-
 	switch timeToWait.Value {
 	case ngapType.TimeToWaitPresentV1s:
-		str = "V1s (0)"
+		return &EnumField{Label: "V1s", Value: int(ngapType.TimeToWaitPresentV1s)}
 	case ngapType.TimeToWaitPresentV2s:
-		str = "V2s (1)"
+		return &EnumField{Label: "V2s", Value: int(ngapType.TimeToWaitPresentV2s)}
 	case ngapType.TimeToWaitPresentV5s:
-		str = "V5s (2)"
+		return &EnumField{Label: "V5s", Value: int(ngapType.TimeToWaitPresentV5s)}
 	case ngapType.TimeToWaitPresentV10s:
-		str = "V10s (3)"
+		return &EnumField{Label: "V10s", Value: int(ngapType.TimeToWaitPresentV10s)}
 	case ngapType.TimeToWaitPresentV20s:
-		str = "V20s (4)"
+		return &EnumField{Label: "V20s", Value: int(ngapType.TimeToWaitPresentV20s)}
 	case ngapType.TimeToWaitPresentV60s:
-		str = "V60s (5)"
+		return &EnumField{Label: "V60s", Value: int(ngapType.TimeToWaitPresentV60s)}
 	default:
-		str = fmt.Sprintf("Unknown (%d)", timeToWait.Value)
+		return &EnumField{Label: fmt.Sprintf("Unknown (%d)", timeToWait.Value), Value: int(timeToWait.Value)}
 	}
-
-	return &str
 }

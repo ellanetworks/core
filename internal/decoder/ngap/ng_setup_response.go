@@ -3,15 +3,31 @@ package ngap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap/aper"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 type NGSetupResponse struct {
 	IEs []IE `json:"ies"`
+}
+
+type Guami struct {
+	PLMNID PLMNID `json:"plmn_id"`
+	AMFID  string `json:"amf_id"`
+}
+
+type IEsCriticalityDiagnostics struct {
+	IECriticality EnumField `json:"ie_criticality"`
+	IEID          EnumField `json:"ie_id"`
+	TypeOfError   string    `json:"type_of_error"`
+}
+
+type CriticalityDiagnostics struct {
+	ProcedureCode             *EnumField                  `json:"procedure_code,omitempty"`
+	TriggeringMessage         *string                     `json:"triggering_message,omitempty"`
+	ProcedureCriticality      *EnumField                  `json:"procedure_criticality,omitempty"`
+	IEsCriticalityDiagnostics []IEsCriticalityDiagnostics `json:"ie_criticality_diagnostics,omitempty"`
 }
 
 func buildAMFNameIE(an *ngapType.AMFName) *string {
@@ -78,46 +94,48 @@ func buildNGSetupResponse(ngSetupResponse *ngapType.NGSetupResponse) *NGSetupRes
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFName:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				AMFName:     buildAMFNameIE(ie.Value.AMFName),
+				Value:       buildAMFNameIE(ie.Value.AMFName),
 			})
 		case ngapType.ProtocolIEIDServedGUAMIList:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				ID:              protocolIEIDToString(ie.Id.Value),
-				Criticality:     criticalityToEnum(ie.Criticality.Value),
-				ServedGUAMIList: buildServedGUAMIListIE(ie.Value.ServedGUAMIList),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildServedGUAMIListIE(ie.Value.ServedGUAMIList),
 			})
 		case ngapType.ProtocolIEIDRelativeAMFCapacity:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				ID:                  protocolIEIDToString(ie.Id.Value),
-				Criticality:         criticalityToEnum(ie.Criticality.Value),
-				RelativeAMFCapacity: &ie.Value.RelativeAMFCapacity.Value,
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       &ie.Value.RelativeAMFCapacity.Value,
 			})
 		case ngapType.ProtocolIEIDPLMNSupportList:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				ID:              protocolIEIDToString(ie.Id.Value),
-				Criticality:     criticalityToEnum(ie.Criticality.Value),
-				PLMNSupportList: buildPLMNSupportListIE(ie.Value.PLMNSupportList),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildPLMNSupportListIE(ie.Value.PLMNSupportList),
 			})
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				ID:                     protocolIEIDToString(ie.Id.Value),
-				Criticality:            criticalityToEnum(ie.Criticality.Value),
-				CriticalityDiagnostics: buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
 			})
 		case ngapType.ProtocolIEIDUERetentionInformation:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				ID:                     protocolIEIDToString(ie.Id.Value),
-				Criticality:            criticalityToEnum(ie.Criticality.Value),
-				UERetentionInformation: buildUERetentionInformationIE(ie.Value.UERetentionInformation),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildUERetentionInformationIE(ie.Value.UERetentionInformation),
 			})
 		default:
 			ngSetup.IEs = append(ngSetup.IEs, IE{
-				ID:          protocolIEIDToString(ie.Id.Value),
+				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value: UnknownIE{
+					Reason: fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
+				},
 			})
-			logger.EllaLog.Warn("Unsupported ie type", zap.Int64("type", ie.Id.Value))
 		}
 	}
 
@@ -176,7 +194,7 @@ func buildIEsCriticalityDiagnisticsList(ieList *ngapType.CriticalityDiagnosticsI
 		ie := ieList.List[i]
 		ies[i] = IEsCriticalityDiagnostics{
 			IECriticality: criticalityToEnum(ie.IECriticality.Value),
-			IEID:          protocolIEIDToString(ie.IEID.Value),
+			IEID:          protocolIEIDToEnum(ie.IEID.Value),
 			TypeOfError:   typeOfErrorToString(ie.TypeOfError.Value),
 		}
 	}
