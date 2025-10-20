@@ -15,40 +15,33 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg, err := ngap.DecodeNGAPMessage(raw)
-	if err != nil {
-		t.Fatalf("failed to decode NGAP message: %v", err)
+	ngapMsg := ngap.DecodeNGAPMessage(raw)
+
+	if ngapMsg.PDUType != "InitiatingMessage" {
+		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.InitiatingMessage == nil {
-		t.Fatalf("expected InitiatingMessage, got nil")
+	if ngapMsg.ProcedureCode.Label != "NGSetup" {
+		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.InitiatingMessage.ProcedureCode.Label != "NGSetup" {
-		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.InitiatingMessage.ProcedureCode)
+	if ngapMsg.ProcedureCode.Value != int(ngapType.ProcedureCodeNGSetup) {
+		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
-	if ngapMsg.InitiatingMessage.ProcedureCode.Value != int(ngapType.ProcedureCodeNGSetup) {
-		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.InitiatingMessage.ProcedureCode.Value)
+	if ngapMsg.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
 	}
 
-	if ngapMsg.InitiatingMessage.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.InitiatingMessage.Criticality)
+	if ngapMsg.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
 	}
 
-	if ngapMsg.InitiatingMessage.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", ngapMsg.InitiatingMessage.Criticality.Value)
+	if len(ngapMsg.Value.IEs) != 4 {
+		t.Errorf("expected 4 ProtocolIEs, got %d", len(ngapMsg.Value.IEs))
 	}
 
-	if ngapMsg.InitiatingMessage.Value.NGSetupRequest == nil {
-		t.Fatalf("expected NGSetupRequest, got nil")
-	}
-
-	if len(ngapMsg.InitiatingMessage.Value.NGSetupRequest.IEs) != 4 {
-		t.Errorf("expected 4 ProtocolIEs, got %d", len(ngapMsg.InitiatingMessage.Value.NGSetupRequest.IEs))
-	}
-
-	item0 := ngapMsg.InitiatingMessage.Value.NGSetupRequest.IEs[0]
+	item0 := ngapMsg.Value.IEs[0]
 
 	if item0.ID.Label != "GlobalRANNodeID" {
 		t.Errorf("expected ID=GlobalRANNodeID, got %v", item0.ID)
@@ -83,7 +76,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected empty GlobalN3IWFID, got %s", globalRANNodeID.GlobalN3IWFID)
 	}
 
-	item1 := ngapMsg.InitiatingMessage.Value.NGSetupRequest.IEs[1]
+	item1 := ngapMsg.Value.IEs[1]
 
 	if item1.ID.Label != "RANNodeName" {
 		t.Errorf("expected ID=RANNodeName, got %v", item1.ID)
@@ -110,7 +103,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected RANNodeName=UERANSIM-gnb-1-1-1, got %s", ranNodeName)
 	}
 
-	item2 := ngapMsg.InitiatingMessage.Value.NGSetupRequest.IEs[2]
+	item2 := ngapMsg.Value.IEs[2]
 
 	if item2.ID.Label != "SupportedTAList" {
 		t.Errorf("expected ID=SupportedTAList, got %s", item2.ID.Label)
@@ -173,7 +166,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected SD=%s, got %v", "102030", snssai.SD)
 	}
 
-	item3 := ngapMsg.InitiatingMessage.Value.NGSetupRequest.IEs[3]
+	item3 := ngapMsg.Value.IEs[3]
 
 	if item3.ID.Label != "DefaultPagingDRX" {
 		t.Errorf("expected ID=DefaultPagingDRX, got %s", item3.ID.Label)

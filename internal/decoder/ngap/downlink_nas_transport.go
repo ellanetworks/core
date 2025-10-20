@@ -11,46 +11,77 @@ import (
 	"go.uber.org/zap"
 )
 
-type DownlinkNASTransport struct {
-	IEs []IE `json:"ies"`
+type NASPDU struct {
+	Raw     []byte          `json:"raw"`
+	Decoded *nas.NASMessage `json:"decoded"`
 }
 
-func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTransport) *DownlinkNASTransport {
-	if downlinkNASTransport == nil {
-		return nil
-	}
+type RATRestriction struct {
+	PLMNID                    PLMNID `json:"plmn_id"`
+	RATRestrictionInformation string `json:"rat_restriction_information"`
+}
 
+type ForbiddenAreaInformation struct {
+	PLMNID        PLMNID   `json:"plmn_id"`
+	ForbiddenTACs []string `json:"forbidden_tacs"`
+}
+
+type ServiceAreaInformation struct {
+	PLMNID         PLMNID   `json:"plmn_id"`
+	AllowedTACs    []string `json:"allowed_tacs,omitempty"`
+	NotAllowedTACs []string `json:"not_allowed_tacs,omitempty"`
+}
+
+type MobilityRestrictionList struct {
+	ServingPLMN              PLMNID                     `json:"serving_plmn"`
+	EquivalentPLMNs          []PLMNID                   `json:"equivalent_plmns,omitempty"`
+	RATRestrictions          []RATRestriction           `json:"rat_restrictions,omitempty"`
+	ForbiddenAreaInformation []ForbiddenAreaInformation `json:"forbidden_area_information,omitempty"`
+	ServiceAreaInformation   []ServiceAreaInformation   `json:"service_area_information,omitempty"`
+}
+
+type UEAggregateMaximumBitRate struct {
+	Downlink int64 `json:"downlink"`
+	Uplink   int64 `json:"uplink"`
+}
+
+//	type NGAPMessageValue struct {
+//		IEs   []IE   `json:"ies,omitempty"`
+//		Error string `json:"error,omitempty"`
+//	}
+
+func buildDownlinkNASTransport(downlinkNASTransport ngapType.DownlinkNASTransport) NGAPMessageValue {
 	AMFUENGAPID := int64(0)
 
-	ieList := &DownlinkNASTransport{}
+	ies := make([]IE, 0)
 
 	for i := 0; i < len(downlinkNASTransport.ProtocolIEs.List); i++ {
 		ie := downlinkNASTransport.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
+				Value:       ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDOldAMF:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildAMFNameIE(*ie.Value.OldAMF),
 			})
 		case ngapType.ProtocolIEIDRANPagingPriority:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:                protocolIEIDToEnum(ie.Id.Value),
-				Criticality:       criticalityToEnum(ie.Criticality.Value),
-				RANPagingPriority: &ie.Value.RANPagingPriority.Value,
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       ie.Value.RANPagingPriority.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
 			nasContextInfo := &nas.NasContextInfo{
@@ -65,37 +96,37 @@ func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTranspo
 				Raw:     ie.Value.NASPDU.Value,
 				Decoded: decodednNasPdu,
 			}
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       nasPdu,
 			})
 		case ngapType.ProtocolIEIDMobilityRestrictionList:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:                      protocolIEIDToEnum(ie.Id.Value),
-				Criticality:             criticalityToEnum(ie.Criticality.Value),
-				MobilityRestrictionList: buildMobilityRestrictionListIE(ie.Value.MobilityRestrictionList),
-			})
-		case ngapType.ProtocolIEIDIndexToRFSP:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				IndexToRFSP: &ie.Value.IndexToRFSP.Value,
+				Value:       buildMobilityRestrictionListIE(*ie.Value.MobilityRestrictionList),
+			})
+		case ngapType.ProtocolIEIDIndexToRFSP:
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       ie.Value.IndexToRFSP.Value,
 			})
 		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:                        protocolIEIDToEnum(ie.Id.Value),
-				Criticality:               criticalityToEnum(ie.Criticality.Value),
-				UEAggregateMaximumBitRate: buildUEAggregateMaximumBitRateIE(ie.Value.UEAggregateMaximumBitRate),
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildUEAggregateMaximumBitRateIE(*ie.Value.UEAggregateMaximumBitRate),
 			})
 		case ngapType.ProtocolIEIDAllowedNSSAI:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:           protocolIEIDToEnum(ie.Id.Value),
-				Criticality:  criticalityToEnum(ie.Criticality.Value),
-				AllowedNSSAI: buildAllowedNSSAI(ie.Value.AllowedNSSAI),
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildAllowedNSSAI(*ie.Value.AllowedNSSAI),
 			})
 		default:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: UnknownIE{
@@ -104,26 +135,20 @@ func buildDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTranspo
 			})
 		}
 	}
-	return ieList
+	return NGAPMessageValue{
+		IEs: ies,
+	}
 }
 
-func buildUEAggregateMaximumBitRateIE(ueambr *ngapType.UEAggregateMaximumBitRate) *UEAggregateMaximumBitRate {
-	if ueambr == nil {
-		return nil
-	}
-
-	return &UEAggregateMaximumBitRate{
+func buildUEAggregateMaximumBitRateIE(ueambr ngapType.UEAggregateMaximumBitRate) UEAggregateMaximumBitRate {
+	return UEAggregateMaximumBitRate{
 		Downlink: ueambr.UEAggregateMaximumBitRateDL.Value,
 		Uplink:   ueambr.UEAggregateMaximumBitRateUL.Value,
 	}
 }
 
-func buildMobilityRestrictionListIE(mrl *ngapType.MobilityRestrictionList) *MobilityRestrictionList {
-	if mrl == nil {
-		return nil
-	}
-
-	mobilityRestrictionList := &MobilityRestrictionList{}
+func buildMobilityRestrictionListIE(mrl ngapType.MobilityRestrictionList) MobilityRestrictionList {
+	mobilityRestrictionList := MobilityRestrictionList{}
 
 	mobilityRestrictionList.ServingPLMN = plmnIDToModels(mrl.ServingPLMN)
 

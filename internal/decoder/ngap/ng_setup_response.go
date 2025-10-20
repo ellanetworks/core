@@ -8,10 +8,6 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-type NGSetupResponse struct {
-	IEs []IE `json:"ies"`
-}
-
 type Guami struct {
 	PLMNID PLMNID `json:"plmn_id"`
 	AMFID  string `json:"amf_id"`
@@ -34,13 +30,9 @@ func buildAMFNameIE(an ngapType.AMFName) string {
 	return an.Value
 }
 
-func buildGUAMI(guami *ngapType.GUAMI) *Guami {
-	if guami == nil {
-		return nil
-	}
-
+func buildGUAMI(guami ngapType.GUAMI) Guami {
 	amfID := ngapConvert.AmfIdToModels(guami.AMFRegionID.Value, guami.AMFSetID.Value, guami.AMFPointer.Value)
-	return &Guami{
+	return Guami{
 		PLMNID: plmnIDToModels(guami.PLMNIdentity),
 		AMFID:  amfID,
 	}
@@ -49,7 +41,7 @@ func buildGUAMI(guami *ngapType.GUAMI) *Guami {
 func buildServedGUAMIListIE(sgl ngapType.ServedGUAMIList) []Guami {
 	guamiList := make([]Guami, len(sgl.List))
 	for i := 0; i < len(sgl.List); i++ {
-		guamiList[i] = *buildGUAMI(&sgl.List[i].GUAMI)
+		guamiList[i] = buildGUAMI(sgl.List[i].GUAMI)
 	}
 
 	return guamiList
@@ -71,55 +63,51 @@ func buildPLMNSupportListIE(psl *ngapType.PLMNSupportList) []PLMN {
 	return plmnList
 }
 
-func buildNGSetupResponse(ngSetupResponse *ngapType.NGSetupResponse) *NGSetupResponse {
-	if ngSetupResponse == nil {
-		return nil
-	}
-
-	ngSetup := &NGSetupResponse{}
+func buildNGSetupResponse(ngSetupResponse ngapType.NGSetupResponse) NGAPMessageValue {
+	ies := make([]IE, 0)
 
 	for i := 0; i < len(ngSetupResponse.ProtocolIEs.List); i++ {
 		ie := ngSetupResponse.ProtocolIEs.List[i]
 
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFName:
-			ngSetup.IEs = append(ngSetup.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildAMFNameIE(*ie.Value.AMFName),
 			})
 		case ngapType.ProtocolIEIDServedGUAMIList:
-			ngSetup.IEs = append(ngSetup.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildServedGUAMIListIE(*ie.Value.ServedGUAMIList),
 			})
 		case ngapType.ProtocolIEIDRelativeAMFCapacity:
-			ngSetup.IEs = append(ngSetup.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       ie.Value.RelativeAMFCapacity.Value,
 			})
 		case ngapType.ProtocolIEIDPLMNSupportList:
-			ngSetup.IEs = append(ngSetup.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildPLMNSupportListIE(ie.Value.PLMNSupportList),
 			})
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
-			ngSetup.IEs = append(ngSetup.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
 			})
 		case ngapType.ProtocolIEIDUERetentionInformation:
-			ngSetup.IEs = append(ngSetup.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildUERetentionInformationIE(*ie.Value.UERetentionInformation),
 			})
 		default:
-			ngSetup.IEs = append(ngSetup.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: UnknownIE{
@@ -129,7 +117,9 @@ func buildNGSetupResponse(ngSetupResponse *ngapType.NGSetupResponse) *NGSetupRes
 		}
 	}
 
-	return ngSetup
+	return NGAPMessageValue{
+		IEs: ies,
+	}
 }
 
 func buildCriticalityDiagnosticsIE(cd *ngapType.CriticalityDiagnostics) CriticalityDiagnostics {

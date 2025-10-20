@@ -15,40 +15,33 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := ngap.DecodeNGAPMessage(raw)
-	if err != nil {
-		t.Fatalf("failed to decode NGAP message: %v", err)
+	ngapMsg := ngap.DecodeNGAPMessage(raw)
+
+	if ngapMsg.PDUType != "SuccessfulOutcome" {
+		t.Errorf("expected PDUType=SuccessfulOutcome, got %v", ngapMsg.PDUType)
 	}
 
-	if ngap.SuccessfulOutcome == nil {
-		t.Fatalf("expected SuccessfulOutcome, got nil")
+	if ngapMsg.ProcedureCode.Label != "InitialContextSetup" {
+		t.Errorf("expected ProcedureCode=InitialContextSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngap.SuccessfulOutcome.ProcedureCode.Label != "InitialContextSetup" {
-		t.Errorf("expected ProcedureCode=InitialContextSetup, got %v", ngap.SuccessfulOutcome.ProcedureCode)
+	if ngapMsg.ProcedureCode.Value != int(ngapType.ProcedureCodeInitialContextSetup) {
+		t.Errorf("expected ProcedureCode value=14, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
-	if ngap.SuccessfulOutcome.ProcedureCode.Value != int(ngapType.ProcedureCodeInitialContextSetup) {
-		t.Errorf("expected ProcedureCode value=14, got %d", ngap.SuccessfulOutcome.ProcedureCode.Value)
+	if ngapMsg.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
 	}
 
-	if ngap.SuccessfulOutcome.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", ngap.SuccessfulOutcome.Criticality)
+	if ngapMsg.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
 	}
 
-	if ngap.SuccessfulOutcome.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", ngap.SuccessfulOutcome.Criticality.Value)
+	if len(ngapMsg.Value.IEs) != 2 {
+		t.Errorf("expected 2 ProtocolIEs, got %d", len(ngapMsg.Value.IEs))
 	}
 
-	if ngap.SuccessfulOutcome.Value.InitialContextSetupResponse == nil {
-		t.Fatalf("expected InitialContextSetupResponse, got nil")
-	}
-
-	if len(ngap.SuccessfulOutcome.Value.InitialContextSetupResponse.IEs) != 2 {
-		t.Errorf("expected 2 ProtocolIEs, got %d", len(ngap.SuccessfulOutcome.Value.InitialContextSetupResponse.IEs))
-	}
-
-	item0 := ngap.SuccessfulOutcome.Value.InitialContextSetupResponse.IEs[0]
+	item0 := ngapMsg.Value.IEs[0]
 
 	if item0.ID.Label != "AMFUENGAPID" {
 		t.Errorf("expected ID=AMFUENGAPID, got %v", item0.ID)
@@ -66,15 +59,16 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
 	}
 
-	if item0.AMFUENGAPID == nil {
-		t.Fatalf("expected AMFUENGAPID, got nil")
+	amfUENGAPID, ok := item0.Value.(int64)
+	if !ok {
+		t.Fatalf("expected AMFUENGAPID to be of type int64, got %T", item0.Value)
 	}
 
-	if *item0.AMFUENGAPID != 2 {
-		t.Errorf("expected AMFUENGAPID=2, got %d", *item0.AMFUENGAPID)
+	if amfUENGAPID != 2 {
+		t.Errorf("expected AMFUENGAPID=2, got %d", amfUENGAPID)
 	}
 
-	item1 := ngap.SuccessfulOutcome.Value.InitialContextSetupResponse.IEs[1]
+	item1 := ngapMsg.Value.IEs[1]
 
 	if item1.ID.Label != "RANUENGAPID" {
 		t.Errorf("expected ID=RANUENGAPID, got %v", item1.ID)

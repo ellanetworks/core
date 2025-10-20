@@ -9,16 +9,8 @@ import (
 	"go.uber.org/zap"
 )
 
-type UplinkNASTransport struct {
-	IEs []IE `json:"ies"`
-}
-
-func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *UplinkNASTransport {
-	if uplinkNASTransport == nil {
-		return nil
-	}
-
-	ieList := &UplinkNASTransport{}
+func buildUplinkNASTransport(uplinkNASTransport ngapType.UplinkNASTransport) NGAPMessageValue {
+	ies := make([]IE, 0)
 
 	AMFUENGAPID := int64(0)
 
@@ -27,13 +19,13 @@ func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *U
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
+				Value:       ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       ie.Value.RANUENGAPID.Value,
@@ -53,19 +45,19 @@ func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *U
 				Decoded: decodednNasPdu,
 			}
 
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       nasPdu,
 			})
 		case ngapType.ProtocolIEIDUserLocationInformation:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:                      protocolIEIDToEnum(ie.Id.Value),
-				Criticality:             criticalityToEnum(ie.Criticality.Value),
-				UserLocationInformation: buildUserLocationInformationIE(ie.Value.UserLocationInformation),
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildUserLocationInformationIE(*ie.Value.UserLocationInformation),
 			})
 		default:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: UnknownIE{
@@ -75,5 +67,7 @@ func buildUplinkNASTransport(uplinkNASTransport *ngapType.UplinkNASTransport) *U
 		}
 	}
 
-	return ieList
+	return NGAPMessageValue{
+		IEs: ies,
+	}
 }

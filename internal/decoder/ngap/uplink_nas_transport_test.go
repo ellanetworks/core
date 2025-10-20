@@ -15,40 +15,33 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg, err := ngap.DecodeNGAPMessage(raw)
-	if err != nil {
-		t.Fatalf("failed to decode NGAP message: %v", err)
+	ngapMsg := ngap.DecodeNGAPMessage(raw)
+
+	if ngapMsg.PDUType != "InitiatingMessage" {
+		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.InitiatingMessage == nil {
-		t.Fatalf("expected InitiatingMessage, got nil")
+	if ngapMsg.ProcedureCode.Label != "UplinkNASTransport" {
+		t.Errorf("expected ProcedureCode=UplinkNASTransport, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.InitiatingMessage.ProcedureCode.Label != "UplinkNASTransport" {
-		t.Errorf("expected ProcedureCode=UplinkNASTransport, got %v", ngapMsg.InitiatingMessage.ProcedureCode)
+	if ngapMsg.ProcedureCode.Value != int(ngapType.ProcedureCodeUplinkNASTransport) {
+		t.Errorf("expected ProcedureCode value=2, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
-	if ngapMsg.InitiatingMessage.ProcedureCode.Value != int(ngapType.ProcedureCodeUplinkNASTransport) {
-		t.Errorf("expected ProcedureCode value=2, got %d", ngapMsg.InitiatingMessage.ProcedureCode.Value)
+	if ngapMsg.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore (1), got %v", ngapMsg.Criticality)
 	}
 
-	if ngapMsg.InitiatingMessage.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore (1), got %v", ngapMsg.InitiatingMessage.Criticality)
+	if ngapMsg.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", ngapMsg.Criticality.Value)
 	}
 
-	if ngapMsg.InitiatingMessage.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", ngapMsg.InitiatingMessage.Criticality.Value)
+	if len(ngapMsg.Value.IEs) != 4 {
+		t.Errorf("expected 4 ProtocolIEs, got %d", len(ngapMsg.Value.IEs))
 	}
 
-	if ngapMsg.InitiatingMessage.Value.UplinkNASTransport == nil {
-		t.Fatalf("expected UplinkNASTransport, got nil")
-	}
-
-	if len(ngapMsg.InitiatingMessage.Value.UplinkNASTransport.IEs) != 4 {
-		t.Errorf("expected 4 ProtocolIEs, got %d", len(ngapMsg.InitiatingMessage.Value.UplinkNASTransport.IEs))
-	}
-
-	item0 := ngapMsg.InitiatingMessage.Value.UplinkNASTransport.IEs[0]
+	item0 := ngapMsg.Value.IEs[0]
 
 	if item0.ID.Label != "AMFUENGAPID" {
 		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
@@ -66,15 +59,16 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
 	}
 
-	if item0.AMFUENGAPID == nil {
-		t.Fatalf("expected AMFUENGAPID, got nil")
+	amfUENGAPID, ok := item0.Value.(int64)
+	if !ok {
+		t.Fatalf("expected AMFUENGAPID to be of type int64, got %T", item0.Value)
 	}
 
-	if *item0.AMFUENGAPID != 1 {
-		t.Errorf("expected AMFUENGAPID=1, got %d", *item0.AMFUENGAPID)
+	if amfUENGAPID != 1 {
+		t.Errorf("expected AMFUENGAPID=1, got %d", amfUENGAPID)
 	}
 
-	item1 := ngapMsg.InitiatingMessage.Value.UplinkNASTransport.IEs[1]
+	item1 := ngapMsg.Value.IEs[1]
 
 	if item1.ID.Label != "RANUENGAPID" {
 		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
@@ -101,7 +95,7 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected RANUENGAPID=1, got %d", ranUENGAPID)
 	}
 
-	item2 := ngapMsg.InitiatingMessage.Value.UplinkNASTransport.IEs[2]
+	item2 := ngapMsg.Value.IEs[2]
 
 	if item2.ID.Label != "NASPDU" {
 		t.Errorf("expected ID=NASPDU, got %s", item2.ID.Label)
@@ -134,7 +128,7 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, nasPdu.Raw)
 	}
 
-	item3 := ngapMsg.InitiatingMessage.Value.UplinkNASTransport.IEs[3]
+	item3 := ngapMsg.Value.IEs[3]
 
 	if item3.ID.Label != "UserLocationInformation" {
 		t.Errorf("expected ID=UserLocationInformation, got %s", item3.ID.Label)
@@ -152,32 +146,32 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
 	}
 
-	if item3.UserLocationInformation == nil {
-		t.Fatalf("expected UserLocationInformation, got nil")
+	userLocationInfo, ok := item3.Value.(ngap.UserLocationInformation)
+	if !ok {
+		t.Fatalf("expected UserLocationInformation to be of type ngap.UserLocationInformation, got %T", item3.Value)
 	}
 
-	if item3.UserLocationInformation.NR == nil {
+	if userLocationInfo.NR == nil {
 		t.Fatalf("expected NR, got nil")
 	}
 
-	if item3.UserLocationInformation.NR.TAI.TAC != "000001" {
-		t.Errorf("expected TAC=000001, got %s", item3.UserLocationInformation.NR.TAI.TAC)
+	if userLocationInfo.NR.TAI.TAC != "000001" {
+		t.Errorf("expected TAC=000001, got %s", userLocationInfo.NR.TAI.TAC)
 	}
 
-	if item3.UserLocationInformation.NR.TAI.PLMNID.Mcc != "001" {
-		t.Errorf("expected PLMNID.Mcc=001, got %s", item3.UserLocationInformation.NR.TAI.PLMNID.Mcc)
+	if userLocationInfo.NR.TAI.PLMNID.Mcc != "001" {
+		t.Errorf("expected PLMNID.Mcc=001, got %s", userLocationInfo.NR.TAI.PLMNID.Mcc)
 	}
 
-	if item3.UserLocationInformation.NR.TAI.PLMNID.Mnc != "01" {
-		t.Errorf("expected PLMNID.Mnc=01, got %s", item3.UserLocationInformation.NR.TAI.PLMNID.Mnc)
+	if userLocationInfo.NR.TAI.PLMNID.Mnc != "01" {
+		t.Errorf("expected PLMNID.Mnc=01, got %s", userLocationInfo.NR.TAI.PLMNID.Mnc)
 	}
 
-	// read timestamp and convert to time
-	if item3.UserLocationInformation.NR.TimeStamp == nil {
+	if userLocationInfo.NR.TimeStamp == nil {
 		t.Fatalf("expected TimeStamp, got nil")
 	}
 
-	if *item3.UserLocationInformation.NR.TimeStamp != "2025-10-14T21:59:45Z" {
-		t.Errorf("expected TimeStamp=2025-10-14T21:59:45Z, got %s", *item3.UserLocationInformation.NR.TimeStamp)
+	if *userLocationInfo.NR.TimeStamp != "2025-10-14T21:59:45Z" {
+		t.Errorf("expected TimeStamp=2025-10-14T21:59:45Z, got %s", *userLocationInfo.NR.TimeStamp)
 	}
 }

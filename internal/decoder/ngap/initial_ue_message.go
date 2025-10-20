@@ -11,19 +11,59 @@ import (
 	"go.uber.org/zap"
 )
 
-func buildInitialUEMessage(initialUEMessage *ngapType.InitialUEMessage) *InitialUEMessage {
-	if initialUEMessage == nil {
-		return nil
-	}
+type EUTRACGI struct {
+	PLMNID            PLMNID `json:"plmn_id"`
+	EUTRACellIdentity string `json:"eutra_cell_identity"`
+}
 
-	ieList := &InitialUEMessage{}
+type TAI struct {
+	PLMNID PLMNID `json:"plmn_id"`
+	TAC    string `json:"tac"`
+}
+
+type UserLocationInformationEUTRA struct {
+	EUTRACGI  EUTRACGI `json:"eutra_cgi"`
+	TAI       TAI      `json:"tai"`
+	TimeStamp *string  `json:"timestamp,omitempty"`
+}
+
+type NRCGI struct {
+	PLMNID         PLMNID `json:"plmn_id"`
+	NRCellIdentity string `json:"nr_cell_identity"`
+}
+
+type UserLocationInformationNR struct {
+	NRCGI     NRCGI   `json:"nr_cgi"`
+	TAI       TAI     `json:"tai"`
+	TimeStamp *string `json:"timestamp,omitempty"`
+}
+
+type UserLocationInformationN3IWF struct {
+	IPAddress  string `json:"ip_address"`
+	PortNumber int32  `json:"port_number"`
+}
+
+type UserLocationInformation struct {
+	EUTRA *UserLocationInformationEUTRA `json:"eutra,omitempty"`
+	NR    *UserLocationInformationNR    `json:"nr,omitempty"`
+	N3IWF *UserLocationInformationN3IWF `json:"n3iwf,omitempty"`
+}
+
+type FiveGSTMSI struct {
+	AMFSetID   string `json:"amf_set_id"`
+	AMFPointer string `json:"amf_pointer"`
+	FiveGTMSI  string `json:"fiveg_tmsi"`
+}
+
+func buildInitialUEMessage(initialUEMessage ngapType.InitialUEMessage) NGAPMessageValue {
+	ies := make([]IE, 0)
 
 	for i := 0; i < len(initialUEMessage.ProtocolIEs.List); i++ {
 		ie := initialUEMessage.ProtocolIEs.List[i]
 
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDRANUENGAPID:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       ie.Value.RANUENGAPID.Value,
@@ -37,50 +77,49 @@ func buildInitialUEMessage(initialUEMessage *ngapType.InitialUEMessage) *Initial
 				Raw:     ie.Value.NASPDU.Value,
 				Decoded: decodednNasPdu,
 			}
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       nasPdu,
 			})
 		case ngapType.ProtocolIEIDUserLocationInformation:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:                      protocolIEIDToEnum(ie.Id.Value),
-				Criticality:             criticalityToEnum(ie.Criticality.Value),
-				UserLocationInformation: buildUserLocationInformationIE(ie.Value.UserLocationInformation),
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildUserLocationInformationIE(*ie.Value.UserLocationInformation),
 			})
 		case ngapType.ProtocolIEIDRRCEstablishmentCause:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:                    protocolIEIDToEnum(ie.Id.Value),
-				Criticality:           criticalityToEnum(ie.Criticality.Value),
-				RRCEstablishmentCause: buildRRCEstablishmentCauseIE(ie.Value.RRCEstablishmentCause),
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildRRCEstablishmentCauseIE(*ie.Value.RRCEstablishmentCause),
 			})
 		case ngapType.ProtocolIEIDFiveGSTMSI:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				FiveGSTMSI:  buildFiveGSTMSIIE(ie.Value.FiveGSTMSI),
+				Value:       buildFiveGSTMSIIE(*ie.Value.FiveGSTMSI),
 			})
 		case ngapType.ProtocolIEIDAMFSetID:
-			amfSetID := bitStringToHex(&ie.Value.AMFSetID.Value)
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				AMFSetID:    &amfSetID,
+				Value:       bitStringToHex(&ie.Value.AMFSetID.Value),
 			})
 		case ngapType.ProtocolIEIDUEContextRequest:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:               protocolIEIDToEnum(ie.Id.Value),
-				Criticality:      criticalityToEnum(ie.Criticality.Value),
-				UEContextRequest: buildUEContextRequestIE(ie.Value.UEContextRequest),
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildUEContextRequestIE(*ie.Value.UEContextRequest),
 			})
 		case ngapType.ProtocolIEIDAllowedNSSAI:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:           protocolIEIDToEnum(ie.Id.Value),
-				Criticality:  criticalityToEnum(ie.Criticality.Value),
-				AllowedNSSAI: buildAllowedNSSAI(ie.Value.AllowedNSSAI),
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildAllowedNSSAI(*ie.Value.AllowedNSSAI),
 			})
 		default:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: UnknownIE{
@@ -90,15 +129,13 @@ func buildInitialUEMessage(initialUEMessage *ngapType.InitialUEMessage) *Initial
 		}
 	}
 
-	return ieList
+	return NGAPMessageValue{
+		IEs: ies,
+	}
 }
 
-func buildFiveGSTMSIIE(fivegStmsi *ngapType.FiveGSTMSI) *FiveGSTMSI {
-	if fivegStmsi == nil {
-		return nil
-	}
-
-	fiveg := &FiveGSTMSI{}
+func buildFiveGSTMSIIE(fivegStmsi ngapType.FiveGSTMSI) FiveGSTMSI {
+	fiveg := FiveGSTMSI{}
 
 	fiveg.AMFSetID = bitStringToHex(&fivegStmsi.AMFSetID.Value)
 	fiveg.AMFPointer = bitStringToHex(&fivegStmsi.AMFPointer.Value)
@@ -107,65 +144,45 @@ func buildFiveGSTMSIIE(fivegStmsi *ngapType.FiveGSTMSI) *FiveGSTMSI {
 	return fiveg
 }
 
-func buildRRCEstablishmentCauseIE(rrc *ngapType.RRCEstablishmentCause) *string {
-	if rrc == nil {
-		return nil
-	}
-
-	var cause string
-
+func buildRRCEstablishmentCauseIE(rrc ngapType.RRCEstablishmentCause) EnumField {
 	switch rrc.Value {
 	case ngapType.RRCEstablishmentCausePresentEmergency:
-		cause = "Emergency"
+		return EnumField{Label: "Emergency", Value: int(ngapType.RRCEstablishmentCausePresentEmergency)}
 	case ngapType.RRCEstablishmentCausePresentHighPriorityAccess:
-		cause = "HighPriorityAccess"
+		return EnumField{Label: "HighPriorityAccess", Value: int(ngapType.RRCEstablishmentCausePresentHighPriorityAccess)}
 	case ngapType.RRCEstablishmentCausePresentMtAccess:
-		cause = "MtAccess"
+		return EnumField{Label: "MtAccess", Value: int(ngapType.RRCEstablishmentCausePresentMtAccess)}
 	case ngapType.RRCEstablishmentCausePresentMoSignalling:
-		cause = "MoSignalling"
+		return EnumField{Label: "MoSignalling", Value: int(ngapType.RRCEstablishmentCausePresentMoSignalling)}
 	case ngapType.RRCEstablishmentCausePresentMoData:
-		cause = "MoData"
+		return EnumField{Label: "MoData", Value: int(ngapType.RRCEstablishmentCausePresentMoData)}
 	case ngapType.RRCEstablishmentCausePresentMoVoiceCall:
-		cause = "MoVoiceCall"
+		return EnumField{Label: "MoVoiceCall", Value: int(ngapType.RRCEstablishmentCausePresentMoVoiceCall)}
 	case ngapType.RRCEstablishmentCausePresentMoVideoCall:
-		cause = "MoVideoCall"
+		return EnumField{Label: "MoVideoCall", Value: int(ngapType.RRCEstablishmentCausePresentMoVideoCall)}
 	case ngapType.RRCEstablishmentCausePresentMoSMS:
-		cause = "MoSMS"
+		return EnumField{Label: "MoSMS", Value: int(ngapType.RRCEstablishmentCausePresentMoSMS)}
 	case ngapType.RRCEstablishmentCausePresentMpsPriorityAccess:
-		cause = "MpsPriorityAccess"
+		return EnumField{Label: "MpsPriorityAccess", Value: int(ngapType.RRCEstablishmentCausePresentMpsPriorityAccess)}
 	case ngapType.RRCEstablishmentCausePresentMcsPriorityAccess:
-		cause = "McsPriorityAccess"
+		return EnumField{Label: "McsPriorityAccess", Value: int(ngapType.RRCEstablishmentCausePresentMcsPriorityAccess)}
 	case ngapType.RRCEstablishmentCausePresentNotAvailable:
-		cause = "NotAvailable"
+		return EnumField{Label: "NotAvailable", Value: int(ngapType.RRCEstablishmentCausePresentNotAvailable)}
 	default:
-		cause = fmt.Sprintf("Unknown(%d)", rrc.Value)
+		return EnumField{Label: "Unknown", Value: int(rrc.Value)}
 	}
-
-	return &cause
 }
 
-func buildUEContextRequestIE(ueCtxReq *ngapType.UEContextRequest) *string {
-	if ueCtxReq == nil {
-		return nil
-	}
-
-	var req string
-
+func buildUEContextRequestIE(ueCtxReq ngapType.UEContextRequest) EnumField {
 	switch ueCtxReq.Value {
 	case ngapType.UEContextRequestPresentRequested:
-		req = "Requested"
+		return EnumField{Label: "Requested", Value: int(ngapType.UEContextRequestPresentRequested)}
 	default:
-		req = fmt.Sprintf("Unknown(%d)", ueCtxReq.Value)
+		return EnumField{Label: "Unknown", Value: int(ueCtxReq.Value)}
 	}
-
-	return &req
 }
 
-func buildAllowedNSSAI(allowedNSSAI *ngapType.AllowedNSSAI) []SNSSAI {
-	if allowedNSSAI == nil {
-		return nil
-	}
-
+func buildAllowedNSSAI(allowedNSSAI ngapType.AllowedNSSAI) []SNSSAI {
 	snssaiList := make([]SNSSAI, 0)
 
 	for i := 0; i < len(allowedNSSAI.List); i++ {
@@ -177,12 +194,8 @@ func buildAllowedNSSAI(allowedNSSAI *ngapType.AllowedNSSAI) []SNSSAI {
 	return snssaiList
 }
 
-func buildUserLocationInformationIE(uli *ngapType.UserLocationInformation) *UserLocationInformation {
-	if uli == nil {
-		return nil
-	}
-
-	userLocationInfo := &UserLocationInformation{}
+func buildUserLocationInformationIE(uli ngapType.UserLocationInformation) UserLocationInformation {
+	userLocationInfo := UserLocationInformation{}
 
 	switch uli.Present {
 	case ngapType.UserLocationInformationPresentUserLocationInformationEUTRA:

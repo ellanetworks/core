@@ -6,52 +6,54 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-type InitialContextSetupResponse struct {
-	IEs []IE `json:"ies"`
+type PDUSessionResourceFailedToSetupCxtRes struct {
+	PDUSessionID                                int64  `json:"pdu_session_id"`
+	PDUSessionResourceSetupUnsuccessfulTransfer []byte `json:"pdu_session_resource_setup_unsuccessful_transfer"`
 }
 
-func buildInitialContextSetupResponse(initialContextSetupResponse *ngapType.InitialContextSetupResponse) *InitialContextSetupResponse {
-	if initialContextSetupResponse == nil {
-		return nil
-	}
+type PDUSessionResourceSetupCxtRes struct {
+	PDUSessionID                            int64  `json:"pdu_session_id"`
+	PDUSessionResourceSetupResponseTransfer []byte `json:"pdu_session_resource_setup_response_transfer"`
+}
 
-	icsResponse := &InitialContextSetupResponse{}
+func buildInitialContextSetupResponse(initialContextSetupResponse ngapType.InitialContextSetupResponse) NGAPMessageValue {
+	ies := make([]IE, 0)
 
 	for i := 0; i < len(initialContextSetupResponse.ProtocolIEs.List); i++ {
 		ie := initialContextSetupResponse.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
-			icsResponse.IEs = append(icsResponse.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
+				Value:       ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
-			icsResponse.IEs = append(icsResponse.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtRes:
-			icsResponse.IEs = append(icsResponse.IEs, IE{
-				ID:                                protocolIEIDToEnum(ie.Id.Value),
-				Criticality:                       criticalityToEnum(ie.Criticality.Value),
-				PDUSessionResourceSetupListCxtRes: buildPDUSessionResourceSetupListCxtResIE(ie.Value.PDUSessionResourceSetupListCxtRes),
-			})
-		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtRes:
-			icsResponse.IEs = append(icsResponse.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				PDUSessionResourceFailedToSetupListCxtRes: buildPDUSessionResourceFailedToSetupListCxtResIE(ie.Value.PDUSessionResourceFailedToSetupListCxtRes),
+				Value:       buildPDUSessionResourceSetupListCxtResIE(*ie.Value.PDUSessionResourceSetupListCxtRes),
+			})
+		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtRes:
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildPDUSessionResourceFailedToSetupListCxtResIE(*ie.Value.PDUSessionResourceFailedToSetupListCxtRes),
 			})
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
-			icsResponse.IEs = append(icsResponse.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
 			})
 		default:
-			icsResponse.IEs = append(icsResponse.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: UnknownIE{
@@ -61,14 +63,12 @@ func buildInitialContextSetupResponse(initialContextSetupResponse *ngapType.Init
 		}
 	}
 
-	return icsResponse
+	return NGAPMessageValue{
+		IEs: ies,
+	}
 }
 
-func buildPDUSessionResourceSetupListCxtResIE(pduList *ngapType.PDUSessionResourceSetupListCxtRes) []PDUSessionResourceSetupCxtRes {
-	if pduList == nil {
-		return nil
-	}
-
+func buildPDUSessionResourceSetupListCxtResIE(pduList ngapType.PDUSessionResourceSetupListCxtRes) []PDUSessionResourceSetupCxtRes {
 	pduSessionList := make([]PDUSessionResourceSetupCxtRes, 0)
 
 	for i := 0; i < len(pduList.List); i++ {
@@ -83,11 +83,7 @@ func buildPDUSessionResourceSetupListCxtResIE(pduList *ngapType.PDUSessionResour
 	return pduSessionList
 }
 
-func buildPDUSessionResourceFailedToSetupListCxtResIE(pduList *ngapType.PDUSessionResourceFailedToSetupListCxtRes) []PDUSessionResourceFailedToSetupCxtRes {
-	if pduList == nil {
-		return nil
-	}
-
+func buildPDUSessionResourceFailedToSetupListCxtResIE(pduList ngapType.PDUSessionResourceFailedToSetupListCxtRes) []PDUSessionResourceFailedToSetupCxtRes {
 	pduSessionList := make([]PDUSessionResourceFailedToSetupCxtRes, 0)
 
 	for i := 0; i < len(pduList.List); i++ {

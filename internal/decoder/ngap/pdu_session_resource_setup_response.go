@@ -6,52 +6,54 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-type PDUSessionResourceSetupResponse struct {
-	IEs []IE `json:"ies"`
+type PDUSessionResourceSetupSURes struct {
+	PDUSessionID                            int64  `json:"pdu_session_id"`
+	PDUSessionResourceSetupResponseTransfer []byte `json:"pdu_session_resource_setup_response_transfer"`
 }
 
-func buildPDUSessionResourceSetupResponse(pduSessionResourceSetupResponse *ngapType.PDUSessionResourceSetupResponse) *PDUSessionResourceSetupResponse {
-	if pduSessionResourceSetupResponse == nil {
-		return nil
-	}
+type PDUSessionResourceFailedToSetupSURes struct {
+	PDUSessionID                                int64  `json:"pdu_session_id"`
+	PDUSessionResourceSetupUnsuccessfulTransfer []byte `json:"pdu_session_resource_setup_unsuccessful_transfer"`
+}
 
-	psrs := &PDUSessionResourceSetupResponse{}
+func buildPDUSessionResourceSetupResponse(pduSessionResourceSetupResponse ngapType.PDUSessionResourceSetupResponse) NGAPMessageValue {
+	ies := make([]IE, 0)
 
 	for i := 0; i < len(pduSessionResourceSetupResponse.ProtocolIEs.List); i++ {
 		ie := pduSessionResourceSetupResponse.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
-			psrs.IEs = append(psrs.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
+				Value:       ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
-			psrs.IEs = append(psrs.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes:
-			psrs.IEs = append(psrs.IEs, IE{
-				ID:                               protocolIEIDToEnum(ie.Id.Value),
-				Criticality:                      criticalityToEnum(ie.Criticality.Value),
-				PDUSessionResourceSetupListSURes: buildPDUSessionResourceSetupListSUResIE(ie.Value.PDUSessionResourceSetupListSURes),
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildPDUSessionResourceSetupListSUResIE(*ie.Value.PDUSessionResourceSetupListSURes),
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListSURes:
-			psrs.IEs = append(psrs.IEs, IE{
-				ID:                                       protocolIEIDToEnum(ie.Id.Value),
-				Criticality:                              criticalityToEnum(ie.Criticality.Value),
-				PDUSessionResourceFailedToSetupListSURes: buildPDUSessionResourceFailedToSetupListSUResIE(ie.Value.PDUSessionResourceFailedToSetupListSURes),
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildPDUSessionResourceFailedToSetupListSUResIE(*ie.Value.PDUSessionResourceFailedToSetupListSURes),
 			})
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
-			psrs.IEs = append(psrs.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
 			})
 		default:
-			psrs.IEs = append(psrs.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: UnknownIE{
@@ -61,14 +63,12 @@ func buildPDUSessionResourceSetupResponse(pduSessionResourceSetupResponse *ngapT
 		}
 	}
 
-	return psrs
+	return NGAPMessageValue{
+		IEs: ies,
+	}
 }
 
-func buildPDUSessionResourceSetupListSUResIE(pduList *ngapType.PDUSessionResourceSetupListSURes) []PDUSessionResourceSetupSURes {
-	if pduList == nil {
-		return nil
-	}
-
+func buildPDUSessionResourceSetupListSUResIE(pduList ngapType.PDUSessionResourceSetupListSURes) []PDUSessionResourceSetupSURes {
 	pduSessionList := make([]PDUSessionResourceSetupSURes, 0)
 
 	for i := 0; i < len(pduList.List); i++ {
@@ -83,11 +83,7 @@ func buildPDUSessionResourceSetupListSUResIE(pduList *ngapType.PDUSessionResourc
 	return pduSessionList
 }
 
-func buildPDUSessionResourceFailedToSetupListSUResIE(pduList *ngapType.PDUSessionResourceFailedToSetupListSURes) []PDUSessionResourceFailedToSetupSURes {
-	if pduList == nil {
-		return nil
-	}
-
+func buildPDUSessionResourceFailedToSetupListSUResIE(pduList ngapType.PDUSessionResourceFailedToSetupListSURes) []PDUSessionResourceFailedToSetupSURes {
 	pduSessionList := make([]PDUSessionResourceFailedToSetupSURes, 0)
 
 	for i := 0; i < len(pduList.List); i++ {

@@ -3,209 +3,10 @@ package ngap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/decoder/nas"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/aper"
 	"github.com/omec-project/ngap/ngapType"
-	"go.uber.org/zap"
 )
-
-type EUTRACGI struct {
-	PLMNID            PLMNID `json:"plmn_id"`
-	EUTRACellIdentity string `json:"eutra_cell_identity"`
-}
-
-type TAI struct {
-	PLMNID PLMNID `json:"plmn_id"`
-	TAC    string `json:"tac"`
-}
-
-type UserLocationInformationEUTRA struct {
-	EUTRACGI  EUTRACGI `json:"eutra_cgi"`
-	TAI       TAI      `json:"tai"`
-	TimeStamp *string  `json:"timestamp,omitempty"`
-}
-
-type NRCGI struct {
-	PLMNID         PLMNID `json:"plmn_id"`
-	NRCellIdentity string `json:"nr_cell_identity"`
-}
-
-type UserLocationInformationNR struct {
-	NRCGI     NRCGI   `json:"nr_cgi"`
-	TAI       TAI     `json:"tai"`
-	TimeStamp *string `json:"timestamp,omitempty"`
-}
-
-type UserLocationInformationN3IWF struct {
-	IPAddress  string `json:"ip_address"`
-	PortNumber int32  `json:"port_number"`
-}
-
-type UserLocationInformation struct {
-	EUTRA *UserLocationInformationEUTRA `json:"eutra,omitempty"`
-	NR    *UserLocationInformationNR    `json:"nr,omitempty"`
-	N3IWF *UserLocationInformationN3IWF `json:"n3iwf,omitempty"`
-}
-
-type FiveGSTMSI struct {
-	AMFSetID   string `json:"amf_set_id"`
-	AMFPointer string `json:"amf_pointer"`
-	FiveGTMSI  string `json:"fiveg_tmsi"`
-}
-
-type RATRestriction struct {
-	PLMNID                    PLMNID `json:"plmn_id"`
-	RATRestrictionInformation string `json:"rat_restriction_information"`
-}
-
-type ForbiddenAreaInformation struct {
-	PLMNID        PLMNID   `json:"plmn_id"`
-	ForbiddenTACs []string `json:"forbidden_tacs"`
-}
-
-type ServiceAreaInformation struct {
-	PLMNID         PLMNID   `json:"plmn_id"`
-	AllowedTACs    []string `json:"allowed_tacs,omitempty"`
-	NotAllowedTACs []string `json:"not_allowed_tacs,omitempty"`
-}
-
-type MobilityRestrictionList struct {
-	ServingPLMN              PLMNID                     `json:"serving_plmn"`
-	EquivalentPLMNs          []PLMNID                   `json:"equivalent_plmns,omitempty"`
-	RATRestrictions          []RATRestriction           `json:"rat_restrictions,omitempty"`
-	ForbiddenAreaInformation []ForbiddenAreaInformation `json:"forbidden_area_information,omitempty"`
-	ServiceAreaInformation   []ServiceAreaInformation   `json:"service_area_information,omitempty"`
-}
-
-type UEAggregateMaximumBitRate struct {
-	Downlink int64 `json:"downlink"`
-	Uplink   int64 `json:"uplink"`
-}
-
-type ExpectedUEActivityBehaviour struct {
-	ExpectedActivityPeriod                 *int64  `json:"expected_activity_period,omitempty"`
-	ExpectedIdlePeriod                     *int64  `json:"expected_idle_period,omitempty"`
-	SourceOfUEActivityBehaviourInformation *string `json:"source_of_ue_activity_behaviour_information,omitempty"`
-}
-
-type NGRANCGI struct {
-	NRCGI    *NRCGI    `json:"nr_ran_cgi,omitempty"`
-	EUTRACGI *EUTRACGI `json:"eutra_cgi,omitempty"`
-}
-
-type ExpectedUEMovingTrajectoryItem struct {
-	NGRANCGI         NGRANCGI `json:"ng_ran_cgi"`
-	TimeStayedInCell *int64   `json:"time_stayed_in_cell,omitempty"`
-}
-
-type ExpectedUEBehaviour struct {
-	ExpectedUEActivityBehaviour *ExpectedUEActivityBehaviour     `json:"expected_ue_activity_behaviour,omitempty"`
-	ExpectedHOInterval          *string                          `json:"expected_ho_interval,omitempty"`
-	ExpectedUEMobility          *string                          `json:"expected_ue_mobility,omitempty"`
-	ExpectedUEMovingTrajectory  []ExpectedUEMovingTrajectoryItem `json:"expected_ue_moving_trajectory,omitempty"`
-}
-
-type CoreNetworkAssistanceInformation struct {
-	UEIdentityIndexValue            string               `json:"ue_identity_index_value"`
-	UESpecificDRX                   *EnumField           `json:"ue_specific_drx,omitempty"`
-	PeriodicRegistrationUpdateTimer string               `json:"periodic_registration_update_timer"`
-	MICOModeIndication              *string              `json:"mico_mode_indication,omitempty"`
-	TAIListForInactive              []TAI                `json:"tai_list_for_inactive,omitempty"`
-	ExpectedUEBehaviour             *ExpectedUEBehaviour `json:"expected_ue_behaviour,omitempty"`
-}
-
-type PDUSessionResourceSetupCxtReq struct {
-	PDUSessionID                           int64   `json:"pdu_session_id"`
-	NASPDU                                 *NASPDU `json:"nas_pdu,omitempty"`
-	SNSSAI                                 SNSSAI  `json:"snssai"`
-	PDUSessionResourceSetupRequestTransfer []byte  `json:"pdu_session_resource_setup_request_transfer"`
-}
-
-type PDUSessionResourceSetupCxtRes struct {
-	PDUSessionID                            int64  `json:"pdu_session_id"`
-	PDUSessionResourceSetupResponseTransfer []byte `json:"pdu_session_resource_setup_response_transfer"`
-}
-
-type PDUSessionResourceFailedToSetupCxtRes struct {
-	PDUSessionID                                int64  `json:"pdu_session_id"`
-	PDUSessionResourceSetupUnsuccessfulTransfer []byte `json:"pdu_session_resource_setup_unsuccessful_transfer"`
-}
-
-type PDUSessionResourceSetupSUReq struct {
-	PDUSessionID                           int64   `json:"pdu_session_id"`
-	PDUSessionNASPDU                       *NASPDU `json:"pdu_session_nas_pdu,omitempty"`
-	SNSSAI                                 SNSSAI  `json:"snssai"`
-	PDUSessionResourceSetupRequestTransfer []byte  `json:"pdu_session_resource_setup_request_transfer"`
-}
-
-type PDUSessionResourceSetupSURes struct {
-	PDUSessionID                            int64  `json:"pdu_session_id"`
-	PDUSessionResourceSetupResponseTransfer []byte `json:"pdu_session_resource_setup_response_transfer"`
-}
-
-type PDUSessionResourceFailedToSetupSURes struct {
-	PDUSessionID                                int64  `json:"pdu_session_id"`
-	PDUSessionResourceSetupUnsuccessfulTransfer []byte `json:"pdu_session_resource_setup_unsuccessful_transfer"`
-}
-
-type UESecurityCapabilities struct {
-	NRencryptionAlgorithms             []string `json:"nr_encryption_algorithms"`
-	NRintegrityProtectionAlgorithms    []string `json:"nr_integrity_protection_algorithms"`
-	EUTRAencryptionAlgorithms          string   `json:"eutra_encryption_algorithms"`
-	EUTRAintegrityProtectionAlgorithms string   `json:"eutra_integrity_protection_algorithms"`
-}
-
-type NASPDU struct {
-	Raw     []byte          `json:"raw"`
-	Decoded *nas.NASMessage `json:"decoded"`
-}
-
-type IE struct {
-	ID          EnumField `json:"id"`
-	Criticality EnumField `json:"criticality"`
-	Value       any       `json:"value,omitempty"`
-
-	UserLocationInformation                   *UserLocationInformation                `json:"user_location_information,omitempty"`
-	RRCEstablishmentCause                     *string                                 `json:"rrc_establishment_cause,omitempty"`
-	FiveGSTMSI                                *FiveGSTMSI                             `json:"fiveg_stmsi,omitempty"`
-	AMFSetID                                  *string                                 `json:"amf_set_id,omitempty"`
-	UEContextRequest                          *string                                 `json:"ue_context_request,omitempty"`
-	AllowedNSSAI                              []SNSSAI                                `json:"allowed_nssai,omitempty"`
-	AMFUENGAPID                               *int64                                  `json:"amf_ue_ngap_id,omitempty"`
-	RANPagingPriority                         *int64                                  `json:"ran_paging_priority,omitempty"`
-	MobilityRestrictionList                   *MobilityRestrictionList                `json:"mobility_restriction_list,omitempty"`
-	IndexToRFSP                               *int64                                  `json:"index_to_rfsp,omitempty"`
-	UEAggregateMaximumBitRate                 *UEAggregateMaximumBitRate              `json:"ue_aggregate_maximum_bit_rate,omitempty"`
-	CoreNetworkAssistanceInformation          *CoreNetworkAssistanceInformation       `json:"core_network_assistance_information,omitempty"`
-	GUAMI                                     *Guami                                  `json:"guami,omitempty"`
-	PDUSessionResourceSetupListCxtReq         []PDUSessionResourceSetupCxtReq         `json:"pdu_session_resource_setup_list_cxt_req,omitempty"`
-	PDUSessionResourceSetupListCxtRes         []PDUSessionResourceSetupCxtRes         `json:"pdu_session_resource_setup_list_cxt_res,omitempty"`
-	PDUSessionResourceFailedToSetupListCxtRes []PDUSessionResourceFailedToSetupCxtRes `json:"pdu_session_resource_failed_to_setup_list_cxt_res,omitempty"`
-	PDUSessionResourceSetupListSUReq          []PDUSessionResourceSetupSUReq          `json:"pdu_session_resource_setup_list_su_req,omitempty"`
-	PDUSessionResourceSetupListSURes          []PDUSessionResourceSetupSURes          `json:"pdu_session_resource_setup_list_su_res,omitempty"`
-	PDUSessionResourceFailedToSetupListSURes  []PDUSessionResourceFailedToSetupSURes  `json:"pdu_session_resource_failed_to_setup_list_su_res,omitempty"`
-	UESecurityCapabilities                    *UESecurityCapabilities                 `json:"ue_security_capabilities,omitempty"`
-	SecurityKey                               *string                                 `json:"security_key,omitempty"`
-}
-
-type InitialUEMessage struct {
-	IEs []IE `json:"ies"`
-}
-
-type PDUSessionResourceSetupRequest struct {
-	IEs []IE `json:"ies"`
-}
-
-type InitiatingMessageValue struct {
-	NGSetupRequest                 *NGSetupRequest                 `json:"ng_setup_request,omitempty"`
-	InitialUEMessage               *InitialUEMessage               `json:"initial_ue_message,omitempty"`
-	DownlinkNASTransport           *DownlinkNASTransport           `json:"downlink_nas_transport,omitempty"`
-	UplinkNASTransport             *UplinkNASTransport             `json:"uplink_nas_transport,omitempty"`
-	InitialContextSetupRequest     *InitialContextSetupRequest     `json:"initial_context_setup_request,omitempty"`
-	PDUSessionResourceSetupRequest *PDUSessionResourceSetupRequest `json:"pdu_session_resource_setup_request,omitempty"`
-}
 
 type EnumField struct {
 	Type  string `json:"type" default:"enum"`
@@ -213,143 +14,104 @@ type EnumField struct {
 	Label string `json:"label"`
 }
 
-type InitiatingMessage struct {
-	ProcedureCode EnumField              `json:"procedure_code"`
-	Criticality   EnumField              `json:"criticality"`
-	Value         InitiatingMessageValue `json:"value"`
-}
-
-type SuccessfulOutcomeValue struct {
-	NGSetupResponse                 *NGSetupResponse                 `json:"ng_setup_response,omitempty"`
-	InitialContextSetupResponse     *InitialContextSetupResponse     `json:"initial_context_setup_response,omitempty"`
-	PDUSessionResourceSetupResponse *PDUSessionResourceSetupResponse `json:"pdu_session_resource_setup_response,omitempty"`
-}
-
-type SuccessfulOutcome struct {
-	ProcedureCode EnumField              `json:"procedure_code"`
-	Criticality   EnumField              `json:"criticality"`
-	Value         SuccessfulOutcomeValue `json:"value"`
-}
-
-type UnsuccessfulOutcomeValue struct {
-	NGSetupFailure *NGSetupFailure `json:"ng_setup_failure,omitempty"`
-}
-
-type UnsuccessfulOutcome struct {
-	ProcedureCode EnumField                `json:"procedure_code"`
-	Criticality   EnumField                `json:"criticality"`
-	Value         UnsuccessfulOutcomeValue `json:"value"`
+type NGAPMessageValue struct {
+	IEs   []IE   `json:"ies,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 type NGAPMessage struct {
-	InitiatingMessage   *InitiatingMessage   `json:"initiating_message,omitempty"`
-	SuccessfulOutcome   *SuccessfulOutcome   `json:"successful_outcome,omitempty"`
-	UnsuccessfulOutcome *UnsuccessfulOutcome `json:"unsuccessful_outcome,omitempty"`
+	PDUType       string           `json:"pdu_type"`
+	ProcedureCode EnumField        `json:"procedure_code"`
+	Criticality   EnumField        `json:"criticality"`
+	Value         NGAPMessageValue `json:"value"`
 }
 
-func DecodeNGAPMessage(raw []byte) (*NGAPMessage, error) {
+func DecodeNGAPMessage(raw []byte) NGAPMessage {
 	pdu, err := ngap.Decoder(raw)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode NGAP message: %w", err)
+		return NGAPMessage{
+			Value: NGAPMessageValue{
+				Error: fmt.Sprintf("Could not decode raw ngap message: %v", err),
+			},
+		}
 	}
-
-	ngapMsg := &NGAPMessage{}
 
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
-		ngapMsg.InitiatingMessage = buildInitiatingMessage(pdu.InitiatingMessage)
-		return ngapMsg, nil
+		return NGAPMessage{
+			ProcedureCode: procedureCodeToEnum(pdu.InitiatingMessage.ProcedureCode.Value),
+			Criticality:   criticalityToEnum(pdu.InitiatingMessage.Criticality.Value),
+			PDUType:       "InitiatingMessage",
+			Value:         buildInitiatingMessage(*pdu.InitiatingMessage),
+		}
 	case ngapType.NGAPPDUPresentSuccessfulOutcome:
-		ngapMsg.SuccessfulOutcome = buildSuccessfulOutcome(pdu.SuccessfulOutcome)
-		return ngapMsg, nil
+		return NGAPMessage{
+			ProcedureCode: procedureCodeToEnum(pdu.SuccessfulOutcome.ProcedureCode.Value),
+			Criticality:   criticalityToEnum(pdu.SuccessfulOutcome.Criticality.Value),
+			PDUType:       "SuccessfulOutcome",
+			Value:         buildSuccessfulOutcome(*pdu.SuccessfulOutcome),
+		}
 	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
-		ngapMsg.UnsuccessfulOutcome = buildUnsuccessfulOutcome(pdu.UnsuccessfulOutcome)
-		return ngapMsg, nil
+		return NGAPMessage{
+			ProcedureCode: procedureCodeToEnum(pdu.UnsuccessfulOutcome.ProcedureCode.Value),
+			Criticality:   criticalityToEnum(pdu.UnsuccessfulOutcome.Criticality.Value),
+			PDUType:       "UnsuccessfulOutcome",
+			Value:         buildUnsuccessfulOutcome(*pdu.UnsuccessfulOutcome),
+		}
 	default:
-		return nil, fmt.Errorf("unknown NGAP PDU type: %d", pdu.Present)
+		return NGAPMessage{
+			PDUType: "Unknown",
+			Value: NGAPMessageValue{
+				Error: fmt.Sprintf("unknown NGAP PDU type: %d", pdu.Present),
+			},
+		}
 	}
 }
 
-func buildInitiatingMessage(initMsg *ngapType.InitiatingMessage) *InitiatingMessage {
-	if initMsg == nil {
-		return nil
-	}
-
-	initiatingMsg := &InitiatingMessage{
-		ProcedureCode: procedureCodeToEnum(initMsg.ProcedureCode.Value),
-		Criticality:   criticalityToEnum(initMsg.Criticality.Value),
-		Value:         InitiatingMessageValue{},
-	}
-
+func buildInitiatingMessage(initMsg ngapType.InitiatingMessage) NGAPMessageValue {
 	switch initMsg.Value.Present {
 	case ngapType.InitiatingMessagePresentNGSetupRequest:
-		initiatingMsg.Value.NGSetupRequest = buildNGSetupRequest(initMsg.Value.NGSetupRequest)
-		return initiatingMsg
+		return buildNGSetupRequest(*initMsg.Value.NGSetupRequest)
 	case ngapType.InitiatingMessagePresentInitialUEMessage:
-		initiatingMsg.Value.InitialUEMessage = buildInitialUEMessage(initMsg.Value.InitialUEMessage)
-		return initiatingMsg
+		return buildInitialUEMessage(*initMsg.Value.InitialUEMessage)
 	case ngapType.InitiatingMessagePresentDownlinkNASTransport:
-		initiatingMsg.Value.DownlinkNASTransport = buildDownlinkNASTransport(initMsg.Value.DownlinkNASTransport)
-		return initiatingMsg
+		return buildDownlinkNASTransport(*initMsg.Value.DownlinkNASTransport)
 	case ngapType.InitiatingMessagePresentUplinkNASTransport:
-		initiatingMsg.Value.UplinkNASTransport = buildUplinkNASTransport(initMsg.Value.UplinkNASTransport)
-		return initiatingMsg
+		return buildUplinkNASTransport(*initMsg.Value.UplinkNASTransport)
 	case ngapType.InitiatingMessagePresentInitialContextSetupRequest:
-		initiatingMsg.Value.InitialContextSetupRequest = buildInitialContextSetupRequest(initMsg.Value.InitialContextSetupRequest)
-		return initiatingMsg
+		return buildInitialContextSetupRequest(*initMsg.Value.InitialContextSetupRequest)
 	case ngapType.InitiatingMessagePresentPDUSessionResourceSetupRequest:
-		initiatingMsg.Value.PDUSessionResourceSetupRequest = buildPDUSessionResourceSetupRequest(initMsg.Value.PDUSessionResourceSetupRequest)
-		return initiatingMsg
+		return buildPDUSessionResourceSetupRequest(*initMsg.Value.PDUSessionResourceSetupRequest)
 	default:
-		logger.EllaLog.Warn("Unsupported procedure code", zap.Int("present", initMsg.Value.Present))
-		return initiatingMsg
+		return NGAPMessageValue{
+			Error: fmt.Sprintf("Unsupported message %d", initMsg.Value.Present),
+		}
 	}
 }
 
-func buildSuccessfulOutcome(sucMsg *ngapType.SuccessfulOutcome) *SuccessfulOutcome {
-	if sucMsg == nil {
-		return nil
-	}
-	successfulOutcome := &SuccessfulOutcome{
-		ProcedureCode: procedureCodeToEnum(sucMsg.ProcedureCode.Value),
-		Criticality:   criticalityToEnum(sucMsg.Criticality.Value),
-		Value:         SuccessfulOutcomeValue{},
-	}
-
+func buildSuccessfulOutcome(sucMsg ngapType.SuccessfulOutcome) NGAPMessageValue {
 	switch sucMsg.Value.Present {
 	case ngapType.SuccessfulOutcomePresentNGSetupResponse:
-		successfulOutcome.Value.NGSetupResponse = buildNGSetupResponse(sucMsg.Value.NGSetupResponse)
-		return successfulOutcome
+		return buildNGSetupResponse(*sucMsg.Value.NGSetupResponse)
 	case ngapType.SuccessfulOutcomePresentInitialContextSetupResponse:
-		successfulOutcome.Value.InitialContextSetupResponse = buildInitialContextSetupResponse(sucMsg.Value.InitialContextSetupResponse)
-		return successfulOutcome
+		return buildInitialContextSetupResponse(*sucMsg.Value.InitialContextSetupResponse)
 	case ngapType.SuccessfulOutcomePresentPDUSessionResourceSetupResponse:
-		successfulOutcome.Value.PDUSessionResourceSetupResponse = buildPDUSessionResourceSetupResponse(sucMsg.Value.PDUSessionResourceSetupResponse)
-		return successfulOutcome
+		return buildPDUSessionResourceSetupResponse(*sucMsg.Value.PDUSessionResourceSetupResponse)
 	default:
-		logger.EllaLog.Warn("Unsupported message", zap.Int("present", sucMsg.Value.Present))
-		return successfulOutcome
+		return NGAPMessageValue{
+			Error: fmt.Sprintf("Unsupported message %d", sucMsg.Value.Present),
+		}
 	}
 }
 
-func buildUnsuccessfulOutcome(unsucMsg *ngapType.UnsuccessfulOutcome) *UnsuccessfulOutcome {
-	if unsucMsg == nil {
-		return nil
-	}
-
-	unsuccessfulOutcome := &UnsuccessfulOutcome{
-		ProcedureCode: procedureCodeToEnum(unsucMsg.ProcedureCode.Value),
-		Criticality:   criticalityToEnum(unsucMsg.Criticality.Value),
-		Value:         UnsuccessfulOutcomeValue{},
-	}
-
+func buildUnsuccessfulOutcome(unsucMsg ngapType.UnsuccessfulOutcome) NGAPMessageValue {
 	switch unsucMsg.Value.Present {
 	case ngapType.UnsuccessfulOutcomePresentNGSetupFailure:
-		unsuccessfulOutcome.Value.NGSetupFailure = buildNGSetupFailure(unsucMsg.Value.NGSetupFailure)
-		return unsuccessfulOutcome
+		return buildNGSetupFailure(*unsucMsg.Value.NGSetupFailure)
 	default:
-		logger.EllaLog.Warn("Unsupported message", zap.Int("present", unsucMsg.Value.Present))
-		return unsuccessfulOutcome
+		return NGAPMessageValue{
+			Error: fmt.Sprintf("Unsupported message %d", unsucMsg.Value.Present),
+		}
 	}
 }
 

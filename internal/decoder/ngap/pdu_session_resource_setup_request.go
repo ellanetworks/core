@@ -10,12 +10,15 @@ import (
 	"go.uber.org/zap"
 )
 
-func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapType.PDUSessionResourceSetupRequest) *PDUSessionResourceSetupRequest {
-	if pduSessionResourceSetupRequest == nil {
-		return nil
-	}
+type PDUSessionResourceSetupSUReq struct {
+	PDUSessionID                           int64   `json:"pdu_session_id"`
+	PDUSessionNASPDU                       *NASPDU `json:"pdu_session_nas_pdu,omitempty"`
+	SNSSAI                                 SNSSAI  `json:"snssai"`
+	PDUSessionResourceSetupRequestTransfer []byte  `json:"pdu_session_resource_setup_request_transfer"`
+}
 
-	ieList := &PDUSessionResourceSetupRequest{}
+func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest ngapType.PDUSessionResourceSetupRequest) NGAPMessageValue {
+	ies := make([]IE, 0)
 
 	AMFUENGAPID := int64(0)
 
@@ -24,22 +27,22 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
+				Value:       ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANPagingPriority:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:                protocolIEIDToEnum(ie.Id.Value),
-				Criticality:       criticalityToEnum(ie.Criticality.Value),
-				RANPagingPriority: &ie.Value.RANPagingPriority.Value,
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       ie.Value.RANPagingPriority.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
 			nasContextInfo := &nas.NasContextInfo{
@@ -56,7 +59,7 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 				Decoded: decodednNasPdu,
 			}
 
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       nasPdu,
@@ -66,22 +69,19 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 				AMFUENGAPID: AMFUENGAPID,
 				Direction:   nas.DirDownlink,
 			}
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:                               protocolIEIDToEnum(ie.Id.Value),
-				Criticality:                      criticalityToEnum(ie.Criticality.Value),
-				PDUSessionResourceSetupListSUReq: buildPDUSessionResourceSetupListSUReq(ie.Value.PDUSessionResourceSetupListSUReq, nasContextInfo),
-			})
-		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				UEAggregateMaximumBitRate: &UEAggregateMaximumBitRate{
-					Downlink: ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value,
-					Uplink:   ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value,
-				},
+				Value:       buildPDUSessionResourceSetupListSUReq(*ie.Value.PDUSessionResourceSetupListSUReq, nasContextInfo),
+			})
+		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildUEAggregateMaximumBitRateIE(*ie.Value.UEAggregateMaximumBitRate),
 			})
 		default:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: UnknownIE{
@@ -91,14 +91,12 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest *ngapTyp
 		}
 	}
 
-	return ieList
+	return NGAPMessageValue{
+		IEs: ies,
+	}
 }
 
-func buildPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetupListSUReq, nasContextInfo *nas.NasContextInfo) []PDUSessionResourceSetupSUReq {
-	if list == nil {
-		return nil
-	}
-
+func buildPDUSessionResourceSetupListSUReq(list ngapType.PDUSessionResourceSetupListSUReq, nasContextInfo *nas.NasContextInfo) []PDUSessionResourceSetupSUReq {
 	var reqList []PDUSessionResourceSetupSUReq
 	for _, item := range list.List {
 		pduSUReq := PDUSessionResourceSetupSUReq{

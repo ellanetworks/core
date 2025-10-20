@@ -13,6 +13,12 @@ import (
 
 const ntpToUnixOffset = 2208988800 // seconds between 1900-01-01 and 1970-01-01
 
+type IE struct {
+	ID          EnumField `json:"id"`
+	Criticality EnumField `json:"criticality"`
+	Value       any       `json:"value,omitempty"`
+}
+
 type UnknownIE struct {
 	Reason string `json:"reason"`
 }

@@ -11,16 +11,54 @@ import (
 	"go.uber.org/zap"
 )
 
-type InitialContextSetupRequest struct {
-	IEs []IE `json:"ies"`
+type ExpectedUEActivityBehaviour struct {
+	ExpectedActivityPeriod                 *int64  `json:"expected_activity_period,omitempty"`
+	ExpectedIdlePeriod                     *int64  `json:"expected_idle_period,omitempty"`
+	SourceOfUEActivityBehaviourInformation *string `json:"source_of_ue_activity_behaviour_information,omitempty"`
 }
 
-func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.InitialContextSetupRequest) *InitialContextSetupRequest {
-	if initialContextSetupRequest == nil {
-		return nil
-	}
+type NGRANCGI struct {
+	NRCGI    *NRCGI    `json:"nr_ran_cgi,omitempty"`
+	EUTRACGI *EUTRACGI `json:"eutra_cgi,omitempty"`
+}
 
-	ieList := &InitialContextSetupRequest{}
+type ExpectedUEMovingTrajectoryItem struct {
+	NGRANCGI         NGRANCGI `json:"ng_ran_cgi"`
+	TimeStayedInCell *int64   `json:"time_stayed_in_cell,omitempty"`
+}
+
+type ExpectedUEBehaviour struct {
+	ExpectedUEActivityBehaviour *ExpectedUEActivityBehaviour     `json:"expected_ue_activity_behaviour,omitempty"`
+	ExpectedHOInterval          *string                          `json:"expected_ho_interval,omitempty"`
+	ExpectedUEMobility          *string                          `json:"expected_ue_mobility,omitempty"`
+	ExpectedUEMovingTrajectory  []ExpectedUEMovingTrajectoryItem `json:"expected_ue_moving_trajectory,omitempty"`
+}
+
+type CoreNetworkAssistanceInformation struct {
+	UEIdentityIndexValue            string               `json:"ue_identity_index_value"`
+	UESpecificDRX                   *EnumField           `json:"ue_specific_drx,omitempty"`
+	PeriodicRegistrationUpdateTimer string               `json:"periodic_registration_update_timer"`
+	MICOModeIndication              *string              `json:"mico_mode_indication,omitempty"`
+	TAIListForInactive              []TAI                `json:"tai_list_for_inactive,omitempty"`
+	ExpectedUEBehaviour             *ExpectedUEBehaviour `json:"expected_ue_behaviour,omitempty"`
+}
+
+type PDUSessionResourceSetupCxtReq struct {
+	PDUSessionID                           int64   `json:"pdu_session_id"`
+	NASPDU                                 *NASPDU `json:"nas_pdu,omitempty"`
+	SNSSAI                                 SNSSAI  `json:"snssai"`
+	PDUSessionResourceSetupRequestTransfer []byte  `json:"pdu_session_resource_setup_request_transfer"`
+}
+
+type UESecurityCapabilities struct {
+	NRencryptionAlgorithms             []string `json:"nr_encryption_algorithms"`
+	NRintegrityProtectionAlgorithms    []string `json:"nr_integrity_protection_algorithms"`
+	EUTRAencryptionAlgorithms          string   `json:"eutra_encryption_algorithms"`
+	EUTRAintegrityProtectionAlgorithms string   `json:"eutra_integrity_protection_algorithms"`
+}
+
+func buildInitialContextSetupRequest(initialContextSetupRequest ngapType.InitialContextSetupRequest) NGAPMessageValue {
+	ies := make([]IE, 0)
 
 	AMFUENGAPID := int64(0)
 
@@ -29,80 +67,76 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				AMFUENGAPID: &ie.Value.AMFUENGAPID.Value,
+				Value:       ie.Value.AMFUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDRANUENGAPID:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       ie.Value.RANUENGAPID.Value,
 			})
 		case ngapType.ProtocolIEIDOldAMF:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       ie.Value.OldAMF.Value,
 			})
 		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				UEAggregateMaximumBitRate: &UEAggregateMaximumBitRate{
-					Downlink: ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value,
-					Uplink:   ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value,
-				},
+				Value:       buildUEAggregateMaximumBitRateIE(*ie.Value.UEAggregateMaximumBitRate),
 			})
 		case ngapType.ProtocolIEIDCoreNetworkAssistanceInformation:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:                               protocolIEIDToEnum(ie.Id.Value),
-				Criticality:                      criticalityToEnum(ie.Criticality.Value),
-				CoreNetworkAssistanceInformation: buildCoreNetworkAssistanceInformation(ie.Value.CoreNetworkAssistanceInformation),
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildCoreNetworkAssistanceInformation(*ie.Value.CoreNetworkAssistanceInformation),
 			})
 		case ngapType.ProtocolIEIDGUAMI:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				GUAMI:       buildGUAMI(ie.Value.GUAMI),
+				Value:       buildGUAMI(*ie.Value.GUAMI),
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtReq:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:                                protocolIEIDToEnum(ie.Id.Value),
-				Criticality:                       criticalityToEnum(ie.Criticality.Value),
-				PDUSessionResourceSetupListCxtReq: buildPDUSessionResourceSetupListCxtReq(ie.Value.PDUSessionResourceSetupListCxtReq),
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildPDUSessionResourceSetupListCxtReq(*ie.Value.PDUSessionResourceSetupListCxtReq),
 			})
 		case ngapType.ProtocolIEIDAllowedNSSAI:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:           protocolIEIDToEnum(ie.Id.Value),
-				Criticality:  criticalityToEnum(ie.Criticality.Value),
-				AllowedNSSAI: buildAllowedNSSAI(ie.Value.AllowedNSSAI),
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildAllowedNSSAI(*ie.Value.AllowedNSSAI),
 			})
 		case ngapType.ProtocolIEIDUESecurityCapabilities:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:                     protocolIEIDToEnum(ie.Id.Value),
-				Criticality:            criticalityToEnum(ie.Criticality.Value),
-				UESecurityCapabilities: buildUESecurityCapabilities(ie.Value.UESecurityCapabilities),
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       buildUESecurityCapabilities(*ie.Value.UESecurityCapabilities),
 			})
 		case ngapType.ProtocolIEIDSecurityKey:
-			securityKey := bitStringToHex(&ie.Value.SecurityKey.Value)
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				SecurityKey: &securityKey,
+				Value:       bitStringToHex(&ie.Value.SecurityKey.Value),
 			})
 		case ngapType.ProtocolIEIDMobilityRestrictionList:
-			ieList.IEs = append(ieList.IEs, IE{
-				ID:                      protocolIEIDToEnum(ie.Id.Value),
-				Criticality:             criticalityToEnum(ie.Criticality.Value),
-				MobilityRestrictionList: buildMobilityRestrictionListIE(ie.Value.MobilityRestrictionList),
-			})
-		case ngapType.ProtocolIEIDIndexToRFSP:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				IndexToRFSP: &ie.Value.IndexToRFSP.Value,
+				Value:       buildMobilityRestrictionListIE(*ie.Value.MobilityRestrictionList),
+			})
+		case ngapType.ProtocolIEIDIndexToRFSP:
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       ie.Value.IndexToRFSP.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
 			nasContextInfo := &nas.NasContextInfo{
@@ -119,13 +153,13 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 				Decoded: decodednNasPdu,
 			}
 
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       nasPdu,
 			})
 		default:
-			ieList.IEs = append(ieList.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: UnknownIE{
@@ -135,14 +169,12 @@ func buildInitialContextSetupRequest(initialContextSetupRequest *ngapType.Initia
 		}
 	}
 
-	return ieList
+	return NGAPMessageValue{
+		IEs: ies,
+	}
 }
 
-func buildPDUSessionResourceSetupListCxtReq(pduSessionResourceSetupListCxtReq *ngapType.PDUSessionResourceSetupListCxtReq) []PDUSessionResourceSetupCxtReq {
-	if pduSessionResourceSetupListCxtReq == nil {
-		return nil
-	}
-
+func buildPDUSessionResourceSetupListCxtReq(pduSessionResourceSetupListCxtReq ngapType.PDUSessionResourceSetupListCxtReq) []PDUSessionResourceSetupCxtReq {
 	var pduSessionResourceSetupList []PDUSessionResourceSetupCxtReq
 
 	for i := 0; i < len(pduSessionResourceSetupListCxtReq.List); i++ {
@@ -169,12 +201,8 @@ func buildPDUSessionResourceSetupListCxtReq(pduSessionResourceSetupListCxtReq *n
 	return pduSessionResourceSetupList
 }
 
-func buildUESecurityCapabilities(uesec *ngapType.UESecurityCapabilities) *UESecurityCapabilities {
-	if uesec == nil {
-		return nil
-	}
-
-	return &UESecurityCapabilities{
+func buildUESecurityCapabilities(uesec ngapType.UESecurityCapabilities) UESecurityCapabilities {
+	return UESecurityCapabilities{
 		NRencryptionAlgorithms:             decodeNRencryptionAlgorithms(uesec.NRencryptionAlgorithms.Value),
 		NRintegrityProtectionAlgorithms:    decodeNRintegrityAlgorithms(uesec.NRintegrityProtectionAlgorithms.Value),
 		EUTRAencryptionAlgorithms:          bitStringToHex(&uesec.EUTRAencryptionAlgorithms.Value),
@@ -249,12 +277,8 @@ func decodeNRencryptionAlgorithms(bs aper.BitString) []string {
 	return algos
 }
 
-func buildCoreNetworkAssistanceInformation(cnai *ngapType.CoreNetworkAssistanceInformation) *CoreNetworkAssistanceInformation {
-	if cnai == nil {
-		return nil
-	}
-
-	returnedCNAI := &CoreNetworkAssistanceInformation{}
+func buildCoreNetworkAssistanceInformation(cnai ngapType.CoreNetworkAssistanceInformation) CoreNetworkAssistanceInformation {
+	returnedCNAI := CoreNetworkAssistanceInformation{}
 
 	switch cnai.UEIdentityIndexValue.Present {
 	case ngapType.UEIdentityIndexValuePresentIndexLength10:

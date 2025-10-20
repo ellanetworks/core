@@ -6,41 +6,33 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-type NGSetupFailure struct {
-	IEs []IE `json:"ies"`
-}
-
-func buildNGSetupFailure(ngSetupFailure *ngapType.NGSetupFailure) *NGSetupFailure {
-	if ngSetupFailure == nil {
-		return nil
-	}
-
-	ngFail := &NGSetupFailure{}
+func buildNGSetupFailure(ngSetupFailure ngapType.NGSetupFailure) NGAPMessageValue {
+	ies := make([]IE, 0)
 
 	for i := 0; i < len(ngSetupFailure.ProtocolIEs.List); i++ {
 		ie := ngSetupFailure.ProtocolIEs.List[i]
 
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDCause:
-			ngFail.IEs = append(ngFail.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       causeToEnum(ie.Value.Cause),
 			})
 		case ngapType.ProtocolIEIDTimeToWait:
-			ngFail.IEs = append(ngFail.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildTimeToWaitIE(ie.Value.TimeToWait),
 			})
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
-			ngFail.IEs = append(ngFail.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
 			})
 		default:
-			ngFail.IEs = append(ngFail.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: UnknownIE{
@@ -50,7 +42,9 @@ func buildNGSetupFailure(ngSetupFailure *ngapType.NGSetupFailure) *NGSetupFailur
 		}
 	}
 
-	return ngFail
+	return NGAPMessageValue{
+		IEs: ies,
+	}
 }
 
 func buildTimeToWaitIE(timeToWait *ngapType.TimeToWait) *EnumField {

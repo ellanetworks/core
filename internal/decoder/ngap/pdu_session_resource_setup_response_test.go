@@ -15,40 +15,33 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := ngap.DecodeNGAPMessage(raw)
-	if err != nil {
-		t.Fatalf("failed to decode NGAP message: %v", err)
+	ngapMsg := ngap.DecodeNGAPMessage(raw)
+
+	if ngapMsg.PDUType != "SuccessfulOutcome" {
+		t.Errorf("expected PDUType=SuccessfulOutcome, got %v", ngapMsg.PDUType)
 	}
 
-	if ngap.SuccessfulOutcome == nil {
-		t.Fatalf("expected SuccessfulOutcome, got nil")
+	if ngapMsg.ProcedureCode.Label != "PDUSessionResourceSetup" {
+		t.Errorf("expected ProcedureCode=PDUSessionResourceSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngap.SuccessfulOutcome.ProcedureCode.Label != "PDUSessionResourceSetup" {
-		t.Errorf("expected ProcedureCode=PDUSessionResourceSetup, got %v", ngap.SuccessfulOutcome.ProcedureCode)
+	if ngapMsg.ProcedureCode.Value != int(ngapType.ProcedureCodePDUSessionResourceSetup) {
+		t.Errorf("expected ProcedureCode value=21, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
-	if ngap.SuccessfulOutcome.ProcedureCode.Value != int(ngapType.ProcedureCodePDUSessionResourceSetup) {
-		t.Errorf("expected ProcedureCode value=21, got %d", ngap.SuccessfulOutcome.ProcedureCode.Value)
+	if ngapMsg.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
 	}
 
-	if ngap.SuccessfulOutcome.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", ngap.SuccessfulOutcome.Criticality)
+	if ngapMsg.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
 	}
 
-	if ngap.SuccessfulOutcome.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", ngap.SuccessfulOutcome.Criticality.Value)
+	if len(ngapMsg.Value.IEs) != 4 {
+		t.Errorf("expected 4 ProtocolIEs, got %d", len(ngapMsg.Value.IEs))
 	}
 
-	if ngap.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse == nil {
-		t.Fatalf("expected PDUSessionResourceSetupResponse, got nil")
-	}
-
-	if len(ngap.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse.IEs) != 4 {
-		t.Errorf("expected 4 ProtocolIEs, got %d", len(ngap.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse.IEs))
-	}
-
-	item0 := ngap.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse.IEs[0]
+	item0 := ngapMsg.Value.IEs[0]
 
 	if item0.ID.Label != "AMFUENGAPID" {
 		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
@@ -66,15 +59,16 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
 	}
 
-	if item0.AMFUENGAPID == nil {
-		t.Fatalf("expected AMFUENGAPID, got nil")
+	amfUENGAPID, ok := item0.Value.(int64)
+	if !ok {
+		t.Fatalf("expected AMFUENGAPID to be of type int64, got %T", item0.Value)
 	}
 
-	if *item0.AMFUENGAPID != 1 {
-		t.Errorf("expected AMFUENGAPID=1, got %d", *item0.AMFUENGAPID)
+	if amfUENGAPID != 1 {
+		t.Errorf("expected AMFUENGAPID=1, got %d", amfUENGAPID)
 	}
 
-	item1 := ngap.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse.IEs[1]
+	item1 := ngapMsg.Value.IEs[1]
 
 	if item1.ID.Label != "RANUENGAPID" {
 		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
@@ -101,7 +95,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected RANUENGAPID=1, got %d", ranUENGAPID)
 	}
 
-	item2 := ngap.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse.IEs[2]
+	item2 := ngapMsg.Value.IEs[2]
 
 	if item2.ID.Label != "PDUSessionResourceSetupListSURes" {
 		t.Errorf("expected ID=PDUSessionResourceSetupListSURes, got %s", item2.ID.Label)
@@ -119,15 +113,16 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item2.Criticality.Value)
 	}
 
-	if item2.PDUSessionResourceSetupListSURes == nil {
-		t.Fatalf("expected PDUSessionResourceSetupListSURes, got nil")
+	pduSessionResourceSetupListSURes, ok := item2.Value.([]ngap.PDUSessionResourceSetupSURes)
+	if !ok {
+		t.Fatalf("expected PDUSessionResourceSetupListSURes to be of type []PDUSessionResourceSetupSURes, got %T", item2.Value)
 	}
 
-	if len(item2.PDUSessionResourceSetupListSURes) != 1 {
-		t.Fatalf("expected 1 PDUSessionResourceSetupItemSURes, got %d", len(item2.PDUSessionResourceSetupListSURes))
+	if len(pduSessionResourceSetupListSURes) != 1 {
+		t.Fatalf("expected 1 PDUSessionResourceSetupItemSURes, got %d", len(pduSessionResourceSetupListSURes))
 	}
 
-	pduItem := item2.PDUSessionResourceSetupListSURes[0]
+	pduItem := pduSessionResourceSetupListSURes[0]
 
 	if pduItem.PDUSessionID != 1 {
 		t.Errorf("expected PDUSessionID=1, got %d", pduItem.PDUSessionID)
@@ -147,7 +142,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected PDUSessionResourceSetupResponseTransfer=%s, got %s", expectedTransfer, pduItem.PDUSessionResourceSetupResponseTransfer)
 	}
 
-	item3 := ngap.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse.IEs[3]
+	item3 := ngapMsg.Value.IEs[3]
 
 	if item3.ID.Label != "UserLocationInformation" {
 		t.Errorf("expected ID=UserLocationInformation, got %v", item3.ID)

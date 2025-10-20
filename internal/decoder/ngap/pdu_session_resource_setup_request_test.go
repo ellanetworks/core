@@ -15,40 +15,33 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngap, err := ngap.DecodeNGAPMessage(raw)
-	if err != nil {
-		t.Fatalf("failed to decode NGAP message: %v", err)
+	ngapMsg := ngap.DecodeNGAPMessage(raw)
+
+	if ngapMsg.PDUType != "InitiatingMessage" {
+		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
-	if ngap.InitiatingMessage == nil {
-		t.Fatalf("expected InitiatingMessage, got nil")
+	if ngapMsg.ProcedureCode.Label != "PDUSessionResourceSetup" {
+		t.Errorf("expected ProcedureCode=PDUSessionResourceSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngap.InitiatingMessage.ProcedureCode.Label != "PDUSessionResourceSetup" {
-		t.Errorf("expected ProcedureCode=PDUSessionResourceSetup, got %v", ngap.InitiatingMessage.ProcedureCode)
+	if ngapMsg.ProcedureCode.Value != int(ngapType.ProcedureCodePDUSessionResourceSetup) {
+		t.Errorf("expected ProcedureCode value=21, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
-	if ngap.InitiatingMessage.ProcedureCode.Value != int(ngapType.ProcedureCodePDUSessionResourceSetup) {
-		t.Errorf("expected ProcedureCode value=21, got %d", ngap.InitiatingMessage.ProcedureCode.Value)
+	if ngapMsg.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
 	}
 
-	if ngap.InitiatingMessage.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", ngap.InitiatingMessage.Criticality)
+	if ngapMsg.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
 	}
 
-	if ngap.InitiatingMessage.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", ngap.InitiatingMessage.Criticality.Value)
+	if len(ngapMsg.Value.IEs) != 4 {
+		t.Errorf("expected 4 ProtocolIEs, got %d", len(ngapMsg.Value.IEs))
 	}
 
-	if ngap.InitiatingMessage.Value.PDUSessionResourceSetupRequest == nil {
-		t.Fatalf("expected PDUSessionResourceSetupRequest, got nil")
-	}
-
-	if len(ngap.InitiatingMessage.Value.PDUSessionResourceSetupRequest.IEs) != 4 {
-		t.Errorf("expected 4 ProtocolIEs, got %d", len(ngap.InitiatingMessage.Value.PDUSessionResourceSetupRequest.IEs))
-	}
-
-	item0 := ngap.InitiatingMessage.Value.PDUSessionResourceSetupRequest.IEs[0]
+	item0 := ngapMsg.Value.IEs[0]
 
 	if item0.ID.Label != "AMFUENGAPID" {
 		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
@@ -66,15 +59,16 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
 	}
 
-	if item0.AMFUENGAPID == nil {
-		t.Fatalf("expected AMFUENGAPID, got nil")
+	amfUENGAPID, ok := item0.Value.(int64)
+	if !ok {
+		t.Fatalf("expected AMFUENGAPID to be of type int64, got %T", item0.Value)
 	}
 
-	if *item0.AMFUENGAPID != 1 {
-		t.Errorf("expected AMFUENGAPID=1, got %d", *item0.AMFUENGAPID)
+	if amfUENGAPID != 1 {
+		t.Errorf("expected AMFUENGAPID=1, got %d", amfUENGAPID)
 	}
 
-	item1 := ngap.InitiatingMessage.Value.PDUSessionResourceSetupRequest.IEs[1]
+	item1 := ngapMsg.Value.IEs[1]
 
 	if item1.ID.Label != "RANUENGAPID" {
 		t.Errorf("expected ID=RANUENGAPID, got %v", item1.ID)
@@ -101,7 +95,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Errorf("expected RANUENGAPID=1, got %d", ranUENGAPID)
 	}
 
-	item2 := ngap.InitiatingMessage.Value.PDUSessionResourceSetupRequest.IEs[2]
+	item2 := ngapMsg.Value.IEs[2]
 
 	if item2.ID.Label != "PDUSessionResourceSetupListSUReq" {
 		t.Errorf("expected ID=PDUSessionResourceSetupListSUReq, got %s", item2.ID.Label)
@@ -119,15 +113,16 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item2.Criticality.Value)
 	}
 
-	if item2.PDUSessionResourceSetupListSUReq == nil {
-		t.Fatalf("expected PDUSessionResourceSetupListSUReq, got nil")
+	pduSessionResourceSetupListSUReq, ok := item2.Value.([]ngap.PDUSessionResourceSetupSUReq)
+	if !ok {
+		t.Fatalf("expected PDUSessionResourceSetupListSUReq to be of type []PDUSessionResourceSetupSUReq, got %T", item2.Value)
 	}
 
-	if len(item2.PDUSessionResourceSetupListSUReq) != 1 {
-		t.Fatalf("expected 1 PDUSessionResourceSetupItemSUReq, got %d", len(item2.PDUSessionResourceSetupListSUReq))
+	if len(pduSessionResourceSetupListSUReq) != 1 {
+		t.Fatalf("expected 1 PDUSessionResourceSetupItemSUReq, got %d", len(pduSessionResourceSetupListSUReq))
 	}
 
-	pduItem := item2.PDUSessionResourceSetupListSUReq[0]
+	pduItem := pduSessionResourceSetupListSUReq[0]
 
 	if pduItem.PDUSessionID != 1 {
 		t.Errorf("expected PDUSessionID=1, got %d", pduItem.PDUSessionID)
@@ -147,7 +142,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Errorf("expected PDUSessionResourceSetupRequestTransfer=%s, got %s", expectedTransfer, pduItem.PDUSessionResourceSetupRequestTransfer)
 	}
 
-	item3 := ngap.InitiatingMessage.Value.PDUSessionResourceSetupRequest.IEs[3]
+	item3 := ngapMsg.Value.IEs[3]
 
 	if item3.ID.Label != "UEAggregateMaximumBitRate" {
 		t.Errorf("expected ID=UEAggregateMaximumBitRate, got %v", item3.ID)
@@ -165,19 +160,16 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
 	}
 
-	if item3.UEAggregateMaximumBitRate == nil {
-		t.Fatalf("expected UEAggregateMaximumBitRate, got nil")
+	ueAggregateMaximumBitRate, ok := item3.Value.(ngap.UEAggregateMaximumBitRate)
+	if !ok {
+		t.Fatalf("expected UEAggregateMaximumBitRate to be of type UEAggregateMaximumBitRate, got %T", item3.Value)
 	}
 
-	if item3.UEAggregateMaximumBitRate.Uplink != 200000000 {
-		t.Errorf("expected Uplink=100000000, got %d", item3.UEAggregateMaximumBitRate.Uplink)
+	if ueAggregateMaximumBitRate.Uplink != 200000000 {
+		t.Errorf("expected Uplink=100000000, got %d", ueAggregateMaximumBitRate.Uplink)
 	}
 
-	if item3.UEAggregateMaximumBitRate.Downlink != 200000000 {
-		t.Errorf("expected Downlink=200000000, got %d", item3.UEAggregateMaximumBitRate.Downlink)
-	}
-
-	if item3.UEAggregateMaximumBitRate == nil {
-		t.Fatalf("expected UEAggregateMaximumBitRate, got nil")
+	if ueAggregateMaximumBitRate.Downlink != 200000000 {
+		t.Errorf("expected Downlink=200000000, got %d", ueAggregateMaximumBitRate.Downlink)
 	}
 }

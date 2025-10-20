@@ -7,10 +7,6 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-type NGSetupRequest struct {
-	IEs []IE `json:"ies"`
-}
-
 type SNSSAI struct {
 	SST int32   `json:"sst"`
 	SD  *string `json:"sd,omitempty"`
@@ -112,49 +108,45 @@ func buildDefaultPagingDRXIE(dpd ngapType.PagingDRX) EnumField {
 	}
 }
 
-func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupRequest {
-	if ngSetupRequest == nil {
-		return nil
-	}
-
-	ngSetup := &NGSetupRequest{}
+func buildNGSetupRequest(ngSetupRequest ngapType.NGSetupRequest) NGAPMessageValue {
+	ies := make([]IE, 0)
 
 	for i := 0; i < len(ngSetupRequest.ProtocolIEs.List); i++ {
 		ie := ngSetupRequest.ProtocolIEs.List[i]
 
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDGlobalRANNodeID:
-			ngSetup.IEs = append(ngSetup.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildGlobalRANNodeIDIE(*ie.Value.GlobalRANNodeID),
 			})
 		case ngapType.ProtocolIEIDSupportedTAList:
-			ngSetup.IEs = append(ngSetup.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildSupportedTAListIE(ie.Value.SupportedTAList),
 			})
 		case ngapType.ProtocolIEIDRANNodeName:
-			ngSetup.IEs = append(ngSetup.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildRanNodeNameIE(*ie.Value.RANNodeName),
 			})
 		case ngapType.ProtocolIEIDDefaultPagingDRX:
-			ngSetup.IEs = append(ngSetup.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildDefaultPagingDRXIE(*ie.Value.DefaultPagingDRX),
 			})
 		case ngapType.ProtocolIEIDUERetentionInformation:
-			ngSetup.IEs = append(ngSetup.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       buildUERetentionInformationIE(*ie.Value.UERetentionInformation),
 			})
 		default:
-			ngSetup.IEs = append(ngSetup.IEs, IE{
+			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: UnknownIE{
@@ -164,7 +156,9 @@ func buildNGSetupRequest(ngSetupRequest *ngapType.NGSetupRequest) *NGSetupReques
 		}
 	}
 
-	return ngSetup
+	return NGAPMessageValue{
+		IEs: ies,
+	}
 }
 
 func buildUERetentionInformationIE(uri ngapType.UERetentionInformation) EnumField {
