@@ -1,4 +1,4 @@
-package decoder
+package nas
 
 import (
 	"encoding/binary"

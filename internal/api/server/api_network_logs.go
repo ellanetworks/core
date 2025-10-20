@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/decoder"
+	"github.com/ellanetworks/core/internal/decoder/ngap"
 	"github.com/ellanetworks/core/internal/logger"
 )
 
@@ -46,8 +46,8 @@ type ListNetworkLogsResponse struct {
 }
 
 type GetNetworkLogResponse struct {
-	Raw     []byte               `json:"raw"`
-	Decoded *decoder.NGAPMessage `json:"decoded"`
+	Raw     []byte           `json:"raw"`
+	Decoded ngap.NGAPMessage `json:"decoded"`
 }
 
 func isRFC3339(s string) bool {
@@ -224,15 +224,9 @@ func GetNetworkLog(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		decodedContent, err := decoder.DecodeNGAPMessage(networkLog.Raw)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to decode network log", err, logger.APILog)
-			return
-		}
-
 		response := GetNetworkLogResponse{
 			Raw:     networkLog.Raw,
-			Decoded: decodedContent,
+			Decoded: ngap.DecodeNGAPMessage(networkLog.Raw),
 		}
 
 		writeResponse(w, response, http.StatusOK, logger.APILog)
