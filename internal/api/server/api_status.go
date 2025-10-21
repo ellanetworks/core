@@ -10,6 +10,7 @@ import (
 
 type StatusResponse struct {
 	Version     string `json:"version"`
+	Revision    string `json:"revision"`
 	Initialized bool   `json:"initialized"`
 }
 
@@ -24,8 +25,11 @@ func GetStatus(dbInstance *db.Database) http.Handler {
 
 		initialized := numUsers > 0
 
+		ver := version.GetVersion()
+
 		statusResponse := StatusResponse{
-			Version:     version.GetVersion(),
+			Version:     ver.Version,
+			Revision:    ver.Revision,
 			Initialized: initialized,
 		}
 

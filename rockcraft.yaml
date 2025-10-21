@@ -21,6 +21,8 @@ parts:
     plugin: go
     source: .
     source-type: local
+    build-packages:
+      - git
     build-snaps:
       - go/1.24/stable
       - node/22/stable
@@ -29,7 +31,8 @@ parts:
     override-build: |
       npm install --prefix ui
       npm run build --prefix ui
-      craftctl default
+      REVISION=`git rev-parse HEAD`
+      go build -v -o ${CRAFT_PART_INSTALL}/bin/core -ldflags "-X github.com/ellanetworks/core/version.GitCommit=${REVISION}" ./cmd/core
 
   ip:
     plugin: nil

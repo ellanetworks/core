@@ -9,6 +9,17 @@ import (
 //go:embed VERSION
 var version string
 
-func GetVersion() string {
-	return version
+// GitCommit is the git commit hash which is set during build time via -ldflags
+var GitCommit string
+
+type VersionInfo struct {
+	Version  string
+	Revision string
+}
+
+func GetVersion() *VersionInfo {
+	return &VersionInfo{
+		Revision: GitCommit,
+		Version:  version,
+	}
 }

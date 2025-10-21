@@ -23,6 +23,7 @@ None
 {
     "result": {
         "version": "v0.3.1",
+        "revision": "388ce92244a0b304e9f6c15e3f896acee6fe7b1a",
         "initialized": true
     }
 }
