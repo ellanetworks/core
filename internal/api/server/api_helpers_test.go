@@ -46,6 +46,10 @@ func (fk FakeKernel) IsIPForwardingEnabled() (bool, error) {
 	return true, nil
 }
 
+func (fk FakeKernel) EnsureGatewaysOnInterfaceInNeighTable(ifKey kernel.NetworkInterface) error {
+	return nil
+}
+
 type dummyFS struct{}
 
 func (dummyFS) Open(name string) (fs.File, error) {
