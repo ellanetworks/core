@@ -93,7 +93,8 @@ go generate ./...
 Build the backend:
 
 ```shell
-go build cmd/core/main.go
+REVISION=`git rev-parse HEAD`
+go build -ldflags "-X github.com/ellanetworks/core/version.GitCommit=${REVISION}" ./cmd/core/main.go
 ```
 
 ### Build documentation
