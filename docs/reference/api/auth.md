@@ -8,7 +8,7 @@ This section describes the RESTful API for system user authentication.
 
 ## Login
 
-This path returns a token that can be used to authenticate with Ella Core.
+This path logs the user in and sets an httpOnly session cookie valid for 30 days.
 
 | Method | Path                 |
 | ------ | -------------------- |
@@ -18,6 +18,31 @@ This path returns a token that can be used to authenticate with Ella Core.
 
 - `email` (string): The email to authenticate with.
 - `password` (string): The password to authenticate with.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Login successful"
+    }
+}
+```
+
+## Refresh
+
+This path validates the current session cookie and returns a new JWT token. This token can then be used to authenticate future requests by sending it in the `Authorization` header using the `Bearer <token>` scheme. This token is valid for 15 minutes.
+
+| Method | Path                 |
+| ------ | -------------------- |
+| POST   | `/api/v1/auth/refresh` |
+
+!!! warning
+    Avoid relying on refresh tokens for API access since they require regular renewals. Instead, use [API tokens](users.md#create-an-api-token) which offer explicit expiry settings and can be manually revoked.
+
+### Parameters
+
+None
 
 ### Sample Response
 
