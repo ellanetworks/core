@@ -53,7 +53,8 @@ parts:
     override-build: |
       npm install --prefix ui
       npm run build --prefix ui
-      craftctl default
+      REVISION=`git rev-parse HEAD`
+      go build -v -o $CRAFT_PART_INSTALL/core -ldflags "-X github.com/ellanetworks/core/version.GitCommit=${REVISION}" ./core
 
   service-files:
     plugin: dump

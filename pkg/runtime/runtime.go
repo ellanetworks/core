@@ -45,11 +45,19 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't configure logging: %w", err)
 	}
 
+	ver := version.GetVersion()
+
+	logger.EllaLog.Info("Starting Ella Core",
+		zap.String("version", ver.Version),
+		zap.String("revision", ver.Revision),
+	)
+
 	if cfg.Telemetry.Enabled {
 		tp, err := tracing.InitTracer(ctx, tracing.TelemetryConfig{
-			OTLPEndpoint:   cfg.Telemetry.OTLPEndpoint,
-			ServiceName:    "ella-core",
-			ServiceVersion: version.GetVersion(),
+			OTLPEndpoint:    cfg.Telemetry.OTLPEndpoint,
+			ServiceName:     "ella-core",
+			ServiceVersion:  ver.Version,
+			ServiceRevision: ver.Revision,
 		})
 		if err != nil {
 			return fmt.Errorf("couldn't initialize tracer: %w", err)
