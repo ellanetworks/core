@@ -131,6 +131,12 @@ func ReconcileKernelRouting(dbInstance *db.Database, kernelInt kernel.Kernel) er
 			}
 		}
 	}
+	for _, netIf := range interfaceDBKernelMap {
+		err := kernelInt.EnsureGatewaysOnInterfaceInNeighTable(netIf)
+		if err != nil {
+			logger.APILog.Warn("failed to ensure gateways are in neighbour table for interface", zap.Any("interface", netIf), zap.Error(err))
+		}
+	}
 	logger.APILog.Debug("Routes reconciled")
 	return nil
 }

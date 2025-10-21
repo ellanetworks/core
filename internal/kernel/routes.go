@@ -1,7 +1,9 @@
 package kernel
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 
@@ -28,6 +30,7 @@ type Kernel interface {
 	DeleteRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error
 	InterfaceExists(ifKey NetworkInterface) (bool, error)
 	RouteExists(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) (bool, error)
+	EnsureGatewaysOnInterfaceInNeighTable(ifKey NetworkInterface) error
 }
 
 // RealKernel is the production implementation of the Kernel interface.
@@ -70,6 +73,9 @@ func (rk *RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priori
 		return fmt.Errorf("failed to add route: %v", err)
 	}
 	logger.EllaLog.Debug("Added route", zap.String("destination", destination.String()), zap.String("gateway", gateway.String()), zap.Int("priority", priority), zap.String("interface", interfaceName))
+
+	// Tells the kernel that the gateway is in use, and ARP requests should be sent out
+	rk.addNeighborForLink(gateway, link)
 	return nil
 }
 
@@ -204,4 +210,44 @@ func (rk *RealKernel) IsIPForwardingEnabled() (bool, error) {
 		return false, fmt.Errorf("failed to read ip_forward: %v", err)
 	}
 	return string(data) == "1", nil
+}
+
+func (rk *RealKernel) EnsureGatewaysOnInterfaceInNeighTable(ifKey NetworkInterface) error {
+	interfaceName, ok := rk.ifMapping[ifKey]
+	if !ok {
+		return fmt.Errorf("invalid interface key: %v", ifKey)
+	}
+
+	link, err := netlink.LinkByName(interfaceName)
+	if err != nil {
+		return fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
+	}
+
+	nlRoute := netlink.Route{LinkIndex: link.Attrs().Index}
+	routes, err := netlink.RouteListFiltered(unix.AF_INET, &nlRoute, netlink.RT_FILTER_OIF)
+	if err != nil {
+		return fmt.Errorf("failed to list routes: %v", err)
+	}
+
+	for _, route := range routes {
+		if route.Gw != nil {
+			rk.addNeighborForLink(route.Gw, link)
+		}
+	}
+
+	return nil
+}
+
+func (rk *RealKernel) addNeighborForLink(neigh net.IP, link netlink.Link) {
+	// Tells the kernel that the gateway is in use, and ARP requests should be sent out
+	nlNeigh := netlink.Neigh{
+		LinkIndex: link.Attrs().Index,
+		IP:        neigh,
+		Flags:     netlink.NTF_USE,
+	}
+	if err := netlink.NeighAdd(&nlNeigh); err != nil {
+		if !errors.Is(err, fs.ErrExist) {
+			logger.EllaLog.Warn("failed to add gateway to neighbour list, arp may need to be triggered manually", zap.String("gateway", neigh.String()), zap.Error(err))
+		}
+	}
 }
