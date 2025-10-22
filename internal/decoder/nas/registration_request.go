@@ -28,6 +28,7 @@ type RegistrationRequest struct {
 	NgksiAndRegistrationType5GS         uint8                 `json:"ngksi_and_registration_type_5gs"`
 	MobileIdentity5GS                   MobileIdentity5GS     `json:"mobile_identity_5gs"`
 	UESecurityCapability                *UESecurityCapability `json:"ue_security_capability,omitempty"`
+	NASMessageContainer                 []byte                `json:"nas_message_container,omitempty"`
 
 	NoncurrentNativeNASKeySetIdentifier *UnsupportedIE `json:"noncurrent_native_nas_key_set_identifier,omitempty"`
 	Capability5GMM                      *UnsupportedIE `json:"capability_5gmm,omitempty"`
@@ -47,7 +48,6 @@ type RegistrationRequest struct {
 	PayloadContainer                    *UnsupportedIE `json:"payload_container,omitempty"`
 	NetworkSlicingIndication            *UnsupportedIE `json:"network_slicing_indication,omitempty"`
 	UpdateType5GS                       *UnsupportedIE `json:"update_type_5gs,omitempty"`
-	NASMessageContainer                 *UnsupportedIE `json:"nas_message_container,omitempty"`
 }
 
 func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *RegistrationRequest {
@@ -138,7 +138,7 @@ func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *Registration
 	}
 
 	if msg.NASMessageContainer != nil {
-		registrationRequest.NASMessageContainer = makeUnsupportedIE()
+		registrationRequest.NASMessageContainer = msg.NASMessageContainer.GetNASMessageContainerContents()
 	}
 
 	return registrationRequest

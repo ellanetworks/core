@@ -111,3 +111,39 @@ func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
 		t.Error("UESecurityCapability CipheringAlgorithm NEA3 is false, expected true")
 	}
 }
+
+func TestDecodeNASMessage_RegistrationRequest_NASMsgContainer(t *testing.T) {
+	const message = "fgHgQT9xBn4AQSkAC/IA8RDK/gAAAAACLgTwcPBwcQA7fgBBKQAL8gDxEMr+AAAAAAIQAQMuBPBw8HAvBQQBECAwUgDxEAAAARcH8HDAQBmAsBgBAXQAAJBTAQE="
+
+	raw, err := decodeB64(message)
+	if err != nil {
+		t.Fatalf("base64 decode failed: %v", err)
+	}
+
+	nasMsg := nas.DecodeNASMessage(raw, nil)
+
+	if nasMsg == nil {
+		t.Fatal("Decoded NAS message is nil")
+	}
+
+	if nasMsg.GmmMessage == nil {
+		t.Fatal("GmmMessage is nil")
+	}
+
+	if nasMsg.GmmMessage.RegistrationRequest == nil {
+		t.Fatal("RegistrationRequest is nil")
+	}
+
+	regReq := nasMsg.GmmMessage.RegistrationRequest
+
+	if regReq.NASMessageContainer == nil {
+		t.Fatal("NASMessageContainer is nil")
+	}
+
+	expectedContainer := "fgBBKQAL8gDxEMr+AAAAAAIQAQMuBPBw8HAvBQQBECAwUgDxEAAAARcH8HDAQBmAsBgBAXQAAJBTAQE="
+
+	receivedNASMsg := encodeB64(regReq.NASMessageContainer)
+	if receivedNASMsg != expectedContainer {
+		t.Fatalf("Unexpected NASMessageContainer: got %v, want %v", receivedNASMsg, expectedContainer)
+	}
+}
