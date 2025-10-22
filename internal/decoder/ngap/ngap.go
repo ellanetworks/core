@@ -81,6 +81,8 @@ func buildInitiatingMessage(initMsg ngapType.InitiatingMessage) NGAPMessageValue
 		return buildUEContextReleaseRequest(*initMsg.Value.UEContextReleaseRequest)
 	case ngapType.InitiatingMessagePresentUEContextReleaseCommand:
 		return buildUEContextReleaseCommand(*initMsg.Value.UEContextReleaseCommand)
+	case ngapType.InitiatingMessagePresentPDUSessionResourceReleaseCommand:
+		return buildPDUSessionResourceReleaseCommand(*initMsg.Value.PDUSessionResourceReleaseCommand)
 	default:
 		return NGAPMessageValue{
 			Error: fmt.Sprintf("Unsupported message %d", initMsg.Value.Present),
