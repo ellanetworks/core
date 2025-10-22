@@ -82,6 +82,8 @@ func buildInitiatingMessage(initMsg ngapType.InitiatingMessage) NGAPMessageValue
 		return buildUEContextReleaseCommand(*initMsg.Value.UEContextReleaseCommand)
 	case ngapType.InitiatingMessagePresentPDUSessionResourceReleaseCommand:
 		return buildPDUSessionResourceReleaseCommand(*initMsg.Value.PDUSessionResourceReleaseCommand)
+	case ngapType.InitiatingMessagePresentUERadioCapabilityInfoIndication:
+		return buildUERadioCapabilityInfoIndication(*initMsg.Value.UERadioCapabilityInfoIndication)
 	default:
 		return NGAPMessageValue{
 			Error: fmt.Sprintf("Unsupported message %d", initMsg.Value.Present),
