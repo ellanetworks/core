@@ -34,6 +34,12 @@ func buildPDUSessionResourceReleaseCommand(cmd ngapType.PDUSessionResourceReleas
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value:       ie.Value.RANUENGAPID.Value,
 			})
+		case ngapType.ProtocolIEIDRANPagingPriority:
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       ie.Value.RANPagingPriority.Value,
+			})
 		case ngapType.ProtocolIEIDNASPDU:
 			nasContextInfo := &nas.NasContextInfo{
 				AMFUENGAPID: AMFUENGAPID,

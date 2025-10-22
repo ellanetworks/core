@@ -98,6 +98,8 @@ func buildSuccessfulOutcome(sucMsg ngapType.SuccessfulOutcome) NGAPMessageValue 
 		return buildInitialContextSetupResponse(*sucMsg.Value.InitialContextSetupResponse)
 	case ngapType.SuccessfulOutcomePresentPDUSessionResourceSetupResponse:
 		return buildPDUSessionResourceSetupResponse(*sucMsg.Value.PDUSessionResourceSetupResponse)
+	case ngapType.SuccessfulOutcomePresentPDUSessionResourceReleaseResponse:
+		return buildPDUSessionResourceReleaseResponse(*sucMsg.Value.PDUSessionResourceReleaseResponse)
 	default:
 		return NGAPMessageValue{
 			Error: fmt.Sprintf("Unsupported message %d", sucMsg.Value.Present),
