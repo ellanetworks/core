@@ -2,24 +2,22 @@ package nas
 
 import (
 	"encoding/hex"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/util"
-	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
-	"go.uber.org/zap"
 )
 
 type MobileIdentity5GS struct {
-	Identity string
-	PLMNID   *PLMNID `json:"plmn_id,omitempty"`
-	SUCI     *string `json:"suci,omitempty"`
-	GUTI     *string `json:"guti,omitempty"`
-	STMSI    *string `json:"s_tmsi,omitempty"`
-	IMEI     *string `json:"imei,omitempty"`
-	IMEISV   *string `json:"imeisv,omitempty"`
+	Identity utils.EnumField[uint8] `json:"identity_type"`
+	PLMNID   *PLMNID                `json:"plmn_id,omitempty"`
+	SUCI     *string                `json:"suci,omitempty"`
+	GUTI     *string                `json:"guti,omitempty"`
+	STMSI    *string                `json:"s_tmsi,omitempty"`
+	IMEI     *string                `json:"imei,omitempty"`
+	IMEISV   *string                `json:"imeisv,omitempty"`
 }
 
 type RegistrationRequest struct {
@@ -150,13 +148,13 @@ func getMobileIdentity5GS(mobileIdentity5GS nasType.MobileIdentity5GS) MobileIde
 	switch identityTypeUsedForRegistration {
 	case nasMessage.MobileIdentity5GSTypeNoIdentity:
 		return MobileIdentity5GS{
-			Identity: "No Identity",
+			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "No Identity", false),
 		}
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		suci, plmnID := nasConvert.SuciToString(mobileIdentity5GSContents)
 		plmnIDModel := plmnIDStringToModels(plmnID)
 		return MobileIdentity5GS{
-			Identity: "SUCI",
+			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "SUCI", false),
 			SUCI:     &suci,
 			PLMNID:   &plmnIDModel,
 		}
@@ -164,30 +162,29 @@ func getMobileIdentity5GS(mobileIdentity5GS nasType.MobileIdentity5GS) MobileIde
 		_, guti := util.GutiToString(mobileIdentity5GSContents)
 		return MobileIdentity5GS{
 			GUTI:     &guti,
-			Identity: "5G-GUTI",
+			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "5G-GUTI", false),
 		}
 	case nasMessage.MobileIdentity5GSTypeImei:
 		imei := nasConvert.PeiToString(mobileIdentity5GSContents)
 		return MobileIdentity5GS{
-			Identity: "IMEI",
+			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "IMEI", false),
 			IMEI:     &imei,
 		}
 	case nasMessage.MobileIdentity5GSType5gSTmsi:
 		sTmsi := hex.EncodeToString(mobileIdentity5GSContents[1:])
 		return MobileIdentity5GS{
 			STMSI:    &sTmsi,
-			Identity: "5G-S-TMSI",
+			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "5G-S-TMSI", false),
 		}
 	case nasMessage.MobileIdentity5GSTypeImeisv:
 		imeisv := nasConvert.PeiToString(mobileIdentity5GSContents)
 		return MobileIdentity5GS{
-			Identity: "IMEISV",
+			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "IMEISV", false),
 			IMEISV:   &imeisv,
 		}
 	default:
-		logger.EllaLog.Warn("MobileIdentity5GS type not fully implemented", zap.String("identity_type", fmt.Sprintf("%v", identityTypeUsedForRegistration)))
 		return MobileIdentity5GS{
-			Identity: "Unknown",
+			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "", true),
 		}
 	}
 }

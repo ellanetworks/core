@@ -5,6 +5,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
 	naslib "github.com/omec-project/nas"
+	"github.com/omec-project/nas/nasMessage"
 )
 
 func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
@@ -49,8 +50,12 @@ func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
 		t.Fatal("RegistrationRequest is nil")
 	}
 
-	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity != "SUCI" {
+	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity.Label != "SUCI" {
 		t.Errorf("Unexpected MobileIdentity5GS Identity: got %v", nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity)
+	}
+
+	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity.Value != nasMessage.MobileIdentity5GSTypeSuci {
+		t.Errorf("Unexpected MobileIdentity5GS Identity value: got %d", nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity.Value)
 	}
 
 	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.SUCI == nil {
