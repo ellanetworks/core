@@ -21,6 +21,10 @@ func TestDecodeNGAPMessage_UERadioCapabilityInfoIndication(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
+	if ngapMsg.MessageType != "UERadioCapabilityInfoIndication" {
+		t.Errorf("expected MessageType=UERadioCapabilityInfoIndication, got %v", ngapMsg.MessageType)
+	}
+
 	if ngapMsg.ProcedureCode.Label != "UERadioCapabilityInfoIndication" {
 		t.Errorf("expected ProcedureCode=UERadioCapabilityInfoIndication, got %v", ngapMsg.ProcedureCode)
 	}

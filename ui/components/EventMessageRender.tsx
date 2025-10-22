@@ -366,6 +366,7 @@ export const GenericNode: React.FC<GenericNodeProps> = ({
 
 type NgapRoot = {
   pdu_type?: unknown;
+  message_type?: unknown;
   procedure_code?: unknown;
   criticality?: unknown;
   value?: unknown;
@@ -375,16 +376,19 @@ const isNgapRoot = (x: unknown): x is NgapRoot =>
   !!x &&
   typeof x === "object" &&
   "pdu_type" in (x as any) &&
+  "message_type" in (x as any) &&
   "procedure_code" in (x as any) &&
   "criticality" in (x as any) &&
   "value" in (x as any);
 
 const TopLevelNgapView: React.FC<{ decoded: NgapRoot }> = ({ decoded }) => {
-  const { pdu_type, procedure_code, criticality, value } = decoded;
+  const { pdu_type, message_type, procedure_code, criticality, value } =
+    decoded;
 
   return (
     <RowGroup>
       <KVLine k="PDU Type" v={String(pdu_type ?? "—")} />
+      <KVLine k="Message Type" v={String(message_type ?? "—")} />
       <KVLine
         k="Procedure Code"
         v={

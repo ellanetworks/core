@@ -21,6 +21,10 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
+	if ngapMsg.MessageType != "PDUSessionResourceSetupRequest" {
+		t.Errorf("expected MessageType=PDUSessionResourceSetupRequest, got %v", ngapMsg.MessageType)
+	}
+
 	if ngapMsg.ProcedureCode.Label != "PDUSessionResourceSetup" {
 		t.Errorf("expected ProcedureCode=PDUSessionResourceSetup, got %v", ngapMsg.ProcedureCode)
 	}

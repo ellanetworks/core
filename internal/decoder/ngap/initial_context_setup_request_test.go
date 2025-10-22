@@ -21,6 +21,10 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
+	if ngapMsg.MessageType != "InitialContextSetupRequest" {
+		t.Errorf("expected MessageType=InitialContextSetupRequest, got %v", ngapMsg.MessageType)
+	}
+
 	if ngapMsg.ProcedureCode.Label != "InitialContextSetup" {
 		t.Errorf("expected ProcedureCode=InitialContextSetup, got %v", ngapMsg.ProcedureCode)
 	}

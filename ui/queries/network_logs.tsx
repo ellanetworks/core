@@ -73,6 +73,7 @@ export type EnumField = {
 
 export type DecodedNetworkLog = {
   pdu_type: string;
+  message_type: string;
   procedure_code: EnumField;
   criticality: EnumField;
   value: unknown;

@@ -8,7 +8,7 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func TestDecodeNGAPMessage_PDUSessionResourceRelease(t *testing.T) {
+func TestDecodeNGAPMessage_PDUSessionResourceReleaseCommand(t *testing.T) {
 	const message = "ABwAMQAABAAKAAIAlABVAAIAAQAmQBUUfgKGQUZ3A34AaAEABS4BBNMAEgEATwAFAAABARA="
 
 	raw, err := decodeB64(message)
@@ -20,6 +20,10 @@ func TestDecodeNGAPMessage_PDUSessionResourceRelease(t *testing.T) {
 
 	if ngapMsg.PDUType != "InitiatingMessage" {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
+	}
+
+	if ngapMsg.MessageType != "PDUSessionResourceReleaseCommand" {
+		t.Errorf("expected MessageType=PDUSessionResourceReleaseCommand, got %v", ngapMsg.MessageType)
 	}
 
 	if ngapMsg.ProcedureCode.Label != "PDUSessionResourceRelease" {

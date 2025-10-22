@@ -16,6 +16,7 @@ type NGAPMessageValue struct {
 type NGAPMessage struct {
 	PDUType       string                  `json:"pdu_type"`
 	ProcedureCode utils.EnumField[int64]  `json:"procedure_code"`
+	MessageType   string                  `json:"message_type,omitempty"`
 	Criticality   utils.EnumField[uint64] `json:"criticality"`
 	Value         NGAPMessageValue        `json:"value"`
 }
@@ -33,23 +34,26 @@ func DecodeNGAPMessage(raw []byte) NGAPMessage {
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
 		return NGAPMessage{
+			PDUType:       "InitiatingMessage",
+			MessageType:   initiatingMessageTypeToString(*pdu.InitiatingMessage),
 			ProcedureCode: procedureCodeToEnum(pdu.InitiatingMessage.ProcedureCode.Value),
 			Criticality:   criticalityToEnum(pdu.InitiatingMessage.Criticality.Value),
-			PDUType:       "InitiatingMessage",
 			Value:         buildInitiatingMessage(*pdu.InitiatingMessage),
 		}
 	case ngapType.NGAPPDUPresentSuccessfulOutcome:
 		return NGAPMessage{
+			PDUType:       "SuccessfulOutcome",
+			MessageType:   successfulOutcomeTypeToString(*pdu.SuccessfulOutcome),
 			ProcedureCode: procedureCodeToEnum(pdu.SuccessfulOutcome.ProcedureCode.Value),
 			Criticality:   criticalityToEnum(pdu.SuccessfulOutcome.Criticality.Value),
-			PDUType:       "SuccessfulOutcome",
 			Value:         buildSuccessfulOutcome(*pdu.SuccessfulOutcome),
 		}
 	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
 		return NGAPMessage{
+			PDUType:       "UnsuccessfulOutcome",
+			MessageType:   unsuccessfulOutcomeTypeToString(*pdu.UnsuccessfulOutcome),
 			ProcedureCode: procedureCodeToEnum(pdu.UnsuccessfulOutcome.ProcedureCode.Value),
 			Criticality:   criticalityToEnum(pdu.UnsuccessfulOutcome.Criticality.Value),
-			PDUType:       "UnsuccessfulOutcome",
 			Value:         buildUnsuccessfulOutcome(*pdu.UnsuccessfulOutcome),
 		}
 	default:

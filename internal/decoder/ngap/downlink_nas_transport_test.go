@@ -21,6 +21,10 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
+	if ngapMsg.MessageType != "DownlinkNASTransport" {
+		t.Errorf("expected MessageType=DownlinkNASTransport, got %v", ngapMsg.MessageType)
+	}
+
 	if ngapMsg.ProcedureCode.Label != "DownlinkNASTransport" {
 		t.Errorf("expected ProcedureCode=DownlinkNASTransport, got %v", ngapMsg.ProcedureCode)
 	}

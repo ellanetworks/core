@@ -21,6 +21,10 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
+	if ngapMsg.MessageType != "UplinkNASTransport" {
+		t.Errorf("expected MessageType=UplinkNASTransport, got %v", ngapMsg.MessageType)
+	}
+
 	if ngapMsg.ProcedureCode.Label != "UplinkNASTransport" {
 		t.Errorf("expected ProcedureCode=UplinkNASTransport, got %v", ngapMsg.ProcedureCode)
 	}

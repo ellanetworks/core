@@ -21,6 +21,10 @@ func TestDecodeNGAPMessage_UEContextReleaseComplete(t *testing.T) {
 		t.Errorf("expected PDUType=SuccessfulOutcome, got %v", ngapMsg.PDUType)
 	}
 
+	if ngapMsg.MessageType != "UEContextReleaseComplete" {
+		t.Errorf("expected MessageType=UEContextReleaseComplete, got %v", ngapMsg.MessageType)
+	}
+
 	if ngapMsg.ProcedureCode.Label != "UEContextRelease" {
 		t.Errorf("expected ProcedureCode=UEContextRelease, got %v", ngapMsg.ProcedureCode)
 	}
