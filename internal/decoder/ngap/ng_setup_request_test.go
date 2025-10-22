@@ -22,6 +22,10 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
+	if ngapMsg.MessageType != "NGSetupRequest" {
+		t.Errorf("expected MessageType=NGSetupRequest, got %v", ngapMsg.MessageType)
+	}
+
 	if ngapMsg.ProcedureCode.Label != "NGSetup" {
 		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
 	}

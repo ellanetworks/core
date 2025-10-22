@@ -191,6 +191,9 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
                 decoded?.pdu_type
                   ? { label: String(decoded.pdu_type) }
                   : undefined,
+                decoded?.message_type
+                  ? { label: String(decoded.message_type) }
+                  : undefined,
                 decoded?.procedure_code?.label
                   ? { label: String(decoded.procedure_code.label) }
                   : undefined,

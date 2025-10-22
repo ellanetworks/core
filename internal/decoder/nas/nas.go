@@ -32,6 +32,8 @@ type GmmMessage struct {
 	ServiceRequest         *ServiceRequest         `json:"service_request,omitempty"`
 	ServiceAccept          *ServiceAccept          `json:"service_accept,omitempty"`
 	ServiceReject          *ServiceReject          `json:"service_reject,omitempty"`
+	IdentityRequest        *IdentityRequest        `json:"identity_request,omitempty"`
+	IdentityResponse       *IdentityResponse       `json:"identity_response,omitempty"`
 }
 
 type GsmHeader struct {
@@ -153,6 +155,12 @@ func buildGmmMessage(msg *nas.GmmMessage) *GmmMessage {
 		return gmmMessage
 	case nas.MsgTypeServiceReject:
 		gmmMessage.ServiceReject = buildServiceReject(msg.ServiceReject)
+		return gmmMessage
+	case nas.MsgTypeIdentityRequest:
+		gmmMessage.IdentityRequest = buildIdentityRequest(msg.IdentityRequest)
+		return gmmMessage
+	case nas.MsgTypeIdentityResponse:
+		gmmMessage.IdentityResponse = buildIdentityResponse(msg.IdentityResponse)
 		return gmmMessage
 	default:
 		gmmMessage.Error = fmt.Sprintf("GMM message type %d not implemented", msg.GetMessageType())
@@ -297,11 +305,11 @@ func decodeNAS(raw []byte, nasContextInfo *NasContextInfo) (*nas.Message, error)
 
 		ranUE := amf.RanUeFindByAmfUeNgapID(nasContextInfo.AMFUENGAPID)
 		if ranUE == nil {
-			return nil, fmt.Errorf("ran ue is nil")
+			return nil, fmt.Errorf("cannot find ue in amf")
 		}
 
 		if ranUE.AmfUe == nil {
-			return nil, fmt.Errorf("amf ue is nil")
+			return nil, fmt.Errorf("ue decryption keys are not available")
 		}
 
 		decrypted, err := DecryptNASMessage(ranUE.AmfUe, nasContextInfo.Direction, raw)
@@ -322,11 +330,11 @@ func decodeNAS(raw []byte, nasContextInfo *NasContextInfo) (*nas.Message, error)
 
 		ranUE := amf.RanUeFindByAmfUeNgapID(nasContextInfo.AMFUENGAPID)
 		if ranUE == nil {
-			return nil, fmt.Errorf("ran ue is nil")
+			return nil, fmt.Errorf("cannot find ue in amf")
 		}
 
 		if ranUE.AmfUe == nil {
-			return nil, fmt.Errorf("amf ue is nil")
+			return nil, fmt.Errorf("ue decryption keys are not available")
 		}
 
 		decrypted, err := DecryptNASMessage(ranUE.AmfUe, nasContextInfo.Direction, raw)
@@ -347,11 +355,11 @@ func decodeNAS(raw []byte, nasContextInfo *NasContextInfo) (*nas.Message, error)
 
 		ranUE := amf.RanUeFindByAmfUeNgapID(nasContextInfo.AMFUENGAPID)
 		if ranUE == nil {
-			return nil, fmt.Errorf("ran ue is nil")
+			return nil, fmt.Errorf("cannot find ue in amf")
 		}
 
 		if ranUE.AmfUe == nil {
-			return nil, fmt.Errorf("amf ue is nil")
+			return nil, fmt.Errorf("ue decryption keys are not available")
 		}
 
 		decrypted, err := DecryptNASMessage(ranUE.AmfUe, nasContextInfo.Direction, raw)

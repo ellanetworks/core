@@ -22,6 +22,10 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected PDUType=UnsuccessfulOutcome, got %v", ngapMsg.PDUType)
 	}
 
+	if ngapMsg.MessageType != "NGSetupFailure" {
+		t.Errorf("expected MessageType=NGSetupFailure, got %v", ngapMsg.MessageType)
+	}
+
 	if ngapMsg.ProcedureCode.Label != "NGSetup" {
 		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
 	}

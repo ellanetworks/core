@@ -1,8 +1,11 @@
 package nas
 
 import (
+	"encoding/hex"
+
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/nas/nasMessage"
+	"github.com/omec-project/nas/nasType"
 )
 
 type AuthenticationFailure struct {
@@ -10,7 +13,7 @@ type AuthenticationFailure struct {
 	SpareHalfOctetAndSecurityHeaderType uint8                  `json:"spare_half_octet_and_security_header_type"`
 	Cause5GMM                           utils.EnumField[uint8] `json:"cause"`
 
-	AuthenticationFailureParameter *UnsupportedIE `json:"authentication_failure_parameter,omitempty"`
+	AuthenticationFailureParameter *string `json:"authentication_failure_parameter,omitempty"`
 }
 
 func buildAuthenticationFailure(msg *nasMessage.AuthenticationFailure) *AuthenticationFailure {
@@ -25,10 +28,16 @@ func buildAuthenticationFailure(msg *nasMessage.AuthenticationFailure) *Authenti
 	}
 
 	if msg.AuthenticationFailureParameter != nil {
-		authFailure.AuthenticationFailureParameter = makeUnsupportedIE()
+		authFailParam := buildAuthenticationFailureParameter(msg.AuthenticationFailureParameter)
+		authFailure.AuthenticationFailureParameter = &authFailParam
 	}
 
 	return authFailure
+}
+
+func buildAuthenticationFailureParameter(param *nasType.AuthenticationFailureParameter) string {
+	auts := param.GetAuthenticationFailureParameter()
+	return hex.EncodeToString(auts[:])
 }
 
 func cause5GMMToEnum(cause uint8) utils.EnumField[uint8] {
