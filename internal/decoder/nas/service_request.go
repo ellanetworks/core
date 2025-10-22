@@ -2,7 +2,6 @@ package nas
 
 import (
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
@@ -58,10 +57,16 @@ type AllowedPDUSessionStatus struct {
 	Active       bool `json:"active"`
 }
 
+type ServiceTypeAndNgksi struct {
+	ServiceType          utils.EnumField[uint8] `json:"service_type"`
+	TSC                  utils.EnumField[uint8] `json:"tsc"`
+	NasKeySetIdentifiler uint8                  `json:"nas_key_set_identifier"`
+}
+
 type ServiceRequest struct {
 	ExtendedProtocolDiscriminator       uint8                     `json:"extended_protocol_discriminator"`
 	SpareHalfOctetAndSecurityHeaderType uint8                     `json:"spare_half_octet_and_security_header_type"`
-	ServiceTypeAndNgksi                 string                    `json:"service_type_and_ngksi"`
+	ServiceTypeAndNgksi                 ServiceTypeAndNgksi       `json:"service_type_and_ngksi"`
 	TMSI5GS                             TMSI5GS                   `json:"tmsi_5gs,omitempty"`
 	UplinkDataStatus                    []UplinkDataStatusPDU     `json:"uplink_data_status,omitempty"`
 	PDUSessionStatus                    []PDUSessionStatusPDU     `json:"pdu_session_status,omitempty"`
@@ -77,7 +82,7 @@ func buildServiceRequest(msg *nasMessage.ServiceRequest) *ServiceRequest {
 	serviceRequest := &ServiceRequest{
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		ServiceTypeAndNgksi:                 nas.MessageName(msg.ServiceTypeAndNgksi.Octet),
+		ServiceTypeAndNgksi:                 buildServiceTypeAndNgksi(msg.ServiceTypeAndNgksi),
 		TMSI5GS:                             buildTMSI5GS(msg.TMSI5GS),
 	}
 
@@ -122,4 +127,42 @@ func buildServiceRequest(msg *nasMessage.ServiceRequest) *ServiceRequest {
 	}
 
 	return serviceRequest
+}
+
+func buildServiceTypeAndNgksi(stng nasType.ServiceTypeAndNgksi) ServiceTypeAndNgksi {
+	return ServiceTypeAndNgksi{
+		ServiceType:          buildServiceTypeEnum(stng.GetServiceTypeValue()),
+		TSC:                  buildTSCEnum(stng.GetTSC()),
+		NasKeySetIdentifiler: stng.GetNasKeySetIdentifiler(),
+	}
+}
+
+func buildServiceTypeEnum(serviceType uint8) utils.EnumField[uint8] {
+	switch serviceType {
+	case nasMessage.ServiceTypeSignalling:
+		return utils.MakeEnum(serviceType, "Signalling", false)
+	case nasMessage.ServiceTypeData:
+		return utils.MakeEnum(serviceType, "Data", false)
+	case nasMessage.ServiceTypeMobileTerminatedServices:
+		return utils.MakeEnum(serviceType, "MobileTerminatedServices", false)
+	case nasMessage.ServiceTypeEmergencyServices:
+		return utils.MakeEnum(serviceType, "EmergencyServices", false)
+	case nasMessage.ServiceTypeEmergencyServicesFallback:
+		return utils.MakeEnum(serviceType, "EmergencyServicesFallback", false)
+	case nasMessage.ServiceTypeHighPriorityAccess:
+		return utils.MakeEnum(serviceType, "HighPriorityAccess", false)
+	default:
+		return utils.MakeEnum(serviceType, "", true)
+	}
+}
+
+func buildTSCEnum(tsc uint8) utils.EnumField[uint8] {
+	switch tsc {
+	case nasMessage.TypeOfSecurityContextFlagNative:
+		return utils.MakeEnum(tsc, "Native", false)
+	case nasMessage.TypeOfSecurityContextFlagMapped:
+		return utils.MakeEnum(tsc, "Mapped", false)
+	default:
+		return utils.MakeEnum(tsc, "", true)
+	}
 }
