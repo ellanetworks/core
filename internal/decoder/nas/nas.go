@@ -297,11 +297,11 @@ func decodeNAS(raw []byte, nasContextInfo *NasContextInfo) (*nas.Message, error)
 
 		ranUE := amf.RanUeFindByAmfUeNgapID(nasContextInfo.AMFUENGAPID)
 		if ranUE == nil {
-			return nil, fmt.Errorf("ran ue is nil")
+			return nil, fmt.Errorf("cannot find ue in amf")
 		}
 
 		if ranUE.AmfUe == nil {
-			return nil, fmt.Errorf("amf ue is nil")
+			return nil, fmt.Errorf("ue decryption keys are not available")
 		}
 
 		decrypted, err := DecryptNASMessage(ranUE.AmfUe, nasContextInfo.Direction, raw)
@@ -322,11 +322,11 @@ func decodeNAS(raw []byte, nasContextInfo *NasContextInfo) (*nas.Message, error)
 
 		ranUE := amf.RanUeFindByAmfUeNgapID(nasContextInfo.AMFUENGAPID)
 		if ranUE == nil {
-			return nil, fmt.Errorf("ran ue is nil")
+			return nil, fmt.Errorf("cannot find ue in amf")
 		}
 
 		if ranUE.AmfUe == nil {
-			return nil, fmt.Errorf("amf ue is nil")
+			return nil, fmt.Errorf("ue decryption keys are not available")
 		}
 
 		decrypted, err := DecryptNASMessage(ranUE.AmfUe, nasContextInfo.Direction, raw)
@@ -347,11 +347,11 @@ func decodeNAS(raw []byte, nasContextInfo *NasContextInfo) (*nas.Message, error)
 
 		ranUE := amf.RanUeFindByAmfUeNgapID(nasContextInfo.AMFUENGAPID)
 		if ranUE == nil {
-			return nil, fmt.Errorf("ran ue is nil")
+			return nil, fmt.Errorf("cannot find ue in amf")
 		}
 
 		if ranUE.AmfUe == nil {
-			return nil, fmt.Errorf("amf ue is nil")
+			return nil, fmt.Errorf("ue decryption keys are not available")
 		}
 
 		decrypted, err := DecryptNASMessage(ranUE.AmfUe, nasContextInfo.Direction, raw)
