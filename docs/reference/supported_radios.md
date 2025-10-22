@@ -8,6 +8,10 @@ Ella Core's N2 and N3 interfaces follow the 3GPP standards. This means that any 
 
 Ella Core has been tested with the following radios and simulators:
 
+## Commercial Radios
+
+- **[CableFree 5G Small Cell](https://www.cablefree.net/5g-lte/5g-small-cell-base-station-radios/)**
+
 ## Open RAN Radios
 
 - **[OpenAirInterface 5G RAN](https://openairinterface.org/)**
