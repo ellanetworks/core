@@ -8,10 +8,10 @@ db:
   path: "core.db"
 interfaces:
   n2:
-    name: "eth1"
+    name: "n3"
     port: 38412
   n3:
-    name: "eth1"
+    name: "n3"
   n6:
     name: "eth0"
   api:

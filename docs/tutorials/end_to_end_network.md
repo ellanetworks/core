@@ -28,10 +28,11 @@ Start the Ella Core container with the additional network interfaces:
 docker create \
   --name ella-core \
   --privileged \
+  --network=name=bridge \
   -p 5002:5002 \
   -v /sys/fs/bpf:/sys/fs/bpf:rw \
   ella-core:latest exec /bin/core --config /core.yaml
-docker network connect --ip 10.3.0.2 n3 ella-core
+docker network connect --driver-opt com.docker.network.endpoint.ifname=n3 --ip 10.3.0.2 n3 ella-core
 docker start ella-core
 ```
 
@@ -82,7 +83,7 @@ docker create \
   --name ueransim \
   --privileged \
   ghcr.io/ellanetworks/ueransim:3.2.7
-docker network connect --ip 10.3.0.3 n3 ueransim
+docker network connect --driver-opt com.docker.network.endpoint.ifname=n3 --ip 10.3.0.3 n3 ueransim
 docker start ueransim
 ```
 
