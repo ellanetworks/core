@@ -66,9 +66,9 @@ type N6InterfaceYaml struct {
 }
 
 type APIInterfaceYaml struct {
-	Name string `yaml:"name"`
-	Port int    `yaml:"port"`
-	TLS  TLSYaml
+	Address string  `yaml:"address"`
+	Port    int     `yaml:"port"`
+	TLS     TLSYaml `yaml:"tls"`
 }
 
 type InterfacesYaml struct {
@@ -111,11 +111,6 @@ type ConfigYAML struct {
 	Telemetry  TelemetryYaml  `yaml:"telemetry"`
 }
 
-type API struct {
-	Port int
-	TLS  TLS
-}
-
 type N2Interface struct {
 	Name    string
 	Address string
@@ -132,9 +127,9 @@ type N6Interface struct {
 }
 
 type APIInterface struct {
-	Name string
-	Port int
-	TLS  TLS
+	Address string
+	Port    int
+	TLS     TLS
 }
 
 type Interfaces struct {
@@ -285,8 +280,14 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("interfaces.api is empty")
 	}
 
-	if c.Interfaces.API.Name == "" {
-		return Config{}, errors.New("interfaces.api.name is empty")
+	apiAddress := c.Interfaces.API.Address
+	if c.Interfaces.API.Address == "" {
+		apiAddress = "127.0.0.1"
+	} else {
+		// validate IP address format
+		if net.ParseIP(c.Interfaces.API.Address) == nil {
+			return Config{}, fmt.Errorf("interfaces.api.address %s is not a valid IP address", c.Interfaces.API.Address)
+		}
 	}
 
 	if c.Interfaces.API.Port == 0 {
@@ -340,7 +341,7 @@ func Validate(filePath string) (Config, error) {
 	config.Interfaces.N3.Name = c.Interfaces.N3.Name
 	config.Interfaces.N3.Address = n3Address
 	config.Interfaces.N6.Name = c.Interfaces.N6.Name
-	config.Interfaces.API.Name = c.Interfaces.API.Name
+	config.Interfaces.API.Address = apiAddress
 	config.Interfaces.API.Port = c.Interfaces.API.Port
 	config.XDP.AttachMode = c.XDP.AttachMode
 	config.Telemetry.OTLPEndpoint = c.Telemetry.OTLPEndpoint

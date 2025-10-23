@@ -97,7 +97,7 @@ func TestValidConfigSuccess(t *testing.T) {
 		t.Fatalf("N6 interface was not configured correctly")
 	}
 
-	if conf.Interfaces.API.Name != "enp0s8" {
+	if conf.Interfaces.API.Address != "1.2.3.4" {
 		t.Fatalf("API interface was not configured correctly")
 	}
 
@@ -156,7 +156,7 @@ func TestValidConfigNoTLSSuccess(t *testing.T) {
 		t.Fatalf("N6 interface was not configured correctly")
 	}
 
-	if conf.Interfaces.API.Name != "enp0s8" {
+	if conf.Interfaces.API.Address != "127.0.0.1" {
 		t.Fatalf("API interface was not configured correctly")
 	}
 

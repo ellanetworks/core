@@ -21,7 +21,6 @@ data:
       n6:
         name: "n6"
       api:
-        name: "enp0s8"
         port: 5002
     xdp:
       attach-mode: "generic"

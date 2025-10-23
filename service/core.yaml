@@ -15,7 +15,6 @@ interfaces:
   n6:
     name: "ens3"
   api:
-    name: "ens3"
     port: 5002
     tls:
       cert: "/var/snap/ella-core/common/cert.pem"

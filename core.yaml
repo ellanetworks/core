@@ -10,12 +10,11 @@ interfaces:
   n2:
     name: "lo"
     port: 38412
-  n3: 
+  n3:
     name: "wlp131s0"
   n6:
     name: "lo"
   api:
-    name: "lo"
     port: 5002
 xdp:
   attach-mode: "generic"

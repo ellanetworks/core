@@ -29,7 +29,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `n6` (object): The configuration for the n6 interface. This interface should be connected to the internet.
         - `name` (string): The name of the network interface.
     - `api` (object): The configuration for the api interface.
-        - `name` (string): The name of the network interface.
+        - `address` (string): The address to listen on (optional). If not specified, the API will listen on `127.0.0.1`.
         - `port` (int): The port to listen on.
         - `tls` (object): The TLS configuration (optional).
             - `cert` (string): The path to the TLS certificate file (optional).
@@ -64,7 +64,6 @@ interfaces:
   n6:
     name: "ens3"
   api:
-    name: "ens3"
     port: 5002
     tls:
       cert: "/etc/ella/cert.pem"
