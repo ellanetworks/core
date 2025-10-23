@@ -7,7 +7,6 @@ logging:
     output: "stdout"
 interfaces:
   n2:
-    name: "enp2s0"
     port: 38412
   n3:
     name: "enp3s0"

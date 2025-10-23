@@ -53,8 +53,8 @@ type TLSYaml struct {
 }
 
 type N2InterfaceYaml struct {
-	Name string `yaml:"name"`
-	Port int    `yaml:"port"`
+	Address string `yaml:"address"`
+	Port    int    `yaml:"port"`
 }
 
 type N3InterfaceYaml struct {
@@ -112,7 +112,6 @@ type ConfigYAML struct {
 }
 
 type N2Interface struct {
-	Name    string
 	Address string
 	Port    int
 }
@@ -242,17 +241,16 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("interfaces.n2 is empty")
 	}
 
-	if c.Interfaces.N2.Name == "" {
-		return Config{}, errors.New("interfaces.n2.name is empty")
+	if c.Interfaces.N2.Address == "" {
+		return Config{}, errors.New("interfaces.n2.address is empty")
+	}
+
+	if net.ParseIP(c.Interfaces.N2.Address) == nil {
+		return Config{}, fmt.Errorf("interfaces.n2.address %s is not a valid IP address", c.Interfaces.N2.Address)
 	}
 
 	if c.Interfaces.N2.Port == 0 {
 		return Config{}, errors.New("interfaces.n2.port is empty")
-	}
-
-	n2Exists, err := InterfaceExists(c.Interfaces.N2.Name)
-	if !n2Exists {
-		return Config{}, fmt.Errorf("interfaces.n2.name %s does not exist on the host: %w", c.Interfaces.N2.Name, err)
 	}
 
 	if c.Interfaces.N3 == (N3InterfaceYaml{}) {
@@ -280,14 +278,12 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("interfaces.api is empty")
 	}
 
-	apiAddress := c.Interfaces.API.Address
 	if c.Interfaces.API.Address == "" {
-		apiAddress = "127.0.0.1"
-	} else {
-		// validate IP address format
-		if net.ParseIP(c.Interfaces.API.Address) == nil {
-			return Config{}, fmt.Errorf("interfaces.api.address %s is not a valid IP address", c.Interfaces.API.Address)
-		}
+		return Config{}, errors.New("interfaces.api.address is empty")
+	}
+
+	if net.ParseIP(c.Interfaces.API.Address) == nil {
+		return Config{}, fmt.Errorf("interfaces.api.address %s is not a valid IP address", c.Interfaces.API.Address)
 	}
 
 	if c.Interfaces.API.Port == 0 {
@@ -316,11 +312,6 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("xdp.attach-mode is invalid. Allowed values are: native, generic")
 	}
 
-	n2Address, err := GetInterfaceIP(c.Interfaces.N2.Name)
-	if err != nil {
-		return Config{}, fmt.Errorf("cannot get IPv4 address for interface %s: %w", c.Interfaces.N2.Name, err)
-	}
-
 	n3Address, err := GetInterfaceIP(c.Interfaces.N3.Name)
 	if err != nil {
 		return Config{}, fmt.Errorf("cannot get IPv4 address for interface %s: %w", c.Interfaces.N3.Name, err)
@@ -336,12 +327,12 @@ func Validate(filePath string) (Config, error) {
 	config.Logging.AuditLogging.Output = c.Logging.AuditLogging.Output
 	config.Logging.AuditLogging.Path = c.Logging.AuditLogging.Path
 	config.DB.Path = c.DB.Path
-	config.Interfaces.N2.Address = n2Address
+	config.Interfaces.N2.Address = c.Interfaces.N2.Address
 	config.Interfaces.N2.Port = c.Interfaces.N2.Port
 	config.Interfaces.N3.Name = c.Interfaces.N3.Name
 	config.Interfaces.N3.Address = n3Address
 	config.Interfaces.N6.Name = c.Interfaces.N6.Name
-	config.Interfaces.API.Address = apiAddress
+	config.Interfaces.API.Address = c.Interfaces.API.Address
 	config.Interfaces.API.Port = c.Interfaces.API.Port
 	config.XDP.AttachMode = c.XDP.AttachMode
 	config.Telemetry.OTLPEndpoint = c.Telemetry.OTLPEndpoint

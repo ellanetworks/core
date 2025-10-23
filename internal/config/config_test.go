@@ -79,10 +79,17 @@ func TestValidConfigSuccess(t *testing.T) {
 		}
 	}()
 
-	// Run the validation
 	conf, err := config.Validate(confFilePath)
 	if err != nil {
 		t.Fatalf("Error occurred: %s", err)
+	}
+
+	if conf.Interfaces.N2.Address != "3.4.5.6" {
+		t.Fatalf("N2 interface address was not configured correctly")
+	}
+
+	if conf.Interfaces.N2.Port != 38412 {
+		t.Fatalf("N2 port was not configured correctly")
 	}
 
 	if conf.Interfaces.N3.Name != "enp3s0" {
@@ -138,10 +145,17 @@ func TestValidConfigNoTLSSuccess(t *testing.T) {
 		}
 	}()
 
-	// Run the validation
 	conf, err := config.Validate(confFilePath)
 	if err != nil {
 		t.Fatalf("Error occurred: %s", err)
+	}
+
+	if conf.Interfaces.N2.Port != 38412 {
+		t.Fatalf("N2 port was not configured correctly")
+	}
+
+	if conf.Interfaces.N2.Address != "127.0.0.1" {
+		t.Fatalf("N2 address was not configured correctly")
 	}
 
 	if conf.Interfaces.N3.Name != "enp3s0" {

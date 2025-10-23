@@ -44,10 +44,12 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 
 func Run(address string, port int, handler NGAPHandler) error {
 	ips := []net.IPAddr{}
+
 	netAddr, err := net.ResolveIPAddr("ip", address)
 	if err != nil {
 		return fmt.Errorf("error resolving address '%s': %v", address, err)
 	}
+
 	ips = append(ips, *netAddr)
 
 	addr := &sctp.SCTPAddr{
@@ -56,6 +58,7 @@ func Run(address string, port int, handler NGAPHandler) error {
 	}
 
 	go listenAndServe(addr, handler)
+
 	return nil
 }
 
