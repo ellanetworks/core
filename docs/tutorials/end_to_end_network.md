@@ -16,7 +16,7 @@ To complete this tutorial, you will need a Linux machine with Docker.
 
 ## 1. Install Ella Core
 
-Create two networks:
+Create a network named `n3`:
 
 ```shell
 docker network create --driver bridge n3 --subnet 10.3.0.0/24
@@ -37,7 +37,7 @@ docker start ella-core
 
 ## 2. Access the UI
 
-From the host, open your browser and navigate to `http://127.0.0.1:5002/` to access Ella Core's UI.
+Open your browser and navigate to `http://127.0.0.1:5002/` to access Ella Core's UI.
 
 You should see the Initialization page.
 
@@ -83,7 +83,7 @@ In this section, we will run an instance of UERANSIM, a 5G radio and User Equipm
 docker create \
   --name ueransim \
   --privileged \
-  ueransim:latest
+  ghcr.io/ellanetworks/ueransim:3.2.7
 docker network connect --ip 10.3.0.3 n3 ueransim
 docker start ueransim
 ```
@@ -108,7 +108,7 @@ UERANSIM v3.2.7
 [2025-10-23 17:12:49.637] [ngap] [info] NG Setup procedure is successful
 ```
 
-Leave the radio running.
+Leave the radio running (don't close the terminal).
 
 In your browser, navigate to the Ella Core UI and click on the `Radios` tab. You should see a radio connected with the name `UERANSIM-gnb-1-1-1`.
 
@@ -158,7 +158,7 @@ UERANSIM v3.2.7
 
 This output indicates that the User Equipment has successfully connected to the network and has been assigned an IP address. In this case, the IP address is `10.45.0.1`.
 
-Leave the UE running.
+Leave the UE running (don't close the terminal).
 
 ## 4. Validate the connection
 
