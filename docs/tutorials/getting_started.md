@@ -18,20 +18,19 @@ Create two networks:
 
 ```shell
 docker network create --driver bridge n3 --subnet 10.3.0.0/24
-docker network create --driver bridge n6 --subnet 10.6.0.0/24
 ```
 
 Start the Ella Core container with the additional network interfaces:
 
 ```shell
-docker run -d \
+docker create \
   --name ella-core \
-  --network n3 --ip 10.3.0.2 \
-  --network n6 --ip 10.6.0.2 \
   --privileged \
   -p 5002:5002 \
   -v /sys/fs/bpf:/sys/fs/bpf:rw \
-  ella-core:latest
+  ella-core:latest exec /bin/core --config /core.yaml
+docker network connect --ip 10.3.0.2 n3 ella-core
+docker start ella-core
 ```
 
 ## 2. Access the UI
@@ -67,5 +66,5 @@ When you are done with the tutorial, you can remove the Ella Core container and 
 ```shell
 docker stop ella-core
 docker rm ella-core
-docker network rm n3 n6
+docker network rm n3
 ```
