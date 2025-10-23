@@ -4,13 +4,13 @@ description: A hands-on introduction to Ella Core for new users.
 
 # Getting Started
 
-In this tutorial, we will deploy, initialize, and configure Ella Core. We will use [Docker](https://www.docker.com/) to run a container with Ella Core, and we will access the Ella Core UI through a web browser.
+In this tutorial, we will deploy, initialize, and configure Ella Core. We will install Ella Core and access its UI via a web browser.
 
 You can expect to spend about 5 minutes completing this tutorial.
 
 ## Pre-requisites
 
-To complete this tutorial, you will need a Linux machine with Docker.
+To complete this tutorial, you will need a Linux machine with [Docker](https://www.docker.com/) installed.
 
 ## 1. Install Ella Core
 

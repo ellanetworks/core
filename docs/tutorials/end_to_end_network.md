@@ -4,15 +4,15 @@ description: Running an end-to-end 5G network with Ella Core using Snap
 
 # Running an End-to-End 5G Network with Ella Core
 
-In this tutorial, we will deploy, initialize, and configure Ella Core, an open-source 5G mobile core network. First, we will use [Docker](https://www.docker.com/) to run an instance of Ella Core, access the UI, initialize Ella Core, and configure it. Then, we will create another container running a 5G radio and User Equipment simulator, connect it to Ella Core, and use the simulator to validate that subscribers can communicate with the Internet using Ella Core.
+In this tutorial, we will deploy, initialize, and configure Ella Core, an open-source 5G mobile core network. First, we will install Ella Core, access its UI and configure a network subscriber. Then, we will install a 5G radio and User Equipment simulator, connect it to Ella Core, and use the simulator to validate that the subscriber can communicate with the Internet using Ella Core.
 
-You can expect to spend about 10 minutes completing this tutorial. Follow the steps in sequence to ensure a successful deployment.
+You can expect to spend about 10 minutes completing this tutorial.
 
 ![Tutorial](../images/tutorial.svg){ align=center }
 
 ## Pre-requisites
 
-To complete this tutorial, you will need a Linux machine with Docker.
+To complete this tutorial, you will need a Linux machine with [Docker](https://www.docker.com/) installed.
 
 ## 1. Install Ella Core
 
@@ -46,7 +46,9 @@ You should see the Initialization page.
 !!! note
     Your browser may display a warning about the security of the connection. You can safely ignore this warning.
 
-## 3. Initialize Ella Core
+## 3. Configure your private 5G network
+
+### 3.1 Initialize Ella Core
 
 In the Initialization page, create the first user with the following credentials:
 
@@ -55,11 +57,7 @@ In the Initialization page, create the first user with the following credentials
 
 Ella Core is now initialized and ready to be used. You will be redirected to the dashboard.
 
-## 4. Configure your private network
-
-Here, we will navigate through the Ella Core UI to create a subscriber.
-
-### 4.1 Create a subscriber
+### 3.2 Create a new Subscriber
 
 Navigate to the `Subscribers` page and click on the `Create` button.
 
@@ -71,11 +69,11 @@ Create a subscriber with the following parameters:
 - OPC: Select "Provide custom OPC" and set the value to `98da19bbc55e2a5b53857d10557b1d26`.
 - Policy: `default`
 
-### 4.2 Validate that no radio is connected
+### 3.3 Validate that no radio is connected
 
 Navigate to the `Radios` page. You should see that no radio is connected.
 
-## 5. Integrate a 5G Radio and User Equipment Simulator
+## 4. Integrate a 5G Radio and User Equipment Simulator
 
 In this section, we will run an instance of UERANSIM, a 5G radio and User Equipment (UE) simulator, and connect it to Ella Core.
 
@@ -88,7 +86,7 @@ docker network connect --ip 10.3.0.3 n3 ueransim
 docker start ueransim
 ```
 
-### 5.1 Start the 5G Radio simulator
+### 4.1 Start the 5G Radio simulator
 
 Start the 5G radio simulator:
 
@@ -114,7 +112,7 @@ In your browser, navigate to the Ella Core UI and click on the `Radios` tab. You
 
 ![Connected Radio](../images/connected_radio.png){ align=center }
 
-### 5.2 Start the 5G User Equipment (UE) simulator
+### 4.2 Start the 5G User Equipment (UE) simulator
 
 Open a new terminal window and start the UE simulator:
 
@@ -166,7 +164,7 @@ In your browser, navigate to the Ella Core UI and click on the `Subscribers` tab
 
 ![Connected Subscriber](../images/connected_subscriber.png){ align=center }
 
-Open a new terminal window and list the network interfaces:
+Open a new terminal window and list the network interfaces inside the UERANSIM container:
 
 ```shell
 docker exec -ti ueransim ip a
@@ -219,7 +217,9 @@ PING docs.ellanetworks.com (172.64.80.1) from 10.45.0.1 uesimtun0: 56(84) bytes 
 rtt min/avg/max/mdev = 18.624/25.115/35.240/6.155 ms
 ```
 
-You have successfully validated that the subscriber can communicate with the internet.
+!!! success
+
+    Congratulations, you have successfully validated that the subscriber can communicate with the internet.
 
 ## 5. Destroy the Tutorial Environment (Optional)
 
