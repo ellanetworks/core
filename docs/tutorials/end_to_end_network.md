@@ -158,7 +158,7 @@ This output indicates that the User Equipment has successfully connected to the 
 
 Leave the UE running (don't close the terminal).
 
-## 4. Validate the connection
+## 5. Validate the connection
 
 In your browser, navigate to the Ella Core UI and click on the `Subscribers` tab. You should see that the subscriber you created has been assigned an IP address. The IP address should match the IP address assigned to the UE.
 
@@ -221,7 +221,7 @@ rtt min/avg/max/mdev = 18.624/25.115/35.240/6.155 ms
 
     Congratulations, you have successfully validated that the subscriber can communicate with the internet.
 
-## 5. Destroy the Tutorial Environment (Optional)
+## 6. Destroy the Tutorial Environment (Optional)
 
 When you are done with the tutorial, you can remove the Ella Core and UERANSIM containers and the networks we created.
 
