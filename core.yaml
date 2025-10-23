@@ -12,9 +12,11 @@ interfaces:
     port: 38412
   n3:
     name: "wlp131s0"
+    address: "192.168.40.6"
   n6:
     name: "lo"
   api:
+    address: "127.0.0.1"
     port: 5002
 xdp:
   attach-mode: "generic"

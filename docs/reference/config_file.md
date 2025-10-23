@@ -26,6 +26,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
         - `port` (int): The port to listen on.
     - `n3` (object): The configuration for the n3 interface. This interface should be connected to the radios.
         - `name` (string): The name of the network interface.
+        - `address` (string): The address to listen on.
     - `n6` (object): The configuration for the n6 interface. This interface should be connected to the internet.
         - `name` (string): The name of the network interface.
     - `api` (object): The configuration for the api interface.
@@ -61,6 +62,7 @@ interfaces:
     port: 38412
   n3:
     name: "ens5"
+    address: "33.33.33.3"
   n6:
     name: "ens3"
   api:

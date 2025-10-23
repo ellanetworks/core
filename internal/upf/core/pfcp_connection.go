@@ -29,6 +29,7 @@ func CreatePfcpConnection(addr string, nodeID string, n3Ip string, smfAddress st
 	if addrV4 == nil {
 		return nil, fmt.Errorf("failed to parse IP address ID: %s", addr)
 	}
+
 	n3Addr := net.ParseIP(n3Ip)
 	if n3Addr == nil {
 		return nil, fmt.Errorf("failed to parse N3 IP address ID: %s", n3Ip)

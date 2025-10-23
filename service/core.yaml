@@ -11,6 +11,7 @@ interfaces:
     address: "22.22.22.2"
     port: 38412
   n3:
+    address: "33.33.33.3"
     name: "ens5"
   n6:
     name: "ens3"

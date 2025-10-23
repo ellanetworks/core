@@ -58,7 +58,8 @@ type N2InterfaceYaml struct {
 }
 
 type N3InterfaceYaml struct {
-	Name string `yaml:"name"`
+	Name    string `yaml:"name"`
+	Address string `yaml:"address"`
 }
 
 type N6InterfaceYaml struct {
@@ -312,9 +313,12 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("xdp.attach-mode is invalid. Allowed values are: native, generic")
 	}
 
-	n3Address, err := GetInterfaceIP(c.Interfaces.N3.Name)
-	if err != nil {
-		return Config{}, fmt.Errorf("cannot get IPv4 address for interface %s: %w", c.Interfaces.N3.Name, err)
+	if c.Interfaces.N3.Address == "" {
+		return Config{}, errors.New("interfaces.n3.address is empty")
+	}
+
+	if net.ParseIP(c.Interfaces.N3.Address) == nil {
+		return Config{}, fmt.Errorf("interfaces.n3.address %s is not a valid IP address", c.Interfaces.N3.Address)
 	}
 
 	if c.Telemetry.Enabled && c.Telemetry.OTLPEndpoint == "" {
@@ -330,7 +334,7 @@ func Validate(filePath string) (Config, error) {
 	config.Interfaces.N2.Address = c.Interfaces.N2.Address
 	config.Interfaces.N2.Port = c.Interfaces.N2.Port
 	config.Interfaces.N3.Name = c.Interfaces.N3.Name
-	config.Interfaces.N3.Address = n3Address
+	config.Interfaces.N3.Address = c.Interfaces.N3.Address
 	config.Interfaces.N6.Name = c.Interfaces.N6.Name
 	config.Interfaces.API.Address = c.Interfaces.API.Address
 	config.Interfaces.API.Port = c.Interfaces.API.Port
@@ -349,32 +353,6 @@ var CheckInterfaceExistsFunc = func(name string) (bool, error) {
 		return false, nil
 	}
 	return true, nil
-}
-
-var GetInterfaceIPFunc = func(name string) (string, error) {
-	iface, err := net.InterfaceByName(name)
-	if err != nil {
-		return "", err
-	}
-
-	addresses, err := iface.Addrs()
-	if err != nil {
-		return "", err
-	}
-
-	for _, addr := range addresses {
-		if ip, _, err := net.ParseCIDR(addr.String()); err == nil {
-			if ip.To4() != nil {
-				return ip.String(), nil
-			}
-		}
-	}
-
-	return "", errors.New("no valid IPv4 address found")
-}
-
-func GetInterfaceIP(name string) (string, error) {
-	return GetInterfaceIPFunc(name)
 }
 
 func InterfaceExists(name string) (bool, error) {

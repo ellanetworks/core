@@ -185,6 +185,7 @@ func deploy(k *K8s) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get node port: %v", err)
 	}
+
 	return fmt.Sprintf("http://127.0.0.1:%d", nodePort), nil
 }
 

@@ -18,6 +18,7 @@ data:
         port: 38412
       n3:
         name: "n3"
+        address: "192.168.252.3"
       n6:
         name: "n6"
       api:
