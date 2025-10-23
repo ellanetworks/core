@@ -55,11 +55,13 @@ func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOpt
 		Key            string `json:"key"`
 		SequenceNumber string `json:"sequenceNumber"`
 		PolicyName     string `json:"policyName"`
+		OPc            string `json:"opc,omitempty"`
 	}{
 		Imsi:           opts.Imsi,
 		Key:            opts.Key,
 		SequenceNumber: opts.SequenceNumber,
 		PolicyName:     opts.PolicyName,
+		OPc:            opts.OPc,
 	}
 
 	var body bytes.Buffer

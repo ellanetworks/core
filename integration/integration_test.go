@@ -7,19 +7,18 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/client"
-	"gopkg.in/yaml.v2"
 )
 
 const (
-	gnbsimNamespace              = "gnbsim"
-	ueransimNamespace            = "ueransim"
-	testPolicyName               = "tests"
+	testPolicyName               = "default"
 	numIMSIS                     = 5
 	testStartIMSI                = "001010100000001"
-	testSubscriberKey            = "5122250214c33e723a5dd523fc145fc0"
-	testSubscriberCustomOPc      = "981d464c7c52eb6e5036234984ad0bcf"
+	testUERANSIMIMSI             = "001019756139935"
+	testSubscriberKey            = "0eefb0893e6f1c2855a3a244c6db1277"
+	testSubscriberCustomOPc      = "98da19bbc55e2a5b53857d10557b1d26"
 	testSubscriberSequenceNumber = "000000000022"
 	numProfiles                  = 5
 )
@@ -33,274 +32,152 @@ func computeIMSI(baseIMSI string, increment int) (string, error) {
 	return fmt.Sprintf("%015d", newIMSI), nil
 }
 
-type ConfigureEllaCoreOpts struct {
-	client    *client.Client
-	customOPc bool
-	nat       bool
-}
-
-func configureEllaCore(ctx context.Context, opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) {
+func configureEllaCore(ctx context.Context, cl *client.Client, nat bool) error {
 	initializeOpts := &client.InitializeOptions{
 		Email:    "admin@ellanetworks.com",
 		Password: "admin",
 	}
 
-	err := opts.client.Initialize(ctx, initializeOpts)
+	err := cl.Initialize(ctx, initializeOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create user: %v", err)
+		return fmt.Errorf("failed to create user: %v", err)
 	}
 
-	err = opts.client.Refresh(ctx)
+	err = cl.Refresh(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to refresh token: %v", err)
+		return fmt.Errorf("failed to refresh token: %v", err)
 	}
 
 	createAPITokenOpts := &client.CreateAPITokenOptions{
 		Name:   "integration-test-token",
 		Expiry: "",
 	}
-	resp, err := opts.client.CreateMyAPIToken(ctx, createAPITokenOpts)
+	resp, err := cl.CreateMyAPIToken(ctx, createAPITokenOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create API token: %v", err)
+		return fmt.Errorf("failed to create API token: %v", err)
 	}
 
-	opts.client.SetToken(resp.Token)
+	cl.SetToken(resp.Token)
 
-	createDataNetworkOpts := &client.CreateDataNetworkOptions{
-		Name:   "not-internet",
-		IPPool: "172.250.0.0/24",
-		DNS:    "8.8.8.8",
-		Mtu:    1460,
-	}
-	err = opts.client.CreateDataNetwork(ctx, createDataNetworkOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create data network: %v", err)
-	}
-
-	err = opts.client.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{
-		Enabled: opts.nat,
+	err = cl.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{
+		Enabled: nat,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to disable NAT: %v", err)
+		return fmt.Errorf("failed to configure NAT: %v", err)
 	}
 
-	createPolicyOpts := &client.CreatePolicyOptions{
-		Name:            testPolicyName,
-		BitrateUplink:   "200 Mbps",
-		BitrateDownlink: "100 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkName: "not-internet",
-	}
-	err = opts.client.CreatePolicy(ctx, createPolicyOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create policy: %v", err)
-	}
-
-	updateOperatorIDOpts := &client.UpdateOperatorIDOptions{
-		Mcc: "001",
-		Mnc: "01",
-	}
-	err = opts.client.UpdateOperatorID(ctx, updateOperatorIDOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update operator ID: %v", err)
-	}
-
-	updateOperatorSliceOpts := &client.UpdateOperatorSliceOptions{
-		Sst: 1,
-		Sd:  "102030",
-	}
-	err = opts.client.UpdateOperatorSlice(ctx, updateOperatorSliceOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update operator slice: %v", err)
-	}
-
-	updateOperatorTrackingOpts := &client.UpdateOperatorTrackingOptions{
-		SupportedTacs: []string{"001"},
-	}
-	err = opts.client.UpdateOperatorTracking(ctx, updateOperatorTrackingOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update operator tracking: %v", err)
-	}
-
-	for i := 0; i < numIMSIS; i++ {
+	for i := range numIMSIS {
 		imsi, err := computeIMSI(testStartIMSI, i)
 		if err != nil {
-			return nil, fmt.Errorf("failed to compute IMSI: %v", err)
+			return fmt.Errorf("failed to compute IMSI: %v", err)
 		}
-		var opc string
-		if opts.customOPc {
-			opc = testSubscriberCustomOPc
-		}
+
 		createSubscriberOpts := &client.CreateSubscriberOptions{
 			Imsi:           imsi,
 			Key:            testSubscriberKey,
 			SequenceNumber: testSubscriberSequenceNumber,
 			PolicyName:     testPolicyName,
-			OPc:            opc,
+			OPc:            testSubscriberCustomOPc,
 		}
-		err = opts.client.CreateSubscriber(ctx, createSubscriberOpts)
+		err = cl.CreateSubscriber(ctx, createSubscriberOpts)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create subscriber: %v", err)
+			return fmt.Errorf("failed to create subscriber: %v", err)
 		}
 	}
 
-	getSubscriberOpts := &client.GetSubscriberOptions{
-		ID: testStartIMSI,
+	createUEransimSubscriberOpts := &client.CreateSubscriberOptions{
+		Imsi:           testUERANSIMIMSI,
+		Key:            testSubscriberKey,
+		SequenceNumber: testSubscriberSequenceNumber,
+		PolicyName:     testPolicyName,
+		OPc:            testSubscriberCustomOPc,
 	}
-	subscriber0, err := opts.client.GetSubscriber(ctx, getSubscriberOpts)
+	err = cl.CreateSubscriber(ctx, createUEransimSubscriberOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get subscriber: %v", err)
+		return fmt.Errorf("failed to create UERANSIM subscriber: %v", err)
 	}
-	return subscriber0, nil
+
+	return nil
 }
 
-func deploy(k *K8s) (string, error) {
-	err := k.CreateNamespace()
+func deployEllaCore() error {
+	err := createN3Network()
 	if err != nil {
-		return "", fmt.Errorf("failed to create namespace %s: %v", gnbsimNamespace, err)
+		return fmt.Errorf("failed to create n3 network: %v", err)
 	}
 
-	err = k.ApplyKustomize("../k8s/core/overlays/test")
+	err = createEllaCoreContainer()
 	if err != nil {
-		return "", fmt.Errorf("kubectl apply failed: %v", err)
+		return fmt.Errorf("failed to create ella-core container: %v", err)
 	}
 
-	err = k.ApplyKustomize("../k8s/router")
+	err = connectEllaCoreToN3()
 	if err != nil {
-		return "", fmt.Errorf("kubectl apply failed: %v", err)
+		return fmt.Errorf("failed to connect ella-core to n3: %v", err)
 	}
 
-	err = k.WaitForAppReady("ella-core")
+	err = startEllaCoreContainer()
 	if err != nil {
-		return "", fmt.Errorf("kubectl wait failed: %v", err)
+		return fmt.Errorf("failed to start ella-core container: %v", err)
 	}
 
-	err = k.WaitForAppReady("router")
-	if err != nil {
-		return "", fmt.Errorf("kubectl wait failed: %v", err)
-	}
-
-	nodePort, err := k.GetNodePort("ella-core")
-	if err != nil {
-		return "", fmt.Errorf("failed to get node port: %v", err)
-	}
-	return fmt.Sprintf("http://127.0.0.1:%d", nodePort), nil
+	return nil
 }
 
-func patchGnbsimConfigmap(k *K8s, subscriber *client.Subscriber) error {
-	configmapName := "gnbsim-config"
-	configmap, err := k.GetConfigMap(configmapName)
+func deployGnbSim() error {
+	err := createGnbsimContainer()
 	if err != nil {
-		return fmt.Errorf("failed to get configmap %s: %v", configmapName, err)
+		return fmt.Errorf("failed to create gnbsim container: %v", err)
 	}
 
-	data, ok := configmap["data"].(map[interface{}]interface{})
-	if !ok {
-		return fmt.Errorf("the 'data' field in the ConfigMap is not of the expected type")
-	}
-	configYamlStr, ok := data["configuration.yaml"].(string)
-	if !ok {
-		return fmt.Errorf("the 'configuration.yaml' key is missing in the ConfigMap data")
+	err = connectGnbsimToN3()
+	if err != nil {
+		return fmt.Errorf("failed to connect gnbsim to n3: %v", err)
 	}
 
-	var config map[interface{}]interface{}
-	err = yaml.Unmarshal([]byte(configYamlStr), &config)
+	err = startGnbsimContainer()
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal configmap data: %v", err)
+		return fmt.Errorf("failed to start gnbsim container: %v", err)
 	}
-	configuration, ok := config["configuration"].(map[interface{}]interface{})
-	if !ok {
-		return fmt.Errorf("the 'configuration' key is missing or not a map in the config")
+
+	return nil
+}
+
+func deployUeransim() error {
+	err := createUeransimContainer()
+	if err != nil {
+		return fmt.Errorf("failed to create ueransim container: %v", err)
 	}
-	profiles, ok := configuration["profiles"].([]interface{})
-	if !ok {
-		return fmt.Errorf("the 'profiles' key is missing or not a list in the config")
+
+	err = connectUeransimToN3()
+	if err != nil {
+		return fmt.Errorf("failed to connect ueransim to n3: %v", err)
 	}
-	for _, profile := range profiles {
-		profileMap, ok := profile.(map[interface{}]interface{})
-		if !ok {
-			return fmt.Errorf("profile is not a valid map")
+
+	err = startUeransimContainer()
+	if err != nil {
+		return fmt.Errorf("failed to start ueransim container: %v", err)
+	}
+
+	return nil
+}
+
+func waitForEllaCoreReady(ctx context.Context, cl *client.Client) error {
+	timer := time.After(2 * time.Minute)
+
+	for {
+		select {
+		case <-timer:
+			return fmt.Errorf("timeout waiting for ella core to be ready")
+		default:
+			_, err := cl.GetStatus(ctx)
+			if err != nil {
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			return nil
 		}
-		profileMap["startImsi"] = subscriber.Imsi
-		profileMap["opc"] = subscriber.Opc
-		profileMap["key"] = subscriber.Key
-		profileMap["sequenceNumber"] = subscriber.SequenceNumber
 	}
-	// Create the updated YAML string
-	updatedConfigYamlStr, err := yaml.Marshal(config)
-	if err != nil {
-		return fmt.Errorf("failed to marshal updated config: %v", err)
-	}
-	// Construct a patch to update the 'configuration.yaml' field.
-	// This patch uses a map with string keys.
-	patch := map[string]interface{}{
-		"data": map[string]interface{}{
-			"configuration.yaml": string(updatedConfigYamlStr),
-		},
-	}
-	err = k.PatchConfigMap(configmapName, patch)
-	if err != nil {
-		return fmt.Errorf("failed to patch configmap %s: %v", configmapName, err)
-	}
-	err = k.RolloutRestart("gnbsim")
-	if err != nil {
-		return fmt.Errorf("failed to rollout restart gnbsim: %v", err)
-	}
-	err = k.WaitForRollout("gnbsim")
-	if err != nil {
-		return fmt.Errorf("failed to wait for rollout gnbsim: %v", err)
-	}
-	return nil
-}
-
-func patchUERANSIMConfigmap(k *K8s, subscriber *client.Subscriber) error {
-	configmapName := "ueransim-config"
-	configmap, err := k.GetConfigMap(configmapName)
-	if err != nil {
-		return fmt.Errorf("failed to get configmap %s: %v", configmapName, err)
-	}
-	data, ok := configmap["data"].(map[interface{}]interface{})
-	if !ok {
-		return fmt.Errorf("the 'data' field in the ConfigMap is not of the expected type")
-	}
-	configYamlStr, ok := data["ue.yaml"].(string)
-	if !ok {
-		return fmt.Errorf("the 'ue.yaml' key is missing in the ConfigMap data")
-	}
-	var config map[interface{}]interface{}
-	err = yaml.Unmarshal([]byte(configYamlStr), &config)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal configmap data: %v", err)
-	}
-	config["supi"] = fmt.Sprintf("imsi-%s", subscriber.Imsi)
-	config["key"] = subscriber.Key
-	config["op"] = subscriber.Opc
-	// Create the updated YAML string
-	updatedConfigYamlStr, err := yaml.Marshal(config)
-	if err != nil {
-		return fmt.Errorf("failed to marshal updated config: %v", err)
-	}
-	// Construct a patch to update the 'ue.yaml' field.
-	// This patch uses a map with string keys.
-	patch := map[string]interface{}{
-		"data": map[string]interface{}{
-			"ue.yaml": string(updatedConfigYamlStr),
-		},
-	}
-	err = k.PatchConfigMap(configmapName, patch)
-	if err != nil {
-		return fmt.Errorf("failed to patch configmap %s: %v", configmapName, err)
-	}
-	err = k.RolloutRestart("ueransim")
-	if err != nil {
-		return fmt.Errorf("failed to rollout restart ueransim: %v", err)
-	}
-	err = k.WaitForRollout("ueransim")
-	if err != nil {
-		return fmt.Errorf("failed to wait for rollout ueransim: %v", err)
-	}
-	return nil
 }
 
 func TestIntegrationGnbsim(t *testing.T) {
@@ -310,66 +187,51 @@ func TestIntegrationGnbsim(t *testing.T) {
 
 	ctx := context.Background()
 
-	k := &K8s{Namespace: gnbsimNamespace}
+	cleanUpDockerSpace()
 
-	ellaCoreURL, err := deploy(k)
+	err := deployEllaCore()
 	if err != nil {
 		t.Fatalf("failed to deploy: %v", err)
 	}
+
 	t.Log("deployed ella core")
 
 	clientConfig := &client.Config{
-		BaseURL: ellaCoreURL,
+		BaseURL: "http://127.0.0.1:5002",
 	}
+
 	ellaClient, err := client.New(clientConfig)
 	if err != nil {
 		t.Fatalf("failed to create ella client: %v", err)
 	}
 
-	configureOpts := &ConfigureEllaCoreOpts{
-		client:    ellaClient,
-		customOPc: true,
+	err = waitForEllaCoreReady(ctx, ellaClient)
+	if err != nil {
+		t.Fatalf("failed to wait for ella core to be ready: %v", err)
 	}
-	subscriber0, err := configureEllaCore(ctx, configureOpts)
+
+	t.Log("ella core is ready")
+
+	err = configureEllaCore(ctx, ellaClient, true)
 	if err != nil {
 		t.Fatalf("failed to configure Ella Core: %v", err)
 	}
+
 	t.Log("configured Ella Core")
 
-	err = k.ApplyKustomize("../k8s/gnbsim")
+	err = deployGnbSim()
 	if err != nil {
-		t.Fatalf("failed to apply kustomize: %v", err)
-	}
-	t.Log("applied kustomize for gnbsim")
-	err = k.WaitForAppReady("gnbsim")
-	if err != nil {
-		t.Fatalf("failed to wait for gnbsim app to be ready: %v", err)
+		t.Fatalf("failed to deploy GNBSim: %v", err)
 	}
 
-	err = patchGnbsimConfigmap(k, subscriber0)
-	if err != nil {
-		t.Fatalf("failed to patch gnbsim configmap: %v", err)
-	}
-	t.Log("patched gnbsim configmap")
+	t.Log("deployed GNBSim")
 
-	err = k.WaitForAppReady("gnbsim")
-	if err != nil {
-		t.Fatalf("failed to wait for gnbsim app to be ready: %v", err)
-	}
-	t.Log("gnbsim app is ready")
+	t.Logf("Running GNBSim simulation in gnbsim container")
 
-	podName, err := k.GetPodName("gnbsim")
-	if err != nil {
-		t.Fatalf("failed to get pod name: %v", err)
-	}
-
-	t.Logf("Running GNBSim simulation in pod %s", podName)
-
-	result, err := k.Exec(podName, "pebble exec gnbsim --cfg /etc/gnbsim/configuration.yaml", "gnbsim")
+	result, err := dockerExec("gnbsim", "pebble exec gnbsim --cfg /config.yaml", false)
 	if err != nil {
 		t.Fatalf("failed to exec command in pod: %v", err)
 	}
-	t.Logf("GNBSim simulation result: %s", result)
 
 	passCount := strings.Count(result, "Profile Status: PASS")
 	if passCount != numProfiles {
@@ -393,11 +255,8 @@ func TestIntegrationGnbsim(t *testing.T) {
 		t.Fatalf("expected app_downlink_bytes to be at least 9000, but got %v", appDownlinkBytes)
 	}
 
-	err = k.DeleteNamespace()
-	if err != nil {
-		t.Fatalf("failed to delete namespace %s: %v", gnbsimNamespace, err)
-	}
-	t.Logf("deleted namespace %s", gnbsimNamespace)
+	cleanUpDockerSpace()
+
 	t.Log("GNBSIM test completed successfully")
 }
 
@@ -424,125 +283,113 @@ func TestIntegrationUERANSIM(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			k := &K8s{Namespace: ueransimNamespace}
+			cleanUpDockerSpace()
 
-			ellaCoreURL, err := deploy(k)
+			err := deployEllaCore()
 			if err != nil {
 				t.Fatalf("failed to deploy: %v", err)
 			}
+
 			t.Log("deployed ella core")
 
 			clientConfig := &client.Config{
-				BaseURL: ellaCoreURL,
+				BaseURL: "http://127.0.0.1:5002",
 			}
 			ellaClient, err := client.New(clientConfig)
 			if err != nil {
 				t.Fatalf("failed to create ella client: %v", err)
 			}
 
-			configureOpts := &ConfigureEllaCoreOpts{
-				client:    ellaClient,
-				customOPc: false,
-				nat:       tc.nat,
+			err = waitForEllaCoreReady(ctx, ellaClient)
+			if err != nil {
+				t.Fatalf("failed to wait for ella core to be ready: %v", err)
 			}
-			subscriber0, err := configureEllaCore(ctx, configureOpts)
+
+			t.Log("ella core is ready")
+
+			err = configureEllaCore(ctx, ellaClient, tc.nat)
 			if err != nil {
 				t.Fatalf("failed to configure Ella Core: %v", err)
 			}
+
 			t.Log("configured Ella Core")
 
-			err = k.ApplyKustomize("../k8s/ueransim")
+			err = deployUeransim()
 			if err != nil {
-				t.Fatalf("failed to apply kustomize: %v", err)
-			}
-			t.Log("applied kustomize for ueransim")
-			err = k.WaitForAppReady("ueransim")
-			if err != nil {
-				t.Fatalf("failed to wait for ueransim app to be ready: %v", err)
+				t.Fatalf("failed to deploy UERANSIM: %v", err)
 			}
 
-			err = patchUERANSIMConfigmap(k, subscriber0)
-			if err != nil {
-				t.Fatalf("failed to patch ueransim configmap: %v", err)
-			}
-			t.Log("patched ueransim configmap")
+			t.Log("deployed UERANSIM")
 
-			ueransimPodName, err := k.GetPodName("ueransim")
-			if err != nil {
-				t.Fatalf("failed to get pod name: %v", err)
-			}
-
-			_, err = k.Exec(ueransimPodName, "pebble add gnb /etc/ueransim/pebble_gnb.yaml", "ueransim")
+			_, err = dockerExec("ueransim", "bin/nr-gnb --config /gnb.yaml", true)
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
 
-			t.Log("added pebble gnb.yaml")
-
-			_, err = k.Exec(ueransimPodName, "pebble start gnb", "ueransim")
-			if err != nil {
-				t.Fatalf("failed to exec command in pod: %v", err)
-			}
 			t.Log("started pebble gnb")
 
-			_, err = k.Exec(ueransimPodName, "pebble add ue /etc/ueransim/pebble_ue.yaml", "ueransim")
-			if err != nil {
-				t.Fatalf("failed to exec command in pod: %v", err)
-			}
-			t.Log("added pebble ue.yaml")
+			time.Sleep(3 * time.Second)
 
-			_, err = k.Exec(ueransimPodName, "pebble start ue", "ueransim")
+			_, err = dockerExec("ueransim", "bin/nr-ue --config /ue.yaml", true)
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
+
 			t.Log("started pebble ue")
 
-			result, err := k.Exec(ueransimPodName, "ip a", "ueransim")
+			time.Sleep(3 * time.Second)
+
+			result, err := dockerExec("ueransim", "ip a", false)
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
+
 			t.Logf("UERANSIM result: %s", result)
+
 			if !strings.Contains(result, "uesimtun0") {
 				t.Fatalf("expected 'uesimtun0' to be in the result, but it was not found")
 			}
+
 			t.Logf("Verified that 'uesimtun0' is in the result")
 
-			// nolint:godox TODO: this block is currently necessary to warm up the connectivity when NAT is enabled,
-			// otherwise some pings are lost. It should be removed once the issue is identified and fixed.
-			_, err = k.Exec(ueransimPodName, "ping -I uesimtun0 192.168.250.1 -c 10", "ueransim")
+			time.Sleep(2 * time.Second)
+
+			result, err = dockerExec("ueransim", "ping -I uesimtun0 8.8.8.8 -c 3", false)
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
 
-			result, err = k.Exec(ueransimPodName, "ping -I uesimtun0 192.168.250.1 -c 3", "ueransim")
-			if err != nil {
-				t.Fatalf("failed to exec command in pod: %v", err)
-			}
 			t.Logf("UERANSIM ping result: %s", result)
+
 			if !strings.Contains(result, "3 packets transmitted, 3 received") {
 				t.Fatalf("expected '3 packets transmitted, 3 received' to be in the result, but it was not found")
 			}
+
 			if !strings.Contains(result, "0% packet loss") {
 				t.Fatalf("expected '0 packet loss' to be in the result, but it was not found")
 			}
+
 			t.Logf("Verified that '3 packets transmitted, 3 received' and '0 packet loss' are in the result")
 
-			result, err = k.Exec(
-				ueransimPodName,
-				"python3 /opt/network-tester/network_test.py --dev uesimtun0 --dest 192.168.250.1",
+			err = copyTestingScript()
+			if err != nil {
+				t.Fatalf("failed to copy testing script: %v", err)
+			}
+
+			t.Logf("testing script copied")
+
+			result, err = dockerExec(
 				"ueransim",
+				"python3 /network_test.py --dev uesimtun0 --dest 8.8.8.8",
+				false,
 			)
 			if err != nil {
 				t.Fatalf("networking test suite failed: %v", err)
 			}
+
 			t.Logf("Network tester results: %s", result)
 
-			err = k.DeleteNamespace()
-			if err != nil {
-				t.Fatalf("failed to delete namespace %s: %v", ueransimNamespace, err)
-			}
-			t.Logf("deleted namespace %s", ueransimNamespace)
-			t.Log("UERANSIM test completed successfully")
+			cleanUpDockerSpace()
 		})
 	}
 }

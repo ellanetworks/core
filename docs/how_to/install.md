@@ -4,12 +4,11 @@ description: Step-by-step instructions to install Ella Core.
 
 # Install
 
+Ensure your system meets the [requirements](../reference/system_reqs.md). Then, choose one of the installation methods below.
 
-=== "Linux"
+=== "Snap (Recommended)"
 
-    Ensure your system meets the [requirements](../reference/system_reqs.md).
-
-    ## Using Snap (Recommended)
+    Install the Ella Core snap and connect it to the required interfaces:
 
     ```bash
     sudo snap install ella-core
@@ -32,17 +31,34 @@ description: Step-by-step instructions to install Ella Core.
     sudo snap start --enable ella-core.cored
     ```
 
-    ## From Source (For Development)
+=== "Source"
+
+    Install the required dependencies:
 
     ```shell
     sudo snap install go --channel=1.24/stable --classic
     sudo snap install node --channel=22/stable --classic
     sudo apt update
     sudo apt -y install clang llvm gcc-multilib libbpf-dev
+    ```
+
+    Clone the Ella Core repository:
+
+    ```shell
     git clone https://github.com/ellanetworks/core.git
     cd core
+    ```
+
+    Build the frontend:
+
+    ```shell
     npm install --prefix ui
     npm run build --prefix ui
+    ```
+
+    Build Ella Core:
+
+    ```shell
     go build cmd/core/main.go
     ```
 
@@ -58,10 +74,32 @@ description: Step-by-step instructions to install Ella Core.
     sudo ./main -config core.yaml
     ```
 
+=== "Docker"
+
+    Create a Docker network for the n3 interface:
+
+    ```shell
+    docker network create --driver bridge n3 --subnet 10.3.0.0/24
+    ```
+
+    Start the Ella Core container with the additional network interfaces:
+
+    ```shell
+    docker create \
+    --name ella-core \
+    --privileged \
+    --network=name=bridge \
+    -p 5002:5002 \
+    -v /sys/fs/bpf:/sys/fs/bpf:rw \
+    ella-core:latest exec /bin/core --config /core.yaml
+    docker network connect --driver-opt com.docker.network.endpoint.ifname=n3 --ip 10.3.0.2 n3 ella-core
+    docker start ella-core
+    ```
+
 === "Kubernetes"
 
     Ensure your Kubernetes cluster is running with the [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni) installed.
 
     ```bash
-    kubectl apply -k github.com/ellanetworks/core/k8s/core/base?ref=v0.4.0 -n ella
+    kubectl apply -k github.com/ellanetworks/core/k8s?ref=v0.4.0 -n ella
     ```
