@@ -80,3 +80,11 @@ jobs:
       - name: Run integration tests
         run: |
           INTEGRATION=1 go test ./integration/... -v
+
+      - name: Check logs on failure
+        if: failure()
+        run: |
+          kubectl describe pods -n gnbsim
+          kubectl logs -n gnbsim deployment/ella-core
+          kubectl describe pods -n ueransim
+          kubectl logs -n ueransim deployment/ella-core
