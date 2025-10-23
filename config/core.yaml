@@ -1,6 +1,6 @@
 logging:
   system:
-    level: "debug"
+    level: "info"
     output: "stdout"
   audit:
     output: "stdout"
@@ -8,14 +8,14 @@ db:
   path: "core.db"
 interfaces:
   n2:
-    name: "lo"
+    name: "eth1"
     port: 38412
-  n3: 
-    name: "wlp131s0"
+  n3:
+    name: "eth1"
   n6:
-    name: "lo"
+    name: "eth0"
   api:
-    name: "lo"
+    name: "eth0"
     port: 5002
 xdp:
   attach-mode: "generic"
