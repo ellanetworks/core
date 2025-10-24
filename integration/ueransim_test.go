@@ -19,10 +19,10 @@ func TestIntegrationUERANSIM(t *testing.T) {
 		name string
 		nat  bool
 	}{
-		// {
-		// 	name: "Nat disabled",
-		// 	nat:  false,
-		// },
+		{
+			name: "Nat disabled",
+			nat:  false,
+		},
 		{
 			name: "Nat enabled",
 			nat:  true,
