@@ -28,7 +28,7 @@ Copy the following file into this directory:
 ```yaml title="docker-compose.yaml"
 services:
   ella-core:
-    image: ella-core:latest
+    image: ghcr.io/ellanetworks/ella-core:v0.4.0
     restart: unless-stopped
     entrypoint: /bin/core --config /core.yaml
     volumes:
@@ -62,10 +62,10 @@ networks:
         - subnet: 10.3.0.0/24
 ```
 
-Start Ella Core and UERANSIM:
+Start the Ella Core and UERANSIM containers:
 
 ```shell
-docker-compose up -d
+docker compose up -d
 ```
 
 You should see the following output:
@@ -260,5 +260,5 @@ rtt min/avg/max/mdev = 18.865/33.300/39.038/8.355 ms
 When you are done with the tutorial, you can remove the containers and the networks we created.
 
 ```shell
-docker-compose down
+docker compose down
 ```
