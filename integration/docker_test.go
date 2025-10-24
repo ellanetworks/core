@@ -1,10 +1,12 @@
 package integration_test
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func createN3Network() error {
@@ -219,21 +221,27 @@ func startRouterContainer() error {
 	return nil
 }
 
-func dockerExec(containerName string, command string, detach bool) (string, error) {
+func dockerExec(ctx context.Context, containerName string, command string, detach bool, timeout time.Duration) (string, error) {
 	args := []string{"exec"}
 	if detach {
 		args = append(args, "-d")
 	} else {
 		args = append(args, "-i")
 	}
-
 	args = append(args, containerName)
-
 	args = append(args, strings.Fields(command)...)
 
-	cmd := exec.Command("docker", args...)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "docker", args...)
 
 	out, err := cmd.CombinedOutput()
+
+	if ctx.Err() == context.DeadlineExceeded {
+		return "", fmt.Errorf("docker exec timed out after %v", timeout)
+	}
+
 	if err != nil {
 		return "", fmt.Errorf("docker exec failed: %s: %w", string(out), err)
 	}

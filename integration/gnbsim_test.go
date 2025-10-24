@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/client"
 )
@@ -101,7 +102,7 @@ func TestIntegrationGnbsim(t *testing.T) {
 
 	t.Logf("running GNBSim simulation in gnbsim container")
 
-	result, err := dockerExec("gnbsim", "gnbsim --cfg /config.yaml", false)
+	result, err := dockerExec(ctx, "gnbsim", "gnbsim --cfg /config.yaml", false, 5*time.Minute)
 	if err != nil {
 		t.Fatalf("failed to exec command in pod: %v", err)
 	}
