@@ -1,304 +1,278 @@
 package integration_test
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"fmt"
 	"io"
-	"os/exec"
+	"net/netip"
+	"os"
+	"path"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
+
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/client"
 )
 
-func createN3Network() error {
-	cmd := exec.Command("docker", "network", "create", "--driver", "bridge", "n3", "--subnet", "10.3.0.0/24")
+type DockerClient struct {
+	*client.Client
+}
 
-	out, err := cmd.CombinedOutput()
+func NewDockerClient() (*DockerClient, error) {
+	cli, err := client.NewClientWithOpts(
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create network n3: %s: %v", string(out), err)
+		return nil, fmt.Errorf("create docker client: %w", err)
+	}
+
+	return &DockerClient{Client: cli}, nil
+}
+
+func (dc *DockerClient) CreateNetwork(ctx context.Context, name string, subnet netip.Prefix) error {
+	createOpts := client.NetworkCreateOptions{
+		Driver: "bridge",
+		IPAM: &network.IPAM{
+			Driver: "default",
+			Config: []network.IPAMConfig{
+				{
+					Subnet: subnet,
+				},
+			},
+		},
+	}
+
+	_, err := dc.NetworkCreate(ctx, name, createOpts)
+	if err != nil {
+		return fmt.Errorf("failed to create network %s: %w", name, err)
 	}
 
 	return nil
 }
 
-func createN6Network() error {
-	cmd := exec.Command("docker", "network", "create", "--driver", "bridge", "n6", "--subnet", "10.6.0.0/24")
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to create network n6: %s: %v", string(out), err)
-	}
-
-	return nil
-}
-
-func createEllaCoreContainerWithConfig(configPath string) error {
-	configPath, err := filepath.Abs(configPath)
+func (dc *DockerClient) CreateEllaCoreContainerWithConfig(ctx context.Context, configPath string) error {
+	absCfg, err := filepath.Abs(configPath)
 	if err != nil {
 		return fmt.Errorf("resolve config path: %w", err)
 	}
 
-	cmd := exec.Command("docker", "create",
-		"--name", "ella-core",
-		"--privileged",
-		"--network", "name=bridge",
-		"-p", "5002:5002",
-		"-v", configPath+":/core.yaml:ro",
-		"-v", "/sys/fs/bpf:/sys/fs/bpf:rw",
-		"ella-core:latest",
-		"exec", "/bin/core", "--config", "/core.yaml",
-	)
-
-	out, err := cmd.CombinedOutput()
+	port, err := network.ParsePort("5002/tcp")
 	if err != nil {
-		return fmt.Errorf("failed to create ella-core container: %s: %v", string(out), err)
+		return fmt.Errorf("parse port: %w", err)
+	}
+
+	cfg := &container.Config{
+		Image: "ella-core:latest",
+		Cmd:   []string{"exec", "/bin/core", "--config", "/core.yaml"},
+		ExposedPorts: network.PortSet{
+			port: struct{}{},
+		},
+	}
+	hostIP := netip.MustParseAddr("0.0.0.0")
+	hostCfg := &container.HostConfig{
+		Privileged:  true,
+		Binds:       []string{absCfg + ":/core.yaml:ro", "/sys/fs/bpf:/sys/fs/bpf:rw"},
+		NetworkMode: "bridge",
+		PortBindings: network.PortMap{
+			port: []network.PortBinding{
+				{HostIP: hostIP, HostPort: "5002"},
+			},
+		},
+	}
+
+	netCfg := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			"bridge": {},
+		},
+	}
+
+	if _, err := dc.ContainerCreate(ctx, cfg, hostCfg, netCfg, nil, "ella-core"); err != nil {
+		return fmt.Errorf("container create ella-core: %w", err)
 	}
 
 	return nil
 }
 
-func connectEllaCoreToN3() error {
-	cmd := exec.Command("docker", "network", "connect",
-		"--driver-opt", "com.docker.network.endpoint.ifname=n3",
-		"--ip", "10.3.0.2",
-		"n3", "ella-core",
-	)
+func (dc *DockerClient) ConnectContainerToNetwork(ctx context.Context, networkName string, containerName string, targetIP netip.Addr, ifname string) error {
+	endpointCfg := &network.EndpointSettings{
+		DriverOpts: map[string]string{
+			"com.docker.network.endpoint.ifname": ifname,
+		},
+		IPAddress: targetIP,
+	}
 
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to connect ella-core to n3: %s: %v", string(out), err)
+	if err := dc.NetworkConnect(ctx, networkName, containerName, endpointCfg); err != nil {
+		return fmt.Errorf("failed to connect %s to %s: %w", containerName, networkName, err)
 	}
 
 	return nil
 }
 
-func connectEllaCoreToN6() error {
-	cmd := exec.Command("docker", "network", "connect",
-		"--driver-opt", "com.docker.network.endpoint.ifname=n6",
-		"--ip", "10.6.0.2",
-		"n6", "ella-core",
-	)
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to connect ella-core to n6: %s: %v", string(out), err)
+func (dc *DockerClient) StartContainer(ctx context.Context, containerName string) error {
+	if err := dc.ContainerStart(ctx, containerName, client.ContainerStartOptions{}); err != nil {
+		return fmt.Errorf("failed to start container %q: %w", containerName, err)
 	}
 
 	return nil
 }
 
-func startEllaCoreContainer() error {
-	cmd := exec.Command("docker", "start", "ella-core")
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to start ella-core container: %s: %v", string(out), err)
+func (dc *DockerClient) CreateUeransimContainer(ctx context.Context) error {
+	cfg := &container.Config{
+		Image: "ghcr.io/ellanetworks/ueransim:3.2.7",
 	}
-
+	host := &container.HostConfig{
+		Privileged: true,
+	}
+	if _, err := dc.ContainerCreate(ctx, cfg, host, nil, nil, "ueransim"); err != nil {
+		return fmt.Errorf("create ueransim: %w", err)
+	}
 	return nil
 }
 
-func createUeransimContainer() error {
-	cmd := exec.Command("docker", "create",
-		"--name", "ueransim",
-		"--privileged",
-		"ghcr.io/ellanetworks/ueransim:3.2.7",
-	)
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to create ueransim container: %s: %v", string(out), err)
+func (dc *DockerClient) CreateGnbsimContainer(ctx context.Context) error {
+	cfg := &container.Config{
+		Image: "ghcr.io/ellanetworks/sdcore-gnbsim:1.6.3",
 	}
-
+	host := &container.HostConfig{
+		Privileged: true,
+	}
+	if _, err := dc.ContainerCreate(ctx, cfg, host, nil, nil, "gnbsim"); err != nil {
+		return fmt.Errorf("create gnbsim: %w", err)
+	}
 	return nil
 }
 
-func connectUeransimToN3() error {
-	cmd := exec.Command("docker", "network", "connect",
-		"--driver-opt", "com.docker.network.endpoint.ifname=n3",
-		"--ip", "10.3.0.3",
-		"n3", "ueransim",
-	)
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to connect ueransim to n3: %s: %v", string(out), err)
+func (dc *DockerClient) CreateRouterContainer(ctx context.Context) error {
+	cfg := &container.Config{
+		Image: "ghcr.io/ellanetworks/ubuntu-router:0.1",
 	}
-
+	host := &container.HostConfig{
+		Privileged: true,
+	}
+	if _, err := dc.ContainerCreate(ctx, cfg, host, nil, nil, "router"); err != nil {
+		return fmt.Errorf("create router: %w", err)
+	}
 	return nil
 }
 
-func startUeransimContainer() error {
-	cmd := exec.Command("docker", "start", "ueransim")
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to start ueransim container: %s: %v", string(out), err)
-	}
-
-	return nil
-}
-
-func createGnbsimContainer() error {
-	cmd := exec.Command("docker", "create",
-		"--name", "gnbsim",
-		"--privileged",
-		"ghcr.io/ellanetworks/sdcore-gnbsim:1.6.3",
-	)
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to create gnbsim container: %s: %v", string(out), err)
-	}
-
-	return nil
-}
-
-func connectGnbsimToN3() error {
-	cmd := exec.Command("docker", "network", "connect",
-		"--driver-opt", "com.docker.network.endpoint.ifname=n3",
-		"--ip", "10.3.0.3",
-		"n3", "gnbsim",
-	)
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to connect gnbsim to n3: %s: %v", string(out), err)
-	}
-
-	return nil
-}
-
-func startGnbsimContainer() error {
-	cmd := exec.Command("docker", "start", "gnbsim")
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to start gnbsim container: %s: %v", string(out), err)
-	}
-
-	return nil
-}
-
-func createRouterContainer() error {
-	cmd := exec.Command(
-		"docker", "create",
-		"--name", "router",
-		"--privileged",
-		"ghcr.io/ellanetworks/ubuntu-router:0.1",
-	)
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to create router container: %s: %v", string(out), err)
-	}
-
-	return nil
-}
-
-func connectRouterToN6() error {
-	cmd := exec.Command("docker", "network", "connect",
-		"--driver-opt", "com.docker.network.endpoint.ifname=n6",
-		"--ip", "10.6.0.3",
-		"n6", "router",
-	)
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to connect gnbsim to n3: %s: %v", string(out), err)
-	}
-
-	return nil
-}
-
-func startRouterContainer() error {
-	cmd := exec.Command("docker", "start", "router")
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to start router container: %s: %v", string(out), err)
-	}
-
-	return nil
-}
-
-func dockerExec(ctx context.Context, containerName, command string, detach bool, timeout time.Duration, mirror io.Writer) (string, error) {
-	args := []string{"exec"}
-	if detach {
-		args = append(args, "-d")
-	}
-	args = append(args, containerName)
-	args = append(args, strings.Fields(command)...)
-
+func (dc *DockerClient) Exec(ctx context.Context, containerName string, command string, detach bool, timeout time.Duration, mirror io.Writer) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return "", fmt.Errorf("stdout pipe: %w", err)
+	execConfig := client.ExecCreateOptions{
+		Cmd:          strings.Fields(command),
+		AttachStdout: !detach,
+		AttachStderr: !detach,
+		Tty:          false,
+		Privileged:   false,
 	}
-	stderr, err := cmd.StderrPipe()
+
+	execResp, err := dc.ContainerExecCreate(ctx, containerName, execConfig)
 	if err != nil {
-		return "", fmt.Errorf("stderr pipe: %w", err)
+		return "", fmt.Errorf("exec create: %w", err)
+	}
+
+	if detach {
+		if err := dc.ContainerExecStart(ctx, execResp.ID, client.ExecStartOptions{Detach: true}); err != nil {
+			return "", fmt.Errorf("exec start (detached): %w", err)
+		}
+		return "", nil
+	}
+
+	attachResp, err := dc.ContainerExecAttach(ctx, execResp.ID, client.ExecStartOptions{})
+	if err != nil {
+		return "", fmt.Errorf("exec attach: %w", err)
+	}
+	defer attachResp.Close()
+
+	var buf bytes.Buffer
+	var writer io.Writer = &buf
+	if mirror != nil {
+		writer = io.MultiWriter(&buf, mirror)
+	}
+
+	if _, err := io.Copy(writer, attachResp.Reader); err != nil && ctx.Err() == nil {
+		return buf.String(), fmt.Errorf("read exec output: %w", err)
+	}
+
+	inspect, err := dc.ContainerExecInspect(ctx, execResp.ID)
+	if err != nil {
+		return buf.String(), fmt.Errorf("inspect exec: %w", err)
+	}
+
+	if inspect.ExitCode != 0 {
+		return buf.String(), fmt.Errorf("exec failed (exit %d):\n%s", inspect.ExitCode, buf.String())
+	}
+
+	return buf.String(), nil
+}
+
+func (dc *DockerClient) CleanUpDockerSpace(ctx context.Context) {
+	// best-effort: ignore errors and keep going
+	names := []string{"ella-core", "ueransim", "gnbsim", "router"}
+
+	// Stop
+	timeoutSec := 5
+	for _, n := range names {
+		_ = dc.ContainerStop(ctx, n, client.ContainerStopOptions{Timeout: &timeoutSec})
+	}
+
+	// Remove
+	for _, n := range names {
+		_ = dc.ContainerRemove(ctx, n, client.ContainerRemoveOptions{
+			Force:         true,
+			RemoveVolumes: true,
+		})
+	}
+
+	// Networks
+	for _, net := range []string{"n3", "n6"} {
+		_ = dc.NetworkRemove(ctx, net)
+	}
+}
+
+func (dc *DockerClient) CopyFileToContainer(ctx context.Context, containerName, srcPath, destPath string) error {
+	f, err := os.Open(srcPath)
+	if err != nil {
+		return fmt.Errorf("open %s: %w", srcPath, err)
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", srcPath, err)
 	}
 
 	var buf bytes.Buffer
-	var wg sync.WaitGroup
-	wg.Add(2)
+	tw := tar.NewWriter(&buf)
 
-	// tee to buffer and optional mirror
-	copyTo := func(r io.Reader) {
-		defer wg.Done()
-		if mirror != nil {
-			_, _ = io.Copy(io.MultiWriter(&buf, mirror), r)
-		} else {
-			_, _ = io.Copy(&buf, r)
-		}
+	hdr := &tar.Header{
+		Name:    path.Base(destPath),
+		Mode:    0o644,
+		Size:    info.Size(),
+		ModTime: time.Now(),
 	}
 
-	go copyTo(stdout)
-	go copyTo(stderr)
-
-	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("start: %w", err)
+	if err := tw.WriteHeader(hdr); err != nil {
+		return fmt.Errorf("tar header: %w", err)
 	}
 
-	waitErr := cmd.Wait()
-	wg.Wait()
-
-	out := buf.String()
-
-	if ctx.Err() == context.DeadlineExceeded {
-		return out, fmt.Errorf("docker exec timed out after %v; output:\n%s", timeout, out)
-	}
-	if waitErr != nil {
-		return out, fmt.Errorf("docker exec failed: %w\noutput:\n%s", waitErr, out)
-	}
-	return out, nil
-}
-
-func cleanUpDockerSpace() {
-	cmd := exec.Command("docker", "stop", "ella-core", "ueransim", "gnbsim", "router")
-	_, _ = cmd.CombinedOutput()
-
-	cmd = exec.Command("docker", "rm", "ella-core", "ueransim", "gnbsim", "router")
-	_, _ = cmd.CombinedOutput()
-
-	cmd = exec.Command("docker", "network", "rm", "n3", "n6")
-	_, _ = cmd.CombinedOutput()
-}
-
-func copyTestingScript() error {
-	cmd := exec.Command("docker", "cp", "network_test.py", "ueransim:/network_test.py")
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to copy testing script to ueransim container: %s: %v", string(out), err)
+	if _, err := io.Copy(tw, f); err != nil {
+		return fmt.Errorf("tar write: %w", err)
 	}
 
-	return nil
+	if err := tw.Close(); err != nil {
+		return fmt.Errorf("tar close: %w", err)
+	}
+
+	dstDir := path.Dir(destPath)
+
+	return dc.CopyToContainer(ctx, containerName, dstDir, &buf, client.CopyToContainerOptions{
+		AllowOverwriteDirWithFile: true,
+	})
 }
