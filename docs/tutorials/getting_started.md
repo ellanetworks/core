@@ -64,7 +64,7 @@ You should see the following output:
  ✔ Network ella_n3             Created
  ✔ Network ella_default        Created
  ✔ Container ella-ella-core-1  Started
- ```
+```
 
 ## 2. Access the UI
 
@@ -77,7 +77,7 @@ You should see the Initialization page.
 !!! note
     Your browser may display a warning about the connection's security. You can safely ignore this warning.
 
-## 3 Initialize Ella Core
+## 3. Initialize Ella Core
 
 On the Initialization page, create the first user with the following credentials:
 
