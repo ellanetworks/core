@@ -145,7 +145,7 @@ func createGnbsimContainer() error {
 	cmd := exec.Command("docker", "create",
 		"--name", "gnbsim",
 		"--privileged",
-		"gnbsim:latest", // "ghcr.io/ellanetworks/sdcore-gnbsim:1.6.3",
+		"ghcr.io/ellanetworks/sdcore-gnbsim:1.6.3",
 	)
 
 	out, err := cmd.CombinedOutput()
