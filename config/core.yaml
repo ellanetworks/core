@@ -1,0 +1,24 @@
+logging:
+  system:
+    level: "info"
+    output: "stdout"
+  audit:
+    output: "stdout"
+db:
+  path: "core.db"
+interfaces:
+  n2:
+    name: "n3"
+    port: 38412
+  n3:
+    name: "n3"
+  n6:
+    name: "eth0"
+  api:
+    name: "eth0"
+    port: 5002
+xdp:
+  attach-mode: "generic"
+telemetry:
+  enabled: false
+  otlp-endpoint: "localhost:4317"
