@@ -6,15 +6,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/netip"
 	"os"
+	"os/exec"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/moby/moby/api/types/container"
-	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
 )
 
@@ -34,130 +31,52 @@ func NewDockerClient() (*DockerClient, error) {
 	return &DockerClient{Client: cli}, nil
 }
 
-func (dc *DockerClient) CreateNetwork(ctx context.Context, name string, subnet netip.Prefix) error {
-	createOpts := client.NetworkCreateOptions{
-		Driver: "bridge",
-		IPAM: &network.IPAM{
-			Driver: "default",
-			Config: []network.IPAMConfig{
-				{
-					Subnet: subnet,
-				},
-			},
-		},
+// ComposeUp starts containers defined in a docker-compose file located in composeDir
+// Note: `compose` is not part of the moby client, so we use exec.Command to call the CLI
+func (dc *DockerClient) ComposeUp(composeDir string) error {
+	cmd := exec.Command("docker", "compose", "up", "-d")
+	cmd.Dir = composeDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run docker compose up: %w", err)
 	}
 
-	_, err := dc.NetworkCreate(ctx, name, createOpts)
+	return nil
+}
+
+// ComposeDown stops and removes containers defined in a docker-compose file located in composeDir
+// Note: `compose` is not part of the moby client, so we use exec.Command to call the CLI
+func (dc *DockerClient) ComposeDown(composeDir string) {
+	cmd := exec.Command("docker", "compose", "down")
+	cmd.Dir = composeDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	_ = cmd.Run()
+}
+
+func (dc *DockerClient) ResolveComposeContainer(ctx context.Context, project, service string) (string, error) {
+	f := client.Filters{}
+	f.Add("label", "com.docker.compose.project="+project)
+	f.Add("label", "com.docker.compose.service="+service)
+
+	cs, err := dc.ContainerList(ctx, client.ContainerListOptions{All: true, Filters: f})
 	if err != nil {
-		return fmt.Errorf("failed to create network %s: %w", name, err)
+		return "", fmt.Errorf("list containers: %w", err)
 	}
 
-	return nil
-}
-
-func (dc *DockerClient) CreateEllaCoreContainerWithConfig(ctx context.Context, configPath string) error {
-	absCfg, err := filepath.Abs(configPath)
-	if err != nil {
-		return fmt.Errorf("resolve config path: %w", err)
+	if len(cs) == 0 {
+		return "", fmt.Errorf("no container found for project=%q service=%q", project, service)
 	}
 
-	port, err := network.ParsePort("5002/tcp")
-	if err != nil {
-		return fmt.Errorf("parse port: %w", err)
+	// Prefer the human-readable name
+	if len(cs[0].Names) > 0 {
+		name := strings.TrimPrefix(cs[0].Names[0], "/")
+		return name, nil
 	}
-
-	cfg := &container.Config{
-		Image: "ella-core:latest",
-		Cmd:   []string{"exec", "/bin/core", "--config", "/core.yaml"},
-		ExposedPorts: network.PortSet{
-			port: struct{}{},
-		},
-	}
-	hostIP := netip.MustParseAddr("0.0.0.0")
-	hostCfg := &container.HostConfig{
-		Privileged:  true,
-		Binds:       []string{absCfg + ":/core.yaml:ro", "/sys/fs/bpf:/sys/fs/bpf:rw"},
-		NetworkMode: "bridge",
-		PortBindings: network.PortMap{
-			port: []network.PortBinding{
-				{HostIP: hostIP, HostPort: "5002"},
-			},
-		},
-	}
-
-	netCfg := &network.NetworkingConfig{
-		EndpointsConfig: map[string]*network.EndpointSettings{
-			"bridge": {},
-		},
-	}
-
-	if _, err := dc.ContainerCreate(ctx, cfg, hostCfg, netCfg, nil, "ella-core"); err != nil {
-		return fmt.Errorf("container create ella-core: %w", err)
-	}
-
-	return nil
-}
-
-func (dc *DockerClient) ConnectContainerToNetwork(ctx context.Context, networkName string, containerName string, targetIP netip.Addr, ifname string) error {
-	endpointCfg := &network.EndpointSettings{
-		DriverOpts: map[string]string{
-			"com.docker.network.endpoint.ifname": ifname,
-		},
-		IPAddress: targetIP,
-	}
-
-	if err := dc.NetworkConnect(ctx, networkName, containerName, endpointCfg); err != nil {
-		return fmt.Errorf("failed to connect %s to %s: %w", containerName, networkName, err)
-	}
-
-	return nil
-}
-
-func (dc *DockerClient) StartContainer(ctx context.Context, containerName string) error {
-	if err := dc.ContainerStart(ctx, containerName, client.ContainerStartOptions{}); err != nil {
-		return fmt.Errorf("failed to start container %q: %w", containerName, err)
-	}
-
-	return nil
-}
-
-func (dc *DockerClient) CreateUeransimContainer(ctx context.Context) error {
-	cfg := &container.Config{
-		Image: "ghcr.io/ellanetworks/ueransim:3.2.7",
-	}
-	host := &container.HostConfig{
-		Privileged: true,
-	}
-	if _, err := dc.ContainerCreate(ctx, cfg, host, nil, nil, "ueransim"); err != nil {
-		return fmt.Errorf("create ueransim: %w", err)
-	}
-	return nil
-}
-
-func (dc *DockerClient) CreateGnbsimContainer(ctx context.Context) error {
-	cfg := &container.Config{
-		Image: "ghcr.io/ellanetworks/sdcore-gnbsim:1.6.3",
-	}
-	host := &container.HostConfig{
-		Privileged: true,
-	}
-	if _, err := dc.ContainerCreate(ctx, cfg, host, nil, nil, "gnbsim"); err != nil {
-		return fmt.Errorf("create gnbsim: %w", err)
-	}
-	return nil
-}
-
-func (dc *DockerClient) CreateRouterContainer(ctx context.Context) error {
-	cfg := &container.Config{
-		Image: "ghcr.io/ellanetworks/ubuntu-router:0.1",
-	}
-	host := &container.HostConfig{
-		Privileged: true,
-	}
-	if _, err := dc.ContainerCreate(ctx, cfg, host, nil, nil, "router"); err != nil {
-		return fmt.Errorf("create router: %w", err)
-	}
-	return nil
+	return cs[0].ID, nil
 }
 
 func (dc *DockerClient) Exec(ctx context.Context, containerName string, command string, detach bool, timeout time.Duration, mirror io.Writer) (string, error) {
@@ -210,30 +129,6 @@ func (dc *DockerClient) Exec(ctx context.Context, containerName string, command 
 	}
 
 	return buf.String(), nil
-}
-
-func (dc *DockerClient) CleanUpDockerSpace(ctx context.Context) {
-	// best-effort: ignore errors and keep going
-	names := []string{"ella-core", "ueransim", "gnbsim", "router"}
-
-	// Stop
-	timeoutSec := 5
-	for _, n := range names {
-		_ = dc.ContainerStop(ctx, n, client.ContainerStopOptions{Timeout: &timeoutSec})
-	}
-
-	// Remove
-	for _, n := range names {
-		_ = dc.ContainerRemove(ctx, n, client.ContainerRemoveOptions{
-			Force:         true,
-			RemoveVolumes: true,
-		})
-	}
-
-	// Networks
-	for _, net := range []string{"n3", "n6"} {
-		_ = dc.NetworkRemove(ctx, net)
-	}
 }
 
 func (dc *DockerClient) CopyFileToContainer(ctx context.Context, containerName, srcPath, destPath string) error {

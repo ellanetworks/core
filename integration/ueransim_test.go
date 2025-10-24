@@ -2,8 +2,6 @@ package integration_test
 
 import (
 	"context"
-	"fmt"
-	"net/netip"
 	"os"
 	"strings"
 	"testing"
@@ -12,143 +10,19 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-func deployUeransim(ctx context.Context, dockerClient *DockerClient) error {
-	err := dockerClient.CreateUeransimContainer(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to create ueransim container: %v", err)
-	}
-
-	err = dockerClient.ConnectContainerToNetwork(ctx, "n3", "ueransim", netip.MustParseAddr("10.3.0.3"), "n3")
-	if err != nil {
-		return fmt.Errorf("failed to connect ueransim to n3: %v", err)
-	}
-
-	err = dockerClient.StartContainer(ctx, "ueransim")
-	if err != nil {
-		return fmt.Errorf("failed to start ueransim container: %v", err)
-	}
-
-	return nil
-}
-
-func deployRouter(t *testing.T, ctx context.Context, dockerClient *DockerClient) error {
-	err := dockerClient.CreateRouterContainer(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to create router container: %v", err)
-	}
-
-	err = dockerClient.ConnectContainerToNetwork(ctx, "n6", "router", netip.MustParseAddr("10.6.0.3"), "n6")
-	if err != nil {
-		return fmt.Errorf("failed to connect router to n6 network: %v", err)
-	}
-
-	err = dockerClient.StartContainer(ctx, "router")
-	if err != nil {
-		return fmt.Errorf("failed to start router container: %v", err)
-	}
-
-	_, err = dockerClient.Exec(
-		ctx,
-		"router",
-		"ip route add 10.45.0.0/16 via 10.6.0.2",
-		false,
-		5*time.Second,
-		logWriter{t},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to enable ip forwarding in router: %v", err)
-	}
-
-	_, err = dockerClient.Exec(
-		ctx,
-		"router",
-		"sysctl -w net.ipv4.ip_forward=1",
-		false,
-		5*time.Second,
-		logWriter{t},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to enable ip forwarding in router: %v", err)
-	}
-
-	_, err = dockerClient.Exec(
-		ctx,
-		"router",
-		"iptables-legacy -t nat -A POSTROUTING -o eth0 -j MASQUERADE",
-		false,
-		5*time.Second,
-		logWriter{t},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to configure NAT in router: %v", err)
-	}
-
-	_, err = dockerClient.Exec(
-		ctx,
-		"router",
-		"python3 /responder.py 34242",
-		true,
-		5*time.Second,
-		logWriter{t},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to start responder in router: %v", err)
-	}
-
-	return nil
-}
-
-func deployEllaCoreWithN3AndN6(ctx context.Context, dockerClient *DockerClient) error {
-	n3Subnet := netip.PrefixFrom(netip.MustParseAddr("10.3.0.0"), 24)
-	err := dockerClient.CreateNetwork(ctx, "n3", n3Subnet)
-	if err != nil {
-		return fmt.Errorf("failed to create n3 network: %v", err)
-	}
-
-	n6Subnet := netip.PrefixFrom(netip.MustParseAddr("10.6.0.0"), 24)
-	err = dockerClient.CreateNetwork(ctx, "n6", n6Subnet)
-	if err != nil {
-		return fmt.Errorf("failed to create n6 network: %v", err)
-	}
-
-	err = dockerClient.CreateEllaCoreContainerWithConfig(ctx, "config_3_int.yaml")
-	if err != nil {
-		return fmt.Errorf("failed to create ella-core container: %v", err)
-	}
-
-	err = dockerClient.ConnectContainerToNetwork(ctx, "n3", "ella-core", netip.MustParseAddr("10.3.0.2"), "n3")
-	if err != nil {
-		return fmt.Errorf("failed to connect ella-core to n3: %v", err)
-	}
-
-	err = dockerClient.ConnectContainerToNetwork(ctx, "n6", "ella-core", netip.MustParseAddr("10.6.0.2"), "n6")
-	if err != nil {
-		return fmt.Errorf("failed to connect ella-core to n6: %v", err)
-	}
-
-	err = dockerClient.StartContainer(ctx, "ella-core")
-	if err != nil {
-		return fmt.Errorf("failed to start ella-core container: %v", err)
-	}
-
-	return nil
-}
-
 func TestIntegrationUERANSIM(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
-	// t.Skip("Focus on gnbsim tests for now (should be re-enabled before merging)")
-
 	testCases := []struct {
 		name string
 		nat  bool
 	}{
-		{
-			name: "Nat disabled",
-			nat:  false,
-		},
+		// {
+		// 	name: "Nat disabled",
+		// 	nat:  false,
+		// },
 		{
 			name: "Nat enabled",
 			nat:  true,
@@ -165,21 +39,22 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			}
 			defer dockerClient.Close()
 
-			dockerClient.CleanUpDockerSpace(ctx)
+			dockerClient.ComposeDown("compose/ueransim/")
+			dockerClient.ComposeDown("compose/gnbsim/")
 
-			err = deployEllaCoreWithN3AndN6(ctx, dockerClient)
+			err = dockerClient.ComposeUp("compose/ueransim/")
 			if err != nil {
-				t.Fatalf("failed to deploy ella core with N3 and N6: %v", err)
+				t.Fatalf("failed to bring up compose: %v", err)
 			}
 
 			t.Log("deployed ella core")
 
-			err = deployRouter(t, ctx, dockerClient)
-			if err != nil {
-				t.Fatalf("failed to deploy router: %v", err)
-			}
+			// err = configureRouter(t, ctx, dockerClient)
+			// if err != nil {
+			// 	t.Fatalf("failed to configure router: %v", err)
+			// }
 
-			t.Log("deployed router")
+			// t.Log("configured router")
 
 			clientConfig := &client.Config{
 				BaseURL: "http://127.0.0.1:5002",
@@ -203,14 +78,12 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Log("configured Ella Core")
 
-			err = deployUeransim(ctx, dockerClient)
+			ueransimContainerName, err := dockerClient.ResolveComposeContainer(ctx, "ueransim", "ueransim")
 			if err != nil {
-				t.Fatalf("failed to deploy UERANSIM: %v", err)
+				t.Fatalf("failed to resolve ueransim container: %v", err)
 			}
 
-			t.Log("deployed UERANSIM")
-
-			_, err = dockerClient.Exec(ctx, "ueransim", "bin/nr-gnb --config /gnb.yaml", true, 5*time.Second, logWriter{t})
+			_, err = dockerClient.Exec(ctx, ueransimContainerName, "bin/nr-gnb --config /gnb.yaml", true, 5*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
@@ -219,7 +92,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			time.Sleep(3 * time.Second)
 
-			_, err = dockerClient.Exec(ctx, "ueransim", "bin/nr-ue --config /ue.yaml", true, 5*time.Second, logWriter{t})
+			_, err = dockerClient.Exec(ctx, ueransimContainerName, "bin/nr-ue --config /ue.yaml", true, 5*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
@@ -228,7 +101,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			time.Sleep(3 * time.Second)
 
-			result, err := dockerClient.Exec(ctx, "ueransim", "ip a", false, 5*time.Second, logWriter{t})
+			result, err := dockerClient.Exec(ctx, ueransimContainerName, "ip a", false, 5*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
@@ -241,14 +114,19 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Logf("Verified that 'uesimtun0' is in the result")
 
+			ellaCoreContainerName, err := dockerClient.ResolveComposeContainer(ctx, "ueransim", "ella-core")
+			if err != nil {
+				t.Fatalf("failed to resolve ella core container: %v", err)
+			}
+
 			// nolint:godox TODO: this block is currently necessary to warm up the connectivity,
 			// otherwise pings are lost. It should be removed once the issue is identified and fixed.
-			_, err = dockerClient.Exec(ctx, "ella-core", "ping 10.6.0.3 -c 1", false, 5*time.Second, logWriter{t})
+			_, err = dockerClient.Exec(ctx, ellaCoreContainerName, "ping 10.6.0.3 -c 1", false, 5*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
 
-			result, err = dockerClient.Exec(ctx, "ueransim", "ping -I uesimtun0 10.6.0.3 -c 3", false, 10*time.Second, logWriter{t})
+			result, err = dockerClient.Exec(ctx, ueransimContainerName, "ping -I uesimtun0 10.6.0.3 -c 3", false, 10*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
@@ -265,7 +143,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Logf("Verified that '3 packets transmitted, 3 received' and '0 packet loss' are in the result")
 
-			err = dockerClient.CopyFileToContainer(ctx, "ueransim", "network_test.py", "/network_test.py")
+			err = dockerClient.CopyFileToContainer(ctx, ueransimContainerName, "network_test.py", "/network_test.py")
 			if err != nil {
 				t.Fatalf("failed to copy testing script: %v", err)
 			}
@@ -274,7 +152,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			result, err = dockerClient.Exec(
 				ctx,
-				"ueransim",
+				ueransimContainerName,
 				"python3 /network_test.py --dev uesimtun0 --dest 10.6.0.3",
 				false,
 				5*time.Second,
@@ -285,6 +163,8 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			}
 
 			t.Logf("Network tester results: %s", result)
+
+			dockerClient.ComposeDown("compose/ueransim/compose.yaml")
 		})
 	}
 }

@@ -1,0 +1,205 @@
+configs:
+  ella_config:
+    content: |
+      logging:
+        system:
+          level: "debug"
+          output: "stdout"
+        audit:
+          output: "stdout"
+      db:
+        path: "core.db"
+      interfaces:
+        n2:
+          name: "n3"
+          port: 38412
+        n3:
+          name: "n3"
+        n6:
+          name: "eth0"
+        api:
+          name: "eth0"
+          port: 5002
+      xdp:
+        attach-mode: "generic"
+  gnbsim-config:
+    content: |
+      configuration:
+        execInParallel: false
+        gnbs:
+          gnb1:
+            defaultAmf:
+              hostName: 10.3.0.2
+              port: 38412
+            globalRanId:
+              gNbId:
+                bitLength: 24
+                gNBValue: '000102'
+              plmnId:
+                mcc: '001'
+                mnc: '01'
+            n2Port: 9487
+            n3IpAddr: 10.3.0.3
+            n3Port: 2152
+            name: gnb1
+            supportedTaList:
+            - broadcastPlmnList:
+              - plmnId:
+                  mcc: '001'
+                  mnc: '01'
+                taiSliceSupportList:
+                - sd: '102030'
+                  sst: 1
+              tac: '000001'
+            - broadcastPlmnList:
+              - plmnId:
+                  mcc: '123'
+                  mnc: '12'
+                taiSliceSupportList:
+                - sd: '102031'
+                  sst: 1
+              tac: '000002'
+        goProfile:
+          enable: false
+          port: 5005
+        httpServer:
+          enable: false
+        profiles:
+        - defaultAs: 8.8.8.8
+          dnn: internet
+          enable: true
+          gnbName: gnb1
+          key: 0eefb0893e6f1c2855a3a244c6db1277
+          opc: 98da19bbc55e2a5b53857d10557b1d26
+          plmnId:
+            mcc: '001'
+            mnc: '01'
+          profileName: profile1
+          profileType: register
+          sNssai:
+            sd: '102030'
+            sst: 1
+          sequenceNumber: '000000000022'
+          startImsi: '001010100000001'
+          ueCount: 5
+        - dataPktCount: 5
+          defaultAs: 8.8.8.8
+          dnn: internet
+          enable: true
+          gnbName: gnb1
+          key: 0eefb0893e6f1c2855a3a244c6db1277
+          opc: 98da19bbc55e2a5b53857d10557b1d26
+          perUserTimeout: 100
+          plmnId:
+            mcc: '001'
+            mnc: '01'
+          profileName: profile2
+          profileType: pdusessest
+          sNssai:
+            sd: '102030'
+            sst: 1
+          sequenceNumber: '000000000022'
+          startImsi: '001010100000001'
+          ueCount: 5
+        - defaultAs: 8.8.8.8
+          dnn: internet
+          enable: true
+          execInParallel: false
+          gnbName: gnb1
+          key: 0eefb0893e6f1c2855a3a244c6db1277
+          opc: 98da19bbc55e2a5b53857d10557b1d26
+          plmnId:
+            mcc: '001'
+            mnc: '01'
+          profileName: profile3
+          profileType: anrelease
+          sNssai:
+            sd: '102030'
+            sst: 1
+          sequenceNumber: '000000000022'
+          startImsi: '001010100000001'
+          ueCount: 5
+        - defaultAs: 8.8.8.8
+          dnn: internet
+          enable: true
+          execInParallel: false
+          gnbName: gnb1
+          key: 0eefb0893e6f1c2855a3a244c6db1277
+          opc: 98da19bbc55e2a5b53857d10557b1d26
+          plmnId:
+            mcc: '001'
+            mnc: '01'
+          profileName: profile4
+          profileType: uetriggservicereq
+          retransMsg: false
+          sNssai:
+            sd: '102030'
+            sst: 1
+          sequenceNumber: '000000000022'
+          startImsi: '001010100000001'
+          ueCount: 5
+        - defaultAs: 8.8.8.8
+          dnn: internet
+          enable: true
+          execInParallel: false
+          gnbName: gnb1
+          key: 0eefb0893e6f1c2855a3a244c6db1277
+          opc: 98da19bbc55e2a5b53857d10557b1d26
+          plmnId:
+            mcc: '001'
+            mnc: '01'
+          profileName: profile5
+          profileType: deregister
+          sNssai:
+            sd: '102030'
+            sst: 1
+          sequenceNumber: '000000000022'
+          startImsi: '001010100000001'
+          ueCount: 5
+        runConfigProfilesAtStart: true
+      info:
+        description: gNodeB sim initial configuration
+        version: 1.0.0
+      logger:
+        logLevel: trace
+
+services:
+  ella-core:
+    image: ella-core:latest
+    configs:
+      - source: ella_config
+        target: /core.yaml
+    restart: unless-stopped
+    entrypoint: /bin/core --config /core.yaml
+    volumes:
+      - /sys/fs/bpf:/sys/fs/bpf:rw
+    privileged: true
+    ports:
+      - "5002:5002"
+    networks:
+      default:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.2
+  gnbsim:
+    image: ghcr.io/ellanetworks/sdcore-gnbsim:1.6.3
+    configs:
+      - source: gnbsim-config
+        target: /config.yaml
+    restart: unless-stopped
+    privileged: true
+    networks:
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.3
+
+networks:
+  n3:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.3.0.0/24

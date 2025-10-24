@@ -2,8 +2,6 @@ package integration_test
 
 import (
 	"context"
-	"fmt"
-	"net/netip"
 	"os"
 	"strings"
 	"testing"
@@ -11,50 +9,6 @@ import (
 
 	"github.com/ellanetworks/core/client"
 )
-
-func deployGnbSim(ctx context.Context, dockerClient *DockerClient) error {
-	err := dockerClient.CreateGnbsimContainer(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to create gnbsim container: %v", err)
-	}
-
-	err = dockerClient.ConnectContainerToNetwork(ctx, "n3", "gnbsim", netip.MustParseAddr("10.3.0.3"), "n3")
-	if err != nil {
-		return fmt.Errorf("failed to connect gnbsim to n3: %v", err)
-	}
-
-	err = dockerClient.StartContainer(ctx, "gnbsim")
-	if err != nil {
-		return fmt.Errorf("failed to start gnbsim container: %v", err)
-	}
-
-	return nil
-}
-
-func deployEllaCoreWithN3(ctx context.Context, dockerClient *DockerClient) error {
-	subnet := netip.PrefixFrom(netip.MustParseAddr("10.3.0.0"), 24)
-	err := dockerClient.CreateNetwork(ctx, "n3", subnet)
-	if err != nil {
-		return fmt.Errorf("failed to create n3 network: %v", err)
-	}
-
-	err = dockerClient.CreateEllaCoreContainerWithConfig(ctx, "config_2_int.yaml")
-	if err != nil {
-		return fmt.Errorf("failed to create ella-core container: %v", err)
-	}
-
-	err = dockerClient.ConnectContainerToNetwork(ctx, "n3", "ella-core", netip.MustParseAddr("10.3.0.2"), "n3")
-	if err != nil {
-		return fmt.Errorf("failed to connect ella-core to n3: %v", err)
-	}
-
-	err = dockerClient.StartContainer(ctx, "ella-core")
-	if err != nil {
-		return fmt.Errorf("failed to start ella-core container: %v", err)
-	}
-
-	return nil
-}
 
 func TestIntegrationGnbsim(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
@@ -69,11 +23,12 @@ func TestIntegrationGnbsim(t *testing.T) {
 	}
 	defer dockerClient.Close()
 
-	dockerClient.CleanUpDockerSpace(ctx)
+	dockerClient.ComposeDown("compose/ueransim/")
+	dockerClient.ComposeDown("compose/gnbsim/")
 
-	err = deployEllaCoreWithN3(ctx, dockerClient)
+	err = dockerClient.ComposeUp("compose/gnbsim/")
 	if err != nil {
-		t.Fatalf("failed to deploy ella core with N3: %v", err)
+		t.Fatalf("failed to bring up compose: %v", err)
 	}
 
 	t.Log("deployed ella core")
@@ -101,16 +56,14 @@ func TestIntegrationGnbsim(t *testing.T) {
 
 	t.Log("configured Ella Core")
 
-	err = deployGnbSim(ctx, dockerClient)
-	if err != nil {
-		t.Fatalf("failed to deploy GNBSim: %v", err)
-	}
-
-	t.Log("deployed GNBSim")
-
 	t.Log("running GNBSim simulation")
 
-	out, err := dockerClient.Exec(ctx, "gnbsim", "gnbsim --cfg /config.yaml", false, 5*time.Minute, logWriter{t})
+	gnbsimContainerName, err := dockerClient.ResolveComposeContainer(ctx, "gnbsim", "gnbsim")
+	if err != nil {
+		t.Fatalf("failed to resolve gnbsim container: %v", err)
+	}
+
+	out, err := dockerClient.Exec(ctx, gnbsimContainerName, "gnbsim --cfg /config.yaml", false, 5*time.Minute, logWriter{t})
 	if err != nil {
 		t.Fatalf("failed to exec command in pod: %v", err)
 	}
