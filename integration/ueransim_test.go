@@ -49,13 +49,6 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Log("deployed ella core")
 
-			// err = configureRouter(t, ctx, dockerClient)
-			// if err != nil {
-			// 	t.Fatalf("failed to configure router: %v", err)
-			// }
-
-			// t.Log("configured router")
-
 			clientConfig := &client.Config{
 				BaseURL: "http://127.0.0.1:5002",
 			}
