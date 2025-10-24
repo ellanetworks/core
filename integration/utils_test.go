@@ -1,13 +1,28 @@
 package integration_test
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
+	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
 )
+
+type logWriter struct{ t *testing.T }
+
+func (w logWriter) Write(p []byte) (int, error) {
+	// log line-by-line to keep test output readable
+	s := string(p)
+	sc := bufio.NewScanner(strings.NewReader(s))
+	for sc.Scan() {
+		w.t.Log(sc.Text())
+	}
+	return len(p), nil
+}
 
 const (
 	testPolicyName               = "default"

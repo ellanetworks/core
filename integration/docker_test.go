@@ -1,11 +1,14 @@
 package integration_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -142,7 +145,7 @@ func createGnbsimContainer() error {
 	cmd := exec.Command("docker", "create",
 		"--name", "gnbsim",
 		"--privileged",
-		"ghcr.io/ellanetworks/sdcore-gnbsim:1.6.3",
+		"gnbsim:latest", // "ghcr.io/ellanetworks/sdcore-gnbsim:1.6.3",
 	)
 
 	out, err := cmd.CombinedOutput()
@@ -221,12 +224,10 @@ func startRouterContainer() error {
 	return nil
 }
 
-func dockerExec(ctx context.Context, containerName string, command string, detach bool, timeout time.Duration) (string, error) {
+func dockerExec(ctx context.Context, containerName, command string, detach bool, timeout time.Duration, mirror io.Writer) (string, error) {
 	args := []string{"exec"}
 	if detach {
 		args = append(args, "-d")
-	} else {
-		args = append(args, "-i")
 	}
 	args = append(args, containerName)
 	args = append(args, strings.Fields(command)...)
@@ -236,17 +237,48 @@ func dockerExec(ctx context.Context, containerName string, command string, detac
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
 
-	out, err := cmd.CombinedOutput()
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", fmt.Errorf("stdout pipe: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return "", fmt.Errorf("stderr pipe: %w", err)
+	}
+
+	var buf bytes.Buffer
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// tee to buffer and optional mirror
+	copyTo := func(r io.Reader) {
+		defer wg.Done()
+		if mirror != nil {
+			_, _ = io.Copy(io.MultiWriter(&buf, mirror), r)
+		} else {
+			_, _ = io.Copy(&buf, r)
+		}
+	}
+
+	go copyTo(stdout)
+	go copyTo(stderr)
+
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("start: %w", err)
+	}
+
+	waitErr := cmd.Wait()
+	wg.Wait()
+
+	out := buf.String()
 
 	if ctx.Err() == context.DeadlineExceeded {
-		return "", fmt.Errorf("docker exec timed out after %v", timeout)
+		return out, fmt.Errorf("docker exec timed out after %v; output:\n%s", timeout, out)
 	}
-
-	if err != nil {
-		return "", fmt.Errorf("docker exec failed: %s: %w", string(out), err)
+	if waitErr != nil {
+		return out, fmt.Errorf("docker exec failed: %w\noutput:\n%s", waitErr, out)
 	}
-
-	return string(out), nil
+	return out, nil
 }
 
 func cleanUpDockerSpace() {

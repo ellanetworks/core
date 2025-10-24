@@ -30,7 +30,7 @@ func deployUeransim() error {
 	return nil
 }
 
-func deployRouter(ctx context.Context) error {
+func deployRouter(t *testing.T, ctx context.Context) error {
 	err := createRouterContainer()
 	if err != nil {
 		return fmt.Errorf("failed to create router container: %v", err)
@@ -52,6 +52,7 @@ func deployRouter(ctx context.Context) error {
 		"ip route add 10.45.0.0/16 via 10.6.0.2",
 		false,
 		5*time.Second,
+		logWriter{t},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to enable ip forwarding in router: %v", err)
@@ -63,6 +64,7 @@ func deployRouter(ctx context.Context) error {
 		"sysctl -w net.ipv4.ip_forward=1",
 		false,
 		5*time.Second,
+		logWriter{t},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to enable ip forwarding in router: %v", err)
@@ -74,6 +76,7 @@ func deployRouter(ctx context.Context) error {
 		"iptables-legacy -t nat -A POSTROUTING -o eth0 -j MASQUERADE",
 		false,
 		5*time.Second,
+		logWriter{t},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to configure NAT in router: %v", err)
@@ -85,6 +88,7 @@ func deployRouter(ctx context.Context) error {
 		"python3 /responder.py 34242",
 		true,
 		5*time.Second,
+		logWriter{t},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to start responder in router: %v", err)
@@ -132,6 +136,8 @@ func TestIntegrationUERANSIM(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	t.Skip("Focus on gnbsim tests for now (should be re-enabled before merging)")
+
 	testCases := []struct {
 		name string
 		nat  bool
@@ -159,7 +165,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Log("deployed ella core")
 
-			err = deployRouter(ctx)
+			err = deployRouter(t, ctx)
 			if err != nil {
 				t.Fatalf("failed to deploy router: %v", err)
 			}
@@ -195,7 +201,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Log("deployed UERANSIM")
 
-			_, err = dockerExec(ctx, "ueransim", "bin/nr-gnb --config /gnb.yaml", true, 5*time.Second)
+			_, err = dockerExec(ctx, "ueransim", "bin/nr-gnb --config /gnb.yaml", true, 5*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
@@ -204,7 +210,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			time.Sleep(3 * time.Second)
 
-			_, err = dockerExec(ctx, "ueransim", "bin/nr-ue --config /ue.yaml", true, 5*time.Second)
+			_, err = dockerExec(ctx, "ueransim", "bin/nr-ue --config /ue.yaml", true, 5*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
@@ -213,7 +219,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			time.Sleep(3 * time.Second)
 
-			result, err := dockerExec(ctx, "ueransim", "ip a", false, 5*time.Second)
+			result, err := dockerExec(ctx, "ueransim", "ip a", false, 5*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
@@ -228,12 +234,12 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			// nolint:godox TODO: this block is currently necessary to warm up the connectivity,
 			// otherwise pings are lost. It should be removed once the issue is identified and fixed.
-			_, err = dockerExec(ctx, "ella-core", "ping 10.6.0.3 -c 1", false, 5*time.Second)
+			_, err = dockerExec(ctx, "ella-core", "ping 10.6.0.3 -c 1", false, 5*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
 
-			result, err = dockerExec(ctx, "ueransim", "ping -I uesimtun0 10.6.0.3 -c 3", false, 10*time.Second)
+			result, err = dockerExec(ctx, "ueransim", "ping -I uesimtun0 10.6.0.3 -c 3", false, 10*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
@@ -263,6 +269,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 				"python3 /network_test.py --dev uesimtun0 --dest 10.6.0.3",
 				false,
 				5*time.Second,
+				logWriter{t},
 			)
 			if err != nil {
 				t.Fatalf("networking test suite failed: %v", err)

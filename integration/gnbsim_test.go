@@ -100,16 +100,19 @@ func TestIntegrationGnbsim(t *testing.T) {
 
 	t.Log("deployed GNBSim")
 
-	t.Logf("running GNBSim simulation in gnbsim container")
+	t.Log("running GNBSim simulation")
 
-	result, err := dockerExec(ctx, "gnbsim", "gnbsim --cfg /config.yaml", false, 5*time.Minute)
+	out, err := dockerExec(ctx, "gnbsim", "gnbsim --cfg /config.yaml", false, 5*time.Minute, logWriter{t})
 	if err != nil {
 		t.Fatalf("failed to exec command in pod: %v", err)
 	}
 
-	passCount := strings.Count(result, "Profile Status: PASS")
+	t.Logf("gnbsim output:\n%s", out)
+
+	passCount := strings.Count(out, "Profile Status: PASS")
 	if passCount != numProfiles {
-		t.Fatalf("expected 'Profile Status: PASS' to appear %d times, but found %d times", numProfiles, passCount)
+		t.Fatalf("expected 'Profile Status: PASS' %d times, found %d\nfull output:\n%s",
+			numProfiles, passCount, out)
 	}
 
 	t.Logf("verified that 'Profile Status: PASS' appears %d times", passCount)
@@ -129,6 +132,4 @@ func TestIntegrationGnbsim(t *testing.T) {
 	if appDownlinkBytes < 9000 {
 		t.Fatalf("expected app_downlink_bytes to be at least 9000, but got %v", appDownlinkBytes)
 	}
-
-	t.Log("GNBSIM test completed successfully")
 }
