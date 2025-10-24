@@ -194,7 +194,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Log("started pebble gnb")
 
-			time.Sleep(2 * time.Second)
+			time.Sleep(3 * time.Second)
 
 			_, err = dockerExec("ueransim", "bin/nr-ue --config /ue.yaml", true)
 			if err != nil {
@@ -203,7 +203,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Log("started pebble ue")
 
-			time.Sleep(2 * time.Second)
+			time.Sleep(3 * time.Second)
 
 			result, err := dockerExec("ueransim", "ip a", false)
 			if err != nil {

@@ -140,7 +140,7 @@ func createGnbsimContainer() error {
 	cmd := exec.Command("docker", "create",
 		"--name", "gnbsim",
 		"--privileged",
-		"gnbsim:latest",
+		"ghcr.io/ellanetworks/sdcore-gnbsim:1.6.3",
 	)
 
 	out, err := cmd.CombinedOutput()
@@ -182,7 +182,7 @@ func createRouterContainer() error {
 		"docker", "create",
 		"--name", "router",
 		"--privileged",
-		"router:latest",
+		"ghcr.io/ellanetworks/ubuntu-router:0.1",
 	)
 
 	out, err := cmd.CombinedOutput()
@@ -218,14 +218,6 @@ func startRouterContainer() error {
 
 	return nil
 }
-
-// command: ["/bin/bash", "-c"]
-// args:
-// 	- >
-// 		sysctl -w net.ipv4.ip_forward=1;
-// 		iptables-legacy -t nat -A POSTROUTING -o eth0 -j MASQUERADE;
-// 		trap : TERM INT;
-// 		python3 /responder.py 34242 & wait
 
 func dockerExec(containerName string, command string, detach bool) (string, error) {
 	args := []string{"exec"}
