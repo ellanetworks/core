@@ -3,6 +3,8 @@ package integration_test
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
 func createN3Network() error {
@@ -16,12 +18,29 @@ func createN3Network() error {
 	return nil
 }
 
-func createEllaCoreContainer() error {
+func createN6Network() error {
+	cmd := exec.Command("docker", "network", "create", "--driver", "bridge", "n6", "--subnet", "10.6.0.0/24")
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to create network n6: %s: %v", string(out), err)
+	}
+
+	return nil
+}
+
+func createEllaCoreContainerWithConfig(configPath string) error {
+	configPath, err := filepath.Abs(configPath)
+	if err != nil {
+		return fmt.Errorf("resolve config path: %w", err)
+	}
+
 	cmd := exec.Command("docker", "create",
 		"--name", "ella-core",
 		"--privileged",
 		"--network", "name=bridge",
 		"-p", "5002:5002",
+		"-v", configPath+":/core.yaml:ro",
 		"-v", "/sys/fs/bpf:/sys/fs/bpf:rw",
 		"ella-core:latest",
 		"exec", "/bin/core", "--config", "/core.yaml",
@@ -45,6 +64,21 @@ func connectEllaCoreToN3() error {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to connect ella-core to n3: %s: %v", string(out), err)
+	}
+
+	return nil
+}
+
+func connectEllaCoreToN6() error {
+	cmd := exec.Command("docker", "network", "connect",
+		"--driver-opt", "com.docker.network.endpoint.ifname=n6",
+		"--ip", "10.6.0.2",
+		"n6", "ella-core",
+	)
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to connect ella-core to n6: %s: %v", string(out), err)
 	}
 
 	return nil
@@ -143,6 +177,56 @@ func startGnbsimContainer() error {
 	return nil
 }
 
+func createRouterContainer() error {
+	cmd := exec.Command(
+		"docker", "create",
+		"--name", "router",
+		"--privileged",
+		"router:latest",
+	)
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to create router container: %s: %v", string(out), err)
+	}
+
+	return nil
+}
+
+func connectRouterToN6() error {
+	cmd := exec.Command("docker", "network", "connect",
+		"--driver-opt", "com.docker.network.endpoint.ifname=n6",
+		"--ip", "10.6.0.3",
+		"n6", "router",
+	)
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to connect gnbsim to n3: %s: %v", string(out), err)
+	}
+
+	return nil
+}
+
+func startRouterContainer() error {
+	cmd := exec.Command("docker", "start", "router")
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to start router container: %s: %v", string(out), err)
+	}
+
+	return nil
+}
+
+// command: ["/bin/bash", "-c"]
+// args:
+// 	- >
+// 		sysctl -w net.ipv4.ip_forward=1;
+// 		iptables-legacy -t nat -A POSTROUTING -o eth0 -j MASQUERADE;
+// 		trap : TERM INT;
+// 		python3 /responder.py 34242 & wait
+
 func dockerExec(containerName string, command string, detach bool) (string, error) {
 	args := []string{"exec"}
 	if detach {
@@ -150,26 +234,29 @@ func dockerExec(containerName string, command string, detach bool) (string, erro
 	} else {
 		args = append(args, "-i")
 	}
+
 	args = append(args, containerName)
 
-	args = append(args, "sh", "-lc", command)
+	args = append(args, strings.Fields(command)...)
 
 	cmd := exec.Command("docker", args...)
+
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("docker exec failed: %s: %w", string(out), err)
 	}
+
 	return string(out), nil
 }
 
 func cleanUpDockerSpace() {
-	cmd := exec.Command("docker", "stop", "ella-core", "ueransim", "gnbsim")
+	cmd := exec.Command("docker", "stop", "ella-core", "ueransim", "gnbsim", "router")
 	_, _ = cmd.CombinedOutput()
 
-	cmd = exec.Command("docker", "rm", "ella-core", "ueransim", "gnbsim")
+	cmd = exec.Command("docker", "rm", "ella-core", "ueransim", "gnbsim", "router")
 	_, _ = cmd.CombinedOutput()
 
-	cmd = exec.Command("docker", "network", "rm", "n3")
+	cmd = exec.Command("docker", "network", "rm", "n3", "n6")
 	_, _ = cmd.CombinedOutput()
 }
 

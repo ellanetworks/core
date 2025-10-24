@@ -34,15 +34,12 @@ parts:
       REVISION=`git rev-parse HEAD`
       go build -v -o ${CRAFT_PART_INSTALL}/bin/core -ldflags "-X github.com/ellanetworks/core/version.GitCommit=${REVISION}" ./cmd/core
 
-  ip:
+  network-tools:
     plugin: nil
     stage-packages:
       - iproute2
-
-  iptables:
-    plugin: nil
-    stage-packages:
       - iptables
+      - iputils-ping
 
   core-release-data:
     plugin: nil
@@ -50,3 +47,8 @@ parts:
     override-build: |
       version="$(cat version/VERSION)"
       craftctl set version="$version"
+
+  config:
+    plugin: dump
+    source: config/
+    source-type: local
