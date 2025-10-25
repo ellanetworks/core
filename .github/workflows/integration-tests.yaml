@@ -39,12 +39,3 @@ jobs:
       - name: Run integration tests
         run: |
           INTEGRATION=1 go test ./integration/... -v
-
-      - name: Check logs on failure
-        if: failure()
-        run: |
-          docker ps -a
-          docker logs ella-core || true
-          docker logs ueransim || true
-          docker logs gnbsim || true
-          docker logs router || true
