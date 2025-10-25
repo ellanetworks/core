@@ -4,26 +4,16 @@ Ella Core is an open-source project and we welcome contributions from the commun
 
 ## Getting Started
 
-### Set up MicroK8s
+### Pre-requisites
 
-```shell
-sudo snap install microk8s --channel=1.32/stable --classic
-```
+You will need a Linux machine with the following software installed:
 
-Enable the required addons:
-```shell
-sudo microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
-sudo microk8s enable hostpath-storage
-sudo microk8s enable multus
-```
+- Docker
+- Go
+- Npm
+- Rockcraft
 
-### Setup local Docker registry
-
-Install Docker
-
-```shell
-sudo snap install docker
-```
+### 1. Setup local Docker registry
 
 Create a local registry
 
@@ -31,13 +21,7 @@ Create a local registry
 docker run -d -p 5000:5000 --name registry registry:2
 ```
 
-### Install test pre-requisites
-
-```shell
-sudo snap install rockcraft --classic
-```
-
-### Build and Deploy Ella
+### 2. Build and Deploy Ella
 
 Build the image and push it to the local registry
 
@@ -48,7 +32,7 @@ docker tag ella-core:latest localhost:5000/ella-core:latest
 docker push localhost:5000/ella-core:latest
 ```
 
-Run End-to-End tests
+### 3. Run the integration tests
 
 ```shell
 INTEGRATION=1 go test ./integration/... -v

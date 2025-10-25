@@ -1,0 +1,88 @@
+configs:
+  ella_config:
+    content: |
+      logging:
+        system:
+          level: "debug"
+          output: "stdout"
+        audit:
+          output: "stdout"
+      db:
+        path: "core.db"
+      interfaces:
+        n2:
+          name: "n3"
+          port: 38412
+        n3:
+          name: "n3"
+        n6:
+          name: "n6"
+        api:
+          name: "eth0"
+          port: 5002
+      xdp:
+        attach-mode: "generic"
+
+services:
+  ella-core:
+    image: ella-core:latest
+    configs:
+      - source: ella_config
+        target: /core.yaml
+    restart: unless-stopped
+    entrypoint: /bin/core --config /core.yaml
+    volumes:
+      - /sys/fs/bpf:/sys/fs/bpf:rw
+    privileged: true
+    ports:
+      - "5002:5002"
+    networks:
+      default:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.2
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.2
+  ueransim:
+    image: ghcr.io/ellanetworks/ueransim:3.2.7
+    restart: unless-stopped
+    privileged: true
+    networks:
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.3
+  router:
+    image: ghcr.io/ellanetworks/ubuntu-router:0.1
+    command:
+      - exec
+      - /bin/bash
+      - -lc
+      - >
+        ip route add 10.45.0.0/16 dev n6 via 10.6.0.2;
+        trap : TERM INT;
+        python3 /responder.py 34242 & wait
+    restart: unless-stopped
+    privileged: true
+    networks:
+      default: {}
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.3
+
+networks:
+  n3:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.3.0.0/24
+  n6:  #  We can't use an internal network for n6 because Docker will drop our UE packets
+    ipam:
+      config:
+        - subnet: 10.6.0.0/24
