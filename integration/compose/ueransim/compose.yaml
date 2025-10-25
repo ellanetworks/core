@@ -59,14 +59,12 @@ services:
         ipv4_address: 10.3.0.3
   router:
     image: ghcr.io/ellanetworks/ubuntu-router:0.1
-
     command:
       - exec
       - /bin/bash
       - -lc
       - >
-        sysctl -w net.ipv4.ip_forward=1;
-        iptables-legacy -t nat -A POSTROUTING -o eth0 -j MASQUERADE;
+        ip route add 10.45.0.0/16 dev n6 via 10.6.0.2;
         trap : TERM INT;
         python3 /responder.py 34242 & wait
     restart: unless-stopped
@@ -74,6 +72,8 @@ services:
     networks:
       default: {}
       n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
         ipv4_address: 10.6.0.3
 
 networks:
@@ -82,8 +82,7 @@ networks:
     ipam:
       config:
         - subnet: 10.3.0.0/24
-  n6:
-    internal: true
+  n6:  #  We can't use an internal network for n6 because Docker will drop our UE packets
     ipam:
       config:
         - subnet: 10.6.0.0/24

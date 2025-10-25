@@ -16,7 +16,7 @@ configs:
         n3:
           name: "n3"
         n6:
-          name: "eth0"
+          name: "n6"
         api:
           name: "eth0"
           port: 5002
@@ -65,7 +65,7 @@ configs:
         httpServer:
           enable: false
         profiles:
-        - defaultAs: 8.8.8.8
+        - defaultAs: 10.6.0.3
           dnn: internet
           enable: true
           gnbName: gnb1
@@ -83,7 +83,7 @@ configs:
           startImsi: '001010100000001'
           ueCount: 5
         - dataPktCount: 5
-          defaultAs: 8.8.8.8
+          defaultAs: 10.6.0.3
           dnn: internet
           enable: true
           gnbName: gnb1
@@ -101,7 +101,7 @@ configs:
           sequenceNumber: '000000000022'
           startImsi: '001010100000001'
           ueCount: 5
-        - defaultAs: 8.8.8.8
+        - defaultAs: 10.6.0.3
           dnn: internet
           enable: true
           execInParallel: false
@@ -119,7 +119,7 @@ configs:
           sequenceNumber: '000000000022'
           startImsi: '001010100000001'
           ueCount: 5
-        - defaultAs: 8.8.8.8
+        - defaultAs: 10.6.0.3
           dnn: internet
           enable: true
           execInParallel: false
@@ -138,7 +138,7 @@ configs:
           sequenceNumber: '000000000022'
           startImsi: '001010100000001'
           ueCount: 5
-        - defaultAs: 8.8.8.8
+        - defaultAs: 10.6.0.3
           dnn: internet
           enable: true
           execInParallel: false
@@ -184,6 +184,10 @@ services:
         driver_opts:
               com.docker.network.endpoint.ifname: n3
         ipv4_address: 10.3.0.2
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.2
   gnbsim:
     image: ghcr.io/ellanetworks/sdcore-gnbsim:1.6.3
     configs:
@@ -196,6 +200,15 @@ services:
         driver_opts:
               com.docker.network.endpoint.ifname: n3
         ipv4_address: 10.3.0.3
+  router:
+    image: ghcr.io/ellanetworks/ubuntu-router:0.1
+    restart: unless-stopped
+    privileged: true
+    networks:
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.3
 
 networks:
   n3:
@@ -203,3 +216,7 @@ networks:
     ipam:
       config:
         - subnet: 10.3.0.0/24
+  n6:
+    ipam:
+      config:
+        - subnet: 10.6.0.0/24

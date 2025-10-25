@@ -56,6 +56,20 @@ func TestIntegrationGnbsim(t *testing.T) {
 
 	t.Log("configured Ella Core")
 
+	ellaCoreContainerName, err := dockerClient.ResolveComposeContainer(ctx, "gnbsim", "ella-core")
+	if err != nil {
+		t.Fatalf("failed to resolve ella core container: %v", err)
+	}
+
+	// nolint:godox TODO: this block is currently necessary to warm up the connectivity,
+	// otherwise pings are lost. It should be removed once the issue is identified and fixed.
+	_, err = dockerClient.Exec(ctx, ellaCoreContainerName, "ping 10.6.0.3 -c 1", false, 5*time.Second, logWriter{t})
+	if err != nil {
+		t.Fatalf("failed to exec command in pod: %v", err)
+	}
+
+	t.Log("warmed up connectivity")
+
 	t.Log("running GNBSim simulation")
 
 	gnbsimContainerName, err := dockerClient.ResolveComposeContainer(ctx, "gnbsim", "gnbsim")
