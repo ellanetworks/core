@@ -34,12 +34,15 @@ parts:
       REVISION=`git rev-parse HEAD`
       go build -v -o ${CRAFT_PART_INSTALL}/bin/core -ldflags "-X github.com/ellanetworks/core/version.GitCommit=${REVISION}" ./cmd/core
 
-  network-tools:
+  ip:
     plugin: nil
     stage-packages:
       - iproute2
+
+  iptables:
+    plugin: nil
+    stage-packages:
       - iptables
-      - iputils-ping
 
   core-release-data:
     plugin: nil
