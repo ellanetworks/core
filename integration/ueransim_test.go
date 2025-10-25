@@ -76,25 +76,53 @@ func TestIntegrationUERANSIM(t *testing.T) {
 				t.Fatalf("failed to resolve ueransim container: %v", err)
 			}
 
-			_, err = dockerClient.Exec(ctx, ueransimContainerName, "bin/nr-gnb --config /gnb.yaml", true, 5*time.Second, logWriter{t})
+			_, err = dockerClient.Exec(
+				ctx, ueransimContainerName,
+				[]string{
+					"sh", "-c",
+					`nohup bin/nr-gnb --config /gnb.yaml >/tmp/gnb.log 2>&1 </dev/null & echo $! >/tmp/gnb.pid`,
+				},
+				true,
+				5*time.Second,
+				logWriter{t},
+			)
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
 
 			t.Log("started pebble gnb")
 
-			time.Sleep(3 * time.Second)
-
-			_, err = dockerClient.Exec(ctx, ueransimContainerName, "bin/nr-ue --config /ue.yaml", true, 5*time.Second, logWriter{t})
-			if err != nil {
-				t.Fatalf("failed to exec command in pod: %v", err)
+			if err := waitForPatternInContainer(ctx, dockerClient, ueransimContainerName,
+				`/tmp/gnb.log`, `NG Setup procedure is successful`, 15*time.Second, 200*time.Millisecond); err != nil {
+				t.Fatalf("Gnb never became ready: %v", err)
 			}
 
-			t.Log("started pebble ue")
+			t.Log("GNB reported ready")
 
-			time.Sleep(3 * time.Second)
+			_, err = dockerClient.Exec(
+				ctx, ueransimContainerName,
+				[]string{
+					"sh", "-c",
+					`nohup bin/nr-ue --config /ue.yaml >/tmp/ue.log 2>&1 </dev/null & echo $! >/tmp/ue.pid`,
+				},
+				true,
+				5*time.Second,
+				logWriter{t},
+			)
+			if err != nil {
+				t.Fatalf("failed to start UE: %v", err)
+			}
 
-			result, err := dockerClient.Exec(ctx, ueransimContainerName, "ip a", false, 5*time.Second, logWriter{t})
+			t.Log("started UERANSIM UE")
+
+			if err := waitForPatternInContainer(ctx, dockerClient, ueransimContainerName,
+				`/tmp/ue.log`, `TUN interface\[uesimtun0, 10\.45\.0\.1\] is up`, 15*time.Second, 200*time.Millisecond); err != nil {
+				t.Fatalf("UE never became ready: %v", err)
+			}
+
+			t.Log("UE reported ready")
+
+			result, err := dockerClient.Exec(ctx, ueransimContainerName, []string{"ip", "a"}, false, 5*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
@@ -114,12 +142,12 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			// nolint:godox TODO: this block is currently necessary to warm up the connectivity,
 			// otherwise pings are lost. It should be removed once the issue is identified and fixed.
-			_, err = dockerClient.Exec(ctx, ellaCoreContainerName, "ping 10.6.0.3 -c 1", false, 5*time.Second, logWriter{t})
+			_, err = dockerClient.Exec(ctx, ellaCoreContainerName, []string{"ping", "10.6.0.3", "-c", "1"}, false, 5*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
 
-			result, err = dockerClient.Exec(ctx, ueransimContainerName, "ping -I uesimtun0 10.6.0.3 -c 3", false, 10*time.Second, logWriter{t})
+			result, err = dockerClient.Exec(ctx, ueransimContainerName, []string{"ping", "-I", "uesimtun0", "10.6.0.3", "-c", "3"}, false, 10*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
@@ -146,7 +174,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			result, err = dockerClient.Exec(
 				ctx,
 				ueransimContainerName,
-				"python3 /network_test.py --dev uesimtun0 --dest 10.6.0.3",
+				[]string{"python3", "/network_test.py", "--dev", "uesimtun0", "--dest", "10.6.0.3"},
 				false,
 				5*time.Second,
 				logWriter{t},

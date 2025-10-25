@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -126,6 +127,44 @@ func waitForEllaCoreReady(ctx context.Context, cl *client.Client) error {
 				continue
 			}
 			return nil
+		}
+	}
+}
+
+func waitForPatternInContainer(
+	parent context.Context,
+	dc *DockerClient,
+	container, logPath, regex string,
+	timeout, interval time.Duration,
+) error {
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	defer cancel()
+
+	re, err := regexp.Compile(regex)
+	if err != nil {
+		return fmt.Errorf("bad regex: %w", err)
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			tail, _ := dc.Exec(context.Background(), container,
+				[]string{"sh", "-lc", fmt.Sprintf("tail -n 50 %s || true", logPath)},
+				false, 3*time.Second, nil)
+			return fmt.Errorf("timeout waiting for %q. last lines:\n%s", regex, tail)
+		case <-ticker.C:
+			out, err := dc.Exec(ctx, container,
+				[]string{"sh", "-lc", fmt.Sprintf(`test -f %q && cat %q || true`, logPath, logPath)},
+				false, 3*time.Second, nil)
+			if err != nil {
+				continue // transient; try again until timeout
+			}
+			if re.MatchString(out) {
+				return nil
+			}
 		}
 	}
 }

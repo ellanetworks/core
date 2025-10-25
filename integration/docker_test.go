@@ -76,15 +76,16 @@ func (dc *DockerClient) ResolveComposeContainer(ctx context.Context, project, se
 		name := strings.TrimPrefix(cs[0].Names[0], "/")
 		return name, nil
 	}
+
 	return cs[0].ID, nil
 }
 
-func (dc *DockerClient) Exec(ctx context.Context, containerName string, command string, detach bool, timeout time.Duration, mirror io.Writer) (string, error) {
+func (dc *DockerClient) Exec(ctx context.Context, containerName string, argv []string, detach bool, timeout time.Duration, mirror io.Writer) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	execConfig := client.ExecCreateOptions{
-		Cmd:          strings.Fields(command),
+		Cmd:          argv,
 		AttachStdout: !detach,
 		AttachStderr: !detach,
 		Tty:          false,
