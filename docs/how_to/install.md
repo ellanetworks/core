@@ -76,24 +76,77 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
 
 === "Docker"
 
-    Create a Docker network for the n3 interface:
+    Create a new directory:
 
     ```shell
-    docker network create --driver bridge n3 --subnet 10.3.0.0/24
+    mkdir ella
+    cd ella
     ```
 
-    Start the Ella Core container with the additional network interfaces:
+    Copy the following file into this directory:
+
+    ```yaml title="docker-compose.yaml"
+    configs:
+      ella_config:
+        content: |
+          logging:
+            system:
+              level: "info"
+              output: "stdout"
+            audit:
+              output: "stdout"
+          db:
+            path: "core.db"
+          interfaces:
+            n2:
+              name: "n3"
+              port: 38412
+            n3:
+              name: "n3"
+            n6:
+              name: "eth0"
+            api:
+              name: "eth0"
+              port: 5002
+          xdp:
+            attach-mode: "generic"
+
+    services:
+      ella-core:
+        image: ghcr.io/ellanetworks/ella-core:v0.4.0
+        configs:
+          - source: ella_config
+            target: /core.yaml
+        restart: unless-stopped
+        entrypoint: /bin/core --config /core.yaml
+        volumes:
+          - /sys/fs/bpf:/sys/fs/bpf:rw
+        privileged: true
+        ports:
+          - "5002:5002"
+        networks:
+          default:
+            driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+          n3:
+            driver_opts:
+              com.docker.network.endpoint.ifname: n3
+            ipv4_address: 10.3.0.2
+
+    networks:
+      n3:
+        internal: true
+        ipam:
+          config:
+            - subnet: 10.3.0.0/24
+    ```
+
+    Edit the file to match your network interfaces and desired configuration.
+
+    Start the Ella Core container:
 
     ```shell
-    docker create \
-    --name ella-core \
-    --privileged \
-    --network=name=bridge \
-    -p 5002:5002 \
-    -v /sys/fs/bpf:/sys/fs/bpf:rw \
-    ella-core:latest exec /bin/core --config /core.yaml
-    docker network connect --driver-opt com.docker.network.endpoint.ifname=n3 --ip 10.3.0.2 n3 ella-core
-    docker start ella-core
+    docker compose up -d
     ```
 
 === "Kubernetes"
