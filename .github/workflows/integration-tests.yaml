@@ -13,10 +13,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Docker
+      - name: Set up Docker
+        uses: docker/setup-docker-action@v4
+
+      - name: Setup Docker registry
         run: |
-          sudo snap install docker
-          sleep 5
           docker run -d -p 5000:5000 --name registry registry:2
 
       - name: Download Container image from GitHub Artifact
