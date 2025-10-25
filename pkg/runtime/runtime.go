@@ -105,6 +105,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	if err := api.Start(
 		dbInstance,
 		upfInstance,
+		cfg.Interfaces.API.Address,
 		cfg.Interfaces.API.Port,
 		scheme,
 		cfg.Interfaces.API.TLS.Cert,

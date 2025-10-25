@@ -8,14 +8,15 @@ db:
   path: "/var/snap/ella-core/common/data/core.db"
 interfaces:
   n2:
-    name: "ens4"
+    address: "10.3.0.2"
     port: 38412
   n3:
+    address: "10.3.0.3"
     name: "ens5"
   n6:
     name: "ens3"
   api:
-    name: "ens3"
+    address: "0.0.0.0"
     port: 5002
     tls:
       cert: "/var/snap/ella-core/common/cert.pem"

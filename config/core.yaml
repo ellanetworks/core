@@ -8,14 +8,15 @@ db:
   path: "core.db"
 interfaces:
   n2:
-    name: "n3"
+    address: "10.3.0.2"
     port: 38412
   n3:
     name: "n3"
+    address: "10.3.0.2"
   n6:
     name: "eth0"
   api:
-    name: "eth0"
+    address: "0.0.0.0"
     port: 5002
 xdp:
   attach-mode: "generic"
