@@ -51,6 +51,7 @@ func TestStartServerStandup(t *testing.T) {
 		t.Fatalf("could not create new database: %v", err)
 	}
 
+	address := "127.0.0.1"
 	port := freePort(t)
 	// For HTTP, these cert/key files are unused.
 	certFile := "dummy_cert.pem"
@@ -60,7 +61,7 @@ func TestStartServerStandup(t *testing.T) {
 
 	// Start the server in a separate goroutine.
 	dummyFS := dummyFS{}
-	if err := Start(testdb, nil, port, scheme, certFile, keyFile, n3Interface, n6Interface, false, dummyFS, nil); err != nil {
+	if err := Start(testdb, nil, address, port, scheme, certFile, keyFile, n3Interface, n6Interface, false, dummyFS, nil); err != nil {
 		t.Fatalf("Start returned error: %v", err)
 	}
 

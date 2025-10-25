@@ -80,7 +80,7 @@ You should see the following output:
 
 ## 2. Access the Ella Core UI
 
-Open your browser and navigate to `http://127.0.0.1:5002/` to access Ella Core's UI.
+Open your browser and navigate to `http://:5002/` to access Ella Core's UI.
 
 You should see the Initialization page.
 
@@ -213,7 +213,7 @@ You should see a new interface `uesimtun0` with the UE's IP address:
 ```shell
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
-    inet 127.0.0.1/8 scope host lo
+    inet /8 scope host lo
        valid_lft forever preferred_lft forever
     inet6 ::1/128 scope host
        valid_lft forever preferred_lft forever
