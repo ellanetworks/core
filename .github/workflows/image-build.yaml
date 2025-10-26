@@ -1,4 +1,4 @@
-name: Rock Build
+name: Image Build
 
 permissions:
   contents: read

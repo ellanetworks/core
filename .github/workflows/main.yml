@@ -27,9 +27,9 @@ jobs:
     uses: ./.github/workflows/clang-format.yaml
   clang-tidy:
     uses: ./.github/workflows/clang-tidy.yaml
-  rock-build:
+  image-build:
     needs: [go-unit-test, go-vet, go-lint, clang-format, clang-tidy]
-    uses: ./.github/workflows/rock-build.yaml
+    uses: ./.github/workflows/image-build.yaml
   integration-tests:
-    needs: [go-unit-test, go-vet, go-lint, rock-build]
+    needs: [go-unit-test, go-vet, go-lint, image-build]
     uses: ./.github/workflows/integration-tests.yaml
