@@ -110,7 +110,7 @@ Create a subscriber with the following parameters:
 - Key: `0eefb0893e6f1c2855a3a244c6db1277`
 - Sequence Number: Keep the default value.
 - OPC: Select "Provide custom OPC" and set the value to `98da19bbc55e2a5b53857d10557b1d26`.
-- Policy: `default`
+- Policy: Keep the default value.
 
 ### 3.3 Validate that no radio is connected
 
