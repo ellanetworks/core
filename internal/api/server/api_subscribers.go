@@ -78,7 +78,9 @@ func isImsiValid(ctx context.Context, imsi string, dbInstance *db.Database) bool
 	Mcc := network.Mcc
 	Mnc := network.Mnc
 
-	if imsi[:3] != Mcc || imsi[3:5] != Mnc {
+	mncLength := len(Mnc)
+
+	if imsi[:3] != Mcc || imsi[3:3+mncLength] != Mnc {
 		return false
 	}
 
