@@ -8,7 +8,7 @@ on:
   workflow_call:
 
 jobs:
-  publish-rock:
+  publish-image:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
