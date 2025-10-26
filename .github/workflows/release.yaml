@@ -12,16 +12,16 @@ on:
   release:
     types: [published]
 
-jobs: 
-  rock-build:
-    uses: ./.github/workflows/rock-build.yaml
-  rock-scan:
-    needs: [rock-build]
-    uses: ./.github/workflows/rock-scan.yaml
-  rock-publish:
-    needs: [rock-build]
-    uses: ./.github/workflows/rock-publish.yaml
+jobs:
+  image-build:
+    uses: ./.github/workflows/image-build.yaml
+  image-publish:
+    needs: [image-build]
+    uses: ./.github/workflows/image-publish.yaml
     secrets: inherit
+  image-scan:
+    needs: [image-build, image-publish]
+    uses: ./.github/workflows/image-scan.yaml
   snap-build:
     uses: ./.github/workflows/snap-build.yaml
   snap-publish:

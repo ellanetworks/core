@@ -1,0 +1,38 @@
+name: Image Publish
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  workflow_call:
+
+jobs:
+  publish-image:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: ellacore-image
+
+      - name: Import and push to github package
+        run: |
+          version="$(cat version/VERSION)"
+
+          docker load -i ellacore_latest.tar
+
+          docker tag ella-core:latest ghcr.io/ellanetworks/ella-core:${version}
+          docker tag ella-core:latest ghcr.io/ellanetworks/ella-core:latest
+
+          docker push ghcr.io/ellanetworks/ella-core:${version}
+          docker push ghcr.io/ellanetworks/ella-core:latest
