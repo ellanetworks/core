@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 )
@@ -41,7 +42,7 @@ func TestStartServerStandup(t *testing.T) {
 	defer func() { routeReconciler = origReconciler }()
 
 	// Use HTTP scheme for testing.
-	scheme := HTTP
+	// scheme := HTTP
 
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
@@ -53,14 +54,33 @@ func TestStartServerStandup(t *testing.T) {
 
 	port := freePort(t)
 	// For HTTP, these cert/key files are unused.
-	certFile := "dummy_cert.pem"
-	keyFile := "dummy_key.pem"
+	// certFile := "dummy_cert.pem"
+	// keyFile := "dummy_key.pem"
 	n3Interface := "eth0"
 	n6Interface := "eth1"
 
+	cfg := config.Config{
+		Interfaces: config.Interfaces{
+			API: config.APIInterface{
+				Port: port,
+				TLS:  config.TLS{
+					// Cert: certFile,
+					// Key:  keyFile,
+				},
+			},
+			N3: config.N3Interface{
+				Name:    n3Interface,
+				Address: "192.168.1.1",
+			},
+			N6: config.N6Interface{
+				Name: n6Interface,
+			},
+		},
+	}
+
 	// Start the server in a separate goroutine.
 	dummyFS := dummyFS{}
-	if err := Start(testdb, nil, port, scheme, certFile, keyFile, n3Interface, n6Interface, false, dummyFS, nil); err != nil {
+	if err := Start(testdb, cfg, nil, dummyFS, nil); err != nil {
 		t.Fatalf("Start returned error: %v", err)
 	}
 

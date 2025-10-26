@@ -98,6 +98,10 @@ const (
 	PermGetNATInfo    = "nat:get"
 	PermUpdateNATInfo = "nat:update"
 
+	// Network Interfaces permissions
+	PermListNetworkInterfaces = "interfaces:list"
+	PermUpdateN3Interface     = "interfaces:update_n3"
+
 	// Radio permissions
 	PermListRadios = "radio:list"
 	PermReadRadio  = "radio:read"

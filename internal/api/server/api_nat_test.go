@@ -59,7 +59,7 @@ func getNATInfo(url string, client *http.Client, token string) (int, *GetNATInfo
 	return res.StatusCode, &natResponse, nil
 }
 
-func updateNATInfo(url string, client *http.Client, token string, enabled bool) (int, *UpdateOperatorSliceResponse, error) {
+func updateNATInfo(url string, client *http.Client, token string, enabled bool) (int, *UpdateNATInfoResponse, error) {
 	params := UpdateNATInfoParams{
 		Enabled: enabled,
 	}
@@ -88,7 +88,7 @@ func updateNATInfo(url string, client *http.Client, token string, enabled bool) 
 		}
 	}()
 
-	var updateResponse UpdateOperatorSliceResponse
+	var updateResponse UpdateNATInfoResponse
 
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
