@@ -180,6 +180,17 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
     validateForm();
   }, [formValues, validateForm]);
 
+  useEffect(() => {
+    if (!policies.length) return;
+
+    setFormValues((prev) => {
+      if (prev.policyName && policies.includes(prev.policyName)) {
+        return prev;
+      }
+      return { ...prev, policyName: policies[0] };
+    });
+  }, [policies]);
+
   const handleSubmit = async () => {
     if (!accessToken) return;
     setLoading(true);

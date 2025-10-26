@@ -154,6 +154,17 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
     validateForm();
   }, [validateForm, formValues]);
 
+  useEffect(() => {
+    if (!dataNetworks.length) return;
+
+    setFormValues((prev) => {
+      if (prev.dataNetworkName && dataNetworks.includes(prev.dataNetworkName)) {
+        return prev;
+      }
+      return { ...prev, dataNetworkName: dataNetworks[0] };
+    });
+  }, [dataNetworks]);
+
   const handleSubmit = async () => {
     if (!accessToken) return;
     setLoading(true);
