@@ -479,6 +479,81 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 	}
 }
 
+func TestCreateSubscriberValidInput(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	tests := []struct {
+		mcc  string
+		mnc  string
+		imsi string
+	}{
+		{
+			mcc:  "001",
+			mnc:  "01",
+			imsi: "001019756139935",
+		},
+		{
+			mcc:  "001",
+			mnc:  "001",
+			imsi: "001001975613993",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.imsi, func(t *testing.T) {
+			updateOperatorIDParams := &UpdateOperatorIDParams{
+				Mcc: tt.mcc,
+				Mnc: tt.mnc,
+			}
+
+			statusCode, _, err := updateOperatorID(ts.URL, client, token, updateOperatorIDParams)
+			if err != nil {
+				t.Fatalf("couldn't update operator ID: %s", err)
+			}
+
+			if statusCode != http.StatusCreated {
+				t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+			}
+
+			createSubscriberParams := &CreateSubscriberParams{
+				Imsi:           tt.imsi,
+				Key:            Key,
+				SequenceNumber: SequenceNumber,
+				PolicyName:     "default",
+			}
+
+			statusCode, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
+			if err != nil {
+				t.Fatalf("couldn't create subscriber: %s", err)
+			}
+
+			if statusCode != http.StatusCreated {
+				t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+			}
+
+			statusCode, _, err = deleteSubscriber(ts.URL, client, token, tt.imsi)
+			if err != nil {
+				t.Fatalf("couldn't delete subscriber: %s", err)
+			}
+
+			if statusCode != http.StatusOK {
+				t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+			}
+		})
+	}
+}
+
 func TestCreateTooManySubscribers(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")

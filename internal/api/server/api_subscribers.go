@@ -78,7 +78,10 @@ func isImsiValid(ctx context.Context, imsi string, dbInstance *db.Database) bool
 	Mcc := network.Mcc
 	Mnc := network.Mnc
 
-	if imsi[:3] != Mcc || imsi[3:5] != Mnc {
+	mncLength := len(Mnc)
+
+	if imsi[:3] != Mcc || imsi[3:3+mncLength] != Mnc {
+		logger.APILog.Warn("IMSI does not match operator MCC/MNC", zap.String("imsi", imsi), zap.String("mcc", Mcc), zap.String("mnc", Mnc))
 		return false
 	}
 
@@ -92,6 +95,7 @@ func isImsiValidRegexp(imsi string) bool {
 
 	for _, c := range imsi {
 		if c < '0' || c > '9' {
+			logger.APILog.Warn("IMSI contains non-numeric characters")
 			return false
 		}
 	}

@@ -51,11 +51,23 @@ type Operator = {
   };
 };
 
+const getMSINLength = (mnc: string) => (mnc?.length === 3 ? 9 : 10);
+
 const schema = yup.object().shape({
   msin: yup
     .string()
-    .length(10, "MSIN must be exactly 10 digits long.")
     .matches(/^\d+$/, "MSIN must be numeric.")
+    .test("msin-len", function (value) {
+      const mncLength = this.options?.context?.mncLength ?? 2;
+      const len = mncLength === 3 ? 9 : 10;
+      if (!value) return this.createError({ message: "MSIN is required." });
+      return (
+        value.length === len ||
+        this.createError({
+          message: `MSIN must be exactly ${len} digits long.`,
+        })
+      );
+    })
     .required("MSIN is required."),
   key: yup
     .string()
@@ -148,7 +160,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   const validateField = async (field: string, value: string | number) => {
     try {
       const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
-      await fieldSchema.validate(value);
+      await fieldSchema.validate(value, { context: { mncLength: mnc.length } });
       setErrors((prev) => ({ ...prev, [field]: "" }));
     } catch (err) {
       if (err instanceof ValidationError) {
@@ -159,7 +171,10 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
 
   const validateForm = useCallback(async () => {
     try {
-      await schema.validate(formValues, { abortEarly: false });
+      await schema.validate(formValues, {
+        abortEarly: false,
+        context: { mncLength: mnc.length },
+      });
       setErrors({});
       setIsValid(true);
     } catch (err) {
@@ -175,7 +190,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       }
       setIsValid(false);
     }
-  }, [formValues]);
+  }, [formValues, mnc.length]);
 
   useEffect(() => {
     validateForm();
@@ -223,15 +238,18 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   const parseIMSIorMSIN = (raw: string, mcc: string, mnc: string) => {
     const digits = sanitizeDigits(raw);
     const prefix = `${mcc}${mnc}`;
-    const wantLen = prefix.length + 10;
+    const msinLen = 15 - (mcc.length + mnc.length); // -> 10 if MNC=2, 9 if MNC=3
+    const fullLen = prefix.length + msinLen;
 
-    if (digits.length <= 10) {
+    // 1) Plain MSIN entry
+    if (digits.length <= msinLen) {
       return { msin: digits, mismatchMsg: null };
     }
 
-    if (digits.length >= wantLen) {
+    // 2) Full IMSI (or longer)
+    if (digits.length >= fullLen) {
       if (digits.startsWith(prefix)) {
-        const msin = digits.slice(prefix.length, prefix.length + 10);
+        const msin = digits.slice(prefix.length, prefix.length + msinLen);
         return { msin, mismatchMsg: null };
       }
       return {
@@ -240,7 +258,8 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       };
     }
 
-    return { msin: digits.slice(-10), mismatchMsg: null };
+    // 3) Partial IMSI in progress
+    return { msin: digits.slice(-msinLen), mismatchMsg: null };
   };
 
   const handleIMSIishInput = (raw: string) => {
@@ -254,10 +273,12 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
     }
   };
 
+  const randomDigits = (len: number) =>
+    Array.from({ length: len }, () => Math.floor(Math.random() * 10)).join("");
+
   const generateRandomMSIN = () => {
-    const randomMSIN = Math.floor(
-      1000000000 + Math.random() * 9000000000,
-    ).toString();
+    const len = getMSINLength(mnc); // 9 if MNC is 3 digits, else 10
+    const randomMSIN = randomDigits(len);
     handleChange("msin", randomMSIN);
   };
 
