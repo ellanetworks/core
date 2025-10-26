@@ -5,6 +5,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  InputAdornment,
   TextField,
   Button,
   Typography,
@@ -16,7 +17,6 @@ import {
   Checkbox,
   InputLabel,
   FormControl,
-  FormGroup,
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
@@ -110,6 +110,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
   const [customOPC, setCustomOPC] = useState(false);
+  const [imsiMismatch, setImsiMismatch] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchOperatorAndPolicies = async () => {
@@ -217,6 +218,42 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
     }
   };
 
+  const sanitizeDigits = (s: string) => s.replace(/\D/g, "");
+
+  const parseIMSIorMSIN = (raw: string, mcc: string, mnc: string) => {
+    const digits = sanitizeDigits(raw);
+    const prefix = `${mcc}${mnc}`;
+    const wantLen = prefix.length + 10;
+
+    if (digits.length <= 10) {
+      return { msin: digits, mismatchMsg: null };
+    }
+
+    if (digits.length >= wantLen) {
+      if (digits.startsWith(prefix)) {
+        const msin = digits.slice(prefix.length, prefix.length + 10);
+        return { msin, mismatchMsg: null };
+      }
+      return {
+        msin: null,
+        mismatchMsg: `IMSI prefix does not match MCC ${mcc} / MNC ${mnc}.`,
+      };
+    }
+
+    return { msin: digits.slice(-10), mismatchMsg: null };
+  };
+
+  const handleIMSIishInput = (raw: string) => {
+    const { msin, mismatchMsg } = parseIMSIorMSIN(raw, mcc, mnc);
+
+    setImsiMismatch(mismatchMsg);
+
+    if (msin !== null) {
+      handleChange("msin", msin);
+      setTouched((t) => ({ ...t, msin: true }));
+    }
+  };
+
   const generateRandomMSIN = () => {
     const randomMSIN = Math.floor(
       1000000000 + Math.random() * 9000000000,
@@ -243,47 +280,40 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
           </Alert>
         </Collapse>
 
-        <FormGroup
-          sx={{ mb: 2, p: 2, border: "1px solid #ccc", borderRadius: 1 }}
-        >
-          <Typography variant="subtitle1" gutterBottom>
-            IMSI
-          </Typography>
-          <Box display="flex" gap={2} alignItems="center">
-            <TextField
-              label="MCC"
-              value={mcc}
-              disabled
-              margin="normal"
-              sx={{ flex: 1 }}
-            />
-            <TextField
-              label="MNC"
-              value={mnc}
-              disabled
-              margin="normal"
-              sx={{ flex: 1 }}
-            />
-            <TextField
-              label="MSIN"
-              value={formValues.msin}
-              onChange={(e) => handleChange("msin", e.target.value)}
-              onBlur={() => handleBlur("msin")}
-              error={!!errors.msin && touched.msin}
-              helperText={touched.msin ? errors.msin : ""}
-              margin="normal"
-              sx={{ flex: 2 }}
-            />
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={generateRandomMSIN}
-            >
-              Generate
-            </Button>
-          </Box>
-        </FormGroup>
-
+        <Box display="flex" gap={2} alignItems="center">
+          <TextField
+            fullWidth
+            label="IMSI"
+            value={formValues.msin}
+            onChange={(e) => handleIMSIishInput(e.target.value)}
+            onPaste={(e) => {
+              const pasted = e.clipboardData.getData("text");
+              if (/\d{12,}/.test(pasted)) {
+                e.preventDefault();
+                handleIMSIishInput(pasted);
+              }
+            }}
+            onBlur={() => handleBlur("msin")}
+            error={(!!errors.msin && touched.msin) || !!imsiMismatch}
+            helperText={(touched.msin && errors.msin) || imsiMismatch}
+            margin="normal"
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">{`${mcc}${mnc}`}</InputAdornment>
+                ),
+              },
+            }}
+          />
+          <Button
+            variant="contained"
+            color="primary"
+            sx={{ flex: "0 0 120px", minWidth: 120, flexShrink: 0 }}
+            onClick={generateRandomMSIN}
+          >
+            Generate
+          </Button>
+        </Box>
         <Box display="flex" gap={2} alignItems="center">
           <TextField
             fullWidth
@@ -299,6 +329,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
           <Button
             variant="contained"
             color="primary"
+            sx={{ flex: "0 0 120px", minWidth: 120, flexShrink: 0 }}
             onClick={() => {
               const randomKey = [...Array(32)]
                 .map(() => Math.floor(Math.random() * 16).toString(16))
