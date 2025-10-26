@@ -18,8 +18,14 @@ jobs:
         with:
           rockcraft-channel: edge
 
+      - name: Save container image to D
+        run: |
+          rock_file=$(ls *.rock | tail -n 1)
+          sudo rockcraft.skopeo --insecure-policy copy oci-archive:"${rock_file}" docker-daemon:ella-core:latest
+          docker save -o ellacore_latest.tar ella-core:latest
+
       - name: Upload container image to GitHub Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rock
-          path: ${{ steps.rockcraft.outputs.rock }}
+          name: image
+          path: ellacore_latest.tar
