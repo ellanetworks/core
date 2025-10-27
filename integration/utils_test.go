@@ -79,6 +79,17 @@ func configureEllaCore(ctx context.Context, cl *client.Client, nat bool) error {
 		return fmt.Errorf("failed to configure NAT: %v", err)
 	}
 
+	createRouteOpts := &client.CreateRouteOptions{
+		Destination: "8.8.8.8/32",
+		Gateway:     "10.6.0.3",
+		Interface:   "n6",
+		Metric:      0,
+	}
+	err = cl.CreateRoute(ctx, createRouteOpts)
+	if err != nil {
+		return fmt.Errorf("failed to create n6 route: %v", err)
+	}
+
 	for i := range numIMSIS {
 		imsi, err := computeIMSI(testStartIMSI, i)
 		if err != nil {
