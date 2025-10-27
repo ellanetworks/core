@@ -8,11 +8,15 @@ As a network operator, you will need to provision a SIM card for each subscriber
 
 ## Using Physical SIM Cards
 
-You can obtain physical SIM cards from a SIM card vendor (ex. [Sysmocom Programmable SIM Cards](https://sysmocom.de/products/sim/sysmoisim-sja5/index.html)) and burn the necessary information (IMSI, Key, OPc) onto the SIM cards. These SIM cards can then be distributed to subscribers for use in their devices.
+Physical SIM cards can be used in devices that support them. You will need to obtain blank SIM cards and program them with the subscriber information (IMSI, Key, OPc) corresponding to the subscribers you create in Ella Core.
+
+### Obtaining SIM Cards
+
+You can obtain physical SIM cards from a SIM card vendor (ex. [Sysmocom Programmable SIM Cards](https://sysmocom.de/products/sim/sysmoisim-sja5/index.html)).
 
 ### Burning SIM Cards
 
-You can burn the SIM card using a card reader/writer (ex. [OmniKey 3121](https://www.hidglobal.com/products/readers/omnikey-3121)) along with software provided by the SIM card vendor. The software will allow you to input the subscriber information (IMSI, Key, OPc) and write it to the SIM card.
+You can burn the SIM card using a card reader/writer (ex. [OmniKey 3121](https://www.hidglobal.com/products/omnikey-3121)) along with software provided by the SIM card vendor. The software will allow you to input the subscriber information (IMSI, Key, OPc) and write it to the SIM card.
 
 For example, using Osmocom's [pysim](https://github.com/osmocom/pysim) software, you can burn a SIM card with the following command:
 
