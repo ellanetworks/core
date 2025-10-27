@@ -59,7 +59,8 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
     Build Ella Core:
 
     ```shell
-    go build cmd/core/main.go
+    REVISION=`git rev-parse HEAD`
+    go build -ldflags "-X github.com/ellanetworks/core/version.GitCommit=${REVISION}" ./cmd/core/main.go
     ```
 
     Configure Ella Core:
