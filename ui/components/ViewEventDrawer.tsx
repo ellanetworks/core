@@ -23,7 +23,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getNetworkLog, type NetworkLogContent } from "@/queries/network_logs";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { GenericMessageView } from "@/components/EventMessageRender"; // adjust path
+import { GenericMessageView } from "@/components/EventMessageRender";
 
 export interface LogRow {
   id: string;
@@ -184,7 +184,6 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
     const pretty = (
       <GenericMessageView
         decoded={decoded}
-        // Optional chips if present:
         headerChips={
           log?.protocol?.toUpperCase() === "NGAP" && decoded
             ? ([
@@ -193,14 +192,6 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
                   : undefined,
                 decoded?.message_type
                   ? { label: String(decoded.message_type) }
-                  : undefined,
-                decoded?.procedure_code?.label
-                  ? { label: String(decoded.procedure_code.label) }
-                  : undefined,
-                decoded?.criticality?.label
-                  ? {
-                      label: `Criticality: ${String(decoded.criticality.label)}`,
-                    }
                   : undefined,
               ].filter(Boolean) as Array<{ label: string }>)
             : undefined
@@ -384,7 +375,6 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
       </Box>
 
       <Box sx={{ flex: 1, overflow: "auto", px: 2, pb: 2 }}>
-        {/* Metadata */}
         <Stack spacing={1.25} sx={{ my: 1.25 }}>
           <MetaRow label="Timestamp" value={log?.timestamp} />
           <MetaRow label="Protocol" value={log?.protocol} />
