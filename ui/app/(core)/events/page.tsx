@@ -195,9 +195,6 @@ const Events: React.FC = () => {
   const [selectedRow, setSelectedRow] = useState<LogRow | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const visible = usePageVisible();
-
-  const [networkRows, setSubRows] = useState<APINetworkLog[]>([]);
-  const [subRowCount, setSubRowCount] = useState<number>(0);
   const [subPagination, setSubPagination] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 25,
@@ -213,18 +210,23 @@ const Events: React.FC = () => {
 
   const [isNetworkEditModalOpen, setNetworkEditModalOpen] = useState(false);
   const [isNetworkClearModalOpen, setNetworkClearModalOpen] = useState(false);
-  const [networkRetentionPolicy, setSubRetentionPolicy] =
-    useState<NetworkLogRetentionPolicy | null>(null);
+
+  const retentionQuery = useQuery<NetworkLogRetentionPolicy>({
+    queryKey: ["networkLogRetention", accessToken],
+    enabled: authReady && !!accessToken && !isNetworkEditModalOpen,
+    queryFn: () => getNetworkLogRetentionPolicy(accessToken!),
+  });
+
   const subToolbarValue = React.useMemo<EventToolbarState>(
     () => ({
       canEdit,
-      retentionDays: networkRetentionPolicy?.days ?? "…",
+      retentionDays: retentionQuery.data?.days ?? "…",
       onEditRetention: () => setNetworkEditModalOpen(true),
       onClearAll: () => setNetworkClearModalOpen(true),
       isLive: autoRefresh,
       onToggleLive: () => setAutoRefresh((v) => !v),
     }),
-    [canEdit, networkRetentionPolicy?.days, autoRefresh],
+    [canEdit, retentionQuery.data?.days, autoRefresh],
   );
   const [networkFilterModel, setSubFilterModel] = useState<GridFilterModel>({
     items: [],
@@ -234,16 +236,6 @@ const Events: React.FC = () => {
     (m: GridFilterModel) => setSubFilterModel(m),
     [],
   );
-
-  const fetchNetworkRetention = useCallback(async () => {
-    if (!authReady || !accessToken) return;
-    try {
-      const data = await getNetworkLogRetentionPolicy(accessToken);
-      setSubRetentionPolicy(data);
-    } catch (e) {
-      console.error("Error fetching network log retention policy:", e);
-    }
-  }, [accessToken, authReady]);
 
   const subQuery = useQuery<ListNetworkLogsResponse>({
     queryKey: [
@@ -268,17 +260,17 @@ const Events: React.FC = () => {
     },
   });
 
-  useEffect(() => {
-    if (!subQuery.data) return;
-    const items = (subQuery.data.items ?? []).map<GridNetworkLog>((r) => ({
+  const networkRows: GridNetworkLog[] = useMemo(() => {
+    const items = subQuery.data?.items ?? [];
+    return items.map<GridNetworkLog>((r) => ({
       ...r,
       timestamp_dt: r.timestamp
         ? new Date(normalizeRfc3339Offset(r.timestamp))
         : null,
     }));
-    setSubRows(items);
-    setSubRowCount(subQuery.data.total_count ?? 0);
-  }, [subQuery.data]);
+  }, [subQuery.data?.items]);
+
+  const subRowCount = subQuery.data?.total_count ?? 0;
 
   const handleConfirmDeleteNetworkLogs = async () => {
     setNetworkClearModalOpen(false);
@@ -297,10 +289,6 @@ const Events: React.FC = () => {
       });
     }
   };
-
-  useEffect(() => {
-    fetchNetworkRetention();
-  }, [fetchNetworkRetention]);
 
   const networkColumns: GridColDef<APINetworkLog>[] = useMemo(() => {
     return [
@@ -490,13 +478,13 @@ const Events: React.FC = () => {
         open={isNetworkEditModalOpen}
         onClose={() => setNetworkEditModalOpen(false)}
         onSuccess={() => {
-          fetchNetworkRetention();
+          retentionQuery.refetch();
           setAlert({
             message: "Retention policy updated!",
             severity: "success",
           });
         }}
-        initialData={networkRetentionPolicy || { days: 7 }}
+        initialDays={retentionQuery.data?.days || 7}
       />
       <DeleteConfirmationModal
         title="Clear All Network Logs"

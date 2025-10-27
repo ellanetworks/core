@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Box,
   IconButton,
@@ -43,8 +44,6 @@ const MAX_WIDTH = 1400;
 const Operator = () => {
   const { role, accessToken, authReady } = useAuth();
 
-  const [operator, setOperator] = useState<OperatorData | null>(null);
-
   const [isEditOperatorIdModalOpen, setEditOperatorIdModalOpen] =
     useState(false);
   const [isEditOperatorCodeModalOpen, setEditOperatorCodeModalOpen] =
@@ -58,27 +57,28 @@ const Operator = () => {
     setEditOperatorHomeNetworkModalOpen,
   ] = useState(false);
 
+  const anyModalOpen =
+    isEditOperatorIdModalOpen ||
+    isEditOperatorCodeModalOpen ||
+    isEditOperatorTrackingModalOpen ||
+    isEditOperatorSliceModalOpen ||
+    isEditOperatorHomeNetworkModalOpen;
+
+  const queryClient = useQueryClient();
+  const operatorQuery = useQuery<OperatorData>({
+    queryKey: ["operator", accessToken],
+    enabled: authReady && !!accessToken && !anyModalOpen,
+    queryFn: () => getOperator(accessToken!),
+    placeholderData: (prev) => prev,
+  });
+  const operator = operatorQuery.data ?? null;
+
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
 
   const canEdit = role === "Admin" || role === "Network Manager";
-
-  const fetchOperator = useCallback(async () => {
-    if (!authReady || !accessToken) return;
-    try {
-      const data = await getOperator(accessToken);
-      setOperator(data);
-    } catch (error) {
-      console.error("Error fetching operator information:", error);
-      setAlert({ message: "Failed to load operator info.", severity: "error" });
-    }
-  }, [accessToken, authReady]);
-
-  useEffect(() => {
-    fetchOperator();
-  }, [fetchOperator]);
 
   const handleEditOperatorIdClick = () => setEditOperatorIdModalOpen(true);
   const handleEditOperatorCodeClick = () => setEditOperatorCodeModalOpen(true);
@@ -101,7 +101,7 @@ const Operator = () => {
     setEditOperatorHomeNetworkModalOpen(false);
 
   const handleEditOperatorIdSuccess = () => {
-    fetchOperator();
+    queryClient.invalidateQueries({ queryKey: ["operator", accessToken] });
     setAlert({
       message: "Operator ID updated successfully!",
       severity: "success",
@@ -114,21 +114,21 @@ const Operator = () => {
     });
   };
   const handleEditOperatorTrackingSuccess = () => {
-    fetchOperator();
+    queryClient.invalidateQueries({ queryKey: ["operator", accessToken] });
     setAlert({
       message: "Operator Tracking information updated successfully!",
       severity: "success",
     });
   };
   const handleEditOperatorSliceSuccess = () => {
-    fetchOperator();
+    queryClient.invalidateQueries({ queryKey: ["operator", accessToken] });
     setAlert({
       message: "Operator Slice information updated successfully!",
       severity: "success",
     });
   };
   const handleEditOperatorHomeNetworkSuccess = () => {
-    fetchOperator();
+    queryClient.invalidateQueries({ queryKey: ["operator", accessToken] });
     setAlert({
       message: "Operator Home Network information updated successfully!",
       severity: "success",

@@ -10,10 +10,7 @@ import {
   Alert,
   Collapse,
 } from "@mui/material";
-import {
-  updateNetworkLogRetentionPolicy,
-  type NetworkLogRetentionPolicy,
-} from "@/queries/network_logs";
+import { updateNetworkLogRetentionPolicy } from "@/queries/network_logs";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -21,32 +18,30 @@ interface EditNetworkLogRetentionPolicyModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: NetworkLogRetentionPolicy;
+  initialDays: number;
 }
 
 const EditNetworkLogRetentionPolicyModal: React.FC<
   EditNetworkLogRetentionPolicyModalProps
-> = ({ open, onClose, onSuccess, initialData }) => {
+> = ({ open, onClose, onSuccess, initialDays }) => {
   const router = useRouter();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    router.push("/login");
-  }
+  useEffect(() => {
+    if (!authReady || !accessToken) router.push("/login");
+  }, [authReady, accessToken, router]);
 
-  const [formValues, setFormValues] = useState(initialData);
+  const [formValues, setFormValues] = useState({ days: initialDays });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   useEffect(() => {
     if (open) {
-      setFormValues({
-        days: initialData.days,
-      });
+      setFormValues({ days: initialDays });
       setErrors({});
     }
-  }, [open, initialData]);
+  }, [open, initialDays]);
 
   const handleChange = (field: string, value: string | number) => {
     setFormValues((prev) => ({

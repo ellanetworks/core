@@ -145,7 +145,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       cancelled = true;
       clearRefreshTimer();
     };
-  }, []);
+  }, [silentRefresh]);
 
   useEffect(() => {
     const onVisibility = async () => {
@@ -157,7 +157,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, []);
+  }, [silentRefresh]);
 
   if (!authReady) {
     return (
