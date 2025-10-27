@@ -81,9 +81,9 @@ func configureEllaCore(ctx context.Context, cl *client.Client, nat bool) error {
 
 	createRouteOpts := &client.CreateRouteOptions{
 		Destination: "8.8.8.8/32",
-		Gateway: "10.6.0.3",
-		Interface: "n6",
-		Metric: 0,
+		Gateway:     "10.6.0.3",
+		Interface:   "n6",
+		Metric:      0,
 	}
 	err = cl.CreateRoute(ctx, createRouteOpts)
 	if err != nil {
