@@ -25,7 +25,7 @@ jobs:
           docker save -o ellacore_latest.tar ella-core:latest
 
       - name: Upload container image to GitHub Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ellacore-image
           path: ellacore_latest.tar
