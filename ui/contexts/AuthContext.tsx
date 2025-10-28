@@ -7,17 +7,14 @@ import React, {
   ReactNode,
   useContext,
   useRef,
+  useCallback,
 } from "react";
 import { useRouter } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
 import { CircularProgress, Box } from "@mui/material";
 import { refresh } from "@/queries/auth";
 
-type AuthState = {
-  email: string;
-  role: string;
-};
-
+type AuthState = { email: string; role: string };
 interface AuthContextType {
   email: string | null;
   role: string | null;
@@ -37,7 +34,6 @@ export const AuthContext = createContext<AuthContextType>({
 interface AuthProviderProps {
   children: ReactNode;
 }
-
 interface DecodedToken {
   email: string;
   role_id: number;
@@ -45,6 +41,7 @@ interface DecodedToken {
 }
 
 const LEEWAY_SEC = 120;
+const MIN_REFRESH_DELAY_MS = 5000; // clamp to avoid 0ms loops
 
 function roleToString(roleId: number): string {
   switch (roleId) {
@@ -80,31 +77,35 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const refreshTimerRef = useRef<number | null>(null);
   const refreshingRef = useRef(false);
 
-  const clearRefreshTimer = () => {
+  const clearRefreshTimer = useCallback(() => {
     if (refreshTimerRef.current != null) {
       window.clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = null;
     }
-  };
+  }, []);
 
-  const scheduleRefresh = (token: string) => {
+  const scheduleRefresh = useCallback((token: string) => {
     clearRefreshTimer();
+    let delayMs = 30_000; // default fallback
     try {
       const { exp } = jwtDecode<DecodedToken>(token);
-      if (!exp) return;
-      const now = Math.floor(Date.now() / 1000);
-      const delayMs = Math.max(0, (exp - LEEWAY_SEC - now) * 1000);
-      refreshTimerRef.current = window.setTimeout(() => {
-        void silentRefresh();
-      }, delayMs);
+      if (exp) {
+        const now = Math.floor(Date.now() / 1000);
+        delayMs = Math.max(
+          MIN_REFRESH_DELAY_MS,
+          (exp - LEEWAY_SEC - now) * 1000,
+        );
+      }
     } catch {
-      refreshTimerRef.current = window.setTimeout(() => {
-        void silentRefresh();
-      }, 30_000);
+      // keep fallback
     }
-  };
+    refreshTimerRef.current = window.setTimeout(() => {
+      void silentRefresh();
+    }, delayMs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally stable (no deps)
 
-  const silentRefresh = async () => {
+  const silentRefresh = useCallback(async () => {
     if (refreshingRef.current) return;
     refreshingRef.current = true;
     try {
@@ -119,7 +120,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const role = roleToString(decoded.role_id);
       setAuthData({ email: decoded.email, role });
 
-      scheduleRefresh(token);
+      if (tokenExpiringSoon(token)) {
+        refreshTimerRef.current = window.setTimeout(() => {
+          void silentRefresh();
+        }, MIN_REFRESH_DELAY_MS);
+      } else {
+        scheduleRefresh(token);
+      }
     } catch {
       tokenRef.current = null;
       setAccessToken(null);
@@ -130,7 +137,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       refreshingRef.current = false;
       setAuthReady(true);
     }
-  };
+  }, [router, scheduleRefresh, clearRefreshTimer]);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,14 +152,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       cancelled = true;
       clearRefreshTimer();
     };
-  }, [silentRefresh]);
+  }, [silentRefresh, clearRefreshTimer]);
 
   useEffect(() => {
-    const onVisibility = async () => {
+    const onVisibility = () => {
       if (document.visibilityState !== "visible") return;
       const t = tokenRef.current;
       if (!t || tokenExpiringSoon(t)) {
-        await silentRefresh();
+        void silentRefresh();
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
