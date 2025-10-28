@@ -11,45 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-func BuildUeContextModel(ue *context.AmfUe) (ueContext models.UeContext) {
-	ueContext.Supi = ue.Supi
-
-	if ue.Gpsi != "" {
-		ueContext.GpsiList = append(ueContext.GpsiList, ue.Gpsi)
-	}
-
-	if ue.Pei != "" {
-		ueContext.Pei = ue.Pei
-	}
-
-	if ue.RoutingIndicator != "" {
-		ueContext.RoutingIndicator = ue.RoutingIndicator
-	}
-
-	if ue.AccessAndMobilitySubscriptionData != nil {
-		if ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr != nil {
-			ueContext.SubUeAmbr = &models.Ambr{
-				Uplink:   ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Uplink,
-				Downlink: ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Downlink,
-			}
-		}
-		if ue.AccessAndMobilitySubscriptionData.RfspIndex != 0 {
-			ueContext.SubRfsp = ue.AccessAndMobilitySubscriptionData.RfspIndex
-		}
-	}
-
-	if ue.AmPolicyAssociation != nil {
-		if len(ue.AmPolicyAssociation.Triggers) > 0 {
-			ueContext.AmPolicyReqTriggerList = buildAmPolicyReqTriggers(ue.AmPolicyAssociation.Triggers)
-		}
-	}
-
-	if ue.TraceData != nil {
-		ueContext.TraceData = ue.TraceData
-	}
-	return ueContext
-}
-
 func buildAmPolicyReqTriggers(triggers []models.RequestTrigger) (amPolicyReqTriggers []models.AmPolicyReqTrigger) {
 	for _, trigger := range triggers {
 		switch trigger {

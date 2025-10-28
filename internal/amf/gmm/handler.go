@@ -677,7 +677,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 }
 
 func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType) error {
-	ue.GmmLog.Info("Handle MobilityAndPeriodicRegistrationUpdating")
+	ue.GmmLog.Debug("Handle MobilityAndPeriodicRegistrationUpdating")
 
 	amfSelf := context.AMFSelf()
 
@@ -1058,6 +1058,8 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		}
 
 		needSliceSelection := false
+		var newAllowed []models.AllowedSnssai
+
 		for _, requestedSnssai := range requestedNssai {
 			if ue.InSubscribedNssai(requestedSnssai.ServingSnssai) {
 				allowedSnssai := models.AllowedSnssai{
@@ -1067,13 +1069,13 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 					},
 					MappedHomeSnssai: requestedSnssai.HomeSnssai,
 				}
-				ue.AllowedNssai[anType] = append(ue.AllowedNssai[anType], allowedSnssai)
-				logger.AmfLog.Debug("Add requested snssai to allowed nssai list", zap.Int32("SST", requestedSnssai.ServingSnssai.Sst), zap.String("SD", requestedSnssai.ServingSnssai.Sd), zap.Int("numNSSAI", len(ue.AllowedNssai[anType])))
+				newAllowed = append(newAllowed, allowedSnssai)
 			} else {
 				needSliceSelection = true
 				break
 			}
 		}
+		ue.AllowedNssai[anType] = newAllowed
 
 		if needSliceSelection {
 			// Step 4
@@ -1103,28 +1105,6 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			//  allowedNssaiNgap := ngapConvert.AllowedNssaiToNgap(ue.AllowedNssai[anType])
 			//	ngap_message.SendRerouteNasRequest(ue, anType, nil, ue.RanUe[anType].InitialUEMessage, &allowedNssaiNgap)
 			ue.TargetAmfURI = amfSelf.GetIPv4Uri()
-			ueContext := consumer.BuildUeContextModel(ue)
-			registerContext := models.RegistrationContextContainer{
-				UeContext:        &ueContext,
-				AnType:           anType,
-				AnN2ApID:         int32(ue.RanUe[anType].RanUeNgapID),
-				RanNodeID:        ue.RanUe[anType].Ran.RanID,
-				InitialAmfName:   amfSelf.Name,
-				UserLocation:     &ue.Location,
-				RrcEstCause:      ue.RanUe[anType].RRCEstablishmentCause,
-				UeContextRequest: ue.RanUe[anType].UeContextRequest,
-				AnN2IPv4Addr:     ue.RanUe[anType].Ran.GnbIP,
-				AllowedNssai: &models.AllowedNssai{
-					AllowedSnssaiList: ue.AllowedNssai[anType],
-					AccessType:        anType,
-				},
-			}
-			if len(ue.NetworkSliceInfo.RejectedNssaiInPlmn) > 0 {
-				registerContext.RejectedNssaiInPlmn = ue.NetworkSliceInfo.RejectedNssaiInPlmn
-			}
-			if len(ue.NetworkSliceInfo.RejectedNssaiInTa) > 0 {
-				registerContext.RejectedNssaiInTa = ue.NetworkSliceInfo.RejectedNssaiInTa
-			}
 
 			var n1Message bytes.Buffer
 			ue.RegistrationRequest.EncodeRegistrationRequest(&n1Message)
@@ -1135,17 +1115,18 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	// if registration request has no requested nssai, or non of snssai in requested nssai is permitted by nssf
 	// then use ue subscribed snssai which is marked as default as allowed nssai
 	if len(ue.AllowedNssai[anType]) == 0 {
+		var newAllowed []models.AllowedSnssai
 		for _, snssai := range ue.SubscribedNssai {
 			if snssai.DefaultIndication {
 				if amfSelf.InPlmnSupport(ctx, *snssai.SubscribedSnssai) {
 					allowedSnssai := models.AllowedSnssai{
 						AllowedSnssai: snssai.SubscribedSnssai,
 					}
-					ue.AllowedNssai[anType] = append(ue.AllowedNssai[anType], allowedSnssai)
-					logger.AmfLog.Debug("Add default subscribed snssai to allowed nssai list", zap.Int32("SST", snssai.SubscribedSnssai.Sst), zap.String("SD", snssai.SubscribedSnssai.Sd), zap.Int("numNSSAI", len(ue.AllowedNssai[anType])))
+					newAllowed = append(newAllowed, allowedSnssai)
 				}
 			}
 		}
+		ue.AllowedNssai[anType] = newAllowed
 	}
 	return nil
 }
