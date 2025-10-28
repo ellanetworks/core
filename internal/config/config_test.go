@@ -11,7 +11,10 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 )
 
-const InterfaceIP = "1.2.3.4"
+const (
+	InterfaceIP   = "1.2.3.4"
+	InterfaceName = "enp3s0"
+)
 
 func TestValidConfigSuccess(t *testing.T) {
 	tempCertFile, err := os.CreateTemp("", "ella_cert_*.pem")
@@ -55,6 +58,7 @@ func TestValidConfigSuccess(t *testing.T) {
 	config.CheckInterfaceExistsFunc = func(name string) (bool, error) {
 		return true, nil
 	}
+
 	config.GetInterfaceIPFunc = func(name string) (string, error) {
 		return InterfaceIP, nil
 	}
@@ -79,17 +83,24 @@ func TestValidConfigSuccess(t *testing.T) {
 		}
 	}()
 
-	// Run the validation
 	conf, err := config.Validate(confFilePath)
 	if err != nil {
 		t.Fatalf("Error occurred: %s", err)
+	}
+
+	if conf.Interfaces.N2.Address != "1.2.3.4" {
+		t.Fatalf("N2 interface address was not configured correctly")
+	}
+
+	if conf.Interfaces.N2.Port != 38412 {
+		t.Fatalf("N2 port was not configured correctly")
 	}
 
 	if conf.Interfaces.N3.Name != "enp3s0" {
 		t.Fatalf("N3 interface was not configured correctly")
 	}
 
-	if conf.Interfaces.N3.Address != InterfaceIP {
+	if conf.Interfaces.N3.Address != "1.2.3.4" {
 		t.Fatalf("N3 interface address was not configured correctly")
 	}
 
@@ -97,7 +108,7 @@ func TestValidConfigSuccess(t *testing.T) {
 		t.Fatalf("N6 interface was not configured correctly")
 	}
 
-	if conf.Interfaces.API.Name != "enp0s8" {
+	if conf.Interfaces.API.Address != "1.2.3.4" {
 		t.Fatalf("API interface was not configured correctly")
 	}
 
@@ -122,8 +133,9 @@ func TestValidConfigNoTLSSuccess(t *testing.T) {
 	config.CheckInterfaceExistsFunc = func(name string) (bool, error) {
 		return true, nil
 	}
-	config.GetInterfaceIPFunc = func(name string) (string, error) {
-		return InterfaceIP, nil
+
+	config.GetInterfaceNameFunc = func(name string) (string, error) {
+		return InterfaceName, nil
 	}
 
 	confFilePath := "testdata/valid_no_tls.yaml"
@@ -138,17 +150,24 @@ func TestValidConfigNoTLSSuccess(t *testing.T) {
 		}
 	}()
 
-	// Run the validation
 	conf, err := config.Validate(confFilePath)
 	if err != nil {
 		t.Fatalf("Error occurred: %s", err)
+	}
+
+	if conf.Interfaces.N2.Port != 38412 {
+		t.Fatalf("N2 port was not configured correctly")
+	}
+
+	if conf.Interfaces.N2.Address != "0.0.0.0" {
+		t.Fatalf("N2 address was not configured correctly")
 	}
 
 	if conf.Interfaces.N3.Name != "enp3s0" {
 		t.Fatalf("N3 interface was not configured correctly")
 	}
 
-	if conf.Interfaces.N3.Address != InterfaceIP {
+	if conf.Interfaces.N3.Address != "33.33.33.3" {
 		t.Fatalf("N3 interface address was not configured correctly")
 	}
 
@@ -156,7 +175,7 @@ func TestValidConfigNoTLSSuccess(t *testing.T) {
 		t.Fatalf("N6 interface was not configured correctly")
 	}
 
-	if conf.Interfaces.API.Name != "enp0s8" {
+	if conf.Interfaces.API.Address != "0.0.0.0" {
 		t.Fatalf("API interface was not configured correctly")
 	}
 
@@ -185,6 +204,7 @@ func TestBadConfigFail(t *testing.T) {
 	}{
 		{"no db", "testdata/invalid_no_db.yaml", "db is empty"},
 		{"invalid yaml", "testdata/invalid_yaml.yaml", "cannot unmarshal config file"},
+		{"n2 missing both name and address", "testdata/invalid_both_name_and_address.yaml", "interfaces.n2: interface name and address cannot be both set"},
 	}
 
 	for _, tc := range cases {

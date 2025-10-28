@@ -44,20 +44,20 @@ func GenerateJWTSecret() ([]byte, error) {
 	return bytes, nil
 }
 
-func Start(dbInstance *db.Database, upf server.UPFReloader, port int, scheme Scheme, certFile string, keyFile string, n3Interface string, n6Interface string, tracingEnabled bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) error {
+func Start(dbInstance *db.Database, upf server.UPFReloader, address string, port int, scheme Scheme, certFile string, keyFile string, n3Interface string, n6Interface string, tracingEnabled bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) error {
 	jwtSecret, err := GenerateJWTSecret()
 	if err != nil {
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
 	}
+
 	kernelInt := kernel.NewRealKernel(n3Interface, n6Interface)
 
 	secureCookie := scheme == HTTPS
 
 	router := server.NewHandler(dbInstance, upf, kernelInt, jwtSecret, tracingEnabled, secureCookie, embedFS, registerExtraRoutes)
 
-	// Start the HTTP server in a goroutine.
 	go func() {
-		httpAddr := ":" + strconv.Itoa(port)
+		httpAddr := address + ":" + strconv.Itoa(port)
 		h2Server := &http2.Server{
 			IdleTimeout: 1 * time.Millisecond,
 		}
@@ -68,15 +68,16 @@ func Start(dbInstance *db.Database, upf server.UPFReloader, port int, scheme Sch
 		}
 		if scheme == HTTPS {
 			if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil {
-				logger.APILog.Error("couldn't start API server", zap.Error(err))
+				logger.APILog.Fatal("couldn't start API server", zap.Error(err))
 			}
 		} else {
 			if err := srv.ListenAndServe(); err != nil {
-				logger.APILog.Error("couldn't start API server", zap.Error(err))
+				logger.APILog.Fatal("couldn't start API server", zap.Error(err))
 			}
 		}
 	}()
-	logger.APILog.Info("API server started", zap.String("scheme", string(scheme)), zap.String("address", fmt.Sprintf("%s://127.0.0.1:%d", scheme, port)))
+
+	logger.APILog.Info("API server started", zap.String("scheme", string(scheme)), zap.String("address", fmt.Sprintf("%s://%s:%d", scheme, address, port)))
 
 	// Reconcile routes on startup and every 5 minutes.
 	go func() {

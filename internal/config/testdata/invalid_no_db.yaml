@@ -7,14 +7,14 @@ logging:
     output: "stdout"
 interfaces:
   n2:
-    name: "enp2s0"
+    address: "22.22.22.2"
     port: 38412
-  n3: 
+  n3:
     name: "enp3s0"
   n6:
     name: "enp6s0"
   api:
-    name: "enp0s8"
+    address: "0.0.0.0"
     port: 5002
     tls:
       cert: "/etc/ssl/certs/ella.crt"
