@@ -13,7 +13,6 @@ interfaces:
     port: 38412
   n3:
     address: "33.33.33.3"
-    name: "enp3s0"
   n6:
     name: "enp6s0"
   api:

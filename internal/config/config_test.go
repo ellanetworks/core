@@ -11,6 +11,11 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 )
 
+const (
+	InterfaceIP   = "1.2.3.4"
+	InterfaceName = "enp3s0"
+)
+
 func TestValidConfigSuccess(t *testing.T) {
 	tempCertFile, err := os.CreateTemp("", "ella_cert_*.pem")
 	if err != nil {
@@ -54,6 +59,10 @@ func TestValidConfigSuccess(t *testing.T) {
 		return true, nil
 	}
 
+	config.GetInterfaceIPFunc = func(name string) (string, error) {
+		return InterfaceIP, nil
+	}
+
 	// Update the config file to use the temporary cert and key paths
 	confFilePath := "testdata/valid.yaml"
 	originalContent, err := os.ReadFile(confFilePath)
@@ -91,7 +100,7 @@ func TestValidConfigSuccess(t *testing.T) {
 		t.Fatalf("N3 interface was not configured correctly")
 	}
 
-	if conf.Interfaces.N3.Address != "33.33.33.3" {
+	if conf.Interfaces.N3.Address != "1.2.3.4" {
 		t.Fatalf("N3 interface address was not configured correctly")
 	}
 
@@ -123,6 +132,10 @@ func TestValidConfigSuccess(t *testing.T) {
 func TestValidConfigNoTLSSuccess(t *testing.T) {
 	config.CheckInterfaceExistsFunc = func(name string) (bool, error) {
 		return true, nil
+	}
+
+	config.GetInterfaceNameFunc = func(name string) (string, error) {
+		return InterfaceName, nil
 	}
 
 	confFilePath := "testdata/valid_no_tls.yaml"
