@@ -91,7 +91,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 			logger.AmfLog.Debug("Get default sent param", zap.Any("info", info))
 		}
 
-		info.PPID = ngap.PPID
+		info.PPID = nativeToNetworkEndianness32(ngap.PPID)
 		if err := newConn.SetDefaultSentParam(info); err != nil {
 			logger.AmfLog.Error("Set default sent param error", zap.Error(err))
 			if err = newConn.Close(); err != nil {
@@ -210,4 +210,10 @@ func networkToNativeEndianness32(value uint32) uint32 {
 	var b [4]byte
 	binary.BigEndian.PutUint32(b[:], value)
 	return binary.NativeEndian.Uint32(b[:])
+}
+
+func nativeToNetworkEndianness32(value uint32) uint32 {
+	var b [4]byte
+	binary.NativeEndian.PutUint32(b[:], value)
+	return binary.BigEndian.Uint32(b[:])
 }
