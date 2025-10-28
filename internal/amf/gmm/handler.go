@@ -207,7 +207,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				}
 			}
 
-			if ulNasTransport.DNN != nil {
+			if ulNasTransport.DNN != nil && ulNasTransport.DNN.GetLen() > 0 {
 				dnn = string(ulNasTransport.DNN.GetDNN())
 			} else {
 				// if user's subscription context obtained from UDM does not contain the default DNN for the,
