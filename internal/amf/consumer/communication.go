@@ -66,14 +66,6 @@ func buildAmPolicyReqTriggers(triggers []models.RequestTrigger) (amPolicyReqTrig
 	return
 }
 
-func UEContextTransferRequest(
-	ue *context.AmfUe, accessType models.AccessType, transferReason models.TransferReason) (
-	*models.UeContextTransferRspData, error,
-) {
-	logger.AmfLog.Warn("UE context transfer request is not implemented")
-	return nil, nil
-}
-
 // This operation is called "RegistrationCompleteNotify" at TS 23.502
 func RegistrationStatusUpdate(ue *context.AmfUe, request models.UeRegStatusUpdateReqData) (
 	bool, error,

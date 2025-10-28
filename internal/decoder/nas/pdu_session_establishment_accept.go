@@ -96,7 +96,7 @@ func buildPDUSessionEstablishmentAccept(msg *nasMessage.PDUSessionEstablishmentA
 		estAcc.ExtendedProtocolConfigurationOptions = buildExtendedProtocolConfigurationOptions(msg.ExtendedProtocolConfigurationOptions)
 	}
 
-	if msg.DNN != nil {
+	if msg.DNN != nil && msg.DNN.GetLen() > 0 {
 		dnn := string(msg.DNN.GetDNN())
 		estAcc.DNN = &dnn
 	}
