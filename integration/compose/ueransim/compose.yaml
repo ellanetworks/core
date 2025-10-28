@@ -22,10 +22,92 @@ configs:
           port: 5002
       xdp:
         attach-mode: "generic"
+  gnb_config:
+    content: |
+      mcc: '001'
+      mnc: '01'
+
+      nci: '0x000000010'
+      idLength: 32
+      tac: 1
+
+      linkIp: 127.0.0.1
+      ngapIp: 10.3.0.3
+      gtpIp:  10.3.0.3
+
+      amfConfigs:
+        - address: 10.3.0.2
+          port: 38412
+
+      slices:
+        - sst: 0x1
+          sd: 0x102030
+
+      ignoreStreamIds: true
+  ue_config:
+    content: |
+      supi: 'imsi-001019756139935'
+      mcc: '001'
+      mnc: '01'
+      protectionScheme: 0
+      homeNetworkPublicKey: '75d1dde9519b390b172104ae3397557a114acbd39d3c39b2bcc3ce282abc4c3e'
+      homeNetworkPublicKeyId: 1
+      routingIndicator: '0000'
+
+      key: '0eefb0893e6f1c2855a3a244c6db1277'
+      op: '98da19bbc55e2a5b53857d10557b1d26'
+      opType: 'OPC'
+      amf: '8000'
+      imei: '356938035643803'
+      imeiSv: '4370816125816151'
+
+      gnbSearchList:
+        - 127.0.0.1
+
+      uacAic:
+        mps: false
+        mcs: false
+
+      uacAcc:
+        normalClass: 0
+        class11: false
+        class12: false
+        class13: false
+        class14: false
+        class15: false
+
+      sessions:
+        - type: 'IPv4'
+          apn: 'internet'
+          slice:
+            sst: 0x01
+            sd: 0x102030
+
+      configured-nssai:
+        - sst: 0x01
+          sd: 0x102030
+
+      default-nssai:
+        - sst: 1
+          sd: 1
+
+      integrity:
+        IA1: true
+        IA2: true
+        IA3: true
+
+      ciphering:
+        EA1: true
+        EA2: true
+        EA3: true
+
+      integrityMaxRate:
+        uplink: 'full'
+        downlink: 'full'
 
 services:
   ella-core:
-    image: ella-core:latest
+    image: ghcr.io/ellanetworks/ella-core:v0.4.0
     configs:
       - source: ella_config
         target: /core.yaml
@@ -50,6 +132,11 @@ services:
         ipv4_address: 10.6.0.2
   ueransim:
     image: ghcr.io/ellanetworks/ueransim:3.2.7
+    configs:
+      - source: gnb_config
+        target: /gnb.yaml
+      - source: ue_config
+        target: /ue.yaml
     restart: unless-stopped
     privileged: true
     networks:
