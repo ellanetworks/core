@@ -22,7 +22,8 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `path` (string): The path to the database file.
 - `interfaces` (object): The network interfaces configuration.
     - `n2` (object): The configuration for the n2 interface. This interface should be connected to the radios.
-        - `address` (string): The address to listen on.
+        - `name` (string): The name of the network interface (optional: either name or address must be provided).
+        - `address` (string): The address to listen on (optional: either name or address must be provided).
         - `port` (int): The port to listen on.
     - `n3` (object): The configuration for the n3 interface. This interface should be connected to the radios.
         - `name` (string): The name of the network interface (optional: either name or address must be provided).
@@ -30,7 +31,8 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `n6` (object): The configuration for the n6 interface. This interface should be connected to the internet.
         - `name` (string): The name of the network interface.
     - `api` (object): The configuration for the api interface.
-        - `address` (string): The address to listen on.
+        - `name` (string): The name of the network interface (optional: either name or address must be provided).
+        - `address` (string): The address to listen on (optional: either name or address must be provided).
         - `port` (int): The port to listen on.
         - `tls` (object): The TLS configuration (optional).
             - `cert` (string): The path to the TLS certificate file (optional).

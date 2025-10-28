@@ -53,6 +53,7 @@ type TLSYaml struct {
 }
 
 type N2InterfaceYaml struct {
+	Name    string `yaml:"name"`
 	Address string `yaml:"address"`
 	Port    int    `yaml:"port"`
 }
@@ -67,6 +68,7 @@ type N6InterfaceYaml struct {
 }
 
 type APIInterfaceYaml struct {
+	Name    string  `yaml:"name"`
 	Address string  `yaml:"address"`
 	Port    int     `yaml:"port"`
 	TLS     TLSYaml `yaml:"tls"`
@@ -242,59 +244,18 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("interfaces.n2 is empty")
 	}
 
-	if c.Interfaces.N2.Address == "" {
-		return Config{}, errors.New("interfaces.n2.address is empty")
-	}
-
-	if net.ParseIP(c.Interfaces.N2.Address) == nil {
-		return Config{}, fmt.Errorf("interfaces.n2.address %s is not a valid IP address", c.Interfaces.N2.Address)
-	}
-
-	if c.Interfaces.N2.Port == 0 {
-		return Config{}, errors.New("interfaces.n2.port is empty")
+	_, n2Address, err := getInterfaceNameAndAddress(c.Interfaces.N2.Name, c.Interfaces.N2.Address)
+	if err != nil {
+		return Config{}, fmt.Errorf("interfaces.n2: %w", err)
 	}
 
 	if c.Interfaces.N3 == (N3InterfaceYaml{}) {
 		return Config{}, errors.New("interfaces.n3 is empty")
 	}
 
-	if c.Interfaces.N3.Name != "" && c.Interfaces.N3.Address != "" {
-		return Config{}, errors.New("interfaces.n3.name and interfaces.n3.address cannot be both set")
-	}
-
-	if c.Interfaces.N3.Name == "" && c.Interfaces.N3.Address == "" {
-		return Config{}, errors.New("interfaces.n3.name or interfaces.n3.address must be set")
-	}
-
-	var n3InterfaceName string
-	var n3Address string
-
-	if c.Interfaces.N3.Name != "" {
-		n3Exists, err := InterfaceExists(c.Interfaces.N3.Name)
-		if !n3Exists {
-			return Config{}, fmt.Errorf("interfaces.n3.name %s does not exist on the host: %w", c.Interfaces.N3.Name, err)
-		}
-
-		n3InterfaceName = c.Interfaces.N3.Name
-
-		n3Address, err = GetInterfaceIP(n3InterfaceName)
-		if err != nil {
-			return Config{}, fmt.Errorf("cannot get IPv4 address for interface %s: %w", n3InterfaceName, err)
-		}
-	}
-
-	if c.Interfaces.N3.Address != "" {
-		if net.ParseIP(c.Interfaces.N3.Address) == nil {
-			return Config{}, fmt.Errorf("interfaces.n3.address %s is not a valid IP address", c.Interfaces.N3.Address)
-		}
-
-		n3Address = c.Interfaces.N3.Address
-
-		var err error
-		n3InterfaceName, err = GetInterfaceName(n3Address)
-		if err != nil {
-			return Config{}, fmt.Errorf("cannot get interface name for IP address  %s: %w", c.Interfaces.N3.Address, err)
-		}
+	n3InterfaceName, n3Address, err := getInterfaceNameAndAddress(c.Interfaces.N3.Name, c.Interfaces.N3.Address)
+	if err != nil {
+		return Config{}, fmt.Errorf("interfaces.n3: %w", err)
 	}
 
 	if c.Interfaces.N6 == (N6InterfaceYaml{}) {
@@ -309,12 +270,9 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("interfaces.api is empty")
 	}
 
-	if c.Interfaces.API.Address == "" {
-		return Config{}, errors.New("interfaces.api.address is empty")
-	}
-
-	if net.ParseIP(c.Interfaces.API.Address) == nil {
-		return Config{}, fmt.Errorf("interfaces.api.address %s is not a valid IP address", c.Interfaces.API.Address)
+	_, apiAddress, err := getInterfaceNameAndAddress(c.Interfaces.API.Name, c.Interfaces.API.Address)
+	if err != nil {
+		return Config{}, fmt.Errorf("interfaces.api: %w", err)
 	}
 
 	if c.Interfaces.API.Port == 0 {
@@ -353,17 +311,56 @@ func Validate(filePath string) (Config, error) {
 	config.Logging.AuditLogging.Output = c.Logging.AuditLogging.Output
 	config.Logging.AuditLogging.Path = c.Logging.AuditLogging.Path
 	config.DB.Path = c.DB.Path
-	config.Interfaces.N2.Address = c.Interfaces.N2.Address
+	config.Interfaces.N2.Address = n2Address
 	config.Interfaces.N2.Port = c.Interfaces.N2.Port
 	config.Interfaces.N3.Name = n3InterfaceName
 	config.Interfaces.N3.Address = n3Address
 	config.Interfaces.N6.Name = c.Interfaces.N6.Name
-	config.Interfaces.API.Address = c.Interfaces.API.Address
+	config.Interfaces.API.Address = apiAddress
 	config.Interfaces.API.Port = c.Interfaces.API.Port
 	config.XDP.AttachMode = c.XDP.AttachMode
 	config.Telemetry.OTLPEndpoint = c.Telemetry.OTLPEndpoint
 	config.Telemetry.Enabled = c.Telemetry.Enabled
 	return config, nil
+}
+
+func getInterfaceNameAndAddress(interfaceName string, address string) (string, string, error) {
+	if interfaceName != "" && address != "" {
+		return "", "", errors.New("interface name and address cannot be both set")
+	}
+
+	if interfaceName == "" && address == "" {
+		return "", "", errors.New("interface name or address must be set")
+	}
+
+	if interfaceName != "" {
+		interfaceExists, err := InterfaceExists(interfaceName)
+		if !interfaceExists {
+			return "", "", fmt.Errorf("interface name %s does not exist on the host: %w", interfaceName, err)
+		}
+
+		computedAddress, err := GetInterfaceIP(interfaceName)
+		if err != nil {
+			return "", "", fmt.Errorf("cannot get IPv4 address for interface %s: %w", interfaceName, err)
+		}
+
+		return interfaceName, computedAddress, nil
+	}
+
+	if address != "" {
+		if net.ParseIP(address) == nil {
+			return "", "", fmt.Errorf("interface address %s is not a valid IP address", address)
+		}
+
+		computedInterfaceName, err := GetInterfaceName(address)
+		if err != nil {
+			return "", "", fmt.Errorf("cannot get interface name for IP address  %s: %w", address, err)
+		}
+
+		return computedInterfaceName, address, nil
+	}
+
+	return "", "", nil
 }
 
 var CheckInterfaceExistsFunc = func(name string) (bool, error) {

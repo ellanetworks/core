@@ -88,7 +88,7 @@ func TestValidConfigSuccess(t *testing.T) {
 		t.Fatalf("Error occurred: %s", err)
 	}
 
-	if conf.Interfaces.N2.Address != "22.22.22.2" {
+	if conf.Interfaces.N2.Address != "1.2.3.4" {
 		t.Fatalf("N2 interface address was not configured correctly")
 	}
 
@@ -204,6 +204,7 @@ func TestBadConfigFail(t *testing.T) {
 	}{
 		{"no db", "testdata/invalid_no_db.yaml", "db is empty"},
 		{"invalid yaml", "testdata/invalid_yaml.yaml", "cannot unmarshal config file"},
+		{"n2 missing both name and address", "testdata/invalid_both_name_and_address.yaml", "interfaces.n2: interface name and address cannot be both set"},
 	}
 
 	for _, tc := range cases {

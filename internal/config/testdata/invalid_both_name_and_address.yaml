@@ -10,6 +10,7 @@ db:
 interfaces:
   n2:
     name: "enp2s0"
+    address: "22.22.22.2"
     port: 38412
   n3:
     name: "enp3s0"
