@@ -363,6 +363,23 @@ func forward5GSMMessageToSMF(
 	return nil
 }
 
+func getRegistrationType5GSName(regType5Gs uint8) string {
+	switch regType5Gs {
+	case nasMessage.RegistrationType5GSInitialRegistration:
+		return "Initial Registration"
+	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
+		return "Mobility Registration Updating"
+	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
+		return "Periodic Registration Updating"
+	case nasMessage.RegistrationType5GSEmergencyRegistration:
+		return "Emergency Registration"
+	case nasMessage.RegistrationType5GSReserved:
+		return "Reserved"
+	default:
+		return "Unknown"
+	}
+}
+
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
 func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, procedureCode int64, registrationRequest *nasMessage.RegistrationRequest) error {
 	var guamiFromUeGuti models.Guami
@@ -430,20 +447,10 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 
 	ue.RegistrationRequest = registrationRequest
 	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
-	switch ue.RegistrationType5GS {
-	case nasMessage.RegistrationType5GSInitialRegistration:
-		ue.GmmLog.Debug("registration type: Initial Registration")
-	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
-		ue.GmmLog.Debug("registration type: Mobility Registration Updating")
-	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-		ue.GmmLog.Debug("registration type: Periodic Registration Updating")
-	case nasMessage.RegistrationType5GSEmergencyRegistration:
-		return fmt.Errorf("not supported registration type: Emergency Registration")
-	case nasMessage.RegistrationType5GSReserved:
-		ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
-		ue.GmmLog.Debug("registration type: Reserved")
-	default:
-		ue.GmmLog.Debug("change state to InitialRegistration", zap.Uint8("registrationType", ue.RegistrationType5GS))
+	regName := getRegistrationType5GSName(ue.RegistrationType5GS)
+	ue.GmmLog.Debug("Received Registration Request", zap.String("registrationType", regName), zap.Int64("procedureCode", procedureCode))
+
+	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSReserved {
 		ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 	}
 
@@ -519,9 +526,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		return fmt.Errorf("registration Reject[Tracking area not allowed]")
 	}
 
-	if registrationRequest.UESecurityCapability != nil {
-		ue.UESecurityCapability = *registrationRequest.UESecurityCapability
-	} else {
+	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSInitialRegistration && registrationRequest.UESecurityCapability == nil {
 		err := gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMProtocolErrorUnspecified, "")
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
@@ -529,26 +534,16 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.GmmLog.Info("sent registration reject to UE")
 		return fmt.Errorf("UESecurityCapability is nil")
 	}
-	if ue.ServingAmfChanged {
-		var transferReason models.TransferReason
-		switch ue.RegistrationType5GS {
-		case nasMessage.RegistrationType5GSInitialRegistration:
-			transferReason = models.TransferReasonInitReg
-		case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
-			fallthrough
-		case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-			transferReason = models.TransferReasonMobiReg
-		}
 
-		ue.TargetAmfURI = amfSelf.GetIPv4Uri()
-
-		ueContextTransferRspData, err := consumer.UEContextTransferRequest(ue, anType, transferReason)
-		if err != nil {
-			ue.GmmLog.Error("UE Context Transfer Request Error", zap.Error(err))
-		} else {
-			ue.CopyDataFromUeContextModel(*ueContextTransferRspData.UeContext)
-		}
+	if registrationRequest.UESecurityCapability != nil {
+		ue.UESecurityCapability = *registrationRequest.UESecurityCapability
 	}
+
+	if ue.ServingAmfChanged {
+		ue.TargetAmfURI = amfSelf.GetIPv4Uri()
+		logger.AmfLog.Debug("Serving AMF has changed - Unsupported", zap.String("targetAmfUri", ue.TargetAmfURI))
+	}
+
 	return nil
 }
 
@@ -710,7 +705,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
 			}
-			ue.GmmLog.Info("sent registration reject to UE")
 			return fmt.Errorf("Capability5GMM is nil")
 		}
 	}

@@ -21,12 +21,13 @@ type MobileIdentity5GS struct {
 }
 
 type RegistrationRequest struct {
-	ExtendedProtocolDiscriminator       uint8                 `json:"extended_protocol_discriminator"`
-	SpareHalfOctetAndSecurityHeaderType uint8                 `json:"spare_half_octet_and_security_header_type"`
-	NgksiAndRegistrationType5GS         uint8                 `json:"ngksi_and_registration_type_5gs"`
-	MobileIdentity5GS                   MobileIdentity5GS     `json:"mobile_identity_5gs"`
-	UESecurityCapability                *UESecurityCapability `json:"ue_security_capability,omitempty"`
-	NASMessageContainer                 []byte                `json:"nas_message_container,omitempty"`
+	ExtendedProtocolDiscriminator       uint8                  `json:"extended_protocol_discriminator"`
+	SpareHalfOctetAndSecurityHeaderType uint8                  `json:"spare_half_octet_and_security_header_type"`
+	NasKeySetIdentifier                 uint8                  `json:"nas_key_set_identifier,omitempty"`
+	RegistrationType5GS                 utils.EnumField[uint8] `json:"registration_type_5gs"`
+	MobileIdentity5GS                   MobileIdentity5GS      `json:"mobile_identity_5gs"`
+	UESecurityCapability                *UESecurityCapability  `json:"ue_security_capability,omitempty"`
+	NASMessageContainer                 []byte                 `json:"nas_message_container,omitempty"`
 
 	NoncurrentNativeNASKeySetIdentifier *UnsupportedIE `json:"noncurrent_native_nas_key_set_identifier,omitempty"`
 	Capability5GMM                      *UnsupportedIE `json:"capability_5gmm,omitempty"`
@@ -56,8 +57,11 @@ func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *Registration
 	registrationRequest := &RegistrationRequest{
 		MobileIdentity5GS:             getMobileIdentity5GS(msg.MobileIdentity5GS),
 		ExtendedProtocolDiscriminator: msg.ExtendedProtocolDiscriminator.Octet,
-		NgksiAndRegistrationType5GS:   msg.NgksiAndRegistrationType5GS.Octet,
 	}
+
+	ksi, regType := buildNgksiAndRegistrationType5GS(msg.NgksiAndRegistrationType5GS)
+	registrationRequest.NasKeySetIdentifier = ksi
+	registrationRequest.RegistrationType5GS = regType
 
 	if msg.NoncurrentNativeNASKeySetIdentifier != nil {
 		registrationRequest.NoncurrentNativeNASKeySetIdentifier = makeUnsupportedIE()
@@ -140,6 +144,30 @@ func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *Registration
 	}
 
 	return registrationRequest
+}
+
+func buildNgksiAndRegistrationType5GS(ngksiAndRegType nasType.NgksiAndRegistrationType5GS) (uint8, utils.EnumField[uint8]) {
+	regTypeUint8 := ngksiAndRegType.GetRegistrationType5GS()
+	ksi := ngksiAndRegType.GetNasKeySetIdentifiler()
+
+	return ksi, getRegistrationType5GSName(regTypeUint8)
+}
+
+func getRegistrationType5GSName(regType5Gs uint8) utils.EnumField[uint8] {
+	switch regType5Gs {
+	case nasMessage.RegistrationType5GSInitialRegistration:
+		return utils.MakeEnum(regType5Gs, "Initial Registration", false)
+	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
+		return utils.MakeEnum(regType5Gs, "Mobility Registration Updating", false)
+	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
+		return utils.MakeEnum(regType5Gs, "Periodic Registration Updating", false)
+	case nasMessage.RegistrationType5GSEmergencyRegistration:
+		return utils.MakeEnum(regType5Gs, "Emergency Registration", false)
+	case nasMessage.RegistrationType5GSReserved:
+		return utils.MakeEnum(regType5Gs, "Reserved", false)
+	default:
+		return utils.MakeEnum(regType5Gs, "", true)
+	}
 }
 
 func getMobileIdentity5GS(mobileIdentity5GS nasType.MobileIdentity5GS) MobileIdentity5GS {
