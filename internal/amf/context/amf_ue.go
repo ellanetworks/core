@@ -785,6 +785,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 						AllowedSnssai: &snssai,
 					}
 					ue.AllowedNssai[mmContext.AccessType] = append(ue.AllowedNssai[mmContext.AccessType], allowedSnssai)
+					logger.AmfLog.Debug("Add allowed snssai to ue context", zap.Int32("SST", snssai.Sst), zap.String("SD", snssai.Sd), zap.Int("numNSSAI", len(ue.AllowedNssai[mmContext.AccessType])))
 				}
 			}
 		}

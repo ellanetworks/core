@@ -903,7 +903,7 @@ func BuildInitialContextSetupRequest(
 
 	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot convert PlmnID to ngap PlmnID: %+v", err)
 	}
 	*plmnID = *ngapPlmnID
 	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfID)
@@ -937,6 +937,14 @@ func BuildInitialContextSetupRequest(
 		}
 		allowedNSSAIItem.SNSSAI = snssaiNgap
 		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
+	}
+
+	if len(allowedNSSAI.List) == 0 {
+		return nil, fmt.Errorf("allowed NSSAI list is empty")
+	}
+
+	if len(allowedNSSAI.List) > 8 {
+		return nil, fmt.Errorf("length of allowed NSSAI list exceeds 8")
 	}
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
@@ -1028,7 +1036,7 @@ func BuildInitialContextSetupRequest(
 		ie.Value.UERadioCapability = new(ngapType.UERadioCapability)
 		uecapa, err := hex.DecodeString(amfUe.UeRadioCapability)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot decode UeRadioCapability: %+v", err)
 		}
 		ie.Value.UERadioCapability.Value = uecapa
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
@@ -1133,7 +1141,12 @@ func BuildInitialContextSetupRequest(
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 	}
 
-	return ngap.Encoder(pdu)
+	byteMsg, err := ngap.Encoder(pdu)
+	if err != nil {
+		return nil, fmt.Errorf("could not encode ngap message: %+v", err)
+	}
+
+	return byteMsg, nil
 }
 
 // pduSessionResourceHandoverList: provided by amf and transfer is return from smf
