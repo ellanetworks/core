@@ -107,7 +107,7 @@ configs:
 
 services:
   ella-core:
-    image: ghcr.io/ellanetworks/ella-core:v0.4.0
+    image: ella-core:latest
     configs:
       - source: ella_config
         target: /core.yaml
