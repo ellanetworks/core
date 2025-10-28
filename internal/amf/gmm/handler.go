@@ -532,7 +532,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
 		ue.GmmLog.Info("sent registration reject to UE")
-		return fmt.Errorf("UESecurityCapability is nil")
+		return fmt.Errorf("registration request does not contain UE security capability for initial registration")
 	}
 
 	if registrationRequest.UESecurityCapability != nil {
@@ -592,21 +592,6 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 	}
 
 	negotiateDRXParameters(ue, ue.RegistrationRequest.RequestedDRXParameters)
-
-	if ue.ServingAmfChanged {
-		// If the AMF has changed the new AMF notifies the old AMF that the registration of the UE in the new AMF is completed
-		req := models.UeRegStatusUpdateReqData{
-			TransferStatus: models.UeContextTransferStatusTransferred,
-		}
-		regStatusTransferComplete, err := consumer.RegistrationStatusUpdate(ue, req)
-		if err != nil {
-			ue.GmmLog.Error("Registration Status Update Error", zap.Error(err))
-		} else {
-			if regStatusTransferComplete {
-				ue.GmmLog.Info("Registration Status Transfer complete")
-			}
-		}
-	}
 
 	if ue.ServingAmfChanged || ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) ||
 		!ue.SubscriptionDataValid {
@@ -1087,15 +1072,6 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				}
 				ue.GmmLog.Info("sent registration reject to UE")
 				return fmt.Errorf("failed to get network slice selection: %s", err)
-			}
-
-			// Step 5: Initial AMF send Namf_Communication_RegistrationCompleteNotify to old AMF
-			req := models.UeRegStatusUpdateReqData{
-				TransferStatus: models.UeContextTransferStatusNotTransferred,
-			}
-			_, err = consumer.RegistrationStatusUpdate(ue, req)
-			if err != nil {
-				ue.GmmLog.Error("Registration Status Update Error", zap.Error(err))
 			}
 
 			// Guillaume: I'm not sure if what we have here is the right thing to do
