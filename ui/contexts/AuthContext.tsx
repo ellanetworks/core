@@ -41,7 +41,7 @@ interface DecodedToken {
 }
 
 const LEEWAY_SEC = 120;
-const MIN_REFRESH_DELAY_MS = 5000; // clamp to avoid 0ms loops
+const MIN_REFRESH_DELAY_MS = 5000;
 
 function roleToString(roleId: number): string {
   switch (roleId) {
@@ -86,7 +86,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const scheduleRefresh = useCallback((token: string) => {
     clearRefreshTimer();
-    let delayMs = 30_000; // default fallback
+    let delayMs = 30_000;
     try {
       const { exp } = jwtDecode<DecodedToken>(token);
       if (exp) {
@@ -96,14 +96,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           (exp - LEEWAY_SEC - now) * 1000,
         );
       }
-    } catch {
-      // keep fallback
-    }
+    } catch {}
     refreshTimerRef.current = window.setTimeout(() => {
       void silentRefresh();
     }, delayMs);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally stable (no deps)
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const silentRefresh = useCallback(async () => {
     if (refreshingRef.current) return;
