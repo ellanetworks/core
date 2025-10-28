@@ -100,7 +100,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     refreshTimerRef.current = window.setTimeout(() => {
       void silentRefresh();
     }, delayMs);
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const silentRefresh = useCallback(async () => {
     if (refreshingRef.current) return;
