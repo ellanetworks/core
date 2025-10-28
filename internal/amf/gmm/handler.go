@@ -1074,6 +1074,7 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 					MappedHomeSnssai: requestedSnssai.HomeSnssai,
 				}
 				ue.AllowedNssai[anType] = append(ue.AllowedNssai[anType], allowedSnssai)
+				logger.AmfLog.Debug("Add requested snssai to allowed nssai list", zap.Int32("SST", requestedSnssai.ServingSnssai.Sst), zap.String("SD", requestedSnssai.ServingSnssai.Sd), zap.Int("numNSSAI", len(ue.AllowedNssai[anType])))
 			} else {
 				needSliceSelection = true
 				break
@@ -1147,6 +1148,7 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 						AllowedSnssai: snssai.SubscribedSnssai,
 					}
 					ue.AllowedNssai[anType] = append(ue.AllowedNssai[anType], allowedSnssai)
+					logger.AmfLog.Debug("Add default subscribed snssai to allowed nssai list", zap.Int32("SST", snssai.SubscribedSnssai.Sst), zap.String("SD", snssai.SubscribedSnssai.Sd), zap.Int("numNSSAI", len(ue.AllowedNssai[anType])))
 				}
 			}
 		}
