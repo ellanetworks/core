@@ -350,7 +350,7 @@ func SendInitialContextSetupRequest(
 	pkt, err := BuildInitialContextSetupRequest(ctx, amfUe, anType, nasPdu, pduSessionResourceSetupRequestList,
 		rrcInactiveTransitionReportRequest, coreNetworkAssistanceInfo, emergencyFallbackIndicator)
 	if err != nil {
-		return fmt.Errorf("error building initial context setup request: %s", err.Error())
+		return fmt.Errorf("error building initial context setup request: %s", err)
 	}
 
 	amfUe.RanUe[anType].SentInitialContextSetupRequest = true
