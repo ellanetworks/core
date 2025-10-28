@@ -85,10 +85,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	jobs.StartLogRetentionWorker(dbInstance)
 
-	scheme := api.HTTPS
-	if cfg.Interfaces.API.TLS.Cert == "" || cfg.Interfaces.API.TLS.Key == "" {
-		scheme = api.HTTP
-	}
+	// scheme := api.HTTPS
+	// if cfg.Interfaces.API.TLS.Cert == "" || cfg.Interfaces.API.TLS.Key == "" {
+	// 	scheme = api.HTTP
+	// }
 
 	go sessions.CleanUp(ctx, dbInstance)
 
@@ -104,14 +104,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	if err := api.Start(
 		dbInstance,
+		cfg,
 		upfInstance,
-		cfg.Interfaces.API.Port,
-		scheme,
-		cfg.Interfaces.API.TLS.Cert,
-		cfg.Interfaces.API.TLS.Key,
-		cfg.Interfaces.N3.Name,
-		cfg.Interfaces.N6.Name,
-		cfg.Telemetry.Enabled,
+		// cfg.Interfaces.API.Port,
+		// scheme,
+		// cfg.Interfaces.API.TLS.Cert,
+		// cfg.Interfaces.API.TLS.Key,
+		// cfg.Interfaces.N3.Name,
+		// cfg.Interfaces.N6.Name,
+		// cfg.Telemetry.Enabled,
 		rc.EmbedFS,
 		rc.RegisterExtraRoutes,
 	); err != nil {
