@@ -458,7 +458,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	ue.IdentityTypeUsedForRegistration = nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0])
 	switch ue.IdentityTypeUsedForRegistration { // get type of identity
 	case nasMessage.MobileIdentity5GSTypeNoIdentity:
-		ue.GmmLog.Warn("TO DELETE: Registration request with No Identity")
+		ue.GmmLog.Debug("No Identity")
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
@@ -467,24 +467,24 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		guamiFromUeGutiTmp, guti := util.GutiToString(mobileIdentity5GSContents)
 		guamiFromUeGuti = guamiFromUeGutiTmp
 		ue.Guti = guti
-		ue.GmmLog.Warn("TO DELETE: Registration request with GUTI", zap.String("guti", guti))
+		ue.GmmLog.Debug("GUTI", zap.String("guti", guti))
 
 		guamiList := context.GetServedGuamiList(ctx)
 		servedGuami := guamiList[0]
 		if reflect.DeepEqual(guamiFromUeGuti, servedGuami) {
 			ue.ServingAmfChanged = false
 		} else {
-			ue.GmmLog.Warn("Serving AMF has changed but 5G-Core is not supporting for now")
+			ue.GmmLog.Debug("Serving AMF has changed but 5G-Core is not supporting for now")
 			ue.ServingAmfChanged = false
 		}
 	case nasMessage.MobileIdentity5GSTypeImei:
 		imei := nasConvert.PeiToString(mobileIdentity5GSContents)
 		ue.Pei = imei
-		ue.GmmLog.Warn("TO DELETE: Registration request with PEI", zap.String("imei", imei))
+		ue.GmmLog.Debug("PEI", zap.String("imei", imei))
 	case nasMessage.MobileIdentity5GSTypeImeisv:
 		imeisv := nasConvert.PeiToString(mobileIdentity5GSContents)
 		ue.Pei = imeisv
-		ue.GmmLog.Warn("TO DELETE: Registration request with IMEISV", zap.String("imeisv", imeisv))
+		ue.GmmLog.Debug("PEI", zap.String("imeisv", imeisv))
 	}
 
 	// NgKsi: TS 24.501 9.11.3.32
@@ -500,8 +500,6 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.NgKsi.Tsc = models.ScTypeNative
 		ue.NgKsi.Ksi = 0
 	}
-
-	logger.AmfLog.Warn("TO DELETE: NGKSI", zap.Int32("KSI", ue.NgKsi.Ksi), zap.String("TSC", string(ue.NgKsi.Tsc)))
 
 	// Copy UserLocation from ranUe
 	ue.Location = ue.RanUe[anType].Location
