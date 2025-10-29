@@ -479,6 +479,14 @@ func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
 	case security.AccessTypeNon3GPP:
 		ue.Kn3iwf = key
 	}
+
+	logger.AmfLog.Warn("TO DELETE: ICSR security",
+		zap.String("supi", ue.Supi),
+		zap.Int32("ngksi", ue.NgKsi.Ksi),
+		zap.Uint32("ulCountUsed", ue.ULCount.Get()),
+		zap.String("accessType", string(anType)),
+		zap.ByteString("kgnb", ue.Kgnb),
+	)
 }
 
 // NH Derivation function defined in TS 33.501 Annex A.10
