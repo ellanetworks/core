@@ -30,7 +30,7 @@ var mutex sync.Mutex
 
 var tracer = otel.Tracer("ella-core/nas/security")
 
-func Encode(ue *context.AmfUe, msg *nas.Message, accessType models.AccessType) ([]byte, error) {
+func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 	if msg == nil {
 		return nil, fmt.Errorf("NAS Message is nil")
 	}
@@ -91,7 +91,7 @@ func Encode(ue *context.AmfUe, msg *nas.Message, accessType models.AccessType) (
 			ue.NASLog.Debug("Encrypt NAS message", zap.String("algorithm", fmt.Sprintf("%d", ue.CipheringAlg)), zap.Uint32("DLCount", ue.DLCount.Get()))
 			ue.NASLog.Debug("NAS ciphering key", zap.String("key", fmt.Sprintf("%0x", ue.KnasEnc)))
 			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.DLCount.Get(),
-				GetBearerType(accessType), security.DirectionDownlink, payload); err != nil {
+				GetBearerType(models.AccessType3GPPAccess), security.DirectionDownlink, payload); err != nil {
 				return nil, fmt.Errorf("encrypt error: %+v", err)
 			}
 		}
@@ -105,7 +105,7 @@ func Encode(ue *context.AmfUe, msg *nas.Message, accessType models.AccessType) (
 		ue.NASLog.Debug("Calculate NAS MAC", zap.String("algorithm", fmt.Sprintf("%+v", ue.IntegrityAlg)), zap.Uint32("DLCount", ue.DLCount.Get()))
 		ue.NASLog.Debug("NAS integrity key", zap.String("key", fmt.Sprintf("%0x", ue.KnasInt)))
 		mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ue.DLCount.Get(),
-			GetBearerType(accessType), security.DirectionDownlink, payload)
+			GetBearerType(models.AccessType3GPPAccess), security.DirectionDownlink, payload)
 		if err != nil {
 			return nil, fmt.Errorf("MAC calcuate error: %+v", err)
 		}
