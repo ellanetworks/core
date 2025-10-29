@@ -40,6 +40,7 @@ func HandleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
+	logger.AmfLog.Warn("TO DELETE: Handle UL NAS Transport", zap.Uint8("payloadContainerType", ulNasTransport.GetPayloadContainerType()))
 
 	switch ulNasTransport.GetPayloadContainerType() {
 	// TS 24.501 5.4.5.2.3 case a)

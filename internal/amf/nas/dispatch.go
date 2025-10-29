@@ -12,12 +12,14 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/gmm"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/omec-project/nas"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/nas")
@@ -36,6 +38,8 @@ func Dispatch(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType,
 	}
 
 	msgTypeName := nas.MessageName(msg.GmmMessage.GmmHeader.GetMessageType())
+	logger.AmfLog.Warn("TO DELETE: Dispatch NAS message", zap.String("msgTypeName", msgTypeName))
+
 	spanName := fmt.Sprintf("AMF NAS %s", msgTypeName)
 
 	_, span := tracer.Start(ctx, spanName,
