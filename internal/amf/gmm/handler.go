@@ -664,7 +664,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType) error {
 	ue.GmmLog.Debug("Handle MobilityAndPeriodicRegistrationUpdating")
 
-	ue.UpdateSecurityContext(anType)
+	ue.DerivateAnKey(anType)
 
 	amfSelf := context.AMFSelf()
 
