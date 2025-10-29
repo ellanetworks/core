@@ -32,7 +32,6 @@ type SmContext struct {
 	PduSessionInactiveVal bool
 
 	UlNASTransportVal *nasMessage.ULNASTransport
-	DuplicatedVal     bool
 }
 
 func NewSmContext(pduSessionID int32) *SmContext {
@@ -163,18 +162,6 @@ func (c *SmContext) SetVSmfID(vsmfID string) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.VSmfIDVal = vsmfID
-}
-
-func (c *SmContext) PduSessionIDDuplicated() bool {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
-	return c.DuplicatedVal
-}
-
-func (c *SmContext) SetDuplicatedPduSessionID(duplicated bool) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.DuplicatedVal = duplicated
 }
 
 func (c *SmContext) ULNASTransport() *nasMessage.ULNASTransport {
