@@ -117,7 +117,7 @@ func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
 	}
 }
 
-func TestDecodeNASMessage_RegistrationRequest_PeriodicUpdate(t *testing.T) {
+func TestDecodeNASMessage_RegistrationRequest_PeriodicRegistrationUpdating(t *testing.T) {
 	const message = "fgHdM93FA34AQQMAC/Ji8ELK/gAAAAACcQAlfgBBAwAL8mLwQsr+AAAAAAJSYvBCAABkUAICABgBAXQAAFMBAQ=="
 
 	raw, err := decodeB64(message)

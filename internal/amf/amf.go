@@ -43,7 +43,7 @@ func Start(ctx ctxt.Context, dbInstance *db.Database, n2Address string, n2Port i
 		Short: "ELLACORE",
 	}
 	self.T3502Value = 720
-	self.T3512Value = 3600
+	self.T3512Value = 5
 	self.T3513Cfg = context.TimerValue{
 		Enable:        true,
 		ExpireTime:    6 * time.Second,
@@ -136,7 +136,7 @@ func Close() {
 
 	guamiList := context.GetServedGuamiList(ctxt.Background())
 	unavailableGuamiList := message.BuildUnavailableGUAMIList(guamiList)
-	amfSelf.AmfRanPool.Range(func(key, value interface{}) bool {
+	amfSelf.AmfRanPool.Range(func(key, value any) bool {
 		ran := value.(*context.AmfRan)
 		err := message.SendAMFStatusIndication(ran, unavailableGuamiList)
 		if err != nil {
