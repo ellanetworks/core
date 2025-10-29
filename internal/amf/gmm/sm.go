@@ -386,6 +386,7 @@ func ContextSetup(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
 		gmmMessage := args[ArgNASMessage]
 		accessType := args[ArgAccessType].(models.AccessType)
+		logger.AmfLog.Warn("TO DELETE: Access type", zap.String("accessType", string(accessType)))
 		amfUe.GmmLog.Debug("EntryEvent at GMM State[ContextSetup]")
 		switch message := gmmMessage.(type) {
 		case *nasMessage.RegistrationRequest:

@@ -476,8 +476,10 @@ func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
 	switch accessType {
 	case security.AccessType3GPP:
 		ue.Kgnb = key
+		logger.AmfLog.Warn("TO DELETE: Derivate Kgnb for 3GPP access")
 	case security.AccessTypeNon3GPP:
 		ue.Kn3iwf = key
+		logger.AmfLog.Warn("TO DELETE: Derivate Kn3iwf for Non-3GPP access")
 	}
 }
 
@@ -503,8 +505,10 @@ func (ue *AmfUe) UpdateSecurityContext(anType models.AccessType) {
 	switch anType {
 	case models.AccessType3GPPAccess:
 		ue.DerivateNH(ue.Kgnb)
+		logger.AmfLog.Warn("TO DELETE: Update NH for 3GPP access")
 	case models.AccessTypeNon3GPPAccess:
 		ue.DerivateNH(ue.Kn3iwf)
+		logger.AmfLog.Warn("TO DELETE: Update NH for Non-3GPP access")
 	}
 	ue.NCC = 1
 }

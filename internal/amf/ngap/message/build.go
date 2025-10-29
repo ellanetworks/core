@@ -992,8 +992,10 @@ func BuildInitialContextSetupRequest(
 	switch ranUe.Ran.AnType {
 	case models.AccessType3GPPAccess:
 		securityKey.Value = ngapConvert.ByteToBitString(amfUe.Kgnb, 256)
+		logger.AmfLog.Warn("TO DELETE: 3GPP access type is default behavior")
 	case models.AccessTypeNon3GPPAccess:
 		securityKey.Value = ngapConvert.ByteToBitString(amfUe.Kn3iwf, 256)
+		logger.AmfLog.Warn("TO DELETE: Non-3GPP access type is deprecated")
 	}
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
