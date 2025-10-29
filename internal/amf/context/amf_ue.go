@@ -144,12 +144,10 @@ type AmfUe struct {
 	Kn3iwf                   []uint8                      `json:"kn3iwf,omitempty"`    // 32 byte
 	NH                       []uint8                      `json:"nh,omitempty"`        // 32 byte
 	NCC                      uint8                        `json:"ncc,omitempty"`       // 0..7
-	// ULCount                  security.Count               `json:"ulCount,omitempty" yaml:"ulCount" bson:"ulCount,omitempty"`
-	// DLCount                  security.Count               `json:"dlCount,omitempty" yaml:"dlCount" bson:"dlCount,omitempty"`
-	ULCount      security.Count `json:"-"`
-	DLCount      security.Count `json:"-"`
-	CipheringAlg uint8          `json:"cipheringAlg,omitempty"`
-	IntegrityAlg uint8          `json:"integrityAlg,omitempty"`
+	ULCount                  security.Count               `json:"-"`
+	DLCount                  security.Count               `json:"-"`
+	CipheringAlg             uint8                        `json:"cipheringAlg,omitempty"`
+	IntegrityAlg             uint8                        `json:"integrityAlg,omitempty"`
 	/* Registration Area */
 	RegistrationArea map[models.AccessType][]models.Tai `json:"registrationArea,omitempty"`
 	LadnInfo         []LADN                             `json:"ladnInfo,omitempty"`
