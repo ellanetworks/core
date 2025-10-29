@@ -245,6 +245,9 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 		return nil, fmt.Errorf("nas payload is empty")
 	}
 
+	var integrityProtected bool
+	ulCountNew := ue.ULCount
+
 	msg := new(nas.Message)
 	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
@@ -310,44 +313,88 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 		case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
 			ue.NASLog.Debug("Security header type: Integrity Protected And Ciphered With New 5G Security Context")
 			ciphered = true
-			ue.ULCount.Set(0, 0)
+			ulCountNew.Set(0, 0)
 		default:
 			return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
 		}
 
-		if ue.ULCount.SQN() > sequenceNumber {
-			ue.NASLog.Debug("set ULCount overflow")
-			ue.ULCount.SetOverflow(ue.ULCount.Overflow() + 1)
-		}
-		ue.ULCount.SetSQN(sequenceNumber)
-
-		mutex.Lock()
-		defer mutex.Unlock()
-		mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ue.ULCount.Get(), security.Bearer3GPP,
-			security.DirectionUplink, payload)
-		if err != nil {
-			return nil, fmt.Errorf("error calculating mac: %+v", err)
+		if ciphered && !ue.SecurityContextAvailable {
+			return nil, fmt.Errorf("NAS message is ciphered, but UE Security Context is not Available")
 		}
 
-		if !reflect.DeepEqual(mac32, receivedMac32) {
-			ue.NASLog.Warn("MAC verification failed", zap.String("received", hex.EncodeToString(receivedMac32)), zap.String("expected", hex.EncodeToString(mac32)))
-			ue.MacFailed = true
+		if ue.SecurityContextAvailable {
+			if ulCountNew.SQN() > sequenceNumber {
+				ue.NASLog.Debug("set ULCount overflow")
+				ulCountNew.SetOverflow(ulCountNew.Overflow() + 1)
+			}
+			ulCountNew.SetSQN(sequenceNumber)
+
+			ue.NASLog.Debug("Calculate NAS MAC", zap.Uint8("algorithm", ue.IntegrityAlg), zap.Uint32("ULCount", ulCountNew.Get()))
+			ue.NASLog.Debug("NAS integrity key", zap.String("key", fmt.Sprintf("%0x", ue.KnasInt)))
+			var mac32 []byte
+			mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ulCountNew.Get(),
+				GetBearerType(accessType), security.DirectionUplink, payload)
+			if err != nil {
+				return nil, fmt.Errorf("MAC calcuate error: %+v", err)
+			}
+
+			if !reflect.DeepEqual(mac32, receivedMac32) {
+				ue.NASLog.Warn("NAS MAC verification failed", zap.String("received", hex.EncodeToString(receivedMac32)), zap.String("expected", hex.EncodeToString(mac32)))
+			} else {
+				ue.NASLog.Debug("cmac value", zap.String("cmac", fmt.Sprintf("%0x", mac32)))
+				integrityProtected = true
+			}
 		} else {
-			ue.MacFailed = false
+			ue.NASLog.Debug("UE Security Context is not Available, so skip MAC verify")
 		}
 
 		if ciphered {
-			ue.NASLog.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.CipheringAlg), zap.Uint32("ULCount", ue.ULCount.Get()))
+			if !integrityProtected {
+				return nil, fmt.Errorf("NAS message is ciphered, but MAC verification failed")
+			}
+			ue.NASLog.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.CipheringAlg), zap.Uint32("ULCount", ulCountNew.Get()))
+			ue.NASLog.Debug("NAS ciphering key", zap.String("key", fmt.Sprintf("%0x", ue.KnasEnc)))
 			// decrypt payload without sequence number (payload[1])
-			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
+			if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ulCountNew.Get(), GetBearerType(accessType),
 				security.DirectionUplink, payload[1:]); err != nil {
-				return nil, fmt.Errorf("error encrypting: %+v", err)
+				return nil, fmt.Errorf("decrypt error: %+v", err)
 			}
 		}
 
+		// if ue.ULCount.SQN() > sequenceNumber {
+		// 	ue.NASLog.Debug("set ULCount overflow")
+		// 	ue.ULCount.SetOverflow(ue.ULCount.Overflow() + 1)
+		// }
+		// ue.ULCount.SetSQN(sequenceNumber)
+
+		// mutex.Lock()
+		// defer mutex.Unlock()
+		// mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ue.ULCount.Get(), security.Bearer3GPP,
+		// 	security.DirectionUplink, payload)
+		// if err != nil {
+		// 	return nil, fmt.Errorf("error calculating mac: %+v", err)
+		// }
+
+		// if !reflect.DeepEqual(mac32, receivedMac32) {
+		// 	ue.NASLog.Warn("MAC verification failed", zap.String("received", hex.EncodeToString(receivedMac32)), zap.String("expected", hex.EncodeToString(mac32)))
+		// 	ue.MacFailed = true
+		// } else {
+		// 	ue.MacFailed = false
+		// 	integrityProtected = true
+		// }
+
+		// if ciphered {
+		// 	ue.NASLog.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.CipheringAlg), zap.Uint32("ULCount", ue.ULCount.Get()))
+		// 	// decrypt payload without sequence number (payload[1])
+		// 	if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
+		// 		security.DirectionUplink, payload[1:]); err != nil {
+		// 		return nil, fmt.Errorf("error encrypting: %+v", err)
+		// 	}
+		// }
+
 		// remove sequece Number
 		payload = payload[1:]
-		err = msg.PlainNasDecode(&payload)
+		err := msg.PlainNasDecode(&payload)
 
 		/*
 			integrity check failed, as per spec 24501 section 4.4.4.3 AMF shouldnt process or forward to SMF
@@ -374,6 +421,10 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 			default:
 				return nil, fmt.Errorf("mac verification failed for the nas message: %v", msg.GmmHeader.GetMessageType())
 			}
+		}
+
+		if integrityProtected {
+			ue.ULCount = ulCountNew
 		}
 
 		return msg, err
