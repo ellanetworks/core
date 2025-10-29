@@ -427,6 +427,8 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 			ue.ULCount = ulCountNew
 		}
 
+		logger.AmfLog.Warn("TO DELETE: UL Count after NAS Decode", zap.Uint32("ULCount", ue.ULCount.Get()))
+
 		return msg, err
 	}
 }
