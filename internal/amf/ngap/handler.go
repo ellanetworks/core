@@ -722,11 +722,12 @@ func HandleUplinkNasTransport(ctx ctxt.Context, ran *context.AmfRan, message *ng
 	ranUe.Ran = ran
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
+		ran.Log.Error("No AMF UE Context for RanUe", zap.Int64("ranUeNgapID", rANUENGAPID.Value), zap.Int64("amfUeNgapID", aMFUENGAPID.Value))
 		err := ranUe.Remove()
 		if err != nil {
 			ran.Log.Error("error removing ran ue context", zap.Error(err))
 		}
-		ran.Log.Error("No UE Context of RanUe", zap.Int64("ranUeNgapID", rANUENGAPID.Value), zap.Int64("amfUeNgapID", aMFUENGAPID.Value))
+		logger.AmfLog.Info("Removed RAN UE Context due to no AMF UE context")
 		return
 	}
 
