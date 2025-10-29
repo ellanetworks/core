@@ -14,6 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/gmm"
 	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/nas"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
@@ -99,7 +100,7 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 							ran.Log.Error("NewRanUe Error", zap.Error(err))
 						}
 						ranUe.Log.Warn("Known UE", zap.String("guti", guti))
-						amfUe.AttachRanUe(ranUe)
+						gmm.AttachRanUeToAmfUeAndReleaseOldIfAny(amfUe, ranUe)
 					}
 				}
 			}
@@ -1120,7 +1121,7 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 		if err != nil {
 			ran.Log.Error(err.Error())
 		}
-		amfUe.AttachRanUe(targetRanUe)
+		gmm.AttachRanUeToAmfUeAndReleaseOldIfAny(amfUe, targetRanUe)
 	default:
 		ran.Log.Error("Invalid Release Action", zap.Any("ReleaseAction", ranUe.ReleaseAction))
 	}
@@ -1510,12 +1511,12 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 					amfUe.DetachRanUe(ran.AnType)
 				}
 				ranUe.Log.Debug("AmfUe Attach RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
-				amfUe.AttachRanUe(ranUe)
+				gmm.AttachRanUeToAmfUeAndReleaseOldIfAny(amfUe, ranUe)
 			}
 		}
 	} else {
 		ranUe.Ran = ran
-		ranUe.AmfUe.AttachRanUe(ranUe)
+		gmm.AttachRanUeToAmfUeAndReleaseOldIfAny(ranUe.AmfUe, ranUe)
 	}
 
 	if userLocationInformation != nil {
@@ -2871,7 +2872,7 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 				ran.Log.Error("Send UpdateSmContextN2HandoverComplete Error", zap.Error(err))
 			}
 		}
-		amfUe.AttachRanUe(targetUe)
+		gmm.AttachRanUeToAmfUeAndReleaseOldIfAny(amfUe, targetUe)
 		err := ngap_message.SendUEContextReleaseCommand(sourceUe, context.UeContextReleaseHandover, ngapType.CausePresentNas,
 			ngapType.CauseNasPresentNormalRelease)
 		if err != nil {

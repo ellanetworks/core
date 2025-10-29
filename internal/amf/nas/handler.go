@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/gmm"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
 	"go.uber.org/zap"
 )
@@ -37,7 +38,7 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 		eeCtx.Mutex.Lock()
 		defer eeCtx.Mutex.Unlock()
 
-		eeCtx.AttachRanUe(ue)
+		gmm.AttachRanUeToAmfUeAndReleaseOldIfAny(eeCtx, ue)
 
 		nasMsg := context.NasMsg{
 			AnType:        ue.Ran.AnType,
