@@ -40,7 +40,6 @@ func HandleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
-	logger.AmfLog.Warn("TO DELETE: Handle UL NAS Transport", zap.Uint8("payloadContainerType", ulNasTransport.GetPayloadContainerType()))
 
 	switch ulNasTransport.GetPayloadContainerType() {
 	// TS 24.501 5.4.5.2.3 case a)
@@ -67,23 +66,6 @@ func HandleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	return nil
 }
 
-func getRequesTypeName(requestType uint8) string {
-	switch requestType {
-	case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
-		return "Initial Emergency Request"
-	case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
-		return "Existing Emergency PDU Session"
-	case nasMessage.ULNASTransportRequestTypeInitialRequest:
-		return "Initial Request"
-	case nasMessage.ULNASTransportRequestTypeModificationRequest:
-		return "Modification Request"
-	case nasMessage.ULNASTransportRequestTypeExistingPduSession:
-		return "Existing PDU Session"
-	default:
-		return "Unknown"
-	}
-}
-
 func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, ulNasTransport *nasMessage.ULNASTransport) error {
 	var pduSessionID int32
 	smMessage := ulNasTransport.PayloadContainer.GetPayloadContainerContents()
@@ -103,8 +85,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	requestType := ulNasTransport.RequestType
 
 	if requestType != nil {
-		reqName := getRequesTypeName(requestType.GetRequestTypeValue())
-		logger.AmfLog.Warn("TO DELETE: UL NAS Transport with Request Type", zap.String("requestType", reqName))
 		switch requestType.GetRequestTypeValue() {
 		case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
 			fallthrough
@@ -119,15 +99,16 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		}
 	}
 
-	if smContextExist && requestType != nil {
-		/* AMF releases context locally as this is duplicate pdu session */
-		if requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest {
-			ue.SmContextList.Delete(pduSessionID)
-			smContextExist = false
-		}
-	}
+	// if smContextExist && requestType != nil {
+	// 	/* AMF releases context locally as this is duplicate pdu session */
+	// 	if requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest {
+	// 		ue.SmContextList.Delete(pduSessionID)
+	// 		smContextExist = false
+	// 	}
+	// }
 
 	if !smContextExist {
+		logger.AmfLog.Debug("SmContext doesn't exist for PDU Session ID", zap.Int32("pduSessionID", pduSessionID))
 		msg := new(nas.Message)
 		if err := msg.PlainNasDecode(&smMessage); err != nil {
 			ue.GmmLog.Error("Could not decode Nas message", zap.Error(err))
@@ -139,6 +120,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	}
 	// AMF has a PDU session routing context for the PDU session ID and the UE
 	if smContextExist {
+		logger.AmfLog.Debug("SmContext exists for PDU Session ID", zap.Int32("pduSessionID", pduSessionID))
 		// case i) Request type IE is either not included
 		if requestType == nil {
 			return forward5GSMMessageToSMF(ctx, ue, anType, pduSessionID, smContext, smMessage)
@@ -256,6 +238,8 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			if err != nil {
 				ue.GmmLog.Error("couldn't send create sm context request", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
 			}
+
+			logger.AmfLog.Debug("Sent CreateSmContextRequest", zap.String("smContextRef", smContextRef), zap.Int32("pduSessionID", pduSessionID))
 
 			if errResponse != nil {
 				err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, errResponse.BinaryDataN1SmMessage, pduSessionID, 0)
@@ -1967,7 +1951,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 }
 
 func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, registrationComplete *nasMessage.RegistrationComplete) error {
-	logger.AmfLog.Warn("TO DELETE: Handle Registration Complete")
+	logger.AmfLog.Debug("Handle Registration Complete")
 	if ue.T3550 != nil {
 		ue.T3550.Stop()
 		ue.T3550 = nil // clear the timer

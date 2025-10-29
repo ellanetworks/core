@@ -149,6 +149,7 @@ func GetPDUSessionCount() int {
 }
 
 func RemoveSMContext(ctx context.Context, ref string) {
+	logger.SmfLog.Debug("Removing SM Context", zap.String("ref", ref))
 	var smContext *SMContext
 	if value, ok := smContextPool.Load(ref); ok {
 		smContext = value.(*SMContext)

@@ -8,13 +8,16 @@ import (
 	ctxt "context"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
 	"go.opentelemetry.io/otel/attribute"
+	"go.uber.org/zap"
 )
 
 func ReleaseSmContext(ctx ctxt.Context, smContextRef string) error {
+	logger.SmfLog.Debug("Releasing SM Context", zap.String("smContextRef", smContextRef))
 	ctx, span := tracer.Start(ctx, "SMF Release SmContext")
 	defer span.End()
 	span.SetAttributes(
@@ -32,6 +35,7 @@ func ReleaseSmContext(ctx ctxt.Context, smContextRef string) error {
 }
 
 func UpdateSmContext(ctx ctxt.Context, smContextRef string, updateSmContextRequest models.UpdateSmContextRequest) (*models.UpdateSmContextResponse, error) {
+	logger.SmfLog.Debug("Updating SM Context", zap.String("smContextRef", smContextRef))
 	ctx, span := tracer.Start(ctx, "SMF Update SmContext")
 	defer span.End()
 	span.SetAttributes(

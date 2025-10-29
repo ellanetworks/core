@@ -24,6 +24,7 @@ import (
 )
 
 func HandlePduSessionContextReplacement(ctx ctxt.Context, smCtxtRef string) error {
+	logger.SmfLog.Debug("Handle PDU Session Context Replacement", zap.String("smCtxtRef", smCtxtRef))
 	smCtxt := context.GetSMContext(smCtxtRef)
 	if smCtxt == nil {
 		return nil
@@ -143,6 +144,7 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 }
 
 func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmContextRequest, smContext *context.SMContext) (*models.UpdateSmContextResponse, error) {
+	logger.SmfLog.Debug("Handle PDU Session SM Context Update", zap.String("smCtxtRef", smContext.Ref))
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
@@ -200,6 +202,7 @@ func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmCo
 }
 
 func HandlePDUSessionSMContextRelease(ctx ctxt.Context, smContext *context.SMContext) error {
+	logger.SmfLog.Debug("Handle PDU Session SM Context Release", zap.String("smCtxtRef", smContext.Ref))
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 

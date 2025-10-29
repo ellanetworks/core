@@ -33,9 +33,10 @@ func CreateSmContext(ctx ctxt.Context, request models.PostSmContextsRequest) (st
 	createData := request.JSONData
 	smCtxtRef, err := context.ResolveRef(createData.Supi, createData.PduSessionID)
 	if err == nil {
+		logger.SmfLog.Debug("SM Context already exists, replacing existing context", zap.String("smCtxtRef", smCtxtRef))
 		err := producer.HandlePduSessionContextReplacement(ctx, smCtxtRef)
 		if err != nil {
-			return "", nil, fmt.Errorf("failed to replace existing context")
+			return "", nil, fmt.Errorf("failed to replace existing context: %v", err)
 		}
 	}
 
