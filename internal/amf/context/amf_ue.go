@@ -388,7 +388,7 @@ func (ue *AmfUe) SecurityContextIsValid() bool {
 
 // Kamf Derivation function defined in TS 33.501 Annex A.7
 func (ue *AmfUe) DerivateKamf() {
-	supiRegexp, err := regexp.Compile("([0-9]{5,15})")
+	supiRegexp, err := regexp.Compile("(?:imsi|supi)-([0-9]{5,15})")
 	if err != nil {
 		logger.AmfLog.Error("compile supi regexp error", zap.Error(err))
 		return
@@ -453,7 +453,7 @@ func (ue *AmfUe) DerivateAlgKey() {
 
 // Access Network key Derivation function defined in TS 33.501 Annex A.9
 func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
-	accessType := security.AccessType3GPP // Defalut 3gpp
+	accessType := security.AccessType3GPP // Default 3gpp
 	P0 := make([]byte, 4)
 	binary.BigEndian.PutUint32(P0, ue.ULCount.Get())
 	L0 := ueauth.KDFLen(P0)
@@ -476,10 +476,8 @@ func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
 	switch accessType {
 	case security.AccessType3GPP:
 		ue.Kgnb = key
-		logger.AmfLog.Warn("TO DELETE: Derivate Kgnb for 3GPP access")
 	case security.AccessTypeNon3GPP:
 		ue.Kn3iwf = key
-		logger.AmfLog.Warn("TO DELETE: Derivate Kn3iwf for Non-3GPP access")
 	}
 }
 
@@ -505,10 +503,8 @@ func (ue *AmfUe) UpdateSecurityContext(anType models.AccessType) {
 	switch anType {
 	case models.AccessType3GPPAccess:
 		ue.DerivateNH(ue.Kgnb)
-		logger.AmfLog.Warn("TO DELETE: Update NH for 3GPP access")
 	case models.AccessTypeNon3GPPAccess:
 		ue.DerivateNH(ue.Kn3iwf)
-		logger.AmfLog.Warn("TO DELETE: Update NH for Non-3GPP access")
 	}
 	ue.NCC = 1
 }
