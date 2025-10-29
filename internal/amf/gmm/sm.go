@@ -419,7 +419,7 @@ func ContextSetup(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
 		gmmMessage := args[ArgNASMessage].(*nas.GmmMessage)
 		accessType := args[ArgAccessType].(models.AccessType)
-		amfUe.GmmLog.Debug("GmmMessageEvent at GMM State[ContextSetup]")
+		amfUe.GmmLog.Warn("TO DELETE: GmmMessageEvent at GMM State[ContextSetup]", zap.String("message_type", fmt.Sprintf("0x%0x", nas.MessageName(gmmMessage.GetMessageType()))))
 		switch gmmMessage.GetMessageType() {
 		case nas.MsgTypeIdentityResponse:
 			if err := HandleIdentityResponse(amfUe, gmmMessage.IdentityResponse); err != nil {

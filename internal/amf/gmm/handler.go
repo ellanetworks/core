@@ -66,6 +66,23 @@ func HandleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	return nil
 }
 
+func getRequesTypeName(requestType uint8) string {
+	switch requestType {
+	case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
+		return "Initial Emergency Request"
+	case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
+		return "Existing Emergency PDU Session"
+	case nasMessage.ULNASTransportRequestTypeInitialRequest:
+		return "Initial Request"
+	case nasMessage.ULNASTransportRequestTypeModificationRequest:
+		return "Modification Request"
+	case nasMessage.ULNASTransportRequestTypeExistingPduSession:
+		return "Existing PDU Session"
+	default:
+		return "Unknown"
+	}
+}
+
 func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, ulNasTransport *nasMessage.ULNASTransport) error {
 	var pduSessionID int32
 	smMessage := ulNasTransport.PayloadContainer.GetPayloadContainerContents()
@@ -85,6 +102,8 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	requestType := ulNasTransport.RequestType
 
 	if requestType != nil {
+		reqName := getRequesTypeName(requestType.GetRequestTypeValue())
+		logger.AmfLog.Warn("TO DELETE: UL NAS Transport with Request Type", zap.String("requestType", reqName))
 		switch requestType.GetRequestTypeValue() {
 		case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
 			fallthrough
