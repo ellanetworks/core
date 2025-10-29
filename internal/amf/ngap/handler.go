@@ -2510,7 +2510,6 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 				ranUe.Log.Error("error sending ue context release command", zap.Error(err))
 				return
 			}
-			ranUe.Log.Info("sent ue context release command")
 			return
 		}
 	}
@@ -2520,8 +2519,6 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 		ranUe.Log.Error("error sending ue context release command", zap.Error(err))
 		return
 	}
-
-	ranUe.Log.Info("sent ue context release command")
 }
 
 func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
@@ -2881,7 +2878,6 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 			ran.Log.Error("error sending ue context release command", zap.Error(err))
 			return
 		}
-		ran.Log.Info("sent ue context release command", zap.Int64("sourceAMFUENGAPID", sourceUe.AmfUeNgapID))
 	}
 }
 
@@ -3364,7 +3360,6 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 		ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		return
 	}
-	ran.Log.Info("sent UE Context Release Command to target UE")
 }
 
 func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
@@ -3687,7 +3682,6 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 			ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
 			return
 		}
-		ran.Log.Info("sent UE context release command to target UE")
 		err = ngap_message.SendHandoverCancelAcknowledge(sourceUe, nil)
 		if err != nil {
 			ran.Log.Error("error sending handover cancel acknowledge to source UE", zap.Error(err))
@@ -4631,19 +4625,19 @@ func printAndGetCause(ran *context.AmfRan, cause *ngapType.Cause) (present int, 
 	present = cause.Present
 	switch cause.Present {
 	case ngapType.CausePresentRadioNetwork:
-		ran.Log.Warn("Cause RadioNetwork", zap.Any("Cause", cause.RadioNetwork.Value))
+		ran.Log.Debug("Cause RadioNetwork", zap.Any("Cause", cause.RadioNetwork.Value))
 		value = cause.RadioNetwork.Value
 	case ngapType.CausePresentTransport:
-		ran.Log.Warn("Cause Transport", zap.Any("Cause", cause.Transport.Value))
+		ran.Log.Debug("Cause Transport", zap.Any("Cause", cause.Transport.Value))
 		value = cause.Transport.Value
 	case ngapType.CausePresentProtocol:
-		ran.Log.Warn("Cause Protocol", zap.Any("Cause", cause.Protocol.Value))
+		ran.Log.Debug("Cause Protocol", zap.Any("Cause", cause.Protocol.Value))
 		value = cause.Protocol.Value
 	case ngapType.CausePresentNas:
-		ran.Log.Warn("Cause Nas", zap.Any("Cause", cause.Nas.Value))
+		ran.Log.Debug("Cause Nas", zap.Any("Cause", cause.Nas.Value))
 		value = cause.Nas.Value
 	case ngapType.CausePresentMisc:
-		ran.Log.Warn("Cause Misc", zap.Any("Cause", cause.Misc.Value))
+		ran.Log.Debug("Cause Misc", zap.Any("Cause", cause.Misc.Value))
 		value = cause.Misc.Value
 	default:
 		ran.Log.Error("Invalid Cause group", zap.Int("Cause group", cause.Present))

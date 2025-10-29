@@ -87,6 +87,7 @@ func (ranUe *RanUe) Remove() error {
 
 func (ranUe *RanUe) DetachAmfUe() {
 	ranUe.AmfUe = nil
+	logger.AmfLog.Warn("TO DELETE: ran ue detached amf ue", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 }
 
 func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
