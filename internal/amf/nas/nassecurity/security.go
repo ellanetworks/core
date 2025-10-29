@@ -30,17 +30,38 @@ var mutex sync.Mutex
 
 var tracer = otel.Tracer("ella-core/nas/security")
 
-func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
-	if ue == nil {
-		return nil, fmt.Errorf("amf ue is nil")
-	}
+func Encode(ue *context.AmfUe, msg *nas.Message, accessType models.AccessType) ([]byte, error) {
 	if msg == nil {
-		return nil, fmt.Errorf("nas message is nil")
+		return nil, fmt.Errorf("NAS Message is nil")
 	}
 
 	// Plain NAS message
-	if !ue.SecurityContextAvailable {
-		return msg.PlainNasEncode()
+	if ue == nil || !ue.SecurityContextAvailable {
+		if msg.GmmMessage == nil {
+			return nil, fmt.Errorf("msg.GmmMessage is nil")
+		}
+		switch msgType := msg.GmmHeader.GetMessageType(); msgType {
+		case nas.MsgTypeIdentityRequest:
+			if msg.GmmMessage.IdentityRequest == nil {
+				return nil,
+					fmt.Errorf("identity Request (type unknown) is requierd security, but security context is not available")
+			}
+			if identityType := msg.GmmMessage.IdentityRequest.SpareHalfOctetAndIdentityType.GetTypeOfIdentity(); identityType !=
+				nasMessage.MobileIdentity5GSTypeSuci {
+				return nil,
+					fmt.Errorf("identity Request (%d) is requierd security, but security context is not available", identityType)
+			}
+		case nas.MsgTypeAuthenticationRequest:
+		case nas.MsgTypeAuthenticationResult:
+		case nas.MsgTypeAuthenticationReject:
+		case nas.MsgTypeRegistrationReject:
+		case nas.MsgTypeDeregistrationAcceptUEOriginatingDeregistration:
+		case nas.MsgTypeServiceReject:
+		default:
+			return nil, fmt.Errorf("NAS message type %d is requierd security, but security context is not available", msgType)
+		}
+		pdu, err := msg.PlainNasEncode()
+		return pdu, err
 	} else {
 		// Security protected NAS Message
 		// a security protected NAS message must be integrity protected, and ciphering is optional
@@ -62,39 +83,60 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 		// encode plain nas first
 		payload, err := msg.PlainNasEncode()
 		if err != nil {
-			return nil, fmt.Errorf("error encoding plain nas: %+v", err)
+			return nil, fmt.Errorf("plain NAS encode error: %+v", err)
 		}
 
+		ue.NASLog.Debug("plain payload", zap.String("payload", hex.Dump(payload)))
 		if needCiphering {
-			ue.NASLog.Debug("Encrypt NAS message", zap.Uint8("algorithm", ue.CipheringAlg), zap.Uint32("DLCount", ue.DLCount.Get()))
-			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.DLCount.Get(), security.Bearer3GPP,
-				security.DirectionDownlink, payload); err != nil {
-				return nil, fmt.Errorf("error encrypting: %+v", err)
+			ue.NASLog.Debug("Encrypt NAS message", zap.String("algorithm", fmt.Sprintf("%d", ue.CipheringAlg)), zap.Uint32("DLCount", ue.DLCount.Get()))
+			ue.NASLog.Debug("NAS ciphering key", zap.String("key", fmt.Sprintf("%0x", ue.KnasEnc)))
+			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.DLCount.Get(),
+				GetBearerType(accessType), security.DirectionDownlink, payload); err != nil {
+				return nil, fmt.Errorf("encrypt error: %+v", err)
 			}
 		}
 
 		// add sequece number
-		payload = append([]byte{ue.DLCount.SQN()}, payload[:]...)
+		addsqn := []byte{}
+		addsqn = append(addsqn, []byte{ue.DLCount.SQN()}...)
+		addsqn = append(addsqn, payload...)
+		payload = addsqn
 
-		ue.NASLog.Debug("Calculate NAS MAC", zap.Uint8("algorithm", ue.IntegrityAlg), zap.Uint32("DLCount", ue.DLCount.Get()))
-		ue.NASLog.Debug("NAS integrity key", zap.Any("key", ue.KnasInt))
-		mutex.Lock()
-		defer mutex.Unlock()
-		mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ue.DLCount.Get(), security.Bearer3GPP,
-			security.DirectionDownlink, payload)
+		ue.NASLog.Debug("Calculate NAS MAC", zap.String("algorithm", fmt.Sprintf("%+v", ue.IntegrityAlg)), zap.Uint32("DLCount", ue.DLCount.Get()))
+		ue.NASLog.Debug("NAS integrity key", zap.String("key", fmt.Sprintf("%0x", ue.KnasInt)))
+		mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ue.DLCount.Get(),
+			GetBearerType(accessType), security.DirectionDownlink, payload)
 		if err != nil {
 			return nil, fmt.Errorf("MAC calcuate error: %+v", err)
 		}
 		// Add mac value
-		payload = append(mac32, payload[:]...)
+		ue.NASLog.Debug("MAC", zap.String("value", fmt.Sprintf("0x%08x", mac32)))
+		addmac := []byte{}
+		addmac = append(addmac, mac32...)
+		addmac = append(addmac, payload...)
+		payload = addmac
 
 		// Add EPD and Security Type
 		msgSecurityHeader := []byte{msg.SecurityHeader.ProtocolDiscriminator, msg.SecurityHeader.SecurityHeaderType}
-		payload = append(msgSecurityHeader, payload[:]...)
+		encodepayload := []byte{}
+		encodepayload = append(encodepayload, msgSecurityHeader...)
+		encodepayload = append(encodepayload, payload...)
+		payload = encodepayload
 
 		// Increase DL Count
 		ue.DLCount.AddOne()
 		return payload, nil
+	}
+}
+
+func GetBearerType(accessType models.AccessType) uint8 {
+	switch accessType {
+	case models.AccessType3GPPAccess:
+		return security.Bearer3GPP
+	case models.AccessTypeNon3GPPAccess:
+		return security.BearerNon3GPP
+	default:
+		return security.OnlyOneBearer
 	}
 }
 
