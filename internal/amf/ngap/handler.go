@@ -1098,9 +1098,8 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 			ran.Log.Error(err.Error())
 		}
 
-		// Valid Security is not exist for this UE then only delete AMfUe Context
 		if !amfUe.SecurityContextAvailable {
-			ran.Log.Info("Valid Security is not exist for the UE, so deleting AmfUe Context", zap.String("supi", amfUe.Supi))
+			ran.Log.Info("Could not find valid Security for the UE, so deleting AmfUe Context", zap.String("supi", amfUe.Supi))
 			amfUe.Remove()
 		}
 	case context.UeContextReleaseDueToNwInitiatedDeregistraion:

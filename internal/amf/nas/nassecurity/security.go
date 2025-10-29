@@ -208,7 +208,7 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
 		// RRCEstablishmentCause 0 is for emergency service
 		if ue.SecurityContextAvailable && ue.RanUe[accessType].RRCEstablishmentCause != "0" {
-			ue.NASLog.Warn("Received Plain NAS message")
+			ue.NASLog.Debug("Received Plain NAS message")
 			ue.MacFailed = false
 			ue.SecurityContextAvailable = false
 			if err := msg.PlainNasDecode(&payload); err != nil {
