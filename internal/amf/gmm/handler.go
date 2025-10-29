@@ -1967,13 +1967,13 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 }
 
 func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, registrationComplete *nasMessage.RegistrationComplete) error {
+	logger.AmfLog.Warn("TO DELETE: Handle Registration Complete")
 	if ue.T3550 != nil {
 		ue.T3550.Stop()
 		ue.T3550 = nil // clear the timer
 	}
 
-	if ue.RegistrationRequest.UplinkDataStatus == nil &&
-		ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestNoPending {
+	if ue.RegistrationRequest.UplinkDataStatus == nil && ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestNoPending {
 		err := ngap_message.SendUEContextReleaseCommand(ue.RanUe[accessType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
