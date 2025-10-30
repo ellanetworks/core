@@ -364,6 +364,21 @@ format is followed TS 24.501 9.1.1
 
 // }
 
+func getIntegrityAlgString(alg uint8) string {
+	switch alg {
+	case security.AlgIntegrity128NIA0:
+		return "128-NIA0"
+	case security.AlgIntegrity128NIA1:
+		return "128-NIA1"
+	case security.AlgIntegrity128NIA2:
+		return "128-NIA2"
+	case security.AlgIntegrity128NIA3:
+		return "128-NIA3"
+	default:
+		return "Unknown"
+	}
+}
+
 // ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, payload []byte) (*nas.Message, error
 func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, payload []byte) (msg *nas.Message, err error) {
 	var integrityProtected bool
@@ -432,6 +447,7 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 			logger.AmfLog.Warn("TO DELETE: Updated ULCount", zap.Uint32("ULCount", ulCountNew.Get()))
 
 			var mac32 []byte
+			logger.AmfLog.Warn("TO DELETE: Calculate NAS MAC", zap.String("algorithm", getIntegrityAlgString(ue.IntegrityAlg)), zap.Uint32("ULCount", ulCountNew.Get()), zap.Any("key", ue.KnasInt))
 			mac32, err = security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ulCountNew.Get(),
 				GetBearerType(accessType), security.DirectionUplink, payload)
 			if err != nil {
