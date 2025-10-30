@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
 )
@@ -243,7 +244,9 @@ func (q *QoSFlowDescription) addQosFlowRateParam(rate string, rateType uint8) {
 }
 
 func GetQosFlowDescUpdate(pcfQosData, ctxtQosData *models.QosData) *QosFlowsUpdate {
+	logger.SmfLog.Warn("TO DELETE: GetQosFlowDescUpdate called")
 	if pcfQosData == nil && ctxtQosData == nil {
+		logger.SmfLog.Warn("TO DELETE: no Qos Flow Description update")
 		return nil
 	}
 
@@ -251,12 +254,14 @@ func GetQosFlowDescUpdate(pcfQosData, ctxtQosData *models.QosData) *QosFlowsUpda
 
 	// deleted flow
 	if pcfQosData == nil && ctxtQosData != nil {
+		logger.SmfLog.Warn("TO DELETE: deleted Qos Flow Description")
 		update.del = ctxtQosData
 		return &update
 	}
 
 	// added flow
 	if pcfQosData != nil && ctxtQosData == nil {
+		logger.SmfLog.Warn("TO DELETE: added Qos Flow Description")
 		update.Add = pcfQosData
 		update.Add.QFI = DefaultQFI
 		return &update

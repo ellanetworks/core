@@ -158,6 +158,7 @@ func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmCo
 
 	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, smPolicyDecision)
 	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates) // TODO: careful about multiple updates
+	logger.SmfLog.Warn("TO DELETE: added SM Policy Update in UpdateSmContext", zap.Int("totalUpdates", len(smContext.SmPolicyUpdates)))
 
 	pfcpAction := &pfcpAction{}
 	var response models.UpdateSmContextResponse
