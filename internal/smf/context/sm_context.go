@@ -127,6 +127,8 @@ func NewSMContext(identifier string, pduSessID int32) *SMContext {
 	// initialise log tags
 	smContext.initLogTags()
 
+	logger.SmfLog.Warn("TO DELETE: New SM Context created", zap.String("ref", smContext.Ref), zap.String("identifier", smContext.Identifier), zap.Int32("pduSessID", smContext.PDUSessionID))
+
 	return smContext
 }
 

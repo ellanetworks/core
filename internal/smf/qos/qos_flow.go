@@ -260,6 +260,12 @@ func GetQosFlowDescUpdate(pcfQosData, ctxtQosData *models.QosData) *QosFlowsUpda
 	}
 
 	// added flow
+	if pcfQosData == nil {
+		logger.SmfLog.Warn("TO DELETE: added Qos Flow Description - pcfQosData is nil")
+	}
+	if ctxtQosData == nil {
+		logger.SmfLog.Warn("TO DELETE: added Qos Flow Description - ctxtQosData is nil")
+	}
 	if pcfQosData != nil && ctxtQosData == nil {
 		logger.SmfLog.Warn("TO DELETE: added Qos Flow Description")
 		update.Add = pcfQosData
