@@ -294,30 +294,13 @@ func (ue *AmfUe) Remove() {
 	if len(ue.Supi) > 0 {
 		AMFSelf().UePool.Delete(ue.Supi)
 	}
+
+	logger.AmfLog.Info("AmfUe removed", zap.String("Supi", ue.Supi))
 }
 
 func (ue *AmfUe) DetachRanUe(anType models.AccessType) {
 	delete(ue.RanUe, anType)
 }
-
-// func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
-// 	ue.Mutex.Lock()
-// 	defer ue.Mutex.Unlock()
-
-// 	an := ranUe.Ran.AnType
-// 	if prev := ue.RanUe[an]; prev != nil && prev != ranUe {
-// 		prev.AmfUe = nil
-// 		prev.Log.Info("Detached from AMF UE (re-assoc)")
-// 	}
-// 	ue.RanUe[an] = ranUe
-// 	ranUe.AmfUe = ue
-
-// 	// set loggers using ranUe.AmfUeNgapID
-// 	id := ranUe.AmfUeNgapID
-// 	ue.NASLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", id)))
-// 	ue.GmmLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", id)))
-// 	ue.TxLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", id)))
-// }
 
 func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	ue.RanUe[ranUe.Ran.AnType] = ranUe
@@ -328,38 +311,6 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	ue.GmmLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", id)))
 	ue.TxLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", id)))
 }
-
-// func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
-// 	ue.Mutex.Lock()
-// 	defer ue.Mutex.Unlock()
-
-// 	an := ranUe.Ran.AnType
-
-// 	// Detach previous RanUe on this access, if any
-// 	if prev := ue.RanUe[an]; prev != nil && prev != ranUe {
-// 		if prev.AmfUe == ue { // guard
-// 			prev.AmfUe = nil
-// 		}
-// 		prev.Log.Info("Detached from AMF UE (re-assoc)")
-// 	}
-
-// 	// Bind both ways
-// 	ue.RanUe[an] = ranUe
-// 	ranUe.AmfUe = ue
-
-// 	// Mirror NGAP ID onto UE — many code paths read from ue.AmfUeNgapID
-// 	// ue.AmfUeNgapID = ranUe.AmfUeNgapID
-
-// 	// (Optional but recommended) keep your global indices consistent
-// 	// amfCtx.UeByAmfUeID[ue.AmfUeNgapID] = ue
-// 	// ranNode.RanUeByRanID[ranUe.RanUeNgapID] = ranUe
-
-// 	// Refresh UE loggers using the canonical UE-side ID
-// 	id := ranUe.AmfUeNgapID
-// 	ue.NASLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", id)))
-// 	ue.GmmLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", id)))
-// 	ue.TxLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", id)))
-// }
 
 func (ue *AmfUe) GetAnType() models.AccessType {
 	if ue.CmConnect(models.AccessType3GPPAccess) {
