@@ -31,11 +31,11 @@ import (
 )
 
 func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) (*context.RanUe, *ngapType.AMFUENGAPID) {
-	amfSelf := context.AMFSelf()
+	// amfSelf := context.AMFSelf()
 
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var fiveGSTMSI *ngapType.FiveGSTMSI
+	// var fiveGSTMSI *ngapType.FiveGSTMSI
 	var ranUe *context.RanUe
 
 	if ran == nil {
@@ -72,37 +72,14 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 						return nil, nil
 					}
 				case ngapType.ProtocolIEIDFiveGSTMSI: // optional, reject
-					fiveGSTMSI = ie.Value.FiveGSTMSI
+					// fiveGSTMSI = ie.Value.FiveGSTMSI
 					ran.Log.Debug("Decode IE 5G-S-TMSI")
 				}
 			}
 			ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 			if ranUe == nil {
-				// var err error
-
-				if fiveGSTMSI != nil {
-					guamiList := context.GetServedGuamiList(ctx)
-					servedGuami := guamiList[0]
-
-					// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
-					// GUAMI := <MCC><MNC><AMF Region ID><AMF Set ID><AMF Pointer>
-					// 5G-GUTI := <GUAMI><5G-TMSI>
-					tmpReginID, _, _ := ngapConvert.AmfIdToNgap(servedGuami.AmfID)
-					amfID := ngapConvert.AmfIdToModels(tmpReginID, fiveGSTMSI.AMFSetID.Value, fiveGSTMSI.AMFPointer.Value)
-
-					tmsi := hex.EncodeToString(fiveGSTMSI.FiveGTMSI.Value)
-
-					guti := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc + amfID + tmsi
-
-					if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); ok {
-						// ranUe, err = ran.NewRanUe(rANUENGAPID.Value)
-						// if err != nil {
-						// 	ran.Log.Error("NewRanUe Error", zap.Error(err))
-						// }
-						ranUe.Log.Warn("Known UE", zap.String("guti", guti))
-						gmm.AttachRanUeToAmfUeAndReleaseOldIfAny(amfUe, ranUe)
-					}
-				}
+				logger.AmfLog.Error("RanUe is nil")
+				return nil, nil
 			}
 
 		case ngapType.ProcedureCodeUplinkNASTransport:
