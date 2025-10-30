@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/omec-project/nas"
-	"github.com/omec-project/nas/security"
 )
 
 // Direction tells us whether this NAS was received from UE (uplink) or sent to UE (downlink).
@@ -25,56 +23,58 @@ func DecryptNASMessage(ue *context.AmfUe, dir Direction, payload []byte) ([]byte
 		return nil, fmt.Errorf("nas payload is empty")
 	}
 
-	var (
-		cnt    *security.Count
-		secDir uint8
-	)
+	return nil, fmt.Errorf("TO DELETE: DecryptNASMessage is deprecated")
 
-	switch dir {
-	case DirUplink:
-		cnt = &ue.ULCount
-		secDir = security.DirectionUplink
-	case DirDownlink:
-		cnt = &ue.DLCount
-		secDir = security.DirectionDownlink
-		// RRC Establishment cause is only relevant for UE-originating checks.
-	default:
-		return nil, fmt.Errorf("invalid direction")
-	}
+	// var (
+	// 	// cnt    *security.Count
+	// 	secDir uint8
+	// )
 
-	msg := new(nas.Message)
-	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
+	// switch dir {
+	// case DirUplink:
+	// 	// cnt = &ue.ULCount
+	// 	secDir = security.DirectionUplink
+	// case DirDownlink:
+	// 	// cnt = &ue.DLCount
+	// 	secDir = security.DirectionDownlink
+	// 	// RRC Establishment cause is only relevant for UE-originating checks.
+	// default:
+	// 	return nil, fmt.Errorf("invalid direction")
+	// }
 
-	// ---- Security protected NAS ----
-	if len(payload) < 7 {
-		return nil, fmt.Errorf("nas payload is too short")
-	}
+	// msg := new(nas.Message)
+	// msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
 
-	// Security header fields: 1B sec hdr type+PD, 4B MAC, 1B sequence number
-	sequenceNumber := payload[6]
+	// // ---- Security protected NAS ----
+	// if len(payload) < 7 {
+	// 	return nil, fmt.Errorf("nas payload is too short")
+	// }
 
-	// Strip header except keep seq byte at payload[0]
-	payload = payload[6:]
+	// // Security header fields: 1B sec hdr type+PD, 4B MAC, 1B sequence number
+	// sequenceNumber := payload[6]
 
-	if msg.SecurityHeaderType == nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext {
-		cnt.Set(0, 0)
-	}
+	// // Strip header except keep seq byte at payload[0]
+	// payload = payload[6:]
 
-	// Update COUNT with the 8-bit sequence number, handling overflow for the selected direction.
-	if cnt.SQN() > sequenceNumber {
-		cnt.SetOverflow(cnt.Overflow() + 1)
-	}
-	cnt.SetSQN(sequenceNumber)
+	// if msg.SecurityHeaderType == nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext {
+	// 	// cnt.Set(0, 0)
+	// }
 
-	_, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, cnt.Get(), security.Bearer3GPP, secDir, payload)
-	if err != nil {
-		return nil, fmt.Errorf("error calculating mac: %w", err)
-	}
+	// // Update COUNT with the 8-bit sequence number, handling overflow for the selected direction.
+	// // if cnt.SQN() > sequenceNumber {
+	// // 	cnt.SetOverflow(cnt.Overflow() + 1)
+	// // }
+	// // cnt.SetSQN(sequenceNumber)
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, cnt.Get(), security.Bearer3GPP, secDir, payload[1:]); err != nil {
-		return nil, fmt.Errorf("error decrypting: %w", err)
-	}
+	// _, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, cnt.Get(), security.Bearer3GPP, secDir, payload)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("error calculating mac: %w", err)
+	// }
 
-	// Remove sequence number before PlainNasDecode
-	return payload[1:], nil
+	// if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, cnt.Get(), security.Bearer3GPP, secDir, payload[1:]); err != nil {
+	// 	return nil, fmt.Errorf("error decrypting: %w", err)
+	// }
+
+	// // Remove sequence number before PlainNasDecode
+	// return payload[1:], nil
 }
