@@ -596,6 +596,9 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 	if integrityProtected {
 		ue.ULCount = ulCountNew
 	}
+
+	logger.AmfLog.Warn("TO DELETE: NAS message decoded successfully", zap.Int("ULCount", int(ue.ULCount.Get())), zap.Bool("integrityProtected", integrityProtected))
+
 	return msg, nil
 }
 

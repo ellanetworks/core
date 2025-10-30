@@ -78,7 +78,7 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 			}
 			ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 			if ranUe == nil {
-				logger.AmfLog.Error("RanUe is nil")
+				logger.AmfLog.Debug("RanUe is nil")
 				return nil, nil
 			}
 
