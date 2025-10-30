@@ -441,6 +441,7 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 			if !reflect.DeepEqual(mac32, receivedMac32) {
 				logger.AmfLog.Warn("TO DELETE: NAS MAC verification failed", zap.String("received", hex.EncodeToString(receivedMac32)), zap.String("expected", hex.EncodeToString(mac32)))
 				// ue.NASLog.Warnf("NAS MAC verification failed(received: 0x%08x, expected: 0x%08x)", receivedMac32, mac32)
+				return nil, fmt.Errorf("NAS MAC verification failed")
 			} else {
 				logger.AmfLog.Warn("TO DELETE: NAS MAC verification succeeded", zap.String("received", hex.EncodeToString(receivedMac32)), zap.String("expected", hex.EncodeToString(mac32)))
 				integrityProtected = true
