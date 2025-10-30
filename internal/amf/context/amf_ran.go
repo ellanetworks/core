@@ -69,6 +69,7 @@ func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {
 	ranUe.Log = ran.Log.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("%d", ranUe.AmfUeNgapID)))
 	ran.RanUeList = append(ran.RanUeList, &ranUe)
 	self.RanUePool.Store(ranUe.AmfUeNgapID, &ranUe)
+	logger.AmfLog.Warn("TO DELETE: new ran ue created", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 	return &ranUe, nil
 }
 

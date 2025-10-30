@@ -176,6 +176,7 @@ func (context *AMFContext) NewAmfUe(ctx ctxt.Context, supi string) *AmfUe {
 	}
 
 	context.AllocateGutiToUe(ctx, &ue)
+	logger.AmfLog.Warn("TO DELETE: New AMF UE created", zap.String("Supi", ue.Supi), zap.String("Guti", ue.Guti))
 
 	return &ue
 }
@@ -194,7 +195,7 @@ func (context *AMFContext) AmfUeFindBySupi(supi string) (ue *AmfUe, ok bool) {
 }
 
 func (context *AMFContext) AmfUeFindBySuci(suci string) (ue *AmfUe, ok bool) {
-	context.UePool.Range(func(key, value interface{}) bool {
+	context.UePool.Range(func(key, value any) bool {
 		candidate := value.(*AmfUe)
 		if ok = (candidate.Suci == suci); ok {
 			ue = candidate

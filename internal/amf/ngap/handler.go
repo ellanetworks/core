@@ -78,7 +78,7 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 			}
 			ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 			if ranUe == nil {
-				var err error
+				// var err error
 
 				if fiveGSTMSI != nil {
 					guamiList := context.GetServedGuamiList(ctx)
@@ -95,10 +95,10 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 					guti := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc + amfID + tmsi
 
 					if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); ok {
-						ranUe, err = ran.NewRanUe(rANUENGAPID.Value)
-						if err != nil {
-							ran.Log.Error("NewRanUe Error", zap.Error(err))
-						}
+						// ranUe, err = ran.NewRanUe(rANUENGAPID.Value)
+						// if err != nil {
+						// 	ran.Log.Error("NewRanUe Error", zap.Error(err))
+						// }
 						ranUe.Log.Warn("Known UE", zap.String("guti", guti))
 						gmm.AttachRanUeToAmfUeAndReleaseOldIfAny(amfUe, ranUe)
 					}
