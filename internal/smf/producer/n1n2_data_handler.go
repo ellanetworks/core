@@ -37,6 +37,14 @@ func HandleUpdateN1Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 		}
 
 		switch m.GsmHeader.GetMessageType() {
+		case nas.MsgTypePDUSessionEstablishmentRequest:
+			smContext.SubPduSessLog.Info("N1 Msg PDU Session Establishment Request received")
+			buf, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext)
+			if err != nil {
+				smContext.SubPduSessLog.Error("build GSM PDUSessionEstablishmentAccept failed", zap.Error(err))
+			}
+			response.BinaryDataN1SmMessage = buf
+			response.JSONData.N1SmMsg = &models.RefToBinaryData{ContentID: "PDUSessionEstablishmentAccept"}
 		case nas.MsgTypePDUSessionReleaseRequest:
 			smContext.SubPduSessLog.Info("N1 Msg PDU Session Release Request received")
 

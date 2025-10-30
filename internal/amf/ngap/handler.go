@@ -2458,7 +2458,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 				}
 			} else {
 				ranUe.Log.Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
-				amfUe.SmContextList.Range(func(key, value interface{}) bool {
+				amfUe.SmContextList.Range(func(key, value any) bool {
 					smContext := value.(*context.SmContext)
 					if !smContext.IsPduSessionActive() {
 						ranUe.Log.Info("Pdu Session is inactive so not sending deactivate to SMF")

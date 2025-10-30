@@ -144,8 +144,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			return forward5GSMMessageToSMF(ctx, ue, anType, pduSessionID, smContext, smMessage)
 		}
 
-		// log message type
-		logger.AmfLog.Debug("Received 5GSM message from UE", zap.Int32("pduSessionID", pduSessionID), zap.String("messageType", printMessageName(requestType.GetRequestTypeValue())))
+		logger.AmfLog.Warn("TO DELETE: Received 5GSM message from UE", zap.Int32("pduSessionID", pduSessionID), zap.String("messageType", printMessageName(requestType.GetRequestTypeValue())))
 
 		switch requestType.GetRequestTypeValue() {
 		case nasMessage.ULNASTransportRequestTypeInitialRequest:
