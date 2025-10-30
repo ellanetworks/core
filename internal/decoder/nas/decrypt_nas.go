@@ -37,7 +37,6 @@ func DecryptNASMessage(ue *context.AmfUe, dir Direction, payload []byte) ([]byte
 	case DirDownlink:
 		cnt = &ue.DLCount
 		secDir = security.DirectionDownlink
-		// RRC Establishment cause is only relevant for UE-originating checks.
 	default:
 		return nil, fmt.Errorf("invalid direction")
 	}
@@ -45,26 +44,12 @@ func DecryptNASMessage(ue *context.AmfUe, dir Direction, payload []byte) ([]byte
 	msg := new(nas.Message)
 	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
 
-	// ---- Security protected NAS ----
 	if len(payload) < 7 {
 		return nil, fmt.Errorf("nas payload is too short")
 	}
 
-	// Security header fields: 1B sec hdr type+PD, 4B MAC, 1B sequence number
-	sequenceNumber := payload[6]
-
 	// Strip header except keep seq byte at payload[0]
 	payload = payload[6:]
-
-	if msg.SecurityHeaderType == nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext {
-		cnt.Set(0, 0)
-	}
-
-	// Update COUNT with the 8-bit sequence number, handling overflow for the selected direction.
-	if cnt.SQN() > sequenceNumber {
-		cnt.SetOverflow(cnt.Overflow() + 1)
-	}
-	cnt.SetSQN(sequenceNumber)
 
 	_, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, cnt.Get(), security.Bearer3GPP, secDir, payload)
 	if err != nil {
