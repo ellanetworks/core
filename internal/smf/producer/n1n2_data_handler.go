@@ -117,6 +117,8 @@ func HandleUpdateN1Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 			smContext.SubPduSessLog.Warn("TO KEEP: N1 Msg 5GSM Status received", zap.Uint8("cause", m.GsmMessage.Status5GSM.Cause5GSM.GetCauseValue()), zap.String("causeString", cause5GSMToString(m.GsmMessage.Status5GSM.Cause5GSM.GetCauseValue())))
 		case nas.MsgTypePDUSessionEstablishmentRequest:
 			smContext.SubPduSessLog.Info("N1 Msg PDU Session Establishment Request received")
+			establishmentRequest := m.PDUSessionEstablishmentRequest
+			smContext.HandlePDUSessionEstablishmentRequest(establishmentRequest)
 			buf, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext)
 			if err != nil {
 				smContext.SubPduSessLog.Error("build GSM PDUSessionEstablishmentAccept failed", zap.Error(err))
