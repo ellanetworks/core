@@ -282,6 +282,7 @@ func (context *AMFContext) InPlmnSupport(ctx ctxt.Context, snssai models.Snssai)
 
 func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (ue *AmfUe, ok bool) {
 	context.UePool.Range(func(key, value any) bool {
+		logger.AmfLog.Warn("TO DELETE: checking Guti", zap.String("candidateGuti", value.(*AmfUe).Guti), zap.String("searchGuti", guti))
 		candidate := value.(*AmfUe)
 		if ok = (candidate.Guti == guti); ok {
 			ue = candidate

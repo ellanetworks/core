@@ -407,12 +407,12 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 		ciphered := false
 		switch msg.SecurityHeaderType {
 		case nas.SecurityHeaderTypeIntegrityProtected:
-			// ue.NASLog.Debugln("Security header type: Integrity Protected")
+			ue.NASLog.Warn("TO DELETE: Security header type: Integrity Protected")
 		case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
-			// ue.NASLog.Debugln("Security header type: Integrity Protected And Ciphered")
+			ue.NASLog.Warn("TO DELETE: Security header type: Integrity Protected And Ciphered")
 			ciphered = true
 		case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
-			// ue.NASLog.Debugln("Security header type: Integrity Protected And Ciphered With New 5G Security Context")
+			ue.NASLog.Warn("TO DELETE: Security header type: Integrity Protected And Ciphered With New 5G Security Context")
 			ciphered = true
 			ulCountNew.Set(0, 0)
 		default:
