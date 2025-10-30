@@ -365,8 +365,7 @@ format is followed TS 24.501 9.1.1
 // }
 
 // ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, payload []byte) (*nas.Message, error
-func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, payload []byte, initialMessage bool,
-) (msg *nas.Message, err error) {
+func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, payload []byte) (msg *nas.Message, err error) {
 	var integrityProtected bool
 	if ue == nil {
 		return nil, fmt.Errorf("amfUe is nil")
@@ -516,37 +515,35 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 				}
 			}
 		case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
-			if initialMessage {
-				if msg.SecurityHeaderType == nas.SecurityHeaderTypeIntegrityProtectedAndCiphered ||
-					msg.SecurityHeaderType == nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext {
-					return nil, errWrongSecurityHeader()
-				}
-			} else {
-				if ue.SecurityContextAvailable {
-					if msg.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtectedAndCiphered {
-						return nil, errWrongSecurityHeader()
-					}
-					if !integrityProtected {
-						return nil, errMacVerificationFailed()
-					}
-				}
-			}
-		case nas.MsgTypeServiceRequest:
-			if initialMessage {
-				if msg.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtected {
-					return nil, errWrongSecurityHeader()
-				}
-			} else {
-				if !ue.SecurityContextAvailable {
-					return nil, errNoSecurityContext()
-				}
+			if ue.SecurityContextAvailable {
+				// With a valid NAS security context, this must be IP&C and pass MAC.
 				if msg.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtectedAndCiphered {
 					return nil, errWrongSecurityHeader()
 				}
 				if !integrityProtected {
 					return nil, errMacVerificationFailed()
 				}
+			} else {
+				// Without a security context, this message is one of the few allowed in Plain NAS.
+				if msg.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+					return nil, errWrongSecurityHeader()
+				}
+				// (no MAC requirement here; Plain NAS is allowed pre-security)
 			}
+
+		case nas.MsgTypeServiceRequest:
+			// Service Request requires an established NAS security context
+			if !ue.SecurityContextAvailable {
+				return nil, errNoSecurityContext()
+			}
+			// Per spec, Service Request is Integrity Protected (not ciphered) and must pass MAC.
+			if msg.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtected {
+				return nil, errWrongSecurityHeader()
+			}
+			if !integrityProtected {
+				return nil, errMacVerificationFailed()
+			}
+
 		case nas.MsgTypeIdentityResponse:
 			mobileIdentityContents := msg.IdentityResponse.MobileIdentity.GetMobileIdentityContents()
 			if len(mobileIdentityContents) >= 1 &&

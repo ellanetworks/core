@@ -713,7 +713,7 @@ func HandleUplinkNasTransport(ctx ctxt.Context, ran *context.AmfRan, message *ng
 		ranUe.UpdateLocation(ctx, userLocationInformation)
 	}
 
-	err := nas.HandleNAS(ctx, ranUe, ngapType.ProcedureCodeUplinkNASTransport, nASPDU.Value, false)
+	err := nas.HandleNAS(ctx, ranUe, ngapType.ProcedureCodeUplinkNASTransport, nASPDU.Value)
 	if err != nil {
 		ranUe.Log.Error("error handling NAS message", zap.Error(err))
 	}
@@ -1517,7 +1517,7 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 		ran.Log.Error("libngap Encoder Error", zap.Error(err))
 	}
 	ranUe.InitialUEMessage = pdu
-	err = nas.HandleNAS(ctx, ranUe, ngapType.ProcedureCodeInitialUEMessage, nASPDU.Value, true)
+	err = nas.HandleNAS(ctx, ranUe, ngapType.ProcedureCodeInitialUEMessage, nASPDU.Value)
 	if err != nil {
 		ran.Log.Error("error handling NAS", zap.Error(err))
 	}
@@ -3799,7 +3799,7 @@ func HandleNasNonDeliveryIndication(ctx ctxt.Context, ran *context.AmfRan, messa
 
 	printAndGetCause(ran, cause)
 
-	err := nas.HandleNAS(ctx, ranUe, ngapType.ProcedureCodeNASNonDeliveryIndication, nASPDU.Value, false)
+	err := nas.HandleNAS(ctx, ranUe, ngapType.ProcedureCodeNASNonDeliveryIndication, nASPDU.Value)
 	if err != nil {
 		ranUe.Log.Error("error handling NAS", zap.Error(err))
 	}
