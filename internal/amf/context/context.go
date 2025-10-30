@@ -280,7 +280,17 @@ func (context *AMFContext) InPlmnSupport(ctx ctxt.Context, snssai models.Snssai)
 	return false
 }
 
+func (context *AMFContext) GetAmfUEPoolLength() int {
+	length := 0
+	context.UePool.Range(func(key, value any) bool {
+		length++
+		return true
+	})
+	return length
+}
+
 func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (ue *AmfUe, ok bool) {
+	logger.AmfLog.Warn("TO DELETE: UePool size", zap.Int("size", context.GetAmfUEPoolLength()))
 	context.UePool.Range(func(key, value any) bool {
 		logger.AmfLog.Warn("TO DELETE: checking Guti", zap.String("candidateGuti", value.(*AmfUe).Guti), zap.String("searchGuti", guti))
 		candidate := value.(*AmfUe)
@@ -295,6 +305,7 @@ func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (ue *AmfUe, ok bool
 }
 
 func (context *AMFContext) AmfUeFindBySupiLocal(supi string) (ue *AmfUe, ok bool) {
+	logger.AmfLog.Warn("TO DELETE: UePool size", zap.Int("size", context.GetAmfUEPoolLength()))
 	context.UePool.Range(func(key, value any) bool {
 		logger.AmfLog.Warn("TO DELETE: checking Supi", zap.String("candidateSupi", key.(string)), zap.String("searchSupi", supi))
 		candidate := value.(*AmfUe)
