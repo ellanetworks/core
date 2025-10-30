@@ -401,6 +401,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	if ue.MacFailed {
 		amfSelf.ReAllocateGutiToUe(ctx, ue)
 		ue.SecurityContextAvailable = false
+		logger.AmfLog.Warn("TO DELETE: Mac Failed and security context marked as unavailable")
 	}
 
 	ue.SetOnGoing(anType, &context.OnGoingProcedureWithPrio{
@@ -430,6 +431,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 			security.DirectionUplink, contents)
 		if err != nil {
 			ue.SecurityContextAvailable = false
+			logger.AmfLog.Warn("TO DELETE: NAS decryption failed, security context marked as unavailable", zap.Error(err))
 		} else {
 			m := nas.NewMessage()
 			if err := m.GmmMessageDecode(&contents); err != nil {
@@ -1391,6 +1393,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 		if err != nil {
 			ue.SecurityContextAvailable = false
+			logger.AmfLog.Warn("TO DELETE: Failed to decrypt NAS message container IE", zap.String("supi", ue.Supi))
 		} else {
 			m := nas.NewMessage()
 			if err := m.GmmMessageDecode(&contents); err != nil {

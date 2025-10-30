@@ -15,11 +15,13 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
 	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
+	"go.uber.org/zap"
 )
 
 func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause *uint8) ([]byte, error) {
@@ -375,6 +377,7 @@ func BuildSecurityModeCommand(ue *context.AmfUe, eapSuccess bool, eapMessage str
 	payload, err := nassecurity.Encode(ue, m)
 	if err != nil {
 		ue.SecurityContextAvailable = false
+		logger.AmfLog.Warn("TO DELETE: Failed to encode Security Mode Command", zap.String("supi", ue.Supi), zap.Error(err))
 		return nil, err
 	} else {
 		return payload, nil

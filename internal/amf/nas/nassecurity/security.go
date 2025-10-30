@@ -152,6 +152,7 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) *context
 			if ue != nil {
 				ue.NASLog.Info("UE Context derived from Suci", zap.String("suci", suci))
 				ue.SecurityContextAvailable = false
+				logger.AmfLog.Warn("TO DELETE: Security context marked as unavailable based on SUCI", zap.String("supi", ue.Supi))
 			}
 			return ue
 		}
