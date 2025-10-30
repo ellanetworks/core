@@ -373,6 +373,7 @@ func BuildSecurityModeCommand(ue *context.AmfUe, eapSuccess bool, eapMessage str
 	}
 
 	ue.SecurityContextAvailable = true
+	logger.AmfLog.Info("TO DELETE: Set Security Context to available", zap.String("supi", ue.Supi))
 	m.GmmMessage.SecurityModeCommand = securityModeCommand
 	payload, err := nassecurity.Encode(ue, m)
 	if err != nil {

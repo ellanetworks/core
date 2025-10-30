@@ -1426,7 +1426,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 	if ue.MacFailed {
 		ue.SecurityContextAvailable = false
-		ue.GmmLog.Warn("Security Context Exist, But Integrity Check Failed with existing Context", zap.String("supi", ue.Supi))
+		ue.GmmLog.Warn("TO DELETE: Security Context Exist, But Integrity Check Failed with existing Context", zap.String("supi", ue.Supi))
 		err := gmm_message.SendServiceReject(ue.RanUe[anType], nil, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending service reject: %v", err)
@@ -2031,6 +2031,7 @@ func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType,
 	ue.GmmLog.Error("UE reject the security mode command, abort the ongoing procedure")
 
 	ue.SecurityContextAvailable = false
+	logger.AmfLog.Warn("TO DELETE: Set Security Context to invalid")
 
 	err := ngap_message.SendUEContextReleaseCommand(ue.RanUe[anType], context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {

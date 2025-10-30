@@ -357,6 +357,7 @@ func SecurityMode(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
 		// stopping security mode command timer
 		amfUe.SecurityContextAvailable = false
+		logger.AmfLog.Warn("TO DELETE: Set Security Context to Invalid in SecurityModeAbortEvent")
 		amfUe.T3560.Stop()
 		amfUe.T3560 = nil
 	case NwInitiatedDeregistrationEvent:
