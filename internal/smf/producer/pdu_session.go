@@ -148,11 +148,22 @@ func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmCo
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
+	smPolicyDecision, err := SendSMPolicyAssociationCreate(ctx, smContext)
+	if err != nil {
+		// response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
+		logger.SmfLog.Error("failed to create policy association", zap.Error(err))
+		return nil, fmt.Errorf("failed to create policy association: %v", err)
+	}
+	smContext.SubPduSessLog.Info("Created policy association")
+
+	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, smPolicyDecision)
+	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates) // TODO: careful about multiple updates
+
 	pfcpAction := &pfcpAction{}
 	var response models.UpdateSmContextResponse
 	response.JSONData = new(models.SmContextUpdatedData)
 
-	err := HandleUpdateN1Msg(ctx, request, smContext, &response, pfcpAction)
+	err = HandleUpdateN1Msg(ctx, request, smContext, &response, pfcpAction)
 	if err != nil {
 		return nil, fmt.Errorf("error handling N1 message: %v", err)
 	}

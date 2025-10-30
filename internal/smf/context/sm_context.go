@@ -371,6 +371,9 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 	defer smContext.SMLock.Unlock()
 
 	if status {
+		if len(smContext.SmPolicyUpdates) == 0 {
+			return fmt.Errorf("no SM Policy Update to commit")
+		}
 		err := qos.CommitSmPolicyDecision(&smContext.SmPolicyData, smContext.SmPolicyUpdates[0])
 		if err != nil {
 			logger.SmfLog.Error("failed to commit SM Policy Decision", zap.Error(err))
