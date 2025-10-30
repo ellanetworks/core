@@ -63,12 +63,12 @@ func UpdateSmContext(ctx ctxt.Context, smContextRef string, updateSmContextReque
 		return nil, fmt.Errorf("response is nil")
 	}
 
-	go func() {
-		err := producer.SendPduSessN1N2Transfer(ctx, smContext, true)
-		if err != nil {
-			logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
-		}
-	}()
+	// go func() {
+	// 	err := producer.SendPduSessN1N2Transfer(ctx, smContext, true)
+	// 	if err != nil {
+	// 		logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
+	// 	}
+	// }()
 
 	return rsp, nil
 }
