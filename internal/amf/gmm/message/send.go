@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/ngap/ngapType"
@@ -296,18 +297,21 @@ func SendRegistrationAccept(
 	errPduSessionID, errCause []uint8,
 	pduSessionResourceSetupList *ngapType.PDUSessionResourceSetupListCxtReq,
 ) error {
+	logger.AmfLog.Warn("TO DELETE: SendRegistrationAccept called")
 	nasMsg, err := BuildRegistrationAccept(ctx, ue, anType, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 	if err != nil {
 		return fmt.Errorf("error building registration accept: %s", err.Error())
 	}
 
 	if ue.RanUe[anType].UeContextRequest {
+		logger.AmfLog.Warn("TO DELETE: ue context request is set")
 		err = ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasMsg, pduSessionResourceSetupList, nil, nil, nil)
 		if err != nil {
 			return fmt.Errorf("error sending initial context setup request: %s", err.Error())
 		}
 		ue.GmmLog.Info("Sent NGAP initial context setup request")
 	} else {
+		logger.AmfLog.Warn("TO DELETE: ue context request is not set")
 		err = ngap_message.SendDownlinkNasTransport(ue.RanUe[models.AccessType3GPPAccess], nasMsg, nil)
 		if err != nil {
 			return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
@@ -323,12 +327,14 @@ func SendRegistrationAccept(
 				ue.T3550 = nil
 			} else {
 				if ue.RanUe[anType].UeContextRequest && !ue.RanUe[anType].RecvdInitialContextSetupResponse {
+					logger.AmfLog.Warn("TO DELETE: T3550 expires, retransmit Registration Accept with Initial Context Setup Request", zap.Any("expireTimes", expireTimes))
 					err = ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasMsg, pduSessionResourceSetupList, nil, nil, nil)
 					if err != nil {
 						ue.GmmLog.Error("could not send initial context setup request", zap.Error(err))
 					}
 					ue.GmmLog.Info("Sent NGAP initial context setup request")
 				} else {
+					logger.AmfLog.Warn("TO DELETE: T3550 expires, retransmit Registration Accept without Initial Context Setup Request", zap.Any("expireTimes", expireTimes))
 					ue.GmmLog.Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
 					err = ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasMsg, nil)
 					if err != nil {
