@@ -47,6 +47,7 @@ func HandlePduSessionContextReplacement(ctx ctxt.Context, smCtxtRef string) erro
 }
 
 func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmContextsRequest, smContext *context.SMContext) (string, *models.PostSmContextsErrorResponse, error) {
+	logger.SmfLog.Warn("TO DELETE: Handle PDU Session SM Context Create", zap.String("smCtxtRef", smContext.Ref))
 	// GSM State
 	// PDU Session Establishment Accept/Reject
 

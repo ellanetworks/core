@@ -66,6 +66,24 @@ func HandleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	return nil
 }
 
+func printMessageName(msgType uint8) string {
+	switch msgType {
+	case nasMessage.ULNASTransportRequestTypeInitialRequest:
+		return "Initial Request"
+	case nasMessage.ULNASTransportRequestTypeExistingPduSession:
+		return "Existing PDU Session"
+	case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
+		return "Initial Emergency Request"
+	case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
+		return "Existing Emergency PDU Session"
+	case nasMessage.ULNASTransportRequestTypeModificationRequest:
+		return "Modification Request"
+	case nasMessage.ULNASTransportRequestTypeReserved:
+		return "Reserved"
+	}
+	return "Unknown Request"
+}
+
 func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, ulNasTransport *nasMessage.ULNASTransport) error {
 	var pduSessionID int32
 	smMessage := ulNasTransport.PayloadContainer.GetPayloadContainerContents()
@@ -126,46 +144,12 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			return forward5GSMMessageToSMF(ctx, ue, anType, pduSessionID, smContext, smMessage)
 		}
 
+		// log message type
+		logger.AmfLog.Debug("Received 5GSM message from UE", zap.Int32("pduSessionID", pduSessionID), zap.String("messageType", printMessageName(requestType.GetRequestTypeValue())))
+
 		switch requestType.GetRequestTypeValue() {
 		case nasMessage.ULNASTransportRequestTypeInitialRequest:
 			smContext.StoreULNASTransport(ulNasTransport)
-			//  perform a local release of the PDU session identified by the PDU session ID and shall request
-			// the SMF to perform a local release of the PDU session
-			// updateData := models.SmContextUpdateData{
-			// 	Release: true,
-			// 	Cause:   models.CauseRelDueToDuplicateSessionID,
-			// 	SmContextStatusURI: fmt.Sprintf("%s/namf-callback/v1/smContextStatus/%s/%d",
-			// 		ue.ServingAMF.GetIPv4Uri(), ue.Guti, pduSessionID),
-			// }
-			// response, err := consumer.SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
-			// if err != nil {
-			// 	return err
-			// }
-			// if response == nil {
-			// 	ue.GmmLog.Error("PDU Session can't be released in DUPLICATE_SESSION_ID case", zap.Int32("pduSessionID", pduSessionID))
-			// 	err = gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
-			// 	if err != nil {
-			// 		return fmt.Errorf("error sending downlink nas transport: %s", err)
-			// 	}
-			// 	ue.GmmLog.Info("sent downlink nas transport to UE")
-			// } else {
-			// 	smContext.SetUserLocation(ue.Location)
-			// 	responseData := response.JSONData
-			// 	n2Info := response.BinaryDataN2SmInformation
-			// 	if n2Info != nil {
-			// 		switch responseData.N2SmInfoType {
-			// 		case models.N2SmInfoTypePduResRelCmd:
-			// 			ue.GmmLog.Debug("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
-			// 			list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
-			// 			ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2Info)
-			// 			err := ngap_message.SendPDUSessionResourceReleaseCommand(ue.RanUe[anType], nil, list)
-			// 			if err != nil {
-			// 				return fmt.Errorf("error sending pdu session resource release command: %s", err)
-			// 			}
-			// 			ue.GmmLog.Info("sent pdu session resource release command to UE")
-			// 		}
-			// 	}
-			// }
 			forward5GSMMessageToSMF(ctx, ue, anType, pduSessionID, smContext, smMessage)
 
 		// case ii) AMF has a PDU session routing context, and Request type is "existing PDU session"

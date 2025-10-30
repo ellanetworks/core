@@ -72,3 +72,58 @@ func UpdateSmContext(ctx ctxt.Context, smContextRef string, updateSmContextReque
 
 	return rsp, nil
 }
+
+// func BuildStuff(ctx ctxt.Context, smContext *context.SMContext, success bool) error {
+// 	// N1N2 Request towards AMF
+// 	n1n2Request := models.N1N2MessageTransferRequest{}
+
+// 	// N2 Container Info
+// 	n2InfoContainer := models.N2InfoContainer{
+// 		N2InformationClass: models.N2InformationClassSM,
+// 		SmInfo: &models.N2SmInformation{
+// 			PduSessionID: smContext.PDUSessionID,
+// 			N2InfoContent: &models.N2InfoContent{
+// 				NgapIeType: models.NgapIeTypePduResSetupReq,
+// 				NgapData: &models.RefToBinaryData{
+// 					ContentID: "N2SmInformation",
+// 				},
+// 			},
+// 			SNssai: smContext.Snssai,
+// 		},
+// 	}
+
+// 	// N1 Container Info
+// 	n1MsgContainer := models.N1MessageContainer{
+// 		N1MessageClass:   "SM",
+// 		N1MessageContent: &models.RefToBinaryData{ContentID: "GSM_NAS"},
+// 	}
+
+// 	// N1N2 Json Data
+// 	n1n2Request.JSONData = &models.N1N2MessageTransferReqData{PduSessionID: smContext.PDUSessionID}
+
+// 	if success {
+// 		if smNasBuf, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext); err != nil {
+// 			logger.SmfLog.Error("Build GSM PDUSessionEstablishmentAccept failed", zap.Error(err))
+// 		} else {
+// 			n1n2Request.BinaryDataN1Message = smNasBuf
+// 			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
+// 		}
+
+// 		if n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext); err != nil {
+// 			logger.SmfLog.Error("Build PDUSessionResourceSetupRequestTransfer failed", zap.Error(err))
+// 		} else {
+// 			n1n2Request.BinaryDataN2Information = n2Pdu
+// 			n1n2Request.JSONData.N2InfoContainer = &n2InfoContainer
+// 		}
+// 	} else {
+// 		if smNasBuf, err := context.BuildGSMPDUSessionEstablishmentReject(smContext,
+// 			nasMessage.Cause5GSMRequestRejectedUnspecified); err != nil {
+// 			logger.SmfLog.Error("Build GSM PDUSessionEstablishmentReject failed", zap.Error(err))
+// 		} else {
+// 			n1n2Request.BinaryDataN1Message = smNasBuf
+// 			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
+// 		}
+// 	}
+
+// 	return nil
+// }
