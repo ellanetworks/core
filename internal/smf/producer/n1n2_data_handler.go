@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/omec-project/nas"
+	"github.com/omec-project/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
@@ -26,6 +27,81 @@ type pfcpParam struct {
 	qerList []*context.QER
 }
 
+func cause5GSMToString(causeValue uint8) string {
+	switch causeValue {
+	case nasMessage.Cause5GSMInsufficientResources:
+		return "Insufficient Resources"
+	case nasMessage.Cause5GSMMissingOrUnknownDNN:
+		return "Missing Or Unknown DNN"
+	case nasMessage.Cause5GSMUnknownPDUSessionType:
+		return "Unknown PDU Session Type"
+	case nasMessage.Cause5GSMUserAuthenticationOrAuthorizationFailed:
+		return "User Authentication Or Authorization Failed"
+	case nasMessage.Cause5GSMRequestRejectedUnspecified:
+		return "Request Rejected Unspecified"
+	case nasMessage.Cause5GSMServiceOptionTemporarilyOutOfOrder:
+		return "Service Option Temporarily Out Of Order"
+	case nasMessage.Cause5GSMPTIAlreadyInUse:
+		return "PTI Already In Use"
+	case nasMessage.Cause5GSMRegularDeactivation:
+		return "Regular Deactivation"
+	case nasMessage.Cause5GSMReactivationRequested:
+		return "Reactivation Requested"
+	case nasMessage.Cause5GSMInvalidPDUSessionIdentity:
+		return "Invalid PDU Session Identity"
+	case nasMessage.Cause5GSMSemanticErrorsInPacketFilter:
+		return "Semantic Errors In Packet Filter"
+	case nasMessage.Cause5GSMSyntacticalErrorInPacketFilter:
+		return "Syntactical Error In Packet Filter"
+	case nasMessage.Cause5GSMOutOfLADNServiceArea:
+		return "Out Of LADN Service Area"
+	case nasMessage.Cause5GSMPTIMismatch:
+		return "PTI Mismatch"
+	case nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed:
+		return "PDU Session Type IPv4 Only Allowed"
+	case nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed:
+		return "PDU Session Type IPv6 Only Allowed"
+	case nasMessage.Cause5GSMPDUSessionDoesNotExist:
+		return "PDU Session Does Not Exist"
+	case nasMessage.Cause5GSMInsufficientResourcesForSpecificSliceAndDNN:
+		return "Insufficient Resources For Specific Slice And DNN"
+	case nasMessage.Cause5GSMNotSupportedSSCMode:
+		return "Not Supported SSC Mode"
+	case nasMessage.Cause5GSMInsufficientResourcesForSpecificSlice:
+		return "Insufficient Resources For Specific Slice"
+	case nasMessage.Cause5GSMMissingOrUnknownDNNInASlice:
+		return "Missing Or Unknown DNN In A Slice"
+	case nasMessage.Cause5GSMInvalidPTIValue:
+		return "Invalid PTI Value"
+	case nasMessage.Cause5GSMMaximumDataRatePerUEForUserPlaneIntegrityProtectionIsTooLow:
+		return "Maximum Data Rate Per UE For User Plane Integrity Protection Is Too Low"
+	case nasMessage.Cause5GSMSemanticErrorInTheQoSOperation:
+		return "Semantic Error In The QoS Operation"
+	case nasMessage.Cause5GSMSyntacticalErrorInTheQoSOperation:
+		return "Syntactical Error In The QoS Operation"
+	case nasMessage.Cause5GSMInvalidMappedEPSBearerIdentity:
+		return "Invalid Mapped EPS Bearer Identity"
+	case nasMessage.Cause5GSMSemanticallyIncorrectMessage:
+		return "Semantically Incorrect Message"
+	case nasMessage.Cause5GSMInvalidMandatoryInformation:
+		return "Invalid Mandatory Information"
+	case nasMessage.Cause5GSMMessageTypeNonExistentOrNotImplemented:
+		return "Message Type Non Existent Or Not Implemented"
+	case nasMessage.Cause5GSMMessageTypeNotCompatibleWithTheProtocolState:
+		return "Message Type Not Compatible With The Protocol State"
+	case nasMessage.Cause5GSMInformationElementNonExistentOrNotImplemented:
+		return "Information Element Non Existent Or Not Implemented"
+	case nasMessage.Cause5GSMConditionalIEError:
+		return "Conditional IE Error"
+	case nasMessage.Cause5GSMMessageNotCompatibleWithTheProtocolState:
+		return "Message Not Compatible With The Protocol State"
+	case nasMessage.Cause5GSMProtocolErrorUnspecified:
+		return "Protocol Error Unspecified"
+	default:
+		return ""
+	}
+}
+
 func HandleUpdateN1Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) error {
 	if body.BinaryDataN1SmMessage != nil {
 		smContext.SubPduSessLog.Debug("Binary Data N1 SmMessage isn't nil")
@@ -37,6 +113,8 @@ func HandleUpdateN1Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 		}
 
 		switch m.GsmHeader.GetMessageType() {
+		case nas.MsgTypeStatus5GSM:
+			smContext.SubPduSessLog.Warn("TO KEEP: N1 Msg 5GSM Status received", zap.Uint8("cause", m.GsmMessage.Status5GSM.Cause5GSM.GetCauseValue()), zap.String("causeString", cause5GSMToString(m.GsmMessage.Status5GSM.Cause5GSM.GetCauseValue())))
 		case nas.MsgTypePDUSessionEstablishmentRequest:
 			smContext.SubPduSessLog.Info("N1 Msg PDU Session Establishment Request received")
 			buf, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext)
