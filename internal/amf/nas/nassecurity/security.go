@@ -425,13 +425,12 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 
 		if ue.SecurityContextAvailable {
 			if ulCountNew.SQN() > sequenceNumber {
-				// ue.NASLog.Debugf("set ULCount overflow")
 				ulCountNew.SetOverflow(ulCountNew.Overflow() + 1)
+				logger.AmfLog.Warn("TO DELETE: set ULCount overflow", zap.Uint8("SQN", ulCountNew.SQN()), zap.Uint8("receivedSQN", sequenceNumber), zap.Uint32("ULCount", ulCountNew.Get()))
 			}
 			ulCountNew.SetSQN(sequenceNumber)
+			logger.AmfLog.Warn("TO DELETE: Updated ULCount", zap.Uint32("ULCount", ulCountNew.Get()))
 
-			// ue.NASLog.Debugf("Calculate NAS MAC (algorithm: %+v, ULCount: 0x%0x)", ue.IntegrityAlg, ulCountNew.Get())
-			// ue.NASLog.Tracef("NAS integrity key0x: %0x", ue.KnasInt)
 			var mac32 []byte
 			mac32, err = security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ulCountNew.Get(),
 				GetBearerType(accessType), security.DirectionUplink, payload)
@@ -440,9 +439,10 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 			}
 
 			if !reflect.DeepEqual(mac32, receivedMac32) {
+				logger.AmfLog.Warn("TO DELETE: NAS MAC verification failed", zap.String("received", hex.EncodeToString(receivedMac32)), zap.String("expected", hex.EncodeToString(mac32)))
 				// ue.NASLog.Warnf("NAS MAC verification failed(received: 0x%08x, expected: 0x%08x)", receivedMac32, mac32)
 			} else {
-				// ue.NASLog.Tracef("cmac value: 0x%08x", mac32)
+				logger.AmfLog.Warn("TO DELETE: NAS MAC verification succeeded", zap.String("received", hex.EncodeToString(receivedMac32)), zap.String("expected", hex.EncodeToString(mac32)))
 				integrityProtected = true
 			}
 		} else {
@@ -462,7 +462,7 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 			}
 		}
 
-		// remove sequece Number
+		// remove sequence Number
 		payload = payload[1:]
 	}
 
