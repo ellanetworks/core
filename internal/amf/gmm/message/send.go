@@ -296,6 +296,7 @@ func SendRegistrationAccept(
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
 	pduSessionResourceSetupList *ngapType.PDUSessionResourceSetupListCxtReq,
+	initialContextSetupRequest bool,
 ) error {
 	logger.AmfLog.Warn("TO DELETE: SendRegistrationAccept called")
 	nasMsg, err := BuildRegistrationAccept(ctx, ue, anType, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
@@ -303,7 +304,7 @@ func SendRegistrationAccept(
 		return fmt.Errorf("error building registration accept: %s", err.Error())
 	}
 
-	if ue.RanUe[anType].UeContextRequest {
+	if initialContextSetupRequest {
 		logger.AmfLog.Warn("TO DELETE: ue context request is set")
 		err = ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasMsg, pduSessionResourceSetupList, nil, nil, nil)
 		if err != nil {
@@ -326,7 +327,7 @@ func SendRegistrationAccept(
 				ue.GmmLog.Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
 				ue.T3550 = nil
 			} else {
-				if ue.RanUe[anType].UeContextRequest && !ue.RanUe[anType].RecvdInitialContextSetupResponse {
+				if initialContextSetupRequest && !ue.RanUe[anType].RecvdInitialContextSetupResponse {
 					logger.AmfLog.Warn("TO DELETE: T3550 expires, retransmit Registration Accept with Initial Context Setup Request", zap.Any("expireTimes", expireTimes))
 					err = ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasMsg, pduSessionResourceSetupList, nil, nil, nil)
 					if err != nil {
