@@ -587,13 +587,12 @@ func BuildRegistrationAccept(
 		registrationAccept.ServiceAreaList.SetPartialServiceAreaList(partialServiceAreaList)
 	}
 
-	// Temporary: commented this timer because UESIM is not supporting
-	/*if anType == models.AccessType3GPPAccess && ue.T3512Value != 0 {
+	if anType == models.AccessType3GPPAccess && ue.T3512Value != 0 {
 		registrationAccept.T3512Value = nasType.NewT3512Value(nasMessage.RegistrationAcceptT3512ValueType)
 		registrationAccept.T3512Value.SetLen(1)
 		t3512 := nasConvert.GPRSTimer3ToNas(ue.T3512Value)
 		registrationAccept.T3512Value.Octet = t3512
-	}*/
+	}
 
 	if anType == models.AccessTypeNon3GPPAccess {
 		registrationAccept.Non3GppDeregistrationTimerValue = nasType.NewNon3GppDeregistrationTimerValue(nasMessage.RegistrationAcceptNon3GppDeregistrationTimerValueType)
