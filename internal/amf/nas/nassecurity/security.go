@@ -502,17 +502,17 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 		switch msg.GmmHeader.GetMessageType() {
 		case nas.MsgTypeRegistrationRequest:
 			if !ue.SecurityContextAvailable {
-				if msg.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-					return nil, errWrongSecurityHeader()
-				}
+				// if msg.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+				// 	return nil, errWrongSecurityHeader()
+				// }
 			} else {
-				if msg.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtected &&
-					msg.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtectedAndCiphered {
-					return nil, errWrongSecurityHeader()
-				}
-				if !integrityProtected {
-					return nil, errMacVerificationFailed()
-				}
+				// if msg.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtected &&
+				// 	msg.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtectedAndCiphered {
+				// 	return nil, errWrongSecurityHeader()
+				// }
+				// if !integrityProtected {
+				// 	return nil, errMacVerificationFailed()
+				// }
 			}
 		case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
 			if ue.SecurityContextAvailable {
