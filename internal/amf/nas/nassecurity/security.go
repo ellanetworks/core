@@ -501,7 +501,24 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 		}
 	} else {
 		switch msg.GmmHeader.GetMessageType() {
-		case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration, nas.MsgTypeRegistrationRequest:
+		case nas.MsgTypeRegistrationRequest:
+			if ue.SecurityContextAvailable {
+				// Periodic/mobility updating and most re-registration cases
+				if msg.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtectedAndCiphered &&
+					msg.SecurityHeaderType != nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext {
+					return nil, errWrongSecurityHeader()
+				}
+				if !integrityProtected {
+					return nil, errMacVerificationFailed()
+				}
+			} else {
+				// Fresh attach: plain is allowed; protected-with-new-context is also possible after SMC
+				if msg.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+					// You may allow "WithNew5gNasSecurityContext" if you support it here
+					return nil, errWrongSecurityHeader()
+				}
+			}
+		case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
 			if initialMessage {
 				if msg.SecurityHeaderType == nas.SecurityHeaderTypeIntegrityProtectedAndCiphered ||
 					msg.SecurityHeaderType == nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext {

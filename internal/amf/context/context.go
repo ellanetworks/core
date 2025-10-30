@@ -111,6 +111,7 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 	if err != nil {
 		return -1, fmt.Errorf("could not allocate AmfUeNgapID: %v", err)
 	}
+	logger.AmfLog.Warn("TO DELETE: allocated AmfUeNgapID", zap.Int64("AmfUeNgapID", int64(val)))
 	return val, nil
 }
 
