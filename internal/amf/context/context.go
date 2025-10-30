@@ -295,6 +295,7 @@ func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (ue *AmfUe, ok bool
 
 func (context *AMFContext) AmfUeFindBySupiLocal(supi string) (ue *AmfUe, ok bool) {
 	context.UePool.Range(func(key, value any) bool {
+		logger.AmfLog.Warn("TO DELETE: checking Supi", zap.String("candidateSupi", key.(string)), zap.String("searchSupi", supi))
 		candidate := value.(*AmfUe)
 		if ok = (candidate.Supi == supi); ok {
 			ue = candidate
@@ -317,7 +318,7 @@ func (context *AMFContext) AmfUeFindByGuti(guti string) (ue *AmfUe, ok bool) {
 }
 
 func (context *AMFContext) AmfUeFindByPolicyAssociationID(polAssoID string) (ue *AmfUe, ok bool) {
-	context.UePool.Range(func(key, value interface{}) bool {
+	context.UePool.Range(func(key, value any) bool {
 		candidate := value.(*AmfUe)
 		if ok = (candidate.PolicyAssociationID == polAssoID); ok {
 			ue = candidate

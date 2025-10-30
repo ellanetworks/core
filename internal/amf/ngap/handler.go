@@ -1480,7 +1480,7 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 			if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); !ok {
 				ranUe.Log.Warn("Unknown UE", zap.String("GUTI", guti))
 			} else {
-				ranUe.Log.Debug("find AmfUe", zap.String("GUTI", guti))
+				ranUe.Log.Debug("Found AmfUe", zap.String("GUTI", guti), zap.Uint32("ULCount", amfUe.ULCount.Get()), zap.Uint32("DLCount", amfUe.DLCount.Get()))
 				/* checking the guti-ue belongs to this amf instance */
 
 				if amfUe.CmConnect(ran.AnType) {
