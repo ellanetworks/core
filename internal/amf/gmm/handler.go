@@ -769,20 +769,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 	var pduSessionStatus *[16]bool
 	if ue.RegistrationRequest.PDUSessionStatus != nil {
 		pduSessionStatus = new([16]bool)
-		psiArray := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.PDUSessionStatus.Buffer)
 		for psi := 1; psi <= 15; psi++ {
 			pduSessionID := int32(psi)
-			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
-				if !psiArray[psi] && smContext.AccessType() == anType {
-					err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
-					if err != nil {
-						return fmt.Errorf("failed to release sm context: %s", err)
-					} else {
-						pduSessionStatus[psi] = false
-					}
-				} else {
-					pduSessionStatus[psi] = false
-				}
+			if _, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
+				pduSessionStatus[psi] = false
 			}
 		}
 	}
@@ -2028,7 +2018,7 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType mod
 	deregistrationRequest *nasMessage.DeregistrationRequestUEOriginatingDeregistration,
 ) error {
 	targetDeregistrationAccessType := deregistrationRequest.GetAccessType()
-	ue.SmContextList.Range(func(key, value interface{}) bool {
+	ue.SmContextList.Range(func(key, value any) bool {
 		smContext := value.(*context.SmContext)
 
 		if smContext.AccessType() == anType ||

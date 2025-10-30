@@ -2475,7 +2475,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 			}
 		} else {
 			ranUe.Log.Info("Ue Context in Non GMM-Registered")
-			amfUe.SmContextList.Range(func(key, value interface{}) bool {
+			amfUe.SmContextList.Range(func(key, value any) bool {
 				smContext := value.(*context.SmContext)
 				err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 				if err != nil {
