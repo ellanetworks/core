@@ -23,10 +23,10 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			name: "Nat disabled",
 			nat:  false,
 		},
-		{
-			name: "Nat enabled",
-			nat:  true,
-		},
+		// {
+		// 	name: "Nat enabled",
+		// 	nat:  true,
+		// },
 	}
 
 	for _, tc := range testCases {

@@ -65,7 +65,7 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 		}
 
 		if needCiphering {
-			ue.NASLog.Debug("Encrypt NAS message", zap.Uint8("algorithm", ue.CipheringAlg), zap.Uint32("DLCount", ue.DLCount.Get()))
+			ue.NASLog.Debug("Encrypt NAS message", zap.Uint8("ciphering_algorithm", ue.CipheringAlg), zap.Uint32("DLCount", ue.DLCount.Get()))
 			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.DLCount.Get(), security.Bearer3GPP,
 				security.DirectionDownlink, payload); err != nil {
 				return nil, fmt.Errorf("error encrypting: %+v", err)
@@ -75,7 +75,7 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 		// add sequece number
 		payload = append([]byte{ue.DLCount.SQN()}, payload[:]...)
 
-		ue.NASLog.Debug("Calculate NAS MAC", zap.Uint8("algorithm", ue.IntegrityAlg), zap.Uint32("DLCount", ue.DLCount.Get()))
+		ue.NASLog.Debug("Calculate NAS MAC", zap.Uint8("integrity_algorithm", ue.IntegrityAlg), zap.Uint32("DLCount", ue.DLCount.Get()))
 		ue.NASLog.Debug("NAS integrity key", zap.Any("key", ue.KnasInt))
 		mutex.Lock()
 		defer mutex.Unlock()
