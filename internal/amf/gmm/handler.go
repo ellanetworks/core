@@ -552,6 +552,7 @@ func IdentityVerification(ue *context.AmfUe) bool {
 }
 
 func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType) error {
+	logger.AmfLog.Warn("TO DELETE: Handling initial registration")
 	amfSelf := context.AMFSelf()
 
 	ue.ClearRegistrationData()
@@ -1276,6 +1277,7 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe, accessType mod
 }
 
 func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType) (err error) {
+	logger.AmfLog.Warn("TO DELETE: Handling Network Initiated Deregistration Procedure")
 	anType := AnTypeToNas(accessType)
 	if ue.CmConnect(accessType) && ue.State[accessType].Is(context.Registered) {
 		// setting reregistration required flag to true
@@ -1336,6 +1338,8 @@ func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe
 
 // TS 24501 5.6.1
 func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, serviceRequest *nasMessage.ServiceRequest) error {
+	logger.AmfLog.Warn("TO DELETE: Handling Service Request")
+
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
 	}
@@ -1947,13 +1951,14 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 }
 
 func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, registrationComplete *nasMessage.RegistrationComplete) error {
+	logger.AmfLog.Warn("TO DELETE: Handling registration complete")
 	if ue.T3550 != nil {
 		ue.T3550.Stop()
 		ue.T3550 = nil // clear the timer
 	}
 
-	if ue.RegistrationRequest.UplinkDataStatus == nil &&
-		ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestNoPending {
+	if ue.RegistrationRequest.UplinkDataStatus == nil && ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestNoPending {
+		logger.AmfLog.Warn("TO DELETE: No uplink data status and FOR indicates no pending")
 		err := ngap_message.SendUEContextReleaseCommand(ue.RanUe[accessType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
@@ -2019,6 +2024,7 @@ func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, anType mode
 func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType,
 	securityModeReject *nasMessage.SecurityModeReject,
 ) error {
+	logger.AmfLog.Warn("TO DELETE: Handling security mode reject")
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
 		ue.T3560 = nil // clear the timer
@@ -2042,6 +2048,7 @@ func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType,
 func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType,
 	deregistrationRequest *nasMessage.DeregistrationRequestUEOriginatingDeregistration,
 ) error {
+	logger.AmfLog.Warn("TO DELETE: Handling deregistration request")
 	targetDeregistrationAccessType := deregistrationRequest.GetAccessType()
 	ue.SmContextList.Range(func(key, value interface{}) bool {
 		smContext := value.(*context.SmContext)
@@ -2144,6 +2151,7 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType mod
 func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType,
 	deregistrationAccept *nasMessage.DeregistrationAcceptUETerminatedDeregistration,
 ) error {
+	logger.AmfLog.Warn("TO DELETE: Handling deregistration accept")
 	if ue.T3522 != nil {
 		ue.T3522.Stop()
 		ue.T3522 = nil // clear the timer

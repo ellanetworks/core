@@ -2370,6 +2370,7 @@ func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, mes
 }
 
 func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
+	logger.AmfLog.Warn("TO DELETE: Handling ue context release request")
 	var aMFUENGAPID *ngapType.AMFUENGAPID
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var pDUSessionResourceList *ngapType.PDUSessionResourceListCxtRelReq
@@ -2780,6 +2781,7 @@ func HandleRRCInactiveTransitionReport(ctx ctxt.Context, ran *context.AmfRan, me
 }
 
 func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
+	logger.AmfLog.Warn("TO DELETE: Handling handover notify")
 	var aMFUENGAPID *ngapType.AMFUENGAPID
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var userLocationInformation *ngapType.UserLocationInformation
@@ -3258,6 +3260,7 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, mes
 }
 
 func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
+	logger.AmfLog.Warn("TO DELETE: Handling handover failure")
 	var aMFUENGAPID *ngapType.AMFUENGAPID
 	var cause *ngapType.Cause
 	var targetUe *context.RanUe
@@ -3579,6 +3582,7 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 }
 
 func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
+	logger.AmfLog.Warn("TO DELETE: Handling handover cancel")
 	var aMFUENGAPID *ngapType.AMFUENGAPID
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var cause *ngapType.Cause
