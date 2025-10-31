@@ -224,6 +224,11 @@ func GetNetworkLog(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if networkLog == nil {
+			writeError(w, http.StatusNotFound, "Network log not found", nil, logger.APILog)
+			return
+		}
+
 		response := GetNetworkLogResponse{
 			Raw:     networkLog.Raw,
 			Decoded: ngap.DecodeNGAPMessage(networkLog.Raw),
