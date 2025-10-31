@@ -583,8 +583,9 @@ func (ue *AmfUe) ClearRegistrationData() {
 	ue.AllowedNssai = make(map[models.AccessType][]models.AllowedSnssai)
 	ue.SubscriptionDataValid = false
 	// Clearing SMContextList locally
-	ue.SmContextList.Range(func(key, _ interface{}) bool {
+	ue.SmContextList.Range(func(key, _ any) bool {
 		ue.SmContextList.Delete(key)
+		logger.AmfLog.Warn("TO DELETE: Clear sm context", zap.Int32("PDU Session ID", key.(int32)))
 		return true
 	})
 }
@@ -608,6 +609,7 @@ func (ue *AmfUe) RemoveAmPolicyAssociation() {
 
 func (ue *AmfUe) StoreSmContext(pduSessionID int32, smContext *SmContext) {
 	ue.SmContextList.Store(pduSessionID, smContext)
+	logger.AmfLog.Warn("TO DELETE: Store sm context", zap.Int32("PDU Session ID", pduSessionID))
 }
 
 func (ue *AmfUe) SmContextFindByPDUSessionID(pduSessionID int32) (*SmContext, bool) {

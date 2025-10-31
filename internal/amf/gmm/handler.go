@@ -103,6 +103,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		/* AMF releases context locally as this is duplicate pdu session */
 		if requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest {
 			ue.SmContextList.Delete(pduSessionID)
+			logger.AmfLog.Warn("TO DELETE: Deleting sm context due to duplicate pdu session", zap.Int32("PDU Session ID", pduSessionID))
 			smContextExist = false
 		}
 	}
@@ -1966,14 +1967,14 @@ func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType 
 
 	shouldRelease := !(forPending || udsHasPending || hasActiveSessions)
 	logger.AmfLog.Warn("TO DELETE: Determining if UE context release is needed", zap.Bool("shouldRelease", shouldRelease))
-	// if shouldRelease {
-	// 	logger.AmfLog.Warn("TO DELETE: No uplink data status and FOR indicates no pending")
-	// 	err := ngap_message.SendUEContextReleaseCommand(ue.RanUe[accessType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
-	// 	if err != nil {
-	// 		return fmt.Errorf("error sending ue context release command: %v", err)
-	// 	}
-	// 	ue.GmmLog.Info("sent ue context release command")
-	// }
+	if shouldRelease {
+		logger.AmfLog.Warn("TO DELETE: No uplink data status and FOR indicates no pending")
+		err := ngap_message.SendUEContextReleaseCommand(ue.RanUe[accessType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		if err != nil {
+			return fmt.Errorf("error sending ue context release command: %v", err)
+		}
+		ue.GmmLog.Info("sent ue context release command")
+	}
 
 	return GmmFSM.SendEvent(ctx, ue.State[accessType], ContextSetupSuccessEvent, fsm.ArgsType{
 		ArgAmfUe:      ue,
