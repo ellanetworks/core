@@ -177,6 +177,8 @@ func (context *AMFContext) NewAmfUe(ctx ctxt.Context, supi string) *AmfUe {
 
 	context.AllocateGutiToUe(ctx, &ue)
 
+	logger.AmfLog.Warn("TO DELETE: New AMF UE created", zap.String("supi", supi), zap.String("guti", ue.Guti))
+
 	return &ue
 }
 
@@ -292,7 +294,7 @@ func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (ue *AmfUe, ok bool
 }
 
 func (context *AMFContext) AmfUeFindBySupiLocal(supi string) (ue *AmfUe, ok bool) {
-	context.UePool.Range(func(key, value interface{}) bool {
+	context.UePool.Range(func(key, value any) bool {
 		candidate := value.(*AmfUe)
 		if ok = (candidate.Supi == supi); ok {
 			ue = candidate
@@ -315,7 +317,7 @@ func (context *AMFContext) AmfUeFindByGuti(guti string) (ue *AmfUe, ok bool) {
 }
 
 func (context *AMFContext) AmfUeFindByPolicyAssociationID(polAssoID string) (ue *AmfUe, ok bool) {
-	context.UePool.Range(func(key, value interface{}) bool {
+	context.UePool.Range(func(key, value any) bool {
 		candidate := value.(*AmfUe)
 		if ok = (candidate.PolicyAssociationID == polAssoID); ok {
 			ue = candidate
