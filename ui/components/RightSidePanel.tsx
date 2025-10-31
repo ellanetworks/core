@@ -1,27 +1,32 @@
 "use client";
 
 import * as React from "react";
-import { Box, IconButton, useMediaQuery } from "@mui/material";
+import {
+  Box,
+  IconButton,
+  ClickAwayListener,
+  useMediaQuery,
+} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  defaultWidth?: number; // px
-  minWidth?: number; // px
-  maxWidth?: number; // px
-  children: React.ReactNode;
-  header?: React.ReactNode; // optional header area
+  defaultWidth?: number;
+  minWidth?: number;
+  maxWidth?: number;
+  header?: React.ReactNode;
+  children?: React.ReactNode;
 };
 
-export default function RightSidePanel({
+export default function RightSidePanelInline({
   open,
   onClose,
   defaultWidth = 560,
   minWidth = 360,
   maxWidth = 880,
-  children,
   header,
+  children,
 }: Props) {
   const isSmall = useMediaQuery("(max-width:900px)");
   const [width, setWidth] = React.useState(defaultWidth);
@@ -37,81 +42,57 @@ export default function RightSidePanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  React.useEffect(() => {
-    if (!open) return;
-    // prevent body scroll when panel is open on small screens
-    if (isSmall) {
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = prev;
-      };
-    }
-  }, [open, isSmall]);
-
   const onPointerDown = (e: React.PointerEvent) => {
-    // Only start when pressing on the handle (left edge)
     setDragging(true);
     startXRef.current = e.clientX;
     startWRef.current = width;
     (e.target as Element).setPointerCapture?.(e.pointerId);
   };
-
   const onPointerMove = (e: React.PointerEvent) => {
     if (!dragging) return;
-    const dx = e.clientX - startXRef.current;
-    // Handle is on the LEFT edge; moving left increases width
+    const dx = e.clientX - startXRef.current; // dragging handle on LEFT edge
     const proposed = startWRef.current - dx;
     const clamped = Math.max(minWidth, Math.min(maxWidth, proposed));
     setWidth(clamped);
   };
-
   const onPointerUp = (e: React.PointerEvent) => {
     if (!dragging) return;
     setDragging(false);
     (e.target as Element).releasePointerCapture?.(e.pointerId);
   };
 
-  // Mobile: use full width
+  // Mobile: panel becomes full-width row below/above (no resize)
   const panelWidth = isSmall ? "100%" : `${width}px`;
 
-  return (
-    <>
-      {/* Backdrop (clickaway) */}
-      {open && (
-        <Box
-          onClick={onClose}
-          sx={{
-            position: "fixed",
-            inset: 0,
-            bgcolor: "rgba(0,0,0,0.32)",
-            zIndex: (t) => t.zIndex.modal + 1,
-          }}
-        />
-      )}
+  if (!open) return null; // don’t take space when closed
 
-      {/* Panel */}
+  return (
+    <ClickAwayListener
+      onClickAway={(e) => {
+        // ignore click-away when dragging the handle
+        if (!dragging) onClose();
+      }}
+    >
       <Box
         role="dialog"
-        aria-modal="true"
-        sx={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          height: "100vh",
-          width: panelWidth,
-          transform: open ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 220ms ease",
-          bgcolor: "background.paper",
-          boxShadow: 8,
-          zIndex: (t) => t.zIndex.modal + 2,
-          display: "flex",
-          flexDirection: "column",
-        }}
+        aria-modal="false"
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        sx={{
+          width: panelWidth,
+          minWidth: isSmall ? "100%" : `${minWidth}px`,
+          maxWidth: isSmall ? "100%" : `${maxWidth}px`,
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          bgcolor: "background.paper",
+          borderLeft: (t) => `1px solid ${t.palette.divider}`,
+          boxShadow: isSmall ? 0 : 2,
+          transition: "width 200ms ease",
+          position: "relative",
+        }}
       >
-        {/* Drag handle (hidden on small screens) */}
+        {/* Resize handle (desktop only) */}
         {!isSmall && (
           <Box
             aria-label="Resize"
@@ -124,7 +105,6 @@ export default function RightSidePanel({
               width: 12,
               height: "100%",
               cursor: "ew-resize",
-              // Wider hit target, slim visual line:
               "&::after": {
                 content: '""',
                 position: "absolute",
@@ -158,9 +138,9 @@ export default function RightSidePanel({
           </IconButton>
         </Box>
 
-        {/* Content */}
+        {/* Body */}
         <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>{children}</Box>
       </Box>
-    </>
+    </ClickAwayListener>
   );
 }

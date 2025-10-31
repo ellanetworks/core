@@ -413,7 +413,14 @@ const Events: React.FC = () => {
           </Typography>
         </Box>
 
-        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: MAX_WIDTH,
+            px: { xs: 2, sm: 4 },
+            display: "flex",
+          }}
+        >
           <ThemeProvider theme={gridTheme}>
             <EventToolbarContext.Provider value={subToolbarValue}>
               <DataGrid<APINetworkLog>
@@ -465,18 +472,19 @@ const Events: React.FC = () => {
             </EventToolbarContext.Provider>
           </ThemeProvider>
         </Box>
+        <RightSidePanel
+          open={viewEventDrawerOpen}
+          onClose={() => setViewEventDrawerOpen(false)}
+          defaultWidth={640}
+          minWidth={420}
+          maxWidth={960}
+          header={
+            <strong>{selectedRow?.messageType ?? "Event details"}</strong>
+          }
+        >
+          <EventDetails open={viewEventDrawerOpen} log={selectedRow} />
+        </RightSidePanel>
       </>
-
-      <RightSidePanel
-        open={viewEventDrawerOpen}
-        onClose={() => setViewEventDrawerOpen(false)}
-        defaultWidth={640}
-        minWidth={420}
-        maxWidth={960}
-        header={<strong>{selectedRow?.messageType ?? "Event details"}</strong>}
-      >
-        <EventDetails open={viewEventDrawerOpen} log={selectedRow} />
-      </RightSidePanel>
       <EditNetworkLogRetentionPolicyModal
         open={isNetworkEditModalOpen}
         onClose={() => setNetworkEditModalOpen(false)}
