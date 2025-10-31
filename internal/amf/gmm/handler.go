@@ -66,6 +66,100 @@ func HandleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	return nil
 }
 
+func getRequestTypeName(value uint8) string {
+	switch value {
+	case nasMessage.ULNASTransportRequestTypeInitialRequest:
+		return "Initial Request"
+	case nasMessage.ULNASTransportRequestTypeExistingPduSession:
+		return "Existing PDU Session"
+	case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
+		return "Initial Emergency Request"
+	case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
+		return "Existing Emergency PDU Session"
+	case nasMessage.ULNASTransportRequestTypeModificationRequest:
+		return "Modification Request"
+	case nasMessage.ULNASTransportRequestTypeReserved:
+		return "Reserved"
+	default:
+		return "Unknown"
+	}
+}
+
+// type GsmMessage struct {
+// 	GsmHeader
+// 	*nasMessage.PDUSessionEstablishmentRequest      // 8.3.1
+// 	*nasMessage.PDUSessionEstablishmentAccept       // 8.3.2
+// 	*nasMessage.PDUSessionEstablishmentReject       // 8.3.3
+// 	*nasMessage.PDUSessionAuthenticationCommand     // 8.3.4
+// 	*nasMessage.PDUSessionAuthenticationComplete    // 8.3.5
+// 	*nasMessage.PDUSessionAuthenticationResult      // 8.3.6
+// 	*nasMessage.PDUSessionModificationRequest       // 8.3.7
+// 	*nasMessage.PDUSessionModificationReject        // 8.3.8
+// 	*nasMessage.PDUSessionModificationCommand       // 8.3.9
+// 	*nasMessage.PDUSessionModificationComplete      // 8.3.10
+// 	*nasMessage.PDUSessionModificationCommandReject // 8.3.11
+// 	*nasMessage.PDUSessionReleaseRequest            // 8.3.12
+// 	*nasMessage.PDUSessionReleaseReject             // 8.3.13
+// 	*nasMessage.PDUSessionReleaseCommand            // 8.3.14
+// 	*nasMessage.PDUSessionReleaseComplete           // 8.3.15
+// 	*nasMessage.Status5GSM                          // 8.3.16
+// }
+
+func getGsmMessageTypeName(msg *nas.Message) string {
+	if msg.GsmMessage == nil {
+		return "Not a 5GSM Message"
+	}
+	if msg.PDUSessionEstablishmentRequest != nil {
+		return "5GSM PDU Session Establishment Request"
+	}
+	if msg.PDUSessionEstablishmentAccept != nil {
+		return "5GSM PDU Session Establishment Accept"
+	}
+	if msg.PDUSessionEstablishmentReject != nil {
+		return "5GSM PDU Session Establishment Reject"
+	}
+	if msg.PDUSessionAuthenticationCommand != nil {
+		return "5GSM PDU Session Authentication Command"
+	}
+	if msg.PDUSessionAuthenticationComplete != nil {
+		return "5GSM PDU Session Authentication Complete"
+	}
+	if msg.PDUSessionAuthenticationResult != nil {
+		return "5GSM PDU Session Authentication Result"
+	}
+	if msg.PDUSessionModificationRequest != nil {
+		return "5GSM PDU Session Modification Request"
+	}
+	if msg.PDUSessionModificationReject != nil {
+		return "5GSM PDU Session Modification Reject"
+	}
+	if msg.PDUSessionModificationCommand != nil {
+		return "5GSM PDU Session Modification Command"
+	}
+	if msg.PDUSessionModificationComplete != nil {
+		return "5GSM PDU Session Modification Complete"
+	}
+	if msg.PDUSessionModificationCommandReject != nil {
+		return "5GSM PDU Session Modification Command Reject"
+	}
+	if msg.PDUSessionReleaseRequest != nil {
+		return "5GSM PDU Session Release Request"
+	}
+	if msg.PDUSessionReleaseReject != nil {
+		return "5GSM PDU Session Release Reject"
+	}
+	if msg.PDUSessionReleaseCommand != nil {
+		return "5GSM PDU Session Release Command"
+	}
+	if msg.PDUSessionReleaseComplete != nil {
+		return "5GSM PDU Session Release Complete"
+	}
+	if msg.Status5GSM != nil {
+		return "5GSM Status"
+	}
+	return "Unknown 5GSM Message"
+}
+
 func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, ulNasTransport *nasMessage.ULNASTransport) error {
 	var pduSessionID int32
 	smMessage := ulNasTransport.PayloadContainer.GetPayloadContainerContents()
@@ -82,9 +176,11 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	// case 1): looks up a PDU session routing context for the UE and the PDU session ID IE in case the Old PDU
 	// session ID IE is not included
 	smContext, smContextExist := ue.SmContextFindByPDUSessionID(pduSessionID)
+	logger.AmfLog.Warn("TO DELETE: transport5GSMMessage smContextExist", zap.Bool("smContextExist", smContextExist), zap.Int32("pduSessionID", pduSessionID), zap.Any("smContext", smContext))
 	requestType := ulNasTransport.RequestType
 
 	if requestType != nil {
+		logger.AmfLog.Info("UL NAS Transport Request Type", zap.String("requestType", getRequestTypeName(requestType.GetRequestTypeValue())))
 		switch requestType.GetRequestTypeValue() {
 		case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
 			fallthrough
@@ -104,6 +200,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		if requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest {
 			ue.SmContextList.Delete(pduSessionID)
 			smContextExist = false
+			logger.AmfLog.Warn("TO DELETE: transport5GSMMessage smContextExist after delete", zap.Bool("smContextExist", smContextExist), zap.Int32("pduSessionID", pduSessionID))
 		}
 	}
 
@@ -112,6 +209,9 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		if err := msg.PlainNasDecode(&smMessage); err != nil {
 			ue.GmmLog.Error("Could not decode Nas message", zap.Error(err))
 		}
+
+		ue.GmmLog.Warn("TO DELETE: Received 5GSM message", zap.String("messageType", getGsmMessageTypeName(msg)))
+
 		if msg.GsmMessage != nil && msg.GsmMessage.Status5GSM != nil {
 			ue.GmmLog.Warn("SmContext doesn't exist, 5GSM Status message received from UE", zap.Any("cause", msg.GsmMessage.Status5GSM.Cause5GSM))
 			return nil
