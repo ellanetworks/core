@@ -188,6 +188,39 @@ function usePageVisible() {
   return visible;
 }
 
+const ResizeHandle: React.FC = React.memo(function ResizeHandle() {
+  return (
+    <PanelResizeHandle>
+      <Box
+        sx={{
+          width: 16,
+          height: "100%",
+          cursor: "ew-resize",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
+          zIndex: (t) => t.zIndex.appBar,
+        }}
+        tabIndex={0}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize details panel"
+      >
+        <DragIndicatorIcon
+          sx={{
+            fontSize: 24,
+            opacity: 0.7,
+            transition: "opacity 120ms",
+            pointerEvents: "none",
+            color: "text.secondary",
+          }}
+        />
+      </Box>
+    </PanelResizeHandle>
+  );
+});
+
 const Events: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin";
@@ -385,48 +418,6 @@ const Events: React.FC = () => {
     if (viewEventDrawerOpen) window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [viewEventDrawerOpen]);
-
-  const ResizeHandle: React.FC = () => (
-    <PanelResizeHandle>
-      <Box
-        sx={{
-          width: 16,
-          height: "100%",
-          cursor: "ew-resize",
-          display: "flex",
-          alignItems: "stretch",
-          justifyContent: "center",
-          position: "relative",
-          zIndex: (t) => t.zIndex.appBar,
-        }}
-        tabIndex={0}
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize details panel"
-      >
-        <Box
-          sx={{
-            position: "sticky",
-            top: "calc(50vh - 12px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: 24,
-            pointerEvents: "none",
-          }}
-        >
-          <DragIndicatorIcon
-            sx={{
-              fontSize: 24,
-              opacity: 0.7,
-              transition: "opacity 120ms",
-              color: "text.secondary",
-            }}
-          />
-        </Box>
-      </Box>
-    </PanelResizeHandle>
-  );
 
   return (
     <Box
