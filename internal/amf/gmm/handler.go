@@ -1957,14 +1957,14 @@ func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType 
 		ue.T3550 = nil // clear the timer
 	}
 
-	if ue.RegistrationRequest.UplinkDataStatus == nil && ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestNoPending {
-		logger.AmfLog.Warn("TO DELETE: No uplink data status and FOR indicates no pending")
-		err := ngap_message.SendUEContextReleaseCommand(ue.RanUe[accessType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
-		if err != nil {
-			return fmt.Errorf("error sending ue context release command: %v", err)
-		}
-		ue.GmmLog.Info("sent ue context release command")
-	}
+	// if ue.RegistrationRequest.UplinkDataStatus == nil && ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestNoPending {
+	// 	logger.AmfLog.Warn("TO DELETE: No uplink data status and FOR indicates no pending")
+	// 	err := ngap_message.SendUEContextReleaseCommand(ue.RanUe[accessType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+	// 	if err != nil {
+	// 		return fmt.Errorf("error sending ue context release command: %v", err)
+	// 	}
+	// 	ue.GmmLog.Info("sent ue context release command")
+	// }
 
 	return GmmFSM.SendEvent(ctx, ue.State[accessType], ContextSetupSuccessEvent, fsm.ArgsType{
 		ArgAmfUe:      ue,
