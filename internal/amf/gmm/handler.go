@@ -1952,8 +1952,16 @@ func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType 
 		ue.T3550 = nil // clear the timer
 	}
 
-	if ue.RegistrationRequest.UplinkDataStatus == nil &&
-		ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestNoPending {
+	forPending := ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestPending
+
+	uds := ue.RegistrationRequest.UplinkDataStatus
+	udsHasPending := uds != nil
+
+	hasActiveSessions := ue.HasActivePduSessions()
+
+	shouldRelease := !(forPending || udsHasPending || hasActiveSessions)
+	logger.AmfLog.Warn("TO DELETE: shouldRelease", zap.Bool("shouldRelease", shouldRelease), zap.Bool("forPending", forPending), zap.Bool("udsHasPending", udsHasPending), zap.Bool("hasActiveSessions", hasActiveSessions))
+	if shouldRelease {
 		err := ngap_message.SendUEContextReleaseCommand(ue.RanUe[accessType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
