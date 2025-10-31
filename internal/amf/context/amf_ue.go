@@ -134,16 +134,16 @@ type AmfUe struct {
 	InfoOnRecommendedCellsAndRanNodesForPaging *InfoOnRecommendedCellsAndRanNodesForPaging `json:"infoOnRecommendedCellsAndRanNodesForPaging,omitempty"`
 	UESpecificDRX                              uint8                                       `json:"ueSpecificDRX,omitempty"`
 	/* Security Context */
-	SecurityContextAvailable bool                         `json:"securityContextAvailable,omitempty"`
-	UESecurityCapability     nasType.UESecurityCapability `json:"ueSecurityCapability,omitempty"` // for security command
-	NgKsi                    models.NgKsi                 `json:"ngKsi,omitempty"`
-	MacFailed                bool                         `json:"macFailed,omitempty"` // set to true if the integrity check of current NAS message is failed
-	KnasInt                  [16]uint8                    `json:"knasInt,omitempty"`   // 16 byte
-	KnasEnc                  [16]uint8                    `json:"knasEnc,omitempty"`   // 16 byte
-	Kgnb                     []uint8                      `json:"kgnb,omitempty"`      // 32 byte
-	Kn3iwf                   []uint8                      `json:"kn3iwf,omitempty"`    // 32 byte
-	NH                       []uint8                      `json:"nh,omitempty"`        // 32 byte
-	NCC                      uint8                        `json:"ncc,omitempty"`       // 0..7
+	SecurityContextAvailable bool                          `json:"securityContextAvailable,omitempty"`
+	UESecurityCapability     *nasType.UESecurityCapability `json:"ueSecurityCapability,omitempty"` // for security command
+	NgKsi                    models.NgKsi                  `json:"ngKsi,omitempty"`
+	MacFailed                bool                          `json:"macFailed,omitempty"` // set to true if the integrity check of current NAS message is failed
+	KnasInt                  [16]uint8                     `json:"knasInt,omitempty"`   // 16 byte
+	KnasEnc                  [16]uint8                     `json:"knasEnc,omitempty"`   // 16 byte
+	Kgnb                     []uint8                       `json:"kgnb,omitempty"`      // 32 byte
+	Kn3iwf                   []uint8                       `json:"kn3iwf,omitempty"`    // 32 byte
+	NH                       []uint8                       `json:"nh,omitempty"`        // 32 byte
+	NCC                      uint8                         `json:"ncc,omitempty"`       // 0..7
 	// ULCount                  security.Count               `json:"ulCount,omitempty" yaml:"ulCount" bson:"ulCount,omitempty"`
 	// DLCount                  security.Count               `json:"dlCount,omitempty" yaml:"dlCount" bson:"dlCount,omitempty"`
 	ULCount      security.Count `json:"-"`
@@ -518,8 +518,8 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) {
 	ue.CipheringAlg = security.AlgCiphering128NEA0
 	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	if ue.UESecurityCapability.GetLen() == 0 {
-		logger.AmfLog.Debug("AMF UE Security Capability is not available")
+	if ue.UESecurityCapability == nil {
+		logger.AmfLog.Warn("TO DELETE: AMF UE Security Capability is not available")
 		return
 	}
 

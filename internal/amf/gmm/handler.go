@@ -537,7 +537,16 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	}
 
 	if registrationRequest.UESecurityCapability != nil {
-		ue.UESecurityCapability = *registrationRequest.UESecurityCapability
+		ue.UESecurityCapability = registrationRequest.UESecurityCapability
+	}
+
+	if ue.UESecurityCapability == nil {
+		err := gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMProtocolErrorUnspecified, "")
+		if err != nil {
+			return fmt.Errorf("error sending registration reject: %v", err)
+		}
+		ue.GmmLog.Info("sent registration reject to UE")
+		return errors.New("UE security capability is nil")
 	}
 
 	if ue.ServingAmfChanged {
