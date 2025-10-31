@@ -4,10 +4,8 @@ import {
   Typography,
   IconButton,
   Tooltip,
-  Chip,
   Divider,
   Collapse,
-  Stack,
 } from "@mui/material";
 import {
   ExpandMore as ExpandMoreIcon,
@@ -433,9 +431,8 @@ const TopLevelValueRow: React.FC<{ value: unknown }> = ({ value }) => {
 
 export const GenericMessageView: React.FC<{
   decoded: unknown;
-  headerChips?: Array<{ label: string }>;
   title?: string;
-}> = ({ decoded, headerChips, title }) => {
+}> = ({ decoded, title }) => {
   return (
     <Box
       sx={{
@@ -452,14 +449,6 @@ export const GenericMessageView: React.FC<{
           <Divider sx={{ mb: 1 }} />
         </>
       )}
-      {headerChips && headerChips.length > 0 && (
-        <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-          {headerChips.map((c, i) => (
-            <Chip key={i} size="small" variant="outlined" label={c.label} />
-          ))}
-        </Stack>
-      )}
-
       {isNgapRoot(decoded) ? (
         <TopLevelNgapView decoded={decoded} />
       ) : (

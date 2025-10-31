@@ -1,7 +1,8 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
 import {
   Box,
-  Drawer,
   Typography,
   Button,
   Alert,
@@ -10,11 +11,9 @@ import {
   Divider,
   CircularProgress,
   Stack,
-  Toolbar,
   Tooltip,
 } from "@mui/material";
 import {
-  Close as CloseIcon,
   ContentCopy as CopyIcon,
   Refresh as RefreshIcon,
   WarningAmberRounded as WarningAmberRoundedIcon,
@@ -33,12 +32,6 @@ export interface LogRow {
   remote_address: string;
   messageType: string;
   direction: string;
-}
-
-interface ViewEventDrawerProps {
-  open: boolean;
-  onClose: () => void;
-  log: LogRow | null;
 }
 
 const MonoBlock: React.FC<{ children: React.ReactNode; sxProp?: object }> = ({
@@ -73,11 +66,11 @@ const MetaRow: React.FC<{
   label: string;
   value?: string | null;
   full?: boolean;
-}> = ({ label, value, full }) => (
+}> = ({ label, value }) => (
   <Box
     sx={{
       display: "grid",
-      gridTemplateColumns: full ? "180px 1fr" : "180px 1fr",
+      gridTemplateColumns: "180px 1fr",
       alignItems: "baseline",
       gap: 1,
     }}
@@ -91,19 +84,19 @@ const MetaRow: React.FC<{
   </Box>
 );
 
-const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
+export default function EventDetails({
   open,
-  onClose,
   log,
-}) => {
+}: {
+  open: boolean;
+  log: LogRow | null;
+}) {
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
   const router = useRouter();
   const { accessToken, authReady } = useAuth();
 
   useEffect(() => {
-    if (authReady && !accessToken) {
-      router.push("/login");
-    }
+    if (authReady && !accessToken) router.push("/login");
   }, [authReady, accessToken, router]);
 
   const {
@@ -115,17 +108,13 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
     isFetching: isNetworkLogFetching,
   } = useQuery<NetworkLogContent>({
     queryKey: ["decoded-log", log?.id],
-    queryFn: async () => {
-      return await getNetworkLog(accessToken!, log!.id);
-    },
+    queryFn: async () => getNetworkLog(accessToken!, log!.id),
     enabled: open && !!log?.id && !!accessToken,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
   });
 
-  if (!authReady || !accessToken) {
-    return null;
-  }
+  if (!authReady || !accessToken) return null;
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -143,7 +132,7 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
     }
   };
 
-  const renderMessageContent = () => {
+  const content = (() => {
     if (isRetrieving || isNetworkLogFetching) {
       return (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -152,7 +141,6 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
         </Box>
       );
     }
-
     if (isRetrieveError) {
       return (
         <Alert
@@ -174,34 +162,15 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
         </Alert>
       );
     }
-
-    if (!decodedData) {
+    if (!decodedData)
       return <Typography variant="body2">No decoded content.</Typography>;
-    }
 
     const { decoded, raw } = decodedData;
-
-    const pretty = (
-      <GenericMessageView
-        decoded={decoded}
-        headerChips={
-          log?.protocol?.toUpperCase() === "NGAP" && decoded
-            ? ([
-                decoded?.pdu_type
-                  ? { label: String(decoded.pdu_type) }
-                  : undefined,
-                decoded?.message_type
-                  ? { label: String(decoded.message_type) }
-                  : undefined,
-              ].filter(Boolean) as Array<{ label: string }>)
-            : undefined
-        }
-      />
-    );
+    const pretty = <GenericMessageView decoded={decoded} />;
 
     return (
       <>
-        {pretty && (
+        {pretty ? (
           <>
             <Box
               sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}
@@ -220,16 +189,7 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
                 </span>
               </Tooltip>
             </Box>
-            <Box
-              sx={{
-                p: 1.25,
-                border: (t) => `1px solid ${t.palette.divider}`,
-                borderRadius: 1,
-              }}
-            >
-              {pretty}
-            </Box>
-
+            {pretty}
             <Box
               sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.75 }}
             >
@@ -243,12 +203,9 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
                 incomplete
               </Typography>
             </Box>
-
             <Divider sx={{ my: 1.5 }} />
           </>
-        )}
-
-        {!pretty && (
+        ) : (
           <>
             <Box
               sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}
@@ -295,73 +252,15 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
             </span>
           </Tooltip>
         </Box>
-
         <MonoBlock>
           {typeof raw === "string" ? raw : stringify(Array.from(raw ?? []))}
         </MonoBlock>
       </>
     );
-  };
+  })();
 
   return (
-    <Drawer
-      anchor="right"
-      open={open}
-      onClose={onClose}
-      variant="persistent"
-      PaperProps={{
-        sx: {
-          width: { xs: "100%", sm: 520, md: 640 },
-          boxShadow: (t) => t.shadows[8],
-          display: "flex",
-          flexDirection: "column",
-          height: "100vh",
-        },
-      }}
-    >
-      <Toolbar />
-      <Box
-        sx={{
-          position: "sticky",
-          top: 0,
-          zIndex: 1,
-          px: 2,
-          py: 1.5,
-          borderBottom: (t) => `1px solid ${t.palette.divider}`,
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-        }}
-      >
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="h6" noWrap title={log?.messageType}>
-            {log?.messageType ?? "Event details"}
-          </Typography>
-
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.25 }}>
-            <Typography variant="body2" sx={{ color: "text.secondary" }}>
-              {log?.protocol ?? "Unknown protocol"}
-            </Typography>
-            <Typography variant="body2" sx={{ color: "text.secondary" }}>
-              • {log?.direction ?? "—"}
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{ color: "text.disabled", ml: "auto" }}
-            >
-              {log?.timestamp
-                ? new Date(log.timestamp).toLocaleString()
-                : "No timestamp"}
-            </Typography>
-          </Box>
-        </Box>
-        <Tooltip title="Close">
-          <IconButton onClick={onClose} aria-label="Close">
-            <CloseIcon />
-          </IconButton>
-        </Tooltip>
-      </Box>
-
+    <>
       <Box sx={{ px: 2, pt: 1 }}>
         <Collapse in={!!alert.message}>
           <Alert
@@ -385,17 +284,14 @@ const ViewEventDrawer: React.FC<ViewEventDrawerProps> = ({
         </Stack>
 
         <Divider sx={{ my: 1.5 }} />
-
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
           <Typography variant="subtitle1" sx={{ flex: 1 }}>
             Message Content
           </Typography>
         </Box>
 
-        {renderMessageContent()}
+        {content}
       </Box>
-    </Drawer>
+    </>
   );
-};
-
-export default ViewEventDrawer;
+}

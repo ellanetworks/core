@@ -149,7 +149,6 @@ const Radio = () => {
                 rows={rows}
                 columns={columns}
                 getRowId={(row) => row.id}
-                loading={isLoading}
                 paginationMode="server"
                 rowCount={rowCount}
                 paginationModel={paginationModel}

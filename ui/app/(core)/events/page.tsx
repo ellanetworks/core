@@ -1,7 +1,15 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Box, Typography, Alert, Chip, Collapse, Tooltip } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Alert,
+  Chip,
+  Collapse,
+  Tooltip,
+  IconButton,
+} from "@mui/material";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import {
   DataGrid,
@@ -18,6 +26,7 @@ import {
 } from "@mui/x-data-grid";
 import EastIcon from "@mui/icons-material/East";
 import WestIcon from "@mui/icons-material/West";
+import CloseIcon from "@mui/icons-material/Close";
 import {
   EventToolbar,
   EventToolbarContext,
@@ -35,26 +44,25 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { useAuth } from "@/contexts/AuthContext";
 import EditNetworkLogRetentionPolicyModal from "@/components/EditNetworkLogRetentionPolicyModal";
-import ViewEventDrawer from "@/components/ViewEventDrawer";
-import type { LogRow } from "@/components/ViewEventDrawer";
+import EventDetails from "@/components/EventDetails";
+import type { LogRow } from "@/components/EventDetails";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 
 const MAX_WIDTH = 1400;
+const PAGE_PAD = { xs: 2, sm: 4 };
 
 const STRING_EQ = getGridStringOperators().filter(
   (op) => op.value === "equals",
 );
-
 const DIR_EQ = getGridSingleSelectOperators().filter((op) => op.value === "is");
-
 const PROTOCOL_EQ = getGridSingleSelectOperators().filter(
   (op) => op.value === "is",
 );
-
 const normalizeRfc3339Offset = (s: string) =>
   s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
 
 type GridNetworkLog = APINetworkLog & { timestamp_dt: Date | null };
-
 const DATE_AFTER_BEFORE_ONLY = getGridDateOperators(true).filter(
   (op) => op.value === "after" || op.value === "before",
 ) as unknown as readonly GridFilterOperator[];
@@ -180,6 +188,48 @@ function usePageVisible() {
   return visible;
 }
 
+const ResizeHandle: React.FC = React.memo(function ResizeHandle() {
+  return (
+    <PanelResizeHandle>
+      <Box
+        sx={{
+          width: 16,
+          height: "100%",
+          cursor: "ew-resize",
+          position: "relative",
+          zIndex: (t) => t.zIndex.appBar,
+          "&:hover .resizeIcon": { opacity: 1 },
+        }}
+        tabIndex={0}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize details panel"
+      >
+        <Box
+          sx={{
+            position: "sticky",
+            top: "calc(50vh - 12px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
+          }}
+        >
+          <DragIndicatorIcon
+            className="resizeIcon"
+            sx={{
+              fontSize: 24,
+              opacity: 0.7,
+              transition: "opacity 120ms",
+              color: "text.secondary",
+            }}
+          />
+        </Box>
+      </Box>
+    </PanelResizeHandle>
+  );
+});
+
 const Events: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin";
@@ -195,7 +245,7 @@ const Events: React.FC = () => {
   const [selectedRow, setSelectedRow] = useState<LogRow | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const visible = usePageVisible();
-  const [subPagination, setSubPagination] = useState<GridPaginationModel>({
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 25,
   });
@@ -204,7 +254,6 @@ const Events: React.FC = () => {
     type: "include",
     ids: new Set<GridRowId>(ids),
   });
-
   const [selectionModel, setSelectionModel] =
     useState<GridRowSelectionModel>(makeSelection());
 
@@ -231,17 +280,19 @@ const Events: React.FC = () => {
   const [networkFilterModel, setSubFilterModel] = useState<GridFilterModel>({
     items: [],
   });
-
   const onSubFilterModelChange = useCallback(
     (m: GridFilterModel) => setSubFilterModel(m),
     [],
   );
 
-  const subQuery = useQuery<ListNetworkLogsResponse>({
+  const pageOneBased = paginationModel.page + 1;
+  const perPage = paginationModel.pageSize;
+
+  const networkLogsQuery = useQuery<ListNetworkLogsResponse>({
     queryKey: [
       "networkLogs",
-      subPagination.page,
-      subPagination.pageSize,
+      pageOneBased,
+      perPage,
       filtersToParams(networkFilterModel),
       accessToken,
     ],
@@ -249,28 +300,22 @@ const Events: React.FC = () => {
     refetchInterval: autoRefresh && visible ? 3000 : false,
     placeholderData: keepPreviousData,
     queryFn: async () => {
-      const pageOne = subPagination.page + 1;
       const filterParams = filtersToParams(networkFilterModel);
-      return listNetworkLogs(
-        accessToken!,
-        pageOne,
-        subPagination.pageSize,
-        filterParams,
-      );
+      return listNetworkLogs(accessToken!, pageOneBased, perPage, filterParams);
     },
   });
 
   const networkRows: GridNetworkLog[] = useMemo(() => {
-    const items = subQuery.data?.items ?? [];
+    const items = networkLogsQuery.data?.items ?? [];
     return items.map<GridNetworkLog>((r) => ({
       ...r,
       timestamp_dt: r.timestamp
         ? new Date(normalizeRfc3339Offset(r.timestamp))
         : null,
     }));
-  }, [subQuery.data?.items]);
+  }, [networkLogsQuery.data?.items]);
 
-  const subRowCount = subQuery.data?.total_count ?? 0;
+  const subRowCount = networkLogsQuery.data?.total_count ?? 0;
 
   const handleConfirmDeleteNetworkLogs = async () => {
     setNetworkClearModalOpen(false);
@@ -281,7 +326,7 @@ const Events: React.FC = () => {
         message: `All network logs cleared successfully!`,
         severity: "success",
       });
-      subQuery.refetch();
+      networkLogsQuery.refetch();
     } catch (error: unknown) {
       setAlert({
         message: `Failed to clear network logs: ${String(error)}`,
@@ -375,6 +420,14 @@ const Events: React.FC = () => {
   const subDescription =
     "Review network events in Ella Core. These logs are useful for auditing and troubleshooting purposes.";
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setViewEventDrawerOpen(false);
+    };
+    if (viewEventDrawerOpen) window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewEventDrawerOpen]);
+
   return (
     <Box
       sx={{
@@ -385,95 +438,159 @@ const Events: React.FC = () => {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
-        <Collapse in={!!alert.message}>
-          <Alert
-            severity={alert.severity || "success"}
-            onClose={() => setAlert({ message: "", severity: null })}
-            sx={{ mb: 2 }}
+      <PanelGroup
+        direction="horizontal"
+        style={{ width: "100%", height: "100%", overflow: "hidden" }}
+      >
+        <Panel minSize={20}>
+          <Box sx={{ maxWidth: MAX_WIDTH, mx: "auto" }}>
+            <Collapse in={!!alert.message}>
+              <Alert
+                severity={alert.severity || "success"}
+                onClose={() => setAlert({ message: "", severity: null })}
+                sx={{ mb: 2, pointerEvents: "auto" }}
+              >
+                {alert.message}
+              </Alert>
+            </Collapse>
+          </Box>
+          <Box
+            sx={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              overflow: "hidden",
+            }}
           >
-            {alert.message}
-          </Alert>
-        </Collapse>
-      </Box>
+            <Box
+              sx={{
+                width: "100%",
+                maxWidth: viewEventDrawerOpen ? "none" : MAX_WIDTH,
+                pb: 4,
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+                minWidth: 0,
+                height: "100%",
+                overflow: "hidden",
+                pl: PAGE_PAD,
+                pr: viewEventDrawerOpen ? 0 : PAGE_PAD,
+              }}
+            >
+              <Box sx={{ flexShrink: 0 }}>
+                <Typography variant="h4">Network Events</Typography>
+                <Typography variant="body1" color="text.secondary">
+                  {subDescription}
+                </Typography>
+              </Box>
 
-      <>
-        <Box
-          sx={{
-            width: "100%",
-            maxWidth: MAX_WIDTH,
-            px: { xs: 2, sm: 4 },
-            mb: 3,
-            display: "flex",
-            flexDirection: "column",
-            gap: 2,
-          }}
-        >
-          <Typography variant="h4">Network Events</Typography>
-          <Typography variant="body1" color="text.secondary">
-            {subDescription}
-          </Typography>
-        </Box>
+              <Box sx={{ flex: 1, minHeight: 0 }}>
+                <ThemeProvider theme={gridTheme}>
+                  <EventToolbarContext.Provider value={subToolbarValue}>
+                    <DataGrid<APINetworkLog>
+                      rows={networkRows}
+                      columns={networkColumns}
+                      getRowId={(row) => row.id}
+                      paginationMode="server"
+                      rowCount={subRowCount}
+                      paginationModel={paginationModel}
+                      onPaginationModelChange={setPaginationModel}
+                      disableColumnMenu
+                      sortingMode="server"
+                      filterMode="server"
+                      onFilterModelChange={onSubFilterModelChange}
+                      pageSizeOptions={[10, 25, 50, 100]}
+                      slots={{ toolbar: EventToolbar }}
+                      onRowClick={handleRowClick}
+                      rowSelectionModel={selectionModel}
+                      disableRowSelectionOnClick
+                      onRowSelectionModelChange={(model) =>
+                        setSelectionModel(model)
+                      }
+                      showToolbar
+                      density="compact"
+                      autoHeight
+                      sx={{
+                        border: 1,
+                        borderColor: "divider",
+                        height: "100%",
+                        "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
+                        "& .MuiDataGrid-footerContainer": {
+                          borderTop: "1px solid",
+                          borderColor: "divider",
+                        },
+                        "& .MuiDataGrid-columnHeaderTitle": {
+                          fontWeight: "bold",
+                        },
+                        "& .MuiDataGrid-row:hover": { cursor: "pointer" },
+                        "& .MuiDataGrid-row.Mui-selected": {
+                          backgroundColor: (t) => t.palette.action.selected,
+                          "&:hover": {
+                            backgroundColor: (t) => t.palette.action.selected,
+                          },
+                          "& .MuiDataGrid-cell": { fontWeight: 500 },
+                          "&::before": { display: "none" },
+                        },
+                        "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
+                          { outline: "none" },
+                        "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
+                          { outline: "none" },
+                      }}
+                    />
+                  </EventToolbarContext.Provider>
+                </ThemeProvider>
+              </Box>
+            </Box>
+          </Box>
+        </Panel>
 
-        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
-          <ThemeProvider theme={gridTheme}>
-            <EventToolbarContext.Provider value={subToolbarValue}>
-              <DataGrid<APINetworkLog>
-                rows={networkRows}
-                columns={networkColumns}
-                getRowId={(row) => row.id}
-                loading={subQuery.isFetching}
-                paginationMode="server"
-                rowCount={subRowCount}
-                paginationModel={subPagination}
-                onPaginationModelChange={setSubPagination}
-                disableColumnMenu
-                sortingMode="server"
-                filterMode="server"
-                onFilterModelChange={onSubFilterModelChange}
-                pageSizeOptions={[10, 25, 50, 100]}
-                slots={{ toolbar: EventToolbar }}
-                onRowClick={handleRowClick}
-                rowSelectionModel={selectionModel}
-                disableRowSelectionOnClick
-                onRowSelectionModelChange={(model) => setSelectionModel(model)}
-                showToolbar
+        {viewEventDrawerOpen && <ResizeHandle />}
+
+        {viewEventDrawerOpen && (
+          <Panel defaultSize={45} minSize={30} maxSize={70}>
+            <Box
+              sx={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                bgcolor: "background.paper",
+                borderLeft: (t) => `1px solid ${t.palette.divider}`,
+                pl: PAGE_PAD,
+              }}
+            >
+              <Box
                 sx={{
-                  border: 1,
-                  borderColor: "divider",
-                  "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
-                  "& .MuiDataGrid-footerContainer": {
-                    borderTop: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
-                  "& .MuiDataGrid-row:hover": { cursor: "pointer" },
-
-                  "& .MuiDataGrid-row.Mui-selected": {
-                    backgroundColor: (t) => t.palette.action.selected,
-                    "&:hover": {
-                      backgroundColor: (t) => t.palette.action.selected,
-                    },
-                    "& .MuiDataGrid-cell": { fontWeight: 500 },
-                    "&::before": { display: "none" },
-                  },
-
-                  "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
-                    { outline: "none" },
-                  "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
-                    { outline: "none" },
+                  px: 0,
+                  py: 1.5,
+                  borderBottom: (t) => `1px solid ${t.palette.divider}`,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
                 }}
-              />
-            </EventToolbarContext.Provider>
-          </ThemeProvider>
-        </Box>
-      </>
+              >
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="h6" noWrap>
+                    {selectedRow?.messageType ?? "Event details"}
+                  </Typography>
+                </Box>
+                <IconButton
+                  aria-label="Close"
+                  onClick={() => setViewEventDrawerOpen(false)}
+                  size="small"
+                >
+                  <CloseIcon />
+                </IconButton>
+              </Box>
 
-      <ViewEventDrawer
-        open={viewEventDrawerOpen}
-        onClose={() => setViewEventDrawerOpen(false)}
-        log={selectedRow}
-      />
+              {/* Your existing details content */}
+              <EventDetails open={viewEventDrawerOpen} log={selectedRow} />
+            </Box>
+          </Panel>
+        )}
+      </PanelGroup>
+
+      {/* Modals */}
       <EditNetworkLogRetentionPolicyModal
         open={isNetworkEditModalOpen}
         onClose={() => setNetworkEditModalOpen(false)}

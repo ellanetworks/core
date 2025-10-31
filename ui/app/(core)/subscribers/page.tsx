@@ -354,7 +354,6 @@ const SubscriberPage: React.FC = () => {
                 rows={rows}
                 columns={columns}
                 getRowId={(row) => row.imsi}
-                loading={isLoading || isFetching}
                 columnGroupingModel={columnGroupingModel}
                 disableRowSelectionOnClick
                 paginationMode="server"
