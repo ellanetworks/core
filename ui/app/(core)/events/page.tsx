@@ -195,10 +195,10 @@ const Events: React.FC = () => {
   const [selectedRow, setSelectedRow] = useState<LogRow | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const visible = usePageVisible();
-  const [subPagination, setSubPagination] = useState<GridPaginationModel>({
-    page: 0,
-    pageSize: 25,
-  });
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+      page: 0,
+      pageSize: 25,
+    });
 
   const makeSelection = (ids: GridRowId[] = []): GridRowSelectionModel => ({
     type: "include",
@@ -237,11 +237,14 @@ const Events: React.FC = () => {
     [],
   );
 
-  const subQuery = useQuery<ListNetworkLogsResponse>({
+  const pageOneBased = paginationModel.page + 1;
+  const perPage = paginationModel.pageSize;
+
+  const networkLogsQuery = useQuery<ListNetworkLogsResponse>({
     queryKey: [
       "networkLogs",
-      subPagination.page,
-      subPagination.pageSize,
+      pageOneBased,
+      perPage,
       filtersToParams(networkFilterModel),
       accessToken,
     ],
@@ -249,28 +252,27 @@ const Events: React.FC = () => {
     refetchInterval: autoRefresh && visible ? 3000 : false,
     placeholderData: keepPreviousData,
     queryFn: async () => {
-      const pageOne = subPagination.page + 1;
       const filterParams = filtersToParams(networkFilterModel);
       return listNetworkLogs(
         accessToken!,
-        pageOne,
-        subPagination.pageSize,
+        pageOneBased,
+        perPage,
         filterParams,
       );
     },
   });
 
   const networkRows: GridNetworkLog[] = useMemo(() => {
-    const items = subQuery.data?.items ?? [];
+    const items = networkLogsQuery.data?.items ?? [];
     return items.map<GridNetworkLog>((r) => ({
       ...r,
       timestamp_dt: r.timestamp
         ? new Date(normalizeRfc3339Offset(r.timestamp))
         : null,
     }));
-  }, [subQuery.data?.items]);
+  }, [networkLogsQuery.data?.items]);
 
-  const subRowCount = subQuery.data?.total_count ?? 0;
+  const subRowCount = networkLogsQuery.data?.total_count ?? 0;
 
   const handleConfirmDeleteNetworkLogs = async () => {
     setNetworkClearModalOpen(false);
@@ -281,7 +283,7 @@ const Events: React.FC = () => {
         message: `All network logs cleared successfully!`,
         severity: "success",
       });
-      subQuery.refetch();
+      networkLogsQuery.refetch();
     } catch (error: unknown) {
       setAlert({
         message: `Failed to clear network logs: ${String(error)}`,
@@ -422,11 +424,11 @@ const Events: React.FC = () => {
                 rows={networkRows}
                 columns={networkColumns}
                 getRowId={(row) => row.id}
-                loading={subQuery.isFetching}
+                loading={networkLogsQuery.isFetching}
                 paginationMode="server"
                 rowCount={subRowCount}
-                paginationModel={subPagination}
-                onPaginationModelChange={setSubPagination}
+                paginationModel={paginationModel}
+                onPaginationModelChange={setPaginationModel}
                 disableColumnMenu
                 sortingMode="server"
                 filterMode="server"
