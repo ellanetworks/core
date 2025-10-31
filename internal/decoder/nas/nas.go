@@ -283,21 +283,6 @@ func getGmmMessageType(msg *nas.GmmMessage) utils.EnumField[uint8] {
 	}
 }
 
-// func decodeNAS(raw []byte) (*nas.Message, error) {
-// 	msg := new(nas.Message)
-// 	msg.SecurityHeaderType = nas.GetSecurityHeaderType(raw) & 0x0f
-
-// 	if msg.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-// 		return nil, fmt.Errorf("message is encrypted")
-// 	}
-
-// 	if err := msg.PlainNasDecode(&raw); err != nil {
-// 		return nil, fmt.Errorf("failed to decode NAS message: %w", err)
-// 	}
-
-// 	return msg, nil
-// }
-
 func securityHeaderTypeToEnum(msgType uint8) utils.EnumField[uint8] {
 	switch msgType {
 	case nas.SecurityHeaderTypePlainNas:
