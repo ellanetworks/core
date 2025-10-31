@@ -166,23 +166,7 @@ export default function EventDetails({
       return <Typography variant="body2">No decoded content.</Typography>;
 
     const { decoded, raw } = decodedData;
-    const pretty = (
-      <GenericMessageView
-        decoded={decoded}
-        headerChips={
-          log?.protocol?.toUpperCase() === "NGAP" && decoded
-            ? ([
-                decoded?.pdu_type
-                  ? { label: String(decoded.pdu_type) }
-                  : undefined,
-                decoded?.message_type
-                  ? { label: String(decoded.message_type) }
-                  : undefined,
-              ].filter(Boolean) as Array<{ label: string }>)
-            : undefined
-        }
-      />
-    );
+    const pretty = <GenericMessageView decoded={decoded} />;
 
     return (
       <>
