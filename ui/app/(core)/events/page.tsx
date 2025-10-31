@@ -35,8 +35,9 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { useAuth } from "@/contexts/AuthContext";
 import EditNetworkLogRetentionPolicyModal from "@/components/EditNetworkLogRetentionPolicyModal";
-import ViewEventDrawer from "@/components/ViewEventDrawer";
-import type { LogRow } from "@/components/ViewEventDrawer";
+import RightSidePanel from "@/components/RightSidePanel";
+import EventDetails from "@/components/EventDetails";
+import type { LogRow } from "@/components/EventDetails";
 
 const MAX_WIDTH = 1400;
 
@@ -466,11 +467,16 @@ const Events: React.FC = () => {
         </Box>
       </>
 
-      <ViewEventDrawer
+      <RightSidePanel
         open={viewEventDrawerOpen}
         onClose={() => setViewEventDrawerOpen(false)}
-        log={selectedRow}
-      />
+        defaultWidth={640}
+        minWidth={420}
+        maxWidth={960}
+        header={<strong>{selectedRow?.messageType ?? "Event details"}</strong>}
+      >
+        <EventDetails open={viewEventDrawerOpen} log={selectedRow} />
+      </RightSidePanel>
       <EditNetworkLogRetentionPolicyModal
         open={isNetworkEditModalOpen}
         onClose={() => setNetworkEditModalOpen(false)}
