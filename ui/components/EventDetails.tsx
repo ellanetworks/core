@@ -205,15 +205,7 @@ export default function EventDetails({
                 </span>
               </Tooltip>
             </Box>
-            <Box
-              sx={{
-                p: 1.25,
-                border: (t) => `1px solid ${t.palette.divider}`,
-                borderRadius: 1,
-              }}
-            >
-              {pretty}
-            </Box>
+            {pretty}
             <Box
               sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.75 }}
             >

@@ -133,7 +133,16 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 			logger.AmfLog.Debug("Set read timeout", zap.Any("timeout", readTimeout))
 		}
 
-		logger.AmfLog.Info("New connection", zap.String("address", newConn.RemoteAddr().String()))
+		remoteAddress := newConn.RemoteAddr()
+		if remoteAddress == nil {
+			logger.AmfLog.Error("Remote address is nil")
+			if err = newConn.Close(); err != nil {
+				logger.AmfLog.Error("Close error", zap.Error(err))
+			}
+			continue
+		}
+
+		logger.AmfLog.Info("New connection", zap.String("address", remoteAddress.String()))
 		connections.Store(newConn, newConn)
 
 		go handleConnection(newConn, readBufSize, handler)
