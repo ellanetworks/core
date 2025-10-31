@@ -77,7 +77,7 @@ func buildInitialUEMessage(initialUEMessage ngapType.InitialUEMessage) NGAPMessa
 			var nasPdu NASPDU
 			nasPdu = NASPDU{
 				Raw:     ie.Value.NASPDU.Value,
-				Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value, nil),
+				Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value),
 			}
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),

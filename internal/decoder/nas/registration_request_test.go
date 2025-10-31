@@ -16,7 +16,7 @@ func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	nas := nas.DecodeNASMessage(raw, nil)
+	nas := nas.DecodeNASMessage(raw)
 
 	if nas == nil {
 		t.Fatal("Decoded NAS message is nil")
@@ -114,93 +114,5 @@ func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
 
 	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.CipheringAlgorithm.NEA3 {
 		t.Error("UESecurityCapability CipheringAlgorithm NEA3 is false, expected true")
-	}
-}
-
-func TestDecodeNASMessage_RegistrationRequest_PeriodicUpdate(t *testing.T) {
-	const message = "fgHdM93FA34AQQMAC/Ji8ELK/gAAAAACcQAlfgBBAwAL8mLwQsr+AAAAAAJSYvBCAABkUAICABgBAXQAAFMBAQ=="
-
-	raw, err := decodeB64(message)
-	if err != nil {
-		t.Fatalf("base64 decode failed: %v", err)
-	}
-
-	nasMsg := nas.DecodeNASMessage(raw, nil)
-	if nasMsg == nil {
-		t.Fatal("Decoded NAS message is nil")
-	}
-
-	if nasMsg.SecurityHeader.SecurityHeaderType.Label != "Integrity Protected" {
-		t.Errorf("Unexpected SecurityHeaderType: got %v", nasMsg.SecurityHeader.SecurityHeaderType.Label)
-	}
-
-	if nasMsg.SecurityHeader.SecurityHeaderType.Value != naslib.SecurityHeaderTypeIntegrityProtected {
-		t.Errorf("Unexpected SecurityHeaderType value: got %d", nasMsg.SecurityHeader.SecurityHeaderType.Value)
-	}
-
-	if nasMsg.GmmMessage == nil {
-		t.Fatal("GmmMessage is nil")
-	}
-
-	if nasMsg.GmmMessage.RegistrationRequest == nil {
-		t.Fatal("RegistrationRequest is nil")
-	}
-
-	regReq := nasMsg.GmmMessage.RegistrationRequest
-	if regReq.RegistrationType5GS.Label != "Periodic Registration Updating" {
-		t.Errorf("Unexpected RegistrationType5GS: got %v", regReq.RegistrationType5GS.Label)
-	}
-
-	if regReq.RegistrationType5GS.Value != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
-		t.Errorf("Unexpected RegistrationType5GS value: got %d", regReq.RegistrationType5GS.Value)
-	}
-
-	if regReq.MobileIdentity5GS.Identity.Label != "5G-GUTI" {
-		t.Errorf("Unexpected MobileIdentity5GS Identity: got %v", regReq.MobileIdentity5GS.Identity.Label)
-	}
-
-	expectedGUTI := "26024cafe0000000002"
-	if *regReq.MobileIdentity5GS.GUTI != expectedGUTI {
-		t.Errorf("Unexpected GUTI: got %v", *regReq.MobileIdentity5GS.GUTI)
-	}
-
-	if regReq.NASMessageContainer == nil {
-		t.Fatal("NASMessageContainer is nil")
-	}
-}
-
-func TestDecodeNASMessage_RegistrationRequest_NASMsgContainer(t *testing.T) {
-	const message = "fgHgQT9xBn4AQSkAC/IA8RDK/gAAAAACLgTwcPBwcQA7fgBBKQAL8gDxEMr+AAAAAAIQAQMuBPBw8HAvBQQBECAwUgDxEAAAARcH8HDAQBmAsBgBAXQAAJBTAQE="
-
-	raw, err := decodeB64(message)
-	if err != nil {
-		t.Fatalf("base64 decode failed: %v", err)
-	}
-
-	nasMsg := nas.DecodeNASMessage(raw, nil)
-
-	if nasMsg == nil {
-		t.Fatal("Decoded NAS message is nil")
-	}
-
-	if nasMsg.GmmMessage == nil {
-		t.Fatal("GmmMessage is nil")
-	}
-
-	if nasMsg.GmmMessage.RegistrationRequest == nil {
-		t.Fatal("RegistrationRequest is nil")
-	}
-
-	regReq := nasMsg.GmmMessage.RegistrationRequest
-
-	if regReq.NASMessageContainer == nil {
-		t.Fatal("NASMessageContainer is nil")
-	}
-
-	expectedContainer := "fgBBKQAL8gDxEMr+AAAAAAIQAQMuBPBw8HAvBQQBECAwUgDxEAAAARcH8HDAQBmAsBgBAXQAAJBTAQE="
-
-	receivedNASMsg := encodeB64(regReq.NASMessageContainer)
-	if receivedNASMsg != expectedContainer {
-		t.Fatalf("Unexpected NASMessageContainer: got %v, want %v", receivedNASMsg, expectedContainer)
 	}
 }

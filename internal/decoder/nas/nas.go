@@ -3,7 +3,6 @@ package nas
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
@@ -63,13 +62,8 @@ type NASMessage struct {
 	Error string `json:"error,omitempty"` // Reserved field for decoding errors
 }
 
-type NasContextInfo struct {
-	Direction   Direction
-	AMFUENGAPID int64
-}
-
-func DecodeNASMessage(raw []byte, nasContextInfo *NasContextInfo) *NASMessage {
-	msg, err := decodeNAS(raw, nasContextInfo)
+func DecodeNASMessage(raw []byte) *NASMessage {
+	msg, err := decodeNAS(raw)
 	if err != nil {
 		return &NASMessage{
 			Error: fmt.Sprintf("failed to decode NAS message: %v", err),
@@ -282,97 +276,16 @@ func getGmmMessageType(msg *nas.GmmMessage) utils.EnumField[uint8] {
 	}
 }
 
-func decodeNAS(raw []byte, nasContextInfo *NasContextInfo) (*nas.Message, error) {
+func decodeNAS(raw []byte) (*nas.Message, error) {
 	msg := new(nas.Message)
 	msg.SecurityHeaderType = nas.GetSecurityHeaderType(raw) & 0x0f
 
-	switch msg.SecurityHeaderType {
-	case nas.SecurityHeaderTypePlainNas:
-		if err := msg.PlainNasDecode(&raw); err != nil {
-			return nil, fmt.Errorf("failed to decode NAS message: %w", err)
-		}
-	case nas.SecurityHeaderTypeIntegrityProtected:
-		p := raw[7:]
-		if err := msg.PlainNasDecode(&p); err != nil {
-			return nil, fmt.Errorf("failed to decode NAS message: %w", err)
-		}
-	case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
-		if nasContextInfo == nil {
-			return nil, fmt.Errorf("nas context info is nil")
-		}
+	if msg.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+		return nil, fmt.Errorf("message is encrypted")
+	}
 
-		amf := context.AMFSelf()
-
-		ranUE := amf.RanUeFindByAmfUeNgapID(nasContextInfo.AMFUENGAPID)
-		if ranUE == nil {
-			return nil, fmt.Errorf("cannot find ue in amf")
-		}
-
-		if ranUE.AmfUe == nil {
-			return nil, fmt.Errorf("ue decryption keys are not available")
-		}
-
-		decrypted, err := DecryptNASMessage(ranUE.AmfUe, nasContextInfo.Direction, raw)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt NAS message: %w", err)
-		}
-
-		err = msg.PlainNasDecode(&decrypted)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode NAS message: %w", err)
-		}
-	case nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext:
-		if nasContextInfo == nil {
-			return nil, fmt.Errorf("nas context info is nil")
-		}
-
-		amf := context.AMFSelf()
-
-		ranUE := amf.RanUeFindByAmfUeNgapID(nasContextInfo.AMFUENGAPID)
-		if ranUE == nil {
-			return nil, fmt.Errorf("cannot find ue in amf")
-		}
-
-		if ranUE.AmfUe == nil {
-			return nil, fmt.Errorf("ue decryption keys are not available")
-		}
-
-		decrypted, err := DecryptNASMessage(ranUE.AmfUe, nasContextInfo.Direction, raw)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt NAS message: %w", err)
-		}
-
-		err = msg.PlainNasDecode(&decrypted)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode NAS message: %w", err)
-		}
-	case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
-		if nasContextInfo == nil {
-			return nil, fmt.Errorf("nas context info is nil")
-		}
-
-		amf := context.AMFSelf()
-
-		ranUE := amf.RanUeFindByAmfUeNgapID(nasContextInfo.AMFUENGAPID)
-		if ranUE == nil {
-			return nil, fmt.Errorf("cannot find ue in amf")
-		}
-
-		if ranUE.AmfUe == nil {
-			return nil, fmt.Errorf("ue decryption keys are not available")
-		}
-
-		decrypted, err := DecryptNASMessage(ranUE.AmfUe, nasContextInfo.Direction, raw)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt NAS message: %w", err)
-		}
-
-		err = msg.PlainNasDecode(&decrypted)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode NAS message: %w", err)
-		}
-	default:
-		return nil, fmt.Errorf("unsupported security header type: %d", msg.SecurityHeaderType)
+	if err := msg.PlainNasDecode(&raw); err != nil {
+		return nil, fmt.Errorf("failed to decode NAS message: %w", err)
 	}
 
 	return msg, nil

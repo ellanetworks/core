@@ -61,13 +61,10 @@ type UESecurityCapabilities struct {
 func buildInitialContextSetupRequest(initialContextSetupRequest ngapType.InitialContextSetupRequest) NGAPMessageValue {
 	ies := make([]IE, 0)
 
-	AMFUENGAPID := int64(0)
-
 	for i := 0; i < len(initialContextSetupRequest.ProtocolIEs.List); i++ {
 		ie := initialContextSetupRequest.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
-			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
@@ -146,17 +143,12 @@ func buildInitialContextSetupRequest(initialContextSetupRequest ngapType.Initial
 				Value:       ie.Value.IndexToRFSP.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
-			nasContextInfo := &nas.NasContextInfo{
-				Direction:   nas.DirUplink,
-				AMFUENGAPID: AMFUENGAPID,
-			}
-
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: NASPDU{
 					Raw:     ie.Value.NASPDU.Value,
-					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo),
+					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value),
 				},
 			})
 		default:
@@ -188,7 +180,7 @@ func buildPDUSessionResourceSetupListCxtReq(pduSessionResourceSetupListCxtReq ng
 		if item.NASPDU != nil {
 			pduSessionResourceSetupList[i].NASPDU = &NASPDU{
 				Raw:     item.NASPDU.Value,
-				Decoded: nas.DecodeNASMessage(item.NASPDU.Value, nil),
+				Decoded: nas.DecodeNASMessage(item.NASPDU.Value),
 			}
 		}
 	}
