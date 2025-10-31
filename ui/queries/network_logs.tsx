@@ -30,7 +30,7 @@ export async function listNetworkLogs(
 ): Promise<ListNetworkLogsResponse> {
   const url = new URL(`/api/v1/logs/network`, window.location.origin);
   url.searchParams.set("page", String(page));
-  url.searchParams.set("page_size", String(perPage));
+  url.searchParams.set("per_page", String(perPage));
 
   if (params) {
     for (const [k, v] of Object.entries(params)) {
