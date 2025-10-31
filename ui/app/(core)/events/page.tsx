@@ -196,9 +196,9 @@ const Events: React.FC = () => {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const visible = usePageVisible();
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
-      page: 0,
-      pageSize: 25,
-    });
+    page: 0,
+    pageSize: 25,
+  });
 
   const makeSelection = (ids: GridRowId[] = []): GridRowSelectionModel => ({
     type: "include",
@@ -253,12 +253,7 @@ const Events: React.FC = () => {
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const filterParams = filtersToParams(networkFilterModel);
-      return listNetworkLogs(
-        accessToken!,
-        pageOneBased,
-        perPage,
-        filterParams,
-      );
+      return listNetworkLogs(accessToken!, pageOneBased, perPage, filterParams);
     },
   });
 
