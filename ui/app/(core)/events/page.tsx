@@ -407,83 +407,87 @@ const Events: React.FC = () => {
             gap: 2,
           }}
         >
-          <Typography variant="h4">Network Events</Typography>
-          <Typography variant="body1" color="text.secondary">
-            {subDescription}
-          </Typography>
-        </Box>
+          <Box sx={{ flex: "1 1 auto", minWidth: 0 }}>
+            <Typography variant="h4">Network Events</Typography>
+            <Typography variant="body1" color="text.secondary">
+              {subDescription}
+            </Typography>
+          </Box>
 
-        <Box
-          sx={{
-            width: "100%",
-            maxWidth: MAX_WIDTH,
-            px: { xs: 2, sm: 4 },
-            display: "flex",
-          }}
-        >
-          <ThemeProvider theme={gridTheme}>
-            <EventToolbarContext.Provider value={subToolbarValue}>
-              <DataGrid<APINetworkLog>
-                rows={networkRows}
-                columns={networkColumns}
-                getRowId={(row) => row.id}
-                loading={networkLogsQuery.isFetching}
-                paginationMode="server"
-                rowCount={subRowCount}
-                paginationModel={paginationModel}
-                onPaginationModelChange={setPaginationModel}
-                disableColumnMenu
-                sortingMode="server"
-                filterMode="server"
-                onFilterModelChange={onSubFilterModelChange}
-                pageSizeOptions={[10, 25, 50, 100]}
-                slots={{ toolbar: EventToolbar }}
-                onRowClick={handleRowClick}
-                rowSelectionModel={selectionModel}
-                disableRowSelectionOnClick
-                onRowSelectionModelChange={(model) => setSelectionModel(model)}
-                showToolbar
-                sx={{
-                  border: 1,
-                  borderColor: "divider",
-                  "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
-                  "& .MuiDataGrid-footerContainer": {
-                    borderTop: "1px solid",
+          <Box
+            sx={{
+              width: "100%",
+              maxWidth: MAX_WIDTH,
+              px: { xs: 2, sm: 4 },
+              display: "flex",
+            }}
+          >
+            <ThemeProvider theme={gridTheme}>
+              <EventToolbarContext.Provider value={subToolbarValue}>
+                <DataGrid<APINetworkLog>
+                  rows={networkRows}
+                  columns={networkColumns}
+                  getRowId={(row) => row.id}
+                  loading={networkLogsQuery.isFetching}
+                  paginationMode="server"
+                  rowCount={subRowCount}
+                  paginationModel={paginationModel}
+                  onPaginationModelChange={setPaginationModel}
+                  disableColumnMenu
+                  sortingMode="server"
+                  filterMode="server"
+                  onFilterModelChange={onSubFilterModelChange}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  slots={{ toolbar: EventToolbar }}
+                  onRowClick={handleRowClick}
+                  rowSelectionModel={selectionModel}
+                  disableRowSelectionOnClick
+                  onRowSelectionModelChange={(model) =>
+                    setSelectionModel(model)
+                  }
+                  showToolbar
+                  sx={{
+                    border: 1,
                     borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
-                  "& .MuiDataGrid-row:hover": { cursor: "pointer" },
-
-                  "& .MuiDataGrid-row.Mui-selected": {
-                    backgroundColor: (t) => t.palette.action.selected,
-                    "&:hover": {
-                      backgroundColor: (t) => t.palette.action.selected,
+                    "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
+                    "& .MuiDataGrid-footerContainer": {
+                      borderTop: "1px solid",
+                      borderColor: "divider",
                     },
-                    "& .MuiDataGrid-cell": { fontWeight: 500 },
-                    "&::before": { display: "none" },
-                  },
+                    "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
+                    "& .MuiDataGrid-row:hover": { cursor: "pointer" },
 
-                  "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
-                    { outline: "none" },
-                  "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
-                    { outline: "none" },
-                }}
-              />
-            </EventToolbarContext.Provider>
-          </ThemeProvider>
+                    "& .MuiDataGrid-row.Mui-selected": {
+                      backgroundColor: (t) => t.palette.action.selected,
+                      "&:hover": {
+                        backgroundColor: (t) => t.palette.action.selected,
+                      },
+                      "& .MuiDataGrid-cell": { fontWeight: 500 },
+                      "&::before": { display: "none" },
+                    },
+
+                    "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
+                      { outline: "none" },
+                    "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
+                      { outline: "none" },
+                  }}
+                />
+              </EventToolbarContext.Provider>
+            </ThemeProvider>
+          </Box>
+          <RightSidePanel
+            open={viewEventDrawerOpen}
+            onClose={() => setViewEventDrawerOpen(false)}
+            defaultWidth={640}
+            minWidth={420}
+            maxWidth={960}
+            header={
+              <strong>{selectedRow?.messageType ?? "Event details"}</strong>
+            }
+          >
+            <EventDetails open={viewEventDrawerOpen} log={selectedRow} />
+          </RightSidePanel>
         </Box>
-        <RightSidePanel
-          open={viewEventDrawerOpen}
-          onClose={() => setViewEventDrawerOpen(false)}
-          defaultWidth={640}
-          minWidth={420}
-          maxWidth={960}
-          header={
-            <strong>{selectedRow?.messageType ?? "Event details"}</strong>
-          }
-        >
-          <EventDetails open={viewEventDrawerOpen} log={selectedRow} />
-        </RightSidePanel>
       </>
       <EditNetworkLogRetentionPolicyModal
         open={isNetworkEditModalOpen}
