@@ -196,26 +196,35 @@ const ResizeHandle: React.FC = React.memo(function ResizeHandle() {
           width: 16,
           height: "100%",
           cursor: "ew-resize",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
           position: "relative",
           zIndex: (t) => t.zIndex.appBar,
+          "&:hover .resizeIcon": { opacity: 1 },
         }}
         tabIndex={0}
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize details panel"
       >
-        <DragIndicatorIcon
+        <Box
           sx={{
-            fontSize: 24,
-            opacity: 0.7,
-            transition: "opacity 120ms",
+            position: "sticky",
+            top: "calc(50vh - 12px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             pointerEvents: "none",
-            color: "text.secondary",
           }}
-        />
+        >
+          <DragIndicatorIcon
+            className="resizeIcon"
+            sx={{
+              fontSize: 24,
+              opacity: 0.7,
+              transition: "opacity 120ms",
+              color: "text.secondary",
+            }}
+          />
+        </Box>
       </Box>
     </PanelResizeHandle>
   );
