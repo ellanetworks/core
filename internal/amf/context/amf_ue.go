@@ -617,3 +617,16 @@ func (ue *AmfUe) SmContextFindByPDUSessionID(pduSessionID int32) (*SmContext, bo
 		return nil, false
 	}
 }
+
+func (ue *AmfUe) HasActivePDUSession() bool {
+	active := false
+	ue.SmContextList.Range(func(key, value any) bool {
+		smContext := value.(*SmContext)
+		if smContext.IsPduSessionActive() {
+			active = true
+			return false
+		}
+		return true
+	})
+	return active
+}
