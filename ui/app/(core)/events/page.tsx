@@ -390,7 +390,7 @@ const Events: React.FC = () => {
     <PanelResizeHandle>
       <Box
         sx={{
-          width: 16, // comfy hit area
+          width: 16,
           height: "100%",
           cursor: "ew-resize",
           display: "flex",
@@ -399,8 +399,8 @@ const Events: React.FC = () => {
           position: "relative",
           zIndex: (t) => t.zIndex.appBar,
         }}
-        tabIndex={0} // make it focusable (a11y)
-        role="separator" // a11y hint
+        tabIndex={0}
+        role="separator"
         aria-orientation="vertical"
         aria-label="Resize details panel"
       >
@@ -418,39 +418,37 @@ const Events: React.FC = () => {
   );
 
   return (
-    <Box sx={{ width: "100vw", height: "100vh" }}>
-      <Box
-        sx={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          px: { xs: 2, sm: 4 },
-          pt: 6,
-          zIndex: (t) => t.zIndex.appBar,
-          pointerEvents: "none",
-        }}
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        pt: 6,
+        pb: 4,
+      }}
+    >
+      <PanelGroup
+        direction="horizontal"
+        style={{ width: "100%", height: "100%", overflow: "hidden" }}
       >
-        <Box sx={{ maxWidth: MAX_WIDTH, mx: "auto" }}>
-          <Collapse in={!!alert.message}>
-            <Alert
-              severity={alert.severity || "success"}
-              onClose={() => setAlert({ message: "", severity: null })}
-              sx={{ mb: 2, pointerEvents: "auto" }}
-            >
-              {alert.message}
-            </Alert>
-          </Collapse>
-        </Box>
-      </Box>
-
-      <PanelGroup direction="horizontal">
         <Panel minSize={20}>
+          <Box sx={{ maxWidth: MAX_WIDTH, mx: "auto" }}>
+            <Collapse in={!!alert.message}>
+              <Alert
+                severity={alert.severity || "success"}
+                onClose={() => setAlert({ message: "", severity: null })}
+                sx={{ mb: 2, pointerEvents: "auto" }}
+              >
+                {alert.message}
+              </Alert>
+            </Collapse>
+          </Box>
           <Box
             sx={{
               height: "100%",
               display: "flex",
               flexDirection: "column",
-              alignItems: viewEventDrawerOpen ? "stretch" : "center",
+              alignItems: "center",
               overflow: "hidden",
             }}
           >
@@ -458,7 +456,6 @@ const Events: React.FC = () => {
               sx={{
                 width: "100%",
                 maxWidth: viewEventDrawerOpen ? "none" : MAX_WIDTH,
-                pt: 6,
                 pb: 4,
                 display: "flex",
                 flexDirection: "column",
@@ -501,6 +498,8 @@ const Events: React.FC = () => {
                         setSelectionModel(model)
                       }
                       showToolbar
+                      density="compact"
+                      autoHeight
                       sx={{
                         border: 1,
                         borderColor: "divider",
