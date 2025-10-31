@@ -15,14 +15,11 @@ type PDUSessionResourceToReleaseListRelCmd struct {
 func buildPDUSessionResourceReleaseCommand(cmd ngapType.PDUSessionResourceReleaseCommand) NGAPMessageValue {
 	ies := make([]IE, 0)
 
-	AMFUENGAPID := int64(0)
-
 	for i := 0; i < len(cmd.ProtocolIEs.List); i++ {
 		ie := cmd.ProtocolIEs.List[i]
 
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
-			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
@@ -41,17 +38,12 @@ func buildPDUSessionResourceReleaseCommand(cmd ngapType.PDUSessionResourceReleas
 				Value:       ie.Value.RANPagingPriority.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
-			nasContextInfo := &nas.NasContextInfo{
-				AMFUENGAPID: AMFUENGAPID,
-				Direction:   nas.DirDownlink,
-			}
-
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: NASPDU{
 					Raw:     ie.Value.NASPDU.Value,
-					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo),
+					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value),
 				},
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceToReleaseListRelCmd:

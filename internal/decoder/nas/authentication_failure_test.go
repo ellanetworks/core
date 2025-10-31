@@ -16,7 +16,7 @@ func TestDecodeNASMessage_AuthenticationFailure(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	nasMsg := nas.DecodeNASMessage(raw, nil)
+	nasMsg := nas.DecodeNASMessage(raw)
 
 	if nasMsg == nil {
 		t.Fatal("Decoded NAS message is nil")

@@ -18,13 +18,10 @@ type PDUSessionResourceSetupSUReq struct {
 func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest ngapType.PDUSessionResourceSetupRequest) NGAPMessageValue {
 	ies := make([]IE, 0)
 
-	AMFUENGAPID := int64(0)
-
 	for i := 0; i < len(pduSessionResourceSetupRequest.ProtocolIEs.List); i++ {
 		ie := pduSessionResourceSetupRequest.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
-			AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
@@ -43,28 +40,19 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest ngapType
 				Value:       ie.Value.RANPagingPriority.Value,
 			})
 		case ngapType.ProtocolIEIDNASPDU:
-			nasContextInfo := &nas.NasContextInfo{
-				AMFUENGAPID: AMFUENGAPID,
-				Direction:   nas.DirDownlink,
-			}
-
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: NASPDU{
 					Raw:     ie.Value.NASPDU.Value,
-					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value, nasContextInfo),
+					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value),
 				},
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
-			nasContextInfo := &nas.NasContextInfo{
-				AMFUENGAPID: AMFUENGAPID,
-				Direction:   nas.DirDownlink,
-			}
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildPDUSessionResourceSetupListSUReq(*ie.Value.PDUSessionResourceSetupListSUReq, nasContextInfo),
+				Value:       buildPDUSessionResourceSetupListSUReq(*ie.Value.PDUSessionResourceSetupListSUReq),
 			})
 		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
 			ies = append(ies, IE{
@@ -86,7 +74,7 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest ngapType
 	}
 }
 
-func buildPDUSessionResourceSetupListSUReq(list ngapType.PDUSessionResourceSetupListSUReq, nasContextInfo *nas.NasContextInfo) []PDUSessionResourceSetupSUReq {
+func buildPDUSessionResourceSetupListSUReq(list ngapType.PDUSessionResourceSetupListSUReq) []PDUSessionResourceSetupSUReq {
 	var reqList []PDUSessionResourceSetupSUReq
 	for _, item := range list.List {
 		pduSUReq := PDUSessionResourceSetupSUReq{
@@ -98,7 +86,7 @@ func buildPDUSessionResourceSetupListSUReq(list ngapType.PDUSessionResourceSetup
 		if item.PDUSessionNASPDU != nil {
 			pduSUReq.PDUSessionNASPDU = &NASPDU{
 				Raw:     item.PDUSessionNASPDU.Value,
-				Decoded: nas.DecodeNASMessage(item.PDUSessionNASPDU.Value, nasContextInfo),
+				Decoded: nas.DecodeNASMessage(item.PDUSessionNASPDU.Value),
 			}
 		}
 
