@@ -1477,6 +1477,8 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		return nil
 	}
 
+	logger.AmfLog.Warn("TO DELETE: Service Request Type", zap.String("type", getServiceRequestTypeString(serviceRequest.GetServiceTypeValue())))
+
 	// TS 24.501 8.2.6.21: if the UE is sending a REGISTRATION REQUEST message as an initial NAS message,
 	// the UE has a valid 5G NAS security context and the UE needs to send non-cleartext IEs
 	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS message
