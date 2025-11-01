@@ -1336,6 +1336,7 @@ func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe
 
 // TS 24501 5.6.1
 func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, serviceRequest *nasMessage.ServiceRequest) error {
+	logger.AmfLog.Warn("TO DELETE: Handling service request")
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
 	}
@@ -1454,16 +1455,16 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	}
 
 	if serviceRequest.UplinkDataStatus != nil {
+		logger.AmfLog.Warn("TO DELETE: Handling Uplink Data Status in Service Request")
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(serviceRequest.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
-		ue.SmContextList.Range(func(key, value interface{}) bool {
+		ue.SmContextList.Range(func(key, value any) bool {
 			pduSessionID := key.(int32)
 			smContext := value.(*context.SmContext)
-
+			logger.AmfLog.Warn("TO DELETE: Checking Uplink Data Status in Service Request", zap.Int32("pduSessionID", pduSessionID))
 			if pduSessionID != targetPduSessionID {
 				if uplinkDataPsi[pduSessionID] && smContext.AccessType() == models.AccessType3GPPAccess {
-					response, err := consumer.SendUpdateSmContextActivateUpCnxState(
-						ctx, ue, smContext, models.AccessType3GPPAccess)
+					response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext, models.AccessType3GPPAccess)
 					if err != nil {
 						ue.GmmLog.Error("SendUpdateSmContextActivateUpCnxState Error", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
 					} else if response == nil {
@@ -1484,9 +1485,11 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		})
 	}
 	if serviceRequest.PDUSessionStatus != nil {
+		logger.AmfLog.Warn("TO DELETE: Handling PDU Session Status in Service Request")
 		acceptPduSessionPsi = new([16]bool)
 		psiArray := nasConvert.PSIToBooleanArray(serviceRequest.PDUSessionStatus.Buffer)
 		ue.SmContextList.Range(func(key, value any) bool {
+			logger.AmfLog.Warn("TO DELETE: Checking PDU Session Status in Service Request", zap.Int32("pduSessionID", key.(int32)))
 			pduSessionID := key.(int32)
 			smContext := value.(*context.SmContext)
 			if smContext.AccessType() == anType {
@@ -1946,14 +1949,42 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 	return nil
 }
 
+func getRegistrationTypeString(registrationType uint8) string {
+	switch registrationType {
+	case nasMessage.RegistrationType5GSInitialRegistration:
+		return "Initial Registration"
+	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
+		return "Mobility Registration Updating"
+	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
+		return "Periodic Registration Updating"
+	case nasMessage.RegistrationType5GSEmergencyRegistration:
+		return "Emergency Registration"
+	default:
+		return "Reserved"
+	}
+}
+
 func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, registrationComplete *nasMessage.RegistrationComplete) error {
 	if ue.T3550 != nil {
 		ue.T3550.Stop()
 		ue.T3550 = nil // clear the timer
 	}
 
-	if ue.RegistrationRequest.UplinkDataStatus == nil &&
-		ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestNoPending {
+	logger.AmfLog.Warn("TO DELETE: Registration Complete received", zap.String("RegistrationType", getRegistrationTypeString(ue.RegistrationType5GS)))
+
+	forPending := ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestPending
+
+	uds := ue.RegistrationRequest.UplinkDataStatus
+
+	udsHasPending := uds != nil
+
+	hasActiveSessions := ue.HasActivePduSessions()
+
+	shouldRelease := !(forPending || udsHasPending || hasActiveSessions)
+
+	logger.AmfLog.Warn("TO DELETE: shouldRelease", zap.Bool("shouldRelease", shouldRelease), zap.Bool("forPending", forPending), zap.Bool("udsHasPending", udsHasPending), zap.Bool("hasActiveSessions", hasActiveSessions))
+
+	if shouldRelease {
 		err := ngap_message.SendUEContextReleaseCommand(ue.RanUe[accessType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
