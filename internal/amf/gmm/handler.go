@@ -1437,19 +1437,16 @@ func getServiceRequestTypeString(serviceType uint8) string {
 const psiArraySize = 16
 
 func getPDUSessionStatus(ue *context.AmfUe, anType models.AccessType) *[psiArraySize]bool {
-	logger.AmfLog.Warn("TO DELETE: Get PDU Session Status results")
 	var pduStatusResult [psiArraySize]bool
 	ue.SmContextList.Range(func(key, value any) bool {
-		logger.AmfLog.Warn("TO DELETE: PDU Session Status - Range", zap.Any("key", key), zap.Any("value", value))
 		pduSessionID := key.(int32)
 		smContext := value.(*context.SmContext)
 
 		if smContext.AccessType() != anType {
-			logger.AmfLog.Warn("TO DELETE: PDU Session Status - Access Type not match", zap.Int32("pduSessionID", pduSessionID), zap.String("smContextAccessType", string(smContext.AccessType())), zap.String("anType", string(anType)))
 			return true
 		}
+
 		pduStatusResult[pduSessionID] = true
-		logger.AmfLog.Warn("TO DELETE: PDU Session Status", zap.Int32("pduSessionID", pduSessionID), zap.Bool("status", pduStatusResult[pduSessionID]))
 		return true
 	})
 	return &pduStatusResult
@@ -1503,6 +1500,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS message
 	// container IE, the UE shall set the security header type of the initial NAS message to "integrity protected"
 	if serviceRequest.NASMessageContainer != nil {
+		logger.AmfLog.Warn("TO DELETE: Service Request has NAS Message Container")
 		contents := serviceRequest.NASMessageContainer.GetNASMessageContainerContents()
 
 		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
@@ -1520,6 +1518,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			}
 
 			messageType := m.GmmMessage.GmmHeader.GetMessageType()
+			logger.AmfLog.Warn("TO DELETE: Initial NAS Message from NAS Message Container", zap.String("messageType", nas.MessageName(messageType)))
 			if messageType != nas.MsgTypeServiceRequest {
 				return fmt.Errorf("expected service request message, got %d", messageType)
 			}
@@ -1531,9 +1530,10 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
 	}
 
+	logger.AmfLog.Warn("TO DELETE: Service Request", zap.String("type", getServiceRequestTypeString(serviceRequest.GetServiceTypeValue())))
+
 	var pduStatusResult *[psiArraySize]bool
 	if serviceRequest.PDUSessionStatus != nil {
-		logger.AmfLog.Warn("TO DELETE: PDU Session Status in Service Request, buinding pdu status results")
 		pduStatusResult = getPDUSessionStatus(ue, anType)
 		logger.AmfLog.Warn("TO DELETE: PDU Session Status Result", zap.Any("pduStatusResult", pduStatusResult))
 	}
@@ -1590,7 +1590,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 	ue.RanUe[anType].UeContextRequest = true
 	if serviceType == nasMessage.ServiceTypeSignalling {
-		logger.AmfLog.Warn("TO DELETE: Service Request Type is Signalling Only", zap.Any("pduStatusResult", pduStatusResult))
+		logger.AmfLog.Warn("TO DELETE: Service Request Type is Signalling", zap.Any("pduStatusResult", pduStatusResult))
 		err := sendServiceAccept(ctx, ue, anType, ctxList, suList, pduStatusResult, nil, nil, nil)
 		return err
 	}

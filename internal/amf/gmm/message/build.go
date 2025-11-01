@@ -154,9 +154,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 	return m.PlainNasEncode()
 }
 
-func BuildServiceAccept(ue *context.AmfUe, pDUSessionStatus *[16]bool,
-	reactivationResult *[16]bool, errPduSessionID, errCause []uint8,
-) ([]byte, error) {
+func BuildServiceAccept(ue *context.AmfUe, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) ([]byte, error) {
 	logger.AmfLog.Warn("TO DELETE: Build service accept", zap.Any("pduSessionStatus", pDUSessionStatus), zap.Any("reactivationResult", reactivationResult), zap.Any("errPduSessionID", errPduSessionID), zap.Any("errCause", errCause))
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
