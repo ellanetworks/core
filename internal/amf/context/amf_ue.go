@@ -585,7 +585,7 @@ func (ue *AmfUe) ClearRegistrationData() {
 	// Clearing SMContextList locally
 	ue.SmContextList.Range(func(key, _ any) bool {
 		ue.SmContextList.Delete(key)
-		logger.AmfLog.Debug("Clear SM Context due to new Registration", zap.Int32("PDU Session ID", key.(int32)))
+		logger.AmfLog.Warn("TO DELETE: Clear SM Context due to new Registration", zap.Int32("PDU Session ID", key.(int32)))
 		return true
 	})
 }
@@ -609,7 +609,7 @@ func (ue *AmfUe) RemoveAmPolicyAssociation() {
 
 func (ue *AmfUe) StoreSmContext(pduSessionID int32, smContext *SmContext) {
 	ue.SmContextList.Store(pduSessionID, smContext)
-	logger.AmfLog.Debug("Store SM Context", zap.Int32("PDU Session ID", pduSessionID))
+	logger.AmfLog.Warn("TO DELETE: Store SM Context", zap.Int32("PDU Session ID", pduSessionID))
 }
 
 func (ue *AmfUe) SmContextFindByPDUSessionID(pduSessionID int32) (*SmContext, bool) {

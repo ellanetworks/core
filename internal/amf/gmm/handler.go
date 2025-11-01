@@ -1437,6 +1437,7 @@ func getServiceRequestTypeString(serviceType uint8) string {
 const psiArraySize = 16
 
 func getPDUSessionStatus(ue *context.AmfUe, anType models.AccessType) *[psiArraySize]bool {
+	logger.AmfLog.Warn("TO DELETE: Get PDU Session Status results")
 	var pduStatusResult [psiArraySize]bool
 	ue.SmContextList.Range(func(key, value any) bool {
 		logger.AmfLog.Warn("TO DELETE: PDU Session Status - Range", zap.Any("key", key), zap.Any("value", value))
@@ -1444,6 +1445,7 @@ func getPDUSessionStatus(ue *context.AmfUe, anType models.AccessType) *[psiArray
 		smContext := value.(*context.SmContext)
 
 		if smContext.AccessType() != anType {
+			logger.AmfLog.Warn("TO DELETE: PDU Session Status - Access Type not match", zap.Int32("pduSessionID", pduSessionID), zap.String("smContextAccessType", string(smContext.AccessType())), zap.String("anType", string(anType)))
 			return true
 		}
 		pduStatusResult[pduSessionID] = true
@@ -1481,7 +1483,9 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 	var pduStatusResult *[psiArraySize]bool
 	if serviceRequest.PDUSessionStatus != nil {
+		logger.AmfLog.Warn("TO DELETE: PDU Session Status in Service Request, buinding pdu status results")
 		pduStatusResult = getPDUSessionStatus(ue, anType)
+		logger.AmfLog.Warn("TO DELETE: PDU Session Status Result", zap.Any("pduStatusResult", pduStatusResult))
 	}
 
 	// Send Authtication / Security Procedure not support
