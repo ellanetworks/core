@@ -2054,7 +2054,7 @@ func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType 
 	}
 
 	// ue.RegistrationType5GS == nasMessage.RegistrationType5GSInitialRegistration
-	logger.AmfLog.Warn("Registration Complete received", zap.String("RegistrationType", getRegistrationTypeString(ue.RegistrationType5GS)))
+	logger.AmfLog.Warn("TO DELETE: Registration Complete received", zap.String("RegistrationType", getRegistrationTypeString(ue.RegistrationType5GS)))
 
 	forPending := ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestPending
 
