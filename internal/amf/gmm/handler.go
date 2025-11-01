@@ -66,6 +66,80 @@ func HandleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	return nil
 }
 
+func getRequestTypeName(value uint8) string {
+	switch value {
+	case nasMessage.ULNASTransportRequestTypeInitialRequest:
+		return "Initial Request"
+	case nasMessage.ULNASTransportRequestTypeExistingPduSession:
+		return "Existing PDU Session"
+	case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
+		return "Initial Emergency Request"
+	case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
+		return "Existing Emergency PDU Session"
+	case nasMessage.ULNASTransportRequestTypeModificationRequest:
+		return "Modification Request"
+	case nasMessage.ULNASTransportRequestTypeReserved:
+		return "Reserved"
+	default:
+		return "Unknown"
+	}
+}
+
+func getGsmMessageTypeName(msg *nas.Message) string {
+	if msg.GsmMessage == nil {
+		return "Not a 5GSM Message"
+	}
+	if msg.PDUSessionEstablishmentRequest != nil {
+		return "5GSM PDU Session Establishment Request"
+	}
+	if msg.PDUSessionEstablishmentAccept != nil {
+		return "5GSM PDU Session Establishment Accept"
+	}
+	if msg.PDUSessionEstablishmentReject != nil {
+		return "5GSM PDU Session Establishment Reject"
+	}
+	if msg.PDUSessionAuthenticationCommand != nil {
+		return "5GSM PDU Session Authentication Command"
+	}
+	if msg.PDUSessionAuthenticationComplete != nil {
+		return "5GSM PDU Session Authentication Complete"
+	}
+	if msg.PDUSessionAuthenticationResult != nil {
+		return "5GSM PDU Session Authentication Result"
+	}
+	if msg.PDUSessionModificationRequest != nil {
+		return "5GSM PDU Session Modification Request"
+	}
+	if msg.PDUSessionModificationReject != nil {
+		return "5GSM PDU Session Modification Reject"
+	}
+	if msg.PDUSessionModificationCommand != nil {
+		return "5GSM PDU Session Modification Command"
+	}
+	if msg.PDUSessionModificationComplete != nil {
+		return "5GSM PDU Session Modification Complete"
+	}
+	if msg.PDUSessionModificationCommandReject != nil {
+		return "5GSM PDU Session Modification Command Reject"
+	}
+	if msg.PDUSessionReleaseRequest != nil {
+		return "5GSM PDU Session Release Request"
+	}
+	if msg.PDUSessionReleaseReject != nil {
+		return "5GSM PDU Session Release Reject"
+	}
+	if msg.PDUSessionReleaseCommand != nil {
+		return "5GSM PDU Session Release Command"
+	}
+	if msg.PDUSessionReleaseComplete != nil {
+		return "5GSM PDU Session Release Complete"
+	}
+	if msg.Status5GSM != nil {
+		return "5GSM Status"
+	}
+	return "Unknown 5GSM Message"
+}
+
 func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, ulNasTransport *nasMessage.ULNASTransport) error {
 	var pduSessionID int32
 	smMessage := ulNasTransport.PayloadContainer.GetPayloadContainerContents()
@@ -75,6 +149,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		return fmt.Errorf("pdu session id is nil")
 	}
 	pduSessionID = int32(id.GetPduSessionID2Value())
+	logger.AmfLog.Warn("TO DELETE: UL NAS Transport PDU Session ID", zap.Int32("pduSessionID", pduSessionID))
 
 	if ulNasTransport.OldPDUSessionID != nil {
 		return fmt.Errorf("old pdu session id is not supported")
@@ -85,6 +160,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	requestType := ulNasTransport.RequestType
 
 	if requestType != nil {
+		logger.AmfLog.Warn("TO DELETE: UL NAS Transport Request Type", zap.String("requestType", getRequestTypeName(requestType.GetRequestTypeValue())))
 		switch requestType.GetRequestTypeValue() {
 		case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
 			fallthrough
@@ -99,13 +175,15 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		}
 	}
 
-	if smContextExist && requestType != nil {
-		/* AMF releases context locally as this is duplicate pdu session */
-		if requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest {
-			ue.SmContextList.Delete(pduSessionID)
-			smContextExist = false
-		}
-	}
+	// // note: we probably don't want to delete sm context,
+	// if smContextExist && requestType != nil {
+	// 	/* AMF releases context locally as this is duplicate pdu session */
+	// 	if requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest {
+	// 		logger.AmfLog.Warn("TO DELETE: UL NAS Transport Duplicate PDU Session ID, deleting existing SM Context", zap.Int32("pduSessionID", pduSessionID))
+	// 		ue.SmContextList.Delete(pduSessionID)
+	// 		smContextExist = false
+	// 	}
+	// }
 
 	if !smContextExist {
 		msg := new(nas.Message)
@@ -126,6 +204,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 		switch requestType.GetRequestTypeValue() {
 		case nasMessage.ULNASTransportRequestTypeInitialRequest:
+			logger.AmfLog.Warn("TO DELETE: UL NAS Transport Initial Request with existing PDU Session ID", zap.Int32("pduSessionID", pduSessionID))
 			smContext.StoreULNASTransport(ulNasTransport)
 			//  perform a local release of the PDU session identified by the PDU session ID and shall request
 			// the SMF to perform a local release of the PDU session
@@ -294,6 +373,7 @@ func forward5GSMMessageToSMF(
 	smContext *context.SmContext,
 	smMessage []byte,
 ) error {
+	logger.AmfLog.Warn("TO DELETE: Forwarding 5GSM Message to SMF", zap.Int32("pduSessionID", pduSessionID), zap.String("messageType", getGsmMessageTypeName(&nas.Message{GsmMessage: &nas.GsmMessage{}})))
 	smContextUpdateData := models.SmContextUpdateData{
 		N1SmMsg: &models.RefToBinaryData{
 			ContentID: "N1SmMsg",
@@ -1334,8 +1414,29 @@ func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe
 	return err
 }
 
+func getServiceRequestTypeString(serviceType uint8) string {
+	switch serviceType {
+	case nasMessage.ServiceTypeSignalling:
+		return "signalling"
+	case nasMessage.ServiceTypeData:
+		return "data"
+	case nasMessage.ServiceTypeMobileTerminatedServices:
+		return "mobile terminated services"
+	case nasMessage.ServiceTypeEmergencyServices:
+		return "emergency services"
+	case nasMessage.ServiceTypeEmergencyServicesFallback:
+		return "emergency services fallback"
+	case nasMessage.ServiceTypeHighPriorityAccess:
+		return "high priority access"
+	default:
+		return "unknown service type"
+	}
+}
+
 // TS 24501 5.6.1
 func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, serviceRequest *nasMessage.ServiceRequest) error {
+	logger.AmfLog.Warn("TO DELETE: Handle Service Request")
+
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
 	}
@@ -1409,14 +1510,14 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	}
 
 	serviceType := serviceRequest.GetServiceTypeValue()
+	logger.AmfLog.Warn("TO DELETE: Service Request Type", zap.String("type", getServiceRequestTypeString(serviceType)))
 	var reactivationResult, acceptPduSessionPsi *[16]bool
 	var errPduSessionID, errCause []uint8
 	var targetPduSessionID int32
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
 	ctxList := ngapType.PDUSessionResourceSetupListCxtReq{}
 
-	if serviceType == nasMessage.ServiceTypeEmergencyServices ||
-		serviceType == nasMessage.ServiceTypeEmergencyServicesFallback {
+	if serviceType == nasMessage.ServiceTypeEmergencyServices || serviceType == nasMessage.ServiceTypeEmergencyServicesFallback {
 		ue.GmmLog.Warn("emergency service is not supported")
 	}
 
@@ -1454,6 +1555,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	}
 
 	if serviceRequest.UplinkDataStatus != nil {
+		logger.AmfLog.Warn("TO DELETE: Uplink Data Status in Service Request")
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(serviceRequest.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
 		ue.SmContextList.Range(func(key, value interface{}) bool {
@@ -1462,6 +1564,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 			if pduSessionID != targetPduSessionID {
 				if uplinkDataPsi[pduSessionID] && smContext.AccessType() == models.AccessType3GPPAccess {
+					logger.AmfLog.Warn("TO DELETE: Reactivating PDU Session from Uplink Data Status", zap.Int32("pduSessionID", pduSessionID))
 					response, err := consumer.SendUpdateSmContextActivateUpCnxState(
 						ctx, ue, smContext, models.AccessType3GPPAccess)
 					if err != nil {
@@ -1946,14 +2049,42 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 	return nil
 }
 
+func getRegistrationTypeString(registrationType uint8) string {
+	switch registrationType {
+	case nasMessage.RegistrationType5GSInitialRegistration:
+		return "Initial Registration"
+	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
+		return "Mobility Registration Updating"
+	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
+		return "Periodic Registration Updating"
+	case nasMessage.RegistrationType5GSEmergencyRegistration:
+		return "Emergency Registration"
+	default:
+		return "Reserved"
+	}
+}
+
 func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, registrationComplete *nasMessage.RegistrationComplete) error {
 	if ue.T3550 != nil {
 		ue.T3550.Stop()
 		ue.T3550 = nil // clear the timer
 	}
 
-	if ue.RegistrationRequest.UplinkDataStatus == nil &&
-		ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestNoPending {
+	logger.AmfLog.Warn("TO DELETE: Registration Complete received", zap.String("RegistrationType", getRegistrationTypeString(ue.RegistrationType5GS)))
+
+	forPending := ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestPending
+
+	uds := ue.RegistrationRequest.UplinkDataStatus
+
+	udsHasPending := uds != nil
+
+	hasActiveSessions := ue.HasActivePduSessions()
+
+	shouldRelease := !(forPending || udsHasPending || hasActiveSessions)
+
+	logger.AmfLog.Warn("TO DELETE: shouldRelease", zap.Bool("shouldRelease", shouldRelease), zap.Bool("forPending", forPending), zap.Bool("udsHasPending", udsHasPending), zap.Bool("hasActiveSessions", hasActiveSessions))
+
+	if shouldRelease {
 		err := ngap_message.SendUEContextReleaseCommand(ue.RanUe[accessType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
