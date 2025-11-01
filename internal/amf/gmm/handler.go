@@ -1436,7 +1436,7 @@ func getServiceRequestTypeString(serviceType uint8) string {
 
 // TS 24501 5.6.1
 func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, serviceRequest *nasMessage.ServiceRequest) error {
-	logger.AmfLog.Warn("TO DELETE: Handle Service Request")
+	logger.AmfLog.Warn("TO DELETE: Service Request", zap.String("type", getServiceRequestTypeString(serviceRequest.GetServiceTypeValue())))
 
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
@@ -1476,8 +1476,6 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		ue.GmmLog.Info("sent ue context release command")
 		return nil
 	}
-
-	logger.AmfLog.Warn("TO DELETE: Service Request Type", zap.String("type", getServiceRequestTypeString(serviceRequest.GetServiceTypeValue())))
 
 	// TS 24.501 8.2.6.21: if the UE is sending a REGISTRATION REQUEST message as an initial NAS message,
 	// the UE has a valid 5G NAS security context and the UE needs to send non-cleartext IEs
@@ -1522,6 +1520,28 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 	if serviceType == nasMessage.ServiceTypeEmergencyServices || serviceType == nasMessage.ServiceTypeEmergencyServicesFallback {
 		ue.GmmLog.Warn("emergency service is not supported")
+	}
+
+	if serviceRequest.UplinkDataStatus != nil {
+		logger.AmfLog.Warn("TO DELETE: Uplink Data Status in Service Request")
+		// print all PDU sessions with uplink data status
+		uplinkDataPsi := nasConvert.PSIToBooleanArray(serviceRequest.UplinkDataStatus.Buffer)
+		for psi, status := range uplinkDataPsi {
+			if status {
+				ue.GmmLog.Warn("TO DELETE: Uplink Data Status for PDU Session", zap.Int("pduSessionID", psi))
+			}
+		}
+	}
+
+	if serviceRequest.PDUSessionStatus != nil {
+		logger.AmfLog.Warn("TO DELETE: PDU Session Status in Service Request")
+		// print all PDU sessions with pdu session status
+		psiArray := nasConvert.PSIToBooleanArray(serviceRequest.PDUSessionStatus.Buffer)
+		for psi, status := range psiArray {
+			if status {
+				ue.GmmLog.Warn("TO DELETE: PDU Session Status for PDU Session", zap.Int("pduSessionID", psi))
+			}
+		}
 	}
 
 	if ue.MacFailed {
@@ -1780,11 +1800,11 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.Access
 		// update Kgnb/Kn3iwf
 		ue.UpdateSecurityContext(anType)
 
-		nasPdu, err := gmm_message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult,
-			errPduSessionID, errCause)
+		nasPdu, err := gmm_message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
 			return err
 		}
+		logger.AmfLog.Warn("TO DELETE: Built Service Accept NAS PDU", zap.ByteString("nasPdu", nasPdu))
 		if len(ctxList.List) != 0 {
 			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasPdu, &ctxList, nil, nil, nil)
 			if err != nil {
