@@ -297,6 +297,7 @@ func (ue *AmfUe) Remove() {
 
 	if len(ue.Supi) > 0 {
 		AMFSelf().UePool.Delete(ue.Supi)
+		logger.AmfLog.Debug("Delete AmfUe from UePool", zap.String("Supi", ue.Supi))
 	}
 }
 

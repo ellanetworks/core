@@ -176,6 +176,7 @@ func (context *AMFContext) NewAmfUe(ctx ctxt.Context, supi string) *AmfUe {
 	}
 
 	context.AllocateGutiToUe(ctx, &ue)
+	logger.AmfLog.Warn("TO DELETE: Add AMF UE to UE Pool", zap.String("Supi", ue.Supi), zap.String("GUTI", ue.Guti))
 
 	return &ue
 }

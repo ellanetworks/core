@@ -1481,13 +1481,6 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		ue.GmmLog.Warn("UE should not in OnGoing", zap.Any("procedure", procedure))
 	}
 
-	var pduStatusResult *[psiArraySize]bool
-	if serviceRequest.PDUSessionStatus != nil {
-		logger.AmfLog.Warn("TO DELETE: PDU Session Status in Service Request, buinding pdu status results")
-		pduStatusResult = getPDUSessionStatus(ue, anType)
-		logger.AmfLog.Warn("TO DELETE: PDU Session Status Result", zap.Any("pduStatusResult", pduStatusResult))
-	}
-
 	// Send Authtication / Security Procedure not support
 	// Rejecting ServiceRequest if it is received in Deregistered State
 	if !ue.SecurityContextIsValid() || ue.State[anType].Current() == context.Deregistered {
@@ -1536,6 +1529,13 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		}
 		// TS 33.501 6.4.6 step 3: if the initial NAS message was protected but did not pass the integrity check
 		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
+	}
+
+	var pduStatusResult *[psiArraySize]bool
+	if serviceRequest.PDUSessionStatus != nil {
+		logger.AmfLog.Warn("TO DELETE: PDU Session Status in Service Request, buinding pdu status results")
+		pduStatusResult = getPDUSessionStatus(ue, anType)
+		logger.AmfLog.Warn("TO DELETE: PDU Session Status Result", zap.Any("pduStatusResult", pduStatusResult))
 	}
 
 	serviceType := serviceRequest.GetServiceTypeValue()
