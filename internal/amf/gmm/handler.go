@@ -2023,11 +2023,38 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 	return nil
 }
 
+// // TS 24.501 9.11.3.7
+// const (
+// 	RegistrationType5GSInitialRegistration          uint8 = 0x01
+// 	RegistrationType5GSMobilityRegistrationUpdating uint8 = 0x02
+// 	RegistrationType5GSPeriodicRegistrationUpdating uint8 = 0x03
+// 	RegistrationType5GSEmergencyRegistration        uint8 = 0x04
+// 	RegistrationType5GSReserved                     uint8 = 0x07
+// )
+
+func getRegistrationTypeString(registrationType uint8) string {
+	switch registrationType {
+	case nasMessage.RegistrationType5GSInitialRegistration:
+		return "Initial Registration"
+	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
+		return "Mobility Registration Updating"
+	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
+		return "Periodic Registration Updating"
+	case nasMessage.RegistrationType5GSEmergencyRegistration:
+		return "Emergency Registration"
+	default:
+		return "Reserved"
+	}
+}
+
 func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, registrationComplete *nasMessage.RegistrationComplete) error {
 	if ue.T3550 != nil {
 		ue.T3550.Stop()
 		ue.T3550 = nil // clear the timer
 	}
+
+	// ue.RegistrationType5GS == nasMessage.RegistrationType5GSInitialRegistration
+	logger.AmfLog.Warn("Registration Complete received", zap.String("RegistrationType", getRegistrationTypeString(ue.RegistrationType5GS)))
 
 	forPending := ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestPending
 
