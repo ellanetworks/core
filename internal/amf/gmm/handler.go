@@ -175,16 +175,16 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		}
 	}
 
-	if smContextExist && requestType != nil {
-		/* AMF releases context locally as this is duplicate pdu session */
-		if requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest {
-			ue.SmContextList.Delete(pduSessionID)
-			smContextExist = false
-			logger.AmfLog.Warn("TO DELETE: Duplicate PDU Session ID, releasing existing SM Context", zap.Int32("pduSessionID", pduSessionID))
-		}
-		// Note: we likely want to re-activate the user plane connection here instead of deleting it.
-		// response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext, models.AccessType3GPPAccess)
-	}
+	// if smContextExist && requestType != nil {
+	// 	/* AMF releases context locally as this is duplicate pdu session */
+	// 	if requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest {
+	// 		ue.SmContextList.Delete(pduSessionID)
+	// 		smContextExist = false
+	// 		logger.AmfLog.Warn("TO DELETE: Duplicate PDU Session ID, releasing existing SM Context", zap.Int32("pduSessionID", pduSessionID))
+	// 	}
+	// 	// Note: we likely want to re-activate the user plane connection here instead of deleting it.
+	// 	// response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext, models.AccessType3GPPAccess)
+	// }
 
 	if !smContextExist {
 		msg := new(nas.Message)
@@ -197,6 +197,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			return nil
 		}
 	}
+
 	// AMF has a PDU session routing context for the PDU session ID and the UE
 	if smContextExist {
 		// case i) Request type IE is either not included
@@ -209,17 +210,19 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			smContext.StoreULNASTransport(ulNasTransport)
 			//  perform a local release of the PDU session identified by the PDU session ID and shall request
 			// the SMF to perform a local release of the PDU session
-			updateData := models.SmContextUpdateData{
-				Release: true,
-				Cause:   models.CauseRelDueToDuplicateSessionID,
-				SmContextStatusURI: fmt.Sprintf("%s/namf-callback/v1/smContextStatus/%s/%d",
-					ue.ServingAMF.GetIPv4Uri(), ue.Guti, pduSessionID),
-			}
-			ue.GmmLog.Warn("Duplicated PDU session ID", zap.Int32("pduSessionID", pduSessionID))
-			smContext.SetDuplicatedPduSessionID(true)
-			response, err := consumer.SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
+			// updateData := models.SmContextUpdateData{
+			// 	Release: true,
+			// 	Cause:   models.CauseRelDueToDuplicateSessionID,
+			// 	SmContextStatusURI: fmt.Sprintf("%s/namf-callback/v1/smContextStatus/%s/%d",
+			// 		ue.ServingAMF.GetIPv4Uri(), ue.Guti, pduSessionID),
+			// }
+			// ue.GmmLog.Warn("Duplicated PDU session ID", zap.Int32("pduSessionID", pduSessionID))
+			// response, err := consumer.SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
+
+			logger.AmfLog.Warn("TO DELETE: Sending ActivateUpCnxState to SMF for duplicated PDU Session ID", zap.Int32("pduSessionID", pduSessionID))
+			response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext, anType)
 			if err != nil {
-				return err
+				return fmt.Errorf("error activating up connection state: %s", err)
 			}
 			if response == nil {
 				ue.GmmLog.Error("PDU Session can't be released in DUPLICATE_SESSION_ID case", zap.Int32("pduSessionID", pduSessionID))

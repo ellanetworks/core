@@ -165,18 +165,6 @@ func (c *SmContext) SetVSmfID(vsmfID string) {
 	c.VSmfIDVal = vsmfID
 }
 
-func (c *SmContext) PduSessionIDDuplicated() bool {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
-	return c.DuplicatedVal
-}
-
-func (c *SmContext) SetDuplicatedPduSessionID(duplicated bool) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.DuplicatedVal = duplicated
-}
-
 func (c *SmContext) ULNASTransport() *nasMessage.ULNASTransport {
 	c.Mu.RLock()
 	defer c.Mu.RUnlock()
