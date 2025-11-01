@@ -1434,6 +1434,23 @@ func getServiceRequestTypeString(serviceType uint8) string {
 	}
 }
 
+const psiArraySize = 16
+
+func getPDUSessionStatus(ue *context.AmfUe, anType models.AccessType) *[psiArraySize]bool {
+	var pduStatusResult [psiArraySize]bool
+	ue.SmContextList.Range(func(key, value interface{}) bool {
+		pduSessionID := key.(int32)
+		smContext := value.(*context.SmContext)
+
+		if smContext.AccessType() != anType {
+			return true
+		}
+		pduStatusResult[pduSessionID] = true
+		return true
+	})
+	return &pduStatusResult
+}
+
 // TS 24501 5.6.1
 func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, serviceRequest *nasMessage.ServiceRequest) error {
 	logger.AmfLog.Warn("TO DELETE: Service Request", zap.String("type", getServiceRequestTypeString(serviceRequest.GetServiceTypeValue())))
@@ -1458,6 +1475,11 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		})
 	} else if procedure != context.OnGoingProcedureNothing {
 		ue.GmmLog.Warn("UE should not in OnGoing", zap.Any("procedure", procedure))
+	}
+
+	var pduStatusResult *[psiArraySize]bool
+	if serviceRequest.PDUSessionStatus != nil {
+		pduStatusResult = getPDUSessionStatus(ue, anType)
 	}
 
 	// Send Authtication / Security Procedure not support
@@ -1562,7 +1584,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 	ue.RanUe[anType].UeContextRequest = true
 	if serviceType == nasMessage.ServiceTypeSignalling {
-		err := sendServiceAccept(ctx, ue, anType, ctxList, suList, nil, nil, nil, nil)
+		err := sendServiceAccept(ctx, ue, anType, ctxList, suList, pduStatusResult, nil, nil, nil)
 		return err
 	}
 	if ue.N1N2Message != nil {
