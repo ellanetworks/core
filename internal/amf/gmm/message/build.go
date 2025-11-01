@@ -15,11 +15,13 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
 	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
+	"go.uber.org/zap"
 )
 
 func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause *uint8) ([]byte, error) {
@@ -444,6 +446,7 @@ func BuildRegistrationAccept(
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
 ) ([]byte, error) {
+	logger.AmfLog.Warn("TO DELETE: Build registration accept", zap.Any("pduSessionStatus", pDUSessionStatus), zap.Any("reactivationResult", reactivationResult), zap.Any("errPduSessionID", errPduSessionID), zap.Any("errCause", errCause))
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeRegistrationAccept)

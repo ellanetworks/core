@@ -1773,6 +1773,7 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.Access
 	suList ngapType.PDUSessionResourceSetupListSUReq, pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool, errPduSessionID, errCause []uint8,
 ) error {
+	logger.AmfLog.Warn("TO DELETE: Send service accept", zap.String("anType", string(anType)), zap.Int("ctxList", len(ctxList.List)), zap.Int("suList", len(suList.List)), zap.Any("pDUSessionStatus", pDUSessionStatus), zap.Any("reactivationResult", reactivationResult), zap.Any("errPduSessionID", errPduSessionID), zap.Any("errCause", errCause))
 	if ue.RanUe[anType].UeContextRequest {
 		// update Kgnb/Kn3iwf
 		ue.UpdateSecurityContext(anType)

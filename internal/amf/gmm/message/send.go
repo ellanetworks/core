@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/ngap/ngapType"
@@ -296,6 +297,7 @@ func SendRegistrationAccept(
 	errPduSessionID, errCause []uint8,
 	pduSessionResourceSetupList *ngapType.PDUSessionResourceSetupListCxtReq,
 ) error {
+	logger.AmfLog.Warn("TO DELETE: Send registration accept", zap.String("anType", string(anType)), zap.Any("pDUSessionStatus", pDUSessionStatus), zap.Any("reactivationResult", reactivationResult), zap.Any("errPduSessionID", errPduSessionID), zap.Any("errCause", errCause))
 	nasMsg, err := BuildRegistrationAccept(ctx, ue, anType, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 	if err != nil {
 		return fmt.Errorf("error building registration accept: %s", err.Error())
