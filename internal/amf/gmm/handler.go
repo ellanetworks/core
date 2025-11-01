@@ -1334,6 +1334,23 @@ func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe
 	return err
 }
 
+func getServiceTypeString(serviceType uint8) string {
+	switch serviceType {
+	case nasMessage.ServiceTypeSignalling:
+		return "signalling"
+	case nasMessage.ServiceTypeData:
+		return "data"
+	case nasMessage.ServiceTypeEmergencyServices:
+		return "emergency services"
+	case nasMessage.ServiceTypeEmergencyServicesFallback:
+		return "emergency services fallback"
+	case nasMessage.ServiceTypeHighPriorityAccess:
+		return "high priority access"
+	default:
+		return "unknown service type"
+	}
+}
+
 // TS 24501 5.6.1
 func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, serviceRequest *nasMessage.ServiceRequest) error {
 	logger.AmfLog.Warn("TO DELETE: Handling service request")
@@ -1409,7 +1426,12 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
 	}
 
+	if serviceRequest.PDUSessionStatus != nil {
+		logger.AmfLog.Warn("TO DELETE: service request has PDU Session Status")
+	}
+
 	serviceType := serviceRequest.GetServiceTypeValue()
+	logger.AmfLog.Warn("TO DELETE: Service Request Service Type", zap.String("serviceType", getServiceTypeString(serviceType)))
 	var reactivationResult, acceptPduSessionPsi *[16]bool
 	var errPduSessionID, errCause []uint8
 	var targetPduSessionID int32
