@@ -337,6 +337,7 @@ func SendInitialContextSetupRequest(
 	coreNetworkAssistanceInfo *ngapType.CoreNetworkAssistanceInformation,
 	emergencyFallbackIndicator *ngapType.EmergencyFallbackIndicator,
 ) error {
+	logger.AmfLog.Warn("TO DELETE: Send initial context setup request", zap.String("anType", string(anType)))
 	if amfUe == nil {
 		return fmt.Errorf("amf ue is nil")
 	}
