@@ -9,6 +9,7 @@ import (
 	ctxt "context"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/omec-project/nas"
@@ -26,6 +27,64 @@ type pfcpParam struct {
 	qerList []*context.QER
 }
 
+// const (
+// 	MsgTypePDUSessionEstablishmentRequest      uint8 = 193
+// 	MsgTypePDUSessionEstablishmentAccept       uint8 = 194
+// 	MsgTypePDUSessionEstablishmentReject       uint8 = 195
+// 	MsgTypePDUSessionAuthenticationCommand     uint8 = 197
+// 	MsgTypePDUSessionAuthenticationComplete    uint8 = 198
+// 	MsgTypePDUSessionAuthenticationResult      uint8 = 199
+// 	MsgTypePDUSessionModificationRequest       uint8 = 201
+// 	MsgTypePDUSessionModificationReject        uint8 = 202
+// 	MsgTypePDUSessionModificationCommand       uint8 = 203
+// 	MsgTypePDUSessionModificationComplete      uint8 = 204
+// 	MsgTypePDUSessionModificationCommandReject uint8 = 205
+// 	MsgTypePDUSessionReleaseRequest            uint8 = 209
+// 	MsgTypePDUSessionReleaseReject             uint8 = 210
+// 	MsgTypePDUSessionReleaseCommand            uint8 = 211
+// 	MsgTypePDUSessionReleaseComplete           uint8 = 212
+// 	MsgTypeStatus5GSM                          uint8 = 214
+// )
+
+func getGsmMessageTypeName(messageType uint8) string {
+	switch messageType {
+	case nas.MsgTypePDUSessionEstablishmentRequest:
+		return "PDUSessionEstablishmentRequest"
+	case nas.MsgTypePDUSessionEstablishmentAccept:
+		return "PDUSessionEstablishmentAccept"
+	case nas.MsgTypePDUSessionEstablishmentReject:
+		return "PDUSessionEstablishmentReject"
+	case nas.MsgTypePDUSessionAuthenticationCommand:
+		return "PDUSessionAuthenticationCommand"
+	case nas.MsgTypePDUSessionAuthenticationComplete:
+		return "PDUSessionAuthenticationComplete"
+	case nas.MsgTypePDUSessionAuthenticationResult:
+		return "PDUSessionAuthenticationResult"
+	case nas.MsgTypePDUSessionModificationRequest:
+		return "PDUSessionModificationRequest"
+	case nas.MsgTypePDUSessionModificationReject:
+		return "PDUSessionModificationReject"
+	case nas.MsgTypePDUSessionModificationCommand:
+		return "PDUSessionModificationCommand"
+	case nas.MsgTypePDUSessionModificationComplete:
+		return "PDUSessionModificationComplete"
+	case nas.MsgTypePDUSessionModificationCommandReject:
+		return "PDUSessionModificationCommandReject"
+	case nas.MsgTypePDUSessionReleaseRequest:
+		return "PDUSessionReleaseRequest"
+	case nas.MsgTypePDUSessionReleaseReject:
+		return "PDUSessionReleaseReject"
+	case nas.MsgTypePDUSessionReleaseCommand:
+		return "PDUSessionReleaseCommand"
+	case nas.MsgTypePDUSessionReleaseComplete:
+		return "PDUSessionReleaseComplete"
+	case nas.MsgTypeStatus5GSM:
+		return "Status5GSM"
+	default:
+		return "Unknown Message Type"
+	}
+}
+
 func HandleUpdateN1Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) error {
 	if body.BinaryDataN1SmMessage != nil {
 		smContext.SubPduSessLog.Debug("Binary Data N1 SmMessage isn't nil")
@@ -36,7 +95,10 @@ func HandleUpdateN1Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 			return fmt.Errorf("error decoding N1SmMessage: %v", err)
 		}
 
+		logger.SmfLog.Warn("TO DELETE: N1 SmMessage received in Update SmContext Request", zap.String("messageType", getGsmMessageTypeName(m.GsmHeader.GetMessageType())))
 		switch m.GsmHeader.GetMessageType() {
+		case nas.MsgTypePDUSessionEstablishmentRequest:
+			smContext.SubPduSessLog.Warn("TO DELETE:N1 Msg PDU Session Establishment Request received")
 		case nas.MsgTypePDUSessionReleaseRequest:
 			smContext.SubPduSessLog.Info("N1 Msg PDU Session Release Request received")
 
