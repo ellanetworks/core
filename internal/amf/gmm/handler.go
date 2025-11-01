@@ -806,7 +806,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 	ctxList := ngapType.PDUSessionResourceSetupListCxtReq{}
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
 
+	if ue.RegistrationRequest.PDUSessionStatus != nil {
+		logger.AmfLog.Warn("TO DELETE: Handle PDU Session Status in Registration Request", zap.Any("pduSessionStatus", ue.RegistrationRequest.PDUSessionStatus))
+	}
+
 	if ue.RegistrationRequest.UplinkDataStatus != nil {
+		logger.AmfLog.Warn("TO DELETE: Handle Uplink Data Status in Registration Request", zap.Any("uplinkDataStatus", ue.RegistrationRequest.UplinkDataStatus))
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
 		allowReEstablishPduSession := true
@@ -880,7 +885,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		}
 	}
 
+	logger.AmfLog.Warn("TO DELETE: PDU Session Status after processing", zap.Any("pduSessionStatus", pduSessionStatus))
+
 	if ue.RegistrationRequest.AllowedPDUSessionStatus != nil {
+		logger.AmfLog.Warn("TO DELETE: Handle Allowed PDU Session Status in Registration Request", zap.Any("allowedPduSessionStatus", ue.RegistrationRequest.AllowedPDUSessionStatus))
 		allowedPsis := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.AllowedPDUSessionStatus.Buffer)
 		if ue.N1N2Message != nil {
 			requestData := ue.N1N2Message.Request.JSONData
@@ -901,6 +909,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 					}
 					ue.GmmLog.Info("Sent NGAP pdu session resource setup request")
 				} else {
+					logger.AmfLog.Warn("TO DELETE: Send Registration Accept without PDU Session Resource Setup Request")
 					err := gmm_message.SendRegistrationAccept(ctx, ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList)
 					if err != nil {
 						return fmt.Errorf("error sending GMM registration accept: %v", err)
