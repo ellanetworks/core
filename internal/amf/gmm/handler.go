@@ -1438,7 +1438,8 @@ const psiArraySize = 16
 
 func getPDUSessionStatus(ue *context.AmfUe, anType models.AccessType) *[psiArraySize]bool {
 	var pduStatusResult [psiArraySize]bool
-	ue.SmContextList.Range(func(key, value interface{}) bool {
+	ue.SmContextList.Range(func(key, value any) bool {
+		logger.AmfLog.Warn("TO DELETE: PDU Session Status - Range", zap.Any("key", key), zap.Any("value", value))
 		pduSessionID := key.(int32)
 		smContext := value.(*context.SmContext)
 
@@ -1446,6 +1447,7 @@ func getPDUSessionStatus(ue *context.AmfUe, anType models.AccessType) *[psiArray
 			return true
 		}
 		pduStatusResult[pduSessionID] = true
+		logger.AmfLog.Warn("TO DELETE: PDU Session Status", zap.Int32("pduSessionID", pduSessionID), zap.Bool("status", pduStatusResult[pduSessionID]))
 		return true
 	})
 	return &pduStatusResult
@@ -1584,6 +1586,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 	ue.RanUe[anType].UeContextRequest = true
 	if serviceType == nasMessage.ServiceTypeSignalling {
+		logger.AmfLog.Warn("TO DELETE: Service Request Type is Signalling Only", zap.Any("pduStatusResult", pduStatusResult))
 		err := sendServiceAccept(ctx, ue, anType, ctxList, suList, pduStatusResult, nil, nil, nil)
 		return err
 	}
