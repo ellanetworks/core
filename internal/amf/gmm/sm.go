@@ -84,7 +84,7 @@ func Registered(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args fs
 		procedureCode := args[ArgProcedureCode].(int64)
 		gmmMessage := args[ArgNASMessage].(*nas.GmmMessage)
 		accessType := args[ArgAccessType].(models.AccessType)
-		amfUe.GmmLog.Debug("GmmMessageEvent at GMM State[Registered]", zap.String("messageType", nas.MessageName(gmmMessage.GetMessageType())))
+		amfUe.GmmLog.Warn("TO DELETE: GmmMessageEvent at GMM State[Registered]", zap.String("messageType", nas.MessageName(gmmMessage.GetMessageType())))
 		switch gmmMessage.GetMessageType() {
 		// Mobility Registration update / Periodic Registration update
 		case nas.MsgTypeRegistrationRequest:

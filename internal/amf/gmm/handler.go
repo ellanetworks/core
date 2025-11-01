@@ -180,7 +180,10 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		if requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest {
 			ue.SmContextList.Delete(pduSessionID)
 			smContextExist = false
+			logger.AmfLog.Warn("TO DELETE: Duplicate PDU Session ID, releasing existing SM Context", zap.Int32("pduSessionID", pduSessionID))
 		}
+		// Note: we likely want to re-activate the user plane connection here instead of deleting it.
+		// response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext, models.AccessType3GPPAccess)
 	}
 
 	if !smContextExist {
@@ -313,6 +316,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			if err != nil {
 				ue.GmmLog.Error("couldn't send create sm context request", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
 			}
+			logger.AmfLog.Warn("TO DELETE: Sent CreateSmContextRequest to SMF", zap.Int32("pduSessionID", pduSessionID))
 
 			if errResponse != nil {
 				err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, errResponse.BinaryDataN1SmMessage, pduSessionID, 0)
@@ -1413,6 +1417,7 @@ func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe
 
 // TS 24501 5.6.1
 func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, serviceRequest *nasMessage.ServiceRequest) error {
+	logger.AmfLog.Warn("TO DELETE: Handling service request")
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
 	}
