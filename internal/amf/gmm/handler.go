@@ -872,7 +872,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		for psi := 1; psi <= 15; psi++ {
 			pduSessionID := int32(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
-				logger.AmfLog.Warn("TO DELETE: Found SM Context for PDU Session ID", zap.Int32("pduSessionID", pduSessionID), zap.Bool("psiArray", psiArray[psi]), zap.String("accessType", smContext.AccessType().String()))
+				logger.AmfLog.Warn("TO DELETE: Found SM Context for PDU Session ID", zap.Int32("pduSessionID", pduSessionID), zap.Bool("psiArray", psiArray[psi]), zap.String("accessType", string(smContext.AccessType())))
 				if !psiArray[psi] && smContext.AccessType() == anType {
 					logger.AmfLog.Warn("TO DELETE: Releasing SM Context for PDU Session ID", zap.Int32("pduSessionID", pduSessionID))
 					err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
