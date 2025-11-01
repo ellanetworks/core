@@ -868,10 +868,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 	if ue.RegistrationRequest.PDUSessionStatus != nil {
 		pduSessionStatus = new([16]bool)
 		psiArray := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.PDUSessionStatus.Buffer)
+		logger.AmfLog.Warn("TO DELETE: PDU Session Status from UE", zap.Any("psiArray", psiArray))
 		for psi := 1; psi <= 15; psi++ {
 			pduSessionID := int32(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
+				logger.AmfLog.Warn("TO DELETE: Found SM Context for PDU Session ID", zap.Int32("pduSessionID", pduSessionID), zap.Bool("psiArray", psiArray[psi]), zap.String("accessType", smContext.AccessType().String()))
 				if !psiArray[psi] && smContext.AccessType() == anType {
+					logger.AmfLog.Warn("TO DELETE: Releasing SM Context for PDU Session ID", zap.Int32("pduSessionID", pduSessionID))
 					err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
@@ -879,7 +882,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 						pduSessionStatus[psi] = false
 					}
 				} else {
-					pduSessionStatus[psi] = false
+					pduSessionStatus[psi] = true
 				}
 			}
 		}
