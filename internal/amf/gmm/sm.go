@@ -409,6 +409,7 @@ func ContextSetup(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 		case *nasMessage.ServiceRequest:
 			nasMessage := &nas.GmmMessage{ServiceRequest: message}
 			nasMessage.GmmHeader.SetMessageType(nas.MsgTypeServiceRequest)
+			logger.AmfLog.Warn("TO DELETE: Service request type", zap.String("serviceType", getServiceRequestTypeString(message.GetServiceTypeValue())))
 			if err := HandleServiceRequest(ctx, amfUe, accessType, message); err != nil {
 				logger.AmfLog.Error("Error handling service request", zap.Error(err))
 			}
