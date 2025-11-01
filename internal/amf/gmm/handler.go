@@ -1483,24 +1483,22 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		ue.SmContextList.Range(func(key, value any) bool {
 			pduSessionID := key.(int32)
 			smContext := value.(*context.SmContext)
-			logger.AmfLog.Warn("TO DELETE: Checking Uplink Data Status in Service Request", zap.Int32("pduSessionID", pduSessionID))
-			if pduSessionID != targetPduSessionID {
-				if uplinkDataPsi[pduSessionID] && smContext.AccessType() == models.AccessType3GPPAccess {
-					response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext, models.AccessType3GPPAccess)
-					if err != nil {
-						ue.GmmLog.Error("SendUpdateSmContextActivateUpCnxState Error", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
-					} else if response == nil {
-						reactivationResult[pduSessionID] = true
-						errPduSessionID = append(errPduSessionID, uint8(pduSessionID))
-						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
-						errCause = append(errCause, cause)
-					} else if ue.RanUe[anType].UeContextRequest {
-						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
-							pduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
-					} else {
-						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList,
-							pduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
-					}
+			logger.AmfLog.Warn("TO DELETE: Checking Uplink Data Status in Service Request", zap.Int32("pduSessionID", pduSessionID), zap.Int32("targetPduSessionID", targetPduSessionID))
+			if uplinkDataPsi[pduSessionID] && smContext.AccessType() == models.AccessType3GPPAccess {
+				response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext, models.AccessType3GPPAccess)
+				if err != nil {
+					ue.GmmLog.Error("SendUpdateSmContextActivateUpCnxState Error", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
+				} else if response == nil {
+					reactivationResult[pduSessionID] = true
+					errPduSessionID = append(errPduSessionID, uint8(pduSessionID))
+					cause := nasMessage.Cause5GMMProtocolErrorUnspecified
+					errCause = append(errCause, cause)
+				} else if ue.RanUe[anType].UeContextRequest {
+					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
+						pduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
+				} else {
+					ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList,
+						pduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
 				}
 			}
 			return true

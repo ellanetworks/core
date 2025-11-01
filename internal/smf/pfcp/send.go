@@ -156,11 +156,9 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 	if causeValue != ie.CauseRequestAccepted {
 		return fmt.Errorf("PFCP Session Modification Failed: %d", SEID)
 	}
-	smContext.SubPduSessLog.Debug("PFCP Modification Response Accept")
-	upfNodeID := smContext.GetNodeIDByLocalSEID(SEID)
-	upfIP := upfNodeID.ResolveNodeIDToIP().String()
-	smContext.SubPduSessLog.Debug("Delete pending pfcp response", zap.String("UPF IP", upfIP))
+
 	smContext.SubPfcpLog.Debug("PFCP Session Modification Success", zap.Uint64("SEID", SEID))
+
 	return nil
 }
 

@@ -143,6 +143,7 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 }
 
 func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmContextRequest, smContext *context.SMContext) (*models.UpdateSmContextResponse, error) {
+	logger.SmfLog.Warn("TO DELETE: HandlePDUSessionSMContextUpdate called", zap.String("request", fmt.Sprintf("%+v", request)))
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 

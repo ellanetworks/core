@@ -121,7 +121,9 @@ func SendUpdateSmContextActivateUpCnxState(
 	ue *context.AmfUe, smContext *context.SmContext, accessType models.AccessType) (
 	*models.UpdateSmContextResponse, error,
 ) {
-	updateData := models.SmContextUpdateData{}
+	updateData := models.SmContextUpdateData{
+		N2SmInfoType: models.N2SmInfoTypePduResSetupReq,
+	}
 	updateData.UpCnxState = models.UpCnxStateActivating
 	if !context.CompareUserLocation(ue.Location, smContext.UserLocation()) {
 		updateData.UeLocation = &ue.Location

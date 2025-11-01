@@ -9,6 +9,7 @@ import (
 	ctxt "context"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/omec-project/nas"
@@ -81,6 +82,7 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 
 	switch smContextUpdateData.UpCnxState {
 	case models.UpCnxStateActivating:
+		logger.SmfLog.Warn("TO DELETE: UpCnxState Activating received", zap.Any("UpCnxState", smContextUpdateData.UpCnxState))
 		response.JSONData.N2SmInfo = &models.RefToBinaryData{ContentID: "PDUSessionResourceSetupRequestTransfer"}
 		response.JSONData.UpCnxState = models.UpCnxStateActivating
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResSetupReq
@@ -92,6 +94,25 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 		smContext.UpCnxState = models.UpCnxStateActivating
 		response.BinaryDataN2SmInformation = n2Buf
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResSetupReq
+		farList := []*context.FAR{}
+		dataPath := smContext.Tunnel.DataPath
+		ANUPF := dataPath.DPNode
+		for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
+			if DLPDR == nil {
+				smContext.SubPduSessLog.Error("AN Release Error")
+			} else {
+				DLPDR.FAR.State = context.RuleUpdate
+				DLPDR.FAR.ApplyAction.Forw = true
+				DLPDR.FAR.ApplyAction.Buff = false
+				DLPDR.FAR.ApplyAction.Nocp = false
+				farList = append(farList, DLPDR.FAR)
+			}
+		}
+
+		pfcpParam.farList = append(pfcpParam.farList, farList...)
+
+		pfcpAction.sendPfcpModify = true
+
 	case models.UpCnxStateDeactivated:
 		smContext.SubPduSessLog.Info("UP cnx state received", zap.Any("UpCnxState", smContextUpdateData.UpCnxState))
 
@@ -123,6 +144,9 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 			pfcpAction.sendPfcpModify = true
 		}
 	}
+	// switch smContextUpdateData.N2SmInfoType {
+
+	// }
 	return nil
 }
 
