@@ -7,12 +7,14 @@ package message
 
 import (
 	ctxt "context"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/aper"
 	"github.com/omec-project/ngap/ngapType"
 	"go.uber.org/zap"
@@ -99,11 +101,12 @@ func SendToRan(ran *context.AmfRan, packet []byte, msgType NGAPProcedure) error 
 		return fmt.Errorf("ran address is nil")
 	}
 
-	info := sctp.SndInfo{
-		SID: sid,
+	info := sctp.SndRcvInfo{
+		Stream: sid,
+		PPID:   nativeToNetworkEndianness32(ngap.PPID),
 	}
 	if _, err := ran.Conn.SCTPWrite(packet, &info); err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
+		return fmt.Errorf("send write to sctp connection: %s", err.Error())
 	}
 
 	logger.LogNetworkEvent(
@@ -163,7 +166,7 @@ func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan) error {
 
 	err = SendToRan(ran, pkt, NGAPProcedureNGSetupResponse)
 	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
+		return fmt.Errorf("couldn't send packet to ran: %s", err.Error())
 	}
 
 	return nil
@@ -813,4 +816,10 @@ func SendLocationReportingControl(
 	}
 
 	return nil
+}
+
+func nativeToNetworkEndianness32(value uint32) uint32 {
+	var b [4]byte
+	binary.NativeEndian.PutUint32(b[:], value)
+	return binary.BigEndian.Uint32(b[:])
 }
