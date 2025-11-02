@@ -218,7 +218,7 @@ func init() {
 	}
 }
 
-func toBuf(v interface{}) []byte {
+func toBuf(v any) []byte {
 	var buf bytes.Buffer
 	err := binary.Write(&buf, nativeEndian, v)
 	if err != nil {
@@ -376,10 +376,6 @@ func NewSCTPConn(fd int, handler NotificationHandler) *SCTPConn {
 		notificationHandler: handler,
 	}
 	return conn
-}
-
-func (c *SCTPConn) Write(b []byte) (int, error) {
-	return c.SCTPWrite(b, nil)
 }
 
 func (c *SCTPConn) Read(b []byte) (int, error) {

@@ -10,7 +10,6 @@ package ngap
 import (
 	ctxt "context"
 	"fmt"
-	"net"
 	"reflect"
 
 	"github.com/ellanetworks/core/internal/amf/context"
@@ -26,7 +25,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/ngap")
 
-func Dispatch(ctx ctxt.Context, conn net.Conn, msg []byte) {
+func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 	var ran *context.AmfRan
 	amfSelf := context.AMFSelf()
 
@@ -279,11 +278,11 @@ func getUnsuccessfulOutcomeMessageType(present int) string {
 	}
 }
 
-func NgapMsgHandler(conn net.Conn, ue *context.AmfUe, msg context.NgapMsg) {
+func NgapMsgHandler(conn *sctp.SCTPConn, ue *context.AmfUe, msg context.NgapMsg) {
 	DispatchNgapMsg(conn, msg.Ran, msg.NgapMsg)
 }
 
-func DispatchNgapMsg(conn net.Conn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
+func DispatchNgapMsg(conn *sctp.SCTPConn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 	messageType := getMessageType(pdu)
 
 	peerAddr := conn.RemoteAddr()
@@ -415,7 +414,7 @@ func DispatchNgapMsg(conn net.Conn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) 
 	}
 }
 
-func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
+func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification) {
 	amfSelf := context.AMFSelf()
 
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
@@ -428,9 +427,8 @@ func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
 	amfSelf.AmfRanPool.Range(func(key, value interface{}) bool {
 		amfRan := value.(*context.AmfRan)
 
-		conn := amfRan.Conn.(*sctp.SCTPConn)
 		errorConn := sctp.NewSCTPConn(-1, nil)
-		if reflect.DeepEqual(conn, errorConn) {
+		if reflect.DeepEqual(amfRan.Conn, errorConn) {
 			amfRan.Remove()
 			ran.Log.Info("removed stale entry in AmfRan pool")
 		}

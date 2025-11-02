@@ -75,7 +75,7 @@ func (r rawConn) Write(f func(fd uintptr) (done bool)) error {
 	panic("not implemented")
 }
 
-func (c *SCTPConn) SCTPWrite(b []byte, info *SndRcvInfo) (int, error) {
+func (c *SCTPConn) SCTPWrite(b []byte, info *SndInfo) (int, error) {
 	var cbuf []byte
 	if info != nil {
 		cmsgBuf := toBuf(info)
@@ -166,7 +166,7 @@ func (c *SCTPConn) Close() error {
 	if c != nil {
 		fd := atomic.SwapInt32(&c._fd, -1)
 		if fd > 0 {
-			info := &SndRcvInfo{
+			info := &SndInfo{
 				Flags: SCTPEof,
 			}
 			_, err := c.SCTPWrite(nil, info)

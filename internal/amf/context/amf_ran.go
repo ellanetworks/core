@@ -9,8 +9,8 @@ package context
 
 import (
 	"fmt"
-	"net"
 
+	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -31,7 +31,7 @@ type AmfRan struct {
 	AnType          models.AccessType
 	GnbIP           string
 	GnbID           string // RanID in string format, i.e.,mcc:mnc:gnbid
-	Conn            net.Conn
+	Conn            *sctp.SCTPConn
 	SupportedTAList []SupportedTAI
 	RanUeList       []*RanUe // RanUeNgapID as key
 	Log             *zap.Logger
