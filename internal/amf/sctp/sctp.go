@@ -378,14 +378,6 @@ func NewSCTPConn(fd int, handler NotificationHandler) *SCTPConn {
 	return conn
 }
 
-func (c *SCTPConn) Read(b []byte) (int, error) {
-	n, _, _, err := c.SCTPRead(b)
-	if n < 0 {
-		n = 0
-	}
-	return n, err
-}
-
 func (c *SCTPConn) SubscribeEvents(flags int) error {
 	var d, a, ad, sf, p, sh, pa, ada, au, se uint8
 	if flags&SCTPEventDataIO > 0 {
