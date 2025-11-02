@@ -32,6 +32,7 @@ const (
 	NGAPProcedureRanConfigurationUpdateAcknowledge NGAPProcedure = "RANConfigurationUpdateAcknowledge"
 	NGAPProcedureRanConfigurationUpdateFailure     NGAPProcedure = "RANConfigurationUpdateFailure"
 	NGAPProcedureAMFStatusIndication               NGAPProcedure = "AMFStatusIndication"
+	NGAPProcedureDownlinkRanConfigurationTransfer  NGAPProcedure = "DownlinkRANConfigurationTransfer"
 
 	// UE-associated NGAP procedures
 	NGAPProcedureInitialContextSetupRequest       NGAPProcedure = "InitialContextSetupRequest"
@@ -56,7 +57,8 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 	case NGAPProcedureNGSetupResponse, NGAPProcedureNGSetupFailure,
 		NGAPProcedurePaging, NGAPProcedureNGResetAcknowledge,
 		NGAPProcedureErrorIndication, NGAPProcedureRanConfigurationUpdateAcknowledge,
-		NGAPProcedureRanConfigurationUpdateFailure, NGAPProcedureAMFStatusIndication:
+		NGAPProcedureRanConfigurationUpdateFailure, NGAPProcedureAMFStatusIndication,
+		NGAPProcedureDownlinkRanConfigurationTransfer:
 		return 0, nil
 
 	// UE-associated procedures
@@ -767,7 +769,7 @@ func SendDownlinkRanConfigurationTransfer(ran *context.AmfRan, transfer *ngapTyp
 		return fmt.Errorf("error building downlink ran configuration transfer: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, "DownlinkRanConfigurationTransfer")
+	err = SendToRan(ran, pkt, NGAPProcedureDownlinkRanConfigurationTransfer)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
