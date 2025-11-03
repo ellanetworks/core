@@ -18,7 +18,7 @@ func buildNGSetupFailure(ngSetupFailure ngapType.NGSetupFailure) NGAPMessageValu
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       causeToEnum(*ie.Value.Cause),
+				Value:       CauseToEnum(*ie.Value.Cause),
 			})
 		case ngapType.ProtocolIEIDTimeToWait:
 			ies = append(ies, IE{

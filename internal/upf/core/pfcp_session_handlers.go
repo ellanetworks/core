@@ -65,7 +65,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 				return fmt.Errorf("can't put FAR: %s", err.Error())
 			}
 			session.NewFar(farid, internalID, farInfo)
-			logger.UpfLog.Info("Created Forwarding Action Rule", zap.Uint32("farID", farid))
+			logger.UpfLog.Debug("Created Forwarding Action Rule", zap.Uint32("farID", farid))
 		}
 
 		for _, qer := range msg.CreateQER {
@@ -80,7 +80,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 				return fmt.Errorf("can't put QER: %s", err.Error())
 			}
 			session.NewQer(qerID, internalID, qerInfo)
-			logger.UpfLog.Info("Created QoS Enforcement Rule", zap.Uint32("qerID", qerID))
+			logger.UpfLog.Debug("Created QoS Enforcement Rule", zap.Uint32("qerID", qerID))
 		}
 
 		for _, pdr := range msg.CreatePDR {
@@ -95,7 +95,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 			if err := pdrContext.ExtractPDR(pdr, &spdrInfo); err == nil {
 				session.PutPDR(spdrInfo.PdrID, spdrInfo)
 				applyPDR(spdrInfo, bpfObjects)
-				logger.UpfLog.Info("Applied packet detection rule", zap.Uint32("pdrID", spdrInfo.PdrID))
+				logger.UpfLog.Debug("Applied packet detection rule", zap.Uint32("pdrID", spdrInfo.PdrID))
 				createdPDRs = append(createdPDRs, spdrInfo)
 			} else {
 				logger.UpfLog.Error("couldn't extract PDR info", zap.Error(err))

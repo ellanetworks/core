@@ -22,7 +22,7 @@ func buildUEContextReleaseCommand(ueContextReleaseCommand ngapType.UEContextRele
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       causeToEnum(*ie.Value.Cause),
+				Value:       CauseToEnum(*ie.Value.Cause),
 			})
 		default:
 			ies = append(ies, IE{

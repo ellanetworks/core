@@ -392,7 +392,7 @@ func protocolIEIDToEnum(id int64) utils.EnumField[int64] {
 	}
 }
 
-func causeToEnum(cause ngapType.Cause) utils.EnumField[uint64] {
+func CauseToEnum(cause ngapType.Cause) utils.EnumField[uint64] {
 	switch cause.Present {
 	case ngapType.CausePresentRadioNetwork:
 		return radioNetworkCauseToEnum(*cause.RadioNetwork)

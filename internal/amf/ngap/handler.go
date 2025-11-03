@@ -758,7 +758,7 @@ func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		}
 	}
 
-	printAndGetCause(ran, cause)
+	ran.Log.Info("Received NG Reset", zap.String("Cause", causeToString(*cause)))
 
 	switch resetType.Present {
 	case ngapType.ResetTypePresentNGInterface:
@@ -1306,7 +1306,7 @@ func HandleLocationReportingFailureIndication(ran *context.AmfRan, message *ngap
 		}
 	}
 
-	printAndGetCause(ran, cause)
+	ran.Log.Info("Received Location Reporting Failure Indication", zap.String("Cause", causeToString(*cause)))
 
 	ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
@@ -2258,7 +2258,7 @@ func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, mes
 		}
 	}
 
-	printAndGetCause(ran, cause)
+	ran.Log.Info("Received Initial Context Setup Failure", zap.String("Cause", causeToString(*cause)))
 
 	if criticalityDiagnostics != nil {
 		printCriticalityDiagnostics(ran, criticalityDiagnostics)
@@ -2373,11 +2373,11 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 
 	ranUe.Ran = ran
 	ranUe.Log.Debug("Handle UE Context Release Request", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
-
 	causeGroup := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentUnspecified
 	if cause != nil {
-		causeGroup, causeValue = printAndGetCause(ran, cause)
+		ran.Log.Info("Received UE Context Release Request with cause", zap.String("Cause", causeToString(*cause)))
+		causeGroup, causeValue = getCause(cause)
 	}
 
 	amfUe := ranUe.AmfUe
@@ -2609,7 +2609,7 @@ func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.N
 	}
 
 	if cause != nil {
-		printAndGetCause(ran, cause)
+		ran.Log.Info("Received UE Context Modification Failure", zap.String("Cause", causeToString(*cause)))
 	}
 
 	if criticalityDiagnostics != nil {
@@ -3205,7 +3205,8 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 	causePresent := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem
 	if cause != nil {
-		causePresent, causeValue = printAndGetCause(ran, cause)
+		ran.Log.Info("Handover Failure Cause", zap.String("Cause", causeToString(*cause)))
+		causePresent, causeValue = getCause(cause)
 	}
 
 	if criticalityDiagnostics != nil {
@@ -3556,7 +3557,8 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 	causePresent := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem
 	if cause != nil {
-		causePresent, causeValue = printAndGetCause(ran, cause)
+		ran.Log.Info("Handover Cancel Cause", zap.String("Cause", causeToString(*cause)))
+		causePresent, causeValue = getCause(cause)
 	}
 	targetUe := sourceUe.TargetUe
 	if targetUe == nil {
@@ -3720,9 +3722,7 @@ func HandleNasNonDeliveryIndication(ctx ctxt.Context, ran *context.AmfRan, messa
 		return
 	}
 
-	ran.Log.Debug("Handle NAS Non Delivery Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
-
-	printAndGetCause(ran, cause)
+	ran.Log.Debug("Handle NAS Non Delivery Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.String("Cause", causeToString(*cause)))
 
 	err := nas.HandleNAS(ctx, ranUe, ngapType.ProcedureCodeNASNonDeliveryIndication, nASPDU.Value)
 	if err != nil {
@@ -4363,7 +4363,7 @@ func HandleErrorIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	}
 
 	if cause != nil {
-		printAndGetCause(ran, cause)
+		ran.Log.Info("Received Error Indication", zap.String("Cause", causeToString(*cause)))
 	}
 
 	if criticalityDiagnostics != nil {
@@ -4496,26 +4496,20 @@ func HandleCellTrafficTrace(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	}
 }
 
-func printAndGetCause(ran *context.AmfRan, cause *ngapType.Cause) (present int, value aper.Enumerated) {
+func getCause(cause *ngapType.Cause) (present int, value aper.Enumerated) {
 	present = cause.Present
 	switch cause.Present {
 	case ngapType.CausePresentRadioNetwork:
-		ran.Log.Warn("Cause RadioNetwork", zap.Any("Cause", cause.RadioNetwork.Value))
 		value = cause.RadioNetwork.Value
 	case ngapType.CausePresentTransport:
-		ran.Log.Warn("Cause Transport", zap.Any("Cause", cause.Transport.Value))
 		value = cause.Transport.Value
 	case ngapType.CausePresentProtocol:
-		ran.Log.Warn("Cause Protocol", zap.Any("Cause", cause.Protocol.Value))
 		value = cause.Protocol.Value
 	case ngapType.CausePresentNas:
-		ran.Log.Warn("Cause Nas", zap.Any("Cause", cause.Nas.Value))
 		value = cause.Nas.Value
 	case ngapType.CausePresentMisc:
-		ran.Log.Warn("Cause Misc", zap.Any("Cause", cause.Misc.Value))
 		value = cause.Misc.Value
 	default:
-		ran.Log.Error("Invalid Cause group", zap.Int("Cause group", cause.Present))
 	}
 	return
 }

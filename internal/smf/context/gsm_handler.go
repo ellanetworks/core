@@ -118,7 +118,7 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 			case nasMessage.InternetProtocolControlProtocolUL:
 				smContext.SubGsmLog.Debug("Didn't Implement container type InternetProtocolControlProtocolUL")
 			default:
-				smContext.SubGsmLog.Info("Unknown Container ID", zap.Uint16("ContainerID", container.ProtocolOrContainerID))
+				smContext.SubGsmLog.Debug("Unknown Container ID", zap.Uint16("ContainerID", container.ProtocolOrContainerID))
 			}
 		}
 	}

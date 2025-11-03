@@ -81,7 +81,7 @@ func (ranUe *RanUe) Remove() error {
 		}
 	}
 	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapID)
-	logger.AmfLog.Info("ran ue removed", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	logger.AmfLog.Debug("ran ue removed", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 	return nil
 }
 
