@@ -11,10 +11,13 @@ on:
       - 'v*'
   release:
     types: [published]
+  workflow_dispatch: {}
 
 jobs:
   image-build:
     uses: ./.github/workflows/image-build.yaml
+    with:
+      archs: '["amd64","arm64"]'
   image-publish:
     needs: [image-build]
     uses: ./.github/workflows/image-publish.yaml
