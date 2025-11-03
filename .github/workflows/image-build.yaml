@@ -16,12 +16,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - arch: amd64
-            runs_on: ubuntu-24.04
-          - arch: arm64
-            runs_on: ubuntu-24.04-arm   # hosted ARM64 runner label
-    runs-on: ${{ matrix.runs_on }}
+        arch: ${{ fromJSON(inputs.archs) }}
+    runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-24.04-arm') || 'ubuntu-24.04' }}
 
     steps:
       - name: Checkout repository

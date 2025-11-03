@@ -36,10 +36,8 @@ jobs:
           docker load -i ellacore_latest-${{ matrix.arch }}.tar
 
           docker tag ella-core:latest ghcr.io/ellanetworks/ella-core:${version}-${{ matrix.arch }}
-          docker tag ella-core:latest ghcr.io/ellanetworks/ella-core:latest-${{ matrix.arch }}
 
           docker push ghcr.io/ellanetworks/ella-core:${version}-${{ matrix.arch }}
-          docker push ghcr.io/ellanetworks/ella-core:latest-${{ matrix.arch }}
 
   make-manifest:
     needs: publish-image
@@ -64,8 +62,8 @@ jobs:
             ghcr.io/ellanetworks/ella-core:${version}-arm64
 
           docker manifest create ghcr.io/ellanetworks/ella-core:latest \
-            ghcr.io/ellanetworks/ella-core:latest-amd64 \
-            ghcr.io/ellanetworks/ella-core:latest-arm64
+            ghcr.io/ellanetworks/ella-core:${version}-amd64 \
+            ghcr.io/ellanetworks/ella-core:${version}-arm64
 
           docker manifest push ghcr.io/ellanetworks/ella-core:${version}
           docker manifest push ghcr.io/ellanetworks/ella-core:latest
