@@ -6,6 +6,9 @@ permissions:
   security-events: write
 
 on:
+  pull_request: # TO DELETE: This is only for testing this workflow prior to merging
+    branches:
+      - main
   push:
     tags:
       - 'v*'
@@ -25,9 +28,9 @@ jobs:
   image-scan:
     needs: [image-build, image-publish]
     uses: ./.github/workflows/image-scan.yaml
-  snap-build:
-    uses: ./.github/workflows/snap-build.yaml
-  snap-publish:
-    needs: [snap-build]
-    uses: ./.github/workflows/snap-publish.yaml
-    secrets: inherit
+  # snap-build:
+  #   uses: ./.github/workflows/snap-build.yaml
+  # snap-publish:
+  #   needs: [snap-build]
+  #   uses: ./.github/workflows/snap-publish.yaml
+  #   secrets: inherit
