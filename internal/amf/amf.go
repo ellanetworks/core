@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func Start(ctx ctxt.Context, dbInstance *db.Database, n2Address string, n2Port int) error {
+func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	self := context.AMFSelf()
 	self.NgapPort = n2Port
 	self.NetworkFeatureSupport5GS = &context.NetworkFeatureSupport5GS{
@@ -74,7 +74,7 @@ func Start(ctx ctxt.Context, dbInstance *db.Database, n2Address string, n2Port i
 	self.Name = "amf"
 	self.RelativeCapacity = 0xff
 
-	err := StartNGAPService(ctx, n2Address, n2Port)
+	err := StartNGAPService(n2Address, n2Port)
 	if err != nil {
 		return fmt.Errorf("failed to start NGAP service: %+v", err)
 	}
@@ -117,7 +117,7 @@ func getEncAlgOrder(cipheringOrder []string) (encOrder []uint8) {
 	return
 }
 
-func StartNGAPService(ctx ctxt.Context, ngapAddress string, ngapPort int) error {
+func StartNGAPService(ngapAddress string, ngapPort int) error {
 	ngapHandler := service.NGAPHandler{
 		HandleMessage:      ngap.Dispatch,
 		HandleNotification: ngap.HandleSCTPNotification,
