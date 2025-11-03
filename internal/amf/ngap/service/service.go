@@ -149,6 +149,7 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler NGAPHandler) 
 			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
 		connections.Delete(conn)
+		logger.AmfLog.Info("Connection closed", zap.String("address", conn.RemoteAddr().String()))
 	}()
 
 	for {
@@ -162,7 +163,6 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler NGAPHandler) 
 			case syscall.EAGAIN:
 				continue
 			case syscall.EINTR:
-				logger.AmfLog.Debug("SCTPRead", zap.Error(err))
 				continue
 			case syscall.EINVAL:
 				logger.AmfLog.Error("Couldn't handle remotely closed connection", zap.Error(err))

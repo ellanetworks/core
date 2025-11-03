@@ -74,7 +74,7 @@ func Start(ctx ctxt.Context, dbInstance *db.Database, n2Address string, n2Port i
 	self.Name = "amf"
 	self.RelativeCapacity = 0xff
 
-	err := StartNGAPService(ctx, n2Address, n2Port)
+	err := StartNGAPService(n2Address, n2Port)
 	if err != nil {
 		return fmt.Errorf("failed to start NGAP service: %+v", err)
 	}
@@ -117,7 +117,7 @@ func getEncAlgOrder(cipheringOrder []string) (encOrder []uint8) {
 	return
 }
 
-func StartNGAPService(ctx ctxt.Context, ngapAddress string, ngapPort int) error {
+func StartNGAPService(ngapAddress string, ngapPort int) error {
 	ngapHandler := service.NGAPHandler{
 		HandleMessage:      ngap.Dispatch,
 		HandleNotification: ngap.HandleSCTPNotification,
@@ -136,7 +136,7 @@ func Close() {
 
 	guamiList := context.GetServedGuamiList(ctxt.Background())
 	unavailableGuamiList := message.BuildUnavailableGUAMIList(guamiList)
-	amfSelf.AmfRanPool.Range(func(key, value interface{}) bool {
+	amfSelf.AmfRanPool.Range(func(key, value any) bool {
 		ran := value.(*context.AmfRan)
 		err := message.SendAMFStatusIndication(ran, unavailableGuamiList)
 		if err != nil {
