@@ -11,12 +11,12 @@ import (
 	ctxt "context"
 	"fmt"
 	"math"
-	"net"
 	"reflect"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -205,7 +205,7 @@ func (context *AMFContext) AmfUeFindBySuci(suci string) (ue *AmfUe, ok bool) {
 	return
 }
 
-func (context *AMFContext) NewAmfRan(conn net.Conn) *AmfRan {
+func (context *AMFContext) NewAmfRan(conn *sctp.SCTPConn) *AmfRan {
 	ran := AmfRan{}
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.Conn = conn
@@ -216,7 +216,7 @@ func (context *AMFContext) NewAmfRan(conn net.Conn) *AmfRan {
 }
 
 // use net.Conn to find RAN context, return *AmfRan and ok bit
-func (context *AMFContext) AmfRanFindByConn(conn net.Conn) (*AmfRan, bool) {
+func (context *AMFContext) AmfRanFindByConn(conn *sctp.SCTPConn) (*AmfRan, bool) {
 	if value, ok := context.AmfRanPool.Load(conn); ok {
 		return value.(*AmfRan), ok
 	}
@@ -264,7 +264,7 @@ func (context *AMFContext) ListAmfRan() []AmfRan {
 	return ranList
 }
 
-func (context *AMFContext) DeleteAmfRan(conn net.Conn) {
+func (context *AMFContext) DeleteAmfRan(conn *sctp.SCTPConn) {
 	context.AmfRanPool.Delete(conn)
 }
 

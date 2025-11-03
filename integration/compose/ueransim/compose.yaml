@@ -43,7 +43,7 @@ configs:
         - sst: 0x1
           sd: 0x102030
 
-      ignoreStreamIds: true
+      ignoreStreamIds: false
   ue_config:
     content: |
       supi: 'imsi-001019756139935'
@@ -140,6 +140,9 @@ services:
     restart: unless-stopped
     privileged: true
     networks:
+      default:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
       n3:
         driver_opts:
               com.docker.network.endpoint.ifname: n3

@@ -22,8 +22,8 @@ import (
 )
 
 type NGAPHandler struct {
-	HandleMessage      func(ctx context.Context, conn net.Conn, msg []byte)
-	HandleNotification func(conn net.Conn, notification sctp.Notification)
+	HandleMessage      func(ctx context.Context, conn *sctp.SCTPConn, msg []byte)
+	HandleNotification func(conn *sctp.SCTPConn, notification sctp.Notification)
 }
 
 const readBufSize uint32 = 131072
@@ -37,7 +37,7 @@ var (
 )
 
 var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
-	InitMsg:   sctp.InitMsg{NumOstreams: 3, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
+	InitMsg:   sctp.InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
 	RtoInfo:   &sctp.RtoInfo{SrtoAssocID: 0, SrtoInitial: 500, SrtoMax: 1500, StroMin: 100},
 	AssocInfo: &sctp.AssocInfo{AsocMaxRxt: 4},
 }
@@ -77,29 +77,6 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 				logger.AmfLog.Error("Failed to accept", zap.Error(err))
 			}
 			continue
-		}
-
-		var info *sctp.SndRcvInfo
-		if infoTmp, err := newConn.GetDefaultSentParam(); err != nil {
-			logger.AmfLog.Error("Get default sent param error", zap.Error(err))
-			if err = newConn.Close(); err != nil {
-				logger.AmfLog.Error("Close error", zap.Error(err))
-			}
-			continue
-		} else {
-			info = infoTmp
-			logger.AmfLog.Debug("Get default sent param", zap.Any("info", info))
-		}
-
-		info.PPID = nativeToNetworkEndianness32(ngap.PPID)
-		if err := newConn.SetDefaultSentParam(info); err != nil {
-			logger.AmfLog.Error("Set default sent param error", zap.Error(err))
-			if err = newConn.Close(); err != nil {
-				logger.AmfLog.Error("Close error", zap.Error(err))
-			}
-			continue
-		} else {
-			logger.AmfLog.Debug("Set default sent param", zap.Any("info", info))
 		}
 
 		events := sctp.SCTPEventDataIO | sctp.SCTPEventShutdown | sctp.SCTPEventAssociation
@@ -154,8 +131,8 @@ func Stop() {
 		logger.AmfLog.Error("could not close sctp listener", zap.Error(err))
 	}
 
-	connections.Range(func(key, value interface{}) bool {
-		conn := value.(net.Conn)
+	connections.Range(func(key, value any) bool {
+		conn := value.(*sctp.SCTPConn)
 		if err := conn.Close(); err != nil {
 			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
@@ -219,10 +196,4 @@ func networkToNativeEndianness32(value uint32) uint32 {
 	var b [4]byte
 	binary.BigEndian.PutUint32(b[:], value)
 	return binary.NativeEndian.Uint32(b[:])
-}
-
-func nativeToNetworkEndianness32(value uint32) uint32 {
-	var b [4]byte
-	binary.NativeEndian.PutUint32(b[:], value)
-	return binary.BigEndian.Uint32(b[:])
 }

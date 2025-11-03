@@ -7,17 +7,79 @@ package message
 
 import (
 	ctxt "context"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/aper"
 	"github.com/omec-project/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func SendToRan(ran *context.AmfRan, packet []byte, msgType string) error {
+type NGAPProcedure string
+
+const (
+	// Non-UE associated NGAP procedures
+	NGAPProcedureNGSetupResponse                   NGAPProcedure = "NGSetupResponse"
+	NGAPProcedureNGSetupFailure                    NGAPProcedure = "NGSetupFailure"
+	NGAPProcedurePaging                            NGAPProcedure = "Paging"
+	NGAPProcedureNGResetAcknowledge                NGAPProcedure = "NGResetAcknowledge"
+	NGAPProcedureErrorIndication                   NGAPProcedure = "ErrorIndication"
+	NGAPProcedureRanConfigurationUpdateAcknowledge NGAPProcedure = "RANConfigurationUpdateAcknowledge"
+	NGAPProcedureRanConfigurationUpdateFailure     NGAPProcedure = "RANConfigurationUpdateFailure"
+	NGAPProcedureAMFStatusIndication               NGAPProcedure = "AMFStatusIndication"
+	NGAPProcedureDownlinkRanConfigurationTransfer  NGAPProcedure = "DownlinkRANConfigurationTransfer"
+
+	// UE-associated NGAP procedures
+	NGAPProcedureInitialContextSetupRequest       NGAPProcedure = "InitialContextSetupRequest"
+	NGAPProcedurePDUSessionResourceModifyRequest  NGAPProcedure = "PDUSessionResourceModifyRequest"
+	NGAPProcedurePDUSessionResourceModifyConfirm  NGAPProcedure = "PDUSessionResourceModifyConfirm"
+	NGAPProcedurePDUSessionResourceSetupRequest   NGAPProcedure = "PDUSessionResourceSetupRequest"
+	NGAPProcedurePDUSessionResourceReleaseCommand NGAPProcedure = "PDUSessionResourceReleaseCommand"
+	NGAPProcedureDownlinkNasTransport             NGAPProcedure = "DownlinkNasTransport"
+	NGAPProcedureLocationReportingControl         NGAPProcedure = "LocationReportingControl"
+	NGAPProcedurePathSwitchRequestFailure         NGAPProcedure = "PathSwitchRequestFailure"
+	NGAPProcedurePathSwitchRequestAcknowledge     NGAPProcedure = "PathSwitchRequestAcknowledge"
+	NGAPProcedureHandoverRequest                  NGAPProcedure = "HandoverRequest"
+	NGAPProcedureHandoverCommand                  NGAPProcedure = "HandoverCommand"
+	NGAPProcedureHandoverCancelAcknowledge        NGAPProcedure = "HandoverCancelAcknowledge"
+	NGAPProcedureHandoverPreparationFailure       NGAPProcedure = "HandoverPreparationFailure"
+	NGAPProcedureUEContextReleaseCommand          NGAPProcedure = "UEContextReleaseCommand"
+)
+
+func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
+	switch msgType {
+	// Non-UE procedures
+	case NGAPProcedureNGSetupResponse, NGAPProcedureNGSetupFailure,
+		NGAPProcedurePaging, NGAPProcedureNGResetAcknowledge,
+		NGAPProcedureErrorIndication, NGAPProcedureRanConfigurationUpdateAcknowledge,
+		NGAPProcedureRanConfigurationUpdateFailure, NGAPProcedureAMFStatusIndication,
+		NGAPProcedureDownlinkRanConfigurationTransfer:
+		return 0, nil
+
+	// UE-associated procedures
+	case NGAPProcedureInitialContextSetupRequest, NGAPProcedureUEContextReleaseCommand,
+		NGAPProcedureDownlinkNasTransport, NGAPProcedurePDUSessionResourceSetupRequest,
+		NGAPProcedurePDUSessionResourceReleaseCommand, NGAPProcedureHandoverRequest,
+		NGAPProcedureHandoverCommand, NGAPProcedureHandoverPreparationFailure,
+		NGAPProcedurePathSwitchRequestAcknowledge, NGAPProcedurePDUSessionResourceModifyRequest,
+		NGAPProcedurePDUSessionResourceModifyConfirm, NGAPProcedureHandoverCancelAcknowledge,
+		NGAPProcedureLocationReportingControl, NGAPProcedurePathSwitchRequestFailure:
+		return 1, nil
+	default:
+		return 0, fmt.Errorf("NGAP message type (%s) not supported", msgType)
+	}
+}
+
+func SendToRan(ran *context.AmfRan, packet []byte, msgType NGAPProcedure) error {
+	sid, err := getSCTPStreamID(msgType)
+	if err != nil {
+		return fmt.Errorf("could not determine SCTP stream ID from NGAP message type (%s): %s", msgType, err.Error())
+	}
 	defer func() {
 		err := recover()
 		if err != nil {
@@ -41,13 +103,17 @@ func SendToRan(ran *context.AmfRan, packet []byte, msgType string) error {
 		return fmt.Errorf("ran address is nil")
 	}
 
-	if _, err := ran.Conn.Write(packet); err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
+	info := sctp.SndRcvInfo{
+		Stream: sid,
+		PPID:   nativeToNetworkEndianness32(ngap.PPID),
+	}
+	if _, err := ran.Conn.SCTPWrite(packet, &info); err != nil {
+		return fmt.Errorf("send write to sctp connection: %s", err.Error())
 	}
 
 	logger.LogNetworkEvent(
 		logger.NGAPNetworkProtocol,
-		msgType,
+		string(msgType),
 		logger.DirectionOutbound,
 		ran.Conn.LocalAddr().String(),
 		ran.Conn.RemoteAddr().String(),
@@ -57,7 +123,7 @@ func SendToRan(ran *context.AmfRan, packet []byte, msgType string) error {
 	return nil
 }
 
-func SendToRanUe(ue *context.RanUe, packet []byte, ngapMsgType string) error {
+func SendToRanUe(ue *context.RanUe, packet []byte, ngapMsgType NGAPProcedure) error {
 	var ran *context.AmfRan
 
 	if ue == nil {
@@ -76,7 +142,7 @@ func SendToRanUe(ue *context.RanUe, packet []byte, ngapMsgType string) error {
 	return nil
 }
 
-func NasSendToRan(ue *context.AmfUe, accessType models.AccessType, packet []byte, msgType string) error {
+func NasSendToRan(ue *context.AmfUe, accessType models.AccessType, packet []byte, msgType NGAPProcedure) error {
 	if ue == nil {
 		return fmt.Errorf("amf ue is nil")
 	}
@@ -100,9 +166,9 @@ func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan) error {
 		return fmt.Errorf("error building NG Setup Response: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, "NGSetupResponse")
+	err = SendToRan(ran, pkt, NGAPProcedureNGSetupResponse)
 	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
+		return fmt.Errorf("couldn't send packet to ran: %s", err.Error())
 	}
 
 	return nil
@@ -118,7 +184,7 @@ func SendNGSetupFailure(ran *context.AmfRan, cause ngapType.Cause) error {
 		return fmt.Errorf("error building NG Setup Failure: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, "NGSetupFailure")
+	err = SendToRan(ran, pkt, NGAPProcedureNGSetupFailure)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -136,7 +202,7 @@ func SendNGResetAcknowledge(ran *context.AmfRan, partOfNGInterface *ngapType.UEA
 		return fmt.Errorf("error building NG Reset Acknowledge: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, "NGResetAcknowledge")
+	err = SendToRan(ran, pkt, NGAPProcedureNGResetAcknowledge)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -158,7 +224,7 @@ func SendDownlinkNasTransport(ue *context.RanUe, nasPdu []byte, mobilityRestrict
 		return fmt.Errorf("error building DownlinkNasTransport: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, "DownlinkNasTransport")
+	err = SendToRanUe(ue, pkt, NGAPProcedureDownlinkNasTransport)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -176,7 +242,7 @@ func SendPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte, pduS
 		return fmt.Errorf("error building pdu session resource release: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, "PDUSessionResourceReleaseCommand")
+	err = SendToRanUe(ue, pkt, NGAPProcedurePDUSessionResourceReleaseCommand)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -204,7 +270,7 @@ func SendUEContextReleaseCommand(ue *context.RanUe, action context.RelAction, ca
 		}
 	}
 
-	err = SendToRanUe(ue, pkt, "UEContextReleaseCommand")
+	err = SendToRanUe(ue, pkt, NGAPProcedureUEContextReleaseCommand)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -222,7 +288,7 @@ func SendErrorIndication(ran *context.AmfRan, amfUeNgapID, ranUeNgapID *int64, c
 		return fmt.Errorf("error building error indication: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, "ErrorIndication")
+	err = SendToRan(ran, pkt, NGAPProcedureErrorIndication)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -241,7 +307,7 @@ func SendHandoverCancelAcknowledge(ue *context.RanUe, criticalityDiagnostics *ng
 	if err != nil {
 		return fmt.Errorf("error building handover cancel acknowledge: %s", err.Error())
 	}
-	err = SendToRanUe(ue, pkt, "HandoverCancelAcknowledge")
+	err = SendToRanUe(ue, pkt, NGAPProcedureHandoverCancelAcknowledge)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -262,7 +328,7 @@ func SendPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte, pduSes
 		return fmt.Errorf("error building pdu session resource setup request: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, "PDUSessionResourceSetupRequest")
+	err = SendToRanUe(ue, pkt, NGAPProcedurePDUSessionResourceSetupRequest)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -294,7 +360,7 @@ func SendPDUSessionResourceModifyConfirm(
 		return fmt.Errorf("error building pdu session resource modify confirm: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, "PDUSessionResourceModifyConfirm")
+	err = SendToRanUe(ue, pkt, NGAPProcedurePDUSessionResourceModifyConfirm)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -319,7 +385,7 @@ func SendPDUSessionResourceModifyRequest(ue *context.RanUe, pduSessionResourceMo
 		return fmt.Errorf("error building pdu session resource modify request: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, "PDUSessionResourceModifyRequest")
+	err = SendToRanUe(ue, pkt, NGAPProcedurePDUSessionResourceModifyRequest)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -355,7 +421,7 @@ func SendInitialContextSetupRequest(
 
 	amfUe.RanUe[anType].SentInitialContextSetupRequest = true
 
-	err = NasSendToRan(amfUe, anType, pkt, "InitialContextSetupRequest")
+	err = NasSendToRan(amfUe, anType, pkt, NGAPProcedureInitialContextSetupRequest)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -392,7 +458,7 @@ func SendHandoverCommand(
 		return fmt.Errorf("error building handover command: %s", err.Error())
 	}
 
-	err = SendToRanUe(sourceUe, pkt, "HandoverCommand")
+	err = SendToRanUe(sourceUe, pkt, NGAPProcedureHandoverCommand)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -424,7 +490,7 @@ func SendHandoverPreparationFailure(sourceUe *context.RanUe, cause ngapType.Caus
 		return fmt.Errorf("error building handover preparation failure: %s", err.Error())
 	}
 
-	err = SendToRanUe(sourceUe, pkt, "HandoverPreparationFailure")
+	err = SendToRanUe(sourceUe, pkt, NGAPProcedureHandoverPreparationFailure)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -481,7 +547,7 @@ func SendHandoverRequest(ctx ctxt.Context, sourceUe *context.RanUe, targetRan *c
 		return fmt.Errorf("error building handover request: %s", err.Error())
 	}
 
-	err = SendToRanUe(targetUe, pkt, "HandoverRequest")
+	err = SendToRanUe(targetUe, pkt, NGAPProcedureHandoverRequest)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -527,7 +593,7 @@ func SendPathSwitchRequestAcknowledge(
 		return fmt.Errorf("error building path switch request acknowledge: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, "PathSwitchRequestAcknowledge")
+	err = SendToRanUe(ue, pkt, NGAPProcedurePathSwitchRequestAcknowledge)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -554,7 +620,7 @@ func SendPathSwitchRequestFailure(
 		return fmt.Errorf("error building path switch request failure: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, "PathSwitchRequestFailure")
+	err = SendToRan(ran, pkt, NGAPProcedurePathSwitchRequestFailure)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -582,7 +648,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) error {
 		ran := value.(*context.AmfRan)
 		for _, item := range ran.SupportedTAList {
 			if context.InTaiList(item.Tai, taiList) {
-				err := SendToRan(ran, ngapBuf, "Paging")
+				err := SendToRan(ran, ngapBuf, NGAPProcedurePaging)
 				if err != nil {
 					ue.GmmLog.Error("failed to send paging", zap.Error(err))
 					continue
@@ -602,7 +668,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) error {
 				ran := value.(*context.AmfRan)
 				for _, item := range ran.SupportedTAList {
 					if context.InTaiList(item.Tai, taiList) {
-						err := SendToRan(ran, ngapBuf, "Paging")
+						err := SendToRan(ran, ngapBuf, NGAPProcedurePaging)
 						if err != nil {
 							ue.GmmLog.Error("failed to send paging", zap.Error(err))
 							continue
@@ -633,7 +699,7 @@ func SendRanConfigurationUpdateAcknowledge(ran *context.AmfRan, criticalityDiagn
 		return fmt.Errorf("error building ran configuration update acknowledge: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, "RanConfigurationUpdateAcknowledge")
+	err = SendToRan(ran, pkt, NGAPProcedureRanConfigurationUpdateAcknowledge)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -654,7 +720,7 @@ func SendRanConfigurationUpdateFailure(ran *context.AmfRan, cause ngapType.Cause
 		return fmt.Errorf("error building ran configuration update failure: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, "RanConfigurationUpdateFailure")
+	err = SendToRan(ran, pkt, NGAPProcedureRanConfigurationUpdateFailure)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -684,7 +750,7 @@ func SendAMFStatusIndication(ran *context.AmfRan, unavailableGUAMIList ngapType.
 		return fmt.Errorf("error building amf status indication: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, "AMFStatusIndication")
+	err = SendToRan(ran, pkt, NGAPProcedureAMFStatusIndication)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -703,7 +769,7 @@ func SendDownlinkRanConfigurationTransfer(ran *context.AmfRan, transfer *ngapTyp
 		return fmt.Errorf("error building downlink ran configuration transfer: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, "DownlinkRanConfigurationTransfer")
+	err = SendToRan(ran, pkt, NGAPProcedureDownlinkRanConfigurationTransfer)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -746,10 +812,16 @@ func SendLocationReportingControl(
 		return fmt.Errorf("error building location reporting control: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, "LocationReportingControl")
+	err = SendToRanUe(ue, pkt, NGAPProcedureLocationReportingControl)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 
 	return nil
+}
+
+func nativeToNetworkEndianness32(value uint32) uint32 {
+	var b [4]byte
+	binary.NativeEndian.PutUint32(b[:], value)
+	return binary.BigEndian.Uint32(b[:])
 }
