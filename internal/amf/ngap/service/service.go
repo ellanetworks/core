@@ -85,6 +85,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 			if err = newConn.Close(); err != nil {
 				logger.AmfLog.Error("Close error", zap.Error(err))
 			}
+			logger.AmfLog.Warn("TO DELETE: Closed connection after SubscribeEvents error")
 			continue
 		} else {
 			logger.AmfLog.Debug("Subscribe SCTP event[DATA_IO, SHUTDOWN_EVENT, ASSOCIATION_CHANGE]")
@@ -95,6 +96,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 			if err = newConn.Close(); err != nil {
 				logger.AmfLog.Error("Close error", zap.Error(err))
 			}
+			logger.AmfLog.Warn("TO DELETE: Closed connection after SetReadBuffer error")
 			continue
 		} else {
 			logger.AmfLog.Debug("Set read buffer", zap.Any("size", readBufSize))
@@ -105,6 +107,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 			if err = newConn.Close(); err != nil {
 				logger.AmfLog.Error("Close error", zap.Error(err))
 			}
+			logger.AmfLog.Warn("TO DELETE: Closed connection after SetReadTimeout error")
 			continue
 		} else {
 			logger.AmfLog.Debug("Set read timeout", zap.Any("timeout", readTimeout))
@@ -116,6 +119,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 			if err = newConn.Close(); err != nil {
 				logger.AmfLog.Error("Close error", zap.Error(err))
 			}
+			logger.AmfLog.Warn("TO DELETE: Closed connection after RemoteAddr() error")
 			continue
 		}
 
@@ -136,6 +140,7 @@ func Stop() {
 		if err := conn.Close(); err != nil {
 			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
+		logger.AmfLog.Info("Connection closed", zap.String("address", conn.RemoteAddr().String()))
 		return true
 	})
 
