@@ -65,14 +65,12 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RanUeNgapID is nil")
 						return nil, nil
 					}
 				case ngapType.ProtocolIEIDFiveGSTMSI: // optional, reject
 					fiveGSTMSI = ie.Value.FiveGSTMSI
-					ran.Log.Debug("Decode IE 5G-S-TMSI")
 				}
 			}
 			ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
@@ -115,7 +113,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RanUeNgapID is nil")
 						return nil, nil
@@ -132,7 +129,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -172,7 +168,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -191,7 +186,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -209,7 +203,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -226,7 +219,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -245,7 +237,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -323,7 +314,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -343,7 +333,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -361,7 +350,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -379,7 +367,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -397,7 +384,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -438,7 +424,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -456,7 +441,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debug("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -529,28 +513,24 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDGlobalRANNodeID:
 			globalRANNodeID = ie.Value.GlobalRANNodeID
-			ran.Log.Debug("Decode IE GlobalRANNodeID")
 			if globalRANNodeID == nil {
 				ran.Log.Error("GlobalRANNodeID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDSupportedTAList:
 			supportedTAList = ie.Value.SupportedTAList
-			ran.Log.Debug("Decode IE SupportedTAList")
 			if supportedTAList == nil {
 				ran.Log.Error("SupportedTAList is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANNodeName:
 			rANNodeName = ie.Value.RANNodeName
-			ran.Log.Debug("Decode IE RANNodeName")
 			if rANNodeName == nil {
 				ran.Log.Error("RANNodeName is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDDefaultPagingDRX:
 			pagingDRX = ie.Value.DefaultPagingDRX
-			ran.Log.Debug("Decode IE DefaultPagingDRX")
 			if pagingDRX == nil {
 				ran.Log.Error("DefaultPagingDRX is nil")
 				return
@@ -691,21 +671,18 @@ func HandleUplinkNasTransport(ctx ctxt.Context, ran *context.AmfRan, message *ng
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDNASPDU:
 			nASPDU = ie.Value.NASPDU
-			ran.Log.Debug("Decode IE NasPdu")
 			if nASPDU == nil {
 				ran.Log.Error("nASPDU is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDUserLocationInformation:
 			userLocationInformation = ie.Value.UserLocationInformation
-			ran.Log.Debug("Decode IE UserLocationInformation")
 			if userLocationInformation == nil {
 				ran.Log.Error("UserLocationInformation is nil")
 				return
@@ -768,14 +745,12 @@ func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDCause:
 			cause = ie.Value.Cause
-			ran.Log.Debug("Decode IE Cause")
 			if cause == nil {
 				ran.Log.Error("Cause is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDResetType:
 			resetType = ie.Value.ResetType
-			ran.Log.Debug("Decode IE ResetType")
 			if resetType == nil {
 				ran.Log.Error("ResetType is nil")
 				return
@@ -929,33 +904,27 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDUserLocationInformation:
 			userLocationInformation = ie.Value.UserLocationInformation
-			ran.Log.Debug("Decode IE UserLocationInformation")
 		case ngapType.ProtocolIEIDInfoOnRecommendedCellsAndRANNodesForPaging:
 			infoOnRecommendedCellsAndRANNodesForPaging = ie.Value.InfoOnRecommendedCellsAndRANNodesForPaging
-			ran.Log.Debug("Decode IE InfoOnRecommendedCellsAndRANNodesForPaging")
 			if infoOnRecommendedCellsAndRANNodesForPaging != nil {
 				ran.Log.Warn("IE infoOnRecommendedCellsAndRANNodesForPaging is not support")
 			}
 		case ngapType.ProtocolIEIDPDUSessionResourceListCxtRelCpl:
 			pDUSessionResourceList = ie.Value.PDUSessionResourceListCxtRelCpl
-			ran.Log.Debug("Decode IE PDUSessionResourceList")
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Debug("Decode IE CriticalityDiagnostics")
 		}
 	}
 
@@ -1157,31 +1126,26 @@ func HandlePDUSessionResourceReleaseResponse(ctx ctxt.Context, ran *context.AmfR
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUENgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDPDUSessionResourceReleasedListRelRes:
 			pDUSessionResourceReleasedList = ie.Value.PDUSessionResourceReleasedListRelRes
-			ran.Log.Debug("Decode IE PDUSessionResourceReleasedList")
 			if pDUSessionResourceReleasedList == nil {
 				ran.Log.Error("PDUSessionResourceReleasedList is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDUserLocationInformation:
 			userLocationInformation = ie.Value.UserLocationInformation
-			ran.Log.Debug("Decode IE UserLocationInformation")
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Debug("Decode IE CriticalityDiagnostics")
 		}
 	}
 
@@ -1259,28 +1223,24 @@ func HandleUERadioCapabilityCheckResponse(ran *context.AmfRan, message *ngapType
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDIMSVoiceSupportIndicator:
 			iMSVoiceSupportIndicator = ie.Value.IMSVoiceSupportIndicator
-			ran.Log.Debug("Decode IE IMSVoiceSupportIndicator")
 			if iMSVoiceSupportIndicator == nil {
 				ran.Log.Error("iMSVoiceSupportIndicator is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Debug("Decode IE CriticalityDiagnostics")
 		}
 	}
 
@@ -1327,21 +1287,18 @@ func HandleLocationReportingFailureIndication(ran *context.AmfRan, message *ngap
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDCause:
 			cause = ie.Value.Cause
-			ran.Log.Debug("Decode IE Cause")
 			if cause == nil {
 				ran.Log.Error("Cause is nil")
 				return
@@ -1579,19 +1536,14 @@ func HandlePDUSessionResourceSetupResponse(ctx ctxt.Context, ran *context.AmfRan
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 		case ngapType.ProtocolIEIDRANUENGAPID: // ignore
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes: // ignore
 			pDUSessionResourceSetupResponseList = ie.Value.PDUSessionResourceSetupListSURes
-			ran.Log.Debug("Decode IE PDUSessionResourceSetupListSURes")
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListSURes: // ignore
 			pDUSessionResourceFailedToSetupList = ie.Value.PDUSessionResourceFailedToSetupListSURes
-			ran.Log.Debug("Decode IE PDUSessionResourceFailedToSetupListSURes")
 		case ngapType.ProtocolIEIDCriticalityDiagnostics: // optional, ignore
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Debug("Decode IE CriticalityDiagnostics")
 		}
 	}
 
@@ -1730,22 +1682,16 @@ func HandlePDUSessionResourceModifyResponse(ctx ctxt.Context, ran *context.AmfRa
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 		case ngapType.ProtocolIEIDRANUENGAPID: // ignore
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 		case ngapType.ProtocolIEIDPDUSessionResourceModifyListModRes: // ignore
 			pduSessionResourceModifyResponseList = ie.Value.PDUSessionResourceModifyListModRes
-			ran.Log.Debug("Decode IE PDUSessionResourceModifyListModRes")
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToModifyListModRes: // ignore
 			pduSessionResourceFailedToModifyList = ie.Value.PDUSessionResourceFailedToModifyListModRes
-			ran.Log.Debug("Decode IE PDUSessionResourceFailedToModifyListModRes")
 		case ngapType.ProtocolIEIDUserLocationInformation: // optional, ignore
 			userLocationInformation = ie.Value.UserLocationInformation
-			ran.Log.Debug("Decode IE UserLocationInformation")
 		case ngapType.ProtocolIEIDCriticalityDiagnostics: // optional, ignore
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Debug("Decode IE CriticalityDiagnostics")
 		}
 	}
 
@@ -1852,25 +1798,20 @@ func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, messa
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID // reject
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID // reject
-			ran.Log.Debug("Decode IE RanUeNgapID")
 		case ngapType.ProtocolIEIDPDUSessionResourceNotifyList: // reject
 			pDUSessionResourceNotifyList = ie.Value.PDUSessionResourceNotifyList
-			ran.Log.Debug("Decode IE pDUSessionResourceNotifyList")
 			if pDUSessionResourceNotifyList == nil {
 				ran.Log.Error("pDUSessionResourceNotifyList is nil")
 			}
 		case ngapType.ProtocolIEIDPDUSessionResourceReleasedListNot: // ignore
 			pDUSessionResourceReleasedListNot = ie.Value.PDUSessionResourceReleasedListNot
-			ran.Log.Debug("Decode IE PDUSessionResourceReleasedListNot")
 			if pDUSessionResourceReleasedListNot == nil {
 				ran.Log.Error("PDUSessionResourceReleasedListNot is nil")
 			}
 		case ngapType.ProtocolIEIDUserLocationInformation: // optional, ignore
 			userLocationInformation = ie.Value.UserLocationInformation
-			ran.Log.Debug("Decode IE userLocationInformation")
 			if userLocationInformation == nil {
 				ran.Log.Warn("userLocationInformation is nil [optional]")
 			}
@@ -2164,31 +2105,26 @@ func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, me
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Warn("AmfUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Warn("RanUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtRes:
 			pDUSessionResourceSetupResponseList = ie.Value.PDUSessionResourceSetupListCxtRes
-			ran.Log.Debug("Decode IE PDUSessionResourceSetupResponseList")
 			if pDUSessionResourceSetupResponseList == nil {
 				ran.Log.Warn("PDUSessionResourceSetupResponseList is nil")
 			}
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtRes:
 			pDUSessionResourceFailedToSetupList = ie.Value.PDUSessionResourceFailedToSetupListCxtRes
-			ran.Log.Debug("Decode IE PDUSessionResourceFailedToSetupList")
 			if pDUSessionResourceFailedToSetupList == nil {
 				ran.Log.Warn("PDUSessionResourceFailedToSetupList is nil")
 			}
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Debug("Decode IE Criticality Diagnostics")
 			if criticalityDiagnostics == nil {
 				ran.Log.Warn("Criticality Diagnostics is nil")
 			}
@@ -2296,31 +2232,26 @@ func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, mes
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Warn("AmfUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Warn("RanUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtFail:
 			pDUSessionResourceFailedToSetupList = ie.Value.PDUSessionResourceFailedToSetupListCxtFail
-			ran.Log.Debug("Decode IE PDUSessionResourceFailedToSetupList")
 			if pDUSessionResourceFailedToSetupList == nil {
 				ran.Log.Warn("PDUSessionResourceFailedToSetupList is nil")
 			}
 		case ngapType.ProtocolIEIDCause:
 			cause = ie.Value.Cause
-			ran.Log.Debug("Decode IE Cause")
 			if cause == nil {
 				ran.Log.Warn("Cause is nil")
 			}
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Debug("Decode IE Criticality Diagnostics")
 			if criticalityDiagnostics == nil {
 				ran.Log.Warn("CriticalityDiagnostics is nil")
 			}
@@ -2399,24 +2330,20 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDPDUSessionResourceListCxtRelReq:
 			pDUSessionResourceList = ie.Value.PDUSessionResourceListCxtRelReq
-			ran.Log.Debug("Decode IE Pdu Session Resource List")
 		case ngapType.ProtocolIEIDCause:
 			cause = ie.Value.Cause
-			ran.Log.Debug("Decode IE Cause")
 			if cause == nil {
 				ran.Log.Warn("Cause is nil")
 			}
@@ -2557,25 +2484,20 @@ func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, 
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Warn("AmfUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID: // ignore
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Warn("RanUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRRCState: // optional, ignore
 			rRCState = ie.Value.RRCState
-			ran.Log.Debug("Decode IE RRCState")
 		case ngapType.ProtocolIEIDUserLocationInformation: // optional, ignore
 			userLocationInformation = ie.Value.UserLocationInformation
-			ran.Log.Debug("Decode IE UserLocationInformation")
 		case ngapType.ProtocolIEIDCriticalityDiagnostics: // optional, ignore
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Debug("Decode IE CriticalityDiagnostics")
 		}
 	}
 
@@ -2649,25 +2571,21 @@ func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.N
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Warn("AmfUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID: // ignore
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Warn("RanUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDCause: // ignore
 			cause = ie.Value.Cause
-			ran.Log.Debug("Decode IE Cause")
 			if cause == nil {
 				ran.Log.Warn("Cause is nil")
 			}
 		case ngapType.ProtocolIEIDCriticalityDiagnostics: // optional, ignore
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Debug("Decode IE CriticalityDiagnostics")
 		}
 	}
 
@@ -2732,28 +2650,24 @@ func HandleRRCInactiveTransitionReport(ctx ctxt.Context, ran *context.AmfRan, me
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // reject
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRRCState: // ignore
 			rRCState = ie.Value.RRCState
-			ran.Log.Debug("Decode IE RRCState")
 			if rRCState == nil {
 				ran.Log.Error("RRCState is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDUserLocationInformation: // ignore
 			userLocationInformation = ie.Value.UserLocationInformation
-			ran.Log.Debug("Decode IE UserLocationInformation")
 			if userLocationInformation == nil {
 				ran.Log.Error("UserLocationInformation is nil")
 				return
@@ -2810,21 +2724,18 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AMFUENGAPID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RANUENGAPID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDUserLocationInformation:
 			userLocationInformation = ie.Value.UserLocationInformation
-			ran.Log.Debug("Decode IE userLocationInformation")
 			if userLocationInformation == nil {
 				ran.Log.Error("userLocationInformation is nil")
 				return
@@ -2920,33 +2831,28 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, message *nga
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDSourceAMFUENGAPID: // reject
 			sourceAMFUENGAPID = ie.Value.SourceAMFUENGAPID
-			ran.Log.Debug("Decode IE SourceAmfUeNgapID")
 			if sourceAMFUENGAPID == nil {
 				ran.Log.Error("SourceAmfUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDUserLocationInformation: // ignore
 			userLocationInformation = ie.Value.UserLocationInformation
-			ran.Log.Debug("Decode IE UserLocationInformation")
 		case ngapType.ProtocolIEIDUESecurityCapabilities: // ignore
 			uESecurityCapabilities = ie.Value.UESecurityCapabilities
 		case ngapType.ProtocolIEIDPDUSessionResourceToBeSwitchedDLList: // reject
 			pduSessionResourceToBeSwitchedInDLList = ie.Value.PDUSessionResourceToBeSwitchedDLList
-			ran.Log.Debug("Decode IE PDUSessionResourceToBeSwitchedDLList")
 			if pduSessionResourceToBeSwitchedInDLList == nil {
 				ran.Log.Error("PDUSessionResourceToBeSwitchedDLList is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListPSReq: // ignore
 			pduSessionResourceFailedToSetupList = ie.Value.PDUSessionResourceFailedToSetupListPSReq
-			ran.Log.Debug("Decode IE PDUSessionResourceFailedToSetupListPSReq")
 		}
 	}
 
@@ -3289,13 +3195,10 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 		case ngapType.ProtocolIEIDCause: // ignore
 			cause = ie.Value.Cause
-			ran.Log.Debug("Decode IE Cause")
 		case ngapType.ProtocolIEIDCriticalityDiagnostics: // ignore
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Debug("Decode IE CriticalityDiagnostics")
 		}
 	}
 
@@ -3609,21 +3512,18 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AMFUENGAPID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RANUENGAPID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDCause:
 			cause = ie.Value.Cause
-			ran.Log.Debug("Decode IE Cause")
 			if cause == nil {
 				ran.Log.Error("Cause is nil")
 				return
@@ -3727,19 +3627,16 @@ func HandleUplinkRanStatusTransfer(ran *context.AmfRan, message *ngapType.NGAPPD
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // reject
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRANStatusTransferTransparentContainer: // reject
 			rANStatusTransferTransparentContainer = ie.Value.RANStatusTransferTransparentContainer
-			ran.Log.Debug("Decode IE RANStatusTransferTransparentContainer")
 			if rANStatusTransferTransparentContainer == nil {
 				ran.Log.Error("RANStatusTransferTransparentContainer is nil")
 			}
@@ -3870,10 +3767,8 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, message
 				ran.Log.Error("RAN Node Name is nil")
 				return
 			}
-			ran.Log.Debug("Decode IE RANNodeName", zap.String("RANNodeName", rANNodeName.Value))
 		case ngapType.ProtocolIEIDSupportedTAList:
 			supportedTAList = ie.Value.SupportedTAList
-			ran.Log.Debug("Decode IE SupportedTAList")
 			if supportedTAList == nil {
 				ran.Log.Error("Supported TA List is nil")
 				return
@@ -3884,7 +3779,6 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, message
 				ran.Log.Error("PagingDRX is nil")
 				return
 			}
-			ran.Log.Debug("Decode IE PagingDRX", zap.Any("PagingDRX", pagingDRX.Value))
 		}
 	}
 
@@ -3993,7 +3887,6 @@ func HandleUplinkRanConfigurationTransfer(ran *context.AmfRan, message *ngapType
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDSONConfigurationTransferUL: // optional, ignore
 			sONConfigurationTransferUL = ie.Value.SONConfigurationTransferUL
-			ran.Log.Debug("Decode IE SONConfigurationTransferUL")
 			if sONConfigurationTransferUL == nil {
 				ran.Log.Warn("sONConfigurationTransferUL is nil")
 			}
@@ -4053,28 +3946,24 @@ func HandleUplinkUEAssociatedNRPPATransport(ran *context.AmfRan, message *ngapTy
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // reject
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE aMFUENGAPID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE rANUENGAPID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRoutingID: // reject
 			routingID = ie.Value.RoutingID
-			ran.Log.Debug("Decode IE routingID")
 			if routingID == nil {
 				ran.Log.Error("routingID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDNRPPaPDU: // reject
 			nRPPaPDU = ie.Value.NRPPaPDU
-			ran.Log.Debug("Decode IE nRPPaPDU")
 			if nRPPaPDU == nil {
 				ran.Log.Error("nRPPaPDU is nil")
 				return
@@ -4122,11 +4011,9 @@ func HandleUplinkNonUEAssociatedNRPPATransport(ran *context.AmfRan, message *nga
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDRoutingID:
 			routingID = ie.Value.RoutingID
-			ran.Log.Debug("Decode IE RoutingID")
 
 		case ngapType.ProtocolIEIDNRPPaPDU:
 			nRPPaPDU = ie.Value.NRPPaPDU
-			ran.Log.Debug("Decode IE NRPPaPDU")
 		}
 	}
 
@@ -4174,31 +4061,26 @@ func HandleLocationReport(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // reject
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDUserLocationInformation: // ignore
 			userLocationInformation = ie.Value.UserLocationInformation
-			ran.Log.Debug("Decode IE userLocationInformation")
 			if userLocationInformation == nil {
 				ran.Log.Warn("userLocationInformation is nil")
 			}
 		case ngapType.ProtocolIEIDUEPresenceInAreaOfInterestList: // optional, ignore
 			uEPresenceInAreaOfInterestList = ie.Value.UEPresenceInAreaOfInterestList
-			ran.Log.Debug("Decode IE uEPresenceInAreaOfInterestList")
 			if uEPresenceInAreaOfInterestList == nil {
 				ran.Log.Warn("uEPresenceInAreaOfInterestList is nil [optional]")
 			}
 		case ngapType.ProtocolIEIDLocationReportingRequestType: // ignore
 			locationReportingRequestType = ie.Value.LocationReportingRequestType
-			ran.Log.Debug("Decode IE LocationReportingRequestType")
 			if locationReportingRequestType == nil {
 				ran.Log.Warn("LocationReportingRequestType is nil")
 			}
@@ -4282,28 +4164,24 @@ func HandleUERadioCapabilityInfoIndication(ran *context.AmfRan, message *ngapTyp
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDUERadioCapability:
 			uERadioCapability = ie.Value.UERadioCapability
-			ran.Log.Debug("Decode IE UERadioCapability")
 			if uERadioCapability == nil {
 				ran.Log.Error("UERadioCapability is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDUERadioCapabilityForPaging:
 			uERadioCapabilityForPaging = ie.Value.UERadioCapabilityForPaging
-			ran.Log.Debug("Decode IE UERadioCapabilityForPaging")
 			if uERadioCapabilityForPaging == nil {
 				ran.Log.Error("UERadioCapabilityForPaging is nil")
 				return
@@ -4370,14 +4248,12 @@ func HandleAMFconfigurationUpdateFailure(ran *context.AmfRan, message *ngapType.
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDCause:
 			cause = ie.Value.Cause
-			ran.Log.Debug("Decode IE Cause")
 			if cause == nil {
 				ran.Log.Error("Cause is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Debug("Decode IE CriticalityDiagnostics")
 		}
 	}
 
@@ -4415,18 +4291,15 @@ func HandleAMFconfigurationUpdateAcknowledge(ran *context.AmfRan, message *ngapT
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFTNLAssociationSetupList:
 			aMFTNLAssociationSetupList = ie.Value.AMFTNLAssociationSetupList
-			ran.Log.Debug("Decode IE AMFTNLAssociationSetupList")
 			if aMFTNLAssociationSetupList == nil {
 				ran.Log.Error("AMFTNLAssociationSetupList is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Debug("Decode IE Criticality Diagnostics")
 
 		case ngapType.ProtocolIEIDAMFTNLAssociationFailedToSetupList:
 			aMFTNLAssociationFailedToSetupList = ie.Value.AMFTNLAssociationFailedToSetupList
-			ran.Log.Debug("Decode IE AMFTNLAssociationFailedToSetupList")
 			if aMFTNLAssociationFailedToSetupList == nil {
 				ran.Log.Error("AMFTNLAssociationFailedToSetupList is nil")
 				return
@@ -4469,22 +4342,18 @@ func HandleErrorIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debug("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Debug("Decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDCause:
 			cause = ie.Value.Cause
-			ran.Log.Debug("Decode IE Cause")
 		case ngapType.ProtocolIEIDCriticalityDiagnostics:
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Debug("Decode IE CriticalityDiagnostics")
 		}
 	}
 

@@ -66,7 +66,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 		return
 	}
 	sctpListener = listener
-	logger.AmfLog.Info("NGAP server started", zap.String("address", addr.String()))
+	logger.AmfLog.Debug("NGAP server started", zap.String("address", addr.String()))
 	for {
 		newConn, err := sctpListener.AcceptSCTP()
 		if err != nil {
@@ -119,8 +119,8 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 			continue
 		}
 
-		logger.AmfLog.Info("New connection", zap.String("address", remoteAddress.String()))
 		connections.Store(newConn, newConn)
+		logger.AmfLog.Debug("New SCTP connection accepted", zap.String("address", remoteAddress.String()))
 
 		go handleConnection(newConn, readBufSize, handler)
 	}

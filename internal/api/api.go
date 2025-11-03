@@ -77,7 +77,7 @@ func Start(dbInstance *db.Database, upf server.UPFReloader, address string, port
 		}
 	}()
 
-	logger.APILog.Info("API server started", zap.String("scheme", string(scheme)), zap.String("address", fmt.Sprintf("%s://%s:%d", scheme, address, port)))
+	logger.APILog.Debug("API server started", zap.String("scheme", string(scheme)), zap.String("address", fmt.Sprintf("%s://%s:%d", scheme, address, port)))
 
 	// Reconcile routes on startup and every 5 minutes.
 	go func() {

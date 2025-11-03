@@ -320,14 +320,12 @@ func LogNetworkEvent(
 		}
 	}
 
-	// Optional safety: cap the size
 	const maxDetails = 4096
 	if len(detailsStr) > maxDetails {
 		detailsStr = detailsStr[:maxDetails] + "...(truncated)"
 	}
 
-	// Emit a single, consistent log line. DB reader already expects details as string.
-	NetworkLog.Info("network_event",
+	NetworkLog.Debug("network_event",
 		zap.String("protocol", string(protocol)),
 		zap.String("message_type", messageType),
 		zap.String("direction", string(dir)),

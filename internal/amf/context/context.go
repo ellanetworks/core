@@ -307,9 +307,9 @@ func (context *AMFContext) AmfUeFindBySupiLocal(supi string) (ue *AmfUe, ok bool
 func (context *AMFContext) AmfUeFindByGuti(guti string) (ue *AmfUe, ok bool) {
 	ue, ok = context.AmfUeFindByGutiLocal(guti)
 	if ok {
-		logger.AmfLog.Info("Guti found locally", zap.String("guti", guti))
+		logger.AmfLog.Debug("Guti found locally", zap.String("guti", guti))
 	} else {
-		logger.AmfLog.Info("Ue with Guti not found", zap.String("guti", guti))
+		logger.AmfLog.Debug("Ue with Guti not found", zap.String("guti", guti))
 	}
 	return
 }
