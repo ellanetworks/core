@@ -5,10 +5,20 @@ permissions:
 
 on:
   workflow_call:
+    inputs:
+      archs:
+        description: 'JSON array of archs, e.g. ["amd64"] or ["amd64","arm64"]'
+        required: true
+        type: string
 
 jobs:
   build-image:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(inputs.archs) }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -22,10 +32,10 @@ jobs:
         run: |
           rock_file=$(ls *.rock | tail -n 1)
           sudo rockcraft.skopeo --insecure-policy copy oci-archive:"${rock_file}" docker-daemon:ella-core:latest
-          docker save -o ellacore_latest.tar ella-core:latest
+          docker save -o ellacore_latest-${{ matrix.arch }}.tar ella-core:latest
 
       - name: Upload container image to GitHub Artifact
         uses: actions/upload-artifact@v5
         with:
-          name: ellacore-image
-          path: ellacore_latest.tar
+          name: ellacore-image-${{ matrix.arch }}
+          path: ellacore_latest-${{ matrix.arch }}.tar

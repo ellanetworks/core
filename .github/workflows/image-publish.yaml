@@ -10,6 +10,10 @@ on:
 jobs:
   publish-image:
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -23,16 +27,45 @@ jobs:
 
       - uses: actions/download-artifact@v6
         with:
-          name: ellacore-image
+          name: ellacore-image-${{ matrix.arch }}
 
-      - name: Import and push to github package
+      - name: Import and push to github package (${{ matrix.arch }})
         run: |
           version="$(cat version/VERSION)"
 
-          docker load -i ellacore_latest.tar
+          docker load -i ellacore_latest-${{ matrix.arch }}.tar
 
-          docker tag ella-core:latest ghcr.io/ellanetworks/ella-core:${version}
-          docker tag ella-core:latest ghcr.io/ellanetworks/ella-core:latest
+          docker tag ella-core:latest ghcr.io/ellanetworks/ella-core:${version}-${{ matrix.arch }}
+          docker tag ella-core:latest ghcr.io/ellanetworks/ella-core:latest-${{ matrix.arch }}
 
-          docker push ghcr.io/ellanetworks/ella-core:${version}
-          docker push ghcr.io/ellanetworks/ella-core:latest
+          docker push ghcr.io/ellanetworks/ella-core:${version}-${{ matrix.arch }}
+          docker push ghcr.io/ellanetworks/ella-core:latest-${{ matrix.arch }}
+
+  make-manifest:
+    needs: publish-image
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push manifest
+        run: |
+          version="$(cat version/VERSION)"
+
+          docker manifest create ghcr.io/ellanetworks/ella-core:${version} \
+            ghcr.io/ellanetworks/ella-core:${version}-amd64 \
+            ghcr.io/ellanetworks/ella-core:${version}-arm64
+
+          docker manifest create ghcr.io/ellanetworks/ella-core:latest \
+            ghcr.io/ellanetworks/ella-core:latest-amd64 \
+            ghcr.io/ellanetworks/ella-core:latest-arm64
+
+          docker manifest push ghcr.io/ellanetworks/ella-core:${version}
+          docker manifest push ghcr.io/ellanetworks/ella-core:latest
