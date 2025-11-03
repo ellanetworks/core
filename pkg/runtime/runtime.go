@@ -131,9 +131,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start UDM: %w", err)
 	}
 
-	defer upfInstance.Close()
-	defer amf.Close()
-	defer dbInstance.Close()
+	defer func() {
+		amf.Close()
+		upfInstance.Close()
+		dbInstance.Close()
+	}()
 
 	<-ctx.Done()
 	logger.EllaLog.Info("Shutdown signal received, exiting.")
