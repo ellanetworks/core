@@ -137,7 +137,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	defer func() {
 		amf.Close()
 		upfInstance.Close()
-		dbInstance.Close()
+		err := dbInstance.Close()
+		if err != nil {
+			logger.EllaLog.Error("couldn't close database", zap.Error(err))
+		}
 	}()
 
 	<-ctx.Done()
