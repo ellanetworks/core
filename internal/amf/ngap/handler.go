@@ -1020,7 +1020,7 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 		}
 	}
 	if amfUe.State[ran.AnType].Is(context.Registered) {
-		ranUe.Log.Info("Rel Ue Context in GMM-Registered")
+		ranUe.Log.Debug("Rel Ue Context in GMM-Registered")
 		if pDUSessionResourceList != nil {
 			for _, pduSessionReourceItem := range pDUSessionResourceList.List {
 				pduSessionID := int32(pduSessionReourceItem.PDUSessionID.Value)
@@ -1054,7 +1054,7 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 	amfUe.ReleaseCause[ran.AnType] = nil
 	switch ranUe.ReleaseAction {
 	case context.UeContextN2NormalRelease:
-		ran.Log.Info("Release UE Context: N2 Connection Release", zap.String("supi", amfUe.Supi))
+		ran.Log.Debug("Release UE Context: N2 Connection Release", zap.String("supi", amfUe.Supi))
 		// amfUe.DetachRanUe(ran.AnType)
 		err := ranUe.Remove()
 		if err != nil {
@@ -1327,6 +1327,8 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 
 	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
+	ran.Log.Info("Handle Initial UE Message")
+
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -1457,10 +1459,9 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 			guti := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc + amfID + tmsi
 
 			if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); !ok {
-				ranUe.Log.Warn("Unknown UE", zap.String("GUTI", guti))
+				ranUe.Log.Debug("could not find local ue for guti", zap.String("GUTI", guti))
 			} else {
-				ranUe.Log.Debug("find AmfUe", zap.String("GUTI", guti))
-				/* checking the guti-ue belongs to this amf instance */
+				ranUe.Log.Debug("found local ue for guti", zap.String("GUTI", guti))
 
 				if amfUe.CmConnect(ran.AnType) {
 					ranUe.Log.Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))

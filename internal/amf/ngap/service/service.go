@@ -134,7 +134,7 @@ func Stop() {
 	connections.Range(func(key, value any) bool {
 		conn := value.(*sctp.SCTPConn)
 		if err := conn.Close(); err != nil {
-			logger.AmfLog.Error("close connection error", zap.Error(err))
+			logger.AmfLog.Debug("close connection error", zap.Error(err))
 		}
 		return true
 	})

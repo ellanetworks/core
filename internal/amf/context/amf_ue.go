@@ -313,7 +313,7 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	go func() {
 		time.Sleep(time.Second * 2)
 		if oldRanUe != nil {
-			oldRanUe.Log.Info("Detached UeContext from OldRanUe")
+			oldRanUe.Log.Debug("Detached UeContext from OldRanUe")
 			oldRanUe.AmfUe = nil
 		}
 	}()

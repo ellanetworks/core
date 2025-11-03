@@ -2,7 +2,6 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
 	"io/fs"
 	"net"
@@ -13,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
-	"github.com/ellanetworks/core/internal/logger"
 )
 
 const (
@@ -67,16 +65,6 @@ func setupServer(filepath string) (*httptest.Server, []byte, *db.Database, error
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
-	ctx := context.Background()
-
-	auditWriter := testdb.AuditWriteFunc(ctx)
-
-	networkLogWriter := testdb.NetworkWriteFunc(ctx)
-
-	logger.SetAuditDBWriter(auditWriter)
-
-	logger.SetNetworkDBWriter(networkLogWriter)
 
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}

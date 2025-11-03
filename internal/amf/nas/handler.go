@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
+	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
 
@@ -31,6 +32,7 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 		ue.AmfUe = nassecurity.FetchUeContextWithMobileIdentity(ctx, nasPdu)
 		if ue.AmfUe == nil {
 			ue.AmfUe = amfSelf.NewAmfUe(ctx, "")
+			logger.AmfLog.Info("Did not find existing UE context, creating new one")
 		}
 
 		eeCtx := ue.AmfUe

@@ -642,7 +642,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 		if err != nil {
 			return fmt.Errorf("error sending GMM registration accept: %v", err)
 		}
-		ue.GmmLog.Info("Sent GMM registration accept to UE")
+		ue.GmmLog.Info("Sent Registration Accept to UE")
 	} else {
 		// TS 23.502 4.12.2.2 10a ~ 13: if non-3gpp, AMF should send initial context setup request to N3IWF first,
 		// and send registration accept after receiving initial context setup response
@@ -1325,10 +1325,10 @@ func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe
 			if err != nil {
 				return fmt.Errorf("error sending ue context release command: %v", err)
 			}
-			ue.GmmLog.Info("sent ue context release command")
+			ue.GmmLog.Debug("sent ue context release command")
 		} else {
 			ue.Remove()
-			ue.GmmLog.Info("removed ue context")
+			ue.GmmLog.Debug("removed ue context")
 		}
 	}
 	return err
