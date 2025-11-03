@@ -7,14 +7,14 @@ toolchain go1.24.2
 require (
 	github.com/RoaringBitmap/roaring v1.9.4
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
-	github.com/cilium/ebpf v0.19.0
+	github.com/cilium/ebpf v0.20.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/gopacket v1.1.19
 	github.com/google/nftables v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.32
-	github.com/moby/moby/client v0.1.0-beta.2
-	github.com/omec-project/nas v1.6.3
+	github.com/moby/moby/client v0.1.0-beta.3
+	github.com/omec-project/nas v1.6.4
 	github.com/omec-project/ngap v1.6.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/vishvananda/netlink v1.3.1
@@ -31,7 +31,6 @@ require (
 )
 
 require (
-	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
@@ -42,8 +41,7 @@ require (
 	github.com/mdlayher/netlink v1.7.3-0.20250113171957-fbb4dce95f42 // indirect
 	github.com/mdlayher/socket v0.5.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
-	github.com/moby/moby/api v1.52.0-beta.2 // indirect
-	github.com/moby/term v0.5.2 // indirect
+	github.com/moby/moby/api v1.52.0-beta.4 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect

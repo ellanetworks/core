@@ -67,17 +67,17 @@ func (dc *DockerClient) ResolveComposeContainer(ctx context.Context, project, se
 		return "", fmt.Errorf("list containers: %w", err)
 	}
 
-	if len(cs) == 0 {
+	if len(cs.Items) == 0 {
 		return "", fmt.Errorf("no container found for project=%q service=%q", project, service)
 	}
 
 	// Prefer the human-readable name
-	if len(cs[0].Names) > 0 {
-		name := strings.TrimPrefix(cs[0].Names[0], "/")
+	if len(cs.Items[0].Names) > 0 {
+		name := strings.TrimPrefix(cs.Items[0].Names[0], "/")
 		return name, nil
 	}
 
-	return cs[0].ID, nil
+	return cs.Items[0].ID, nil
 }
 
 func (dc *DockerClient) Exec(ctx context.Context, containerName string, argv []string, detach bool, timeout time.Duration, mirror io.Writer) (string, error) {
@@ -92,19 +92,19 @@ func (dc *DockerClient) Exec(ctx context.Context, containerName string, argv []s
 		Privileged:   false,
 	}
 
-	execResp, err := dc.ContainerExecCreate(ctx, containerName, execConfig)
+	execResp, err := dc.ExecCreate(ctx, containerName, execConfig)
 	if err != nil {
 		return "", fmt.Errorf("exec create: %w", err)
 	}
 
 	if detach {
-		if err := dc.ContainerExecStart(ctx, execResp.ID, client.ExecStartOptions{Detach: true}); err != nil {
+		if _, err := dc.ExecStart(ctx, execResp.ID, client.ExecStartOptions{Detach: true}); err != nil {
 			return "", fmt.Errorf("exec start (detached): %w", err)
 		}
 		return "", nil
 	}
 
-	attachResp, err := dc.ContainerExecAttach(ctx, execResp.ID, client.ExecStartOptions{})
+	attachResp, err := dc.ExecAttach(ctx, execResp.ID, client.ExecAttachOptions{})
 	if err != nil {
 		return "", fmt.Errorf("exec attach: %w", err)
 	}
@@ -120,7 +120,7 @@ func (dc *DockerClient) Exec(ctx context.Context, containerName string, argv []s
 		return buf.String(), fmt.Errorf("read exec output: %w", err)
 	}
 
-	inspect, err := dc.ContainerExecInspect(ctx, execResp.ID)
+	inspect, err := dc.ExecInspect(ctx, execResp.ID, client.ExecInspectOptions{})
 	if err != nil {
 		return buf.String(), fmt.Errorf("inspect exec: %w", err)
 	}
@@ -168,7 +168,14 @@ func (dc *DockerClient) CopyFileToContainer(ctx context.Context, containerName, 
 
 	dstDir := path.Dir(destPath)
 
-	return dc.CopyToContainer(ctx, containerName, dstDir, &buf, client.CopyToContainerOptions{
+	_, err = dc.CopyToContainer(ctx, containerName, client.CopyToContainerOptions{
+		DestinationPath:           dstDir,
+		Content:                   &buf,
 		AllowOverwriteDirWithFile: true,
 	})
+	if err != nil {
+		return fmt.Errorf("copy to container: %w", err)
+	}
+
+	return nil
 }
