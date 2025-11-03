@@ -121,7 +121,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	if err := smf.Start(dbInstance); err != nil {
 		return fmt.Errorf("couldn't start SMF: %w", err)
 	}
-	if err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port); err != nil {
+	if err := amf.Start(dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port); err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}
 	if err := pcf.Start(dbInstance); err != nil {

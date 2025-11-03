@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func Start(ctx ctxt.Context, dbInstance *db.Database, n2Address string, n2Port int) error {
+func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	self := context.AMFSelf()
 	self.NgapPort = n2Port
 	self.NetworkFeatureSupport5GS = &context.NetworkFeatureSupport5GS{
