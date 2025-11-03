@@ -74,8 +74,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
 
-	auditWriter := dbInstance.AuditWriteFunc(ctx)
-	networkWriter := dbInstance.NetworkWriteFunc(ctx)
+	logCtx, logCancel := context.WithCancel(context.Background())
+	defer logCancel()
+
+	auditWriter := dbInstance.AuditWriteFunc(logCtx)
+	networkWriter := dbInstance.NetworkWriteFunc(logCtx)
 
 	logger.SetAuditDBWriter(auditWriter)
 	logger.SetNetworkDBWriter(networkWriter)
