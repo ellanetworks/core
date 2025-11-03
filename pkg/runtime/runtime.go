@@ -141,6 +141,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}()
 
 	<-ctx.Done()
-	logger.EllaLog.Info("Shutdown signal received, exiting.")
+	logger.EllaLog.Info("Shutting down Ella Core")
 	return nil
 }

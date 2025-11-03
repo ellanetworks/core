@@ -20,7 +20,7 @@ func CleanUp(ctx context.Context, dbInstance *db.Database) {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.SessionsLog.Info("Session cleanup stopped")
+			logger.SessionsLog.Debug("Session cleanup stopped")
 			return
 		case <-ticker.C:
 			tickCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -29,12 +29,12 @@ func CleanUp(ctx context.Context, dbInstance *db.Database) {
 			cancel()
 
 			if err != nil {
-				logger.SessionsLog.Error("error deleting expired sessions", zap.Error(err))
+				logger.SessionsLog.Warn("error deleting expired sessions", zap.Error(err))
 				continue
 			}
 
 			if numDel > 0 {
-				logger.SessionsLog.Info("deleted expired sessions", zap.Int("num", numDel))
+				logger.SessionsLog.Debug("deleted expired sessions", zap.Int("num", numDel))
 			}
 		}
 	}
