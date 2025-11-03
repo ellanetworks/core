@@ -325,7 +325,7 @@ func LogNetworkEvent(
 		detailsStr = detailsStr[:maxDetails] + "...(truncated)"
 	}
 
-	NetworkLog.Debug("network_event",
+	NetworkLog.Info("network_event",
 		zap.String("protocol", string(protocol)),
 		zap.String("message_type", messageType),
 		zap.String("direction", string(dir)),
