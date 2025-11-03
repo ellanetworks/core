@@ -73,10 +73,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	if err != nil {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
-	defer dbInstance.Close()
 
-	auditWriter := dbInstance.AuditWriteFunc(ctx)
-	networkWriter := dbInstance.NetworkWriteFunc(ctx)
+	logCtx, logCancel := context.WithCancel(context.Background())
+	defer logCancel()
+
+	auditWriter := dbInstance.AuditWriteFunc(logCtx)
+	networkWriter := dbInstance.NetworkWriteFunc(logCtx)
 
 	logger.SetAuditDBWriter(auditWriter)
 	logger.SetNetworkDBWriter(networkWriter)
@@ -122,7 +124,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	if err := smf.Start(dbInstance); err != nil {
 		return fmt.Errorf("couldn't start SMF: %w", err)
 	}
-	if err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port); err != nil {
+	if err := amf.Start(dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port); err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}
 	if err := pcf.Start(dbInstance); err != nil {
@@ -132,8 +134,14 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start UDM: %w", err)
 	}
 
-	defer upfInstance.Close()
-	defer amf.Close()
+	defer func() {
+		amf.Close()
+		upfInstance.Close()
+		err := dbInstance.Close()
+		if err != nil {
+			logger.EllaLog.Error("couldn't close database", zap.Error(err))
+		}
+	}()
 
 	<-ctx.Done()
 	logger.EllaLog.Info("Shutdown signal received, exiting.")
