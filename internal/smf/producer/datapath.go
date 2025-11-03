@@ -73,14 +73,14 @@ func SendPFCPRules(ctx ctxt.Context, smContext *context.SMContext) error {
 			if err != nil {
 				return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 			}
-			logger.SmfLog.Info("Sent PFCP session establishment request to upf", zap.String("nodeID", pfcpState.nodeID.String()))
+			logger.SmfLog.Debug("Sent PFCP session establishment request to upf", zap.String("nodeID", pfcpState.nodeID.String()))
 		} else {
 			err := pfcp.SendPfcpSessionModificationRequest(ctx, pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
 			if err != nil {
 				logger.SmfLog.Error("send pfcp session modification request failed", zap.Error(err), zap.String("nodeID", pfcpState.nodeID.String()))
 				return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 			}
-			logger.SmfLog.Info("Sent PFCP session modification request to upf", zap.String("nodeID", pfcpState.nodeID.String()))
+			logger.SmfLog.Debug("Sent PFCP session modification request to upf", zap.String("nodeID", pfcpState.nodeID.String()))
 		}
 	}
 	return nil

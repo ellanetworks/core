@@ -146,7 +146,7 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler NGAPHandler) 
 	defer func() {
 		// if AMF call Stop(), then conn.Close() will return EBADF because conn has been closed inside Stop()
 		if err := conn.Close(); err != nil && err != syscall.EBADF {
-			logger.AmfLog.Error("close connection error", zap.Error(err))
+			logger.AmfLog.Error("close sctp connection error", zap.Error(err))
 		}
 		connections.Delete(conn)
 		logger.AmfLog.Info("Connection closed", zap.String("address", conn.RemoteAddr().String()))

@@ -172,10 +172,10 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) *context
 		ue, _ = context.AMFSelf().AmfUeFindByGuti(guti)
 		if ue != nil {
 			if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
-				ue.NASLog.Info("UE Context derived from Guti but received in plain nas", zap.String("guti", guti))
+				ue.NASLog.Debug("UE Context derived from Guti but received in plain nas", zap.String("guti", guti))
 				return nil
 			}
-			ue.NASLog.Info("UE Context derived from Guti", zap.String("guti", guti))
+			ue.NASLog.Debug("UE Context derived from Guti", zap.String("guti", guti))
 			return ue
 		} else {
 			logger.AmfLog.Warn("UE Context not fround", zap.String("guti", guti))
