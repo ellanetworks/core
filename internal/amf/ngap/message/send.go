@@ -739,8 +739,6 @@ func SendAMFStatusIndication(ran *context.AmfRan, unavailableGUAMIList ngapType.
 		return fmt.Errorf("ran is nil")
 	}
 
-	ran.Log.Info("Send AMF Status Indication")
-
 	if len(unavailableGUAMIList.List) > context.MaxNumOfServedGuamiList {
 		return fmt.Errorf("guami List out of range")
 	}

@@ -73,7 +73,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	if err != nil {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
-	defer dbInstance.Close()
 
 	auditWriter := dbInstance.AuditWriteFunc(ctx)
 	networkWriter := dbInstance.NetworkWriteFunc(ctx)
@@ -134,6 +133,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	defer upfInstance.Close()
 	defer amf.Close()
+	defer dbInstance.Close()
 
 	<-ctx.Done()
 	logger.EllaLog.Info("Shutdown signal received, exiting.")
