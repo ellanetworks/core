@@ -13,11 +13,15 @@ on:
 
 jobs:
   build-image:
-    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        arch: ${{ fromJSON(inputs.archs) }}
+        include:
+          - arch: amd64
+            runs_on: ubuntu-24.04
+          - arch: arm64
+            runs_on: ubuntu-24.04-arm   # hosted ARM64 runner label
+    runs-on: ${{ matrix.runs_on }}
 
     steps:
       - name: Checkout repository
