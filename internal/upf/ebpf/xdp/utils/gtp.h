@@ -30,6 +30,11 @@
 #include "xdp/utils/parsers.h"
 #include "xdp/utils/trace.h"
 
+volatile const int n3_vlan;
+volatile const int n3_vlan = 0;
+volatile const int n6_vlan;
+volatile const int n6_vlan = 0;
+
 static __always_inline __u32 parse_gtp(struct packet_context *ctx)
 {
 	struct gtpuhdr *gtp = (struct gtpuhdr *)ctx->data;
@@ -90,7 +95,7 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx)
 	if (gtp->e || gtp->s || gtp->pn)
 		ext_gtp_header_size += sizeof(struct gtp_hdr_ext) + 4;
 
-	const size_t gtp_encap_size =
+	const size_t gtp_encap_size_no_vlan =
 		sizeof(struct iphdr) + sizeof(struct udphdr) +
 		sizeof(struct gtpuhdr) + ext_gtp_header_size;
 
@@ -102,21 +107,45 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx)
 		return -1;
 	}
 
+	size_t vlan_hdr_size = 0;
+	if (eth->h_proto == bpf_htons(ETH_P_8021Q) || eth->h_proto == bpf_htons(ETH_P_8021AD)) {
+		upf_printk("upf: remove_gtp_header: detected vlan header");
+		vlan_hdr_size += sizeof(struct vlan_hdr);
+	}
+	size_t gtp_encap_size = vlan_hdr_size + gtp_encap_size_no_vlan;
+
 	data += gtp_encap_size;
-	struct ethhdr *new_eth = (struct ethhdr *)data;
+
+	data += sizeof(struct ethhdr);
+	if (data + 1 > data_end)
+		return -1;
+
+	int eth_proto = guess_eth_protocol(data);
+
+	if (eth_proto == -1)
+		return -1;
+
+	struct ethhdr *new_eth = (struct ethhdr *)(data - sizeof(struct ethhdr));
 	if ((const char *)(new_eth + 1) > data_end) {
 		upf_printk("upf: remove_gtp_header: can't set new eth");
 		return -1;
 	}
-
-	data += sizeof(*new_eth);
-	if (data + 1 > data_end)
-		return -1;
-
-	const int eth_proto = guess_eth_protocol(data);
-
-	if (eth_proto == -1)
-		return -1;
+	if (n6_vlan) {
+		struct vlan_hdr *vlan = (struct vlan_hdr *)(data - sizeof(struct vlan_hdr));
+		new_eth = (struct ethhdr *)(data - sizeof(struct vlan_hdr) - sizeof(struct ethhdr));
+		if ((const char *)(new_eth + 1) > data_end) {
+			upf_printk("upf: remove_gtp_header: can't set new eth");
+			return -1;
+		}
+		if ((const char *)(vlan + 1) > data_end) {
+			upf_printk("upf: remove_gtp_header: can't set new vlan");
+			return -1;
+		}
+		vlan->h_vlan_TCI = bpf_htons(n6_vlan & 0x0FFF);
+		vlan->h_vlan_encapsulated_proto = eth_proto;
+		eth_proto = bpf_htons(ETH_P_8021Q);
+		gtp_encap_size -= sizeof(struct vlan_hdr);
+	}
 
 	__builtin_memcpy(new_eth, eth, sizeof(*new_eth));
 
@@ -196,41 +225,65 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 		sizeof(struct gtp_hdr_ext_pdu_session_container);
 	static const size_t gtp_full_hdr_size =
 		sizeof(struct gtpuhdr) + gtp_ext_hdr_size;
-	static const size_t gtp_encap_size = sizeof(struct iphdr) +
-					     sizeof(struct udphdr) +
-					     gtp_full_hdr_size;
+	static const size_t gtp_encap_size_no_vlan = sizeof(struct iphdr) +
+						     sizeof(struct udphdr) +
+						     gtp_full_hdr_size;
+	size_t n3_vlan_hdr_size = 0;
+	if (n3_vlan) {
+		n3_vlan_hdr_size += sizeof(struct vlan_hdr);
+	}
+	size_t n6_vlan_hdr_size = 0;
+	if (ctx->vlan) {
+		n6_vlan_hdr_size += sizeof(struct vlan_hdr);
+	}
+	const size_t gtp_encap_size = n3_vlan_hdr_size - n6_vlan_hdr_size + gtp_encap_size_no_vlan;
 
 	// int ip_packet_len = (ctx->xdp_ctx->data_end - ctx->xdp_ctx->data) - sizeof(*eth);
 	int ip_packet_len = 0;
-	if (ctx->ip4)
+	if (ctx->ip4) {
 		ip_packet_len = bpf_ntohs(ctx->ip4->tot_len);
-	else if (ctx->ip6)
+	} else if (ctx->ip6) {
 		ip_packet_len = bpf_ntohs(ctx->ip6->payload_len) +
 				sizeof(struct ipv6hdr);
-	else
+	} else {
 		return -1;
+	}
 
 	int result = bpf_xdp_adjust_head(ctx->xdp_ctx, (__s32)-gtp_encap_size);
-	if (result)
+	if (result) {
 		return -1;
+	}
 
 	char *data = (char *)(long)ctx->xdp_ctx->data;
 	const char *data_end = (const char *)(long)ctx->xdp_ctx->data_end;
 
 	struct ethhdr *orig_eth = (struct ethhdr *)(data + gtp_encap_size);
-	if ((const char *)(orig_eth + 1) > data_end)
+	if ((const char *)(orig_eth + 1) > data_end) {
 		return -1;
+	}
 
 	struct ethhdr *eth = (struct ethhdr *)data;
 	__builtin_memcpy(eth, orig_eth, sizeof(*eth));
 	eth->h_proto = bpf_htons(ETH_P_IP);
 
 	struct iphdr *ip = (struct iphdr *)(eth + 1);
-	if ((const char *)(ip + 1) > data_end)
+	if ((const char *)(ip + 1) > data_end) {
 		return -1;
+	}
+
+	if (n3_vlan) {
+		eth->h_proto = bpf_htons(ETH_P_8021Q);
+		struct vlan_hdr *vlan = (struct vlan_hdr *)ip;
+		vlan->h_vlan_TCI = bpf_htons(n3_vlan & 0x0FFF);
+		vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
+		ip = (struct iphdr *)((void *)ip + sizeof(struct vlan_hdr)); 
+		if ((const char *)(ip + 1) > data_end) {
+			return -1;
+		}
+	}
 
 	/* Add the outer IP header */
-	fill_ip_header(ip, saddr, daddr, tos, ip_packet_len + gtp_encap_size);
+	fill_ip_header(ip, saddr, daddr, tos, ip_packet_len + gtp_encap_size_no_vlan);
 
 	/* Add the UDP header */
 	struct udphdr *udp = (struct udphdr *)(ip + 1);

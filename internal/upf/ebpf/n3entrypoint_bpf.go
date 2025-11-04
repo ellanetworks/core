@@ -187,6 +187,10 @@ type N3EntrypointMapSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3EntrypointVariableSpecs struct {
 	Masquerade *ebpf.VariableSpec `ebpf:"masquerade"`
+	N3Ifindex  *ebpf.VariableSpec `ebpf:"n3_ifindex"`
+	N3Vlan     *ebpf.VariableSpec `ebpf:"n3_vlan"`
+	N6Ifindex  *ebpf.VariableSpec `ebpf:"n6_ifindex"`
+	N6Vlan     *ebpf.VariableSpec `ebpf:"n6_vlan"`
 }
 
 // N3EntrypointObjects contains all objects after they have been loaded into the kernel.
@@ -233,6 +237,10 @@ func (m *N3EntrypointMaps) Close() error {
 // It can be passed to LoadN3EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3EntrypointVariables struct {
 	Masquerade *ebpf.Variable `ebpf:"masquerade"`
+	N3Ifindex  *ebpf.Variable `ebpf:"n3_ifindex"`
+	N3Vlan     *ebpf.Variable `ebpf:"n3_vlan"`
+	N6Ifindex  *ebpf.Variable `ebpf:"n6_ifindex"`
+	N6Vlan     *ebpf.Variable `ebpf:"n6_vlan"`
 }
 
 // N3EntrypointPrograms contains all programs after they have been loaded into the kernel.

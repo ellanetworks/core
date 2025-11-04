@@ -10,6 +10,7 @@ import (
 
 	bpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/upf/core"
@@ -36,14 +37,39 @@ type UPF struct {
 	gcCancel context.CancelFunc
 }
 
-func Start(ctx context.Context, n3Address string, n3Interface string, n6Interface string, xdpAttachMode string, masquerade bool) (*UPF, error) {
+func Start(ctx context.Context, n3Interface config.N3Interface, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool) (*UPF, error) {
+	var n3Vlan uint32
+	var n6Vlan uint32
+
 	if err := ebpf.IncreaseResourceLimits(); err != nil {
 		logger.UpfLog.Fatal("Can't increase resource limits", zap.Error(err))
 	}
 
-	bpfObjects := ebpf.NewBpfObjects(masquerade)
+	n3AttachmentInterface := n3Interface.Name
+	if n3Interface.VlanConfig != nil {
+		n3AttachmentInterface = n3Interface.VlanConfig.MasterInterface
+		n3Vlan = uint32(n3Interface.VlanConfig.VlanId)
+	}
+	n3Iface, err := net.InterfaceByName(n3AttachmentInterface)
+	if err != nil {
+		logger.UpfLog.Fatal("Lookup network iface", zap.String("iface", n3AttachmentInterface), zap.Error(err))
+		return nil, err
+	}
 
-	err := ebpf.PinMaps()
+	n6AttachmentInterface := n6Interface.Name
+	if n6Interface.VlanConfig != nil {
+		n6AttachmentInterface = n6Interface.VlanConfig.MasterInterface
+		n6Vlan = uint32(n6Interface.VlanConfig.VlanId)
+	}
+	n6Iface, err := net.InterfaceByName(n6AttachmentInterface)
+	if err != nil {
+		logger.UpfLog.Fatal("Lookup network iface", zap.String("iface", n6AttachmentInterface), zap.Error(err))
+		return nil, err
+	}
+
+	bpfObjects := ebpf.NewBpfObjects(masquerade, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
+
+	err = ebpf.PinMaps()
 	if err != nil {
 		logger.UpfLog.Fatal("Creating BPF pin path failed", zap.Error(err))
 		return nil, err
@@ -54,25 +80,13 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 		return nil, err
 	}
 
-	n3Iface, err := net.InterfaceByName(n3Interface)
-	if err != nil {
-		logger.UpfLog.Fatal("Lookup network iface", zap.String("iface", n3Interface), zap.Error(err))
-		return nil, err
-	}
-
 	n3Link, err := link.AttachXDP(link.XDPOptions{
 		Program:   bpfObjects.UpfN3EntrypointFunc,
 		Interface: n3Iface.Index,
 		Flags:     StringToXDPAttachMode(xdpAttachMode),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to attach eBPF program on n3 interface %q: %s", n3Interface, err)
-	}
-
-	n6Iface, err := net.InterfaceByName(n6Interface)
-	if err != nil {
-		logger.UpfLog.Fatal("Lookup network iface", zap.String("iface", n6Interface), zap.Error(err))
-		return nil, err
+		return nil, fmt.Errorf("failed to attach eBPF program on n3 interface %q: %s", n3AttachmentInterface, err)
 	}
 
 	n6Link, err := link.AttachXDP(link.XDPOptions{
@@ -81,7 +95,7 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 		Flags:     StringToXDPAttachMode(xdpAttachMode),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to attach eBPF program on n6 interface %q: %s", n6Interface, err)
+		return nil, fmt.Errorf("failed to attach eBPF program on n6 interface %q: %s", n6AttachmentInterface, err)
 	}
 
 	resourceManager, err := core.NewFteIDResourceManager(FTEIDPool)
@@ -89,7 +103,7 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 		return nil, fmt.Errorf("failed to create Resource Manager: %w", err)
 	}
 
-	pfcpConn, err := core.CreatePfcpConnection(PfcpAddress, PfcpNodeID, n3Address, SmfAddress, bpfObjects, resourceManager)
+	pfcpConn, err := core.CreatePfcpConnection(PfcpAddress, PfcpNodeID, n3Interface.Address, SmfAddress, bpfObjects, resourceManager)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PFCP connection: %w", err)
 	}

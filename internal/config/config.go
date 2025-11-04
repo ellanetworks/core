@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/vishvananda/netlink"
 	"gopkg.in/yaml.v2"
 )
 
@@ -120,12 +121,14 @@ type N2Interface struct {
 }
 
 type N3Interface struct {
-	Name    string
-	Address string
+	Name       string
+	Address    string
+	VlanConfig *VlanConfig
 }
 
 type N6Interface struct {
-	Name string
+	Name       string
+	VlanConfig *VlanConfig
 }
 
 type APIInterface struct {
@@ -172,6 +175,11 @@ type Config struct {
 	Interfaces Interfaces
 	XDP        XDP
 	Telemetry  Telemetry
+}
+
+type VlanConfig struct {
+	MasterInterface string
+	VlanId          int
 }
 
 func Validate(filePath string) (Config, error) {
@@ -301,6 +309,17 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("xdp.attach-mode is invalid. Allowed values are: native, generic")
 	}
 
+	if c.XDP.AttachMode == AttachModeNative {
+		config.Interfaces.N3.VlanConfig, err = GetVLANConfigForInterfaceFunc(c.Interfaces.N3.Name)
+		if err != nil {
+			return Config{}, fmt.Errorf("cannot get vlan config for interface %s: %w", c.Interfaces.N3.Name, err)
+		}
+		config.Interfaces.N6.VlanConfig, err = GetVLANConfigForInterfaceFunc(c.Interfaces.N6.Name)
+		if err != nil {
+			return Config{}, fmt.Errorf("cannot get vlan config for interface %s: %w", c.Interfaces.N6.Name, err)
+		}
+	}
+
 	if c.Telemetry.Enabled && c.Telemetry.OTLPEndpoint == "" {
 		return Config{}, errors.New("telemetry.otlp-endpoint is empty when telemetry.enabled is true")
 	}
@@ -421,6 +440,24 @@ var GetInterfaceNameFunc = func(address string) (string, error) {
 	}
 
 	return "", nil
+}
+
+var GetVLANConfigForInterfaceFunc = func(name string) (*VlanConfig, error) {
+	link, err := netlink.LinkByName(name)
+	if err != nil {
+		return nil, err
+	}
+	if link.Type() == "vlan" {
+		vlanLink := link.(*netlink.Vlan)
+		parentLink, err := netlink.LinkByIndex(vlanLink.ParentIndex)
+		if err != nil {
+			return nil, err
+		}
+		config := VlanConfig{MasterInterface: parentLink.Attrs().Name, VlanId: vlanLink.VlanId}
+
+		return &config, nil
+	}
+	return nil, nil
 }
 
 func GetInterfaceIP(name string) (string, error) {

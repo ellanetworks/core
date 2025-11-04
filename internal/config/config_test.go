@@ -62,6 +62,9 @@ func TestValidConfigSuccess(t *testing.T) {
 	config.GetInterfaceIPFunc = func(name string) (string, error) {
 		return InterfaceIP, nil
 	}
+	config.GetVLANConfigForInterfaceFunc = func(name string) (*config.VlanConfig, error) {
+		return nil, nil
+	}
 
 	// Update the config file to use the temporary cert and key paths
 	confFilePath := "testdata/valid.yaml"
@@ -136,6 +139,9 @@ func TestValidConfigNoTLSSuccess(t *testing.T) {
 
 	config.GetInterfaceNameFunc = func(name string) (string, error) {
 		return InterfaceName, nil
+	}
+	config.GetVLANConfigForInterfaceFunc = func(name string) (*config.VlanConfig, error) {
+		return nil, nil
 	}
 
 	confFilePath := "testdata/valid_no_tls.yaml"

@@ -99,7 +99,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't determine if NAT is enabled: %w", err)
 	}
 
-	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3.Address, cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name, cfg.XDP.AttachMode, isNATEnabled)
+	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
