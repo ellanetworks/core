@@ -166,6 +166,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	if len(kStr) != keyStrLen {
 		return nil, fmt.Errorf("kStr length is %d", len(kStr))
 	}
+
 	k, err = hex.DecodeString(kStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode k: %w", err)

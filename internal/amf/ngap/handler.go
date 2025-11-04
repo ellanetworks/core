@@ -486,16 +486,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 	return ranUe, aMFUENGAPID
 }
 
-// func rawMessage(message ngapType.NGAPPDU) []byte {
-// 	raw, err := ngap.Encoder(message)
-// 	if err != nil {
-// 		logger.AmfLog.Warn("error encoding ngap message", zap.Error(err))
-// 		return nil
-// 	}
-
-// 	return raw
-// }
-
 func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var globalRANNodeID *ngapType.GlobalRANNodeID
 	var rANNodeName *ngapType.RANNodeName

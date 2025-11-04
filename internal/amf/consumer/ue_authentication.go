@@ -41,11 +41,13 @@ func SendUEAuthenticationAuthenticateRequest(ctx ctxt.Context, ue *context.AmfUe
 	if resynchronizationInfo != nil {
 		authInfo.ResynchronizationInfo = resynchronizationInfo
 	}
+
 	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(ctx, authInfo)
 	if err != nil {
-		logger.AmfLog.Error("UE Authentication Authenticate Request failed", zap.Error(err))
+		logger.AmfLog.Warn("UE Authentication Authenticate Request failed", zap.Error(err))
 		return nil, err
 	}
+
 	return ueAuthenticationCtx, nil
 }
 

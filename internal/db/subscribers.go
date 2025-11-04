@@ -135,6 +135,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 		span.SetStatus(codes.Error, "prepare failed")
 		return nil, err
 	}
+
 	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

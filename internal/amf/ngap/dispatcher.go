@@ -29,10 +29,16 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 	var ran *context.AmfRan
 	amfSelf := context.AMFSelf()
 
+	remoteAddress := conn.RemoteAddr()
+	if remoteAddress == nil {
+		logger.AmfLog.Debug("Remote address is nil")
+		return
+	}
+
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
 		ran = amfSelf.NewAmfRan(conn)
-		logger.AmfLog.Info("Added a new radio", zap.String("address", conn.RemoteAddr().String()))
+		logger.AmfLog.Info("Added a new radio", zap.String("address", remoteAddress.String()))
 	}
 
 	if len(msg) == 0 {
@@ -54,7 +60,7 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 		getMessageType(pdu),
 		logger.DirectionInbound,
 		ran.Conn.LocalAddr().String(),
-		ran.Conn.RemoteAddr().String(),
+		remoteAddress.String(),
 		msg,
 	)
 
@@ -419,7 +425,7 @@ func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification)
 
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
-		logger.AmfLog.Warn("couldn't find RAN context", zap.Any("address", conn.RemoteAddr()))
+		logger.AmfLog.Debug("couldn't find RAN context", zap.Any("address", conn.RemoteAddr()))
 		return
 	}
 
