@@ -447,18 +447,18 @@ func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification)
 		event := notification.(*sctp.SCTPAssocChangeEvent)
 		switch event.State() {
 		case sctp.SCTPCommLost:
-			ran.Log.Info("SCTP state is SCTPCommLost, close the connection")
 			ran.Remove()
+			ran.Log.Info("Closed connection with radio after SCTP Communication Lost")
 		case sctp.SCTPShutdownComp:
-			ran.Log.Info("SCTP state is SCTPShutdownComp, close the connection")
 			ran.Remove()
+			ran.Log.Info("Closed connection with radio after SCTP Shutdown Complete")
 		default:
 			ran.Log.Info("SCTP state is not handled", zap.Int("state", int(event.State())))
 		}
 	case sctp.SCTPShutdownEvent:
-		ran.Log.Info("SCTPShutdownEvent notification, close the connection")
 		ran.Remove()
+		ran.Log.Info("Closed connection with radio after SCTP Shutdown Event")
 	default:
-		ran.Log.Warn("Non handled notification type", zap.Any("type", notification.Type()))
+		ran.Log.Warn("Unhandled SCTP notification type", zap.Any("type", notification.Type()))
 	}
 }
