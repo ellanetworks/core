@@ -1334,6 +1334,25 @@ func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe
 	return err
 }
 
+func serviceTypeToString(serviceType uint8) string {
+	switch serviceType {
+	case nasMessage.ServiceTypeSignalling:
+		return "Signalling"
+	case nasMessage.ServiceTypeData:
+		return "Data"
+	case nasMessage.ServiceTypeMobileTerminatedServices:
+		return "Mobile Terminated Services"
+	case nasMessage.ServiceTypeEmergencyServices:
+		return "Emergency Services"
+	case nasMessage.ServiceTypeEmergencyServicesFallback:
+		return "Emergency Services Fallback"
+	case nasMessage.ServiceTypeHighPriorityAccess:
+		return "High Priority Access"
+	default:
+		return "Unknown"
+	}
+}
+
 // TS 24501 5.6.1
 func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, serviceRequest *nasMessage.ServiceRequest) error {
 	if ue == nil {
@@ -1409,6 +1428,9 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	}
 
 	serviceType := serviceRequest.GetServiceTypeValue()
+
+	logger.AmfLog.Debug("Handle Service Request", zap.String("supi", ue.Supi), zap.String("serviceType", serviceTypeToString(serviceType)))
+
 	var reactivationResult, acceptPduSessionPsi *[16]bool
 	var errPduSessionID, errCause []uint8
 	var targetPduSessionID int32
