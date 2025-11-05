@@ -352,6 +352,10 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 					aMFUENGAPID = ie.Value.AMFUENGAPID
 				}
 			}
+			if rANUENGAPID == nil {
+				ran.Log.Error("RANUENGAPID is nil")
+				return nil, nil
+			}
 			ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 
 		case ngapType.ProcedureCodeUEContextModification:
@@ -387,6 +391,11 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				case ngapType.ProtocolIEIDAMFUENGAPID:
 					aMFUENGAPID = ie.Value.AMFUENGAPID
 				}
+			}
+
+			if rANUENGAPID == nil {
+				ran.Log.Error("RANUENGAPID is nil")
+				return nil, nil
 			}
 			ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 
@@ -2183,6 +2192,16 @@ func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, me
 				ran.Log.Warn("Criticality Diagnostics is nil")
 			}
 		}
+	}
+
+	if rANUENGAPID == nil {
+		ran.Log.Error("RanUeNgapID is nil")
+		return
+	}
+
+	if aMFUENGAPID == nil {
+		ran.Log.Error("AmfUeNgapID is nil")
+		return
 	}
 
 	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
