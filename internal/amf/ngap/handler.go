@@ -2195,12 +2195,12 @@ func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, me
 	}
 
 	if rANUENGAPID == nil {
-		ran.Log.Error("RanUeNgapID is nil")
+		ran.Log.Error("initial context setup response is missing RANUENGAPID")
 		return
 	}
 
 	if aMFUENGAPID == nil {
-		ran.Log.Error("AmfUeNgapID is nil")
+		ran.Log.Error("initial context setup response is missing AMFUENGAPID")
 		return
 	}
 

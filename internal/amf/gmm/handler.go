@@ -455,10 +455,13 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	}
 
 	mobileIdentity5GSContents := registrationRequest.MobileIdentity5GS.GetMobileIdentity5GSContents()
+	if len(mobileIdentity5GSContents) == 0 {
+		return errors.New("mobile identity 5GS is empty")
+	}
 	ue.IdentityTypeUsedForRegistration = nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0])
 	switch ue.IdentityTypeUsedForRegistration { // get type of identity
 	case nasMessage.MobileIdentity5GSTypeNoIdentity:
-		ue.GmmLog.Debug("No Identity")
+		ue.GmmLog.Debug("No Identity used for registration")
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
@@ -467,7 +470,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		guamiFromUeGutiTmp, guti := util.GutiToString(mobileIdentity5GSContents)
 		guamiFromUeGuti = guamiFromUeGutiTmp
 		ue.Guti = guti
-		ue.GmmLog.Debug("GUTI", zap.String("guti", guti))
+		ue.GmmLog.Debug("UE used GUTI identity for registration", zap.String("guti", guti))
 
 		guamiList := context.GetServedGuamiList(ctx)
 		servedGuami := guamiList[0]
@@ -480,11 +483,11 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	case nasMessage.MobileIdentity5GSTypeImei:
 		imei := nasConvert.PeiToString(mobileIdentity5GSContents)
 		ue.Pei = imei
-		ue.GmmLog.Debug("PEI", zap.String("imei", imei))
+		ue.GmmLog.Debug("UE used IMEI identity for registration", zap.String("imei", imei))
 	case nasMessage.MobileIdentity5GSTypeImeisv:
 		imeisv := nasConvert.PeiToString(mobileIdentity5GSContents)
 		ue.Pei = imeisv
-		ue.GmmLog.Debug("PEI", zap.String("imeisv", imeisv))
+		ue.GmmLog.Debug("UE used IMEISV identity for registration", zap.String("imeisv", imeisv))
 	}
 
 	// NgKsi: TS 24.501 9.11.3.32
@@ -705,6 +708,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 	negotiateDRXParameters(ue, ue.RegistrationRequest.RequestedDRXParameters)
 
 	if len(ue.Pei) == 0 {
+		ue.GmmLog.Debug("The UE did not provide PEI")
 		err := gmm_message.SendIdentityRequest(ue.RanUe[anType], nasMessage.MobileIdentity5GSTypeImei)
 		if err != nil {
 			return fmt.Errorf("error sending identity request: %v", err)
@@ -1249,9 +1253,12 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe, accessType mod
 		if ue.SecurityContextIsValid() {
 			ue.GmmLog.Debug("UE has a valid security context - skip the authentication procedure")
 			return true, nil
+		} else {
+			ue.GmmLog.Debug("UE has no valid security context - continue with the authentication procedure")
 		}
 	} else {
 		// Request UE's SUCI by sending identity request
+		ue.GmmLog.Debug("UE has no SUCI / SUPI - send identity request to UE")
 		err := gmm_message.SendIdentityRequest(ue.RanUe[accessType], nasMessage.MobileIdentity5GSTypeSuci)
 		if err != nil {
 			return false, fmt.Errorf("error sending identity request: %v", err)
