@@ -15,7 +15,6 @@ import (
 	"reflect"
 	"regexp"
 	"sync"
-	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -304,24 +303,41 @@ func (ue *AmfUe) DetachRanUe(anType models.AccessType) {
 	delete(ue.RanUe, anType)
 }
 
-func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
-	/* detach any RanUe associated to it */
-	oldRanUe := ue.RanUe[ranUe.Ran.AnType]
-	ue.RanUe[ranUe.Ran.AnType] = ranUe
-	ranUe.AmfUe = ue
+// func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
+// 	/* detach any RanUe associated to it */
+// 	oldRanUe := ue.RanUe[ranUe.Ran.AnType]
+// 	ue.RanUe[ranUe.Ran.AnType] = ranUe
+// 	ranUe.AmfUe = ue
 
-	go func() {
-		time.Sleep(time.Second * 2)
-		if oldRanUe != nil {
-			oldRanUe.Log.Info("Detached UeContext from OldRanUe")
-			oldRanUe.AmfUe = nil
-		}
-	}()
+// 	go func() {
+// 		time.Sleep(time.Second * 2)
+// 		if oldRanUe != nil {
+// 			oldRanUe.Log.Info("Detached UeContext from OldRanUe")
+// 			oldRanUe.AmfUe = nil
+// 		}
+// 	}()
+
+// 	// set log information
+// 	ue.NASLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
+// 	ue.GmmLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
+// 	ue.TxLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
+// }
+
+func AttachRanUe(amfUe *AmfUe, ranUe *RanUe) {
+	/* detach any RanUe associated to it */
+	oldRanUe := amfUe.RanUe[ranUe.Ran.AnType]
+	amfUe.RanUe[ranUe.Ran.AnType] = ranUe
+	ranUe.AmfUe = amfUe
+
+	if oldRanUe != nil {
+		oldRanUe.Log.Info("Detached UeContext from OldRanUe")
+		oldRanUe.AmfUe = nil
+	}
 
 	// set log information
-	ue.NASLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
-	ue.GmmLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
-	ue.TxLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
+	amfUe.NASLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
+	amfUe.GmmLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
+	amfUe.TxLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
 }
 
 func (ue *AmfUe) GetAnType() models.AccessType {
