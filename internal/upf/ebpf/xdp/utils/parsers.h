@@ -37,11 +37,26 @@
 static __always_inline int parse_ethernet(struct packet_context *ctx)
 {
 	struct ethhdr *eth = (struct ethhdr *)ctx->data;
-	if ((const char *)(eth + 1) > ctx->data_end)
+	if ((const char *)(eth + 1) > ctx->data_end) {
 		return -1;
+	}
 
 	ctx->data += sizeof(*eth);
 	ctx->eth = eth;
+	ctx->vlan = NULL;
+
+	if (eth->h_proto == bpf_htons(ETH_P_8021Q) || eth->h_proto == bpf_htons(ETH_P_8021AD)) {
+		struct vlan_hdr *vlan = (struct vlan_hdr *)ctx->data;
+
+		if ((const char *)(ctx->data + sizeof(*vlan)) > ctx->data_end) {
+			return -1;
+		}
+
+		ctx->data += sizeof(*vlan);
+		ctx->vlan = vlan;
+		return bpf_ntohs(vlan->h_vlan_encapsulated_proto);
+	}
+
 	return bpf_ntohs(eth->h_proto);
 }
 

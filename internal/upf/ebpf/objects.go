@@ -30,14 +30,22 @@ type BpfObjects struct {
 	N3EntrypointObjects
 	N6EntrypointObjects
 
-	FarIDTracker *IDTracker
-	QerIDTracker *IDTracker
-	Masquerade   bool
+	FarIDTracker     *IDTracker
+	QerIDTracker     *IDTracker
+	Masquerade       bool
+	N3InterfaceIndex uint32
+	N6InterfaceIndex uint32
+	N3Vlan           uint32
+	N6Vlan           uint32
 }
 
-func NewBpfObjects(masquerade bool) *BpfObjects {
+func NewBpfObjects(masquerade bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
 	return &BpfObjects{
-		Masquerade: masquerade,
+		Masquerade:       masquerade,
+		N3InterfaceIndex: uint32(n3ifindex),
+		N6InterfaceIndex: uint32(n6ifindex),
+		N3Vlan:           n3vlan,
+		N6Vlan:           n6vlan,
 	}
 }
 
@@ -89,6 +97,22 @@ func (bpfObjects *BpfObjects) Load() error {
 func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, to any, opts *ebpf.CollectionOptions) error {
 	if err := spec.Variables["masquerade"].Set(bpfObjects.Masquerade); err != nil {
 		logger.UpfLog.Error("failed to set masquerade value", zap.Error(err))
+		return err
+	}
+	if err := spec.Variables["n3_ifindex"].Set(bpfObjects.N3InterfaceIndex); err != nil {
+		logger.UpfLog.Error("failed to set n3 interface index", zap.Error(err))
+		return err
+	}
+	if err := spec.Variables["n6_ifindex"].Set(bpfObjects.N6InterfaceIndex); err != nil {
+		logger.UpfLog.Error("failed to set n6 interface index", zap.Error(err))
+		return err
+	}
+	if err := spec.Variables["n3_vlan"].Set(bpfObjects.N3Vlan); err != nil {
+		logger.UpfLog.Error("failed to set n3 vlan id", zap.Error(err))
+		return err
+	}
+	if err := spec.Variables["n6_vlan"].Set(bpfObjects.N6Vlan); err != nil {
+		logger.UpfLog.Error("failed to set n6 vlan id", zap.Error(err))
 		return err
 	}
 	if err := spec.LoadAndAssign(to, opts); err != nil {
