@@ -99,7 +99,7 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 							ran.Log.Error("NewRanUe Error", zap.Error(err))
 						}
 						ranUe.Log.Warn("Known UE", zap.String("guti", guti))
-						context.AttachRanUe(amfUe, ranUe)
+						amfUe.AttachRanUe(ranUe)
 					}
 				}
 			}
@@ -1119,7 +1119,7 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 		if err != nil {
 			ran.Log.Error(err.Error())
 		}
-		context.AttachRanUe(amfUe, targetRanUe)
+		amfUe.AttachRanUe(targetRanUe)
 	default:
 		ran.Log.Error("Invalid Release Action", zap.Any("ReleaseAction", ranUe.ReleaseAction))
 	}
@@ -1509,12 +1509,12 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 					amfUe.DetachRanUe(ran.AnType)
 				}
 				ranUe.Log.Debug("AmfUe Attach RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
-				context.AttachRanUe(amfUe, ranUe)
+				amfUe.AttachRanUe(ranUe)
 			}
 		}
 	} else {
 		ranUe.Ran = ran
-		context.AttachRanUe(ranUe.AmfUe, ranUe)
+		ranUe.AmfUe.AttachRanUe(ranUe)
 	}
 
 	if userLocationInformation != nil {
@@ -2883,7 +2883,7 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 				ran.Log.Error("Send UpdateSmContextN2HandoverComplete Error", zap.Error(err))
 			}
 		}
-		context.AttachRanUe(amfUe, targetUe)
+		amfUe.AttachRanUe(targetUe)
 		err := ngap_message.SendUEContextReleaseCommand(sourceUe, context.UeContextReleaseHandover, ngapType.CausePresentNas,
 			ngapType.CauseNasPresentNormalRelease)
 		if err != nil {

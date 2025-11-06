@@ -37,7 +37,7 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 		eeCtx.Mutex.Lock()
 		defer eeCtx.Mutex.Unlock()
 
-		context.AttachRanUe(eeCtx, ue)
+		eeCtx.AttachRanUe(ue)
 
 		nasMsg := context.NasMsg{
 			AnType:        ue.Ran.AnType,
