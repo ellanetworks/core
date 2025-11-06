@@ -463,6 +463,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	case nasMessage.MobileIdentity5GSTypeNoIdentity:
 		ue.GmmLog.Debug("No Identity used for registration")
 	case nasMessage.MobileIdentity5GSTypeSuci:
+		ue.GmmLog.Debug("UE used SUCI identity for registration")
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
 		ue.PlmnID = PlmnIDStringToModels(plmnID)
@@ -2024,6 +2025,7 @@ func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, anType mode
 	if securityModeComplete.IMEISV != nil {
 		ue.GmmLog.Debug("receieve IMEISV")
 		ue.Pei = nasConvert.PeiToString(securityModeComplete.IMEISV.Octet[:])
+		logger.AmfLog.Warn("TO DELETE: Storing PEI from IMEISV IE is for test purpose only", zap.String("supi", ue.Supi), zap.String("PEI", ue.Pei))
 	}
 
 	if securityModeComplete.NASMessageContainer != nil {
