@@ -1744,6 +1744,8 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.Access
 
 // TS 24.501 5.4.1
 func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, authenticationResponse *nasMessage.AuthenticationResponse) error {
+	logger.AmfLog.Debug("Handle Authentication Response", zap.String("supi", ue.Supi))
+
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
 		ue.T3560 = nil // clear the timer
@@ -1884,6 +1886,8 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessTyp
 }
 
 func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, authenticationFailure *nasMessage.AuthenticationFailure) error {
+	logger.AmfLog.Debug("Handle Authentication Failure", zap.String("supi", ue.Supi))
+
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
 		ue.T3560 = nil // clear the timer
@@ -1977,6 +1981,8 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 }
 
 func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, registrationComplete *nasMessage.RegistrationComplete) error {
+	logger.AmfLog.Debug("Handle Registration Complete", zap.String("supi", ue.Supi))
+
 	if ue.T3550 != nil {
 		ue.T3550.Stop()
 		ue.T3550 = nil // clear the timer
@@ -2008,6 +2014,8 @@ func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType 
 
 // TS 33.501 6.7.2
 func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, procedureCode int64, securityModeComplete *nasMessage.SecurityModeComplete) error {
+	logger.AmfLog.Debug("Handle Security Mode Complete", zap.String("supi", ue.Supi))
+
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
@@ -2055,9 +2063,9 @@ func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, anType mode
 	})
 }
 
-func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType,
-	securityModeReject *nasMessage.SecurityModeReject,
-) error {
+func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType, securityModeReject *nasMessage.SecurityModeReject) error {
+	logger.AmfLog.Debug("Handle Security Mode Reject", zap.String("supi", ue.Supi))
+
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
 		ue.T3560 = nil // clear the timer
@@ -2078,9 +2086,9 @@ func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType,
 }
 
 // TS 23.502 4.2.2.3
-func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType,
-	deregistrationRequest *nasMessage.DeregistrationRequestUEOriginatingDeregistration,
-) error {
+func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, deregistrationRequest *nasMessage.DeregistrationRequestUEOriginatingDeregistration) error {
+	logger.AmfLog.Debug("Handle Deregistration Request", zap.String("supi", ue.Supi))
+
 	targetDeregistrationAccessType := deregistrationRequest.GetAccessType()
 	ue.SmContextList.Range(func(key, value interface{}) bool {
 		smContext := value.(*context.SmContext)
@@ -2180,9 +2188,9 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType mod
 }
 
 // TS 23.502 4.2.2.3
-func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType,
-	deregistrationAccept *nasMessage.DeregistrationAcceptUETerminatedDeregistration,
-) error {
+func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, deregistrationAccept *nasMessage.DeregistrationAcceptUETerminatedDeregistration) error {
+	logger.AmfLog.Debug("Handle Deregistration Accept", zap.String("supi", ue.Supi))
+
 	if ue.T3522 != nil {
 		ue.T3522.Stop()
 		ue.T3522 = nil // clear the timer
@@ -2234,6 +2242,8 @@ func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType mode
 }
 
 func HandleStatus5GMM(ue *context.AmfUe, anType models.AccessType, status5GMM *nasMessage.Status5GMM) error {
+	logger.AmfLog.Debug("Handle 5GMM Status", zap.String("supi", ue.Supi))
+
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
@@ -2244,6 +2254,8 @@ func HandleStatus5GMM(ue *context.AmfUe, anType models.AccessType, status5GMM *n
 }
 
 func HandleAuthenticationError(ue *context.AmfUe, anType models.AccessType) error {
+	logger.AmfLog.Debug("Handle Authentication Error", zap.String("supi", ue.Supi))
+
 	if ue.RegistrationRequest != nil {
 		err := gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
 		if err != nil {
