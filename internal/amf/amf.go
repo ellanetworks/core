@@ -43,7 +43,7 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 		Short: "ELLACORE",
 	}
 	self.T3502Value = 720
-	self.T3512Value = 3600
+	self.T3512Value = 30 //TODO: Revert to 3600 before merging
 	self.T3513Cfg = context.TimerValue{
 		Enable:        true,
 		ExpireTime:    6 * time.Second,
