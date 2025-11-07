@@ -63,7 +63,6 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 		}
 
 		if needCiphering {
-			ue.NASLog.Debug("Encrypt NAS message", zap.Uint8("algorithm", ue.CipheringAlg), zap.Uint32("DLCount", ue.DLCount.Get()))
 			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.DLCount.Get(), security.Bearer3GPP,
 				security.DirectionDownlink, payload); err != nil {
 				return nil, fmt.Errorf("error encrypting: %+v", err)
