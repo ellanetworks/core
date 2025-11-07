@@ -72,7 +72,7 @@ func (db *Database) InitializeNATSettings(ctx context.Context) error {
 		return fmt.Errorf("failed to insert default NAT settings: %w", err)
 	}
 
-	logger.DBLog.Info("Initialized NAT settings")
+	logger.DBLog.Debug("Initialized NAT settings")
 	span.SetStatus(codes.Ok, "")
 	return nil
 }
