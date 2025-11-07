@@ -119,7 +119,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 			continue
 		}
 
-		logger.AmfLog.Info("New connection", zap.String("address", remoteAddress.String()))
+		logger.AmfLog.Info("New SCTP connection", zap.String("remote_address", remoteAddress.String()))
 		connections.Store(newConn, newConn)
 
 		go handleConnection(newConn, readBufSize, handler)

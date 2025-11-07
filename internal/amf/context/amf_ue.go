@@ -15,7 +15,6 @@ import (
 	"reflect"
 	"regexp"
 	"sync"
-	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -305,18 +304,23 @@ func (ue *AmfUe) DetachRanUe(anType models.AccessType) {
 }
 
 func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
-	/* detach any RanUe associated to it */
-	oldRanUe := ue.RanUe[ranUe.Ran.AnType]
-	ue.RanUe[ranUe.Ran.AnType] = ranUe
+	if ranUe == nil || ranUe.Ran == nil {
+		return
+	}
+
+	anType := ranUe.Ran.AnType
+
+	oldRanUe := ue.RanUe[anType]
+
+	ue.RanUe[anType] = ranUe
 	ranUe.AmfUe = ue
 
-	go func() {
-		time.Sleep(time.Second * 2)
-		if oldRanUe != nil {
-			oldRanUe.Log.Info("Detached UeContext from OldRanUe")
+	if oldRanUe != nil && oldRanUe != ranUe {
+		if oldRanUe.AmfUe == ue {
+			oldRanUe.Log.Info("Detached UeContext from previous RanUe")
 			oldRanUe.AmfUe = nil
 		}
-	}()
+	}
 
 	// set log information
 	ue.NASLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))

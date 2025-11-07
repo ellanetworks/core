@@ -352,6 +352,10 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 					aMFUENGAPID = ie.Value.AMFUENGAPID
 				}
 			}
+			if rANUENGAPID == nil {
+				ran.Log.Error("RANUENGAPID is nil")
+				return nil, nil
+			}
 			ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 
 		case ngapType.ProcedureCodeUEContextModification:
@@ -387,6 +391,11 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				case ngapType.ProtocolIEIDAMFUENGAPID:
 					aMFUENGAPID = ie.Value.AMFUENGAPID
 				}
+			}
+
+			if rANUENGAPID == nil {
+				ran.Log.Error("RANUENGAPID is nil")
+				return nil, nil
 			}
 			ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 
@@ -485,16 +494,6 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 	}
 	return ranUe, aMFUENGAPID
 }
-
-// func rawMessage(message ngapType.NGAPPDU) []byte {
-// 	raw, err := ngap.Encoder(message)
-// 	if err != nil {
-// 		logger.AmfLog.Warn("error encoding ngap message", zap.Error(err))
-// 		return nil
-// 	}
-
-// 	return raw
-// }
 
 func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var globalRANNodeID *ngapType.GlobalRANNodeID
@@ -2193,6 +2192,16 @@ func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, me
 				ran.Log.Warn("Criticality Diagnostics is nil")
 			}
 		}
+	}
+
+	if rANUENGAPID == nil {
+		ran.Log.Error("initial context setup response is missing RANUENGAPID")
+		return
+	}
+
+	if aMFUENGAPID == nil {
+		ran.Log.Error("initial context setup response is missing AMFUENGAPID")
+		return
 	}
 
 	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)

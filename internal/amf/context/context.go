@@ -206,6 +206,16 @@ func (context *AMFContext) AmfUeFindBySuci(suci string) (ue *AmfUe, ok bool) {
 }
 
 func (context *AMFContext) NewAmfRan(conn *sctp.SCTPConn) *AmfRan {
+	if conn == nil {
+		logger.AmfLog.Warn("SCTP connection is not available")
+		return nil
+	}
+
+	if conn.RemoteAddr() == nil {
+		logger.AmfLog.Warn("Remote address is not available")
+		return nil
+	}
+
 	ran := AmfRan{}
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.Conn = conn
