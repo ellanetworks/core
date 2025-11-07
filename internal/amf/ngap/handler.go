@@ -600,13 +600,13 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 
 		for i, tai := range ran.SupportedTAList {
 			if context.InTaiList(tai.Tai, taiList) {
-				ran.Log.Debug("found served TAI in AMF", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
+				ran.Log.Debug("Found served TAI in Core", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
 				found = true
 				break
 			}
 		}
 		if !found {
-			ran.Log.Warn("cannot find Served TAI in AMF")
+			ran.Log.Warn("Could not find Served TAI in Core", zap.Any("gnb_tai_list", ran.SupportedTAList), zap.Any("core_tai_list", taiList))
 			cause.Present = ngapType.CausePresentMisc
 			cause.Misc = &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnknownPLMN,
@@ -755,10 +755,11 @@ func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		}
 	}
 
-	logger.AmfLog.Debug("NG Reset Cause", zap.String("Cause", causeToString(*cause)))
+	logger.AmfLog.Debug("Received NG Reset with Cause", zap.String("Cause", causeToString(*cause)))
 
 	switch resetType.Present {
 	case ngapType.ResetTypePresentNGInterface:
+		ran.Log.Debug("ResetType Present: NG Interface")
 		ran.RemoveAllUeInRan()
 		ran.Log.Debug("All UE Context in RAN have been removed")
 		err := ngap_message.SendNGResetAcknowledge(ran, nil)
@@ -766,7 +767,6 @@ func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			ran.Log.Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return
 		}
-		ran.Log.Info("sent NG Reset Acknowledge")
 	case ngapType.ResetTypePresentPartOfNGInterface:
 		ran.Log.Debug("ResetType Present: Part of NG Interface")
 
@@ -812,7 +812,6 @@ func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			ran.Log.Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return
 		}
-		ran.Log.Info("sent NG Reset Acknowledge")
 	default:
 		ran.Log.Warn("Invalid ResetType", zap.Any("ResetType", resetType.Present))
 	}
@@ -1426,9 +1425,9 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 		var err error
 		ranUe, err = ran.NewRanUe(rANUENGAPID.Value)
 		if err != nil {
-			ran.Log.Error("NewRanUe Error", zap.Error(err))
+			ran.Log.Error("Failed to add Ran UE to the pool", zap.Error(err))
 		}
-		ran.Log.Debug("New RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+		ran.Log.Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 		if fiveGSTMSI != nil {
 			ranUe.Log.Debug("Receive 5G-S-TMSI")
@@ -3830,7 +3829,7 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, message
 			}
 		}
 		if !found {
-			ran.Log.Warn("RanConfigurationUpdate failure: Cannot find Served TAI in AMF")
+			ran.Log.Warn("Cannot find Served TAI in Core")
 			cause.Present = ngapType.CausePresentMisc
 			cause.Misc = &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnknownPLMN,
