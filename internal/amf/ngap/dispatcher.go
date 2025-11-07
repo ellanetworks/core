@@ -66,7 +66,7 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 
 	/* uecontext is found, submit the message to transaction queue*/
 	if ranUe != nil && ranUe.AmfUe != nil {
-		ranUe.AmfUe.TxLog.Debug("Uecontext found. queuing ngap message to uechannel")
+		ranUe.AmfUe.TxLog.Debug("Uecontext found, dispatching NGAP message")
 		ngapMsg := context.NgapMsg{
 			Ran:     ran,
 			NgapMsg: pdu,
