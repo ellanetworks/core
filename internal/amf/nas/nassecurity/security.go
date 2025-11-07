@@ -178,7 +178,7 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) *context
 			ue.NASLog.Info("UE Context derived from Guti", zap.String("guti", guti))
 			return ue
 		} else {
-			logger.AmfLog.Warn("UE Context not fround", zap.String("guti", guti))
+			logger.AmfLog.Warn("UE Context not found", zap.String("guti", guti))
 		}
 	}
 
