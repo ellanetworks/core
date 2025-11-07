@@ -2441,7 +2441,6 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 		ranUe.Log.Error("error sending ue context release command", zap.Error(err))
 		return
 	}
-
 }
 
 func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
