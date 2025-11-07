@@ -159,7 +159,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	logger.DBLog.Info("Database Initialized")
+	logger.DBLog.Debug("Database Initialized")
 
 	return db, nil
 }

@@ -543,9 +543,6 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 	if rANNodeName != nil {
 		ran.Name = rANNodeName.Value
 	}
-	if pagingDRX != nil {
-		ran.Log.Debug("PagingDRX", zap.Any("value", pagingDRX.Value))
-	}
 
 	// Clearing any existing contents of ran.SupportedTAList
 	if len(ran.SupportedTAList) != 0 {
@@ -571,7 +568,7 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 					break
 				}
 			}
-			ran.Log.Debug("handle NGSetupRequest", zap.Any("plmnID", plmnID), zap.Any("tac", tac))
+
 			if len(ran.SupportedTAList) < capOfSupportTai {
 				ran.SupportedTAList = append(ran.SupportedTAList, supportedTAI)
 			} else {
@@ -2435,7 +2432,6 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 				ranUe.Log.Error("error sending ue context release command", zap.Error(err))
 				return
 			}
-			ranUe.Log.Info("sent ue context release command")
 			return
 		}
 	}
@@ -2446,7 +2442,6 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 		return
 	}
 
-	ranUe.Log.Info("sent ue context release command")
 }
 
 func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
@@ -2790,7 +2785,6 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 			ran.Log.Error("error sending ue context release command", zap.Error(err))
 			return
 		}
-		ran.Log.Info("sent ue context release command", zap.Int64("sourceAMFUENGAPID", sourceUe.AmfUeNgapID))
 	}
 }
 
@@ -3259,7 +3253,6 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 		ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		return
 	}
-	ran.Log.Info("sent UE Context Release Command to target UE")
 }
 
 func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
@@ -3572,7 +3565,6 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 			ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
 			return
 		}
-		ran.Log.Info("sent UE context release command to target UE")
 		err = ngap_message.SendHandoverCancelAcknowledge(sourceUe, nil)
 		if err != nil {
 			ran.Log.Error("error sending handover cancel acknowledge to source UE", zap.Error(err))

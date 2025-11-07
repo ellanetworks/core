@@ -1333,7 +1333,6 @@ func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe
 			if err != nil {
 				return fmt.Errorf("error sending ue context release command: %v", err)
 			}
-			ue.GmmLog.Info("sent ue context release command")
 		} else {
 			ue.Remove()
 			ue.GmmLog.Info("removed ue context")
@@ -1398,7 +1397,6 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
-		ue.GmmLog.Info("sent ue context release command")
 		return nil
 	}
 
@@ -1462,7 +1460,6 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
-		ue.GmmLog.Info("sent ue context release command")
 		return nil
 	}
 
@@ -2003,7 +2000,6 @@ func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType 
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
-		ue.GmmLog.Info("sent ue context release command")
 	}
 
 	return GmmFSM.SendEvent(ctx, ue.State[accessType], ContextSetupSuccessEvent, fsm.ArgsType{
@@ -2081,7 +2077,6 @@ func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType, secur
 	if err != nil {
 		return fmt.Errorf("error sending ue context release command: %v", err)
 	}
-	ue.GmmLog.Info("sent ue context release command")
 	return nil
 }
 
@@ -2137,7 +2132,6 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType mod
 			if err != nil {
 				return fmt.Errorf("error sending ue context release command: %v", err)
 			}
-			ue.GmmLog.Info("sent ue context release command")
 		}
 		return GmmFSM.SendEvent(ctx, ue.State[models.AccessType3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
 			ArgAmfUe:      ue,
@@ -2149,7 +2143,6 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType mod
 			if err != nil {
 				return fmt.Errorf("error sending ue context release command: %v", err)
 			}
-			ue.GmmLog.Info("sent ue context release command")
 		}
 		return GmmFSM.SendEvent(ctx, ue.State[models.AccessTypeNon3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
 			ArgAmfUe:      ue,
@@ -2161,14 +2154,12 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType mod
 			if err != nil {
 				return fmt.Errorf("error sending ue context release command: %v", err)
 			}
-			ue.GmmLog.Info("sent ue context release command")
 		}
 		if ue.RanUe[models.AccessTypeNon3GPPAccess] != nil {
 			err := ngap_message.SendUEContextReleaseCommand(ue.RanUe[models.AccessTypeNon3GPPAccess], context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 			if err != nil {
 				return fmt.Errorf("error sending ue context release command: %v", err)
 			}
-			ue.GmmLog.Info("sent ue context release command")
 		}
 
 		err := GmmFSM.SendEvent(ctx, ue.State[models.AccessType3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
@@ -2203,7 +2194,6 @@ func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType mode
 			if err != nil {
 				return fmt.Errorf("error sending ue context release command: %v", err)
 			}
-			ue.GmmLog.Info("sent ue context release command")
 		}
 	case nasMessage.AccessTypeNon3GPP:
 		if ue.RanUe[models.AccessTypeNon3GPPAccess] != nil {
@@ -2212,7 +2202,6 @@ func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType mode
 			if err != nil {
 				return fmt.Errorf("error sending ue context release command: %v", err)
 			}
-			ue.GmmLog.Info("sent ue context release command")
 		}
 	case nasMessage.AccessTypeBoth:
 		if ue.RanUe[models.AccessType3GPPAccess] != nil {
@@ -2221,7 +2210,6 @@ func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType mode
 			if err != nil {
 				return fmt.Errorf("error sending ue context release command: %v", err)
 			}
-			ue.GmmLog.Info("sent ue context release command")
 		}
 		if ue.RanUe[models.AccessTypeNon3GPPAccess] != nil {
 			err := ngap_message.SendUEContextReleaseCommand(ue.RanUe[models.AccessTypeNon3GPPAccess],
@@ -2229,7 +2217,6 @@ func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType mode
 			if err != nil {
 				return fmt.Errorf("error sending ue context release command: %v", err)
 			}
-			ue.GmmLog.Info("sent ue context release command")
 		}
 	}
 
