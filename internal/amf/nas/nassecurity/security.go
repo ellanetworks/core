@@ -47,12 +47,9 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 		needCiphering := false
 		switch msg.SecurityHeader.SecurityHeaderType {
 		case nas.SecurityHeaderTypeIntegrityProtected:
-			ue.NASLog.Debug("Security header type: Integrity Protected")
 		case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
-			ue.NASLog.Debug("Security header type: Integrity Protected And Ciphered")
 			needCiphering = true
 		case nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext:
-			ue.NASLog.Debug("Security header type: Integrity Protected With New 5G Security Context")
 			ue.ULCount.Set(0, 0)
 			ue.DLCount.Set(0, 0)
 		default:
@@ -66,7 +63,6 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 		}
 
 		if needCiphering {
-			ue.NASLog.Debug("Encrypt NAS message", zap.Uint8("algorithm", ue.CipheringAlg), zap.Uint32("DLCount", ue.DLCount.Get()))
 			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.DLCount.Get(), security.Bearer3GPP,
 				security.DirectionDownlink, payload); err != nil {
 				return nil, fmt.Errorf("error encrypting: %+v", err)
@@ -76,8 +72,6 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 		// add sequece number
 		payload = append([]byte{ue.DLCount.SQN()}, payload[:]...)
 
-		ue.NASLog.Debug("Calculate NAS MAC", zap.Uint8("algorithm", ue.IntegrityAlg), zap.Uint32("DLCount", ue.DLCount.Get()))
-		ue.NASLog.Debug("NAS integrity key", zap.Any("key", ue.KnasInt))
 		mutex.Lock()
 		defer mutex.Unlock()
 		mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ue.DLCount.Get(), security.Bearer3GPP,
@@ -121,7 +115,6 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) *context
 
 	msg := new(nas.Message)
 	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
-	logger.AmfLog.Debug("security header type", zap.Uint8("type", msg.SecurityHeaderType))
 	switch msg.SecurityHeaderType {
 	case nas.SecurityHeaderTypeIntegrityProtected:
 		p := payload[7:]
@@ -178,7 +171,7 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) *context
 			ue.NASLog.Info("UE Context derived from Guti", zap.String("guti", guti))
 			return ue
 		} else {
-			logger.AmfLog.Warn("UE Context not fround", zap.String("guti", guti))
+			logger.AmfLog.Warn("UE Context not found", zap.String("guti", guti))
 		}
 	}
 
@@ -261,12 +254,9 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 		ciphered := false
 		switch msg.SecurityHeaderType {
 		case nas.SecurityHeaderTypeIntegrityProtected:
-			ue.NASLog.Debug("Security header type: Integrity Protected")
 		case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
-			ue.NASLog.Debug("Security header type: Integrity Protected And Ciphered")
 			ciphered = true
 		case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
-			ue.NASLog.Debug("Security header type: Integrity Protected And Ciphered With New 5G Security Context")
 			ciphered = true
 			ue.ULCount.Set(0, 0)
 		default:

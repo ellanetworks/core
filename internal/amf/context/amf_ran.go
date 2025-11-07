@@ -87,7 +87,7 @@ func (ran *AmfRan) RanUeFindByRanUeNgapIDLocal(ranUeNgapID int64) *RanUe {
 			return ranUe
 		}
 	}
-	ran.Log.Debug("Ran ue not found", zap.Int64("ranUeNgapID", ranUeNgapID))
+	ran.Log.Debug("Ran UE not found", zap.Int64("ranUeNgapID", ranUeNgapID))
 	return nil
 }
 

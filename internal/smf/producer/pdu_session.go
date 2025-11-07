@@ -305,7 +305,7 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
 	}
 
-	smContext.SubPduSessLog.Info("Sent n1 n2 transfer request")
+	smContext.SubPduSessLog.Debug("Sent n1 n2 transfer request")
 	if rspData.Cause == models.N1N2MessageTransferCauseN1MsgNotTransferred {
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {

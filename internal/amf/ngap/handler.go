@@ -10,6 +10,7 @@ package ngap
 import (
 	ctxt "context"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/amf/consumer"
@@ -599,13 +600,13 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 
 		for i, tai := range ran.SupportedTAList {
 			if context.InTaiList(tai.Tai, taiList) {
-				ran.Log.Debug("found served TAI in AMF", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
+				ran.Log.Debug("Found served TAI in Core", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
 				found = true
 				break
 			}
 		}
 		if !found {
-			ran.Log.Warn("cannot find Served TAI in AMF")
+			ran.Log.Warn("Could not find Served TAI in Core", zap.Any("gnb_tai_list", ran.SupportedTAList), zap.Any("core_tai_list", taiList))
 			cause.Present = ngapType.CausePresentMisc
 			cause.Misc = &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnknownPLMN,
@@ -754,18 +755,18 @@ func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		}
 	}
 
-	printAndGetCause(ran, cause)
+	logger.AmfLog.Debug("Received NG Reset with Cause", zap.String("Cause", causeToString(*cause)))
 
 	switch resetType.Present {
 	case ngapType.ResetTypePresentNGInterface:
 		ran.Log.Debug("ResetType Present: NG Interface")
 		ran.RemoveAllUeInRan()
+		ran.Log.Debug("All UE Context in RAN have been removed")
 		err := ngap_message.SendNGResetAcknowledge(ran, nil)
 		if err != nil {
 			ran.Log.Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return
 		}
-		ran.Log.Info("sent NG Reset Acknowledge")
 	case ngapType.ResetTypePresentPartOfNGInterface:
 		ran.Log.Debug("ResetType Present: Part of NG Interface")
 
@@ -811,7 +812,6 @@ func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			ran.Log.Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return
 		}
-		ran.Log.Info("sent NG Reset Acknowledge")
 	default:
 		ran.Log.Warn("Invalid ResetType", zap.Any("ResetType", resetType.Present))
 	}
@@ -1302,7 +1302,7 @@ func HandleLocationReportingFailureIndication(ran *context.AmfRan, message *ngap
 		}
 	}
 
-	printAndGetCause(ran, cause)
+	ran.Log.Debug("Location Reporting Failure Indication Cause", zap.String("Cause", causeToString(*cause)))
 
 	ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
@@ -1425,9 +1425,9 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 		var err error
 		ranUe, err = ran.NewRanUe(rANUENGAPID.Value)
 		if err != nil {
-			ran.Log.Error("NewRanUe Error", zap.Error(err))
+			ran.Log.Error("Failed to add Ran UE to the pool", zap.Error(err))
 		}
-		ran.Log.Debug("New RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+		ran.Log.Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 		if fiveGSTMSI != nil {
 			ranUe.Log.Debug("Receive 5G-S-TMSI")
@@ -2253,7 +2253,7 @@ func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, mes
 		}
 	}
 
-	printAndGetCause(ran, cause)
+	ran.Log.Warn("Initial Context Setup Failure received", zap.String("Cause", causeToString(*cause)))
 
 	if criticalityDiagnostics != nil {
 		printCriticalityDiagnostics(ran, criticalityDiagnostics)
@@ -2371,8 +2371,14 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 
 	causeGroup := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentUnspecified
+	var err error
 	if cause != nil {
-		causeGroup, causeValue = printAndGetCause(ran, cause)
+		ranUe.Log.Info("UE Context Release Cause", zap.String("Cause", causeToString(*cause)))
+
+		causeGroup, causeValue, err = getCause(cause)
+		if err != nil {
+			ranUe.Log.Error("could not get cause group and value", zap.Error(err))
+		}
 	}
 
 	amfUe := ranUe.AmfUe
@@ -2436,7 +2442,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 		}
 	}
 
-	err := ngap_message.SendUEContextReleaseCommand(ranUe, context.UeContextN2NormalRelease, causeGroup, causeValue)
+	err = ngap_message.SendUEContextReleaseCommand(ranUe, context.UeContextN2NormalRelease, causeGroup, causeValue)
 	if err != nil {
 		ranUe.Log.Error("error sending ue context release command", zap.Error(err))
 		return
@@ -2601,7 +2607,7 @@ func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.N
 	}
 
 	if cause != nil {
-		printAndGetCause(ran, cause)
+		logger.AmfLog.Debug("UE Context Modification Failure Cause", zap.String("Cause", causeToString(*cause)))
 	}
 
 	if criticalityDiagnostics != nil {
@@ -3189,8 +3195,14 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 
 	causePresent := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem
+	var err error
 	if cause != nil {
-		causePresent, causeValue = printAndGetCause(ran, cause)
+		ran.Log.Debug("Handover Failure Cause", zap.String("Cause", causeToString(*cause)))
+		causePresent, causeValue, err = getCause(cause)
+		if err != nil {
+			ran.Log.Error("Get Cause from Handover Failure Error", zap.Error(err))
+			return
+		}
 	}
 
 	if criticalityDiagnostics != nil {
@@ -3247,7 +3259,7 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 		ran.Log.Info("sent handover preparation failure to source UE")
 	}
 
-	err := ngap_message.SendUEContextReleaseCommand(targetUe, context.UeContextReleaseHandover, causePresent, causeValue)
+	err = ngap_message.SendUEContextReleaseCommand(targetUe, context.UeContextReleaseHandover, causePresent, causeValue)
 	if err != nil {
 		ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		return
@@ -3532,8 +3544,14 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 	ran.Log.Debug("Handle Handover Cancel", zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID))
 	causePresent := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem
+	var err error
 	if cause != nil {
-		causePresent, causeValue = printAndGetCause(ran, cause)
+		ran.Log.Debug("Handover Cancel Cause", zap.String("Cause", causeToString(*cause)))
+		causePresent, causeValue, err = getCause(cause)
+		if err != nil {
+			ran.Log.Error("Get Cause from Handover Failure Error", zap.Error(err))
+			return
+		}
 	}
 	targetUe := sourceUe.TargetUe
 	if targetUe == nil {
@@ -3696,9 +3714,7 @@ func HandleNasNonDeliveryIndication(ctx ctxt.Context, ran *context.AmfRan, messa
 		return
 	}
 
-	ran.Log.Debug("Handle NAS Non Delivery Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
-
-	printAndGetCause(ran, cause)
+	ran.Log.Debug("Handle NAS Non Delivery Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.String("cause", causeToString(*cause)))
 
 	err := nas.HandleNAS(ctx, ranUe, ngapType.ProcedureCodeNASNonDeliveryIndication, nASPDU.Value)
 	if err != nil {
@@ -3813,7 +3829,7 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, message
 			}
 		}
 		if !found {
-			ran.Log.Warn("RanConfigurationUpdate failure: Cannot find Served TAI in AMF")
+			ran.Log.Warn("Cannot find Served TAI in Core")
 			cause.Present = ngapType.CausePresentMisc
 			cause.Misc = &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnknownPLMN,
@@ -4339,7 +4355,7 @@ func HandleErrorIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	}
 
 	if cause != nil {
-		printAndGetCause(ran, cause)
+		logger.AmfLog.Debug("Error Indication Cause", zap.String("Cause", causeToString(*cause)))
 	}
 
 	if criticalityDiagnostics != nil {
@@ -4467,28 +4483,21 @@ func HandleCellTrafficTrace(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	}
 }
 
-func printAndGetCause(ran *context.AmfRan, cause *ngapType.Cause) (present int, value aper.Enumerated) {
-	present = cause.Present
+func getCause(cause *ngapType.Cause) (int, aper.Enumerated, error) {
 	switch cause.Present {
 	case ngapType.CausePresentRadioNetwork:
-		ran.Log.Warn("Cause RadioNetwork", zap.Any("Cause", cause.RadioNetwork.Value))
-		value = cause.RadioNetwork.Value
+		return cause.Present, cause.RadioNetwork.Value, nil
 	case ngapType.CausePresentTransport:
-		ran.Log.Warn("Cause Transport", zap.Any("Cause", cause.Transport.Value))
-		value = cause.Transport.Value
+		return cause.Present, cause.Transport.Value, nil
 	case ngapType.CausePresentProtocol:
-		ran.Log.Warn("Cause Protocol", zap.Any("Cause", cause.Protocol.Value))
-		value = cause.Protocol.Value
+		return cause.Present, cause.Protocol.Value, nil
 	case ngapType.CausePresentNas:
-		ran.Log.Warn("Cause Nas", zap.Any("Cause", cause.Nas.Value))
-		value = cause.Nas.Value
+		return cause.Present, cause.Nas.Value, nil
 	case ngapType.CausePresentMisc:
-		ran.Log.Warn("Cause Misc", zap.Any("Cause", cause.Misc.Value))
-		value = cause.Misc.Value
+		return cause.Present, cause.Misc.Value, nil
 	default:
-		ran.Log.Error("Invalid Cause group", zap.Int("Cause group", cause.Present))
+		return cause.Present, 0, fmt.Errorf("invalid Cause group: %d", cause.Present)
 	}
-	return
 }
 
 func printCriticalityDiagnostics(ran *context.AmfRan, criticalityDiagnostics *ngapType.CriticalityDiagnostics) {
