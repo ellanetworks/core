@@ -30,6 +30,11 @@
 #include "xdp/utils/nat.h"
 #include "xdp/utils/trace.h"
 
+volatile const int n3_ifindex;
+volatile const int n3_ifindex = 0;
+volatile const int n6_ifindex;
+volatile const int n6_ifindex = 0;
+
 struct route_stat {
 	__u64 fib_lookup_ip4_cache;
 	__u64 fib_lookup_ip4_ok;
@@ -58,9 +63,14 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params)
 	}
 #endif
 
-	if (fib_params->ifindex == ctx->xdp_ctx->ingress_ifindex)
+#ifdef N3
+	__u32 ifindex = n6_ifindex;
+#else
+	__u32 ifindex = n3_ifindex;
+#endif
+	if (ifindex == ctx->xdp_ctx->ingress_ifindex)
 		return XDP_TX;
-	return bpf_redirect(fib_params->ifindex, 0);
+	return bpf_redirect(ifindex, 0);
 }
 
 static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,

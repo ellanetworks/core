@@ -25,6 +25,11 @@
 #include <linux/icmp.h>
 #include "xdp/utils/gtpu.h"
 
+struct vlan_hdr {
+	__be16 h_vlan_TCI;
+	__be16 h_vlan_encapsulated_proto;
+};
+
 /* Header cursor to keep track of current parsing position */
 struct packet_context {
 	char *data;
@@ -39,4 +44,5 @@ struct packet_context {
 	struct tcphdr *tcp;
 	struct gtpuhdr *gtp;
 	struct icmphdr *icmp;
+	struct vlan_hdr *vlan;
 };
