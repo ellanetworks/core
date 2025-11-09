@@ -312,7 +312,11 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 
 	anType := ranUe.Ran.AnType
 
-	oldRanUe := ue.RanUe[anType]
+	var oldRanUe *RanUe
+
+	if ue.RanUe != nil {
+		oldRanUe = ue.RanUe[anType]
+	}
 
 	ue.RanUe[anType] = ranUe
 	ranUe.AmfUe = ue
