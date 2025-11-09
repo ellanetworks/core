@@ -1388,7 +1388,6 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 			rRCEstablishmentCause = ie.Value.RRCEstablishmentCause
 		case ngapType.ProtocolIEIDFiveGSTMSI: // optional, reject
 			fiveGSTMSI = ie.Value.FiveGSTMSI
-			logger.AmfLog.Warn("TO DELETE: Received FiveGSTMSI in Initial UE Message")
 		case ngapType.ProtocolIEIDAMFSetID: // optional, ignore
 			// aMFSetID = ie.Value.AMFSetID
 		case ngapType.ProtocolIEIDUEContextRequest: // optional, ignore
@@ -1423,18 +1422,16 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 		}
 		ranUe = nil
 	}
+
 	logger.AmfLog.Warn("TO DELETE: After cleanup, checking RanUe in the pool", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 
-	// TO DO: Delete this block after testing
-	// if ranUe != nil {
-	// 	logger.AmfLog.Warn("TO DELETE: Found existing RanUe in the pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
-	// 	err := ranUe.Remove()
-	// 	if err != nil {
-	// 		ran.Log.Error(err.Error())
-	// 	}
-	// }
-	ranUe = nil
-	// End of TO DO
+	if ranUe != nil {
+		logger.AmfLog.Warn("TO DELETE: Found existing RanUe in the pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+		err := ranUe.Remove()
+		if err != nil {
+			ran.Log.Error(err.Error())
+		}
+	}
 
 	if ranUe == nil {
 		var err error
