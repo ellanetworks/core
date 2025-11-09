@@ -485,7 +485,11 @@ func BuildRegistrationAccept(
 			return nil, fmt.Errorf("failed to decode AMF ID from GUTI: %s", err)
 		}
 
-		logger.AmfLog.Warn("TO DELETE: decoded AMF ID from GUTI", zap.Any("RegionID", regionID), zap.Any("SetID", setID), zap.Any("Pointer", pointer))
+		logger.AmfLog.Warn("TO DELETE: decoded AMF Info from AMF ID", zap.Any("RegionID", regionID), zap.Uint16("SetID", setID), zap.Uint16("Pointer", pointer))
+
+		// amfRegionId uint8, amfSetId uint16, amfPointer uint8
+		amfRegionId, setID, amfPointer := nasConvert.AmfIdToNas("cafe00")
+		logger.AmfLog.Warn("TO DELETE: converted AMF Info to NAS format", zap.Uint8("RegionID", amfRegionId), zap.Uint16("SetID", setID), zap.Uint8("Pointer", amfPointer))
 
 		registrationAccept.GUTI5G = &gutiNas
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
