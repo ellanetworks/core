@@ -306,7 +306,7 @@ func (ue *AmfUe) DetachRanUe(anType models.AccessType) {
 }
 
 func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
-	if ranUe == nil || ranUe.Ran == nil {
+	if ranUe == nil || ranUe.Ran == nil || ue == nil {
 		return
 	}
 

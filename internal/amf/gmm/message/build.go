@@ -479,6 +479,14 @@ func BuildRegistrationAccept(
 	if ue.Guti != "" {
 		logger.AmfLog.Warn("TO DELETE: GUTI in registration accept", zap.String("GUTI", ue.Guti))
 		gutiNas := nasConvert.GutiToNas(ue.Guti)
+
+		regionID, setID, pointer, err := decodeAmfId("cafe00")
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode AMF ID from GUTI: %s", err)
+		}
+
+		logger.AmfLog.Warn("TO DELETE: decoded AMF ID from GUTI", zap.Any("RegionID", regionID), zap.Any("SetID", setID), zap.Any("Pointer", pointer))
+
 		registrationAccept.GUTI5G = &gutiNas
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
 	}
@@ -621,4 +629,26 @@ func BuildRegistrationAccept(
 	m.GmmMessage.RegistrationAccept = registrationAccept
 
 	return nassecurity.Encode(ue, m)
+}
+
+func decodeAmfId(amfIDHex string) (region, setID, pointer uint16, err error) {
+	if len(amfIDHex) != 6 {
+		return 0, 0, 0, fmt.Errorf("expected 6 hex chars for AMF ID, got %d", len(amfIDHex))
+	}
+
+	amfIDBytes, err := hex.DecodeString(amfIDHex)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("decode amfID: %w", err)
+	}
+
+	// Convert 3 bytes -> uint32
+	amf := uint32(amfIDBytes[0])<<16 |
+		uint32(amfIDBytes[1])<<8 |
+		uint32(amfIDBytes[2])
+
+	region = uint16((amf >> 18) & 0xFF) // top 8 bits
+	setID = uint16((amf >> 6) & 0x3FF)  // next 10 bits
+	pointer = uint16(amf & 0x3F)        // bottom 6 bits
+
+	return region, setID, pointer, nil
 }
