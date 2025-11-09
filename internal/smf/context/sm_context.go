@@ -188,7 +188,7 @@ func (smContext *SMContext) ReleaseUeIPAddr(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}
-		smContext.SubPduSessLog.Info("Released IP Address", zap.String("IP", smContext.PDUAddress.IP.String()))
+		smContext.SubPduSessLog.Info("Released IP Address", zap.String("IP", ip.String()))
 		smContext.PDUAddress.IP = net.IPv4(0, 0, 0, 0)
 	}
 	return nil
