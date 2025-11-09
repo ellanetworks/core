@@ -80,8 +80,11 @@ func (ranUe *RanUe) Remove() error {
 			break
 		}
 	}
+
+	self := AMFSelf()
+	self.RanUePool.Delete(ranUe.AmfUeNgapID)
 	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapID)
-	logger.AmfLog.Info("ran ue removed", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	logger.AmfLog.Info("Removed RAN UE from pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
 	return nil
 }
 

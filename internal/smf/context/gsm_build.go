@@ -148,9 +148,13 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 
 		// IPv6 DNS
 		if smContext.ProtocolConfigurationOptions.DNSIPv6Request {
-			err := protocolConfigurationOptions.AddDNSServerIPv6Address(smContext.DNNInfo.DNS.IPv6Addr)
-			if err != nil {
-				smContext.SubGsmLog.Warn("Error while adding DNS IPv6 Addr", zap.Error(err))
+			if smContext.DNNInfo.DNS.IPv6Addr == nil {
+				smContext.SubGsmLog.Warn("IPv6 DNS address is not set in DNN Info")
+			} else {
+				err := protocolConfigurationOptions.AddDNSServerIPv6Address(smContext.DNNInfo.DNS.IPv6Addr)
+				if err != nil {
+					smContext.SubGsmLog.Warn("Error while adding DNS IPv6 Addr", zap.Error(err))
+				}
 			}
 		}
 

@@ -1016,7 +1016,7 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 		}
 	}
 	if amfUe.State[ran.AnType].Is(context.Registered) {
-		ranUe.Log.Info("Rel Ue Context in GMM-Registered")
+		ranUe.Log.Debug("Release UE Context in GMM-Registered")
 		if pDUSessionResourceList != nil {
 			for _, pduSessionReourceItem := range pDUSessionResourceList.List {
 				pduSessionID := int32(pduSessionReourceItem.PDUSessionID.Value)
@@ -1063,9 +1063,9 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 			ran.Log.Error(err.Error())
 		}
 
-		// Valid Security is not exist for this UE then only delete AMfUe Context
+		// Valid Security does not exist for this UE then only delete AMfUe Context
 		if !amfUe.SecurityContextAvailable {
-			ran.Log.Info("Valid Security is not exist for the UE, so deleting AmfUe Context", zap.String("supi", amfUe.Supi))
+			ran.Log.Info("Valid Security does not exist for the UE, so deleting AmfUe Context", zap.String("supi", amfUe.Supi))
 			amfUe.Remove()
 		}
 	case context.UeContextReleaseDueToNwInitiatedDeregistraion:
@@ -1388,6 +1388,7 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 			rRCEstablishmentCause = ie.Value.RRCEstablishmentCause
 		case ngapType.ProtocolIEIDFiveGSTMSI: // optional, reject
 			fiveGSTMSI = ie.Value.FiveGSTMSI
+			logger.AmfLog.Warn("TO DELETE: Received FiveGSTMSI in Initial UE Message")
 		case ngapType.ProtocolIEIDAMFSetID: // optional, ignore
 			// aMFSetID = ie.Value.AMFSetID
 		case ngapType.ProtocolIEIDUEContextRequest: // optional, ignore
@@ -1413,6 +1414,7 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 		ran.Log.Info("sent error indication")
 	}
 
+	logger.AmfLog.Warn("TO DELETE: Handle Initial UE Message", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe != nil && ranUe.AmfUe == nil {
 		err := ranUe.Remove()
@@ -1421,6 +1423,19 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 		}
 		ranUe = nil
 	}
+	logger.AmfLog.Warn("TO DELETE: After cleanup, checking RanUe in the pool", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+
+	// TO DO: Delete this block after testing
+	// if ranUe != nil {
+	// 	logger.AmfLog.Warn("TO DELETE: Found existing RanUe in the pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	// 	err := ranUe.Remove()
+	// 	if err != nil {
+	// 		ran.Log.Error(err.Error())
+	// 	}
+	// }
+	ranUe = nil
+	// End of TO DO
+
 	if ranUe == nil {
 		var err error
 		ranUe, err = ran.NewRanUe(rANUENGAPID.Value)
@@ -1439,15 +1454,25 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 			// 5G-GUTI := <GUAMI><5G-TMSI>
 			tmpReginID, _, _ := ngapConvert.AmfIdToNgap(servedGuami.AmfID)
 			amfID := ngapConvert.AmfIdToModels(tmpReginID, fiveGSTMSI.AMFSetID.Value, fiveGSTMSI.AMFPointer.Value)
+			logger.AmfLog.Debug("AMF ID from 5G-S-TMSI", zap.String("AMF ID", amfID))
 
 			tmsi := hex.EncodeToString(fiveGSTMSI.FiveGTMSI.Value)
 
 			guti := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc + amfID + tmsi
 
+			logger.AmfLog.Warn(
+				"TO DELETE: guti from 5G-S-TMSI",
+				zap.String("GUTI", guti),
+				zap.String("MCC", servedGuami.PlmnID.Mcc),
+				zap.String("MNC", servedGuami.PlmnID.Mnc),
+				zap.String("AMF ID", amfID),
+				zap.String("TMSI", tmsi),
+			)
+
 			if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); !ok {
-				ranUe.Log.Warn("Unknown UE", zap.String("GUTI", guti))
+				ranUe.Log.Warn("could not find UE associated with GUTI", zap.String("GUTI", guti))
 			} else {
-				ranUe.Log.Debug("find AmfUe", zap.String("GUTI", guti))
+				ranUe.Log.Debug("found AmfUe associated with GUTI", zap.String("GUTI", guti))
 				/* checking the guti-ue belongs to this amf instance */
 
 				if amfUe.CmConnect(ran.AnType) {

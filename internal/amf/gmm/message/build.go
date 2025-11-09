@@ -15,11 +15,13 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
 	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
+	"go.uber.org/zap"
 )
 
 func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause *uint8) ([]byte, error) {
@@ -475,6 +477,7 @@ func BuildRegistrationAccept(
 	registrationAccept.RegistrationResult5GS.SetRegistrationResultValue5GS(registrationResult)
 
 	if ue.Guti != "" {
+		logger.AmfLog.Warn("TO DELETE: GUTI in registration accept", zap.String("GUTI", ue.Guti))
 		gutiNas := nasConvert.GutiToNas(ue.Guti)
 		registrationAccept.GUTI5G = &gutiNas
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)

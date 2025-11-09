@@ -290,12 +290,14 @@ func (ue *AmfUe) Remove() {
 		if err := ranUe.Remove(); err != nil {
 			logger.AmfLog.Error("Remove RanUe error", zap.Error(err))
 		}
+		logger.AmfLog.Debug("Ran UE removed", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 	}
 
 	tmsiGenerator.FreeID(int64(ue.Tmsi))
 
 	if len(ue.Supi) > 0 {
 		AMFSelf().UePool.Delete(ue.Supi)
+		logger.AmfLog.Debug("AMF UE removed", zap.String("SUPI", ue.Supi))
 	}
 }
 
