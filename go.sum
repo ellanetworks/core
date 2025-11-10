@@ -71,10 +71,10 @@ github.com/mdlayher/socket v0.5.0 h1:ilICZmJcQz70vrWVes1MFera4jGiWNocSkykwwoy3XI
 github.com/mdlayher/socket v0.5.0/go.mod h1:WkcBFfvyG8QENs5+hfQPl1X6Jpd2yeLIYgrGFmJiJxI=
 github.com/moby/docker-image-spec v1.3.1 h1:jMKff3w6PgbfSa69GfNg+zN/XLhfXJGnEx3Nl2EsFP0=
 github.com/moby/docker-image-spec v1.3.1/go.mod h1:eKmb5VW8vQEh/BAr2yvVNvuiJuY6UIocYsFu/DxxRpo=
-github.com/moby/moby/api v1.52.0-beta.4 h1:p05ztW787RcwcQx8YFcda1sb0ExqxDLHTjBQA3Jq6BY=
-github.com/moby/moby/api v1.52.0-beta.4/go.mod h1:v0K/motq8oWmx+rtApG1rBTIpQ8KUONUjpf+U73gags=
-github.com/moby/moby/client v0.1.0-beta.3 h1:y/ed2VpRmW8As56TFOaXF2zVSli38IS032zAAGt6kcI=
-github.com/moby/moby/client v0.1.0-beta.3/go.mod h1:dvvUX065yfMkFXvPk14AXVz8wmew2MdeXJ/rcYEPr7g=
+github.com/moby/moby/api v1.52.0-rc.1 h1:yiNz/QzD4Jr1gyKl2iMo7OCZwwY+Xb3BltKv1xipwXo=
+github.com/moby/moby/api v1.52.0-rc.1/go.mod h1:v0K/motq8oWmx+rtApG1rBTIpQ8KUONUjpf+U73gags=
+github.com/moby/moby/client v0.1.0-rc.1 h1:NfuQec3HvQkPf4EvVkoFGPsBvlAc8CCyQN1m1kGSEX8=
+github.com/moby/moby/client v0.1.0-rc.1/go.mod h1:qYzoKHz8qu4Ie1j41CWYhfNRHo8uhs5ay7cfx309Aqc=
 github.com/mschoch/smat v0.2.0 h1:8imxQsjDm8yFEAVBe7azKmKSgzSkZXDuKkSq9374khM=
 github.com/mschoch/smat v0.2.0/go.mod h1:kc9mz7DoBKqDyiRL7VZN8KvXQMWeTaVnttLRXOlotKw=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
@@ -157,8 +157,8 @@ golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a/go.mod h1:STP8DvDyc/dI5b8T5h
 golang.org/x/sys v0.0.0-20190412213103-97732733099d/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.2.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.10.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.37.0 h1:fdNQudmxPjkdUTPnLn5mdQv7Zwvbvpaxqs831goi9kQ=
-golang.org/x/sys v0.37.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
+golang.org/x/sys v0.38.0 h1:3yZWxaJjBmCWXqhN1qh02AkOnCQ1poK6oF+a7xWL6Gc=
+golang.org/x/sys v0.38.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.30.0 h1:yznKA/E9zq54KzlzBEAWn1NXSQ8DIp/NYMy88xJjl4k=
 golang.org/x/text v0.30.0/go.mod h1:yDdHFIX9t+tORqspjENWgzaCVXgk0yYnYuSZ8UzzBVM=
