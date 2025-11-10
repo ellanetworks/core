@@ -136,6 +136,9 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*contex
 	var guti string
 	if msg.GmmHeader.GetMessageType() == nas.MsgTypeRegistrationRequest {
 		mobileIdentity5GSContents := msg.RegistrationRequest.MobileIdentity5GS.GetMobileIdentity5GSContents()
+		if len(mobileIdentity5GSContents) == 0 {
+			return nil, fmt.Errorf("mobile identity 5GS is empty")
+		}
 		if nasMessage.MobileIdentity5GSType5gGuti == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
 			_, guti = nasConvert.GutiToString(mobileIdentity5GSContents)
 			logger.AmfLog.Debug("Guti received in Registration Request Message", zap.String("guti", guti))
