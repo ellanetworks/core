@@ -30,8 +30,6 @@ jobs:
   image-build:
     needs: [go-unit-test, go-vet, go-lint, clang-format, clang-tidy]
     uses: ./.github/workflows/image-build.yaml
-    with:
-      archs: '["amd64"]'
   integration-tests:
     needs: [go-unit-test, go-vet, go-lint, image-build]
     uses: ./.github/workflows/integration-tests.yaml
