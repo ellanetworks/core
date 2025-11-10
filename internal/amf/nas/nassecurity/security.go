@@ -108,9 +108,13 @@ func StmsiToGuti(ctx ctxt.Context, buf [7]byte) (guti string) {
 /*
 fetch Guti if present incase of integrity protected Nas Message
 */
-func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) *context.AmfUe {
+func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*context.AmfUe, error) {
 	if payload == nil {
-		return nil
+		return nil, fmt.Errorf("nas payload is empty")
+	}
+
+	if len(payload) < 2 {
+		return nil, fmt.Errorf("nas payload is too short")
 	}
 
 	msg := new(nas.Message)
@@ -119,20 +123,22 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) *context
 	case nas.SecurityHeaderTypeIntegrityProtected:
 		p := payload[7:]
 		if err := msg.PlainNasDecode(&p); err != nil {
-			return nil
+			return nil, fmt.Errorf("error decoding plain nas: %+v", err)
 		}
 	case nas.SecurityHeaderTypePlainNas:
 		if err := msg.PlainNasDecode(&payload); err != nil {
-			return nil
+			return nil, fmt.Errorf("error decoding plain nas: %+v", err)
 		}
 	default:
-		logger.AmfLog.Info("Security header type is not plain or integrity protected")
-		return nil
+		return nil, fmt.Errorf("unsupported security header type: 0x%0x", msg.SecurityHeaderType)
 	}
 	var ue *context.AmfUe = nil
 	var guti string
 	if msg.GmmHeader.GetMessageType() == nas.MsgTypeRegistrationRequest {
 		mobileIdentity5GSContents := msg.RegistrationRequest.MobileIdentity5GS.GetMobileIdentity5GSContents()
+		if len(mobileIdentity5GSContents) == 0 {
+			return nil, fmt.Errorf("mobile identity 5GS is empty")
+		}
 		if nasMessage.MobileIdentity5GSType5gGuti == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
 			_, guti = nasConvert.GutiToString(mobileIdentity5GSContents)
 			logger.AmfLog.Debug("Guti received in Registration Request Message", zap.String("guti", guti))
@@ -146,7 +152,7 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) *context
 				ue.NASLog.Info("UE Context derived from Suci", zap.String("suci", suci))
 				ue.SecurityContextAvailable = false
 			}
-			return ue
+			return ue, nil
 		}
 	} else if msg.GmmHeader.GetMessageType() == nas.MsgTypeServiceRequest {
 		mobileIdentity5GSContents := msg.ServiceRequest.TMSI5GS.Octet
@@ -166,16 +172,16 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) *context
 		if ue != nil {
 			if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
 				ue.NASLog.Info("UE Context derived from Guti but received in plain nas", zap.String("guti", guti))
-				return nil
+				return nil, fmt.Errorf("UE Context derived from Guti but received in plain nas")
 			}
 			ue.NASLog.Info("UE Context derived from Guti", zap.String("guti", guti))
-			return ue
+			return ue, nil
 		} else {
 			logger.AmfLog.Warn("UE Context not found", zap.String("guti", guti))
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 /*
@@ -192,8 +198,13 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 	if ue == nil {
 		return nil, fmt.Errorf("amf ue is nil")
 	}
+
 	if payload == nil {
 		return nil, fmt.Errorf("nas payload is empty")
+	}
+
+	if len(payload) < 2 {
+		return nil, fmt.Errorf("nas payload is too short")
 	}
 
 	msg := new(nas.Message)

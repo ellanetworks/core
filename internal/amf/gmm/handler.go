@@ -1173,7 +1173,11 @@ func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.Iden
 	}
 
 	mobileIdentityContents := identityResponse.MobileIdentity.GetMobileIdentityContents()
-	switch nasConvert.GetTypeOfIdentity(mobileIdentityContents[0]) { // get type of identity
+	if len(mobileIdentityContents) == 0 {
+		return fmt.Errorf("mobile identity is empty")
+	}
+
+	switch nasConvert.GetTypeOfIdentity(mobileIdentityContents[0]) {
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentityContents)
