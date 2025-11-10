@@ -175,7 +175,7 @@ func (context *AMFContext) NewAmfUe(ctx ctxt.Context, supi string) *AmfUe {
 		context.AddAmfUeToUePool(&ue, supi)
 	}
 
-	context.AllocateGutiToUe(ctx, &ue)
+	// context.AllocateGutiToUe(ctx, &ue)
 
 	return &ue
 }
