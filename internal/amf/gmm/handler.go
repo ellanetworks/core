@@ -396,7 +396,6 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	// MacFailed is set if plain Registration Request message received with GUTI/SUCI or
 	// integrity protected Registration Reguest message received but mac verification Failed
 	if ue.MacFailed {
-		amfSelf.ReAllocateGutiToUe(ctx, ue)
 		ue.SecurityContextAvailable = false
 	}
 
@@ -641,6 +640,8 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.Non3gppDeregistrationTimerValue = amfSelf.Non3gppDeregistrationTimerValue
 	}
 
+	amfSelf.ReAllocateGutiToUe(ctx, ue)
+
 	if anType == models.AccessType3GPPAccess {
 		err := gmm_message.SendRegistrationAccept(ctx, ue, anType, nil, nil, nil, nil, nil)
 		if err != nil {
@@ -803,6 +804,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 			}
 		}
 	}
+
+	amfSelf.ReAllocateGutiToUe(ctx, ue)
 
 	if ue.RegistrationRequest.AllowedPDUSessionStatus != nil {
 		allowedPsis := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.AllowedPDUSessionStatus.Buffer)
@@ -1170,7 +1173,11 @@ func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.Iden
 	}
 
 	mobileIdentityContents := identityResponse.MobileIdentity.GetMobileIdentityContents()
-	switch nasConvert.GetTypeOfIdentity(mobileIdentityContents[0]) { // get type of identity
+	if len(mobileIdentityContents) == 0 {
+		return fmt.Errorf("mobile identity is empty")
+	}
+
+	switch nasConvert.GetTypeOfIdentity(mobileIdentityContents[0]) {
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentityContents)

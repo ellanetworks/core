@@ -114,15 +114,6 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 	return val, nil
 }
 
-func (context *AMFContext) AllocateGutiToUe(ctx ctxt.Context, ue *AmfUe) {
-	guamis := GetServedGuamiList(ctx)
-	servedGuami := guamis[0]
-	ue.Tmsi = context.TmsiAllocate()
-	plmnID := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc
-	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
-	ue.Guti = plmnID + servedGuami.AmfID + tmsiStr
-}
-
 func (context *AMFContext) ReAllocateGutiToUe(ctx ctxt.Context, ue *AmfUe) {
 	guamis := GetServedGuamiList(ctx)
 	servedGuami := guamis[0]
@@ -174,8 +165,6 @@ func (context *AMFContext) NewAmfUe(ctx ctxt.Context, supi string) *AmfUe {
 	if supi != "" {
 		context.AddAmfUeToUePool(&ue, supi)
 	}
-
-	context.AllocateGutiToUe(ctx, &ue)
 
 	return &ue
 }

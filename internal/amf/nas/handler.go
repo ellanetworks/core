@@ -20,6 +20,7 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 	if ue == nil {
 		return fmt.Errorf("ue is nil")
 	}
+
 	if nasPdu == nil {
 		return fmt.Errorf("nas pdu is nil")
 	}
@@ -28,7 +29,11 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 
 	// First-time UE attach: fetch or create AMF context
 	if ue.AmfUe == nil {
-		ue.AmfUe = nassecurity.FetchUeContextWithMobileIdentity(ctx, nasPdu)
+		amfUe, err := nassecurity.FetchUeContextWithMobileIdentity(ctx, nasPdu)
+		if err != nil {
+			return fmt.Errorf("error fetching UE context: %v", err)
+		}
+		ue.AmfUe = amfUe
 		if ue.AmfUe == nil {
 			ue.AmfUe = amfSelf.NewAmfUe(ctx, "")
 		}
@@ -44,7 +49,7 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 			NasMsg:        nasPdu,
 			ProcedureCode: procedureCode,
 		}
-		err := DispatchMsg(ctx, eeCtx, nasMsg)
+		err = DispatchMsg(ctx, eeCtx, nasMsg)
 		if err != nil {
 			return fmt.Errorf("error dispatching NAS message: %v", err)
 		}
