@@ -396,7 +396,6 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	// MacFailed is set if plain Registration Request message received with GUTI/SUCI or
 	// integrity protected Registration Reguest message received but mac verification Failed
 	if ue.MacFailed {
-		amfSelf.ReAllocateGutiToUe(ctx, ue)
 		ue.SecurityContextAvailable = false
 	}
 
