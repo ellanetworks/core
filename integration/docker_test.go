@@ -88,7 +88,7 @@ func (dc *DockerClient) Exec(ctx context.Context, containerName string, argv []s
 		Cmd:          argv,
 		AttachStdout: !detach,
 		AttachStderr: !detach,
-		Tty:          false,
+		TTY:          false,
 		Privileged:   false,
 	}
 
