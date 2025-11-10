@@ -5,18 +5,13 @@ permissions:
 
 on:
   workflow_call:
-    inputs:
-      archs:
-        description: 'JSON array of archs, e.g. ["amd64"] or ["amd64","arm64"]'
-        required: true
-        type: string
 
 jobs:
   build-image:
     strategy:
       fail-fast: false
       matrix:
-        arch: ${{ fromJSON(inputs.archs) }}
+        arch: [amd64, arm64]
     runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-24.04-arm') || 'ubuntu-24.04' }}
 
     steps:
