@@ -6,8 +6,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/nas/nasType"
+	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/nas/nasType"
 	"go.uber.org/zap"
 )
 
@@ -97,7 +97,7 @@ func buildPDUSessionEstablishmentAccept(msg *nasMessage.PDUSessionEstablishmentA
 	}
 
 	if msg.DNN != nil && msg.DNN.GetLen() > 0 {
-		dnn := string(msg.DNN.GetDNN())
+		dnn := msg.DNN.GetDNN()
 		estAcc.DNN = &dnn
 	}
 

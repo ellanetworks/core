@@ -20,12 +20,12 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/ellanetworks/core/internal/util/fsm"
-	"github.com/omec-project/nas"
-	"github.com/omec-project/nas/nasConvert"
-	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/nas/nasType"
-	"github.com/omec-project/nas/security"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/nas"
+	"github.com/free5gc/nas/nasConvert"
+	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/nas/nasType"
+	"github.com/free5gc/nas/security"
+	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
@@ -208,7 +208,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			}
 
 			if ulNasTransport.DNN != nil && ulNasTransport.DNN.GetLen() > 0 {
-				dnn = string(ulNasTransport.DNN.GetDNN())
+				dnn = ulNasTransport.DNN.GetDNN()
 			} else {
 				// if user's subscription context obtained from UDM does not contain the default DNN for the,
 				// S-NSSAI, the AMF shall use a locally configured DNN as the DNN
@@ -1093,7 +1093,10 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			ue.TargetAmfURI = amfSelf.GetIPv4Uri()
 
 			var n1Message bytes.Buffer
-			ue.RegistrationRequest.EncodeRegistrationRequest(&n1Message)
+			err = ue.RegistrationRequest.EncodeRegistrationRequest(&n1Message)
+			if err != nil {
+				return fmt.Errorf("failed to encode registration request: %s", err)
+			}
 			return nil
 		}
 	}

@@ -6,8 +6,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/ngap/ngapConvert"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/ngap/ngapConvert"
+	"github.com/free5gc/ngap/ngapType"
 )
 
 type EUTRACGI struct {

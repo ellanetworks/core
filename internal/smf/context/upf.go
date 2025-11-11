@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/util/idgenerator"
-	"github.com/omec-project/nas/nasMessage"
+	"github.com/free5gc/nas/nasMessage"
 )
 
 type UPTunnel struct {

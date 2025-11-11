@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/nas"
-	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/nas/nasType"
+	"github.com/free5gc/nas"
+	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/nas/nasType"
 )
 
 type PayloadContainer struct {
@@ -66,7 +66,7 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	}
 
 	if msg.DNN != nil && msg.DNN.GetLen() > 0 {
-		dnn := string(msg.DNN.GetDNN())
+		dnn := msg.DNN.GetDNN()
 		ulNasTransport.DNN = &dnn
 	}
 

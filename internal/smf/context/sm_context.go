@@ -18,8 +18,8 @@ import (
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
+	"github.com/free5gc/nas/nasMessage"
 	"github.com/google/uuid"
-	"github.com/omec-project/nas/nasMessage"
 	"go.uber.org/zap"
 )
 

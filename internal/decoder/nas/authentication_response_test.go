@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
-	naslib "github.com/omec-project/nas"
+	naslib "github.com/free5gc/nas"
 )
 
 func TestDecodeNASMessage_AuthenticationResponse(t *testing.T) {

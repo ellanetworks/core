@@ -2,9 +2,9 @@ package nas
 
 import (
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/nas/nasType"
-	"github.com/omec-project/nas/security"
+	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/nas/nasType"
+	"github.com/free5gc/nas/security"
 )
 
 type SelectedNASSecurityAlgorithms struct {

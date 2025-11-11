@@ -8,7 +8,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/qos"
-	"github.com/omec-project/nas"
+	"github.com/free5gc/nas"
 )
 
 func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {

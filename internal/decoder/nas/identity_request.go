@@ -2,7 +2,7 @@ package nas
 
 import (
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/nas/nasMessage"
+	"github.com/free5gc/nas/nasMessage"
 )
 
 type IdentityRequest struct {

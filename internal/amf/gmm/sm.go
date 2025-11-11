@@ -16,9 +16,9 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/fsm"
-	"github.com/omec-project/nas"
-	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/nas/security"
+	"github.com/free5gc/nas"
+	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/nas/security"
 	"go.uber.org/zap"
 )
 

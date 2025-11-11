@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/ngap"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/ngap/ngapType"
 )
 
 func TestDecodeNGAPMessage_UERadioCapabilityInfoIndication(t *testing.T) {

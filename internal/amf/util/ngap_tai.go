@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/ngap/ngapType"
 )
 
 func TaiToModels(tai ngapType.TAI) models.Tai {

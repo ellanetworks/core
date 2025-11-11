@@ -16,7 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/nas/nasType"
+	"github.com/free5gc/nas/nasType"
 	"go.uber.org/zap"
 )
 

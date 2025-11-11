@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/nas/nasType"
+	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/nas/nasType"
 )
 
 func ModelsToSessionAMBR(ambr *models.Ambr) (nasType.SessionAMBR, error) {

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/ngap/aper"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/aper"
+	"github.com/free5gc/ngap/ngapType"
 )
 
 const ntpToUnixOffset = 2208988800 // seconds between 1900-01-01 and 1970-01-01
