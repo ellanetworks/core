@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: core
-        image: ghcr.io/ellanetworks/ella-core:v0.4.1
+        image: ghcr.io/ellanetworks/ella-core:v0.4.2
         imagePullPolicy: Always
         command: ["core"]
         args: ["--config", "/config/config.yaml"]
