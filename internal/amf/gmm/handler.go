@@ -20,12 +20,12 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/ellanetworks/core/internal/util/fsm"
-	"github.com/omec-project/nas"
-	"github.com/omec-project/nas/nasConvert"
-	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/nas/nasType"
-	"github.com/omec-project/nas/security"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/nas"
+	"github.com/free5gc/nas/nasConvert"
+	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/nas/nasType"
+	"github.com/free5gc/nas/security"
+	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 

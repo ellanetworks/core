@@ -6,8 +6,8 @@ package util
 
 import (
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/ngap/aper"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/aper"
+	"github.com/free5gc/ngap/ngapType"
 )
 
 // TS 38.413 9.3.1.85

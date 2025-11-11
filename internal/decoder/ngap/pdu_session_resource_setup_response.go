@@ -3,7 +3,7 @@ package ngap
 import (
 	"fmt"
 
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/ngap/ngapType"
 )
 
 type PDUSessionResourceSetupSURes struct {

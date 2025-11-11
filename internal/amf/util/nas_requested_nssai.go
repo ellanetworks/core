@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/nas/nasType"
+	"github.com/free5gc/nas/nasType"
 )
 
 // TS 24.501 9.11.3.37

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/ngap/ngapType"
 )
 
 func PlmnIDToModels(ngapPlmnID ngapType.PLMNIdentity) models.PlmnID {

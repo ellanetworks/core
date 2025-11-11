@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/omec-project/ngap/aper"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/aper"
+	"github.com/free5gc/ngap/ngapType"
 )
 
 func IPAddressToNgap(ipv4Addr, ipv6Addr string) (*ngapType.TransportLayerAddress, error) {

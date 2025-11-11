@@ -15,10 +15,10 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/ngap"
-	"github.com/omec-project/ngap/aper"
-	"github.com/omec-project/ngap/ngapConvert"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/aper"
+	"github.com/free5gc/ngap"
+	"github.com/free5gc/ngap/ngapConvert"
+	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 

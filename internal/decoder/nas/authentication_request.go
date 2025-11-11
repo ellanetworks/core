@@ -1,7 +1,7 @@
 package nas
 
 import (
-	"github.com/omec-project/nas/nasMessage"
+	"github.com/free5gc/nas/nasMessage"
 )
 
 type AuthenticationRequest struct {

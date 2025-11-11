@@ -2,7 +2,7 @@ package nas
 
 import (
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/nas/nasMessage"
+	"github.com/free5gc/nas/nasMessage"
 )
 
 type DLNASTransport struct {
@@ -13,7 +13,6 @@ type DLNASTransport struct {
 	PduSessionID2Value                    *uint8                  `json:"pdu_session_id_2_value,omitempty"`
 	Cause5GMM                             *utils.EnumField[uint8] `json:"cause_5gmm,omitempty"`
 	BackoffTimerValue                     *uint8                  `json:"backoff_timer_value,omitempty"`
-	Ipaddr                                string                  `json:"ip_addr,omitempty"`
 
 	AdditionalInformation *UnsupportedIE `json:"additional_information,omitempty"`
 }
@@ -27,7 +26,6 @@ func buildDLNASTransport(msg *nasMessage.DLNASTransport) *DLNASTransport {
 		ExtendedProtocolDiscriminator:         msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType:   msg.SpareHalfOctetAndSecurityHeaderType.Octet,
 		SpareHalfOctetAndPayloadContainerType: msg.SpareHalfOctetAndPayloadContainerType.Octet,
-		Ipaddr:                                msg.Ipaddr,
 	}
 
 	dlNasTransport.PayloadContainer = buildDLNASPayloadContainer(msg)

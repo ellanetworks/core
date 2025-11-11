@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/ngap/aper"
-	"github.com/omec-project/ngap/ngapConvert"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/aper"
+	"github.com/free5gc/ngap/ngapConvert"
+	"github.com/free5gc/ngap/ngapType"
 )
 
 type Guami struct {

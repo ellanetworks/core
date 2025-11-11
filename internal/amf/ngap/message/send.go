@@ -14,9 +14,8 @@ import (
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/ngap"
-	"github.com/omec-project/ngap/aper"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/aper"
+	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
@@ -105,7 +104,7 @@ func SendToRan(ran *context.AmfRan, packet []byte, msgType NGAPProcedure) error 
 
 	info := sctp.SndRcvInfo{
 		Stream: sid,
-		PPID:   nativeToNetworkEndianness32(ngap.PPID),
+		PPID:   nativeToNetworkEndianness32(sctp.NGAPPPID),
 	}
 	if _, err := ran.Conn.SCTPWrite(packet, &info); err != nil {
 		return fmt.Errorf("send write to sctp connection: %s", err.Error())

@@ -10,8 +10,8 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/nas/nasConvert"
-	"github.com/omec-project/nas/nasMessage"
+	"github.com/free5gc/nas/nasConvert"
+	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 

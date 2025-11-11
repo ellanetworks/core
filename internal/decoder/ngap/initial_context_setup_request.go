@@ -6,8 +6,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/ngap/aper"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/aper"
+	"github.com/free5gc/ngap/ngapType"
 )
 
 type ExpectedUEActivityBehaviour struct {

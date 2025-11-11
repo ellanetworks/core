@@ -1,8 +1,8 @@
 package nas
 
 import (
-	"github.com/omec-project/nas/nasConvert"
-	"github.com/omec-project/nas/nasMessage"
+	"github.com/free5gc/nas/nasConvert"
+	"github.com/free5gc/nas/nasMessage"
 )
 
 type SecurityModeComplete struct {

@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/ngap/aper"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/aper"
+	"github.com/free5gc/ngap/ngapType"
 )
 
 func TraceDataToNgap(traceData models.TraceData, trsr string) (ngapType.TraceActivation, error) {

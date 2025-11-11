@@ -32,6 +32,10 @@ import (
 )
 
 const (
+	NGAPPPID uint32 = 60
+)
+
+const (
 	SolSCTP = 132
 
 	SCTPBindxAddAddr = 0x01

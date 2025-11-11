@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/nas"
-	"github.com/omec-project/nas/nasMessage"
+	"github.com/free5gc/nas"
+	"github.com/free5gc/nas/nasMessage"
 )
 
 type GmmHeader struct {

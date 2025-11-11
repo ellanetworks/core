@@ -2,7 +2,7 @@ package util
 
 import (
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/nas/nasMessage"
+	"github.com/free5gc/nas/nasMessage"
 )
 
 func PDUSessionTypeToModels(nasPduSessType uint8) (pduSessType models.PduSessionType) {

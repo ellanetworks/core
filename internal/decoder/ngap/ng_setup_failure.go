@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/ngap/ngapType"
 )
 
 func buildNGSetupFailure(ngSetupFailure ngapType.NGSetupFailure) NGAPMessageValue {

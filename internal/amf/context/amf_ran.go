@@ -14,7 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/ngap/ngapType"
+	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 

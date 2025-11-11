@@ -18,8 +18,8 @@ import (
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/marshtojsonstring"
-	"github.com/omec-project/nas"
-	"github.com/omec-project/nas/nasMessage"
+	"github.com/free5gc/nas"
+	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
