@@ -97,7 +97,7 @@ func buildPDUSessionEstablishmentAccept(msg *nasMessage.PDUSessionEstablishmentA
 	}
 
 	if msg.DNN != nil && msg.DNN.GetLen() > 0 {
-		dnn := string(msg.DNN.GetDNN())
+		dnn := msg.DNN.GetDNN()
 		estAcc.DNN = &dnn
 	}
 

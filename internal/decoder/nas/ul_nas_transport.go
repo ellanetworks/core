@@ -66,7 +66,7 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	}
 
 	if msg.DNN != nil && msg.DNN.GetLen() > 0 {
-		dnn := string(msg.DNN.GetDNN())
+		dnn := msg.DNN.GetDNN()
 		ulNasTransport.DNN = &dnn
 	}
 
