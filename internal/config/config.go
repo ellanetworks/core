@@ -310,9 +310,9 @@ func Validate(filePath string) (Config, error) {
 	}
 
 	if c.XDP.AttachMode == AttachModeNative {
-		config.Interfaces.N3.VlanConfig, err = GetVLANConfigForInterfaceFunc(n3InterfaceName)
+		config.Interfaces.N3.VlanConfig, err = GetVLANConfigForInterfaceFunc(c.Interfaces.N3.Name)
 		if err != nil {
-			return Config{}, fmt.Errorf("cannot get vlan config for interface %s: %w", n3InterfaceName, err)
+			return Config{}, fmt.Errorf("cannot get vlan config for interface %s: %w", c.Interfaces.N3.Name, err)
 		}
 		config.Interfaces.N6.VlanConfig, err = GetVLANConfigForInterfaceFunc(c.Interfaces.N6.Name)
 		if err != nil {
