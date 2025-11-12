@@ -91,7 +91,7 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n6Interface conf
 
 	var n6Link *link.Link
 	if n6Iface.Index != n3Iface.Index {
-		*n6Link, err = link.AttachXDP(link.XDPOptions{
+		n6, err := link.AttachXDP(link.XDPOptions{
 			Program:   bpfObjects.UpfN3N6EntrypointFunc,
 			Interface: n6Iface.Index,
 			Flags:     StringToXDPAttachMode(xdpAttachMode),
@@ -99,6 +99,7 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n6Interface conf
 		if err != nil {
 			return nil, fmt.Errorf("failed to attach eBPF program on n6 interface %q: %s", n6AttachmentInterface, err)
 		}
+		n6Link = &n6
 	}
 
 	resourceManager, err := core.NewFteIDResourceManager(FTEIDPool)
