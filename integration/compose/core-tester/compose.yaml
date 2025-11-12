@@ -1,0 +1,104 @@
+configs:
+  ella_config:
+    content: |
+      logging:
+        system:
+          level: "debug"
+          output: "stdout"
+        audit:
+          output: "stdout"
+      db:
+        path: "core.db"
+      interfaces:
+        n2:
+          address: "10.3.0.2"
+          port: 38412
+        n3:
+          name: "n3"
+        n6:
+          name: "n6"
+        api:
+          address: "10.3.0.2"
+          port: 5002
+      xdp:
+        attach-mode: "generic"
+  core-tester-config:
+    content: |
+      ella-core:
+        api:
+          address: "http://10.3.0.2:5002"
+          token: "ellacore_p7tCb1IjGGbj_rWT4tq6PJcF1p3r1deL6xyhn"
+        n2-address: "10.3.0.2:38412"
+        mcc: "001"
+        mnc: "01"
+        sst: 1
+        sd: "102030"
+        tac: "000001"
+        dnn: "internet"
+      gnb:
+        n2-address: "10.3.0.3"
+        n3-address: "10.3.0.3"
+      subscriber:
+        imsi: "001017271246546"
+        key: "640f441067cd56f1474cbcacd7a0588f"
+        opc: "cb698a2341629c3241ae01de9d89de4f"
+        sqn: "000000000022"
+        policy-name: "bbb"
+
+services:
+  ella-core:
+    image: ella-core:latest
+    configs:
+      - source: ella_config
+        target: /core.yaml
+    restart: unless-stopped
+    entrypoint: /bin/core --config /core.yaml
+    volumes:
+      - /sys/fs/bpf:/sys/fs/bpf:rw
+    privileged: true
+    ports:
+      - "5002:5002"
+    networks:
+      default:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.2
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.2
+  ella-core-tester:
+    image: ghcr.io/ellanetworks/ella-core-tester:0.0.1
+    configs:
+      - source: core-tester-config
+        target: /config.yaml
+    restart: unless-stopped
+    privileged: true
+    networks:
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.3
+  router:
+    image: ghcr.io/ellanetworks/ubuntu-router:0.1
+    restart: unless-stopped
+    privileged: true
+    networks:
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.3
+
+networks:
+  n3:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.3.0.0/24
+  n6:
+    ipam:
+      config:
+        - subnet: 10.6.0.0/24

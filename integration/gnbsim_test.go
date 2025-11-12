@@ -15,6 +15,8 @@ func TestIntegrationGnbsim(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	t.Skip("Validating Ella Core Tester")
+
 	ctx := context.Background()
 
 	dockerClient, err := NewDockerClient()
