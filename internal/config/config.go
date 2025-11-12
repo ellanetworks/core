@@ -445,9 +445,8 @@ var GetInterfaceNameFunc = func(address string) (string, error) {
 var GetVLANConfigForInterfaceFunc = func(name string) (*VlanConfig, error) {
 	link, err := netlink.LinkByName(name)
 	if err != nil {
-		return nil, fmt.Errorf("cannot get link for interface %s: %w", name, err)
+		return nil, err
 	}
-
 	if link.Type() == "vlan" {
 		vlanLink := link.(*netlink.Vlan)
 		parentLink, err := netlink.LinkByIndex(vlanLink.ParentIndex)
