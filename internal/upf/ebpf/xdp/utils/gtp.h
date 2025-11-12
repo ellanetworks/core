@@ -108,7 +108,8 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx)
 	}
 
 	size_t vlan_hdr_size = 0;
-	if (eth->h_proto == bpf_htons(ETH_P_8021Q) || eth->h_proto == bpf_htons(ETH_P_8021AD)) {
+	if (eth->h_proto == bpf_htons(ETH_P_8021Q) ||
+	    eth->h_proto == bpf_htons(ETH_P_8021AD)) {
 		upf_printk("upf: remove_gtp_header: detected vlan header");
 		vlan_hdr_size += sizeof(struct vlan_hdr);
 	}
@@ -125,20 +126,24 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx)
 	if (eth_proto == -1)
 		return -1;
 
-	struct ethhdr *new_eth = (struct ethhdr *)(data - sizeof(struct ethhdr));
+	struct ethhdr *new_eth =
+		(struct ethhdr *)(data - sizeof(struct ethhdr));
 	if ((const char *)(new_eth + 1) > data_end) {
 		upf_printk("upf: remove_gtp_header: can't set new eth");
 		return -1;
 	}
 	if (n6_vlan) {
-		struct vlan_hdr *vlan = (struct vlan_hdr *)(data - sizeof(struct vlan_hdr));
-		new_eth = (struct ethhdr *)(data - sizeof(struct vlan_hdr) - sizeof(struct ethhdr));
+		struct vlan_hdr *vlan =
+			(struct vlan_hdr *)(data - sizeof(struct vlan_hdr));
+		new_eth = (struct ethhdr *)(data - sizeof(struct vlan_hdr) -
+					    sizeof(struct ethhdr));
 		if ((const char *)(new_eth + 1) > data_end) {
 			upf_printk("upf: remove_gtp_header: can't set new eth");
 			return -1;
 		}
 		if ((const char *)(vlan + 1) > data_end) {
-			upf_printk("upf: remove_gtp_header: can't set new vlan");
+			upf_printk(
+				"upf: remove_gtp_header: can't set new vlan");
 			return -1;
 		}
 		vlan->h_vlan_TCI = bpf_htons(n6_vlan & 0x0FFF);
@@ -236,7 +241,8 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 	if (ctx->vlan) {
 		n6_vlan_hdr_size += sizeof(struct vlan_hdr);
 	}
-	const size_t gtp_encap_size = n3_vlan_hdr_size - n6_vlan_hdr_size + gtp_encap_size_no_vlan;
+	const size_t gtp_encap_size =
+		n3_vlan_hdr_size - n6_vlan_hdr_size + gtp_encap_size_no_vlan;
 
 	// int ip_packet_len = (ctx->xdp_ctx->data_end - ctx->xdp_ctx->data) - sizeof(*eth);
 	int ip_packet_len = 0;
@@ -276,14 +282,15 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 		struct vlan_hdr *vlan = (struct vlan_hdr *)ip;
 		vlan->h_vlan_TCI = bpf_htons(n3_vlan & 0x0FFF);
 		vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
-		ip = (struct iphdr *)((void *)ip + sizeof(struct vlan_hdr)); 
+		ip = (struct iphdr *)((void *)ip + sizeof(struct vlan_hdr));
 		if ((const char *)(ip + 1) > data_end) {
 			return -1;
 		}
 	}
 
 	/* Add the outer IP header */
-	fill_ip_header(ip, saddr, daddr, tos, ip_packet_len + gtp_encap_size_no_vlan);
+	fill_ip_header(ip, saddr, daddr, tos,
+		       ip_packet_len + gtp_encap_size_no_vlan);
 
 	/* Add the UDP header */
 	struct udphdr *udp = (struct udphdr *)(ip + 1);

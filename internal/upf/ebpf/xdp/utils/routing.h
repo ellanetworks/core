@@ -52,22 +52,19 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params)
 	__builtin_memcpy(ctx->eth->h_source, fib_params->smac, ETH_ALEN);
 	__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
 
-// Source NAT is only meant for N3. This macro
-// will ensure the N6 program does not have this
-// code.
-#ifdef N3
-	if (masquerade) {
-		if (!source_nat(ctx, fib_params)) {
-			return XDP_DROP;
-		}
-	}
-#endif
+	__u32 ifindex = fib_params->ifindex; // NOLINT(clang-analyzer-deadcode.DeadStores)
 
-#ifdef N3
-	__u32 ifindex = n6_ifindex;
-#else
-	__u32 ifindex = n3_ifindex;
-#endif
+	if (ctx->interface == INTERFACE_N3) {
+		if (masquerade) {
+			if (!source_nat(ctx, fib_params)) {
+				return XDP_DROP;
+			}
+		}
+		ifindex = n6_ifindex;
+	} else {
+		ifindex = n3_ifindex;
+	}
+
 	if (ifindex == ctx->xdp_ctx->ingress_ifindex)
 		return XDP_TX;
 	return bpf_redirect(ifindex, 0);
@@ -123,23 +120,23 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 	}
 }
 
-static __always_inline enum xdp_action route_ipv6(struct xdp_md *ctx,
-						  struct ethhdr *eth,
-						  const struct ipv6hdr *ip6,
+static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 						  struct route_stat *statistic)
 {
 	struct bpf_fib_lookup fib_params = {};
 	fib_params.family = AF_INET;
 	// fib_params.tos = ip6->flow_lbl;
-	fib_params.l4_protocol = ip6->nexthdr;
+	fib_params.l4_protocol = ctx->ip6->nexthdr;
 	fib_params.sport = 0;
 	fib_params.dport = 0;
-	fib_params.tot_len = bpf_ntohs(ip6->payload_len);
-	__builtin_memcpy(fib_params.ipv6_src, &ip6->saddr, sizeof(ip6->saddr));
-	__builtin_memcpy(fib_params.ipv6_dst, &ip6->daddr, sizeof(ip6->daddr));
-	fib_params.ifindex = ctx->ingress_ifindex;
+	fib_params.tot_len = bpf_ntohs(ctx->ip6->payload_len);
+	__builtin_memcpy(fib_params.ipv6_src, &ctx->ip6->saddr,
+			 sizeof(ctx->ip6->saddr));
+	__builtin_memcpy(fib_params.ipv6_dst, &ctx->ip6->daddr,
+			 sizeof(ctx->ip6->daddr));
+	fib_params.ifindex = ctx->xdp_ctx->ingress_ifindex;
 
-	int rc = bpf_fib_lookup(ctx, &fib_params, sizeof(fib_params),
+	int rc = bpf_fib_lookup(ctx->xdp_ctx, &fib_params, sizeof(fib_params),
 				0 /*BPF_FIB_LOOKUP_OUTPUT*/);
 	switch (rc) {
 	case BPF_FIB_LKUP_RET_SUCCESS:
@@ -147,13 +144,22 @@ static __always_inline enum xdp_action route_ipv6(struct xdp_md *ctx,
 			   &ip6->saddr, &ip6->daddr, &fib_params.ipv4_dst);
 		statistic->fib_lookup_ip6_ok += 1;
 		//_decr_ttl(ether_proto, l3hdr);
-		__builtin_memcpy(eth->h_dest, fib_params.dmac, ETH_ALEN);
-		__builtin_memcpy(eth->h_source, fib_params.smac, ETH_ALEN);
+		__builtin_memcpy(ctx->eth->h_dest, fib_params.dmac, ETH_ALEN);
+		__builtin_memcpy(ctx->eth->h_source, fib_params.smac, ETH_ALEN);
+
+		__u32 ifindex = fib_params.ifindex; // NOLINT(clang-analyzer-deadcode.DeadStores)
+
+		if (ctx->interface == INTERFACE_N3) {
+			ifindex = n6_ifindex;
+		} else {
+			ifindex = n3_ifindex;
+		}
+
 		upf_printk("upf: bpf_redirect: if=%d %lu -> %lu",
 			   fib_params.ifindex, fib_params.smac,
 			   fib_params.dmac);
 
-		if (fib_params.ifindex == ctx->ingress_ifindex)
+		if (ifindex == ctx->xdp_ctx->ingress_ifindex)
 			return XDP_TX;
 
 		return bpf_redirect(fib_params.ifindex, 0);

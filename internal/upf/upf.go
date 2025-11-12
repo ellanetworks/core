@@ -31,7 +31,7 @@ const (
 type UPF struct {
 	bpfObjects *ebpf.BpfObjects
 	n3Link     link.Link
-	n6Link     link.Link
+	n6Link     *link.Link
 	pfcpConn   *core.PfcpConnection
 
 	gcCancel context.CancelFunc
@@ -81,7 +81,7 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n6Interface conf
 	}
 
 	n3Link, err := link.AttachXDP(link.XDPOptions{
-		Program:   bpfObjects.UpfN3EntrypointFunc,
+		Program:   bpfObjects.UpfN3N6EntrypointFunc,
 		Interface: n3Iface.Index,
 		Flags:     StringToXDPAttachMode(xdpAttachMode),
 	})
@@ -89,13 +89,16 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n6Interface conf
 		return nil, fmt.Errorf("failed to attach eBPF program on n3 interface %q: %s", n3AttachmentInterface, err)
 	}
 
-	n6Link, err := link.AttachXDP(link.XDPOptions{
-		Program:   bpfObjects.UpfN6EntrypointFunc,
-		Interface: n6Iface.Index,
-		Flags:     StringToXDPAttachMode(xdpAttachMode),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to attach eBPF program on n6 interface %q: %s", n6AttachmentInterface, err)
+	var n6Link *link.Link
+	if n6Iface.Index != n3Iface.Index {
+		*n6Link, err = link.AttachXDP(link.XDPOptions{
+			Program:   bpfObjects.UpfN3N6EntrypointFunc,
+			Interface: n6Iface.Index,
+			Flags:     StringToXDPAttachMode(xdpAttachMode),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to attach eBPF program on n6 interface %q: %s", n6AttachmentInterface, err)
+		}
 	}
 
 	resourceManager, err := core.NewFteIDResourceManager(FTEIDPool)
@@ -136,8 +139,10 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n6Interface conf
 }
 
 func (u *UPF) Close() {
-	if err := u.n6Link.Close(); err != nil {
-		logger.UpfLog.Warn("Failed to detach eBPF from n6", zap.Error(err))
+	if u.n6Link != nil {
+		if err := (*u.n6Link).Close(); err != nil {
+			logger.UpfLog.Warn("Failed to detach eBPF from n6", zap.Error(err))
+		}
 	}
 	if err := u.n3Link.Close(); err != nil {
 		logger.UpfLog.Warn("Failed to detach eBPF from n3", zap.Error(err))
@@ -156,12 +161,14 @@ func (u *UPF) Reload(masquerade bool) error {
 		return fmt.Errorf("couldn't load BPF objects: %w", err)
 	}
 
-	if err := u.n3Link.Update(u.bpfObjects.UpfN3EntrypointFunc); err != nil {
+	if err := u.n3Link.Update(u.bpfObjects.UpfN3N6EntrypointFunc); err != nil {
 		return err
 	}
 
-	if err := u.n6Link.Update(u.bpfObjects.UpfN6EntrypointFunc); err != nil {
-		return err
+	if u.n6Link != nil {
+		if err := (*u.n6Link).Update(u.bpfObjects.UpfN3N6EntrypointFunc); err != nil {
+			return err
+		}
 	}
 
 	if masquerade {
@@ -207,11 +214,11 @@ func (u *UPF) stopGC() {
 
 func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 	var (
-		key     ebpf.N3EntrypointFiveTuple
-		value   ebpf.N3EntrypointNatEntry
+		key     ebpf.N3N6EntrypointFiveTuple
+		value   ebpf.N3N6EntrypointNatEntry
 		sysInfo unix.Sysinfo_t
 	)
-	expiredKeys := make([]ebpf.N3EntrypointFiveTuple, 0)
+	expiredKeys := make([]ebpf.N3N6EntrypointFiveTuple, 0)
 
 	for {
 		select {
@@ -228,7 +235,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
 		expiryThreshold := nsSinceBoot - ConnTrackTimeout.Nanoseconds()
 
-		ct_entries := u.bpfObjects.N3EntrypointMaps.NatCt.Iterate()
+		ct_entries := u.bpfObjects.N3N6EntrypointMaps.NatCt.Iterate()
 		for ct_entries.Next(&key, &value) {
 			if value.RefreshTs < uint64(expiryThreshold) {
 				expiredKeys = append(expiredKeys, key)
@@ -238,7 +245,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 			logger.UpfLog.Debug("Error while iterating over conntrack entries", zap.Error(err))
 		}
 
-		count, err := u.bpfObjects.N3EntrypointMaps.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
+		count, err := u.bpfObjects.N3N6EntrypointMaps.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
 		if err != nil {
 			logger.UpfLog.Warn("Failed to delete expired conntrack entries", zap.Error(err))
 		}

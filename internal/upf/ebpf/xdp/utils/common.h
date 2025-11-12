@@ -20,3 +20,5 @@
 
 #define increment_counter_sync(OBJECT, COUNTER) \
 	__sync_fetch_and_add(&OBJECT->COUNTER, 1);
+
+#define DEFAULT_XDP_ACTION XDP_PASS

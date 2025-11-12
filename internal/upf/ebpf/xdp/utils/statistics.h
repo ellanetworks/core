@@ -20,11 +20,11 @@
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
-struct upf_counters {
+struct byte_counter {
 	__u64 bytes;
 };
 
-struct counters {
+struct packet_counters {
 	__u64 rx;
 	__u64 tx;
 };
@@ -33,7 +33,7 @@ struct counters {
 #define EUPF_MAX_XDP_ACTION_MASK 0x07
 
 struct upf_statistic {
-	struct upf_counters upf_counters;
-	struct counters upf_counter;
+	struct byte_counter byte_counter;
+	struct packet_counters packet_counters;
 	__u64 xdp_actions[EUPF_MAX_XDP_ACTION];
 };

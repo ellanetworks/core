@@ -52,15 +52,16 @@ to 2 interfaces.
   <figcaption>Combined All</figcaption>
 </figure>
 
-While this is the minimum requirements for Ella Core, one or both of these
-interfaces can be virtual interfaces, with `veth`. Refer to your
+One or both of these interfaces can be virtual interfaces, with `veth`. Refer to your
 distribution's documentation on how to set this up.
+
+## Combined on one interface
+
+Ella Core can also be run with a single network interface. It can be achieved by
+using the same interface name in the configuration file, or by using VLANs.
 
 # Using VLANs
 
 It is possible to use VLAN interfaces, with or without combining interfaces
 as described previously. In this case, the configuration file should contain
 the name of the VLAN interface, not the parent interface.
-
-Currently, there is a limitation that prevents using VLAN interfaces on the
-same parent interface for N3 and N6.
