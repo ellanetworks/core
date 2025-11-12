@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/client"
 )
@@ -33,7 +34,7 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 	t.Log("deployed ella core")
 
 	clientConfig := &client.Config{
-		BaseURL: "http://127.0.0.1:5002",
+		BaseURL: "http://10.3.0.2:5002",
 	}
 
 	ellaClient, err := client.New(clientConfig)
@@ -55,41 +56,24 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 
 	t.Log("configured Ella Core")
 
-	t.Log("running GNBSim simulation")
+	coreTesterContainerName, err := dockerClient.ResolveComposeContainer(ctx, "core-tester", "ella-core-tester")
+	if err != nil {
+		t.Fatalf("failed to resolve ella-core-tester container: %v", err)
+	}
 
-	// gnbsimContainerName, err := dockerClient.ResolveComposeContainer(ctx, "gnbsim", "gnbsim")
-	// if err != nil {
-	// 	t.Fatalf("failed to resolve gnbsim container: %v", err)
-	// }
+	t.Log("running Ella Core Tester `test` command")
 
-	// out, err := dockerClient.Exec(ctx, gnbsimContainerName, []string{"gnbsim", "--cfg", "/config.yaml"}, false, 5*time.Minute, logWriter{t})
-	// if err != nil {
-	// 	t.Fatalf("failed to exec command in pod: %v", err)
-	// }
+	out, err := dockerClient.Exec(ctx, coreTesterContainerName, []string{
+		"core-tester", "test",
+		"--ella-core-api-address", "http://10.3.0.2:5002",
+		"--ella-core-api-token", ellaClient.GetToken(),
+		"--ella-core-n2-address", "10.3.0.2:38412",
+		"--gnb-n2-address", "10.3.0.3",
+		"--gnb-n3-address", "10.3.0.3",
+	}, false, 2*time.Minute, logWriter{t})
+	if err != nil {
+		t.Fatalf("failed to exec command in pod: %v", err)
+	}
 
-	// t.Logf("gnbsim output:\n%s", out)
-
-	// passCount := strings.Count(out, "Profile Status: PASS")
-	// if passCount != numProfiles {
-	// 	t.Fatalf("expected 'Profile Status: PASS' %d times, found %d\nfull output:\n%s",
-	// 		numProfiles, passCount, out)
-	// }
-
-	// t.Logf("verified that 'Profile Status: PASS' appears %d times", passCount)
-
-	// metrics, err := ellaClient.GetMetrics(ctx)
-	// if err != nil {
-	// 	t.Fatalf("failed to get metrics: %v", err)
-	// }
-
-	// appUplinkBytes := metrics["app_uplink_bytes"]
-	// appDownlinkBytes := metrics["app_downlink_bytes"]
-
-	// if appUplinkBytes < 9000 {
-	// 	t.Fatalf("expected app_uplink_bytes to be at least 9000, but got %v", appUplinkBytes)
-	// }
-
-	// if appDownlinkBytes < 9000 {
-	// 	t.Fatalf("expected app_downlink_bytes to be at least 9000, but got %v", appDownlinkBytes)
-	// }
+	t.Logf("ella-core-tester output:\n%s", out)
 }

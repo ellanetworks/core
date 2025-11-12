@@ -22,28 +22,6 @@ configs:
           port: 5002
       xdp:
         attach-mode: "generic"
-  core-tester-config:
-    content: |
-      ella-core:
-        api:
-          address: "http://10.3.0.2:5002"
-          token: "ellacore_p7tCb1IjGGbj_rWT4tq6PJcF1p3r1deL6xyhn"
-        n2-address: "10.3.0.2:38412"
-        mcc: "001"
-        mnc: "01"
-        sst: 1
-        sd: "102030"
-        tac: "000001"
-        dnn: "internet"
-      gnb:
-        n2-address: "10.3.0.3"
-        n3-address: "10.3.0.3"
-      subscriber:
-        imsi: "001017271246546"
-        key: "640f441067cd56f1474cbcacd7a0588f"
-        opc: "cb698a2341629c3241ae01de9d89de4f"
-        sqn: "000000000022"
-        policy-name: "bbb"
 
 services:
   ella-core:
@@ -71,13 +49,13 @@ services:
               com.docker.network.endpoint.ifname: n6
         ipv4_address: 10.6.0.2
   ella-core-tester:
-    image: ghcr.io/ellanetworks/ella-core-tester:0.0.1
-    configs:
-      - source: core-tester-config
-        target: /config.yaml
+    image: ghcr.io/ellanetworks/ella-core-tester:latest
     restart: unless-stopped
     privileged: true
     networks:
+      default:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
       n3:
         driver_opts:
               com.docker.network.endpoint.ifname: n3
