@@ -35,8 +35,6 @@ func DeregisterSubscriber(ctx ctxt.Context, supi string) error {
 		if err != nil {
 			return fmt.Errorf("failed to send deregistration event: %w", err)
 		}
-	default:
-		logger.AmfLog.Error("TO DELETE: cannot deregister", zap.String("supi", ue.Supi), zap.String("state", string(ueFsmState)))
 	}
 
 	return nil
