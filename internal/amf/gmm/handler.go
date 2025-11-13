@@ -1385,6 +1385,8 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		ue.T3565 = nil // clear the timer
 	}
 
+	logger.AmfLog.Warn("TO DELETE: Service request", zap.Any("serviceRequest", serviceRequest))
+
 	// Set No ongoing
 	if procedure := ue.GetOnGoing(anType).Procedure; procedure == context.OnGoingProcedurePaging {
 		ue.SetOnGoing(anType, &context.OnGoingProcedureWithPrio{
@@ -1416,6 +1418,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	// container IE, the UE shall set the security header type of the initial NAS message to "integrity protected"
 	if serviceRequest.NASMessageContainer != nil {
 		contents := serviceRequest.NASMessageContainer.GetNASMessageContainerContents()
+		logger.AmfLog.Warn("TO DELETE: NAS Message Container Contents", zap.ByteString("contents", contents))
 
 		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
 		// message container IE, the UE shall set the security header type of the initial NAS message to
@@ -1492,6 +1495,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 	if serviceRequest.UplinkDataStatus != nil {
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(serviceRequest.UplinkDataStatus.Buffer)
+		logger.AmfLog.Warn("TO DELETE: UPLINK DATA STATUS: ", zap.Any("uplinkDataPsi", uplinkDataPsi))
 		reactivationResult = new([16]bool)
 		ue.SmContextList.Range(func(key, value interface{}) bool {
 			pduSessionID := key.(int32)
@@ -1523,6 +1527,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	if serviceRequest.PDUSessionStatus != nil {
 		acceptPduSessionPsi = new([16]bool)
 		psiArray := nasConvert.PSIToBooleanArray(serviceRequest.PDUSessionStatus.Buffer)
+		logger.AmfLog.Warn("TO DELETE: PDU SESSION STATUS: ", zap.Any("psiArray", psiArray))
 		ue.SmContextList.Range(func(key, value any) bool {
 			pduSessionID := key.(int32)
 			smContext := value.(*context.SmContext)
@@ -1592,6 +1597,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			if smContext.AccessType() == models.AccessTypeNon3GPPAccess {
 				if serviceRequest.AllowedPDUSessionStatus != nil {
 					allowPduSessionPsi := nasConvert.PSIToBooleanArray(serviceRequest.AllowedPDUSessionStatus.Buffer)
+					logger.AmfLog.Warn("TO DELETE: ALLOWED PDU SESSION STATUS: ", zap.Any("allowPduSessionPsi", allowPduSessionPsi))
 					if reactivationResult == nil {
 						reactivationResult = new([16]bool)
 					}

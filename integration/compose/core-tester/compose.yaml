@@ -25,7 +25,7 @@ configs:
 
 services:
   ella-core:
-    image: ella-core:latest
+    image: ghcr.io/ellanetworks/ella-core:v0.4.2
     configs:
       - source: ella_config
         target: /core.yaml
@@ -49,7 +49,7 @@ services:
               com.docker.network.endpoint.ifname: n6
         ipv4_address: 10.6.0.2
   ella-core-tester:
-    image: ghcr.io/ellanetworks/ella-core-tester:latest
+    image: ella-core-tester:latest
     restart: unless-stopped
     privileged: true
     networks:

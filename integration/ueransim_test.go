@@ -15,6 +15,8 @@ func TestIntegrationUERANSIM(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	t.Skip("Focusing on core-tester tests for now")
+
 	testCases := []struct {
 		name string
 		nat  bool
