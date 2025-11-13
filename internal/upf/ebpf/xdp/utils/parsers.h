@@ -45,7 +45,8 @@ static __always_inline int parse_ethernet(struct packet_context *ctx)
 	ctx->eth = eth;
 	ctx->vlan = NULL;
 
-	if (eth->h_proto == bpf_htons(ETH_P_8021Q) || eth->h_proto == bpf_htons(ETH_P_8021AD)) {
+	if (eth->h_proto == bpf_htons(ETH_P_8021Q) ||
+	    eth->h_proto == bpf_htons(ETH_P_8021AD)) {
 		struct vlan_hdr *vlan = (struct vlan_hdr *)ctx->data;
 
 		if ((const char *)(ctx->data + sizeof(*vlan)) > ctx->data_end) {

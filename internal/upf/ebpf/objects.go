@@ -19,16 +19,14 @@ import (
 //
 // Usage: export BPF_CFLAGS="-DENABLE_LOG"
 
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3Entrypoint xdp/n3_bpf.c -- -I. -O2 -Wall -Werror -g
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N6Entrypoint xdp/n6_bpf.c -- -I. -O2 -Wall -Werror -g
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3N6Entrypoint xdp/n3n6_bpf.c -- -I. -O2 -Wall -Werror -g
 
 const (
 	PinPath = "/sys/fs/bpf/upf_pipeline"
 )
 
 type BpfObjects struct {
-	N3EntrypointObjects
-	N6EntrypointObjects
+	N3N6EntrypointObjects
 
 	FarIDTracker     *IDTracker
 	QerIDTracker     *IDTracker
@@ -68,28 +66,18 @@ func (bpfObjects *BpfObjects) Load() error {
 		},
 	}
 
-	n3Spec, err := LoadN3Entrypoint()
+	n3n6Spec, err := LoadN3N6Entrypoint()
 	if err != nil {
-		logger.UpfLog.Error("failed to load N3 spec", zap.Error(err))
+		logger.UpfLog.Error("failed to load N3/N6spec", zap.Error(err))
 		return err
 	}
-	if err := bpfObjects.loadAndAssignFromSpec(n3Spec, &bpfObjects.N3EntrypointObjects, &collectionOptions); err != nil {
-		logger.UpfLog.Error("failed to load N3 program", zap.Error(err))
+	if err := bpfObjects.loadAndAssignFromSpec(n3n6Spec, &bpfObjects.N3N6EntrypointObjects, &collectionOptions); err != nil {
+		logger.UpfLog.Error("failed to load N3/N6 program", zap.Error(err))
 		return err
 	}
 
-	n6Spec, err := LoadN6Entrypoint()
-	if err != nil {
-		logger.UpfLog.Error("failed to load N6 spec", zap.Error(err))
-		return err
-	}
-	if err := bpfObjects.loadAndAssignFromSpec(n6Spec, &bpfObjects.N6EntrypointObjects, &collectionOptions); err != nil {
-		logger.UpfLog.Error("failed to load N6 program", zap.Error(err))
-		return err
-	}
-
-	bpfObjects.FarIDTracker = NewIDTracker(bpfObjects.N3EntrypointMaps.FarMap.MaxEntries())
-	bpfObjects.QerIDTracker = NewIDTracker(bpfObjects.N3EntrypointMaps.QerMap.MaxEntries())
+	bpfObjects.FarIDTracker = NewIDTracker(bpfObjects.N3N6EntrypointMaps.FarMap.MaxEntries())
+	bpfObjects.QerIDTracker = NewIDTracker(bpfObjects.N3N6EntrypointMaps.QerMap.MaxEntries())
 
 	return nil
 }
@@ -125,25 +113,24 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 func (bpfObjects *BpfObjects) Close() error {
 	bpfObjects.unpinMaps()
 	return CloseAllObjects(
-		&bpfObjects.N3EntrypointObjects,
-		&bpfObjects.N6EntrypointObjects,
+		&bpfObjects.N3N6EntrypointObjects,
 	)
 }
 
 func (bpfObjects *BpfObjects) unpinMaps() {
-	if err := bpfObjects.N3EntrypointMaps.UplinkRouteStats.Unpin(); err != nil {
+	if err := bpfObjects.N3N6EntrypointMaps.UplinkRouteStats.Unpin(); err != nil {
 		logger.UpfLog.Warn("failed to unpin uplink_route_stats map, state could be left behind: %v", zap.Error(err))
 	}
-	if err := bpfObjects.N3EntrypointMaps.PdrsUplink.Unpin(); err != nil {
+	if err := bpfObjects.N3N6EntrypointMaps.PdrsUplink.Unpin(); err != nil {
 		logger.UpfLog.Warn("failed to unpin pdrs_uplink map, state could be left behind: %v", zap.Error(err))
 	}
-	if err := bpfObjects.N6EntrypointMaps.DownlinkRouteStats.Unpin(); err != nil {
+	if err := bpfObjects.N3N6EntrypointMaps.DownlinkRouteStats.Unpin(); err != nil {
 		logger.UpfLog.Warn("failed to unpin downlink_route_stats map, state could be left behind: %v", zap.Error(err))
 	}
-	if err := bpfObjects.N6EntrypointMaps.PdrsDownlinkIp4.Unpin(); err != nil {
+	if err := bpfObjects.N3N6EntrypointMaps.PdrsDownlinkIp4.Unpin(); err != nil {
 		logger.UpfLog.Warn("failed to unpin pdrs_downlink_ip4 map, state could be left behind: %v", zap.Error(err))
 	}
-	if err := bpfObjects.N6EntrypointMaps.PdrsDownlinkIp6.Unpin(); err != nil {
+	if err := bpfObjects.N3N6EntrypointMaps.PdrsDownlinkIp6.Unpin(); err != nil {
 		logger.UpfLog.Warn("failed to unpin pdrs_downlink_ip6 map, state could be left behind: %v", zap.Error(err))
 	}
 }
