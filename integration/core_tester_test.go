@@ -70,6 +70,7 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 		"--ella-core-n2-address", "10.3.0.2:38412",
 		"--gnb-n2-address", "10.3.0.3",
 		"--gnb-n3-address", "10.3.0.3",
+		"--verbose",
 	}, false, 2*time.Minute, logWriter{t})
 	if err != nil {
 		t.Fatalf("failed to exec command in pod: %v", err)
