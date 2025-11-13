@@ -62,6 +62,14 @@ services:
         ipv4_address: 10.3.0.3
   router:
     image: ghcr.io/ellanetworks/ubuntu-router:0.1
+    command:
+      - exec
+      - /bin/bash
+      - -lc
+      - >
+        ip route add 10.45.0.0/16 dev n6 via 10.6.0.2;
+        trap : TERM INT;
+        python3 /responder.py 34242 & wait
     restart: unless-stopped
     privileged: true
     networks:
