@@ -120,7 +120,7 @@ func HandlePfcpSessionEstablishmentResponse(ctx ctxt.Context, msg *message.Sessi
 			return fmt.Errorf("can't find UPF: %s", nodeID)
 		}
 		n3Interface := context.UPFInterfaceInfo{}
-		n3Interface.IPv4EndPointAddresses = append(n3Interface.IPv4EndPointAddresses, fteid.IPv4Address)
+		n3Interface.IPv4EndPointAddress = fteid.IPv4Address
 		upf.N3Interface = n3Interface
 	}
 	smContext.SMLock.Unlock()

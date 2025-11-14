@@ -87,11 +87,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	jobs.StartLogRetentionWorker(dbInstance)
 
-	scheme := api.HTTPS
-	if cfg.Interfaces.API.TLS.Cert == "" || cfg.Interfaces.API.TLS.Key == "" {
-		scheme = api.HTTP
-	}
-
 	go sessions.CleanUp(ctx, dbInstance)
 
 	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)
@@ -99,22 +94,26 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't determine if NAT is enabled: %w", err)
 	}
 
-	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled)
+	n3Address := cfg.Interfaces.N3.Address
+	n3Settings, err := dbInstance.GetN3Settings(ctx)
+	if err != nil {
+		return fmt.Errorf("couldn't get N3 external address: %w", err)
+	}
+
+	if n3Settings != nil && n3Settings.ExternalAddress != "" {
+		n3Address = n3Settings.ExternalAddress
+		logger.EllaLog.Debug("Using N3 external address from N3 settings", zap.String("n3_external_address", n3Address))
+	}
+
+	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3, n3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
 
 	if err := api.Start(
 		dbInstance,
+		cfg,
 		upfInstance,
-		cfg.Interfaces.API.Address,
-		cfg.Interfaces.API.Port,
-		scheme,
-		cfg.Interfaces.API.TLS.Cert,
-		cfg.Interfaces.API.TLS.Key,
-		cfg.Interfaces.N3.Name,
-		cfg.Interfaces.N6.Name,
-		cfg.Telemetry.Enabled,
 		rc.EmbedFS,
 		rc.RegisterExtraRoutes,
 	); err != nil {

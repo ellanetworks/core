@@ -7,10 +7,10 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/ellanetworks/core/internal/api/server"
+	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
@@ -44,20 +44,26 @@ func GenerateJWTSecret() ([]byte, error) {
 	return bytes, nil
 }
 
-func Start(dbInstance *db.Database, upf server.UPFReloader, address string, port int, scheme Scheme, certFile string, keyFile string, n3Interface string, n6Interface string, tracingEnabled bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) error {
+func Start(dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) error {
 	jwtSecret, err := GenerateJWTSecret()
 	if err != nil {
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
 	}
 
-	kernelInt := kernel.NewRealKernel(n3Interface, n6Interface)
+	kernelInt := kernel.NewRealKernel(cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
+
+	scheme := HTTPS
+	if cfg.Interfaces.API.TLS.Cert == "" || cfg.Interfaces.API.TLS.Key == "" {
+		scheme = HTTP
+	}
 
 	secureCookie := scheme == HTTPS
 
-	router := server.NewHandler(dbInstance, upf, kernelInt, jwtSecret, tracingEnabled, secureCookie, embedFS, registerExtraRoutes)
+	router := server.NewHandler(dbInstance, cfg, upf, kernelInt, jwtSecret, secureCookie, embedFS, registerExtraRoutes)
 
 	go func() {
-		httpAddr := address + ":" + strconv.Itoa(port)
+		httpAddr := fmt.Sprintf("%s:%d", cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
+
 		h2Server := &http2.Server{
 			IdleTimeout: 1 * time.Millisecond,
 		}
@@ -67,7 +73,7 @@ func Start(dbInstance *db.Database, upf server.UPFReloader, address string, port
 			Handler:           h2c.NewHandler(router, h2Server),
 		}
 		if scheme == HTTPS {
-			if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil {
+			if err := srv.ListenAndServeTLS(cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key); err != nil {
 				logger.APILog.Fatal("couldn't start API server", zap.Error(err))
 			}
 		} else {
@@ -77,7 +83,7 @@ func Start(dbInstance *db.Database, upf server.UPFReloader, address string, port
 		}
 	}()
 
-	logger.APILog.Info("API server started", zap.String("scheme", string(scheme)), zap.String("address", fmt.Sprintf("%s://%s:%d", scheme, address, port)))
+	logger.APILog.Info("API server started", zap.String("scheme", string(scheme)), zap.String("address", fmt.Sprintf("%s://%s:%d", scheme, cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)))
 
 	// Reconcile routes on startup and every 5 minutes.
 	go func() {
