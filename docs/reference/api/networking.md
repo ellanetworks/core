@@ -141,6 +141,66 @@ None
 }
 ```
 
+# Interfaces
+
+## Get Network Interfaces Config
+
+This path returns the network interfaces.
+
+| Method | Path                      |
+| ------ | ------------------------- |
+| GET    | `/api/v1/networking/interfaces` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "n2": {
+            "address": "192.168.40.6",
+            "port": 38412
+        },
+        "n3": {
+            "name": "wlp131s0",
+            "address": "192.168.40.6",
+            "external_address": ""
+        },
+        "n6": {
+            "name": "lo"
+        },
+        "api": {
+            "address": "",
+            "port": 5002
+        }
+    }
+}
+```
+
+## Update N3 Interface Settings
+
+This path updates the N3 interface settings.
+
+| Method | Path                      |
+| ------ | ------------------------- |
+| PUT    | `/api/v1/networking/interfaces/n3` |
+
+### Parameters
+
+- `external_address` (string): The external address to be used for the N3 interface. This address will be advertised to the gNodeB in the GTPTunnel Transport Layer Address field part of the PDU Session Setup Request message. The address will be used by the gNodeB to set the GTP tunnel. This setting is useful when Ella Core is behind a proxy or NAT and the N3 interface address is not reachable by the gNodeB. If not set, Ella Core will use the address of the N3 interface as defined in the config file.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "N3 interface updated"
+    }
+}
+```
 
 # Routes
 
