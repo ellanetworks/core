@@ -148,10 +148,9 @@ const EditInterfaceN3Modal: React.FC<EditInterfaceN3ModalProps> = ({
           sx={{ marginBottom: 3 }}
         >
           Configure an external IPv4 address for N3. Ella Core will advertise
-          this address to radios which will use it to establish GTP tunnels.
-          Use this if Ella Core is behind a proxy or NAT.{" "}
-          If not set, Ella Core will use N3&apos;s address as defined in the
-          config file.
+          this address to radios which will use it to establish GTP tunnels. Use
+          this if Ella Core is behind a proxy or NAT. If not set, Ella Core will
+          use N3&apos;s address as defined in the config file.
         </DialogContentText>
         <TextField
           fullWidth
@@ -159,7 +158,10 @@ const EditInterfaceN3Modal: React.FC<EditInterfaceN3ModalProps> = ({
           value={formValues.externalAddress}
           onChange={handleExternalAddressChange}
           error={!!errors.externalAddress}
-          helperText={errors.externalAddress || "Leave empty to use N3's configured address."}
+          helperText={
+            errors.externalAddress ||
+            "Leave empty to use N3's configured address."
+          }
           margin="normal"
         />
       </DialogContent>

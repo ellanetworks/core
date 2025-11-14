@@ -26,7 +26,10 @@ export const getInterfaces = async (authToken: string) => {
   return respData.result;
 };
 
-export const updateN3Settings = async (authToken: string, externalAddress: string) => {
+export const updateN3Settings = async (
+  authToken: string,
+  externalAddress: string,
+) => {
   const n3SettingsData = {
     external_address: externalAddress,
   };

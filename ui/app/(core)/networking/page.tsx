@@ -64,6 +64,12 @@ const MAX_WIDTH = 1400;
 
 type TabKey = "data-networks" | "interfaces" | "routes" | "nat";
 
+// Match backend JSON (snake_case for VLAN subfields)
+type VlanInfo = {
+  master_interface?: string;
+  vlan_id?: number;
+};
+
 type InterfacesInfo = {
   n2?: {
     address?: string;
@@ -73,9 +79,11 @@ type InterfacesInfo = {
     name?: string;
     address?: string;
     external_address?: string;
+    vlan?: VlanInfo;
   };
   n6?: {
     name?: string;
+    vlan?: VlanInfo;
   };
   api?: {
     address?: string;
@@ -679,9 +687,20 @@ export default function NetworkingPage() {
                   <Typography variant="body2" color="text.secondary">
                     External address:{" "}
                     <strong>
-                      {interfacesInfo.n3?.external_address ?? "—"}
+                      {interfacesInfo.n3?.external_address || "—"}
                     </strong>
                   </Typography>
+                  {interfacesInfo.n3?.vlan && (
+                    <Typography variant="body2" color="text.secondary">
+                      VLAN:{" "}
+                      <strong>
+                        {interfacesInfo.n3.vlan.vlan_id ?? "—"}
+                        {interfacesInfo.n3.vlan.master_interface
+                          ? ` on ${interfacesInfo.n3.vlan.master_interface}`
+                          : ""}
+                      </strong>
+                    </Typography>
+                  )}
                 </Box>
 
                 {/* N6 */}
@@ -707,6 +726,17 @@ export default function NetworkingPage() {
                     Interface name:{" "}
                     <strong>{interfacesInfo.n6?.name ?? "—"}</strong>
                   </Typography>
+                  {interfacesInfo.n6?.vlan && (
+                    <Typography variant="body2" color="text.secondary">
+                      VLAN:{" "}
+                      <strong>
+                        {interfacesInfo.n6.vlan.vlan_id ?? "—"}
+                        {interfacesInfo.n6.vlan.master_interface
+                          ? ` on ${interfacesInfo.n6.vlan.master_interface}`
+                          : ""}
+                      </strong>
+                    </Typography>
+                  )}
                 </Box>
 
                 {/* API */}
