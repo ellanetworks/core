@@ -103,14 +103,15 @@ parse_icmp_packet_ref(struct five_tuple *key, struct packet_context *ctx)
 			ctx->icmp->checksum, key->saddr, ip4->saddr);
 		udp->source = nat_entry->src.sport;
 		if (udp->check != 0) {
-			udp->check = ipv4_csum_update_u32(udp->check, key->saddr,
-							  ip4->saddr);
+			udp->check = ipv4_csum_update_u32(
+				udp->check, key->saddr, ip4->saddr);
 			if (udp->source != key->sport) {
 				udp->check = ipv4_csum_update_u16(
 					udp->check, key->sport, udp->source);
 			}
 			ctx->icmp->checksum = ipv4_csum_update_u16(
-				ctx->icmp->checksum, previous_udp_csum, udp->check);
+				ctx->icmp->checksum, previous_udp_csum,
+				udp->check);
 		}
 		ip4->check = 0;
 		ip4->check = ipv4_csum(ip4, sizeof(*ip4));

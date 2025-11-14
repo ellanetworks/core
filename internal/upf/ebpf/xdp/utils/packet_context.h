@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "xdp/utils/statistics.h"
 #include <linux/if_ether.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
@@ -24,6 +25,9 @@
 #include <linux/tcp.h>
 #include <linux/icmp.h>
 #include "xdp/utils/gtpu.h"
+
+#define INTERFACE_N3 0x0
+#define INTERFACE_N6 0x1
 
 struct vlan_hdr {
 	__be16 h_vlan_TCI;
@@ -34,7 +38,8 @@ struct vlan_hdr {
 struct packet_context {
 	char *data;
 	const char *data_end;
-	struct upf_counters *counters;
+	struct upf_statistic *uplink_statistics;
+	struct upf_statistic *downlink_statistics;
 	struct counters *counter;
 	struct xdp_md *xdp_ctx;
 	struct ethhdr *eth;
@@ -45,4 +50,5 @@ struct packet_context {
 	struct gtpuhdr *gtp;
 	struct icmphdr *icmp;
 	struct vlan_hdr *vlan;
+	__u8 interface : 1;
 };

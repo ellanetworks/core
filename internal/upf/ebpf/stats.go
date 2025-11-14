@@ -33,8 +33,8 @@ type UpfStatistic struct {
 // Getters for the upf_xdp_statistic (xdp_action)
 
 func (stat *UpfXdpActionStatistic) getUpfN3XdpStatisticField(field uint32) uint64 {
-	var statistics []N3EntrypointUpfStatistic
-	err := stat.BpfObjects.N3EntrypointObjects.UplinkStatistics.Lookup(uint32(0), &statistics)
+	var statistics []N3N6EntrypointUpfStatistic
+	err := stat.BpfObjects.N3N6EntrypointObjects.UplinkStatistics.Lookup(uint32(0), &statistics)
 	if err != nil {
 		logger.UpfLog.Info("Failed to fetch UPF N3 stats", zap.Error(err))
 		return 0
@@ -49,8 +49,8 @@ func (stat *UpfXdpActionStatistic) getUpfN3XdpStatisticField(field uint32) uint6
 }
 
 func (stat *UpfXdpActionStatistic) getUpfN6XdpStatisticField(field uint32) uint64 {
-	var statistics []N6EntrypointUpfStatistic
-	err := stat.BpfObjects.N6EntrypointObjects.DownlinkStatistics.Lookup(uint32(0), &statistics)
+	var statistics []N3N6EntrypointUpfStatistic
+	err := stat.BpfObjects.N3N6EntrypointObjects.DownlinkStatistics.Lookup(uint32(0), &statistics)
 	if err != nil {
 		logger.UpfLog.Info("Failed to fetch UPF N6 stats", zap.Error(err))
 		return 0
@@ -101,8 +101,8 @@ func (stat *UpfXdpActionStatistic) GetN6Redirect() uint64 {
 }
 
 func (stat *UpfXdpActionStatistic) GetN3UplinkThroughputStats() uint64 {
-	var n3Statistics []N3EntrypointUpfStatistic
-	err := stat.BpfObjects.N3EntrypointMaps.UplinkStatistics.Lookup(uint32(0), &n3Statistics)
+	var n3Statistics []N3N6EntrypointUpfStatistic
+	err := stat.BpfObjects.N3N6EntrypointMaps.UplinkStatistics.Lookup(uint32(0), &n3Statistics)
 	if err != nil {
 		logger.UpfLog.Info("Failed to fetch UPF N3 stats", zap.Error(err))
 		return 0
@@ -110,15 +110,15 @@ func (stat *UpfXdpActionStatistic) GetN3UplinkThroughputStats() uint64 {
 
 	var totalValue uint64 = 0
 	for _, statistic := range n3Statistics {
-		totalValue += statistic.UpfCounters.Bytes
+		totalValue += statistic.ByteCounter.Bytes
 	}
 
 	return totalValue
 }
 
 func (stat *UpfXdpActionStatistic) GetN6DownlinkThroughputStats() uint64 {
-	var n6Statistics []N6EntrypointUpfStatistic
-	err := stat.BpfObjects.N6EntrypointMaps.DownlinkStatistics.Lookup(uint32(0), &n6Statistics)
+	var n6Statistics []N3N6EntrypointUpfStatistic
+	err := stat.BpfObjects.N3N6EntrypointMaps.DownlinkStatistics.Lookup(uint32(0), &n6Statistics)
 	if err != nil {
 		logger.UpfLog.Info("Failed to fetch UPF N6 stats", zap.Error(err))
 		return 0
@@ -126,7 +126,7 @@ func (stat *UpfXdpActionStatistic) GetN6DownlinkThroughputStats() uint64 {
 
 	var totalValue uint64 = 0
 	for _, statistic := range n6Statistics {
-		totalValue += statistic.UpfCounters.Bytes
+		totalValue += statistic.ByteCounter.Bytes
 	}
 
 	return totalValue
