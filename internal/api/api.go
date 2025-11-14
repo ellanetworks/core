@@ -44,7 +44,7 @@ func GenerateJWTSecret() ([]byte, error) {
 	return bytes, nil
 }
 
-func Start(dbInstance *db.Database, cfg config.Config, upf server.UPFReloader, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) error {
+func Start(dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) error {
 	jwtSecret, err := GenerateJWTSecret()
 	if err != nil {
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)

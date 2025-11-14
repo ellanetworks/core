@@ -445,6 +445,10 @@ func cloneIP(ip net.IP) net.IP {
 }
 
 func composeFarInfo(far *ie.IE, localIP net.IP, farInfo ebpf.FarInfo) (ebpf.FarInfo, error) {
+	if localIP == nil {
+		return ebpf.FarInfo{}, fmt.Errorf("local IP is nil")
+	}
+
 	farInfo.LocalIP = binary.LittleEndian.Uint32(localIP)
 	if applyAction, err := far.ApplyAction(); err == nil {
 		farInfo.Action = applyAction[0]

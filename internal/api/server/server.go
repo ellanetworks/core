@@ -2,6 +2,7 @@ package server
 
 import (
 	"io/fs"
+	"net"
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/config"
@@ -11,11 +12,12 @@ import (
 	"go.uber.org/zap"
 )
 
-type UPFReloader interface {
+type UPFUpdater interface {
 	Reload(natEnabled bool) error
+	UpdateN3Address(net.IP)
 }
 
-func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFReloader, kernel kernel.Kernel, jwtSecret []byte, secureCookie bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
+func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kernel kernel.Kernel, jwtSecret []byte, secureCookie bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)
@@ -90,7 +92,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFReloader, ker
 
 	// Interfaces (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/interfaces", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListNetworkInterfaces, jwtSecret, ListNetworkInterfaces(dbInstance, cfg))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/networking/interfaces/n3", Authenticate(jwtSecret, dbInstance, RequirePermission(PermUpdateN3Interface, jwtSecret, UpdateN3Interface(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/interfaces/n3", Authenticate(jwtSecret, dbInstance, RequirePermission(PermUpdateN3Interface, jwtSecret, UpdateN3Interface(dbInstance, upf, cfg))).ServeHTTP)
 
 	// Radios (Authenticated)
 	mux.HandleFunc("GET /api/v1/radios", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListRadios, jwtSecret, ListRadios())).ServeHTTP)

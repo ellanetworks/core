@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 type N2Interface struct {
@@ -20,10 +21,17 @@ type N3Interface struct {
 	Name            string `json:"name"`
 	Address         string `json:"address"`
 	ExternalAddress string `json:"external_address"`
+	Vlan            *Vlan  `json:"vlan,omitempty"`
+}
+
+type Vlan struct {
+	MasterInterface string `json:"master_interface"`
+	VlanId          int    `json:"vlan_id"`
 }
 
 type N6Interface struct {
 	Name string `json:"name"`
+	Vlan *Vlan  `json:"vlan,omitempty"`
 }
 
 type APIInterface struct {
@@ -68,16 +76,30 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 				Name: cfg.Interfaces.N6.Name,
 			},
 			API: APIInterface{
-				// Address: conf.Interfaces.API.Address,
-				Port: cfg.Interfaces.API.Port,
+				Address: cfg.Interfaces.API.Address,
+				Port:    cfg.Interfaces.API.Port,
 			},
+		}
+
+		if cfg.Interfaces.N3.VlanConfig != nil {
+			resp.N3.Vlan = &Vlan{
+				MasterInterface: cfg.Interfaces.N3.VlanConfig.MasterInterface,
+				VlanId:          cfg.Interfaces.N3.VlanConfig.VlanId,
+			}
+		}
+
+		if cfg.Interfaces.N6.VlanConfig != nil {
+			resp.N6.Vlan = &Vlan{
+				MasterInterface: cfg.Interfaces.N6.VlanConfig.MasterInterface,
+				VlanId:          cfg.Interfaces.N6.VlanConfig.VlanId,
+			}
 		}
 
 		writeResponse(w, resp, http.StatusOK, logger.APILog)
 	})
 }
 
-func UpdateN3Interface(dbInstance *db.Database) http.Handler {
+func UpdateN3Interface(dbInstance *db.Database, upf UPFUpdater, cfg config.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
@@ -102,7 +124,17 @@ func UpdateN3Interface(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		writeResponse(w, map[string]string{"message": "N3 interface updated"}, http.StatusOK, logger.APILog)
+		n3Address := params.ExternalAddress
+
+		if n3Address == "" {
+			n3Address = cfg.Interfaces.N3.Address
+		}
+
+		upf.UpdateN3Address(net.ParseIP(n3Address))
+
+		logger.APILog.Info("N3 interface updated", zap.String("n3_address", n3Address))
+
+		writeResponse(w, SuccessResponse{Message: "N3 interface updated"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			UpdateN3SettingsAction,

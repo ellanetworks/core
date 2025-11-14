@@ -63,6 +63,9 @@ func (f FakeUPF) Reload(natEnabled bool) error {
 	return nil
 }
 
+func (f FakeUPF) UpdateN3Address(ip net.IP) {
+}
+
 func setupServer(filepath string) (*httptest.Server, []byte, *db.Database, error) {
 	testdb, err := db.NewDatabase(filepath)
 	if err != nil {
