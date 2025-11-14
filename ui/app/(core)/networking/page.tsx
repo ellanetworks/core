@@ -14,6 +14,8 @@ import {
   Tabs,
   Tab,
   Switch,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
@@ -39,8 +41,12 @@ import {
 } from "@/queries/routes";
 import CreateRouteModal from "@/components/CreateRouteModal";
 
-// NAT (global)
+// NAT
 import { getNATInfo, updateNATInfo } from "@/queries/nat";
+
+// Interfaces
+import { getInterfaces } from "@/queries/interfaces";
+import EditInterfaceN3Modal from "@/components/EditInterfaceN3Modal";
 
 // Shared UI
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -56,7 +62,26 @@ import {
 
 const MAX_WIDTH = 1400;
 
-type TabKey = "data-networks" | "routes" | "nat";
+type TabKey = "data-networks" | "interfaces" | "routes" | "nat";
+
+type InterfacesInfo = {
+  n2?: {
+    address?: string;
+    port?: number;
+  };
+  n3?: {
+    name?: string;
+    address?: string;
+    external_address?: string;
+  };
+  n6?: {
+    name?: string;
+  };
+  api?: {
+    address?: string;
+    port?: number;
+  };
+};
 
 export default function NetworkingPage() {
   const { role, accessToken } = useAuth();
@@ -74,6 +99,10 @@ export default function NetworkingPage() {
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
   const [natAlert, setNatAlert] = useState<{
+    message: string;
+    severity: "success" | "error" | null;
+  }>({ message: "", severity: null });
+  const [interfacesAlert, setInterfacesAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
@@ -220,6 +249,27 @@ export default function NetworkingPage() {
         : []),
     ];
   }, [canEdit]);
+
+  // ====================== Interfaces ======================
+  const {
+    data: interfacesInfo,
+    isLoading: interfacesLoading,
+    refetch: refetchInterfaces,
+  } = useQuery<InterfacesInfo>({
+    queryKey: ["interfaces", accessToken],
+    queryFn: () => getInterfaces(accessToken || ""),
+    enabled: !!accessToken,
+    refetchOnWindowFocus: true,
+  });
+
+  const interfacesDescription = useMemo(
+    () =>
+      "View the network interfaces used by Ella Core for control plane (N2), user plane (N3), external networks (N6), and the API endpoint. Interfaces are primarily configured in the Ella Core configuration file; this page reflects that configuration, with N3's external address as the only editable field.",
+    [],
+  );
+
+  // N3 edit modal state
+  const [isEditN3Open, setEditN3Open] = useState(false);
 
   // ====================== Routes ======================
   const [rtPagination, setRtPagination] = useState<GridPaginationModel>({
@@ -389,6 +439,7 @@ export default function NetworkingPage() {
           sx={{ borderBottom: 1, borderColor: "divider" }}
         >
           <Tab value="data-networks" label="Data Networks" />
+          <Tab value="interfaces" label="Interfaces" />
           <Tab value="routes" label="Routes" />
           <Tab value="nat" label="NAT" />
         </Tabs>
@@ -495,6 +546,197 @@ export default function NetworkingPage() {
                   }}
                 />
               </ThemeProvider>
+            </>
+          )}
+        </Box>
+      )}
+
+      {/* ================= Interfaces Tab ================= */}
+      {tab === "interfaces" && (
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: MAX_WIDTH,
+            px: { xs: 2, sm: 4 },
+            mt: 2,
+          }}
+        >
+          <Collapse in={!!interfacesAlert.message}>
+            <Alert
+              severity={interfacesAlert.severity || "success"}
+              onClose={() =>
+                setInterfacesAlert({ message: "", severity: null })
+              }
+              sx={{ mb: 2 }}
+            >
+              {interfacesAlert.message}
+            </Alert>
+          </Collapse>
+
+          {interfacesLoading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
+              <CircularProgress />
+            </Box>
+          ) : !interfacesInfo ? (
+            <EmptyState
+              primaryText="No interface information available."
+              secondaryText="Ella Core could not retrieve interface information from the API."
+              extraContent={
+                <Typography variant="body1" color="text.secondary">
+                  {interfacesDescription}
+                </Typography>
+              }
+              button
+              buttonText="Retry"
+              onCreate={refetchInterfaces}
+            />
+          ) : (
+            <>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="h5" sx={{ mb: 0.5 }}>
+                  Network Interfaces
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {interfacesDescription}
+                </Typography>
+              </Box>
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                  gap: 2,
+                  mt: 1,
+                }}
+              >
+                {/* N2 */}
+                <Box
+                  sx={{
+                    border: 1,
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    p: 2,
+                  }}
+                >
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={{ mb: 1 }}
+                  >
+                    <Typography variant="subtitle1">N2 (NGAP)</Typography>
+                    <Chip label="Control Plane" size="small" />
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary">
+                    Address:{" "}
+                    <strong>{interfacesInfo.n2?.address ?? "—"}</strong>
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Port: <strong>{interfacesInfo.n2?.port ?? "—"}</strong>
+                  </Typography>
+                </Box>
+
+                {/* N3 */}
+                <Box
+                  sx={{
+                    border: 1,
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    p: 2,
+                  }}
+                >
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={{ mb: 1 }}
+                  >
+                    <Typography variant="subtitle1">N3 (GTP-U)</Typography>
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <Chip label="User Plane" size="small" />
+                      {canEdit && (
+                        <Tooltip title="Edit external address">
+                          <IconButton
+                            size="small"
+                            onClick={() => setEditN3Open(true)}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Stack>
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary">
+                    Interface name:{" "}
+                    <strong>{interfacesInfo.n3?.name ?? "—"}</strong>
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Address:{" "}
+                    <strong>{interfacesInfo.n3?.address ?? "—"}</strong>
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    External address:{" "}
+                    <strong>
+                      {interfacesInfo.n3?.external_address ?? "—"}
+                    </strong>
+                  </Typography>
+                </Box>
+
+                {/* N6 */}
+                <Box
+                  sx={{
+                    border: 1,
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    p: 2,
+                  }}
+                >
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={{ mb: 1 }}
+                  >
+                    <Typography variant="subtitle1">N6 (External)</Typography>
+                    <Chip label="External Network" size="small" />
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary">
+                    Interface name:{" "}
+                    <strong>{interfacesInfo.n6?.name ?? "—"}</strong>
+                  </Typography>
+                </Box>
+
+                {/* API */}
+                <Box
+                  sx={{
+                    border: 1,
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    p: 2,
+                  }}
+                >
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={{ mb: 1 }}
+                  >
+                    <Typography variant="subtitle1">API</Typography>
+                    <Chip label="Management" size="small" />
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary">
+                    Address:{" "}
+                    <strong>{interfacesInfo.api?.address ?? "—"}</strong>
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Port: <strong>{interfacesInfo.api?.port ?? "—"}</strong>
+                  </Typography>
+                </Box>
+              </Box>
             </>
           )}
         </Box>
@@ -607,7 +849,7 @@ export default function NetworkingPage() {
         </Box>
       )}
 
-      {/* ================= NAT Tab (unchanged) ================= */}
+      {/* ================= NAT Tab ================= */}
       {tab === "nat" && (
         <Box
           sx={{
@@ -686,6 +928,23 @@ export default function NetworkingPage() {
           onConfirm={handleConfirmDeleteDN}
           title="Confirm Deletion"
           description={`Are you sure you want to delete the data network "${selectedDNName}"? This action cannot be undone.`}
+        />
+      )}
+
+      {isEditN3Open && (
+        <EditInterfaceN3Modal
+          open
+          onClose={() => setEditN3Open(false)}
+          onSuccess={() => {
+            setInterfacesAlert({
+              message: "N3 external address updated.",
+              severity: "success",
+            });
+            refetchInterfaces();
+          }}
+          initialData={{
+            externalAddress: interfacesInfo?.n3?.external_address ?? "",
+          }}
         />
       )}
 
