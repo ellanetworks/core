@@ -413,8 +413,8 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	t.Run("7. Update operator tracking", func(t *testing.T) {
 		updateOperatorTrackingParams := &UpdateOperatorTrackingParams{
 			SupportedTacs: []string{
-				"001",
-				"123",
+				"000001",
+				"000002",
 			},
 		}
 
@@ -445,11 +445,11 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 			t.Fatalf("expected supported TACs of length 2")
 		}
 
-		if response.Result.SupportedTacs[0] != "001" {
-			t.Fatalf("expected supported TACs first item to be 001, got %s", response.Result.SupportedTacs[0])
+		if response.Result.SupportedTacs[0] != "000001" {
+			t.Fatalf("expected supported TACs first item to be 000001, got %s", response.Result.SupportedTacs[0])
 		}
-		if response.Result.SupportedTacs[1] != "123" {
-			t.Fatalf("expected supported TACs first item to be 123, got %s", response.Result.SupportedTacs[1])
+		if response.Result.SupportedTacs[1] != "000002" {
+			t.Fatalf("expected supported TACs first item to be 000002, got %s", response.Result.SupportedTacs[1])
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -551,11 +551,11 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		if len(response.Result.Tracking.SupportedTacs) != 2 {
 			t.Fatalf("expected supported TACs of length 2")
 		}
-		if response.Result.Tracking.SupportedTacs[0] != "001" {
-			t.Fatalf("expected supported TACs first item to be 001, got %s", response.Result.Tracking.SupportedTacs[0])
+		if response.Result.Tracking.SupportedTacs[0] != "000001" {
+			t.Fatalf("expected supported TACs first item to be 000001, got %s", response.Result.Tracking.SupportedTacs[0])
 		}
-		if response.Result.Tracking.SupportedTacs[1] != "123" {
-			t.Fatalf("expected supported TACs first item to be 123, got %s", response.Result.Tracking.SupportedTacs[1])
+		if response.Result.Tracking.SupportedTacs[1] != "000002" {
+			t.Fatalf("expected supported TACs first item to be 000002, got %s", response.Result.Tracking.SupportedTacs[1])
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -656,20 +656,20 @@ func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 		error         string
 	}{
 		{
-			testName:      "Invalid tac - too short",
-			supportedTacs: []string{"001123"},
-			error:         "Invalid TAC format. Must be a 3-digit number",
+			testName:      "Invalid tac - too long",
+			supportedTacs: []string{"0011234"},
+			error:         "Invalid TAC format. Must be a 3 bytes hex string",
 		},
 		{
 			testName:      "Invalid tac - too short",
 			supportedTacs: []string{"00"},
-			error:         "Invalid TAC format. Must be a 3-digit number",
+			error:         "Invalid TAC format. Must be a 3 bytes hex string",
 		},
 		{
 			testName: "Too many TACs",
 			supportedTacs: []string{
-				"001", "002", "003", "004", "005", "006", "007", "008",
-				"009", "010", "011", "012", "013", "014", "015", "016",
+				"000001", "000002", "000003", "000004", "000005", "000006", "000007", "000008",
+				"000009", "000010", "000011", "000012", "000013", "000014", "000015", "000016",
 			},
 			error: "Too many supported TACs. Maximum is 12",
 		},

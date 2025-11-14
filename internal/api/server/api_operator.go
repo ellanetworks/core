@@ -144,13 +144,16 @@ func isValidPrivateKey(privateKey string) bool {
 	return true
 }
 
-// TAC is a 24-bit identifier
-func isValidTac(tac string) bool {
-	if len(tac) != 3 {
+func isValidTac(s string) bool {
+	if len(s) != 6 {
 		return false
 	}
-	_, err := strconv.ParseInt(tac, 10, 32)
-	return err == nil
+
+	if _, err := hex.DecodeString(s); err != nil {
+		return false
+	}
+
+	return true
 }
 
 // SST is an 8-bit integer
@@ -354,7 +357,7 @@ func UpdateOperatorTracking(dbInstance *db.Database) http.Handler {
 
 		for _, tac := range params.SupportedTacs {
 			if !isValidTac(tac) {
-				writeError(w, http.StatusBadRequest, "Invalid TAC format. Must be a 3-digit number", nil, logger.APILog)
+				writeError(w, http.StatusBadRequest, "Invalid TAC format. Must be a 3 bytes hex string", nil, logger.APILog)
 				return
 			}
 		}
