@@ -37,7 +37,7 @@ func GetNATInfo(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateNATInfo(dbInstance *db.Database, upf UPFReloader) http.Handler {
+func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)

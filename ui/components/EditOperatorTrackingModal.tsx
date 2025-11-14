@@ -29,7 +29,10 @@ interface EditOperatorTrackingModalProps {
 
 const schema = yup
   .string()
-  .matches(/^\d{3}$/, "Each TAC must be a 3-digit number");
+  .matches(
+    /^[0-9A-Fa-f]{6}$/,
+    "Each TAC must be a 3 bytes hex string, range: 000000~FFFFFF)",
+  );
 
 const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
   open,
@@ -133,10 +136,11 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
               {...params}
               variant="outlined"
               label="Supported TACs"
-              placeholder="Enter TACs (e.g., 001)"
+              placeholder="Enter TACs (e.g., 000001)"
               error={!!errors.supportedTacs}
               helperText={
-                errors.supportedTacs || "Enter each TAC as a 3-digit number"
+                errors.supportedTacs ||
+                "Enter each TAC as a 3 bytes hex string (e.g., 000001)"
               }
             />
           )}

@@ -12,8 +12,8 @@ type GetOperatorIDResponse struct {
 }
 
 type GetOperatorSliceResponse struct {
-	Sst int `json:"sst,omitempty"`
-	Sd  int `json:"sd,omitempty"`
+	Sst int    `json:"sst,omitempty"`
+	Sd  string `json:"sd,omitempty"`
 }
 
 type GetOperatorTrackingResponse struct {
