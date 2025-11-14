@@ -50,7 +50,7 @@ const (
 
 var (
 	InitialOperatorSd    = []byte{0x10, 0x20, 0x30}
-	InitialSupportedTacs = []string{"001"}
+	InitialSupportedTacs = []string{"000001"}
 )
 
 // Initial Data network values
