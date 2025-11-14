@@ -28,6 +28,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `n3` (object): The configuration for the n3 interface. This interface should be connected to the radios.
         - `name` (string): The name of the network interface (optional: either name or address must be provided).
         - `address` (string): The address to listen on (optional: either name or address must be provided).
+        - `external-address` (string): The IP address advertised to the gNodeB to build the GTP-U tunnel (optional). If not set, the `address` field will be used. This field is useful when deploying Ella Core behind a proxy or NAT.
     - `n6` (object): The configuration for the n6 interface. This interface should be connected to the internet.
         - `name` (string): The name of the network interface.
     - `api` (object): The configuration for the api interface.

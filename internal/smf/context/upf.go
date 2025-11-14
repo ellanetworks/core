@@ -51,13 +51,13 @@ type UPF struct {
 
 // UPFInterfaceInfo store the UPF interface information
 type UPFInterfaceInfo struct {
-	IPv4EndPointAddresses []net.IP
+	IPv4EndPointAddress net.IP
 }
 
 // IP returns the IP of the user plane IP information of the pduSessType
 func (i *UPFInterfaceInfo) IP(pduSessType uint8) (net.IP, error) {
-	if (pduSessType == nasMessage.PDUSessionTypeIPv4 || pduSessType == nasMessage.PDUSessionTypeIPv4IPv6) && len(i.IPv4EndPointAddresses) != 0 {
-		return i.IPv4EndPointAddresses[0].To4(), nil
+	if (pduSessType == nasMessage.PDUSessionTypeIPv4 || pduSessType == nasMessage.PDUSessionTypeIPv4IPv6) && i.IPv4EndPointAddress != nil {
+		return i.IPv4EndPointAddress.To4(), nil
 	}
 
 	return nil, errors.New("not matched ip address")
@@ -71,7 +71,7 @@ func NewUPF(nodeID *NodeID) (upf *UPF) {
 	upf.barIDGenerator = idgenerator.NewGenerator(1, math.MaxUint8)
 	upf.qerIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 	upf.N3Interface = UPFInterfaceInfo{
-		IPv4EndPointAddresses: make([]net.IP, 0),
+		IPv4EndPointAddress: nil,
 	}
 
 	return upf

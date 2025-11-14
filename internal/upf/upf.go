@@ -107,7 +107,12 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n6Interface conf
 		return nil, fmt.Errorf("failed to create Resource Manager: %w", err)
 	}
 
-	pfcpConn, err := core.CreatePfcpConnection(PfcpAddress, PfcpNodeID, n3Interface.Address, SmfAddress, bpfObjects, resourceManager)
+	n3Address := n3Interface.Address
+	if n3Interface.ExternalAddress != "" {
+		n3Address = n3Interface.ExternalAddress
+	}
+
+	pfcpConn, err := core.CreatePfcpConnection(PfcpAddress, PfcpNodeID, n3Address, SmfAddress, bpfObjects, resourceManager)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PFCP connection: %w", err)
 	}
