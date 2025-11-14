@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 
 	"github.com/ellanetworks/core/internal/api/server"
+	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
@@ -83,7 +84,26 @@ func setupServer(filepath string) (*httptest.Server, []byte, *db.Database, error
 	dummyfs := dummyFS{}
 	fakeUPF := FakeUPF{}
 
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeUPF, fakeKernel, jwtSecret, false, false, dummyfs, nil))
+	cfg := config.Config{
+		Interfaces: config.Interfaces{
+			N2: config.N2Interface{
+				Address: "12.12.12.12",
+				Port:    2152,
+			},
+			N3: config.N3Interface{
+				Name:    "eth0",
+				Address: "13.13.13.13",
+			},
+			N6: config.N6Interface{
+				Name: "eth1",
+			},
+			API: config.APIInterface{
+				Port: 8443,
+			},
+		},
+	}
+
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, fakeUPF, fakeKernel, jwtSecret, false, dummyfs, nil))
 
 	client := ts.Client()
 

@@ -37,7 +37,7 @@ type UPF struct {
 	gcCancel context.CancelFunc
 }
 
-func Start(ctx context.Context, n3Interface config.N3Interface, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool) (*UPF, error) {
+func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool) (*UPF, error) {
 	var n3Vlan uint32
 	var n6Vlan uint32
 
@@ -107,11 +107,6 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n6Interface conf
 		return nil, fmt.Errorf("failed to create Resource Manager: %w", err)
 	}
 
-	n3Address := n3Interface.Address
-	if n3Interface.ExternalAddress != "" {
-		n3Address = n3Interface.ExternalAddress
-	}
-
 	pfcpConn, err := core.CreatePfcpConnection(PfcpAddress, PfcpNodeID, n3Address, SmfAddress, bpfObjects, resourceManager)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PFCP connection: %w", err)
@@ -157,6 +152,10 @@ func (u *UPF) Close() {
 		logger.UpfLog.Warn("Failed to close BPF objects", zap.Error(err))
 	}
 	logger.UpfLog.Info("UPF resources released")
+}
+
+func (u *UPF) UpdateN3Address(newN3Addr net.IP) {
+	u.pfcpConn.SetN3Address(newN3Addr)
 }
 
 func (u *UPF) Reload(masquerade bool) error {

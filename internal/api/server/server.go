@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"net/http"
 
+	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
@@ -14,7 +15,7 @@ type UPFReloader interface {
 	Reload(natEnabled bool) error
 }
 
-func NewHandler(dbInstance *db.Database, upf UPFReloader, kernel kernel.Kernel, jwtSecret []byte, tracingEnabled bool, secureCookie bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
+func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFReloader, kernel kernel.Kernel, jwtSecret []byte, secureCookie bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)
@@ -87,6 +88,10 @@ func NewHandler(dbInstance *db.Database, upf UPFReloader, kernel kernel.Kernel, 
 	mux.HandleFunc("GET /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetNATInfo, jwtSecret, GetNATInfo(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, RequirePermission(PermUpdateNATInfo, jwtSecret, UpdateNATInfo(dbInstance, upf))).ServeHTTP)
 
+	// Interfaces (Authenticated)
+	mux.HandleFunc("GET /api/v1/networking/interfaces", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListNetworkInterfaces, jwtSecret, ListNetworkInterfaces(dbInstance, cfg))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/interfaces/n3", Authenticate(jwtSecret, dbInstance, RequirePermission(PermUpdateN3Interface, jwtSecret, UpdateN3Interface(dbInstance))).ServeHTTP)
+
 	// Radios (Authenticated)
 	mux.HandleFunc("GET /api/v1/radios", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListRadios, jwtSecret, ListRadios())).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/radios/", Authenticate(jwtSecret, dbInstance, RequirePermission(PermReadRadio, jwtSecret, GetRadio())).ServeHTTP)
@@ -120,7 +125,7 @@ func NewHandler(dbInstance *db.Database, upf UPFReloader, kernel kernel.Kernel, 
 	}
 
 	var handler http.Handler = mux
-	if tracingEnabled {
+	if cfg.Telemetry.Enabled {
 		handler = TracingMiddleware("ella-core/api", handler)
 	}
 

@@ -24,6 +24,14 @@ func (pc *PfcpConnection) SetBPFObjects(bpfObjects *ebpf.BpfObjects) {
 	pc.bpfObjects = bpfObjects
 }
 
+func (pc *PfcpConnection) GetN3Address() net.IP {
+	return pc.n3Address
+}
+
+func (pc *PfcpConnection) SetN3Address(newN3Addr net.IP) {
+	pc.n3Address = newN3Addr
+}
+
 func CreatePfcpConnection(addr string, nodeID string, n3Ip string, smfAddress string, bpfObjects *ebpf.BpfObjects, resourceManager *FteIDResourceManager) (*PfcpConnection, error) {
 	addrV4 := net.ParseIP(addr)
 	if addrV4 == nil {

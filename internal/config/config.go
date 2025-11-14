@@ -60,9 +60,8 @@ type N2InterfaceYaml struct {
 }
 
 type N3InterfaceYaml struct {
-	Name            string `yaml:"name"`
-	Address         string `yaml:"address"`
-	ExternalAddress string `yaml:"external-address"`
+	Name    string `yaml:"name"`
+	Address string `yaml:"address"`
 }
 
 type N6InterfaceYaml struct {
@@ -122,10 +121,9 @@ type N2Interface struct {
 }
 
 type N3Interface struct {
-	Name            string
-	Address         string
-	ExternalAddress string
-	VlanConfig      *VlanConfig
+	Name       string
+	Address    string
+	VlanConfig *VlanConfig
 }
 
 type N6Interface struct {
@@ -268,12 +266,6 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, fmt.Errorf("interfaces.n3: %w", err)
 	}
 
-	if c.Interfaces.N3.ExternalAddress != "" {
-		if net.ParseIP(c.Interfaces.N3.ExternalAddress) == nil {
-			return Config{}, fmt.Errorf("interfaces.n3.external-address %s is not a valid IP address", c.Interfaces.N3.ExternalAddress)
-		}
-	}
-
 	if c.Interfaces.N6 == (N6InterfaceYaml{}) {
 		return Config{}, errors.New("interfaces.n6 is empty")
 	}
@@ -342,7 +334,6 @@ func Validate(filePath string) (Config, error) {
 	config.Interfaces.N2.Port = c.Interfaces.N2.Port
 	config.Interfaces.N3.Name = n3InterfaceName
 	config.Interfaces.N3.Address = n3Address
-	config.Interfaces.N3.ExternalAddress = c.Interfaces.N3.ExternalAddress
 	config.Interfaces.N6.Name = c.Interfaces.N6.Name
 	config.Interfaces.API.Address = apiAddress
 	config.Interfaces.API.Port = c.Interfaces.API.Port
