@@ -41,6 +41,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			dockerClient.ComposeDown("compose/ueransim/")
 			dockerClient.ComposeDown("compose/gnbsim/")
+			dockerClient.ComposeDown("compose/core-tester/")
 
 			err = dockerClient.ComposeUp("compose/ueransim/")
 			if err != nil {
