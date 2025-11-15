@@ -125,7 +125,7 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 
 	dnnData, err := GetSMPolicyDnnData(*smData, request.SliceInfo, request.Dnn)
 	if err != nil {
-		return nil, fmt.Errorf("error finding SM Policy DNN Data for dnn %s", request.Dnn)
+		return nil, fmt.Errorf("error finding SM Policy DNN Data for dnn %s: %s", request.Dnn, err)
 	}
 
 	if dnnData == nil {
