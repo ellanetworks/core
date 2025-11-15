@@ -91,11 +91,6 @@ func SendAuthenticationRequest(ue *context.RanUe) error {
 		return fmt.Errorf("error building authentication request: %s", err.Error())
 	}
 
-	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
-	if err != nil {
-		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
-	}
-
 	if context.AMFSelf().T3560Cfg.Enable {
 		cfg := context.AMFSelf().T3560Cfg
 		amfUe.T3560 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
@@ -109,6 +104,11 @@ func SendAuthenticationRequest(ue *context.RanUe) error {
 			amfUe.GmmLog.Warn("T3560 Expires, abort authentication procedure & ongoing 5GMM procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
 			amfUe.Remove()
 		})
+	}
+
+	err = ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
+	if err != nil {
+		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
 
 	return nil
