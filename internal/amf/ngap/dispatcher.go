@@ -41,6 +41,12 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 		logger.AmfLog.Info("Added a new radio", zap.String("address", remoteAddress.String()))
 	}
 
+	localAddress := conn.LocalAddr()
+	if localAddress == nil {
+		logger.AmfLog.Debug("Local address is nil")
+		return
+	}
+
 	if len(msg) == 0 {
 		ran.Log.Info("RAN close the connection.")
 		ran.Remove()
@@ -59,7 +65,7 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 		logger.NGAPNetworkProtocol,
 		getMessageType(pdu),
 		logger.DirectionInbound,
-		ran.Conn.LocalAddr().String(),
+		localAddress.String(),
 		remoteAddress.String(),
 		msg,
 	)

@@ -166,7 +166,7 @@ const Dashboard = () => {
   const [activeSessions, setActiveSessions] = useState<number | null>(null);
   const [memoryUsage, setMemoryUsage] = useState<number | null>(null);
   const [databaseSize, setDatabaseSize] = useState<number | null>(null);
-  const [threads, setThreads] = useState<number | null>(null);
+  const [routines, setRoutines] = useState<number | null>(null);
   const [allocatedIPs, setAllocatedIPs] = useState<number | null>(null);
   const [totalIPs, setTotalIPs] = useState<number | null>(null);
 
@@ -195,7 +195,7 @@ const Dashboard = () => {
 
     const pduSessions = getValue("app_pdu_sessions ");
     const memBytes = getValue("go_memstats_alloc_bytes ");
-    const goThreads = getValue("go_threads ");
+    const goGoroutines = getValue("go_goroutines ");
     const dbBytes = getValue("app_database_storage_bytes ");
     const allocIPs = getValue("app_ip_addresses_allocated ");
     const totalIPsV = getValue("app_ip_addresses_total ");
@@ -210,7 +210,7 @@ const Dashboard = () => {
       memoryUsageMB:
         memBytes == null ? null : Math.round(memBytes / (1024 * 1024)),
       databaseSizeKB: dbBytes == null ? null : Math.round(dbBytes / 1024),
-      threads: goThreads ?? null,
+      routines: goGoroutines ?? null,
       allocatedIPs: allocIPs == null ? null : Math.round(allocIPs),
       totalIPs: totalIPsV == null ? null : Math.round(totalIPsV),
       uplinkBytes: ulBytes ?? null,
@@ -265,7 +265,7 @@ const Dashboard = () => {
           pduSessions,
           memoryUsageMB,
           databaseSizeKB,
-          threads,
+          routines,
           allocatedIPs,
           totalIPs,
           uplinkBytes,
@@ -278,7 +278,7 @@ const Dashboard = () => {
         setActiveSessions(pduSessions);
         setMemoryUsage(memoryUsageMB);
         setDatabaseSize(databaseSizeKB);
-        setThreads(threads);
+        setRoutines(routines);
         setAllocatedIPs(allocatedIPs);
         setTotalIPs(totalIPs);
         setUplinkBytes(uplinkBytes);
@@ -609,9 +609,9 @@ const Dashboard = () => {
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard
-            title="Threads"
+            title="Routines"
             loading={loading}
-            value={threads != null ? `${threads}` : "N/A"}
+            value={routines != null ? `${routines}` : "N/A"}
           />
         </Grid>
       </Grid>
