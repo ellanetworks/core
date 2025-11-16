@@ -200,7 +200,9 @@ func (context *AMFContext) NewAmfRan(conn *sctp.SCTPConn) *AmfRan {
 		return nil
 	}
 
-	if conn.RemoteAddr() == nil {
+	remoteAddr := conn.RemoteAddr()
+
+	if remoteAddr == nil {
 		logger.AmfLog.Warn("Remote address is not available")
 		return nil
 	}
@@ -208,8 +210,8 @@ func (context *AMFContext) NewAmfRan(conn *sctp.SCTPConn) *AmfRan {
 	ran := AmfRan{}
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.Conn = conn
-	ran.GnbIP = conn.RemoteAddr().String()
-	ran.Log = logger.AmfLog.With(zap.String("ran_addr", conn.RemoteAddr().String()))
+	ran.GnbIP = remoteAddr.String()
+	ran.Log = logger.AmfLog.With(zap.String("ran_addr", remoteAddr.String()))
 	context.AmfRanPool.Store(conn, &ran)
 	return &ran
 }
