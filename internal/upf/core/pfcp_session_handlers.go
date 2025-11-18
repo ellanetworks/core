@@ -22,6 +22,20 @@ var (
 
 var tracer = otel.Tracer("ella-core/upf")
 
+type UpfPfcpHandler struct{}
+
+func (u UpfPfcpHandler) HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.SessionEstablishmentRequest) (*message.SessionEstablishmentResponse, error) {
+	return HandlePfcpSessionEstablishmentRequest(ctx, msg)
+}
+
+func (u UpfPfcpHandler) HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionDeletionRequest) (*message.SessionDeletionResponse, error) {
+	return HandlePfcpSessionDeletionRequest(ctx, msg)
+}
+
+func (u UpfPfcpHandler) HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.SessionModificationRequest) (*message.SessionModificationResponse, error) {
+	return HandlePfcpSessionModificationRequest(ctx, msg)
+}
+
 func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.SessionEstablishmentRequest) (*message.SessionEstablishmentResponse, error) {
 	_, span := tracer.Start(ctx, "UPF Session Establish")
 	defer span.End()
@@ -90,7 +104,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 				continue
 			}
 
-			spdrInfo := SPDRInfo{PdrID: uint32(pdrID)}
+			spdrInfo := SPDRInfo{PdrID: uint32(pdrID), PdrInfo: ebpf.PdrInfo{LocalSEID: msg.SEID(), PdrID: uint32(pdrID)}}
 
 			if err := pdrContext.ExtractPDR(pdr, &spdrInfo); err == nil {
 				session.PutPDR(spdrInfo.PdrID, spdrInfo)
@@ -295,7 +309,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				return fmt.Errorf("PDR ID missing: %s", err.Error())
 			}
 
-			spdrInfo := SPDRInfo{PdrID: uint32(pdrID)}
+			spdrInfo := SPDRInfo{PdrID: uint32(pdrID), PdrInfo: ebpf.PdrInfo{LocalSEID: msg.SEID(), PdrID: uint32(pdrID)}}
 
 			if err := pdrContext.ExtractPDR(pdr, &spdrInfo); err == nil {
 				session.PutPDR(spdrInfo.PdrID, spdrInfo)
