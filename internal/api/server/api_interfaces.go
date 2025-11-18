@@ -130,7 +130,7 @@ func UpdateN3Interface(dbInstance *db.Database, upf UPFUpdater, cfg config.Confi
 			n3Address = cfg.Interfaces.N3.Address
 		}
 
-		upf.UpdateN3Address(net.ParseIP(n3Address))
+		upf.UpdateAdvertisedN3Address(net.ParseIP(n3Address))
 
 		logger.APILog.Info("N3 interface updated", zap.String("n3_address", n3Address))
 
