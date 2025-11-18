@@ -14,7 +14,7 @@ import (
 
 type UPFUpdater interface {
 	Reload(natEnabled bool) error
-	UpdateN3Address(net.IP)
+	UpdateAdvertisedN3Address(net.IP)
 }
 
 func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kernel kernel.Kernel, jwtSecret []byte, secureCookie bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {

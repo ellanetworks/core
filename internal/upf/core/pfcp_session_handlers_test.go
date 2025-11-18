@@ -31,6 +31,7 @@ func TestHandlePfcpSessionModificationRequestCauseNoEstablishedPFCPAssociation(t
 		"1.2.3.4",
 		"nodeId",
 		"2.3.4.5",
+		"2.3.4.5",
 		"1.1.1.1",
 		nil,
 		nil,
@@ -73,6 +74,7 @@ func TestHandlePfcpSessionModificationRequestCauseSessionContextNotFound(t *test
 	conn, err := core.CreatePfcpConnection(
 		"1.2.3.4",
 		"nodeId",
+		"2.3.4.5",
 		"2.3.4.5",
 		"1.1.1.1",
 		nil,
@@ -119,6 +121,7 @@ func TestHandlePfcpSessionDeletionRequestCauseRequestAccepted(t *testing.T) {
 	conn, err := core.CreatePfcpConnection(
 		"1.2.3.4",
 		"nodeId",
+		"2.3.4.5",
 		"2.3.4.5",
 		"1.1.1.1",
 		nil,
@@ -169,6 +172,7 @@ func TestHandlePfcpSessionDeletionRequestCauseNoEstablishedPFCPAssociation(t *te
 		"1.2.3.4",
 		"nodeId",
 		"2.3.4.5",
+		"2.3.4.5",
 		"1.1.1.1",
 		nil,
 		nil,
@@ -211,6 +215,7 @@ func TestHandlePfcpSessionDeletionRequestCauseSessionContextNotFound(t *testing.
 	conn, err := core.CreatePfcpConnection(
 		"1.2.3.4",
 		"nodeId",
+		"2.3.4.5",
 		"2.3.4.5",
 		"1.1.1.1",
 		nil,
@@ -257,6 +262,7 @@ func TestHandlePfcpSessionModificationRequestCauseRequestAccepted(t *testing.T) 
 	conn, err := core.CreatePfcpConnection(
 		"1.2.3.4",
 		"nodeId",
+		"2.3.4.5",
 		"2.3.4.5",
 		"1.1.1.1",
 		nil,

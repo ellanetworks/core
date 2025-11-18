@@ -117,7 +117,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 		ie.NewFSEID(localSEID, cloneIP(conn.nodeAddrV4), nil),
 	}
 
-	pdrIEs := processCreatedPDRs(createdPDRs, cloneIP(conn.n3Address))
+	pdrIEs := processCreatedPDRs(createdPDRs, cloneIP(conn.advertisedN3Address))
 	additionalIEs = append(additionalIEs, pdrIEs...)
 
 	estResp := message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, additionalIEs...)
@@ -346,7 +346,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 		newIeNodeID(conn.nodeID),
 	}
 
-	pdrIEs := processCreatedPDRs(createdPDRs, conn.n3Address)
+	pdrIEs := processCreatedPDRs(createdPDRs, conn.advertisedN3Address)
 	additionalIEs = append(additionalIEs, pdrIEs...)
 
 	modResp := message.NewSessionModificationResponse(0, 0, session.RemoteSEID, msg.Sequence(), 0, additionalIEs...)
