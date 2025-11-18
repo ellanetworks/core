@@ -100,12 +100,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't get N3 external address: %w", err)
 	}
 
+	advertisedN3Address := n3Address
 	if n3Settings != nil && n3Settings.ExternalAddress != "" {
-		n3Address = n3Settings.ExternalAddress
-		logger.EllaLog.Debug("Using N3 external address from N3 settings", zap.String("n3_external_address", n3Address))
+		advertisedN3Address = n3Settings.ExternalAddress
+		logger.EllaLog.Debug("Using N3 external address from N3 settings", zap.String("n3_external_address", advertisedN3Address))
 	}
 
-	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3, n3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled)
+	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3, n3Address, advertisedN3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
