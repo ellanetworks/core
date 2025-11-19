@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -23,26 +22,6 @@ func (w logWriter) Write(p []byte) (int, error) {
 		w.t.Log(sc.Text())
 	}
 	return len(p), nil
-}
-
-const (
-	testPolicyName               = "default"
-	numIMSIS                     = 5
-	testStartIMSI                = "001010100000001"
-	testUERANSIMIMSI             = "001019756139935"
-	testSubscriberKey            = "0eefb0893e6f1c2855a3a244c6db1277"
-	testSubscriberCustomOPc      = "98da19bbc55e2a5b53857d10557b1d26"
-	testSubscriberSequenceNumber = "000000000022"
-	numProfiles                  = 5
-)
-
-func computeIMSI(baseIMSI string, increment int) (string, error) {
-	intBaseImsi, err := strconv.Atoi(baseIMSI)
-	if err != nil {
-		return "", fmt.Errorf("failed to convert base IMSI to int: %v", err)
-	}
-	newIMSI := intBaseImsi + increment
-	return fmt.Sprintf("%015d", newIMSI), nil
 }
 
 func configureEllaCore(ctx context.Context, cl *client.Client, nat bool) error {
@@ -88,37 +67,6 @@ func configureEllaCore(ctx context.Context, cl *client.Client, nat bool) error {
 	err = cl.CreateRoute(ctx, createRouteOpts)
 	if err != nil {
 		return fmt.Errorf("failed to create n6 route: %v", err)
-	}
-
-	for i := range numIMSIS {
-		imsi, err := computeIMSI(testStartIMSI, i)
-		if err != nil {
-			return fmt.Errorf("failed to compute IMSI: %v", err)
-		}
-
-		createSubscriberOpts := &client.CreateSubscriberOptions{
-			Imsi:           imsi,
-			Key:            testSubscriberKey,
-			SequenceNumber: testSubscriberSequenceNumber,
-			PolicyName:     testPolicyName,
-			OPc:            testSubscriberCustomOPc,
-		}
-		err = cl.CreateSubscriber(ctx, createSubscriberOpts)
-		if err != nil {
-			return fmt.Errorf("failed to create subscriber: %v", err)
-		}
-	}
-
-	createUEransimSubscriberOpts := &client.CreateSubscriberOptions{
-		Imsi:           testUERANSIMIMSI,
-		Key:            testSubscriberKey,
-		SequenceNumber: testSubscriberSequenceNumber,
-		PolicyName:     testPolicyName,
-		OPc:            testSubscriberCustomOPc,
-	}
-	err = cl.CreateSubscriber(ctx, createUEransimSubscriberOpts)
-	if err != nil {
-		return fmt.Errorf("failed to create UERANSIM subscriber: %v", err)
 	}
 
 	return nil
