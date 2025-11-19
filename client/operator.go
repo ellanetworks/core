@@ -45,6 +45,10 @@ type UpdateOperatorTrackingOptions struct {
 	SupportedTacs []string
 }
 
+type UpdateOperatorHomeNetworkOptions struct {
+	PrivateKey string
+}
+
 func (c *Client) GetOperator(ctx context.Context) (*Operator, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -138,6 +142,32 @@ func (c *Client) UpdateOperatorTracking(ctx context.Context, opts *UpdateOperato
 		Type:   SyncRequest,
 		Method: "PUT",
 		Path:   "api/v1/operator/tracking",
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) UpdateOperatorHomeNetwork(ctx context.Context, opts *UpdateOperatorHomeNetworkOptions) error {
+	payload := struct {
+		PrivateKey string `json:"privateKey"`
+	}{
+		PrivateKey: opts.PrivateKey,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/operator/home-network",
 		Body:   &body,
 	})
 	if err != nil {
