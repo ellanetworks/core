@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/ecdh"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -114,30 +115,15 @@ func isValidOperatorCode(operatorCode string) bool {
 
 // isValidPrivateKey validates whether the provided private key is a valid 32-byte Curve25519 private key.
 func isValidPrivateKey(privateKey string) bool {
-	// Ensure it is exactly 64 hex characters (32 bytes)
-	if len(privateKey) != 64 {
-		logger.EllaLog.Warn("Invalid private key length", zap.Int("length", len(privateKey)))
-		return false
-	}
-
-	// Decode from hex string to bytes
 	privateKeyBytes, err := hex.DecodeString(privateKey)
 	if err != nil {
 		logger.EllaLog.Warn("Failed to decode private key from hex", zap.Error(err))
 		return false
 	}
 
-	// Ensure it is exactly 32 bytes long
-	if len(privateKeyBytes) != 32 {
-		logger.EllaLog.Warn("Invalid private key byte length", zap.Int("length", len(privateKeyBytes)))
-		return false
-	}
-
-	// Check if it is correctly clamped for Curve25519 (X25519)
-	// - First byte: Bits 0-2 must be cleared
-	// - Last byte: Bit 7 must be cleared, and bit 6 must be set
-	if privateKeyBytes[0]&7 != 0 || privateKeyBytes[31]&0x80 != 0 || privateKeyBytes[31]&0x40 == 0 {
-		logger.EllaLog.Warn("Invalid Curve25519 key clamping")
+	_, err = ecdh.X25519().NewPrivateKey(privateKeyBytes)
+	if err != nil {
+		logger.EllaLog.Warn("Failed to create X25519 private key", zap.Error(err))
 		return false
 	}
 
