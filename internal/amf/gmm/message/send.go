@@ -77,6 +77,10 @@ func SendIdentityRequest(ue *context.RanUe, typeOfIdentity uint8) error {
 }
 
 func SendAuthenticationRequest(ue *context.RanUe) error {
+	if ue == nil {
+		return fmt.Errorf("ue is nil")
+	}
+
 	amfUe := ue.AmfUe
 	if amfUe == nil {
 		return fmt.Errorf("amf ue is nil")
@@ -177,6 +181,10 @@ func SendServiceReject(ue *context.RanUe, pDUSessionStatus *[16]bool, cause uint
 // T3502: This IE may be included to indicate a value for timer T3502 during the initial registration
 // eapMessage: if the REGISTRATION REJECT message is used to convey EAP-failure message
 func SendRegistrationReject(ue *context.RanUe, cause5GMM uint8, eapMessage string) error {
+	if ue == nil {
+		return fmt.Errorf("ue is nil")
+	}
+
 	nasMsg, err := BuildRegistrationReject(ue.AmfUe, cause5GMM, eapMessage)
 	if err != nil {
 		return fmt.Errorf("error building registration reject: %s", err.Error())
