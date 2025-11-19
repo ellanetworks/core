@@ -59,6 +59,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 	localSEID := association.NewLocalSEID()
 
 	session := NewSession(localSEID, remoteSEID.SEID)
+	logger.UpfLog.Debug("Tracking new session", zap.Uint64("Local SEID", localSEID), zap.Uint64("Remote SEID", remoteSEID.SEID))
 
 	printSessionEstablishmentRequest(msg)
 	createdPDRs := []SPDRInfo{}
@@ -104,13 +105,14 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 				continue
 			}
 
-			spdrInfo := SPDRInfo{PdrID: uint32(pdrID), PdrInfo: ebpf.PdrInfo{LocalSEID: msg.SEID(), PdrID: uint32(pdrID)}}
+			spdrInfo := SPDRInfo{PdrID: uint32(pdrID), PdrInfo: ebpf.PdrInfo{LocalSEID: localSEID, PdrID: uint32(pdrID)}}
 
 			if err := pdrContext.ExtractPDR(pdr, &spdrInfo); err == nil {
 				session.PutPDR(spdrInfo.PdrID, spdrInfo)
 				applyPDR(spdrInfo, bpfObjects)
 				logger.UpfLog.Info("Applied packet detection rule", zap.Uint32("pdrID", spdrInfo.PdrID))
 				createdPDRs = append(createdPDRs, spdrInfo)
+				bpfObjects.ClearNotified(localSEID, pdrID, session.GetQer(spdrInfo.PdrInfo.QerID).QerInfo.Qfi)
 			} else {
 				logger.UpfLog.Error("couldn't extract PDR info", zap.Error(err))
 			}
@@ -315,6 +317,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				session.PutPDR(spdrInfo.PdrID, spdrInfo)
 				applyPDR(spdrInfo, bpfObjects)
 				createdPDRs = append(createdPDRs, spdrInfo)
+				bpfObjects.ClearNotified(msg.SEID(), pdrID, session.GetQer(spdrInfo.PdrInfo.QerID).QerInfo.Qfi)
 			} else {
 				return fmt.Errorf("couldn't extract PDR info: %s", err.Error())
 			}
@@ -330,6 +333,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			if err := pdrContext.ExtractPDR(pdr, &spdrInfo); err == nil {
 				session.PutPDR(uint32(pdrID), spdrInfo)
 				applyPDR(spdrInfo, bpfObjects)
+				bpfObjects.ClearNotified(msg.SEID(), pdrID, session.GetQer(spdrInfo.PdrInfo.QerID).QerInfo.Qfi)
 			} else {
 				return fmt.Errorf("couldn't extract PDR info: %s", err.Error())
 			}

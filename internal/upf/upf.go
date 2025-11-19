@@ -33,19 +33,12 @@ const (
 	ConnTrackTimeout = 10 * time.Minute
 )
 
-type DataNotification struct {
-	LocalSEID uint64
-	PdrID     uint16
-	QFI       uint8
-}
-
 type UPF struct {
 	bpfObjects         *ebpf.BpfObjects
 	n3Link             link.Link
 	n6Link             *link.Link
 	pfcpConn           *core.PfcpConnection
 	notificationReader *ringbuf.Reader
-	pagingList         map[DataNotification]bool
 
 	gcCancel context.CancelFunc
 }
@@ -139,14 +132,12 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 		return nil, fmt.Errorf("coud not start traffic notification reader: %s", err.Error())
 	}
 
-	pagingList := make(map[DataNotification]bool)
 	upf := &UPF{
 		bpfObjects:         bpfObjects,
 		n3Link:             n3Link,
 		n6Link:             n6Link,
 		pfcpConn:           pfcpConn,
 		notificationReader: notificationReader,
-		pagingList:         pagingList,
 	}
 
 	go upf.listenForTrafficNotifications()
@@ -287,7 +278,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 
 func (u *UPF) listenForTrafficNotifications() {
 	var record ringbuf.Record
-	var event DataNotification
+	var event ebpf.DataNotification
 	for {
 		err := u.notificationReader.ReadInto(&record)
 		if errors.Is(err, os.ErrClosed) {
@@ -297,11 +288,13 @@ func (u *UPF) listenForTrafficNotifications() {
 			logger.UpfLog.Error("Failed to decode data notification", zap.Error(err))
 		}
 		logger.UpfLog.Debug("Received notification for", zap.Uint64("SEID", event.LocalSEID), zap.Uint16("PDRID", event.PdrID), zap.Uint8("QFI", event.QFI))
-		if _, ok := u.pagingList[event]; !ok {
-			u.pagingList[event] = true
+		if !u.bpfObjects.IsAlreadyNotified(event) {
+			u.bpfObjects.MarkNotified(event)
+			logger.UpfLog.Debug("Notifying SMF of downlink data", zap.Uint64("SEID", event.LocalSEID), zap.Uint16("PDRID", event.PdrID), zap.Uint8("QFI", event.QFI))
 			err = core.SendPfcpSessionReportRequest(context.TODO(), event.LocalSEID, event.PdrID, event.QFI)
 			if err != nil {
 				logger.UpfLog.Warn("Failed to send downlink data notification", zap.Error(err))
+				u.bpfObjects.ClearNotified(event.LocalSEID, event.PdrID, event.QFI)
 			}
 		}
 	}

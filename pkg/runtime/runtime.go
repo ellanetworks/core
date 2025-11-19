@@ -112,7 +112,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	pfcp_dispatcher.Dispatcher = pfcp_dispatcher.NewPfcpDispatcher(smf_pfcp.SmfPfcpHandler{}, upf_pfcp.UpfPfcpHandler{})
 
 	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3, n3Address, advertisedN3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled)
-
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}

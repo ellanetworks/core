@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
+	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 )
 
@@ -20,8 +21,13 @@ func getSeqNumber() uint32 {
 	return atomic.AddUint32(&seq, 1)
 }
 
-func SendPfcpSessionReportRequest(ctx context.Context, seid uint64, pdrid uint16, qfi uint8) error {
-	pfcpMsg, err := BuildPfcpSessionReportRequest(seid, getSeqNumber(), pdrid, qfi)
+func SendPfcpSessionReportRequest(ctx context.Context, localSeid uint64, pdrid uint16, qfi uint8) error {
+	conn := GetConnection()
+	session, ok := conn.SmfNodeAssociation.Sessions[localSeid]
+	if !ok {
+		return fmt.Errorf("failed to send find session with localSeid: %d", localSeid)
+	}
+	pfcpMsg, err := BuildPfcpSessionReportRequest(session.RemoteSEID, getSeqNumber(), pdrid, qfi)
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Report Request: %v", err)
 	}
@@ -37,5 +43,8 @@ func SendPfcpSessionReportRequest(ctx context.Context, seid uint64, pdrid uint16
 }
 
 func HandlePfcpSessionReportResponse(ctx context.Context, rsp *message.SessionReportResponse) error {
+	if rsp.Cause != ie.NewCause(ie.CauseRequestAccepted) {
+		return fmt.Errorf("SMF did not accept Session Report Request")
+	}
 	return nil
 }
