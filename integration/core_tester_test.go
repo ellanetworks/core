@@ -49,7 +49,11 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 
 	t.Log("ella core is ready")
 
-	err = configureEllaCore(ctx, ellaClient, true)
+	err = configureEllaCore(ctx, ellaClient, EllaCoreConfig{
+		Networking: NetworkingConfig{
+			NAT: true,
+		},
+	})
 	if err != nil {
 		t.Fatalf("failed to configure Ella Core: %v", err)
 	}

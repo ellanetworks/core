@@ -15,8 +15,6 @@ func TestIntegrationUERANSIM(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
-	t.Skip("focusing on ella-core-tester")
-
 	testCases := []struct {
 		name string
 		nat  bool
@@ -67,7 +65,59 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Log("ella core is ready")
 
-			err = configureEllaCore(ctx, ellaClient, tc.nat)
+			err = configureEllaCore(ctx, ellaClient, EllaCoreConfig{
+				Networking: NetworkingConfig{
+					NAT: tc.nat,
+					Routes: []RouteConfig{
+						{
+							Destination: "8.8.8.8/32",
+							Gateway:     "10.6.0.3",
+							Interface:   "n6",
+							Metric:      0,
+						},
+					},
+				},
+				Operator: OperatorConfig{
+					ID: OperatorID{
+						MCC: "001",
+						MNC: "01",
+					},
+					Slice: OperatorSlice{
+						SST: 1,
+						SD:  "102030",
+					},
+					Tracking: OperatorTracking{
+						SupportedTACs: []string{"000001"},
+					},
+				},
+				DataNetworks: []DataNetworkConfig{
+					{
+						Name:   "internet",
+						IPPool: "10.45.0.0/16",
+						DNS:    "8.8.8.8",
+						Mtu:    1500,
+					},
+				},
+				Policies: []PolicyConfig{
+					{
+						Name:            "default",
+						DataNetworkName: "internet",
+						BitrateUplink:   "100 Mbps",
+						BitrateDownlink: "100 Mbps",
+						Var5qi:          9,
+						Arp:             1,
+					},
+				},
+				Subscribers: []SubscriberConfig{
+					{
+						Imsi:           "001019756139935",
+						Key:            "0eefb0893e6f1c2855a3a244c6db1277",
+						OPc:            "98da19bbc55e2a5b53857d10557b1d26",
+						SequenceNumber: "000000000022",
+						PolicyName:     "default",
+					},
+				},
+			})
 			if err != nil {
 				t.Fatalf("failed to configure Ella Core: %v", err)
 			}
