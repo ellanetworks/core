@@ -43,8 +43,12 @@ func SendPfcpSessionReportRequest(ctx context.Context, localSeid uint64, pdrid u
 }
 
 func HandlePfcpSessionReportResponse(ctx context.Context, rsp *message.SessionReportResponse) error {
-	if rsp.Cause != ie.NewCause(ie.CauseRequestAccepted) {
-		return fmt.Errorf("SMF did not accept Session Report Request")
+	cause, err := rsp.Cause.Cause()
+	if err != nil {
+		return fmt.Errorf("SMF returned invalid response: %v", err)
+	}
+	if cause != ie.CauseRequestAccepted {
+		return fmt.Errorf("SMF did not accept Session Report Request, cause: %s", causeToString(cause))
 	}
 	return nil
 }
