@@ -23,7 +23,6 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 	defer dockerClient.Close()
 
 	dockerClient.ComposeDown("compose/ueransim/")
-	dockerClient.ComposeDown("compose/gnbsim/")
 	dockerClient.ComposeDown("compose/core-tester/")
 
 	err = dockerClient.ComposeUp("compose/core-tester/")
