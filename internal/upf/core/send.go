@@ -25,7 +25,7 @@ func SendPfcpSessionReportRequest(ctx context.Context, localSeid uint64, pdrid u
 	conn := GetConnection()
 	session, ok := conn.SmfNodeAssociation.Sessions[localSeid]
 	if !ok {
-		return fmt.Errorf("failed to send find session with localSeid: %d", localSeid)
+		return fmt.Errorf("failed to find session with localSeid: %d", localSeid)
 	}
 	pfcpMsg, err := BuildPfcpSessionReportRequest(session.RemoteSEID, getSeqNumber(), pdrid, qfi)
 	if err != nil {
