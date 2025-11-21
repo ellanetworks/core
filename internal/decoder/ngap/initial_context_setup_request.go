@@ -151,6 +151,12 @@ func buildInitialContextSetupRequest(initialContextSetupRequest ngapType.Initial
 					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value),
 				},
 			})
+		case ngapType.ProtocolIEIDUERadioCapability:
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       []byte(ie.Value.UERadioCapability.Value),
+			})
 		default:
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
