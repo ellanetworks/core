@@ -41,7 +41,7 @@ func buildPaging(paging ngapType.Paging) NGAPMessageValue {
 }
 
 type UEPagingIdentity struct {
-	FiveGSTMSI FiveGSTMSI
+	FiveGSTMSI FiveGSTMSI `json:"five_gs_tmsi"`
 }
 
 func buildUEPagingIdentity(uePagingIdentity ngapType.UEPagingIdentity) UEPagingIdentity {
