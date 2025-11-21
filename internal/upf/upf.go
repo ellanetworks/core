@@ -286,15 +286,16 @@ func (u *UPF) listenForTrafficNotifications() {
 		}
 		if err = binary.Read(bytes.NewBuffer(record.RawSample), binary.NativeEndian, &event); err != nil {
 			logger.UpfLog.Error("Failed to decode data notification", zap.Error(err))
+			continue
 		}
 		logger.UpfLog.Debug("Received notification for", zap.Uint64("SEID", event.LocalSEID), zap.Uint16("PDRID", event.PdrID), zap.Uint8("QFI", event.QFI))
 		if !u.bpfObjects.IsAlreadyNotified(event) {
-			u.bpfObjects.MarkNotified(event)
 			logger.UpfLog.Debug("Notifying SMF of downlink data", zap.Uint64("SEID", event.LocalSEID), zap.Uint16("PDRID", event.PdrID), zap.Uint8("QFI", event.QFI))
 			err = core.SendPfcpSessionReportRequest(context.TODO(), event.LocalSEID, event.PdrID, event.QFI)
 			if err != nil {
 				logger.UpfLog.Warn("Failed to send downlink data notification", zap.Error(err))
-				u.bpfObjects.ClearNotified(event.LocalSEID, event.PdrID, event.QFI)
+			} else {
+				u.bpfObjects.MarkNotified(event)
 			}
 		}
 	}
