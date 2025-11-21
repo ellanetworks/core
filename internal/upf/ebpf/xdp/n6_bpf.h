@@ -12,6 +12,7 @@
 #include "xdp/utils/qer.h"
 #include "xdp/utils/routing.h"
 #include "xdp/utils/statistics.h"
+#include "xdp/utils/nocp.h"
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -111,10 +112,6 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 
 	upf_printk("upf: downlink session for ip:%pI4 far:%d action:%d",
 		   &ip4->daddr, far_id, far->action);
-	if (!(far->action & FAR_FORW))
-		return XDP_DROP;
-	if (!(far->outer_header_creation & OHC_GTP_U_UDP_IPv4))
-		return XDP_DROP;
 
 	struct qer_info *qer = bpf_map_lookup_elem(&qer_map, &qer_id);
 	if (!qer) {
@@ -122,9 +119,25 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			   &ip4->daddr, qer_id);
 		return XDP_DROP;
 	}
-
 	upf_printk("upf: qer:%d gate_status:%d mbr:%d", qer_id,
 		   qer->dl_gate_status, qer->dl_maximum_bitrate);
+
+	if (far->action & (FAR_BUFF | FAR_NOCP)) {
+		upf_printk("upf: need to notify CP for pdr:%d and qfi:%d", pdr->pdr_id, qer->qfi);
+		struct nocp notif = { .local_seid = pdr->local_seid, .pdr_id = pdr->pdr_id, .qfi = qer->qfi };
+		bpf_ringbuf_output(&nocp_map, (void *)&notif, sizeof(struct nocp), 0);
+
+		/* Technically, we need to buffer the packet here, but this is not
+		 * implemented yet. */
+		return XDP_DROP;
+	}
+	if (!(far->action & FAR_FORW)) {
+		return XDP_DROP;
+	}
+	if (!(far->outer_header_creation & OHC_GTP_U_UDP_IPv4)) {
+		return XDP_DROP;
+	}
+
 	if (qer->dl_gate_status != GATE_STATUS_OPEN)
 		return XDP_DROP;
 
@@ -184,13 +197,8 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 			   &ip6->daddr, far_id);
 		return XDP_DROP;
 	}
-
 	upf_printk("upf: downlink session for ip:%pI6c far:%d action:%d",
 		   &ip6->daddr, far_id, far->action);
-	if (!(far->action & FAR_FORW))
-		return XDP_DROP;
-	if (!(far->outer_header_creation & OHC_GTP_U_UDP_IPv4))
-		return XDP_DROP;
 
 	struct qer_info *qer = bpf_map_lookup_elem(&qer_map, &qer_id);
 	if (!qer) {
@@ -198,9 +206,23 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 			   &ip6->daddr, qer_id);
 		return XDP_DROP;
 	}
-
 	upf_printk("upf: qer:%d gate_status:%d mbr:%d", qer_id,
 		   qer->dl_gate_status, qer->dl_maximum_bitrate);
+
+	if (far->action & (FAR_BUFF | FAR_NOCP)) {
+		upf_printk("upf: need to notify CP for pdr:%d and qfi:%d", pdr->pdr_id, qer->qfi);
+		struct nocp notif = { .local_seid = pdr->local_seid, .pdr_id = pdr->pdr_id, .qfi = qer->qfi };
+		bpf_ringbuf_output(&nocp_map, (void *)&notif, sizeof(struct nocp), 0);
+
+		/* Technically, we need to buffer the packet here, but this is not
+		 * implemented yet. */
+		return XDP_DROP;
+	}
+	if (!(far->action & FAR_FORW))
+		return XDP_DROP;
+	if (!(far->outer_header_creation & OHC_GTP_U_UDP_IPv4))
+		return XDP_DROP;
+
 	if (qer->dl_gate_status != GATE_STATUS_OPEN)
 		return XDP_DROP;
 

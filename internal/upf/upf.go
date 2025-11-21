@@ -3,13 +3,18 @@
 package upf
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	bpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/ringbuf"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
@@ -29,10 +34,11 @@ const (
 )
 
 type UPF struct {
-	bpfObjects *ebpf.BpfObjects
-	n3Link     link.Link
-	n6Link     *link.Link
-	pfcpConn   *core.PfcpConnection
+	bpfObjects         *ebpf.BpfObjects
+	n3Link             link.Link
+	n6Link             *link.Link
+	pfcpConn           *core.PfcpConnection
+	notificationReader *ringbuf.Reader
 
 	gcCancel context.CancelFunc
 }
@@ -121,12 +127,20 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 
 	metrics.RegisterUPFMetrics(ForwardPlaneStats)
 
-	upf := &UPF{
-		bpfObjects: bpfObjects,
-		n3Link:     n3Link,
-		n6Link:     n6Link,
-		pfcpConn:   pfcpConn,
+	notificationReader, err := ringbuf.NewReader(bpfObjects.NocpMap)
+	if err != nil {
+		return nil, fmt.Errorf("coud not start traffic notification reader: %s", err.Error())
 	}
+
+	upf := &UPF{
+		bpfObjects:         bpfObjects,
+		n3Link:             n3Link,
+		n6Link:             n6Link,
+		pfcpConn:           pfcpConn,
+		notificationReader: notificationReader,
+	}
+
+	go upf.listenForTrafficNotifications()
 
 	if masquerade {
 		upf.startGC()
@@ -150,6 +164,9 @@ func (u *UPF) Close() {
 	}
 	if err := u.bpfObjects.Close(); err != nil {
 		logger.UpfLog.Warn("Failed to close BPF objects", zap.Error(err))
+	}
+	if err := u.notificationReader.Close(); err != nil {
+		logger.UpfLog.Warn("Failed to close notification reader", zap.Error(err))
 	}
 	logger.UpfLog.Info("UPF resources released")
 }
@@ -256,5 +273,30 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		}
 		logger.UpfLog.Debug("Deleted expired conntrack entries", zap.Int("count", count))
 		expiredKeys = expiredKeys[:0]
+	}
+}
+
+func (u *UPF) listenForTrafficNotifications() {
+	var record ringbuf.Record
+	var event ebpf.DataNotification
+	for {
+		err := u.notificationReader.ReadInto(&record)
+		if errors.Is(err, os.ErrClosed) {
+			return
+		}
+		if err = binary.Read(bytes.NewBuffer(record.RawSample), binary.NativeEndian, &event); err != nil {
+			logger.UpfLog.Error("Failed to decode data notification", zap.Error(err))
+			continue
+		}
+		logger.UpfLog.Debug("Received notification for", zap.Uint64("SEID", event.LocalSEID), zap.Uint16("PDRID", event.PdrID), zap.Uint8("QFI", event.QFI))
+		if !u.bpfObjects.IsAlreadyNotified(event) {
+			logger.UpfLog.Debug("Notifying SMF of downlink data", zap.Uint64("SEID", event.LocalSEID), zap.Uint16("PDRID", event.PdrID), zap.Uint8("QFI", event.QFI))
+			err = core.SendPfcpSessionReportRequest(context.TODO(), event.LocalSEID, event.PdrID, event.QFI)
+			if err != nil {
+				logger.UpfLog.Warn("Failed to send downlink data notification", zap.Error(err))
+			} else {
+				u.bpfObjects.MarkNotified(event)
+			}
+		}
 	}
 }

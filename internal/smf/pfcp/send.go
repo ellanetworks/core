@@ -11,14 +11,16 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/smf/context"
-	upf "github.com/ellanetworks/core/internal/upf/core"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 	"go.uber.org/zap"
 )
 
 var seq uint32
+
+var dispatcher *pfcp_dispatcher.PfcpDispatcher = &pfcp_dispatcher.Dispatcher
 
 func getSeqNumber() uint32 {
 	return atomic.AddUint32(&seq, 1)
@@ -53,9 +55,9 @@ func SendPfcpSessionEstablishmentRequest(
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Establishment Request: %v", err)
 	}
-	rsp, err := upf.HandlePfcpSessionEstablishmentRequest(ctx, pfcpMsg)
+	rsp, err := dispatcher.UPF.HandlePfcpSessionEstablishmentRequest(ctx, pfcpMsg)
 	if err != nil {
-		return fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
+		return fmt.Errorf("failed to send PFCP Session Establishment Request to upf: %v", err)
 	}
 	err = HandlePfcpSessionEstablishmentResponse(ctx, rsp)
 	if err != nil {
@@ -181,9 +183,9 @@ func SendPfcpSessionModificationRequest(
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Modification Request: %v", err)
 	}
-	rsp, err := upf.HandlePfcpSessionModificationRequest(ctx, pfcpMsg)
+	rsp, err := dispatcher.UPF.HandlePfcpSessionModificationRequest(ctx, pfcpMsg)
 	if err != nil {
-		return fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
+		return fmt.Errorf("failed to send PFCP Session Establishment Request to upf: %v", err)
 	}
 	err = HandlePfcpSessionModificationResponse(rsp)
 	if err != nil {
@@ -216,9 +218,9 @@ func SendPfcpSessionDeletionRequest(ctx ctxt.Context, upNodeID context.NodeID, s
 		return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
 	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIDToIP())
-	rsp, err := upf.HandlePfcpSessionDeletionRequest(ctx, pfcpMsg)
+	rsp, err := dispatcher.UPF.HandlePfcpSessionDeletionRequest(ctx, pfcpMsg)
 	if err != nil {
-		return fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
+		return fmt.Errorf("failed to send PFCP Session Establishment Request to upf: %v", err)
 	}
 	err = HandlePfcpSessionDeletionResponse(rsp)
 	if err != nil {

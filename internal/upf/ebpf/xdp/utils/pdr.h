@@ -54,6 +54,8 @@ struct sdf_rules {
 };
 
 struct pdr_info {
+	__u64 local_seid;
+	__u32 pdr_id;
 	__u32 far_id;
 	__u32 qer_id;
 	__u8 outer_header_removal;
