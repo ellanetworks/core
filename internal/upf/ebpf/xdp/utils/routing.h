@@ -141,7 +141,7 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 	switch (rc) {
 	case BPF_FIB_LKUP_RET_SUCCESS:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: nexthop: %pI4",
-			   &ip6->saddr, &ip6->daddr, &fib_params.ipv4_dst);
+			   &ctx->ip6->saddr, &ctx->ip6->daddr, fib_params.ipv4_dst);
 		statistic->fib_lookup_ip6_ok += 1;
 		//_decr_ttl(ether_proto, l3hdr);
 		__builtin_memcpy(ctx->eth->h_dest, fib_params.dmac, ETH_ALEN);
@@ -167,7 +167,7 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 	case BPF_FIB_LKUP_RET_UNREACHABLE:
 	case BPF_FIB_LKUP_RET_PROHIBIT:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
-			   &ip6->saddr, &ip6->daddr, rc);
+			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
 		statistic->fib_lookup_ip6_error_drop += 1;
 		return XDP_DROP;
 	case BPF_FIB_LKUP_RET_NOT_FWDED:
@@ -177,7 +177,7 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 	case BPF_FIB_LKUP_RET_FRAG_NEEDED:
 	default:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
-			   &ip6->saddr, &ip6->daddr, rc);
+			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
 		statistic->fib_lookup_ip6_error_pass += 1;
 		return XDP_PASS; /* Let's kernel takes care */
 	}

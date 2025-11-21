@@ -25,6 +25,12 @@ const (
 	PinPath = "/sys/fs/bpf/upf_pipeline"
 )
 
+type DataNotification struct {
+	LocalSEID uint64
+	PdrID     uint16
+	QFI       uint8
+}
+
 type BpfObjects struct {
 	N3N6EntrypointObjects
 
@@ -35,6 +41,7 @@ type BpfObjects struct {
 	N6InterfaceIndex uint32
 	N3Vlan           uint32
 	N6Vlan           uint32
+	pagingList       map[DataNotification]bool
 }
 
 func NewBpfObjects(masquerade bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
@@ -44,6 +51,7 @@ func NewBpfObjects(masquerade bool, n3ifindex int, n6ifindex int, n3vlan uint32,
 		N6InterfaceIndex: uint32(n6ifindex),
 		N3Vlan:           n3vlan,
 		N6Vlan:           n6vlan,
+		pagingList:       make(map[DataNotification]bool),
 	}
 }
 
@@ -133,6 +141,19 @@ func (bpfObjects *BpfObjects) unpinMaps() {
 	if err := bpfObjects.N3N6EntrypointMaps.PdrsDownlinkIp6.Unpin(); err != nil {
 		logger.UpfLog.Warn("failed to unpin pdrs_downlink_ip6 map, state could be left behind: %v", zap.Error(err))
 	}
+}
+
+func (bpfObjects *BpfObjects) IsAlreadyNotified(d DataNotification) bool {
+	_, ok := bpfObjects.pagingList[d]
+	return ok
+}
+
+func (bpfObjects *BpfObjects) MarkNotified(d DataNotification) {
+	bpfObjects.pagingList[d] = true
+}
+
+func (bpfObjects *BpfObjects) ClearNotified(seid uint64, pdrid uint16, qfi uint8) {
+	delete(bpfObjects.pagingList, DataNotification{LocalSEID: seid, PdrID: pdrid, QFI: qfi})
 }
 
 func CloseAllObjects(closers ...io.Closer) error {

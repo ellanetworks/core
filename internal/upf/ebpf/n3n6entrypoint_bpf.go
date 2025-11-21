@@ -50,11 +50,13 @@ type N3N6EntrypointNatEntry struct {
 
 type N3N6EntrypointPdrInfo struct {
 	_                  structs.HostLayout
+	LocalSeid          uint64
+	PdrId              uint32
 	FarId              uint32
 	QerId              uint32
 	OuterHeaderRemoval uint8
 	SdfMode            uint8
-	_                  [6]byte
+	_                  [10]byte
 	SdfRules           struct {
 		_         structs.HostLayout
 		SdfFilter struct {
@@ -186,6 +188,7 @@ type N3N6EntrypointMapSpecs struct {
 	DownlinkStatistics *ebpf.MapSpec `ebpf:"downlink_statistics"`
 	FarMap             *ebpf.MapSpec `ebpf:"far_map"`
 	NatCt              *ebpf.MapSpec `ebpf:"nat_ct"`
+	NocpMap            *ebpf.MapSpec `ebpf:"nocp_map"`
 	PdrsDownlinkIp4    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink         *ebpf.MapSpec `ebpf:"pdrs_uplink"`
@@ -229,6 +232,7 @@ type N3N6EntrypointMaps struct {
 	DownlinkStatistics *ebpf.Map `ebpf:"downlink_statistics"`
 	FarMap             *ebpf.Map `ebpf:"far_map"`
 	NatCt              *ebpf.Map `ebpf:"nat_ct"`
+	NocpMap            *ebpf.Map `ebpf:"nocp_map"`
 	PdrsDownlinkIp4    *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink         *ebpf.Map `ebpf:"pdrs_uplink"`
@@ -243,6 +247,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.DownlinkStatistics,
 		m.FarMap,
 		m.NatCt,
+		m.NocpMap,
 		m.PdrsDownlinkIp4,
 		m.PdrsDownlinkIp6,
 		m.PdrsUplink,
