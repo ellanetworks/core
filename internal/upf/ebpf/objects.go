@@ -65,7 +65,13 @@ func PinMaps() error {
 
 func (bpfObjects *BpfObjects) Load() error {
 	collectionOptions := ebpf.CollectionOptions{
-		Maps: ebpf.MapOptions{},
+		Maps: ebpf.MapOptions{
+			// Pin the map to the BPF filesystem and configure the
+			// library to automatically re-write it in the BPF
+			// program, so it can be re-used if it already exists or
+			// create it if not
+			PinPath: PinPath,
+		},
 	}
 
 	n3n6Spec, err := LoadN3N6Entrypoint()
@@ -134,6 +140,15 @@ func (bpfObjects *BpfObjects) unpinMaps() {
 	}
 	if err := bpfObjects.N3N6EntrypointMaps.PdrsDownlinkIp6.Unpin(); err != nil {
 		logger.UpfLog.Warn("failed to unpin pdrs_downlink_ip6 map, state could be left behind: %v", zap.Error(err))
+	}
+	if err := bpfObjects.N3N6EntrypointMaps.NatCt.Unpin(); err != nil {
+		logger.UpfLog.Warn("failed to unpin nat_ct map, state could be left behind: %v", zap.Error(err))
+	}
+	if err := bpfObjects.N3N6EntrypointMaps.QerMap.Unpin(); err != nil {
+		logger.UpfLog.Warn("failed to unpin qer_map map, state could be left behind: %v", zap.Error(err))
+	}
+	if err := bpfObjects.N3N6EntrypointMaps.FarMap.Unpin(); err != nil {
+		logger.UpfLog.Warn("failed to unpin far_map map, state could be left behind: %v", zap.Error(err))
 	}
 }
 
