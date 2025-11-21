@@ -52,6 +52,14 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 	err = configureEllaCore(ctx, ellaClient, EllaCoreConfig{
 		Networking: NetworkingConfig{
 			NAT: true,
+			Routes: []RouteConfig{
+				{
+					Destination: "8.8.8.8/32",
+					Gateway:     "10.6.0.3",
+					Interface:   "n6",
+					Metric:      0,
+				},
+			},
 		},
 	})
 	if err != nil {
