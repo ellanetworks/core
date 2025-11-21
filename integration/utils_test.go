@@ -20,42 +20,6 @@ type SubscriberConfig struct {
 	PolicyName     string
 }
 
-type PolicyConfig struct {
-	Name            string
-	BitrateUplink   string
-	BitrateDownlink string
-	Var5qi          int32
-	Arp             int32
-	DataNetworkName string
-}
-
-type DataNetworkConfig struct {
-	Name   string
-	IPPool string
-	DNS    string
-	Mtu    int32
-}
-
-type OperatorID struct {
-	MCC string
-	MNC string
-}
-
-type OperatorSlice struct {
-	SST int32
-	SD  string
-}
-
-type OperatorTracking struct {
-	SupportedTACs []string
-}
-
-type OperatorConfig struct {
-	ID       OperatorID
-	Slice    OperatorSlice
-	Tracking OperatorTracking
-}
-
 type RouteConfig struct {
 	Destination string
 	Gateway     string
@@ -69,11 +33,8 @@ type NetworkingConfig struct {
 }
 
 type EllaCoreConfig struct {
-	Operator     OperatorConfig
-	DataNetworks []DataNetworkConfig
-	Policies     []PolicyConfig
-	Subscribers  []SubscriberConfig
-	Networking   NetworkingConfig
+	Subscribers []SubscriberConfig
+	Networking  NetworkingConfig
 }
 
 type logWriter struct{ t *testing.T }
@@ -127,21 +88,6 @@ func configureEllaCore(ctx context.Context, cl *client.Client, c EllaCoreConfig)
 		return fmt.Errorf("failed to create routes: %v", err)
 	}
 
-	err = updateOperator(ctx, cl, c.Operator)
-	if err != nil {
-		return fmt.Errorf("failed to update operator config: %v", err)
-	}
-
-	err = createDataNetworks(ctx, cl, c.DataNetworks)
-	if err != nil {
-		return fmt.Errorf("failed to create data networks: %v", err)
-	}
-
-	err = createPolicies(ctx, cl, c.Policies)
-	if err != nil {
-		return fmt.Errorf("could not create policies: %v", err)
-	}
-
 	err = createSubs(ctx, cl, c.Subscribers)
 	if err != nil {
 		return fmt.Errorf("could not create subscribers: %v", err)
@@ -167,121 +113,17 @@ func createRoutes(ctx context.Context, cl *client.Client, routes []RouteConfig) 
 	return nil
 }
 
-func updateOperator(ctx context.Context, cl *client.Client, c OperatorConfig) error {
-	opConfig, err := cl.GetOperator(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get operator: %v", err)
-	}
-
-	if opConfig.ID.Mcc != c.ID.MCC || opConfig.ID.Mnc != c.ID.MNC {
-		err := cl.UpdateOperatorID(ctx, &client.UpdateOperatorIDOptions{
-			Mcc: c.ID.MCC,
-			Mnc: c.ID.MNC,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to update operator ID: %v", err)
-		}
-	}
-
-	if opConfig.Slice.Sst != int(c.Slice.SST) || opConfig.Slice.Sd != c.Slice.SD {
-		err := cl.UpdateOperatorSlice(ctx, &client.UpdateOperatorSliceOptions{
-			Sst: int(c.Slice.SST),
-			Sd:  c.Slice.SD,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to update operator slice: %v", err)
-		}
-	}
-
-	currentTACsMap := make(map[string]bool)
-	for _, tac := range opConfig.Tracking.SupportedTacs {
-		currentTACsMap[tac] = true
-	}
-
-	needUpdate := false
-
-	for _, tac := range c.Tracking.SupportedTACs {
-		if !currentTACsMap[tac] {
-			needUpdate = true
-			break
-		}
-	}
-
-	if needUpdate {
-		err := cl.UpdateOperatorTracking(ctx, &client.UpdateOperatorTrackingOptions{
-			SupportedTacs: c.Tracking.SupportedTACs,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to update operator tracking: %v", err)
-		}
-	}
-
-	return nil
-}
-
-func createDataNetworks(ctx context.Context, cl *client.Client, dn []DataNetworkConfig) error {
-	for _, dnn := range dn {
-		existingDNN, _ := cl.GetDataNetwork(ctx, &client.GetDataNetworkOptions{
-			Name: dnn.Name,
-		})
-
-		if existingDNN == nil {
-			err := cl.CreateDataNetwork(ctx, &client.CreateDataNetworkOptions{
-				Name:   dnn.Name,
-				IPPool: dnn.IPPool,
-				DNS:    dnn.DNS,
-				Mtu:    dnn.Mtu,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to create data network: %v", err)
-			}
-		}
-	}
-
-	return nil
-}
-
-func createPolicies(ctx context.Context, cl *client.Client, policies []PolicyConfig) error {
-	for _, policy := range policies {
-		existingPolicy, _ := cl.GetPolicy(ctx, &client.GetPolicyOptions{
-			Name: policy.Name,
-		})
-
-		if existingPolicy == nil {
-			err := cl.CreatePolicy(ctx, &client.CreatePolicyOptions{
-				Name:            policy.Name,
-				BitrateUplink:   policy.BitrateUplink,
-				BitrateDownlink: policy.BitrateDownlink,
-				Var5qi:          policy.Var5qi,
-				Arp:             policy.Arp,
-				DataNetworkName: policy.DataNetworkName,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to create policy: %v", err)
-			}
-		}
-	}
-
-	return nil
-}
-
 func createSubs(ctx context.Context, cl *client.Client, subs []SubscriberConfig) error {
 	for _, sub := range subs {
-		existingSub, _ := cl.GetSubscriber(ctx, &client.GetSubscriberOptions{
-			ID: sub.Imsi,
+		err := cl.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
+			Imsi:           sub.Imsi,
+			Key:            sub.Key,
+			SequenceNumber: sub.SequenceNumber,
+			PolicyName:     sub.PolicyName,
+			OPc:            sub.OPc,
 		})
-
-		if existingSub == nil {
-			err := cl.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
-				Imsi:           sub.Imsi,
-				Key:            sub.Key,
-				SequenceNumber: sub.SequenceNumber,
-				PolicyName:     sub.PolicyName,
-				OPc:            sub.OPc,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to create subscriber: %v", err)
-			}
+		if err != nil {
+			return fmt.Errorf("failed to create subscriber: %v", err)
 		}
 	}
 

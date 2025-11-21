@@ -77,37 +77,6 @@ func TestIntegrationUERANSIM(t *testing.T) {
 						},
 					},
 				},
-				Operator: OperatorConfig{
-					ID: OperatorID{
-						MCC: "001",
-						MNC: "01",
-					},
-					Slice: OperatorSlice{
-						SST: 1,
-						SD:  "102030",
-					},
-					Tracking: OperatorTracking{
-						SupportedTACs: []string{"000001"},
-					},
-				},
-				DataNetworks: []DataNetworkConfig{
-					{
-						Name:   "internet",
-						IPPool: "10.45.0.0/16",
-						DNS:    "8.8.8.8",
-						Mtu:    1500,
-					},
-				},
-				Policies: []PolicyConfig{
-					{
-						Name:            "default",
-						DataNetworkName: "internet",
-						BitrateUplink:   "100 Mbps",
-						BitrateDownlink: "100 Mbps",
-						Var5qi:          9,
-						Arp:             1,
-					},
-				},
 				Subscribers: []SubscriberConfig{
 					{
 						Imsi:           "001019756139935",
