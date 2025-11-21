@@ -88,6 +88,10 @@ func buildInitiatingMessage(initMsg ngapType.InitiatingMessage) NGAPMessageValue
 		return buildPDUSessionResourceReleaseCommand(*initMsg.Value.PDUSessionResourceReleaseCommand)
 	case ngapType.InitiatingMessagePresentUERadioCapabilityInfoIndication:
 		return buildUERadioCapabilityInfoIndication(*initMsg.Value.UERadioCapabilityInfoIndication)
+	case ngapType.InitiatingMessagePresentAMFStatusIndication:
+		return buildAMFStatusIndication(*initMsg.Value.AMFStatusIndication)
+	case ngapType.InitiatingMessagePresentPaging:
+		return buildPaging(*initMsg.Value.Paging)
 	default:
 		return NGAPMessageValue{
 			Error: fmt.Sprintf("Unsupported message %d", initMsg.Value.Present),
