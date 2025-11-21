@@ -40,7 +40,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			defer dockerClient.Close()
 
 			dockerClient.ComposeDown("compose/ueransim/")
-			dockerClient.ComposeDown("compose/gnbsim/")
+			dockerClient.ComposeDown("compose/core-tester/")
 
 			err = dockerClient.ComposeUp("compose/ueransim/")
 			if err != nil {
@@ -64,7 +64,28 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Log("ella core is ready")
 
-			err = configureEllaCore(ctx, ellaClient, tc.nat)
+			err = configureEllaCore(ctx, ellaClient, EllaCoreConfig{
+				Networking: NetworkingConfig{
+					NAT: tc.nat,
+					Routes: []RouteConfig{
+						{
+							Destination: "8.8.8.8/32",
+							Gateway:     "10.6.0.3",
+							Interface:   "n6",
+							Metric:      0,
+						},
+					},
+				},
+				Subscribers: []SubscriberConfig{
+					{
+						Imsi:           "001019756139935",
+						Key:            "0eefb0893e6f1c2855a3a244c6db1277",
+						OPc:            "98da19bbc55e2a5b53857d10557b1d26",
+						SequenceNumber: "000000000022",
+						PolicyName:     "default",
+					},
+				},
+			})
 			if err != nil {
 				t.Fatalf("failed to configure Ella Core: %v", err)
 			}
