@@ -1,6 +1,7 @@
 package ngap
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 
@@ -44,11 +45,39 @@ type CoreNetworkAssistanceInformation struct {
 	ExpectedUEBehaviour             *ExpectedUEBehaviour     `json:"expected_ue_behaviour,omitempty"`
 }
 
+type MaximumBitRate struct {
+	DownlinkNAggregateMaximumBitRate uint64 `json:"downlink_n_aggregate_maximum_bit_rate"`
+	UplinkNAggregateMaximumBitRate   uint64 `json:"uplink_n_aggregate_maximum_bit_rate"`
+}
+
+type GTPTunnel struct {
+	GTPTEID               uint32 `json:"gtp_teid"`
+	TransportLayerAddress string `json:"transport_layer_address"`
+}
+
+type ULNGUUPTNLInformation struct {
+	GTPTunnel GTPTunnel `json:"gtp_tunnel"`
+}
+
+type QosFlowSetupRequest struct {
+	QosId  int64 `json:"qos_id"`
+	FiveQi int64 `json:"five_qi"`
+	PriArp int64 `json:"pri_arp"`
+}
+
+type PDUSessionResourceSetupRequestTransfer struct {
+	ULNGUUPTNLInformation   *ULNGUUPTNLInformation  `json:"ul_ng_u_up_tnl_information,omitempty"`
+	QosFlowSetupRequestList []QosFlowSetupRequest   `json:"qos_flow_setup_request_list,omitempty"`
+	PduSType                *utils.EnumField[int64] `json:"pdu_s_type,omitempty"`
+	MaximumBitRate          *MaximumBitRate         `json:"maximum_bit_rate,omitempty"`
+	SecurityIndication      *UnsupportedIE          `json:"security_indication,omitempty"`
+}
+
 type PDUSessionResourceSetupCxtReq struct {
-	PDUSessionID                           int64   `json:"pdu_session_id"`
-	NASPDU                                 *NASPDU `json:"nas_pdu,omitempty"`
-	SNSSAI                                 SNSSAI  `json:"snssai"`
-	PDUSessionResourceSetupRequestTransfer []byte  `json:"pdu_session_resource_setup_request_transfer"`
+	PDUSessionID                           int64                                  `json:"pdu_session_id"`
+	NASPDU                                 *NASPDU                                `json:"nas_pdu,omitempty"`
+	SNSSAI                                 SNSSAI                                 `json:"snssai"`
+	PDUSessionResourceSetupRequestTransfer PDUSessionResourceSetupRequestTransfer `json:"pdu_session_resource_setup_request_transfer"`
 }
 
 type UESecurityCapabilities struct {
@@ -151,6 +180,12 @@ func buildInitialContextSetupRequest(initialContextSetupRequest ngapType.Initial
 					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value),
 				},
 			})
+		case ngapType.ProtocolIEIDUERadioCapability:
+			ies = append(ies, IE{
+				ID:          protocolIEIDToEnum(ie.Id.Value),
+				Criticality: criticalityToEnum(ie.Criticality.Value),
+				Value:       []byte(ie.Value.UERadioCapability.Value),
+			})
 		default:
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
@@ -171,10 +206,15 @@ func buildPDUSessionResourceSetupListCxtReq(pduSessionResourceSetupListCxtReq ng
 	for i := 0; i < len(pduSessionResourceSetupListCxtReq.List); i++ {
 		item := pduSessionResourceSetupListCxtReq.List[i]
 
+		setupRequestTransfer, err := buildPDUSessionInfoFromSetupRequestTransfer(item.PDUSessionResourceSetupRequestTransfer)
+		if err != nil {
+			continue
+		}
+
 		pduSessionResourceSetupList = append(pduSessionResourceSetupList, PDUSessionResourceSetupCxtReq{
 			PDUSessionID:                           item.PDUSessionID.Value,
 			SNSSAI:                                 *buildSNSSAI(&item.SNSSAI),
-			PDUSessionResourceSetupRequestTransfer: item.PDUSessionResourceSetupRequestTransfer,
+			PDUSessionResourceSetupRequestTransfer: *setupRequestTransfer,
 		})
 
 		if item.NASPDU != nil {
@@ -397,4 +437,88 @@ func buildNGRANCGI(ngRanCgi ngapType.NGRANCGI) NGRANCGI {
 	}
 
 	return ngRANCGI
+}
+
+func buildPDUSessionInfoFromSetupRequestTransfer(transfer aper.OctetString) (*PDUSessionResourceSetupRequestTransfer, error) {
+	if transfer == nil {
+		return nil, fmt.Errorf("PDU Session Resource Setup Request Transfer is missing")
+	}
+
+	pdu := &ngapType.PDUSessionResourceSetupRequestTransfer{}
+
+	err := aper.UnmarshalWithParams(transfer, pdu, "valueExt")
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal Pdu Session Resource Setup Request Transfer: %v", err)
+	}
+
+	pduTransfer := &PDUSessionResourceSetupRequestTransfer{}
+
+	for _, ies := range pdu.ProtocolIEs.List {
+		switch ies.Id.Value {
+		case ngapType.ProtocolIEIDULNGUUPTNLInformation:
+			ulTeid := binary.BigEndian.Uint32(ies.Value.ULNGUUPTNLInformation.GTPTunnel.GTPTEID.Value)
+			upfAddress := ies.Value.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.Value.Bytes
+
+			upfIp := fmt.Sprintf("%d.%d.%d.%d", upfAddress[0], upfAddress[1], upfAddress[2], upfAddress[3])
+
+			pduTransfer.ULNGUUPTNLInformation = &ULNGUUPTNLInformation{
+				GTPTunnel: GTPTunnel{
+					GTPTEID:               ulTeid,
+					TransportLayerAddress: upfIp,
+				},
+			}
+
+		case ngapType.ProtocolIEIDQosFlowSetupRequestList:
+			qosFlowList := []QosFlowSetupRequest{}
+
+			for _, itemsQos := range ies.Value.QosFlowSetupRequestList.List {
+				qosId := itemsQos.QosFlowIdentifier.Value
+				fiveQi := itemsQos.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI.Value
+				priArp := itemsQos.QosFlowLevelQosParameters.AllocationAndRetentionPriority.PriorityLevelARP.Value
+
+				qosFlowList = append(qosFlowList, QosFlowSetupRequest{
+					QosId:  qosId,
+					FiveQi: fiveQi,
+					PriArp: priArp,
+				})
+			}
+
+			pduTransfer.QosFlowSetupRequestList = qosFlowList
+
+		case ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate:
+			maxBitRateUL := uint64(ies.Value.PDUSessionAggregateMaximumBitRate.PDUSessionAggregateMaximumBitRateUL.Value)
+			maxBitRateDL := uint64(ies.Value.PDUSessionAggregateMaximumBitRate.PDUSessionAggregateMaximumBitRateDL.Value)
+
+			pduTransfer.MaximumBitRate = &MaximumBitRate{
+				UplinkNAggregateMaximumBitRate:   maxBitRateUL,
+				DownlinkNAggregateMaximumBitRate: maxBitRateDL,
+			}
+		case ngapType.ProtocolIEIDPDUSessionType:
+			enum := pduSessionTypeToEnum(ies.Value.PDUSessionType.Value)
+			pduTransfer.PduSType = &enum
+
+		case ngapType.ProtocolIEIDSecurityIndication:
+			securityIndication := makeUnsupportedIE()
+			pduTransfer.SecurityIndication = securityIndication
+		}
+	}
+
+	return pduTransfer, nil
+}
+
+func pduSessionTypeToEnum(pduType aper.Enumerated) utils.EnumField[int64] {
+	switch pduType {
+	case ngapType.PDUSessionTypePresentIpv4:
+		return utils.MakeEnum(int64(pduType), "ipv4", false)
+	case ngapType.PDUSessionTypePresentIpv6:
+		return utils.MakeEnum(int64(pduType), "ipv6", false)
+	case ngapType.PDUSessionTypePresentIpv4v6:
+		return utils.MakeEnum(int64(pduType), "ipv4v6", false)
+	case ngapType.PDUSessionTypePresentEthernet:
+		return utils.MakeEnum(int64(pduType), "ethernet", false)
+	case ngapType.PDUSessionTypePresentUnstructured:
+		return utils.MakeEnum(int64(pduType), "unstructured", false)
+	default:
+		return utils.MakeEnum(int64(pduType), "", true)
+	}
 }

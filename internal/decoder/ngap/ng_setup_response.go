@@ -5,13 +5,14 @@ import (
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 )
 
 type Guami struct {
-	PLMNID PLMNID `json:"plmn_id"`
-	AMFID  string `json:"amf_id"`
+	PLMNID      PLMNID `json:"plmn_id"`
+	AMFRegionID string `json:"amf_region_id"`
+	AMFSetID    string `json:"amf_set_id"`
+	AMFPointer  string `json:"amf_pointer"`
 }
 
 type IEsCriticalityDiagnostics struct {
@@ -32,10 +33,11 @@ func buildAMFNameIE(an ngapType.AMFName) string {
 }
 
 func buildGUAMI(guami ngapType.GUAMI) Guami {
-	amfID := ngapConvert.AmfIdToModels(guami.AMFRegionID.Value, guami.AMFSetID.Value, guami.AMFPointer.Value)
 	return Guami{
-		PLMNID: plmnIDToModels(guami.PLMNIdentity),
-		AMFID:  amfID,
+		PLMNID:      plmnIDToModels(guami.PLMNIdentity),
+		AMFRegionID: bitStringToHex(&guami.AMFRegionID.Value),
+		AMFSetID:    bitStringToHex(&guami.AMFSetID.Value),
+		AMFPointer:  bitStringToHex(&guami.AMFPointer.Value),
 	}
 }
 
