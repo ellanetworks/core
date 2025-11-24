@@ -113,8 +113,16 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected PLMNID.Mnc=01, got %s", guami.PLMNID.Mnc)
 	}
 
-	if guami.AMFID != "cafe00" {
-		t.Errorf("expected AMFID=cafe00, got %s", guami.AMFID)
+	if guami.AMFRegionID != "ca" {
+		t.Errorf("expected AMFRegionID=ca, got %s", guami.AMFRegionID)
+	}
+
+	if guami.AMFSetID != "fe0" {
+		t.Errorf("expected AMFSetID=fe0, got %s", guami.AMFSetID)
+	}
+
+	if guami.AMFPointer != "00" {
+		t.Errorf("expected AMFPointer=00, got %s", guami.AMFPointer)
 	}
 
 	item2 := ngapMsg.Value.IEs[2]
