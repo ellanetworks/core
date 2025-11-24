@@ -30,16 +30,12 @@ type SubscriberUsage struct {
 	TotalBytes    int64 `json:"total_bytes"`
 }
 
-type GetSubscriberUsagePerDayResponse struct {
-	Items []map[string]SubscriberUsage `json:"items"`
-}
-
 func stotimeDefault(s string, def time.Time) time.Time {
 	if s == "" {
 		return def
 	}
 
-	t, err := time.Parse(time.RFC3339, s)
+	t, err := time.Parse("2006-01-02", s)
 	if err != nil {
 		return def
 	}
@@ -67,7 +63,7 @@ func GetSubscriberUsagePerDay(dbInstance *db.Database) http.Handler {
 		response := make([]map[string]SubscriberUsage, len(dailyUsage))
 		for i, usage := range dailyUsage {
 			response[i] = map[string]SubscriberUsage{
-				usage.GetDay().Format(time.RFC3339): {
+				usage.GetDay().Format("2006-01-02"): {
 					UplinkBytes:   usage.BytesUplink,
 					DownlinkBytes: usage.BytesDownlink,
 					TotalBytes:    usage.BytesUplink + usage.BytesDownlink,
