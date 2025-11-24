@@ -74,7 +74,7 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 
 	t.Log("running Ella Core Tester `test` command")
 
-	out, err := dockerClient.Exec(ctx, coreTesterContainerName, []string{
+	_, err = dockerClient.Exec(ctx, coreTesterContainerName, []string{
 		"core-tester", "test",
 		"--ella-core-api-address", "http://10.3.0.2:5002",
 		"--ella-core-api-token", ellaClient.GetToken(),
@@ -86,6 +86,4 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to exec command in pod: %v", err)
 	}
-
-	t.Logf("ella-core-tester output:\n%s", out)
 }
