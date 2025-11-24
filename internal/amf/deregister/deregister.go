@@ -5,6 +5,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"go.uber.org/zap"
 )
 
@@ -16,6 +17,17 @@ func DeregisterSubscriber(ctx ctxt.Context, supi string) error {
 		logger.AmfLog.Debug("UE with SUPI %s not found", zap.String("supi", supi))
 		return nil
 	}
+
+	ue.SmContextList.Range(func(key, value any) bool {
+		smContext := value.(*context.SmContext)
+		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
+		if err != nil {
+			ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
+		} else {
+			ue.GmmLog.Info("Release SmContext Success", zap.String("smContextRef", smContext.SmContextRef()))
+		}
+		return true
+	})
 
 	ue.Remove()
 
