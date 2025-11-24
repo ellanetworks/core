@@ -59,13 +59,50 @@ func getSubscriberUsagePerDay(url string, client *http.Client, token string, sta
 	var queryParams []string
 
 	queryParams = append(queryParams, fmt.Sprintf("start=%s", startDate))
-	queryParams = append(queryParams, fmt.Sprintf("end%s", endDate))
+	queryParams = append(queryParams, fmt.Sprintf("end=%s", endDate))
 
 	if subscriber != "" {
 		queryParams = append(queryParams, fmt.Sprintf("subscriber=%s", subscriber))
 	}
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/subscriber-usage/per-day?%s", url, strings.Join(queryParams, "&")), nil)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var subscriberUsageResponse GetSubscriberUsageResponse
+
+	if err := json.NewDecoder(res.Body).Decode(&subscriberUsageResponse); err != nil {
+		return 0, nil, err
+	}
+
+	return res.StatusCode, &subscriberUsageResponse, nil
+}
+
+func getSubscriberUsagePerSubscriber(url string, client *http.Client, token string, startDate string, endDate string, subscriber string) (int, *GetSubscriberUsageResponse, error) {
+	var queryParams []string
+
+	queryParams = append(queryParams, fmt.Sprintf("start=%s", startDate))
+	queryParams = append(queryParams, fmt.Sprintf("end=%s", endDate))
+
+	if subscriber != "" {
+		queryParams = append(queryParams, fmt.Sprintf("subscriber=%s", subscriber))
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/subscriber-usage/per-subscriber?%s", url, strings.Join(queryParams, "&")), nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -185,7 +222,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	t.Run("Get subscriber usage per day - no usage", func(t *testing.T) {
+	t.Run("1. Get subscriber usage per day - no usage", func(t *testing.T) {
 		statusCode, response, err := getSubscriberUsagePerDay(ts.URL, client, token, "", "", "")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
@@ -203,12 +240,22 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("Get subscriber usage per day - with some usage", func(t *testing.T) {
-		date1 := time.Now().AddDate(0, 0, -10)
-		date2 := time.Now().AddDate(0, 0, -5)
+	t.Run("2. Add subscriber usage (directly through database)", func(t *testing.T) {
+		date1 := "2025-11-14"
+		date2 := "2025-11-19"
+
+		date1Parsed, err := time.Parse("2006-01-02", date1)
+		if err != nil {
+			t.Fatalf("couldn't parse date %s: %s", date1, err)
+		}
+
+		date2Parsed, err := time.Parse("2006-01-02", date2)
+		if err != nil {
+			t.Fatalf("couldn't parse date %s: %s", date2, err)
+		}
 
 		err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
-			EpochDay:      db.DaysSinceEpoch(date1),
+			EpochDay:      db.DaysSinceEpoch(date1Parsed),
 			IMSI:          "test_imsi_1",
 			BytesUplink:   1500,
 			BytesDownlink: 2500,
@@ -218,7 +265,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		}
 
 		err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
-			EpochDay:      db.DaysSinceEpoch(date2),
+			EpochDay:      db.DaysSinceEpoch(date2Parsed),
 			IMSI:          "test_imsi_2",
 			BytesUplink:   1222,
 			BytesDownlink: 23222,
@@ -226,7 +273,9 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't increment daily usage: %s", err)
 		}
+	})
 
+	t.Run("3. Get subscriber usage per day", func(t *testing.T) {
 		startDate := time.Now().AddDate(0, 0, -14).Format("2006-01-02")
 		endDate := time.Now().Format("2006-01-02")
 		statusCode, response, err := getSubscriberUsagePerDay(ts.URL, client, token, startDate, endDate, "")
@@ -241,18 +290,16 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
 
-		fmt.Println("Subscriber Usage Response:", response.Result)
-
 		if len(response.Result) != 2 {
 			t.Fatalf("expected 2 usage data entries, got %d entries", len(response.Result))
 		}
 
-		expectedDate1Key := date1.Format("2006-01-02")
+		expectedDate1Key := "2025-11-14"
 		if _, ok := response.Result[0][expectedDate1Key]; !ok {
 			t.Fatalf("expected first entry to have date key %s, got %v", expectedDate1Key, response.Result[0])
 		}
 
-		expectedDate2Key := date2.Format("2006-01-02")
+		expectedDate2Key := "2025-11-19"
 		if _, ok := response.Result[1][expectedDate2Key]; !ok {
 			t.Fatalf("expected second entry to have date key %s, got %v", expectedDate2Key, response.Result[1])
 		}
@@ -266,7 +313,36 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("Clear subscriber usage data", func(t *testing.T) {
+	t.Run("4. Get subscriber usage per day - subscriber filter", func(t *testing.T) {
+		startDate := time.Now().AddDate(0, 0, -14).Format("2006-01-02")
+		endDate := time.Now().Format("2006-01-02")
+		statusCode, response, err := getSubscriberUsagePerDay(ts.URL, client, token, startDate, endDate, "test_imsi_2")
+		if err != nil {
+			t.Fatalf("couldn't get subscriber usage per day: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+
+		if len(response.Result) != 1 {
+			t.Fatalf("expected 1 usage data entries, got %d entries", len(response.Result))
+		}
+
+		expectedDateKey := "2025-11-19"
+		if _, ok := response.Result[0][expectedDateKey]; !ok {
+			t.Fatalf("expected first entry to have date key %s, got %v", expectedDateKey, response.Result[0])
+		}
+
+		if response.Result[0][expectedDateKey].UplinkBytes != 1222 || response.Result[0][expectedDateKey].DownlinkBytes != 23222 || response.Result[0][expectedDateKey].TotalBytes != 24444 {
+			t.Fatalf("unexpected usage data for date %s: %+v", expectedDateKey, response.Result[0][expectedDateKey])
+		}
+	})
+
+	t.Run("5. Clear subscriber usage data", func(t *testing.T) {
 		statusCode, response, err := clearSubscriberUsage(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't clear subscriber usage data: %s", err)
@@ -284,10 +360,182 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("Verify cleared subscriber usage data", func(t *testing.T) {
+	t.Run("6. Verify cleared subscriber usage data", func(t *testing.T) {
 		statusCode, response, err := getSubscriberUsagePerDay(ts.URL, client, token, "", "", "")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+
+		if len(response.Result) != 0 {
+			t.Fatalf("expected no usage data, got %d entries", len(response.Result))
+		}
+	})
+}
+
+func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, database, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	t.Run("1. Get subscriber usage per day - no usage", func(t *testing.T) {
+		statusCode, response, err := getSubscriberUsagePerSubscriber(ts.URL, client, token, "", "", "")
+		if err != nil {
+			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+
+		if len(response.Result) != 0 {
+			t.Fatalf("expected no usage data, got %d entries", len(response.Result))
+		}
+	})
+
+	t.Run("2. Add subscriber usage (directly through database)", func(t *testing.T) {
+		date1 := "2025-11-14"
+		date2 := "2025-11-19"
+
+		date1Parsed, err := time.Parse("2006-01-02", date1)
+		if err != nil {
+			t.Fatalf("couldn't parse date %s: %s", date1, err)
+		}
+
+		date2Parsed, err := time.Parse("2006-01-02", date2)
+		if err != nil {
+			t.Fatalf("couldn't parse date %s: %s", date2, err)
+		}
+
+		err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
+			EpochDay:      db.DaysSinceEpoch(date1Parsed),
+			IMSI:          "test_imsi_1",
+			BytesUplink:   1500,
+			BytesDownlink: 2500,
+		})
+		if err != nil {
+			t.Fatalf("couldn't increment daily usage: %s", err)
+		}
+
+		err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
+			EpochDay:      db.DaysSinceEpoch(date2Parsed),
+			IMSI:          "test_imsi_2",
+			BytesUplink:   1222,
+			BytesDownlink: 23222,
+		})
+		if err != nil {
+			t.Fatalf("couldn't increment daily usage: %s", err)
+		}
+	})
+
+	t.Run("3. Get subscriber usage per day", func(t *testing.T) {
+		startDate := time.Now().AddDate(0, 0, -14).Format("2006-01-02")
+		endDate := time.Now().Format("2006-01-02")
+		statusCode, response, err := getSubscriberUsagePerSubscriber(ts.URL, client, token, startDate, endDate, "")
+		if err != nil {
+			t.Fatalf("couldn't get subscriber usage per day: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+
+		if len(response.Result) != 2 {
+			t.Fatalf("expected 2 usage data entries, got %d entries", len(response.Result))
+		}
+
+		expectedDate1Key := "test_imsi_2"
+		if _, ok := response.Result[0][expectedDate1Key]; !ok {
+			t.Fatalf("expected first entry to have date key %s, got %v", expectedDate1Key, response.Result[0])
+		}
+
+		expectedDate2Key := "test_imsi_1"
+		if _, ok := response.Result[1][expectedDate2Key]; !ok {
+			t.Fatalf("expected second entry to have date key %s, got %v", expectedDate2Key, response.Result[1])
+		}
+
+		if response.Result[0][expectedDate1Key].UplinkBytes != 1222 || response.Result[0][expectedDate1Key].DownlinkBytes != 23222 || response.Result[0][expectedDate1Key].TotalBytes != 24444 {
+			t.Fatalf("unexpected usage data for date %s: %+v", expectedDate1Key, response.Result[0][expectedDate1Key])
+		}
+
+		if response.Result[1][expectedDate2Key].UplinkBytes != 1500 || response.Result[1][expectedDate2Key].DownlinkBytes != 2500 || response.Result[1][expectedDate2Key].TotalBytes != 4000 {
+			t.Fatalf("unexpected usage data for date %s: %+v", expectedDate2Key, response.Result[1][expectedDate2Key])
+		}
+	})
+
+	t.Run("4. Get subscriber usage per subscriber - subscriber filter", func(t *testing.T) {
+		startDate := time.Now().AddDate(0, 0, -14).Format("2006-01-02")
+		endDate := time.Now().Format("2006-01-02")
+		statusCode, response, err := getSubscriberUsagePerSubscriber(ts.URL, client, token, startDate, endDate, "test_imsi_2")
+		if err != nil {
+			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+
+		if len(response.Result) != 1 {
+			t.Fatalf("expected 1 usage data entries, got %d entries", len(response.Result))
+		}
+
+		expectedDateKey := "test_imsi_2"
+		if _, ok := response.Result[0][expectedDateKey]; !ok {
+			t.Fatalf("expected first entry to have date key %s, got %v", expectedDateKey, response.Result[0])
+		}
+
+		if response.Result[0][expectedDateKey].UplinkBytes != 1222 || response.Result[0][expectedDateKey].DownlinkBytes != 23222 || response.Result[0][expectedDateKey].TotalBytes != 24444 {
+			t.Fatalf("unexpected usage data for date %s: %+v", expectedDateKey, response.Result[0][expectedDateKey])
+		}
+	})
+
+	t.Run("5. Clear subscriber usage data", func(t *testing.T) {
+		statusCode, response, err := clearSubscriberUsage(ts.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't clear subscriber usage data: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+
+		if response.Result.Message != "All subscriber usage cleared successfully" {
+			t.Fatalf("expected success message, got %s", response.Result.Message)
+		}
+	})
+
+	t.Run("6. Verify cleared subscriber usage data", func(t *testing.T) {
+		statusCode, response, err := getSubscriberUsagePerSubscriber(ts.URL, client, token, "", "", "")
+		if err != nil {
+			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
 		}
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)

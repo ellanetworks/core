@@ -11,86 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-func TestGetAndIncrementDailyUsageEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
-
-	date := time.Now()
-
-	dailyUsage, err := database.GetDailyUsage(context.Background(), date, "test_imsi")
-	if err != nil {
-		t.Fatalf("couldn't get daily usage: %s", err)
-	}
-
-	if dailyUsage != nil {
-		t.Fatalf("Expected no daily usage entry, but got one: %+v", dailyUsage)
-	}
-
-	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
-		EpochDay:      db.DaysSinceEpoch(date),
-		IMSI:          "test_imsi",
-		BytesUplink:   1000,
-		BytesDownlink: 2000,
-	})
-	if err != nil {
-		t.Fatalf("couldn't increment daily usage: %s", err)
-	}
-
-	dailyUsage, err = database.GetDailyUsage(context.Background(), date, "test_imsi")
-	if err != nil {
-		t.Fatalf("couldn't get daily usage: %s", err)
-	}
-
-	if dailyUsage == nil {
-		t.Fatalf("Expected a daily usage entry, but got none")
-	}
-
-	if dailyUsage.BytesUplink != 1000 {
-		t.Fatalf("Expected 1000 uplink bytes, but got %d", dailyUsage.BytesUplink)
-	}
-
-	if dailyUsage.BytesDownlink != 2000 {
-		t.Fatalf("Expected 2000 downlink bytes, but got %d", dailyUsage.BytesDownlink)
-	}
-
-	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
-		EpochDay:      db.DaysSinceEpoch(date),
-		IMSI:          "test_imsi",
-		BytesUplink:   500,
-		BytesDownlink: 1500,
-	})
-	if err != nil {
-		t.Fatalf("couldn't increment daily usage: %s", err)
-	}
-
-	dailyUsage, err = database.GetDailyUsage(context.Background(), date, "test_imsi")
-	if err != nil {
-		t.Fatalf("couldn't get daily usage: %s", err)
-	}
-
-	if dailyUsage == nil {
-		t.Fatalf("Expected a daily usage entry, but got none")
-	}
-
-	if dailyUsage.BytesUplink != 1500 {
-		t.Fatalf("Expected 1500 uplink bytes, but got %d", dailyUsage.BytesUplink)
-	}
-
-	if dailyUsage.BytesDownlink != 3500 {
-		t.Fatalf("Expected 3500 downlink bytes, but got %d", dailyUsage.BytesDownlink)
-	}
-}
-
-func TestGetDailyUsageForPeriod_1Sub(t *testing.T) {
+func TestGetUsagePerDay_1Sub(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
@@ -118,7 +39,7 @@ func TestGetDailyUsageForPeriod_1Sub(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	dailyUsages, err := database.GetDailyUsageForPeriod(context.Background(), "", startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), "", startDate, endDate)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -141,7 +62,7 @@ func TestGetDailyUsageForPeriod_1Sub(t *testing.T) {
 	}
 }
 
-func TestGetDailyUsageForPeriod_1Sub_OutOfRangeDates(t *testing.T) {
+func TestGetUsagePerDay_1Sub_OutOfRangeDates(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
@@ -169,7 +90,7 @@ func TestGetDailyUsageForPeriod_1Sub_OutOfRangeDates(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -10)
 	endDate := time.Now().AddDate(0, 0, -5)
 
-	dailyUsages, err := database.GetDailyUsageForPeriod(context.Background(), "", startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), "", startDate, endDate)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -179,7 +100,7 @@ func TestGetDailyUsageForPeriod_1Sub_OutOfRangeDates(t *testing.T) {
 	}
 }
 
-func TestGetDailyUsageForPeriod_MultiSubsSameDay(t *testing.T) {
+func TestGetUsagePerDay_MultiSubsSameDay(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
@@ -217,7 +138,7 @@ func TestGetDailyUsageForPeriod_MultiSubsSameDay(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	dailyUsages, err := database.GetDailyUsageForPeriod(context.Background(), "", startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), "", startDate, endDate)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -240,7 +161,7 @@ func TestGetDailyUsageForPeriod_MultiSubsSameDay(t *testing.T) {
 	}
 }
 
-func TestGetDailyUsageForPeriod_MultiSubsMultiDays(t *testing.T) {
+func TestGetUsagePerDay_MultiSubsMultiDays(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
@@ -279,7 +200,7 @@ func TestGetDailyUsageForPeriod_MultiSubsMultiDays(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	dailyUsages, err := database.GetDailyUsageForPeriod(context.Background(), "", startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), "", startDate, endDate)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -317,7 +238,7 @@ func TestGetDailyUsageForPeriod_MultiSubsMultiDays(t *testing.T) {
 	}
 }
 
-func TestGetDailyUsageForPeriod_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
+func TestGetUsagePerDay_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
@@ -355,7 +276,7 @@ func TestGetDailyUsageForPeriod_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	dailyUsages, err := database.GetDailyUsageForPeriod(context.Background(), "test_imsi_2", startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), "test_imsi_2", startDate, endDate)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -378,7 +299,7 @@ func TestGetDailyUsageForPeriod_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
 	}
 }
 
-func TestGetDailyUsageForPeriod_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
+func TestGetUsagePerDay_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
@@ -427,7 +348,7 @@ func TestGetDailyUsageForPeriod_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	dailyUsages, err := database.GetDailyUsageForPeriod(context.Background(), "test_imsi_1", startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), "test_imsi_1", startDate, endDate)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -463,7 +384,7 @@ func TestGetDailyUsageForPeriod_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
 	}
 }
 
-func TestGetTotalUsageForIMSI(t *testing.T) {
+func TestGetUsagePerSubscriber_1Sub(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
@@ -476,12 +397,11 @@ func TestGetTotalUsageForIMSI(t *testing.T) {
 		}
 	}()
 
-	date1 := time.Now()
-	date2 := date1.Add(24 * time.Hour)
+	date1 := time.Now().Add(-24 * time.Hour)
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi",
+		IMSI:          "test_imsi_1",
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -489,35 +409,32 @@ func TestGetTotalUsageForIMSI(t *testing.T) {
 		t.Fatalf("couldn't increment daily usage: %s", err)
 	}
 
-	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
-		EpochDay:      db.DaysSinceEpoch(date2),
-		IMSI:          "test_imsi",
-		BytesUplink:   3000,
-		BytesDownlink: 4000,
-	})
+	startDate := time.Now().AddDate(0, 0, -5)
+	endDate := time.Now()
+
+	usagePerSubscriber, err := database.GetUsagePerSubscriber(context.Background(), "", startDate, endDate)
 	if err != nil {
-		t.Fatalf("couldn't increment daily usage: %s", err)
+		t.Fatalf("couldn't get daily usage per subscriber for period: %s", err)
 	}
 
-	totalUsage, err := database.GetTotalUsageForIMSI(context.Background(), "test_imsi")
-	if err != nil {
-		t.Fatalf("couldn't get total usage for IMSI: %s", err)
+	if len(usagePerSubscriber) != 1 {
+		t.Fatalf("Expected 1 usage per subscriber entry, but got %d", len(usagePerSubscriber))
 	}
 
-	if totalUsage == nil {
-		t.Fatalf("Expected total usage entry, but got none")
+	if usagePerSubscriber[0].IMSI != "test_imsi_1" {
+		t.Fatalf("Expected IMSI 'test_imsi_1', but got %s", usagePerSubscriber[0].IMSI)
 	}
 
-	if totalUsage.BytesUplink != 4000 {
-		t.Fatalf("Expected 4000 uplink bytes, but got %d", totalUsage.BytesUplink)
+	if usagePerSubscriber[0].BytesUplink != 1000 {
+		t.Fatalf("Expected 1000 uplink bytes, but got %d", usagePerSubscriber[0].BytesUplink)
 	}
 
-	if totalUsage.BytesDownlink != 6000 {
-		t.Fatalf("Expected 6000 downlink bytes, but got %d", totalUsage.BytesDownlink)
+	if usagePerSubscriber[0].BytesDownlink != 2000 {
+		t.Fatalf("Expected 2000 downlink bytes, but got %d", usagePerSubscriber[0].BytesDownlink)
 	}
 }
 
-func TestGetUsageForPeriod(t *testing.T) {
+func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
@@ -530,13 +447,32 @@ func TestGetUsageForPeriod(t *testing.T) {
 		}
 	}()
 
-	date1 := time.Now()
-	date2 := date1.Add(24 * time.Hour)
-	date3 := date1.Add(48 * time.Hour)
+	date1 := time.Now().Add(-24 * time.Hour)
+	date2 := time.Now().Add(-48 * time.Hour)
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi",
+		IMSI:          "test_imsi_1",
+		BytesUplink:   1000,
+		BytesDownlink: 2000,
+	})
+	if err != nil {
+		t.Fatalf("couldn't increment daily usage: %s", err)
+	}
+
+	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
+		EpochDay:      db.DaysSinceEpoch(date1),
+		IMSI:          "test_imsi_2",
+		BytesUplink:   1000,
+		BytesDownlink: 2000,
+	})
+	if err != nil {
+		t.Fatalf("couldn't increment daily usage: %s", err)
+	}
+
+	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
+		EpochDay:      db.DaysSinceEpoch(date1),
+		IMSI:          "test_imsi_3",
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -546,39 +482,56 @@ func TestGetUsageForPeriod(t *testing.T) {
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date2),
-		IMSI:          "test_imsi",
-		BytesUplink:   3000,
-		BytesDownlink: 4000,
+		IMSI:          "test_imsi_3",
+		BytesUplink:   3333,
+		BytesDownlink: 4444,
 	})
 	if err != nil {
 		t.Fatalf("couldn't increment daily usage: %s", err)
 	}
 
-	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
-		EpochDay:      db.DaysSinceEpoch(date3),
-		IMSI:          "test_imsi",
-		BytesUplink:   5000,
-		BytesDownlink: 6000,
-	})
+	startDate := time.Now().AddDate(0, 0, -5)
+	endDate := time.Now()
+
+	usagePerSubscriber, err := database.GetUsagePerSubscriber(context.Background(), "", startDate, endDate)
 	if err != nil {
-		t.Fatalf("couldn't increment daily usage: %s", err)
+		t.Fatalf("couldn't get daily usage per subscriber for period: %s", err)
 	}
 
-	totalUsage, err := database.GetUsageForPeriod(context.Background(), "test_imsi", date1, date3)
-	if err != nil {
-		t.Fatalf("couldn't get usage for period: %s", err)
+	if len(usagePerSubscriber) != 3 {
+		t.Fatalf("Expected 3 usage per subscriber entries, but got %d", len(usagePerSubscriber))
 	}
 
-	if totalUsage == nil {
-		t.Fatalf("Expected total usage entry, but got none")
+	if usagePerSubscriber[0].IMSI != "test_imsi_3" {
+		t.Fatalf("Expected IMSI 'test_imsi_3', but got %s", usagePerSubscriber[0].IMSI)
 	}
 
-	if totalUsage.BytesUplink != 9000 {
-		t.Fatalf("Expected 9000 uplink bytes, but got %d", totalUsage.BytesUplink)
+	if usagePerSubscriber[0].BytesUplink != 4333 {
+		t.Fatalf("Expected 4333 uplink bytes, but got %d", usagePerSubscriber[0].BytesUplink)
 	}
 
-	if totalUsage.BytesDownlink != 12000 {
-		t.Fatalf("Expected 12000 downlink bytes, but got %d", totalUsage.BytesDownlink)
+	if usagePerSubscriber[0].BytesDownlink != 6444 {
+		t.Fatalf("Expected 6444 downlink bytes, but got %d", usagePerSubscriber[0].BytesDownlink)
+	}
+
+	if usagePerSubscriber[1].IMSI != "test_imsi_2" {
+		t.Fatalf("Expected IMSI 'test_imsi_2', but got %s", usagePerSubscriber[1].IMSI)
+	}
+
+	if usagePerSubscriber[1].BytesUplink != 1000 {
+		t.Fatalf("Expected 1000 uplink bytes, but got %d", usagePerSubscriber[1].BytesUplink)
+	}
+
+	if usagePerSubscriber[1].BytesDownlink != 2000 {
+		t.Fatalf("Expected 2000 downlink bytes, but got %d", usagePerSubscriber[1].BytesDownlink)
+	}
+
+	if usagePerSubscriber[2].IMSI != "test_imsi_1" {
+		t.Fatalf("Expected IMSI 'test_imsi_1', but got %s", usagePerSubscriber[2].IMSI)
+	}
+
+	if usagePerSubscriber[2].BytesUplink != 1000 {
+		t.Fatalf("Expected 1000 uplink bytes, but got %d", usagePerSubscriber[2].BytesUplink)
 	}
 }
 
@@ -607,12 +560,12 @@ func TestClearDailyUsage(t *testing.T) {
 		t.Fatalf("couldn't increment daily usage: %s", err)
 	}
 
-	dailyUsage, err := database.GetDailyUsage(context.Background(), date, "test_imsi")
+	dailyUsage, err := database.GetUsagePerDay(context.Background(), "test_imsi", date, date)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage: %s", err)
 	}
 
-	if dailyUsage == nil {
+	if len(dailyUsage) == 0 {
 		t.Fatalf("Expected a daily usage entry, but got none")
 	}
 
@@ -621,12 +574,12 @@ func TestClearDailyUsage(t *testing.T) {
 		t.Fatalf("couldn't clear daily usage: %s", err)
 	}
 
-	dailyUsage, err = database.GetDailyUsage(context.Background(), date, "test_imsi")
+	dailyUsage, err = database.GetUsagePerDay(context.Background(), "test_imsi", date, date)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage: %s", err)
 	}
 
-	if dailyUsage != nil {
+	if len(dailyUsage) != 0 {
 		t.Fatalf("Expected no daily usage entry, but got one: %+v", dailyUsage)
 	}
 }
@@ -672,21 +625,21 @@ func TestDeleteOldDailyUsage(t *testing.T) {
 		t.Fatalf("couldn't delete old daily usage: %s", err)
 	}
 
-	dailyUsage, err := database.GetDailyUsage(context.Background(), oldDate, "test_imsi")
+	dailyUsage, err := database.GetUsagePerDay(context.Background(), "test_imsi", oldDate, oldDate)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage: %s", err)
 	}
 
-	if dailyUsage != nil {
+	if len(dailyUsage) != 0 {
 		t.Fatalf("Expected no old daily usage entry, but got one: %+v", dailyUsage)
 	}
 
-	dailyUsage, err = database.GetDailyUsage(context.Background(), newDate, "test_imsi")
+	dailyUsage, err = database.GetUsagePerDay(context.Background(), "test_imsi", newDate, newDate)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage: %s", err)
 	}
 
-	if dailyUsage == nil {
+	if len(dailyUsage) == 0 {
 		t.Fatalf("Expected a new daily usage entry, but got none")
 	}
 }
