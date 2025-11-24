@@ -88,7 +88,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	metrics.RegisterDatabaseMetrics(dbInstance)
 
-	jobs.StartLogRetentionWorker(dbInstance)
+	jobs.StartDataRetentionWorker(dbInstance)
 
 	go sessions.CleanUp(ctx, dbInstance)
 

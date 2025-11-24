@@ -12,9 +12,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const LogRetentionPolicyTableName = "log_retention_policies"
+const RetentionPolicyTableName = "retention_policies"
 
-const QueryCreateLogRetentionPolicyTable = `
+const QueryCreateRetentionPolicyTable = `
 	CREATE TABLE IF NOT EXISTS %s (
 		id              INTEGER PRIMARY KEY AUTOINCREMENT,
 		category        TEXT NOT NULL UNIQUE,
@@ -22,36 +22,37 @@ const QueryCreateLogRetentionPolicyTable = `
 );`
 
 const (
-	selectRetentionPolicyStmt = "SELECT &LogRetentionPolicy.* FROM %s WHERE category = $LogRetentionPolicy.category"
+	selectRetentionPolicyStmt = "SELECT &RetentionPolicy.* FROM %s WHERE category = $RetentionPolicy.category"
 	upsertRetentionPolicyStmt = `
 INSERT INTO %s (category, retention_days)
-VALUES ($LogRetentionPolicy.category, $LogRetentionPolicy.retention_days)
+VALUES ($RetentionPolicy.category, $RetentionPolicy.retention_days)
 ON CONFLICT(category) DO UPDATE SET retention_days = excluded.retention_days
 `
 )
 
-type LogCategory string
+type RetentionCategory string
 
 const (
-	CategoryAuditLogs   LogCategory = "audit"
-	CategoryNetworkLogs LogCategory = "network"
+	CategoryAuditLogs       RetentionCategory = "audit"
+	CategoryRadioLogs       RetentionCategory = "radio"
+	CategorySubscriberUsage RetentionCategory = "usage"
 )
 
-type LogRetentionPolicy struct {
-	ID       int         `db:"id"`
-	Category LogCategory `db:"category"`
-	Days     int         `db:"retention_days"`
+type RetentionPolicy struct {
+	ID       int               `db:"id"`
+	Category RetentionCategory `db:"category"`
+	Days     int               `db:"retention_days"`
 }
 
-func (db *Database) GetLogRetentionPolicy(ctx context.Context, category LogCategory) (int, error) {
+func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCategory) (int, error) {
 	const operation = "SELECT"
-	const target = LogRetentionPolicyTableName
+	const target = RetentionPolicyTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmtStr := fmt.Sprintf(selectRetentionPolicyStmt, LogRetentionPolicyTableName)
+	stmtStr := fmt.Sprintf(selectRetentionPolicyStmt, RetentionPolicyTableName)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmtStr),
@@ -60,15 +61,15 @@ func (db *Database) GetLogRetentionPolicy(ctx context.Context, category LogCateg
 		attribute.String("policy.category", string(category)),
 	)
 
-	stmt, err := sqlair.Prepare(stmtStr, LogRetentionPolicy{})
+	stmt, err := sqlair.Prepare(stmtStr, RetentionPolicy{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return 0, err
 	}
 
-	arg := LogRetentionPolicy{Category: category}
-	var row LogRetentionPolicy
+	arg := RetentionPolicy{Category: category}
+	var row RetentionPolicy
 	if err := db.conn.Query(ctx, stmt, arg).Get(&row); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -80,9 +81,9 @@ func (db *Database) GetLogRetentionPolicy(ctx context.Context, category LogCateg
 }
 
 // Ensure that we have a row for the Audit Log retention policy.
-func (db *Database) IsLogRetentionPolicyInitialized(ctx context.Context, category LogCategory) bool {
+func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category RetentionCategory) bool {
 	operation := "SELECT"
-	target := LogRetentionPolicyTableName
+	target := RetentionPolicyTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
@@ -96,8 +97,8 @@ func (db *Database) IsLogRetentionPolicyInitialized(ctx context.Context, categor
 		attribute.String("db.collection", target),
 	)
 
-	row := LogRetentionPolicy{Category: category}
-	q, err := sqlair.Prepare(stmt, LogRetentionPolicy{})
+	row := RetentionPolicy{Category: category}
+	q, err := sqlair.Prepare(stmt, RetentionPolicy{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
@@ -118,16 +119,16 @@ func (db *Database) IsLogRetentionPolicyInitialized(ctx context.Context, categor
 	return true
 }
 
-// SetLogRetentionPolicy upserts the retention policy for a category.
-func (db *Database) SetLogRetentionPolicy(ctx context.Context, policy *LogRetentionPolicy) error {
+// SetRetentionPolicy upserts the retention policy for a category.
+func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPolicy) error {
 	const operation = "UPSERT"
-	const target = LogRetentionPolicyTableName
+	const target = RetentionPolicyTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmtStr := fmt.Sprintf(upsertRetentionPolicyStmt, LogRetentionPolicyTableName)
+	stmtStr := fmt.Sprintf(upsertRetentionPolicyStmt, RetentionPolicyTableName)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmtStr),
@@ -137,7 +138,7 @@ func (db *Database) SetLogRetentionPolicy(ctx context.Context, policy *LogRetent
 		attribute.Int("policy.days", policy.Days),
 	)
 
-	stmt, err := sqlair.Prepare(stmtStr, LogRetentionPolicy{})
+	stmt, err := sqlair.Prepare(stmtStr, RetentionPolicy{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")

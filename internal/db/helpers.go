@@ -12,3 +12,7 @@ type NumItems struct {
 type cutoffArgs struct {
 	Cutoff string `db:"cutoff"`
 }
+
+type cutoffDaysArgs struct {
+	CutoffDays int64 `db:"cutoff_days"`
+}

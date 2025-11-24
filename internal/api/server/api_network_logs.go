@@ -106,7 +106,7 @@ func parseNetworkLogFilters(r *http.Request) (*db.NetworkLogFilters, error) {
 func GetNetworkLogRetentionPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		policyDays, err := dbInstance.GetLogRetentionPolicy(ctx, db.CategoryNetworkLogs)
+		policyDays, err := dbInstance.GetRetentionPolicy(ctx, db.CategoryRadioLogs)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve network log retention policy", err, logger.APILog)
 			return
@@ -136,12 +136,12 @@ func UpdateNetworkLogRetentionPolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		updatedPolicy := &db.LogRetentionPolicy{
-			Category: db.CategoryNetworkLogs,
+		updatedPolicy := &db.RetentionPolicy{
+			Category: db.CategoryRadioLogs,
 			Days:     params.Days,
 		}
 
-		if err := dbInstance.SetLogRetentionPolicy(r.Context(), updatedPolicy); err != nil {
+		if err := dbInstance.SetRetentionPolicy(r.Context(), updatedPolicy); err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to update network log retention policy", err, logger.APILog)
 			return
 		}
