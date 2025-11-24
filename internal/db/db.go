@@ -35,11 +35,15 @@ type Database struct {
 	sessionsTable          string
 	natSettingsTable       string
 	n3SettingsTable        string
+	dailyUsageTable        string
 	conn                   *sqlair.DB
 }
 
-// Initial Log Retention Policy values
-const DefaultLogRetentionDays = 7
+// Initial Retention Policy values
+const (
+	DefaultLogRetentionDays             = 7
+	DefaultSubscriberUsageRetentionDays = 365
+)
 
 // Initial operator values
 const (
@@ -129,7 +133,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 	if _, err := sqlConnection.Exec(QueryCreateNetworkLogsIndex); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateLogRetentionPolicyTable, LogRetentionPolicyTableName)); err != nil {
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRetentionPolicyTable, RetentionPolicyTableName)); err != nil {
 		return nil, err
 	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateAPITokensTable, APITokensTableName)); err != nil {
@@ -139,6 +143,9 @@ func NewDatabase(databasePath string) (*Database, error) {
 		return nil, err
 	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateN3SettingsTable, N3SettingsTableName)); err != nil {
+		return nil, err
+	}
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateDailyUsageTable, DailyUsageTableName)); err != nil {
 		return nil, err
 	}
 
@@ -152,12 +159,13 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.dataNetworksTable = DataNetworksTableName
 	db.usersTable = UsersTableName
 	db.auditLogsTable = AuditLogsTableName
-	db.retentionPoliciesTable = LogRetentionPolicyTableName
+	db.retentionPoliciesTable = RetentionPolicyTableName
 	db.apiTokensTable = APITokensTableName
 	db.sessionsTable = SessionsTableName
 	db.natSettingsTable = NATSettingsTableName
 	db.n3SettingsTable = N3SettingsTableName
 	db.networkLogsTable = NetworkLogsTableName
+	db.dailyUsageTable = DailyUsageTableName
 
 	err = db.Initialize()
 	if err != nil {
@@ -204,30 +212,43 @@ func (db *Database) Initialize() error {
 		}
 	}
 
-	if !db.IsLogRetentionPolicyInitialized(context.Background(), CategoryAuditLogs) {
-		initialPolicy := &LogRetentionPolicy{
+	if !db.IsRetentionPolicyInitialized(context.Background(), CategoryAuditLogs) {
+		initialPolicy := &RetentionPolicy{
 			Category: CategoryAuditLogs,
 			Days:     DefaultLogRetentionDays,
 		}
 
-		if err := db.SetLogRetentionPolicy(context.Background(), initialPolicy); err != nil {
+		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
 			return fmt.Errorf("failed to initialize log retention policy: %v", err)
 		}
 
 		logger.DBLog.Info("Initialized audit log retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
-	if !db.IsLogRetentionPolicyInitialized(context.Background(), CategoryNetworkLogs) {
-		initialPolicy := &LogRetentionPolicy{
-			Category: CategoryNetworkLogs,
+	if !db.IsRetentionPolicyInitialized(context.Background(), CategoryRadioLogs) {
+		initialPolicy := &RetentionPolicy{
+			Category: CategoryRadioLogs,
 			Days:     DefaultLogRetentionDays,
 		}
 
-		if err := db.SetLogRetentionPolicy(context.Background(), initialPolicy); err != nil {
+		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
 			return fmt.Errorf("failed to initialize network log retention policy: %v", err)
 		}
 
 		logger.DBLog.Info("Initialized network log retention policy", zap.Int("days", DefaultLogRetentionDays))
+	}
+
+	if !db.IsRetentionPolicyInitialized(context.Background(), CategorySubscriberUsage) {
+		initialPolicy := &RetentionPolicy{
+			Category: CategorySubscriberUsage,
+			Days:     DefaultSubscriberUsageRetentionDays,
+		}
+
+		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
+			return fmt.Errorf("failed to initialize subscriber usage retention policy: %v", err)
+		}
+
+		logger.DBLog.Info("Initialized subscriber usage retention policy", zap.Int("days", DefaultSubscriberUsageRetentionDays))
 	}
 
 	numDataNetworks, err := db.CountDataNetworks(context.Background())
