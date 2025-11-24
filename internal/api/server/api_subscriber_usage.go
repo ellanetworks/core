@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -21,6 +22,61 @@ type GetSubscriberUsageRetentionPolicyResponse struct {
 
 type UpdateSubscriberUsageRetentionPolicyParams struct {
 	Days int `json:"days"`
+}
+
+type SubscriberUsage struct {
+	UplinkBytes   int64 `json:"uplink_bytes"`
+	DownlinkBytes int64 `json:"downlink_bytes"`
+	TotalBytes    int64 `json:"total_bytes"`
+}
+
+type GetSubscriberUsagePerDayResponse struct {
+	Items []map[string]SubscriberUsage `json:"items"`
+}
+
+func stotimeDefault(s string, def time.Time) time.Time {
+	if s == "" {
+		return def
+	}
+
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return def
+	}
+
+	return t
+}
+
+func GetSubscriberUsagePerDay(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+
+		startDate := stotimeDefault(q.Get("start"), time.Now().AddDate(0, 0, -7))
+		endDate := stotimeDefault(q.Get("end"), time.Now())
+
+		subscriber := q.Get("subscriber")
+
+		ctx := r.Context()
+
+		dailyUsage, err := dbInstance.GetDailyUsageForPeriod(ctx, subscriber, startDate, endDate)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
+			return
+		}
+
+		response := make([]map[string]SubscriberUsage, len(dailyUsage))
+		for i, usage := range dailyUsage {
+			response[i] = map[string]SubscriberUsage{
+				usage.GetDay().Format(time.RFC3339): {
+					UplinkBytes:   usage.BytesUplink,
+					DownlinkBytes: usage.BytesDownlink,
+					TotalBytes:    usage.BytesUplink + usage.BytesDownlink,
+				},
+			}
+		}
+
+		writeResponse(w, response, http.StatusOK, logger.APILog)
+	})
 }
 
 func GetSubscriberUsageRetentionPolicy(dbInstance *db.Database) http.Handler {

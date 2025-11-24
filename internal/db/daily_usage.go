@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -38,11 +39,38 @@ const (
 	deleteAllDailyUsageStmt  = "DELETE FROM %s"
 )
 
+const (
+	getDailyUsageForPeriodStmt = `
+SELECT
+    epoch_day AS &TotalDailyUsage.epoch_day,
+    SUM(bytes_uplink)   AS &TotalDailyUsage.bytes_uplink,
+    SUM(bytes_downlink) AS &TotalDailyUsage.bytes_downlink
+FROM %s
+WHERE
+    ($DailyUsageFilters.imsi IS NULL OR imsi == $DailyUsageFilters.imsi)
+    AND epoch_day >= $DailyUsageFilters.start_date
+    AND epoch_day <= $DailyUsageFilters.end_date
+GROUP BY epoch_day
+ORDER BY epoch_day ASC`
+)
+
+type TotalDailyUsage struct {
+	EpochDay      int64 `db:"epoch_day"`
+	BytesUplink   int64 `db:"bytes_uplink"`
+	BytesDownlink int64 `db:"bytes_downlink"`
+}
+
 type DailyUsage struct {
 	EpochDay      int64  `db:"epoch_day"`
 	IMSI          string `db:"imsi"`
 	BytesUplink   int64  `db:"bytes_uplink"`
 	BytesDownlink int64  `db:"bytes_downlink"`
+}
+
+type DailyUsageFilters struct {
+	IMSI      *string `db:"imsi"` // exact match
+	StartDate int64   `db:"start_date"`
+	EndDate   int64   `db:"end_date"`
 }
 
 type TotalUsage struct {
@@ -64,6 +92,10 @@ func (d *DailyUsage) SetDay(t time.Time) {
 }
 
 func (d *DailyUsage) GetDay() time.Time {
+	return time.Unix(d.EpochDay*86400, 0).UTC()
+}
+
+func (d *TotalDailyUsage) GetDay() time.Time {
 	return time.Unix(d.EpochDay*86400, 0).UTC()
 }
 
@@ -169,6 +201,55 @@ func (db *Database) GetTotalUsageForIMSI(ctx context.Context, imsi string) (*Tot
 	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
+}
+
+func (db *Database) GetDailyUsageForPeriod(ctx context.Context, imsi string, startDate time.Time, endDate time.Time) ([]TotalDailyUsage, error) {
+	dailyUsageFilters := DailyUsageFilters{
+		StartDate: DaysSinceEpoch(startDate),
+		EndDate:   DaysSinceEpoch(endDate),
+	}
+	if imsi != "" {
+		dailyUsageFilters.IMSI = &imsi
+	}
+
+	operation := "SELECT"
+	target := DailyUsageTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
+	stmtStr := fmt.Sprintf(getDailyUsageForPeriodStmt, db.dailyUsageTable)
+
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmtStr),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	var dailyUsage []TotalDailyUsage
+
+	q, err := sqlair.Prepare(stmtStr, DailyUsageFilters{}, TotalDailyUsage{})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return nil, fmt.Errorf("couldn't prepare statement: %w", err)
+	}
+
+	if err := db.conn.Query(ctx, q, dailyUsageFilters).GetAll(&dailyUsage); err != nil {
+		if err == sql.ErrNoRows {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, nil
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+		return nil, fmt.Errorf("couldn't query: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return dailyUsage, nil
 }
 
 func (db *Database) GetUsageForPeriod(ctx context.Context, imsi string, dateFrom time.Time, dateTo time.Time) (*TotalUsage, error) {
