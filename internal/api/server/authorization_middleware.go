@@ -81,6 +81,11 @@ const (
 	PermReadSubscriber   = "subscriber:read"
 	PermDeleteSubscriber = "subscriber:delete"
 
+	// Subscriber Usage permissions
+	PermGetSubscriberUsageRetentionPolicy = "subscriber_usage:get_retention"
+	PermSetSubscriberUsageRetentionPolicy = "subscriber_usage:set_retention"
+	PermClearSubscriberUsage              = "subscriber_usage:clear"
+
 	// Policy permissions
 	PermListPolicies = "policy:list"
 	PermCreatePolicy = "policy:create"
