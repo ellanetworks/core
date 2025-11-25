@@ -8,6 +8,7 @@ import {
   Alert,
   Collapse,
   TextField,
+  MenuItem,
 } from "@mui/material";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -16,9 +17,12 @@ import {
   type GridColDef,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
+import { BarChart } from "@mui/x-charts/BarChart";
 import {
   getUsagePerSubscriber,
   type UsagePerSubscriberResult,
+  getUsagePerDay,
+  type UsagePerDayResult,
 } from "@/queries/usage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -28,6 +32,13 @@ const MAX_WIDTH = 1400;
 type UsageRow = {
   id: string;
   subscriber: string;
+  uplink_bytes: number;
+  downlink_bytes: number;
+  total_bytes: number;
+};
+
+type UsagePerDayRow = {
+  date: string;
   uplink_bytes: number;
   downlink_bytes: number;
   total_bytes: number;
@@ -58,22 +69,36 @@ const SubscriberUsage = () => {
     pageSize: 25,
   });
 
-  const { data, isLoading } = useQuery<UsagePerSubscriberResult>({
-    queryKey: ["usagePerSubscriber", accessToken, startDate, endDate],
+  const [selectedSubscriber, setSelectedSubscriber] = useState<string>("");
+
+  const {
+    data: usagePerSubscriberData,
+    isLoading: isUsagePerSubscriberLoading,
+  } = useQuery<UsagePerSubscriberResult>({
+    queryKey: [
+      "usagePerSubscriber",
+      accessToken,
+      startDate,
+      endDate,
+      selectedSubscriber,
+    ],
     queryFn: async () => {
-      return getUsagePerSubscriber(accessToken || "", startDate, endDate, "");
+      return getUsagePerSubscriber(
+        accessToken || "",
+        startDate,
+        endDate,
+        selectedSubscriber,
+      );
     },
     enabled: !!accessToken && !!startDate && !!endDate,
   });
 
   const rows: UsageRow[] = useMemo(() => {
-    if (!data) return [];
+    if (!usagePerSubscriberData) return [];
 
     const items: UsageRow[] = [];
 
-    // data is UsagePerSubscriberResult:
-    // Array<Record<string, SubscriberUsage>>
-    for (const entry of data) {
+    for (const entry of usagePerSubscriberData) {
       const subscriber = Object.keys(entry)[0];
       const usage = entry[subscriber];
 
@@ -88,10 +113,14 @@ const SubscriberUsage = () => {
       });
     }
 
-    // Sort by total_bytes descending
     items.sort((a, b) => b.total_bytes - a.total_bytes);
     return items;
-  }, [data]);
+  }, [usagePerSubscriberData]);
+
+  const subscriberOptions = useMemo(
+    () => rows.map((r) => r.subscriber),
+    [rows],
+  );
 
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
@@ -117,7 +146,8 @@ const SubscriberUsage = () => {
         flex: 1,
         minWidth: 180,
         type: "number",
-        valueGetter: (value, row) => row.downlink_bytes,
+        valueFormatter: (value: any) =>
+          value == null ? "" : Number(value).toLocaleString(),
       },
       {
         field: "uplink_bytes",
@@ -125,7 +155,8 @@ const SubscriberUsage = () => {
         flex: 1,
         minWidth: 180,
         type: "number",
-        valueGetter: (value, row) => row.uplink_bytes,
+        valueFormatter: (value: any) =>
+          value == null ? "" : Number(value).toLocaleString(),
       },
       {
         field: "total_bytes",
@@ -133,7 +164,8 @@ const SubscriberUsage = () => {
         flex: 1,
         minWidth: 180,
         type: "number",
-        valueGetter: (value, row) => row.total_bytes,
+        valueFormatter: (value: any) =>
+          value == null ? "" : Number(value).toLocaleString(),
       },
     ],
     [],
@@ -151,6 +183,54 @@ const SubscriberUsage = () => {
     const value = e.target.value;
     setDateRange((prev) => ({ ...prev, endDate: value }));
   };
+
+  const { data: usagePerDayData, isLoading: isUsagePerDayLoading } =
+    useQuery<UsagePerDayResult>({
+      queryKey: [
+        "usagePerDay",
+        accessToken,
+        startDate,
+        endDate,
+        selectedSubscriber,
+      ],
+      queryFn: async () => {
+        return getUsagePerDay(
+          accessToken || "",
+          startDate,
+          endDate,
+          selectedSubscriber,
+        );
+      },
+      enabled: !!accessToken && !!startDate && !!endDate,
+    });
+
+  const dailyRows: UsagePerDayRow[] = useMemo(() => {
+    if (!usagePerDayData) return [];
+
+    const items: UsagePerDayRow[] = [];
+
+    for (const entry of usagePerDayData) {
+      const date = Object.keys(entry)[0];
+      const usage = entry[date];
+
+      if (!date || !usage) continue;
+
+      items.push({
+        date,
+        uplink_bytes: usage.uplink_bytes,
+        downlink_bytes: usage.downlink_bytes,
+        total_bytes: usage.total_bytes,
+      });
+    }
+
+    items.sort((a, b) => a.date.localeCompare(b.date));
+
+    return items;
+  }, [usagePerDayData]);
+
+  const isInitialLoading =
+    (isUsagePerSubscriberLoading && !usagePerSubscriberData) ||
+    (isUsagePerDayLoading && !usagePerDayData);
 
   return (
     <Box
@@ -174,12 +254,13 @@ const SubscriberUsage = () => {
         </Collapse>
       </Box>
 
-      {isLoading && !data ? (
+      {isInitialLoading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
         </Box>
       ) : (
         <>
+          {/* Header + filters */}
           <Box
             sx={{
               width: "100%",
@@ -221,7 +302,51 @@ const SubscriberUsage = () => {
                 InputLabelProps={{ shrink: true }}
                 size="small"
               />
+              <TextField
+                select
+                label="Subscriber"
+                value={selectedSubscriber}
+                onChange={(e) => setSelectedSubscriber(e.target.value)}
+                size="small"
+                sx={{ minWidth: 200 }}
+              >
+                <MenuItem value="">All subscribers</MenuItem>
+                {subscriberOptions.map((sub) => (
+                  <MenuItem key={sub} value={sub}>
+                    {sub}
+                  </MenuItem>
+                ))}
+              </TextField>
             </Box>
+          </Box>
+
+          {/* Bar chart: daily usage */}
+          <Box
+            sx={{
+              width: "100%",
+              maxWidth: MAX_WIDTH,
+              px: { xs: 2, sm: 4 },
+              mb: 4,
+            }}
+          >
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Daily data usage ({selectedSubscriber || "all subscribers"})
+            </Typography>
+
+            <BarChart
+              dataset={dailyRows}
+              xAxis={[
+                {
+                  scaleType: "band",
+                  dataKey: "date",
+                },
+              ]}
+              series={[
+                { dataKey: "downlink_bytes", label: "Downlink" },
+                { dataKey: "uplink_bytes", label: "Uplink" },
+              ]}
+              height={300}
+            />
           </Box>
 
           <Box
@@ -235,6 +360,8 @@ const SubscriberUsage = () => {
                 paginationModel={paginationModel}
                 onPaginationModelChange={setPaginationModel}
                 pageSizeOptions={[10, 25, 50, 100]}
+                disableColumnMenu
+                disableRowSelectionOnClick
                 columnVisibilityModel={{ subscriber: !isSmDown }}
                 sx={{
                   width: "100%",

@@ -19,7 +19,6 @@ export async function getUsagePerDay(
     end,
   });
 
-  // Only include subscriber if it's not empty
   if (subscriber.trim() !== "") {
     params.set("subscriber", subscriber);
   }
@@ -66,7 +65,6 @@ export async function getUsagePerSubscriber(
     end,
   });
 
-  // Only include subscriber if it's not empty
   if (subscriber.trim() !== "") {
     params.set("subscriber", subscriber);
   }
