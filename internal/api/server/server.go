@@ -55,6 +55,13 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("GET /api/v1/subscribers/", Authenticate(jwtSecret, dbInstance, RequirePermission(PermReadSubscriber, jwtSecret, GetSubscriber(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/subscribers/", Authenticate(jwtSecret, dbInstance, RequirePermission(PermDeleteSubscriber, jwtSecret, DeleteSubscriber(dbInstance))).ServeHTTP)
 
+	// Subscriber Usage (Authenticated)
+	mux.HandleFunc("GET /api/v1/subscriber-usage/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetSubscriberUsageRetentionPolicy, jwtSecret, GetSubscriberUsageRetentionPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/subscriber-usage/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermSetSubscriberUsageRetentionPolicy, jwtSecret, UpdateSubscriberUsageRetentionPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/subscriber-usage", Authenticate(jwtSecret, dbInstance, RequirePermission(PermClearSubscriberUsage, jwtSecret, ClearSubscriberUsage(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/subscriber-usage/per-day", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetSubscriberUsage, jwtSecret, GetSubscriberUsagePerDay(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/subscriber-usage/per-subscriber", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetSubscriberUsage, jwtSecret, GetSubscriberUsagePerSubscriber(dbInstance))).ServeHTTP)
+
 	// Policies (Authenticated)
 	mux.HandleFunc("GET /api/v1/policies", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListPolicies, jwtSecret, ListPolicies(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/policies", Authenticate(jwtSecret, dbInstance, RequirePermission(PermCreatePolicy, jwtSecret, CreatePolicy(dbInstance))).ServeHTTP)
