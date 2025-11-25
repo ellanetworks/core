@@ -44,6 +44,38 @@ type UsagePerDayRow = {
   total_bytes: number;
 };
 
+type DataUnit = "B" | "KB" | "MB" | "GB" | "TB";
+
+const UNIT_FACTORS: Record<DataUnit, number> = {
+  B: 1,
+  KB: 1024,
+  MB: 1024 ** 2,
+  GB: 1024 ** 3,
+  TB: 1024 ** 4,
+};
+
+const chooseUnitFromMax = (maxBytes: number): DataUnit => {
+  if (maxBytes >= UNIT_FACTORS.TB) return "TB";
+  if (maxBytes >= UNIT_FACTORS.GB) return "GB";
+  if (maxBytes >= UNIT_FACTORS.MB) return "MB";
+  if (maxBytes >= UNIT_FACTORS.KB) return "KB";
+  return "B";
+};
+
+const formatBytesWithUnit = (bytes: number, unit: DataUnit): string => {
+  if (!Number.isFinite(bytes)) return "";
+  const factor = UNIT_FACTORS[unit];
+  const value = bytes / factor;
+  const decimals = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(decimals)} ${unit}`;
+};
+
+const formatBytesAutoUnit = (bytes: number): string => {
+  if (!Number.isFinite(bytes)) return "";
+  const unit = chooseUnitFromMax(Math.abs(bytes));
+  return formatBytesWithUnit(bytes, unit);
+};
+
 const getDefaultDateRange = () => {
   const today = new Date();
   const sevenDaysAgo = new Date();
@@ -132,58 +164,6 @@ const SubscriberUsage = () => {
     [theme],
   );
 
-  const columns: GridColDef<UsageRow>[] = useMemo(
-    () => [
-      {
-        field: "subscriber",
-        headerName: "Subscriber",
-        flex: 1,
-        minWidth: 200,
-      },
-      {
-        field: "downlink_bytes",
-        headerName: "Usage (downlink)",
-        flex: 1,
-        minWidth: 180,
-        type: "number",
-        valueFormatter: (value: any) =>
-          value == null ? "" : Number(value).toLocaleString(),
-      },
-      {
-        field: "uplink_bytes",
-        headerName: "Usage (uplink)",
-        flex: 1,
-        minWidth: 180,
-        type: "number",
-        valueFormatter: (value: any) =>
-          value == null ? "" : Number(value).toLocaleString(),
-      },
-      {
-        field: "total_bytes",
-        headerName: "Usage (total)",
-        flex: 1,
-        minWidth: 180,
-        type: "number",
-        valueFormatter: (value: any) =>
-          value == null ? "" : Number(value).toLocaleString(),
-      },
-    ],
-    [],
-  );
-
-  const descriptionText =
-    "View data usage per subscriber over a selected period.";
-
-  const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setDateRange((prev) => ({ ...prev, startDate: value }));
-  };
-
-  const handleEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setDateRange((prev) => ({ ...prev, endDate: value }));
-  };
-
   const { data: usagePerDayData, isLoading: isUsagePerDayLoading } =
     useQuery<UsagePerDayResult>({
       queryKey: [
@@ -228,6 +208,94 @@ const SubscriberUsage = () => {
     return items;
   }, [usagePerDayData]);
 
+  const maxBytesAcrossData = useMemo(() => {
+    let max = 0;
+
+    for (const row of rows) {
+      if (row.uplink_bytes > max) max = row.uplink_bytes;
+      if (row.downlink_bytes > max) max = row.downlink_bytes;
+      if (row.total_bytes > max) max = row.total_bytes;
+    }
+
+    for (const row of dailyRows) {
+      if (row.uplink_bytes > max) max = row.uplink_bytes;
+      if (row.downlink_bytes > max) max = row.downlink_bytes;
+      if (row.total_bytes > max) max = row.total_bytes;
+    }
+
+    return max;
+  }, [rows, dailyRows]);
+
+  const unit: DataUnit = useMemo(
+    () => chooseUnitFromMax(maxBytesAcrossData),
+    [maxBytesAcrossData],
+  );
+
+  const chartDataset = useMemo(
+    () =>
+      dailyRows.map((row) => {
+        const factor = UNIT_FACTORS[unit];
+        return {
+          date: row.date,
+          downlink: row.downlink_bytes / factor,
+          uplink: row.uplink_bytes / factor,
+        };
+      }),
+    [dailyRows, unit],
+  );
+
+  const columns: GridColDef<UsageRow>[] = useMemo(
+    () => [
+      {
+        field: "subscriber",
+        headerName: "Subscriber",
+        flex: 1,
+        minWidth: 200,
+      },
+      {
+        field: "downlink_bytes",
+        headerName: "Usage (downlink)",
+        flex: 1,
+        minWidth: 180,
+        type: "number",
+        valueFormatter: (value: any) =>
+          value == null ? "" : formatBytesAutoUnit(Number(value)),
+      },
+      {
+        field: "uplink_bytes",
+        headerName: "Usage (uplink)",
+        flex: 1,
+        minWidth: 180,
+        type: "number",
+        valueFormatter: (value: any) =>
+          value == null ? "" : formatBytesAutoUnit(Number(value)),
+      },
+      {
+        field: "total_bytes",
+        headerName: "Usage (total)",
+        flex: 1,
+        minWidth: 180,
+        type: "number",
+        valueFormatter: (value: any) =>
+          value == null ? "" : formatBytesAutoUnit(Number(value)),
+      },
+    ],
+    [],
+  );
+
+  const descriptionText =
+    "View data usage per subscriber over a selected period.";
+
+  const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setDateRange((prev) => ({ ...prev, startDate: value }));
+  };
+
+  const handleEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setDateRange((prev) => ({ ...prev, endDate: value }));
+  };
+
   const isInitialLoading =
     (isUsagePerSubscriberLoading && !usagePerSubscriberData) ||
     (isUsagePerDayLoading && !usagePerDayData);
@@ -260,7 +328,6 @@ const SubscriberUsage = () => {
         </Box>
       ) : (
         <>
-          {/* Header + filters */}
           <Box
             sx={{
               width: "100%",
@@ -320,7 +387,6 @@ const SubscriberUsage = () => {
             </Box>
           </Box>
 
-          {/* Bar chart: daily usage */}
           <Box
             sx={{
               width: "100%",
@@ -330,20 +396,26 @@ const SubscriberUsage = () => {
             }}
           >
             <Typography variant="h6" sx={{ mb: 2 }}>
-              Daily data usage ({selectedSubscriber || "all subscribers"})
+              Daily data usage ({selectedSubscriber || "all subscribers"}) in{" "}
+              {unit}
             </Typography>
 
             <BarChart
-              dataset={dailyRows}
+              dataset={chartDataset}
               xAxis={[
                 {
                   scaleType: "band",
                   dataKey: "date",
                 },
               ]}
+              yAxis={[
+                {
+                  label: `Usage (${unit})`,
+                },
+              ]}
               series={[
-                { dataKey: "downlink_bytes", label: "Downlink" },
-                { dataKey: "uplink_bytes", label: "Uplink" },
+                { dataKey: "downlink", label: `Downlink (${unit})` },
+                { dataKey: "uplink", label: `Uplink (${unit})` },
               ]}
               height={300}
             />
@@ -360,8 +432,6 @@ const SubscriberUsage = () => {
                 paginationModel={paginationModel}
                 onPaginationModelChange={setPaginationModel}
                 pageSizeOptions={[10, 25, 50, 100]}
-                disableColumnMenu
-                disableRowSelectionOnClick
                 columnVisibilityModel={{ subscriber: !isSmDown }}
                 sx={{
                   width: "100%",
