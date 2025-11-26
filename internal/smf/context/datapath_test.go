@@ -20,6 +20,7 @@ func TestActivateUpLinkPdr(t *testing.T) {
 	}
 
 	defQER := &context.QER{}
+	defURR := &context.URR{}
 
 	node := &context.DataPathNode{
 		UPF: &context.UPF{},
@@ -33,7 +34,7 @@ func TestActivateUpLinkPdr(t *testing.T) {
 		},
 	}
 
-	err := node.ActivateUpLinkPdr(smContext, defQER, 10)
+	err := node.ActivateUpLinkPdr(smContext, defQER, defURR, 10)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -84,6 +85,7 @@ func TestActivateDlLinkPdr(t *testing.T) {
 	}
 
 	defQER := &context.QER{}
+	defURR := &context.URR{}
 
 	node := &context.DataPathNode{
 		UPF: &context.UPF{},
@@ -92,6 +94,7 @@ func TestActivateDlLinkPdr(t *testing.T) {
 				0: {
 					Precedence: 0,
 					FAR:        &context.FAR{},
+					URR:        &context.URR{},
 				},
 			},
 		},
@@ -101,7 +104,7 @@ func TestActivateDlLinkPdr(t *testing.T) {
 		DPNode: node,
 	}
 
-	err := node.ActivateDlLinkPdr(smContext, defQER, 10, dataPath)
+	err := node.ActivateDlLinkPdr(smContext, defQER, defURR, 10, dataPath)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

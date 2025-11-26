@@ -8,6 +8,7 @@ package context
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/qos"
@@ -190,7 +191,7 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) 
 	return flowQER, nil
 }
 
-func (node *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER, defPrecedence uint32) error {
+func (node *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER, defURR *URR, defPrecedence uint32) error {
 	ueIPAddr := UEIPAddress{}
 	ueIPAddr.V4 = true
 	ueIPAddr.IPv4Address = smContext.PDUAddress.IP.To4()
@@ -198,6 +199,7 @@ func (node *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER, d
 	curULTunnel := node.UpLinkTunnel
 	for _, ULPDR := range curULTunnel.PDR {
 		ULPDR.QER = append(ULPDR.QER, defQER)
+		ULPDR.URR = defURR
 
 		// Set Default precedence
 		if ULPDR.Precedence == 0 {
@@ -235,7 +237,7 @@ func (node *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER, d
 	return nil
 }
 
-func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER, defPrecedence uint32, dataPath *DataPath) error {
+func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER, defURR *URR, defPrecedence uint32, dataPath *DataPath) error {
 	curDLTunnel := node.DownLinkTunnel
 
 	// UPF provided UE ip-addr
@@ -288,16 +290,27 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence 
 		return err
 	}
 
+	defURR := &URR{
+		URRID: 1,
+		MeasurementMethods: MeasurementMethods{
+			Volume: true,
+		},
+		ReportingTriggers: ReportingTriggers{
+			PeriodicReporting: true,
+		},
+		MeasurementPeriod: 60 * time.Second,
+	}
+
 	// Setup UpLink PDR
 	if dataPath.DPNode.UpLinkTunnel != nil {
-		if err := dataPath.DPNode.ActivateUpLinkPdr(smContext, defQER, precedence); err != nil {
+		if err := dataPath.DPNode.ActivateUpLinkPdr(smContext, defQER, defURR, precedence); err != nil {
 			return fmt.Errorf("couldn't activate uplink pdr: %v", err)
 		}
 	}
 
 	// Setup DownLink PDR
 	if dataPath.DPNode.DownLinkTunnel != nil {
-		if err := dataPath.DPNode.ActivateDlLinkPdr(smContext, defQER, precedence, dataPath); err != nil {
+		if err := dataPath.DPNode.ActivateDlLinkPdr(smContext, defQER, defURR, precedence, dataPath); err != nil {
 			return fmt.Errorf("couldn't activate downlink pdr: %v", err)
 		}
 	}
