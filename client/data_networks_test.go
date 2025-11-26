@@ -24,7 +24,7 @@ func TestCreateDataNetwork_Success(t *testing.T) {
 
 	createDataNetworkOpts := &client.CreateDataNetworkOptions{
 		Name:   "testDataNetwork",
-		IPPool: "10.45.0.0/16",
+		IPPool: "10.45.0.0/22",
 		DNS:    "8.8.8.8",
 		Mtu:    1400,
 	}
@@ -69,7 +69,7 @@ func TestGetDataNetwork_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"name": "my-data-network", "ip_pool": "1.2.3.0/24"}`),
+			Result:     []byte(`{"name": "my-data-network", "ip_pool": "1.2.3.0/22"}`),
 		},
 		err: nil,
 	}
@@ -93,8 +93,8 @@ func TestGetDataNetwork_Success(t *testing.T) {
 		t.Fatalf("expected ID %v, got %v", name, dataNetwork.Name)
 	}
 
-	if dataNetwork.IPPool != "1.2.3.0/24" {
-		t.Fatalf("expected ID %v, got %v", "1.2.3.0/24", dataNetwork.IPPool)
+	if dataNetwork.IPPool != "1.2.3.0/22" {
+		t.Fatalf("expected ID %v, got %v", "1.2.3.0/22", dataNetwork.IPPool)
 	}
 }
 
@@ -182,7 +182,7 @@ func TestListDataNetworks_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"name": "data-network-1", "ip_pool": "1.2.3.0/24"}], "page": 1, "per_page": 10, "total_count": 1}`),
+			Result:     []byte(`{"items": [{"name": "data-network-1", "ip_pool": "1.2.3.0/22"}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}

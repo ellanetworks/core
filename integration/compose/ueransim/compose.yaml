@@ -154,7 +154,7 @@ services:
       - /bin/bash
       - -lc
       - >
-        ip route add 10.45.0.0/16 dev n6 via 10.6.0.2;
+        ip route add 10.45.0.0/22 dev n6 via 10.6.0.2;
         trap : TERM INT;
         python3 /responder.py 34242 & wait
     restart: unless-stopped

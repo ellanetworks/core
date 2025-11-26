@@ -36,7 +36,7 @@ const schema = yup.object().shape({
     .string()
     .matches(
       /^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\/\d{1,2}$/,
-      "Must be a valid IP pool (e.g., 10.45.0.0/16)",
+      "Must be a valid IP pool (e.g., 10.45.0.0/22)",
     )
     .required("IP Pool is required"),
   dns: yup
@@ -60,7 +60,7 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
 
   const [formValues, setFormValues] = useState({
     name: "",
-    ipPool: "10.45.0.0/16",
+    ipPool: "10.45.0.0/22",
     dns: "8.8.8.8",
     mtu: 1500,
   });
