@@ -15,18 +15,18 @@ import (
 )
 
 const (
-	UpdateNetworkLogRetentionPolicyAction = "update_network_log_retention_policy"
+	UpdateRadioEventRetentionPolicyAction = "update_network_log_retention_policy"
 )
 
-type GetNetworkLogsRetentionPolicyResponse struct {
+type GetRadioEventsRetentionPolicyResponse struct {
 	Days int `json:"days"`
 }
 
-type UpdateNetworkLogsRetentionPolicyParams struct {
+type UpdateRadioEventsRetentionPolicyParams struct {
 	Days int `json:"days"`
 }
 
-type NetworkLog struct {
+type RadioEvent struct {
 	ID            int    `json:"id"`
 	Timestamp     string `json:"timestamp"`
 	Protocol      string `json:"protocol"`
@@ -38,14 +38,14 @@ type NetworkLog struct {
 	Details       string `json:"details"`
 }
 
-type ListNetworkLogsResponse struct {
-	Items      []NetworkLog `json:"items"`
+type ListRadioEventsResponse struct {
+	Items      []RadioEvent `json:"items"`
 	Page       int          `json:"page"`
 	PerPage    int          `json:"per_page"`
 	TotalCount int          `json:"total_count"`
 }
 
-type GetNetworkLogResponse struct {
+type GetRadioEventResponse struct {
 	Raw     []byte           `json:"raw"`
 	Decoded ngap.NGAPMessage `json:"decoded"`
 }
@@ -58,9 +58,9 @@ func isRFC3339(s string) bool {
 	return true
 }
 
-func parseNetworkLogFilters(r *http.Request) (*db.NetworkLogFilters, error) {
+func parseRadioEventFilters(r *http.Request) (*db.RadioEventFilters, error) {
 	q := r.URL.Query()
-	f := &db.NetworkLogFilters{}
+	f := &db.RadioEventFilters{}
 
 	if v := strings.TrimSpace(q.Get("protocol")); v != "" {
 		f.Protocol = &v
@@ -103,21 +103,21 @@ func parseNetworkLogFilters(r *http.Request) (*db.NetworkLogFilters, error) {
 	return f, nil
 }
 
-func GetNetworkLogRetentionPolicy(dbInstance *db.Database) http.Handler {
+func GetRadioEventRetentionPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		policyDays, err := dbInstance.GetRetentionPolicy(ctx, db.CategoryRadioLogs)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve network log retention policy", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve radio event retention policy", err, logger.APILog)
 			return
 		}
 
-		response := GetNetworkLogsRetentionPolicyResponse{Days: policyDays}
+		response := GetRadioEventsRetentionPolicyResponse{Days: policyDays}
 		writeResponse(w, response, http.StatusOK, logger.APILog)
 	})
 }
 
-func UpdateNetworkLogRetentionPolicy(dbInstance *db.Database) http.Handler {
+func UpdateRadioEventRetentionPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
@@ -125,7 +125,7 @@ func UpdateNetworkLogRetentionPolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		var params UpdateNetworkLogsRetentionPolicyParams
+		var params UpdateRadioEventsRetentionPolicyParams
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
 			return
@@ -142,16 +142,16 @@ func UpdateNetworkLogRetentionPolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		if err := dbInstance.SetRetentionPolicy(r.Context(), updatedPolicy); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to update network log retention policy", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to update radio event retention policy", err, logger.APILog)
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "Network log retention policy updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdateNetworkLogRetentionPolicyAction, email, getClientIP(r), fmt.Sprintf("User updated network log retention policy to %d days", params.Days))
+		writeResponse(w, SuccessResponse{Message: "Radio event retention policy updated successfully"}, http.StatusOK, logger.APILog)
+		logger.LogAuditEvent(UpdateRadioEventRetentionPolicyAction, email, getClientIP(r), fmt.Sprintf("User updated radio event retention policy to %d days", params.Days))
 	})
 }
 
-func ListNetworkLogs(dbInstance *db.Database) http.Handler {
+func ListRadioEvents(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		page := atoiDefault(q.Get("page"), 1)
@@ -169,21 +169,21 @@ func ListNetworkLogs(dbInstance *db.Database) http.Handler {
 
 		ctx := r.Context()
 
-		filters, err := parseNetworkLogFilters(r)
+		filters, err := parseRadioEventFilters(r)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
 
-		logs, total, err := dbInstance.ListNetworkLogs(ctx, page, perPage, filters)
+		logs, total, err := dbInstance.ListRadioEvents(ctx, page, perPage, filters)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve network logs", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve radio events", err, logger.APILog)
 			return
 		}
 
-		items := make([]NetworkLog, len(logs))
+		items := make([]RadioEvent, len(logs))
 		for i, log := range logs {
-			items[i] = NetworkLog{
+			items[i] = RadioEvent{
 				ID:            log.ID,
 				Timestamp:     log.Timestamp,
 				Protocol:      log.Protocol,
@@ -196,7 +196,7 @@ func ListNetworkLogs(dbInstance *db.Database) http.Handler {
 			}
 		}
 
-		response := ListNetworkLogsResponse{
+		response := ListRadioEventsResponse{
 			Items:      items,
 			Page:       page,
 			PerPage:    perPage,
@@ -207,24 +207,24 @@ func ListNetworkLogs(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func GetNetworkLog(dbInstance *db.Database) http.Handler {
+func GetRadioEvent(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		networkIDStr := strings.TrimPrefix(r.URL.Path, "/api/v1/logs/network/")
+		networkIDStr := strings.TrimPrefix(r.URL.Path, "/api/v1/ran/events/")
 		networkID, err := strconv.Atoi(networkIDStr)
 		if err != nil || networkID < 1 {
-			writeError(w, http.StatusBadRequest, "Invalid network log ID", err, logger.APILog)
+			writeError(w, http.StatusBadRequest, "Invalid radio event ID", err, logger.APILog)
 			return
 		}
 
-		networkLog, err := dbInstance.GetNetworkLogByID(ctx, networkID)
+		networkLog, err := dbInstance.GetRadioEventByID(ctx, networkID)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve network log", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve radio event", err, logger.APILog)
 			return
 		}
 
-		response := GetNetworkLogResponse{
+		response := GetRadioEventResponse{
 			Raw:     networkLog.Raw,
 			Decoded: ngap.DecodeNGAPMessage(networkLog.Raw),
 		}
@@ -233,7 +233,7 @@ func GetNetworkLog(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func ClearNetworkLogs(dbInstance *db.Database) http.Handler {
+func ClearRadioEvents(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
@@ -241,12 +241,12 @@ func ClearNetworkLogs(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := dbInstance.ClearNetworkLogs(r.Context()); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to clear network logs", err, logger.APILog)
+		if err := dbInstance.ClearRadioEvents(r.Context()); err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to clear radio events", err, logger.APILog)
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "All network logs cleared successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent("clear_network_logs", email, getClientIP(r), "User cleared all network logs")
+		writeResponse(w, SuccessResponse{Message: "All radio events cleared successfully"}, http.StatusOK, logger.APILog)
+		logger.LogAuditEvent("clear_network_logs", email, getClientIP(r), "User cleared all radio events")
 	})
 }

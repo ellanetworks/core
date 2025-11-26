@@ -14,10 +14,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const NetworkLogsTableName = "network_logs"
+const RadioEventsTableName = "network_logs"
 
 // Structured table (no raw blob). Keep strings NOT NULL with empty defaults to avoid NullString hassle.
-const QueryCreateNetworkLogsTable = `
+const QueryCreateRadioEventsTable = `
 	CREATE TABLE IF NOT EXISTS %s (
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
 		timestamp  TEXT NOT NULL,                      -- RFC3339
@@ -30,7 +30,7 @@ const QueryCreateNetworkLogsTable = `
 		details    TEXT NOT NULL DEFAULT ''
 );`
 
-const QueryCreateNetworkLogsIndex = `
+const QueryCreateRadioEventsIndex = `
 	CREATE INDEX IF NOT EXISTS idx_network_logs_protocol ON network_logs (protocol);
 	CREATE INDEX IF NOT EXISTS idx_network_logs_timestamp ON network_logs (timestamp);
 	CREATE INDEX IF NOT EXISTS idx_network_logs_message_type ON network_logs (message_type);
@@ -40,42 +40,42 @@ const QueryCreateNetworkLogsIndex = `
 `
 
 const (
-	insertNetworkLogStmt     = "INSERT INTO %s (timestamp, protocol, message_type, direction, local_address, remote_address, raw, details) VALUES ($NetworkLog.timestamp, $NetworkLog.protocol, $NetworkLog.message_type, $NetworkLog.direction, $NetworkLog.local_address, $NetworkLog.remote_address, $NetworkLog.raw, $NetworkLog.details)"
-	getNetworkLogByIDStmt    = "SELECT &NetworkLog.* FROM %s WHERE id = $NetworkLog.id"
-	deleteOldNetworkLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
-	deleteAllNetworkLogsStmt = "DELETE FROM %s"
+	insertRadioEventStmt     = "INSERT INTO %s (timestamp, protocol, message_type, direction, local_address, remote_address, raw, details) VALUES ($RadioEvent.timestamp, $RadioEvent.protocol, $RadioEvent.message_type, $RadioEvent.direction, $RadioEvent.local_address, $RadioEvent.remote_address, $RadioEvent.raw, $RadioEvent.details)"
+	getRadioEventByIDStmt    = "SELECT &RadioEvent.* FROM %s WHERE id = $RadioEvent.id"
+	deleteOldRadioEventsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
+	deleteAllRadioEventsStmt = "DELETE FROM %s"
 )
 
-const listNetworkLogsPagedFilteredStmt = `
-  SELECT &NetworkLog.*
+const listRadioEventsPagedFilteredStmt = `
+  SELECT &RadioEvent.*
   FROM %s
   WHERE
-    ($NetworkLogFilters.protocol      IS NULL OR protocol      = $NetworkLogFilters.protocol)
-    AND ($NetworkLogFilters.direction IS NULL OR direction = $NetworkLogFilters.direction)
-    AND ($NetworkLogFilters.local_address IS NULL OR local_address = $NetworkLogFilters.local_address)
-    AND ($NetworkLogFilters.remote_address IS NULL OR remote_address = $NetworkLogFilters.remote_address)
-    AND ($NetworkLogFilters.message_type IS NULL OR message_type     = $NetworkLogFilters.message_type)
-    AND ($NetworkLogFilters.timestamp_from  IS NULL OR timestamp >= $NetworkLogFilters.timestamp_from)
-    AND ($NetworkLogFilters.timestamp_to    IS NULL OR timestamp <  $NetworkLogFilters.timestamp_to)
+    ($RadioEventFilters.protocol      IS NULL OR protocol      = $RadioEventFilters.protocol)
+    AND ($RadioEventFilters.direction IS NULL OR direction = $RadioEventFilters.direction)
+    AND ($RadioEventFilters.local_address IS NULL OR local_address = $RadioEventFilters.local_address)
+    AND ($RadioEventFilters.remote_address IS NULL OR remote_address = $RadioEventFilters.remote_address)
+    AND ($RadioEventFilters.message_type IS NULL OR message_type     = $RadioEventFilters.message_type)
+    AND ($RadioEventFilters.timestamp_from  IS NULL OR timestamp >= $RadioEventFilters.timestamp_from)
+    AND ($RadioEventFilters.timestamp_to    IS NULL OR timestamp <  $RadioEventFilters.timestamp_to)
   ORDER BY id DESC
   LIMIT $ListArgs.limit
   OFFSET $ListArgs.offset
 `
 
-const countNetworkLogsFilteredStmt = `
+const countRadioEventsFilteredStmt = `
   SELECT COUNT(*) AS &NumItems.count
   FROM %s
   WHERE
-    ($NetworkLogFilters.protocol      IS NULL OR protocol      = $NetworkLogFilters.protocol)
-    AND ($NetworkLogFilters.direction IS NULL OR direction = $NetworkLogFilters.direction)
-    AND ($NetworkLogFilters.local_address IS NULL OR local_address = $NetworkLogFilters.local_address)
-    AND ($NetworkLogFilters.remote_address IS NULL OR remote_address = $NetworkLogFilters.remote_address)
-    AND ($NetworkLogFilters.message_type IS NULL OR message_type     = $NetworkLogFilters.message_type)
-    AND ($NetworkLogFilters.timestamp_from  IS NULL OR timestamp >= $NetworkLogFilters.timestamp_from)
-    AND ($NetworkLogFilters.timestamp_to    IS NULL OR timestamp <  $NetworkLogFilters.timestamp_to)
+    ($RadioEventFilters.protocol      IS NULL OR protocol      = $RadioEventFilters.protocol)
+    AND ($RadioEventFilters.direction IS NULL OR direction = $RadioEventFilters.direction)
+    AND ($RadioEventFilters.local_address IS NULL OR local_address = $RadioEventFilters.local_address)
+    AND ($RadioEventFilters.remote_address IS NULL OR remote_address = $RadioEventFilters.remote_address)
+    AND ($RadioEventFilters.message_type IS NULL OR message_type     = $RadioEventFilters.message_type)
+    AND ($RadioEventFilters.timestamp_from  IS NULL OR timestamp >= $RadioEventFilters.timestamp_from)
+    AND ($RadioEventFilters.timestamp_to    IS NULL OR timestamp <  $RadioEventFilters.timestamp_to)
 `
 
-type NetworkLog struct {
+type RadioEvent struct {
 	ID            int    `db:"id"`
 	Timestamp     string `db:"timestamp"` // store as RFC3339 string; parse in API layer if needed
 	Protocol      string `db:"protocol"`
@@ -87,7 +87,7 @@ type NetworkLog struct {
 	Details       string `db:"details"` // JSON or plain text (we store a string)
 }
 
-type NetworkLogFilters struct {
+type RadioEventFilters struct {
 	Protocol      *string `db:"protocol"`       // exact match
 	Direction     *string `db:"direction"`      // "inbound" | "outbound"
 	LocalAddress  *string `db:"local_address"`  // exact match
@@ -109,22 +109,22 @@ type zapNetworkJSON struct {
 	Details       string `json:"details"`
 }
 
-func (db *Database) NetworkWriteFunc(ctx context.Context) func([]byte) error {
+func (db *Database) RadioEventWriteFunc(ctx context.Context) func([]byte) error {
 	return func(b []byte) error {
-		return db.InsertNetworkLogJSON(ctx, b)
+		return db.InsertRadioEventJSON(ctx, b)
 	}
 }
 
-// InsertNetworkLogJSON parses the zap JSON and inserts a structured row.
-func (db *Database) InsertNetworkLogJSON(ctx context.Context, raw []byte) error {
+// InsertRadioEventJSON parses the zap JSON and inserts a structured row.
+func (db *Database) InsertRadioEventJSON(ctx context.Context, raw []byte) error {
 	const operation = "INSERT"
-	const target = NetworkLogsTableName
+	const target = RadioEventsTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	query := fmt.Sprintf(insertNetworkLogStmt, db.networkLogsTable)
+	query := fmt.Sprintf(insertRadioEventStmt, db.networkLogsTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(query),
@@ -140,7 +140,7 @@ func (db *Database) InsertNetworkLogJSON(ctx context.Context, raw []byte) error 
 		return err
 	}
 
-	row := NetworkLog{
+	row := RadioEvent{
 		Timestamp:     z.Timestamp,
 		Protocol:      z.Protocol,
 		MessageType:   z.MessageType,
@@ -151,7 +151,7 @@ func (db *Database) InsertNetworkLogJSON(ctx context.Context, raw []byte) error 
 		Details:       z.Details,
 	}
 
-	stmt, err := sqlair.Prepare(query, NetworkLog{})
+	stmt, err := sqlair.Prepare(query, RadioEvent{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
@@ -167,20 +167,20 @@ func (db *Database) InsertNetworkLogJSON(ctx context.Context, raw []byte) error 
 	return nil
 }
 
-func (db *Database) ListNetworkLogs(ctx context.Context, page int, perPage int, filters *NetworkLogFilters) ([]NetworkLog, int, error) {
+func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, filters *RadioEventFilters) ([]RadioEvent, int, error) {
 	if filters == nil {
-		filters = &NetworkLogFilters{}
+		filters = &RadioEventFilters{}
 	}
 
 	const operation = "SELECT"
-	const target = NetworkLogsTableName
+	const target = RadioEventsTableName
 	spanName := fmt.Sprintf("%s %s (paged+filtered)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	listSQL := fmt.Sprintf(listNetworkLogsPagedFilteredStmt, db.networkLogsTable)
-	countSQL := fmt.Sprintf(countNetworkLogsFilteredStmt, db.networkLogsTable)
+	listSQL := fmt.Sprintf(listRadioEventsPagedFilteredStmt, db.networkLogsTable)
+	countSQL := fmt.Sprintf(countRadioEventsFilteredStmt, db.networkLogsTable)
 
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
@@ -192,13 +192,13 @@ func (db *Database) ListNetworkLogs(ctx context.Context, page int, perPage int, 
 	)
 
 	// Prepare both statements with all the bind models they use
-	listStmt, err := sqlair.Prepare(listSQL, ListArgs{}, NetworkLogFilters{}, NetworkLog{})
+	listStmt, err := sqlair.Prepare(listSQL, ListArgs{}, RadioEventFilters{}, RadioEvent{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare list failed")
 		return nil, 0, err
 	}
-	countStmt, err := sqlair.Prepare(countSQL, NetworkLogFilters{}, NumItems{})
+	countStmt, err := sqlair.Prepare(countSQL, RadioEventFilters{}, NumItems{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare count failed")
@@ -219,7 +219,7 @@ func (db *Database) ListNetworkLogs(ctx context.Context, page int, perPage int, 
 	}
 
 	// Rows with filters
-	var logs []NetworkLog
+	var logs []RadioEvent
 	if err := db.conn.Query(ctx, listStmt, args, filters).GetAll(&logs); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
@@ -234,10 +234,10 @@ func (db *Database) ListNetworkLogs(ctx context.Context, page int, perPage int, 
 	return logs, total.Count, nil
 }
 
-// DeleteOldNetworkLogs removes logs older than the specified retention period in days.
-func (db *Database) DeleteOldNetworkLogs(ctx context.Context, days int) error {
+// DeleteOldRadioEvents removes logs older than the specified retention period in days.
+func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 	const operation = "DELETE"
-	const target = NetworkLogsTableName
+	const target = RadioEventsTableName
 	spanName := fmt.Sprintf("%s %s (retention)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
@@ -246,7 +246,7 @@ func (db *Database) DeleteOldNetworkLogs(ctx context.Context, days int) error {
 	// Compute UTC cutoff so string comparison works lexicographically for RFC3339
 	cutoff := time.Now().AddDate(0, 0, -days).UTC().Format(time.RFC3339)
 
-	stmtStr := fmt.Sprintf(deleteOldNetworkLogsStmt, db.networkLogsTable)
+	stmtStr := fmt.Sprintf(deleteOldRadioEventsStmt, db.networkLogsTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmtStr),
@@ -274,15 +274,15 @@ func (db *Database) DeleteOldNetworkLogs(ctx context.Context, days int) error {
 	return nil
 }
 
-func (db *Database) ClearNetworkLogs(ctx context.Context) error {
+func (db *Database) ClearRadioEvents(ctx context.Context) error {
 	const operation = "DELETE"
-	const target = NetworkLogsTableName
+	const target = RadioEventsTableName
 	spanName := fmt.Sprintf("%s %s (all)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmtStr := fmt.Sprintf(deleteAllNetworkLogsStmt, db.networkLogsTable)
+	stmtStr := fmt.Sprintf(deleteAllRadioEventsStmt, db.networkLogsTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmtStr),
@@ -307,15 +307,15 @@ func (db *Database) ClearNetworkLogs(ctx context.Context) error {
 	return nil
 }
 
-func (db *Database) GetNetworkLogByID(ctx context.Context, id int) (*NetworkLog, error) {
+func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*RadioEvent, error) {
 	const operation = "SELECT"
-	const target = NetworkLogsTableName
+	const target = RadioEventsTableName
 	spanName := fmt.Sprintf("%s %s (by ID)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	query := fmt.Sprintf(getNetworkLogByIDStmt, db.networkLogsTable)
+	query := fmt.Sprintf(getRadioEventByIDStmt, db.networkLogsTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(query),
@@ -324,14 +324,14 @@ func (db *Database) GetNetworkLogByID(ctx context.Context, id int) (*NetworkLog,
 		attribute.Int("id", id),
 	)
 
-	stmt, err := sqlair.Prepare(query, NetworkLog{})
+	stmt, err := sqlair.Prepare(query, RadioEvent{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return nil, err
 	}
 
-	log := NetworkLog{ID: id}
+	log := RadioEvent{ID: id}
 
 	if err := db.conn.Query(ctx, stmt, log).Get(&log); err != nil {
 		if err == sql.ErrNoRows {

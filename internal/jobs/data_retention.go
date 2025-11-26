@@ -53,7 +53,7 @@ func enforceRadioDataRetention(database *db.Database) error {
 		return err
 	}
 
-	if err := database.DeleteOldNetworkLogs(ctx, days); err != nil {
+	if err := database.DeleteOldRadioEvents(ctx, days); err != nil {
 		return err
 	}
 

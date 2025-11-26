@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-func TestNetworkLogsEndToEnd(t *testing.T) {
+func TestRadioEventsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
@@ -26,7 +26,7 @@ func TestNetworkLogsEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, total, err := database.ListNetworkLogs(context.Background(), 1, 10, nil)
+	res, total, err := database.ListRadioEvents(context.Background(), 1, 10, nil)
 	if err != nil {
 		t.Fatalf("couldn't list setwork logs: %s", err)
 	}
@@ -42,17 +42,17 @@ func TestNetworkLogsEndToEnd(t *testing.T) {
 	rawEntry1 := `{"timestamp":"2024-10-01T12:00:00Z","component":"Network","message_type":"test_event","direction":"inbound","protocol":"ngap","details":"This is a test setwork log entry", "raw":"SGVsbG8gd29ybGQh"}`
 	rawEntry2 := `{"timestamp":"2024-10-01T13:00:00Z","component":"Network","message_type":"another_event","direction":"outbound","protocol":"another_protocol","details":"This is another test setwork log entry", "raw":"QW5vdGhlciBsb2cgZW50cnk="}`
 
-	err = database.InsertNetworkLogJSON(context.Background(), []byte(rawEntry1))
+	err = database.InsertRadioEventJSON(context.Background(), []byte(rawEntry1))
 	if err != nil {
 		t.Fatalf("couldn't insert setwork log: %s", err)
 	}
 
-	err = database.InsertNetworkLogJSON(context.Background(), []byte(rawEntry2))
+	err = database.InsertRadioEventJSON(context.Background(), []byte(rawEntry2))
 	if err != nil {
 		t.Fatalf("couldn't insert setwork log: %s", err)
 	}
 
-	res, total, err = database.ListNetworkLogs(context.Background(), 1, 10, nil)
+	res, total, err = database.ListRadioEvents(context.Background(), 1, 10, nil)
 	if err != nil {
 		t.Fatalf("couldn't list setwork logs: %s", err)
 	}
@@ -66,15 +66,15 @@ func TestNetworkLogsEndToEnd(t *testing.T) {
 	}
 
 	if res[0].MessageType != "another_event" || res[1].MessageType != "test_event" {
-		t.Fatalf("Network logs are not in the expected order or have incorrect data")
+		t.Fatalf("Radio events are not in the expected order or have incorrect data")
 	}
 
-	err = database.DeleteOldNetworkLogs(context.Background(), 1)
+	err = database.DeleteOldRadioEvents(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("couldn't delete old setwork logs: %s", err)
 	}
 
-	res, total, err = database.ListNetworkLogs(context.Background(), 1, 10, nil)
+	res, total, err = database.ListRadioEvents(context.Background(), 1, 10, nil)
 	if err != nil {
 		t.Fatalf("couldn't list setwork logs after deletion: %s", err)
 	}
@@ -88,7 +88,7 @@ func TestNetworkLogsEndToEnd(t *testing.T) {
 	}
 }
 
-func TestGetNetworkLogByID(t *testing.T) {
+func TestGetRadioEventByID(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -115,11 +115,11 @@ func TestGetNetworkLogByID(t *testing.T) {
 		"raw":"SGVsbG8gd29ybGQh"
 	}`
 
-	if err := database.InsertNetworkLogJSON(ctx, []byte(raw)); err != nil {
+	if err := database.InsertRadioEventJSON(ctx, []byte(raw)); err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
 
-	logs, total, err := database.ListNetworkLogs(ctx, 1, 10, nil)
+	logs, total, err := database.ListRadioEvents(ctx, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("list failed: %v", err)
 	}
@@ -134,9 +134,9 @@ func TestGetNetworkLogByID(t *testing.T) {
 
 	logID := logs[0].ID
 
-	log, err := database.GetNetworkLogByID(ctx, logID)
+	log, err := database.GetRadioEventByID(ctx, logID)
 	if err != nil {
-		t.Fatalf("GetNetworkLogByID failed: %v", err)
+		t.Fatalf("GetRadioEventByID failed: %v", err)
 	}
 
 	if !reflect.DeepEqual(logs[0], *log) {
@@ -144,7 +144,7 @@ func TestGetNetworkLogByID(t *testing.T) {
 	}
 }
 
-func TestNetworkLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
+func TestRadioEventsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -171,7 +171,7 @@ func TestNetworkLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 			"details":"test",
 			"raw":"dGVzdA=="
 		}`, ts.UTC().Format(time.RFC3339), event)
-		if err := database.InsertNetworkLogJSON(ctx, []byte(raw)); err != nil {
+		if err := database.InsertRadioEventJSON(ctx, []byte(raw)); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)
 		}
 	}
@@ -189,7 +189,7 @@ func TestNetworkLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	insert(boundary, "boundary_exact")
 	insert(fresh, "fresh")
 
-	logs, total, err := database.ListNetworkLogs(ctx, 1, 10, nil)
+	logs, total, err := database.ListRadioEvents(ctx, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("list before purge failed: %v", err)
 	}
@@ -202,12 +202,12 @@ func TestNetworkLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 		t.Fatalf("expected 3 logs before purge, got %d", got)
 	}
 
-	if err := database.DeleteOldNetworkLogs(ctx, policyDays); err != nil {
+	if err := database.DeleteOldRadioEvents(ctx, policyDays); err != nil {
 		t.Fatalf("could not delete old setwork logs: %v", err)
 	}
 
 	// Verify only newer + boundary remain.
-	logs, total, err = database.ListNetworkLogs(ctx, 1, 10, nil)
+	logs, total, err = database.ListRadioEvents(ctx, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("list after purge failed: %v", err)
 	}
@@ -238,7 +238,7 @@ func TestNetworkLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	}
 }
 
-func TestListNetworkLogsProtocolFilter(t *testing.T) {
+func TestListRadioEventsProtocolFilter(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -265,7 +265,7 @@ func TestListNetworkLogsProtocolFilter(t *testing.T) {
 			"details":"test",
 			"raw":"dGVzdA=="
 		}`, time.Now().UTC().Format(time.RFC3339), event, protocol)
-		if err := database.InsertNetworkLogJSON(ctx, []byte(raw)); err != nil {
+		if err := database.InsertRadioEventJSON(ctx, []byte(raw)); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)
 		}
 	}
@@ -274,7 +274,7 @@ func TestListNetworkLogsProtocolFilter(t *testing.T) {
 	insert("protocol-002", "event-002")
 	insert("protocol-001", "event-003")
 
-	logs, total, err := database.ListNetworkLogs(ctx, 1, 10, &db.NetworkLogFilters{Protocol: ptr("protocol-001")})
+	logs, total, err := database.ListRadioEvents(ctx, 1, 10, &db.RadioEventFilters{Protocol: ptr("protocol-001")})
 	if err != nil {
 		t.Fatalf("list with protocol filter failed: %v", err)
 	}
@@ -294,7 +294,7 @@ func TestListNetworkLogsProtocolFilter(t *testing.T) {
 	}
 }
 
-func TestListNetworkLogsTimestampFilter(t *testing.T) {
+func TestListRadioEventsTimestampFilter(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -321,7 +321,7 @@ func TestListNetworkLogsTimestampFilter(t *testing.T) {
 			"details":"test",
 			"raw":"dGVzdA=="
 		}`, ts.UTC().Format(time.RFC3339), event)
-		if err := database.InsertNetworkLogJSON(ctx, []byte(raw)); err != nil {
+		if err := database.InsertRadioEventJSON(ctx, []byte(raw)); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)
 		}
 	}
@@ -340,7 +340,7 @@ func TestListNetworkLogsTimestampFilter(t *testing.T) {
 	from := past2.Format(time.RFC3339)
 	to := veryNearFuture.Format(time.RFC3339)
 
-	logs, total, err := database.ListNetworkLogs(ctx, 1, 10, &db.NetworkLogFilters{
+	logs, total, err := database.ListRadioEvents(ctx, 1, 10, &db.RadioEventFilters{
 		TimestampFrom: &from,
 		TimestampTo:   &to,
 	})
@@ -368,7 +368,7 @@ func TestListNetworkLogsTimestampFilter(t *testing.T) {
 	}
 }
 
-func TestListNetworkLogsTimestampAndProtocolFilters(t *testing.T) {
+func TestListRadioEventsTimestampAndProtocolFilters(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -395,7 +395,7 @@ func TestListNetworkLogsTimestampAndProtocolFilters(t *testing.T) {
 			"details":"test",
 			"raw":"dGVzdA=="
 		}`, ts.UTC().Format(time.RFC3339), event, protocol)
-		if err := database.InsertNetworkLogJSON(ctx, []byte(raw)); err != nil {
+		if err := database.InsertRadioEventJSON(ctx, []byte(raw)); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)
 		}
 	}
@@ -414,7 +414,7 @@ func TestListNetworkLogsTimestampAndProtocolFilters(t *testing.T) {
 	to := future.Format(time.RFC3339)
 	protocol := "protocol-001"
 
-	logs, total, err := database.ListNetworkLogs(ctx, 1, 10, &db.NetworkLogFilters{
+	logs, total, err := database.ListRadioEvents(ctx, 1, 10, &db.RadioEventFilters{
 		TimestampFrom: &from,
 		TimestampTo:   &to,
 		Protocol:      &protocol,

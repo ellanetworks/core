@@ -58,15 +58,15 @@ import {
   type EventToolbarState,
 } from "@/components/EventToolbar";
 import {
-  listNetworkLogs,
-  clearNetworkLogs,
-  getNetworkLogRetentionPolicy,
-  type NetworkLogRetentionPolicy,
-  type APINetworkLog,
-  type ListNetworkLogsResponse,
-} from "@/queries/network_logs";
+  listRadioEvents,
+  clearRadioEvents,
+  getRadioEventRetentionPolicy,
+  type RadioEventRetentionPolicy,
+  type APIRadioEvent,
+  type ListRadioEventsResponse,
+} from "@/queries/radio_events";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
-import EditNetworkLogRetentionPolicyModal from "@/components/EditNetworkLogRetentionPolicyModal";
+import EditRadioEventRetentionPolicyModal from "@/components/EditRadioEventRetentionPolicyModal";
 import EventDetails from "@/components/EventDetails";
 import type { LogRow } from "@/components/EventDetails";
 
@@ -87,7 +87,7 @@ const PROTOCOL_EQ = getGridSingleSelectOperators().filter(
 const normalizeRfc3339Offset = (s: string) =>
   s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
 
-type GridNetworkLog = APINetworkLog & { timestamp_dt: Date | null };
+type GridRadioEvent = APIRadioEvent & { timestamp_dt: Date | null };
 const DATE_AFTER_BEFORE_ONLY = getGridDateOperators(true).filter(
   (op) => op.value === "after" || op.value === "before",
 ) as unknown as readonly GridFilterOperator[];
@@ -289,10 +289,10 @@ const EventsTab: React.FC = () => {
   const [isNetworkEditModalOpen, setNetworkEditModalOpen] = useState(false);
   const [isNetworkClearModalOpen, setNetworkClearModalOpen] = useState(false);
 
-  const retentionQuery = useQuery<NetworkLogRetentionPolicy>({
+  const retentionQuery = useQuery<RadioEventRetentionPolicy>({
     queryKey: ["networkLogRetention", accessToken],
     enabled: authReady && !!accessToken && !isNetworkEditModalOpen,
-    queryFn: () => getNetworkLogRetentionPolicy(accessToken!),
+    queryFn: () => getRadioEventRetentionPolicy(accessToken!),
   });
 
   const subToolbarValue = useMemo<EventToolbarState>(
@@ -318,7 +318,7 @@ const EventsTab: React.FC = () => {
   const pageOneBased = paginationModel.page + 1;
   const perPage = paginationModel.pageSize;
 
-  const networkLogsQuery = useQuery<ListNetworkLogsResponse>({
+  const networkLogsQuery = useQuery<ListRadioEventsResponse>({
     queryKey: [
       "networkLogs",
       pageOneBased,
@@ -331,13 +331,13 @@ const EventsTab: React.FC = () => {
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const filterParams = filtersToParams(networkFilterModel);
-      return listNetworkLogs(accessToken!, pageOneBased, perPage, filterParams);
+      return listRadioEvents(accessToken!, pageOneBased, perPage, filterParams);
     },
   });
 
-  const networkRows: GridNetworkLog[] = useMemo(() => {
+  const networkRows: GridRadioEvent[] = useMemo(() => {
     const items = networkLogsQuery.data?.items ?? [];
-    return items.map<GridNetworkLog>((r) => ({
+    return items.map<GridRadioEvent>((r) => ({
       ...r,
       timestamp_dt: r.timestamp
         ? new Date(normalizeRfc3339Offset(r.timestamp))
@@ -347,25 +347,25 @@ const EventsTab: React.FC = () => {
 
   const subRowCount = networkLogsQuery.data?.total_count ?? 0;
 
-  const handleConfirmDeleteNetworkLogs = async () => {
+  const handleConfirmDeleteRadioEvents = async () => {
     setNetworkClearModalOpen(false);
     if (!accessToken) return;
     try {
-      await clearNetworkLogs(accessToken);
+      await clearRadioEvents(accessToken);
       setAlert({
-        message: `All network logs cleared successfully!`,
+        message: `All radio events cleared successfully!`,
         severity: "success",
       });
       networkLogsQuery.refetch();
     } catch (error: unknown) {
       setAlert({
-        message: `Failed to clear network logs: ${String(error)}`,
+        message: `Failed to clear radio events: ${String(error)}`,
         severity: "error",
       });
     }
   };
 
-  const networkColumns: GridColDef<APINetworkLog>[] = useMemo(() => {
+  const networkColumns: GridColDef<APIRadioEvent>[] = useMemo(() => {
     return [
       {
         field: "timestamp_dt",
@@ -432,7 +432,7 @@ const EventsTab: React.FC = () => {
     ];
   }, []);
 
-  const handleRowClick = useCallback((params: GridRowParams<APINetworkLog>) => {
+  const handleRowClick = useCallback((params: GridRowParams<APIRadioEvent>) => {
     const r = params.row;
     setSelectionModel(makeSelection([params.id]));
     setSelectedRow({
@@ -519,7 +519,7 @@ const EventsTab: React.FC = () => {
               <Box sx={{ flex: 1, minHeight: 0 }}>
                 <ThemeProvider theme={gridTheme}>
                   <EventToolbarContext.Provider value={subToolbarValue}>
-                    <DataGrid<APINetworkLog>
+                    <DataGrid<APIRadioEvent>
                       rows={networkRows}
                       columns={networkColumns}
                       getRowId={(row) => row.id}
@@ -621,7 +621,7 @@ const EventsTab: React.FC = () => {
       </PanelGroup>
 
       {/* Modals */}
-      <EditNetworkLogRetentionPolicyModal
+      <EditRadioEventRetentionPolicyModal
         open={isNetworkEditModalOpen}
         onClose={() => setNetworkEditModalOpen(false)}
         onSuccess={() => {
@@ -635,10 +635,10 @@ const EventsTab: React.FC = () => {
       />
       <DeleteConfirmationModal
         title="Clear All Network Logs"
-        description="Are you sure you want to clear all network logs? This action cannot be undone."
+        description="Are you sure you want to clear all radio events? This action cannot be undone."
         open={isNetworkClearModalOpen}
         onClose={() => setNetworkClearModalOpen(false)}
-        onConfirm={handleConfirmDeleteNetworkLogs}
+        onConfirm={handleConfirmDeleteRadioEvents}
       />
     </Box>
   );

@@ -81,10 +81,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	defer logCancel()
 
 	auditWriter := dbInstance.AuditWriteFunc(logCtx)
-	networkWriter := dbInstance.NetworkWriteFunc(logCtx)
+	radioEventWriter := dbInstance.RadioEventWriteFunc(logCtx)
 
 	logger.SetAuditDBWriter(auditWriter)
-	logger.SetNetworkDBWriter(networkWriter)
+	logger.SetRadioEventDBWriter(radioEventWriter)
 
 	metrics.RegisterDatabaseMetrics(dbInstance)
 

@@ -19,7 +19,7 @@ import {
   WarningAmberRounded as WarningAmberRoundedIcon,
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
-import { getNetworkLog, type NetworkLogContent } from "@/queries/network_logs";
+import { getRadioEvent, type RadioEventContent } from "@/queries/radio_events";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { GenericMessageView } from "@/components/EventMessageRender";
@@ -104,11 +104,11 @@ export default function EventDetails({
     isLoading: isRetrieving,
     isError: isRetrieveError,
     error: retrieveError,
-    refetch: refetchNetworkLog,
-    isFetching: isNetworkLogFetching,
-  } = useQuery<NetworkLogContent>({
+    refetch: refetchRadioEvent,
+    isFetching: isRadioEventFetching,
+  } = useQuery<RadioEventContent>({
     queryKey: ["decoded-log", log?.id],
-    queryFn: async () => getNetworkLog(accessToken!, log!.id),
+    queryFn: async () => getRadioEvent(accessToken!, log!.id),
     enabled: open && !!log?.id && !!accessToken,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
@@ -133,7 +133,7 @@ export default function EventDetails({
   };
 
   const content = (() => {
-    if (isRetrieving || isNetworkLogFetching) {
+    if (isRetrieving || isRadioEventFetching) {
       return (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <CircularProgress size={18} />
@@ -149,7 +149,7 @@ export default function EventDetails({
             <Button
               size="small"
               startIcon={<RefreshIcon fontSize="small" />}
-              onClick={() => refetchNetworkLog()}
+              onClick={() => refetchRadioEvent()}
             >
               Retry
             </Button>

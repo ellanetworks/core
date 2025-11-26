@@ -127,10 +127,10 @@ func NewDatabase(databasePath string) (*Database, error) {
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateAuditLogsTable, AuditLogsTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateNetworkLogsTable, NetworkLogsTableName)); err != nil {
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRadioEventsTable, RadioEventsTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(QueryCreateNetworkLogsIndex); err != nil {
+	if _, err := sqlConnection.Exec(QueryCreateRadioEventsIndex); err != nil {
 		return nil, err
 	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRetentionPolicyTable, RetentionPolicyTableName)); err != nil {
@@ -164,7 +164,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.sessionsTable = SessionsTableName
 	db.natSettingsTable = NATSettingsTableName
 	db.n3SettingsTable = N3SettingsTableName
-	db.networkLogsTable = NetworkLogsTableName
+	db.networkLogsTable = RadioEventsTableName
 	db.dailyUsageTable = DailyUsageTableName
 
 	err = db.Initialize()
@@ -232,10 +232,10 @@ func (db *Database) Initialize() error {
 		}
 
 		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
-			return fmt.Errorf("failed to initialize network log retention policy: %v", err)
+			return fmt.Errorf("failed to initialize radio event retention policy: %v", err)
 		}
 
-		logger.DBLog.Info("Initialized network log retention policy", zap.Int("days", DefaultLogRetentionDays))
+		logger.DBLog.Info("Initialized radio event retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
 	if !db.IsRetentionPolicyInitialized(context.Background(), CategorySubscriberUsage) {

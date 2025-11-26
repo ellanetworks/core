@@ -1,10 +1,10 @@
 import { HTTPStatus } from "@/queries/utils";
 
-export type NetworkLogRetentionPolicy = {
+export type RadioEventRetentionPolicy = {
   days: number;
 };
 
-export type APINetworkLog = {
+export type APIRadioEvent = {
   id: number;
   timestamp: string;
   protocol: string;
@@ -15,20 +15,20 @@ export type APINetworkLog = {
   details?: string;
 };
 
-export type ListNetworkLogsResponse = {
-  items: APINetworkLog[];
+export type ListRadioEventsResponse = {
+  items: APIRadioEvent[];
   page: number;
   per_page: number;
   total_count: number;
 };
 
-export async function listNetworkLogs(
+export async function listRadioEvents(
   authToken: string,
   page: number,
   perPage: number,
   params?: Record<string, string | string[]>,
-): Promise<ListNetworkLogsResponse> {
-  const url = new URL(`/api/v1/logs/network`, window.location.origin);
+): Promise<ListRadioEventsResponse> {
+  const url = new URL(`/api/v1/ran/events`, window.location.origin);
   url.searchParams.set("page", String(page));
   url.searchParams.set("per_page", String(perPage));
 
@@ -47,7 +47,7 @@ export async function listNetworkLogs(
     },
   });
 
-  let json: { result: ListNetworkLogsResponse; error?: string };
+  let json: { result: ListRadioEventsResponse; error?: string };
   try {
     json = await response.json();
   } catch {
@@ -71,7 +71,7 @@ export type EnumField = {
   type: "enum";
 };
 
-export type DecodedNetworkLog = {
+export type DecodedRadioEvent = {
   pdu_type: string;
   message_type: string;
   procedure_code: EnumField;
@@ -79,16 +79,16 @@ export type DecodedNetworkLog = {
   value: unknown;
 };
 
-export type NetworkLogContent = {
-  decoded: DecodedNetworkLog;
+export type RadioEventContent = {
+  decoded: DecodedRadioEvent;
   raw: string;
 };
 
-export async function getNetworkLog(
+export async function getRadioEvent(
   authToken: string,
   id: string,
-): Promise<NetworkLogContent> {
-  const url = new URL(`/api/v1/logs/network/${id}`, window.location.origin);
+): Promise<RadioEventContent> {
+  const url = new URL(`/api/v1/ran/events/${id}`, window.location.origin);
 
   const response = await fetch(url.toString(), {
     method: "GET",
@@ -98,7 +98,7 @@ export async function getNetworkLog(
     },
   });
 
-  let json: { result: NetworkLogContent; error?: string };
+  let json: { result: RadioEventContent; error?: string };
   try {
     json = await response.json();
   } catch {
@@ -116,8 +116,8 @@ export async function getNetworkLog(
   return json.result;
 }
 
-export async function clearNetworkLogs(authToken: string): Promise<void> {
-  const response = await fetch(`/api/v1/logs/network`, {
+export async function clearRadioEvents(authToken: string): Promise<void> {
+  const response = await fetch(`/api/v1/ran/events`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
@@ -140,8 +140,8 @@ export async function clearNetworkLogs(authToken: string): Promise<void> {
   }
 }
 
-export const getNetworkLogRetentionPolicy = async (authToken: string) => {
-  const response = await fetch(`/api/v1/logs/network/retention`, {
+export const getRadioEventRetentionPolicy = async (authToken: string) => {
+  const response = await fetch(`/api/v1/ran/events/retention`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -166,11 +166,11 @@ export const getNetworkLogRetentionPolicy = async (authToken: string) => {
   return respData.result;
 };
 
-export const updateNetworkLogRetentionPolicy = async (
+export const updateRadioEventRetentionPolicy = async (
   authToken: string,
   days: number,
 ) => {
-  const response = await fetch(`/api/v1/logs/network/retention`, {
+  const response = await fetch(`/api/v1/ran/events/retention`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
