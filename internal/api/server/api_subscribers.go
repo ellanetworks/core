@@ -187,7 +187,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 
 func GetSubscriber(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		imsi := pathParam(r.URL.Path, "/api/v1/subscribers/")
+		imsi := r.PathValue("imsi")
 		if imsi == "" {
 			writeError(w, http.StatusBadRequest, "Missing imsi parameter", errors.New("imsi required"), logger.APILog)
 			return
@@ -338,7 +338,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
-		imsi := pathParam(r.URL.Path, "/api/v1/subscribers/")
+		imsi := r.PathValue("imsi")
 		if imsi == "" {
 			writeError(w, http.StatusBadRequest, "Missing imsi parameter", errors.New("imsi required"), logger.APILog)
 			return
@@ -397,7 +397,8 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
-		imsi := pathParam(r.URL.Path, "/api/v1/subscribers/")
+
+		imsi := r.PathValue("imsi")
 		if imsi == "" {
 			writeError(w, http.StatusBadRequest, "Missing imsi parameter", errors.New("imsi required"), logger.APILog)
 			return

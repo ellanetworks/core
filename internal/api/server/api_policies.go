@@ -134,7 +134,7 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 
 func GetPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		name := strings.TrimPrefix(r.URL.Path, "/api/v1/policies/")
+		name := r.PathValue("name")
 		if name == "" {
 			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
@@ -168,7 +168,7 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
-		name := strings.TrimPrefix(r.URL.Path, "/api/v1/policies/")
+		name := r.PathValue("name")
 		if name == "" {
 			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
@@ -264,8 +264,8 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		groupName := strings.TrimPrefix(r.URL.Path, "/api/v1/policies/")
-		if groupName == "" || strings.ContainsRune(groupName, '/') {
+		policyName := r.PathValue("name")
+		if policyName == "" || strings.ContainsRune(policyName, '/') {
 			writeError(w, http.StatusBadRequest, "Invalid or missing name parameter", nil, logger.APILog)
 			return
 		}
@@ -281,7 +281,7 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		policy, err := dbInstance.GetPolicy(r.Context(), groupName)
+		policy, err := dbInstance.GetPolicy(r.Context(), policyName)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "Policy not found", err, logger.APILog)
 			return
