@@ -21,6 +21,7 @@ import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 // Data Networks
 import {
@@ -95,7 +96,15 @@ export default function NetworkingPage() {
   const { role, accessToken } = useAuth();
   const canEdit = role === "Admin" || role === "Network Manager";
 
-  const [tab, setTab] = useState<TabKey>("data-networks");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  // Read initial tab from URL, fallback to default
+  const initialTabFromUrl =
+    (searchParams.get("tab") as TabKey) || "data-networks";
+
+  const [tab, setTab] = useState<TabKey>(initialTabFromUrl);
 
   // ---------------- Alerts ----------------
   const [dnAlert, setDnAlert] = useState<{
@@ -421,6 +430,16 @@ export default function NetworkingPage() {
     [],
   );
 
+  const handleTabChange = (_: React.SyntheticEvent, newValue: TabKey) => {
+    setTab(newValue);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", newValue);
+
+    // Keep the same path, just change the query string
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
   // ---------------- Render ----------------
   return (
     <Box
@@ -442,7 +461,7 @@ export default function NetworkingPage() {
 
         <Tabs
           value={tab}
-          onChange={(_, v) => setTab(v as TabKey)}
+          onChange={handleTabChange}
           aria-label="Networking sections"
           sx={{ borderBottom: 1, borderColor: "divider" }}
         >
