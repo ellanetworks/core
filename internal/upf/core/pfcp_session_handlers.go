@@ -103,7 +103,22 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 			if err != nil {
 				return fmt.Errorf("URR ID missing")
 			}
-			logger.UpfLog.Info("Received Usage Reporting Rule create - Not yet supported", zap.Uint32("urrID", urrId))
+
+			if !urr.HasVOLUM() {
+				return fmt.Errorf("only Volume Measurement Method is supported, received")
+			}
+
+			measurementPeriod, err := urr.MeasurementPeriod()
+			if err != nil {
+				return fmt.Errorf("measurement period is invalid: %s", err.Error())
+			}
+
+			logger.UpfLog.Info(
+				"Received Usage Reporting Rule create - Not yet supported",
+				zap.Uint32("urrID", urrId),
+				zap.String("measurement_method", "Volume"),
+				zap.Duration("measurementPeriod", measurementPeriod),
+			)
 		}
 
 		for _, pdr := range msg.CreatePDR {
@@ -317,7 +332,22 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			if err != nil {
 				return fmt.Errorf("URR ID missing")
 			}
-			logger.UpfLog.Info("Received Usage Reporting Rule create - Not yet supported", zap.Uint32("urrID", urrId))
+
+			if !urr.HasVOLUM() {
+				return fmt.Errorf("only Volume Measurement Method is supported, received")
+			}
+
+			measurementPeriod, err := urr.MeasurementPeriod()
+			if err != nil {
+				return fmt.Errorf("measurement period is invalid: %s", err.Error())
+			}
+
+			logger.UpfLog.Info(
+				"Received Usage Reporting Rule create - Not yet supported",
+				zap.Uint32("urrID", urrId),
+				zap.String("measurement_method", "Volume"),
+				zap.Duration("measurementPeriod", measurementPeriod),
+			)
 		}
 
 		for _, urr := range msg.UpdateURR {
@@ -325,7 +355,19 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			if err != nil {
 				return fmt.Errorf("URR ID missing")
 			}
-			logger.UpfLog.Info("Received Usage Reporting Rule update - Not yet supported", zap.Uint32("urrID", urrId))
+			if !urr.HasVOLUM() {
+				return fmt.Errorf("only Volume Measurement Method is supported, received")
+			}
+			measurementPeriod, err := urr.MeasurementPeriod()
+			if err != nil {
+				return fmt.Errorf("measurement period is invalid: %s", err.Error())
+			}
+			logger.UpfLog.Info(
+				"Received Usage Reporting Rule update - Not yet supported",
+				zap.Uint32("urrID", urrId),
+				zap.String("measurement_method", "Volume"),
+				zap.Duration("measurementPeriod", measurementPeriod),
+			)
 		}
 
 		for _, urr := range msg.RemoveURR {

@@ -7,11 +7,14 @@
 package pfcp
 
 import (
+	"encoding/binary"
 	"net"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
+	"go.uber.org/zap"
 )
 
 type Flag uint8
@@ -108,6 +111,11 @@ func pdrToCreatePDR(pdr *context.PDR) *ie.IE {
 			ies = append(ies, ie.NewQERID(qer.QERID))
 		}
 	}
+
+	if pdr.URR != nil {
+		ies = append(ies, ie.NewURRID(pdr.URR.URRID))
+	}
+
 	return ie.NewCreatePDR(ies...)
 }
 
@@ -162,6 +170,84 @@ func qerToCreateQER(qer *context.QER) *ie.IE {
 		createQERies = append(createQERies, ie.NewGBR(qer.GBR.ULGBR, qer.GBR.DLGBR))
 	}
 	return ie.NewCreateQER(createQERies...)
+}
+
+func buildReportingTriggerIE(rt *context.ReportingTriggers) *ie.IE {
+	b := make([]byte, 4)
+
+	var rtFlags uint32
+	if rt.PeriodicReporting {
+		rtFlags |= 1 << 0
+	}
+	if rt.VolumeThreshold {
+		rtFlags |= 1 << 1
+	}
+	if rt.TimeThreshold {
+		rtFlags |= 1 << 2
+	}
+	if rt.QuotaHoldingTime {
+		rtFlags |= 1 << 3
+	}
+	if rt.StartOfTraffic {
+		rtFlags |= 1 << 4
+	}
+	if rt.StopOfTraffic {
+		rtFlags |= 1 << 5
+	}
+	if rt.DroppedDLTrafficThreshold {
+		rtFlags |= 1 << 6
+	}
+	if rt.LinkedUsageReporting {
+		rtFlags |= 1 << 7
+	}
+
+	if rt.VolumeQuota {
+		rtFlags |= 1 << 8
+	}
+	if rt.TimeQuota {
+		rtFlags |= 1 << 9
+	}
+	if rt.EnvelopeClosure {
+		rtFlags |= 1 << 10
+	}
+	if rt.MACAddressesReporting {
+		rtFlags |= 1 << 11
+	}
+	if rt.EventThreshold {
+		rtFlags |= 1 << 12
+	}
+	if rt.EventQuota {
+		rtFlags |= 1 << 13
+	}
+	if rt.IPMulticastJoinLeave {
+		rtFlags |= 1 << 14
+	}
+	if rt.QuotaValidityTime {
+		rtFlags |= 1 << 15
+	}
+	if rt.ReportEndMarkerReception {
+		rtFlags |= 1 << 23
+	}
+
+	binary.LittleEndian.PutUint32(b, rtFlags)
+	return ie.NewReportingTriggers(b[:3]...)
+}
+
+func urrToCreateURR(urr *context.URR) *ie.IE {
+	logger.SmfLog.Warn("Creating URR with Volume Measurement Method only is supported", zap.Duration("measurement period", urr.MeasurementPeriod))
+	return ie.NewCreateURR(
+		ie.NewURRID(urr.URRID),
+		ie.NewMeasurementMethod(boolToInt(urr.MeasurementMethods.Event), boolToInt(urr.MeasurementMethods.Volume), boolToInt(urr.MeasurementMethods.Duration)),
+		buildReportingTriggerIE(&urr.ReportingTriggers),
+		ie.NewMeasurementPeriod(urr.MeasurementPeriod),
+	)
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func pdrToUpdatePDR(pdr *context.PDR) *ie.IE {
@@ -240,6 +326,7 @@ func BuildPfcpSessionEstablishmentRequest(
 	pdrList []*context.PDR,
 	farList []*context.FAR,
 	qerList []*context.QER,
+	urrList []*context.URR,
 ) (*message.SessionEstablishmentRequest, error) {
 	ies := make([]*ie.IE, 0)
 	ies = append(ies, ie.NewNodeIDHeuristic(nodeID))
@@ -267,6 +354,10 @@ func BuildPfcpSessionEstablishmentRequest(
 			ies = append(ies, qerToCreateQER(filteredQER))
 		}
 		filteredQER.State = context.RuleCreate
+	}
+
+	for _, urr := range urrList {
+		ies = append(ies, urrToCreateURR(urr))
 	}
 
 	ies = append(ies, ie.NewPDNType(ie.PDNTypeIPv4))

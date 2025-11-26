@@ -138,8 +138,42 @@ type QER struct {
 	QERID uint32
 }
 
+type MeasurementMethods struct {
+	Duration bool
+	Volume   bool
+	Event    bool
+}
+
+type ReportingTriggers struct {
+	PeriodicReporting         bool
+	VolumeThreshold           bool
+	TimeThreshold             bool
+	QuotaHoldingTime          bool
+	StartOfTraffic            bool
+	StopOfTraffic             bool
+	DroppedDLTrafficThreshold bool
+	LinkedUsageReporting      bool
+
+	VolumeQuota           bool
+	TimeQuota             bool
+	EnvelopeClosure       bool
+	MACAddressesReporting bool
+	EventThreshold        bool
+	EventQuota            bool
+	IPMulticastJoinLeave  bool
+	QuotaValidityTime     bool
+
+	ReportEndMarkerReception bool
+}
+
 // Usage Report Rule
-type URR struct{}
+type URR struct {
+	URRID              uint32
+	MeasurementMethods MeasurementMethods
+	ReportingTriggers  ReportingTriggers
+
+	MeasurementPeriod time.Duration
+}
 
 func (pdr PDR) String() string {
 	return fmt.Sprintf("PDR:[PdrId:[%v], Precedence:[%v], PDI:[%v], OuterHeaderRem:[%v], Far:[%v], RuleState:[%v], QERS:[%v]]",
