@@ -11,6 +11,7 @@ import (
 func BuildPfcpSessionReportRequest(remoteSEID uint64, sequenceNumber uint32, pdrid uint16, qfi uint8) (*message.SessionReportRequest, error) {
 	ies := make([]*ie.IE, 0)
 	ies = append(ies, ie.NewDownlinkDataReport(ie.NewPDRID(pdrid), ie.NewDownlinkDataServiceInformation(false, true, 0, qfi)))
+	ies = append(ies, ie.NewReportType(0, 0, 0, 1))
 	return message.NewSessionReportRequest(
 		1,
 		0,
