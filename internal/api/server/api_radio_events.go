@@ -211,7 +211,7 @@ func GetRadioEvent(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		networkIDStr := strings.TrimPrefix(r.URL.Path, "/api/v1/ran/events/")
+		networkIDStr := r.PathValue("id")
 		networkID, err := strconv.Atoi(networkIDStr)
 		if err != nil || networkID < 1 {
 			writeError(w, http.StatusBadRequest, "Invalid radio event ID", err, logger.APILog)

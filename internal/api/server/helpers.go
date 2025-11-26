@@ -7,13 +7,6 @@ import (
 	"strings"
 )
 
-func pathParam(path, prefix string) string {
-	if strings.HasPrefix(path, prefix) {
-		return strings.TrimPrefix(path, prefix)
-	}
-	return ""
-}
-
 func getEmailFromContext(r *http.Request) string {
 	if email, ok := r.Context().Value(contextKeyEmail).(string); ok {
 		return email

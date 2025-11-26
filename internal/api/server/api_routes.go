@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
@@ -116,7 +115,7 @@ func ListRoutes(dbInstance *db.Database) http.Handler {
 
 func GetRoute(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		idStr := strings.TrimPrefix(r.URL.Path, "/api/v1/networking/routes/")
+		idStr := r.PathValue("id")
 		idNum, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid id format", err, logger.APILog)
@@ -280,7 +279,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			return
 		}
 
-		routeIDStr := strings.TrimPrefix(r.URL.Path, "/api/v1/networking/routes/")
+		routeIDStr := r.PathValue("id")
 		routeID, err := strconv.ParseInt(routeIDStr, 10, 64)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid id format", err, logger.APILog)

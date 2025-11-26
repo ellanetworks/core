@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/mail"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -152,7 +151,7 @@ func ListUsers(dbInstance *db.Database) http.Handler {
 
 func GetUser(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailParam := strings.TrimPrefix(r.URL.Path, "/api/v1/users/")
+		emailParam := r.PathValue("email")
 		if emailParam == "" {
 			writeError(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
 			return
@@ -278,7 +277,7 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		emailParam := strings.TrimPrefix(r.URL.Path, "/api/v1/users/")
+		emailParam := r.PathValue("email")
 		if emailParam == "" {
 			writeError(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
 			return
@@ -318,7 +317,7 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		emailParam := strings.TrimPrefix(strings.TrimSuffix(r.URL.Path, "/password"), "/api/v1/users/")
+		emailParam := r.PathValue("email")
 		if emailParam == "" {
 			writeError(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
 			return
@@ -399,7 +398,7 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		emailParam := strings.TrimPrefix(r.URL.Path, "/api/v1/users/")
+		emailParam := r.PathValue("email")
 		if emailParam == "" {
 			writeError(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
 			return
@@ -621,7 +620,7 @@ func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		idParam := strings.TrimPrefix(r.URL.Path, "/api/v1/users/me/api-tokens/")
+		idParam := r.PathValue("id")
 		if idParam == "" {
 			writeError(w, http.StatusBadRequest, "Missing token ID parameter", errors.New("missing param"), logger.APILog)
 			return

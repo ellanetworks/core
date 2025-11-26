@@ -103,7 +103,7 @@ func ListDataNetworks(dbInstance *db.Database) http.Handler {
 
 func GetDataNetwork(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		name := strings.TrimPrefix(r.URL.Path, "/api/v1/networking/data-networks/")
+		name := r.PathValue("name")
 		if name == "" {
 			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
@@ -136,7 +136,7 @@ func DeleteDataNetwork(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
-		name := strings.TrimPrefix(r.URL.Path, "/api/v1/networking/data-networks/")
+		name := r.PathValue("name")
 		if name == "" {
 			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
@@ -223,7 +223,7 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		name := strings.TrimPrefix(r.URL.Path, "/api/v1/networking/data-networks/")
+		name := r.PathValue("name")
 		if name == "" || strings.ContainsRune(name, '/') {
 			writeError(w, http.StatusBadRequest, "Invalid or missing name parameter", nil, logger.APILog)
 			return
