@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	DefaultDNIPPool = "10.45.0.0/16"
+	DefaultDNIPPool = "10.45.0.0/22"
 )
 
 func TestDatabaseMetrics(t *testing.T) {
