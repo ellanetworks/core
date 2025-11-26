@@ -102,8 +102,15 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("PUT /api/v1/networking/interfaces/n3", Authenticate(jwtSecret, dbInstance, RequirePermission(PermUpdateN3Interface, jwtSecret, UpdateN3Interface(dbInstance, upf, cfg))).ServeHTTP)
 
 	// Radios (Authenticated)
-	mux.HandleFunc("GET /api/v1/radios", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListRadios, jwtSecret, ListRadios())).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/radios/", Authenticate(jwtSecret, dbInstance, RequirePermission(PermReadRadio, jwtSecret, GetRadio())).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/ran/radios", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListRadios, jwtSecret, ListRadios())).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/ran/radios/", Authenticate(jwtSecret, dbInstance, RequirePermission(PermReadRadio, jwtSecret, GetRadio())).ServeHTTP)
+
+	// Radio Events (Authenticated)
+	mux.HandleFunc("GET /api/v1/ran/events/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetRadioEventRetentionPolicy, jwtSecret, GetRadioEventRetentionPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/ran/events/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermSetRadioEventRetentionPolicy, jwtSecret, UpdateRadioEventRetentionPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/ran/events", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListRadioEvents, jwtSecret, ListRadioEvents(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/ran/events", Authenticate(jwtSecret, dbInstance, RequirePermission(PermClearRadioEvents, jwtSecret, ClearRadioEvents(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/ran/events/{id}", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetRadioEvent, jwtSecret, GetRadioEvent(dbInstance))).ServeHTTP)
 
 	// Backup and Restore (Authenticated)
 	mux.HandleFunc("POST /api/v1/backup", Authenticate(jwtSecret, dbInstance, RequirePermission(PermBackup, jwtSecret, Backup(dbInstance))).ServeHTTP)
@@ -113,13 +120,6 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("GET /api/v1/logs/audit/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetAuditLogRetentionPolicy, jwtSecret, GetAuditLogRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/logs/audit/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermSetAuditLogRetentionPolicy, jwtSecret, UpdateAuditLogRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/logs/audit", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListAuditLogs, jwtSecret, ListAuditLogs(dbInstance))).ServeHTTP)
-
-	// Network Logs (Authenticated)
-	mux.HandleFunc("GET /api/v1/logs/network/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetNetworkLogRetentionPolicy, jwtSecret, GetNetworkLogRetentionPolicy(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/logs/network/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermSetNetworkLogRetentionPolicy, jwtSecret, UpdateNetworkLogRetentionPolicy(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/logs/network", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListNetworkLogs, jwtSecret, ListNetworkLogs(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/v1/logs/network", Authenticate(jwtSecret, dbInstance, RequirePermission(PermClearNetworkLogs, jwtSecret, ClearNetworkLogs(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/logs/network/{id}", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetNetworkLog, jwtSecret, GetNetworkLog(dbInstance))).ServeHTTP)
 
 	// Fallback to UI
 	frontendHandler, err := newFrontendFileServer(embedFS)

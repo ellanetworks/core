@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-type NetworkLog struct {
+type RadioEvent struct {
 	ID          int    `json:"id"`
 	Timestamp   string `json:"timestamp"`
 	Protocol    string `json:"protocol"`
@@ -19,41 +19,41 @@ type NetworkLog struct {
 	Details     string `json:"details"`
 }
 
-type ListNetworkLogResponseResult struct {
-	Items      []NetworkLog `json:"items"`
+type ListRadioEventResponseResult struct {
+	Items      []RadioEvent `json:"items"`
 	Page       int          `json:"page"`
 	PerPage    int          `json:"per_page"`
 	TotalCount int          `json:"total_count"`
 }
 
-type ListNetworkLogResponse struct {
-	Result ListNetworkLogResponseResult `json:"result"`
+type ListRadioEventResponse struct {
+	Result ListRadioEventResponseResult `json:"result"`
 	Error  string                       `json:"error,omitempty"`
 }
 
-type GetNetworkLogsRetentionPolicyResponseResult struct {
+type GetRadioEventsRetentionPolicyResponseResult struct {
 	Days int `json:"days"`
 }
 
-type GetNetworkLogRetentionPolicyResponse struct {
-	Result *GetNetworkLogsRetentionPolicyResponseResult `json:"result,omitempty"`
+type GetRadioEventRetentionPolicyResponse struct {
+	Result *GetRadioEventsRetentionPolicyResponseResult `json:"result,omitempty"`
 	Error  string                                       `json:"error,omitempty"`
 }
 
-type UpdateNetworkLogPolicyResponseResult struct {
+type UpdateRadioEventPolicyResponseResult struct {
 	Message string `json:"message"`
 }
 
-type UpdateNetworkLogRetentionPolicyResponse struct {
-	Result *UpdateNetworkLogPolicyResponseResult `json:"result,omitempty"`
+type UpdateRadioEventRetentionPolicyResponse struct {
+	Result *UpdateRadioEventPolicyResponseResult `json:"result,omitempty"`
 	Error  string                                `json:"error,omitempty"`
 }
 
-type UpdateNetworkLogRetentionPolicyParams struct {
+type UpdateRadioEventRetentionPolicyParams struct {
 	Days int `json:"days"`
 }
 
-func listNetworkLogs(url string, client *http.Client, token string, page int, perPage int, filters map[string]string) (int, *ListNetworkLogResponse, error) {
+func listRadioEvents(url string, client *http.Client, token string, page int, perPage int, filters map[string]string) (int, *ListRadioEventResponse, error) {
 	var queryParams []string
 
 	queryParams = append(queryParams, fmt.Sprintf("page=%d", page))
@@ -63,7 +63,7 @@ func listNetworkLogs(url string, client *http.Client, token string, page int, pe
 		queryParams = append(queryParams, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/logs/network?%s", url, strings.Join(queryParams, "&")), nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/ran/events?%s", url, strings.Join(queryParams, "&")), nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -81,7 +81,7 @@ func listNetworkLogs(url string, client *http.Client, token string, page int, pe
 		}
 	}()
 
-	var networksLogResponse ListNetworkLogResponse
+	var networksLogResponse ListRadioEventResponse
 
 	if err := json.NewDecoder(res.Body).Decode(&networksLogResponse); err != nil {
 		return 0, nil, err
@@ -90,8 +90,8 @@ func listNetworkLogs(url string, client *http.Client, token string, page int, pe
 	return res.StatusCode, &networksLogResponse, nil
 }
 
-func getNetworkLogRetentionPolicy(url string, client *http.Client, token string) (int, *GetNetworkLogRetentionPolicyResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/logs/network/retention", nil)
+func getRadioEventRetentionPolicy(url string, client *http.Client, token string) (int, *GetRadioEventRetentionPolicyResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/ran/events/retention", nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -106,7 +106,7 @@ func getNetworkLogRetentionPolicy(url string, client *http.Client, token string)
 		}
 	}()
 
-	var retentionPolicyResponse GetNetworkLogRetentionPolicyResponse
+	var retentionPolicyResponse GetRadioEventRetentionPolicyResponse
 	if err := json.NewDecoder(res.Body).Decode(&retentionPolicyResponse); err != nil {
 		return 0, nil, err
 	}
@@ -114,12 +114,12 @@ func getNetworkLogRetentionPolicy(url string, client *http.Client, token string)
 	return res.StatusCode, &retentionPolicyResponse, nil
 }
 
-func editNetworkLogRetentionPolicy(url string, client *http.Client, token string, data *UpdateNetworkLogRetentionPolicyParams) (int, *UpdateNetworkLogRetentionPolicyResponse, error) {
+func editRadioEventRetentionPolicy(url string, client *http.Client, token string, data *UpdateRadioEventRetentionPolicyParams) (int, *UpdateRadioEventRetentionPolicyResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/logs/network/retention", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/ran/events/retention", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -133,14 +133,14 @@ func editNetworkLogRetentionPolicy(url string, client *http.Client, token string
 			panic(err)
 		}
 	}()
-	var updateResponse UpdateNetworkLogRetentionPolicyResponse
+	var updateResponse UpdateRadioEventRetentionPolicyResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
 	return res.StatusCode, &updateResponse, nil
 }
 
-func TestAPINetworkLogs(t *testing.T) {
+func TestAPIRadioEvents(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 	ts, _, _, err := setupServer(dbPath)
@@ -155,9 +155,9 @@ func TestAPINetworkLogs(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	statusCode, response, err := listNetworkLogs(ts.URL, client, token, 1, 10, nil)
+	statusCode, response, err := listRadioEvents(ts.URL, client, token, 1, 10, nil)
 	if err != nil {
-		t.Fatalf("couldn't list network logs: %s", err)
+		t.Fatalf("couldn't list radio events: %s", err)
 	}
 
 	if statusCode != http.StatusOK {
@@ -185,7 +185,7 @@ func TestAPINetworkLogs(t *testing.T) {
 	}
 }
 
-func TestListNetworkLogsWithFilter(t *testing.T) {
+func TestListRadioEventsWithFilter(t *testing.T) {
 	tempDir := t.TempDir()
 
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
@@ -205,28 +205,28 @@ func TestListNetworkLogsWithFilter(t *testing.T) {
 	rawEntry2 := `{"timestamp":"2024-10-01T11:00:00Z","protocol":"NGAP","message_type":"another_event","direction":"outbound","details":"Whatever 2", "raw":"SGVsbG8gd29ybGQh"}`
 	rawEntry3 := `{"timestamp":"2024-10-01T12:00:00Z","protocol":"NAS","message_type":"test_event","direction":"inbound","details":"Whatever 3", "raw":"SGVsbG8gd29ybGQh"}`
 
-	err = testdb.InsertNetworkLogJSON(context.Background(), []byte(rawEntry1))
+	err = testdb.InsertRadioEventJSON(context.Background(), []byte(rawEntry1))
 	if err != nil {
-		t.Fatalf("couldn't insert network log: %s", err)
+		t.Fatalf("couldn't insert radio event: %s", err)
 	}
 
-	err = testdb.InsertNetworkLogJSON(context.Background(), []byte(rawEntry2))
+	err = testdb.InsertRadioEventJSON(context.Background(), []byte(rawEntry2))
 	if err != nil {
-		t.Fatalf("couldn't insert network log: %s", err)
+		t.Fatalf("couldn't insert radio event: %s", err)
 	}
 
-	err = testdb.InsertNetworkLogJSON(context.Background(), []byte(rawEntry3))
+	err = testdb.InsertRadioEventJSON(context.Background(), []byte(rawEntry3))
 	if err != nil {
-		t.Fatalf("couldn't insert network log: %s", err)
+		t.Fatalf("couldn't insert radio event: %s", err)
 	}
 
 	filters := map[string]string{
 		"protocol": "NAS",
 	}
 
-	statusCode, response, err := listNetworkLogs(ts.URL, client, token, 1, 10, filters)
+	statusCode, response, err := listRadioEvents(ts.URL, client, token, 1, 10, filters)
 	if err != nil {
-		t.Fatalf("couldn't list network logs: %s", err)
+		t.Fatalf("couldn't list radio events: %s", err)
 	}
 
 	if statusCode != http.StatusOK {
@@ -234,11 +234,11 @@ func TestListNetworkLogsWithFilter(t *testing.T) {
 	}
 
 	if len(response.Result.Items) != 1 {
-		t.Fatalf("expected 1 network log, got %d", len(response.Result.Items))
+		t.Fatalf("expected 1 radio event, got %d", len(response.Result.Items))
 	}
 }
 
-func TestAPINetworkLogRetentionPolicyEndToEnd(t *testing.T) {
+func TestAPIRadioEventRetentionPolicyEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 	ts, _, _, err := setupServer(dbPath)
@@ -254,7 +254,7 @@ func TestAPINetworkLogRetentionPolicyEndToEnd(t *testing.T) {
 	}
 
 	t.Run("1. Get networks log retention policy", func(t *testing.T) {
-		statusCode, response, err := getNetworkLogRetentionPolicy(ts.URL, client, token)
+		statusCode, response, err := getRadioEventRetentionPolicy(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get networks log retention policy: %s", err)
 		}
@@ -272,10 +272,10 @@ func TestAPINetworkLogRetentionPolicyEndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Update networks log retention policy", func(t *testing.T) {
-		updateNetworkLogRetentionPolicyParams := &UpdateNetworkLogRetentionPolicyParams{
+		updateRadioEventRetentionPolicyParams := &UpdateRadioEventRetentionPolicyParams{
 			Days: 15,
 		}
-		statusCode, response, err := editNetworkLogRetentionPolicy(ts.URL, client, token, updateNetworkLogRetentionPolicyParams)
+		statusCode, response, err := editRadioEventRetentionPolicy(ts.URL, client, token, updateRadioEventRetentionPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't get networks log retention policy: %s", err)
 		}
@@ -287,13 +287,13 @@ func TestAPINetworkLogRetentionPolicyEndToEnd(t *testing.T) {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
 
-		if response.Result.Message != "Network log retention policy updated successfully" {
+		if response.Result.Message != "Radio event retention policy updated successfully" {
 			t.Fatalf("expected success message, got %s", response.Result.Message)
 		}
 	})
 
 	t.Run("3. Verify updated networks log retention policy", func(t *testing.T) {
-		statusCode, response, err := getNetworkLogRetentionPolicy(ts.URL, client, token)
+		statusCode, response, err := getRadioEventRetentionPolicy(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get networks log retention policy: %s", err)
 		}
@@ -311,7 +311,7 @@ func TestAPINetworkLogRetentionPolicyEndToEnd(t *testing.T) {
 	})
 }
 
-func TestUpdateNetworkLogRetentionPolicyInvalidInput(t *testing.T) {
+func TestUpdateRadioEventRetentionPolicyInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 	ts, _, _, err := setupServer(dbPath)
@@ -344,10 +344,10 @@ func TestUpdateNetworkLogRetentionPolicyInvalidInput(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
-			updateParams := &UpdateNetworkLogRetentionPolicyParams{
+			updateParams := &UpdateRadioEventRetentionPolicyParams{
 				Days: tt.days,
 			}
-			statusCode, response, err := editNetworkLogRetentionPolicy(ts.URL, client, token, updateParams)
+			statusCode, response, err := editRadioEventRetentionPolicy(ts.URL, client, token, updateParams)
 			if err != nil {
 				t.Fatalf("couldn't edit networks log retention policy: %s", err)
 			}

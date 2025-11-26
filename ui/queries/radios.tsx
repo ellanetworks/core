@@ -25,7 +25,7 @@ export async function listRadios(
   perPage: number,
 ): Promise<ListRadiosResponse> {
   const response = await fetch(
-    `/api/v1/radios?page=${page}&per_page=${perPage}`,
+    `/api/v1/ran/radios?page=${page}&per_page=${perPage}`,
     {
       method: "GET",
       headers: {

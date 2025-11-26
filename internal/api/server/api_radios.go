@@ -113,7 +113,7 @@ func ListRadios() http.HandlerFunc {
 
 func GetRadio() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		radioName := pathParam(r.URL.Path, "/api/v1/radios/")
+		radioName := pathParam(r.URL.Path, "/api/v1/ran/radios/")
 		if radioName == "" {
 			writeError(w, http.StatusBadRequest, "Missing name parameter", fmt.Errorf("name parameter is required"), logger.APILog)
 			return

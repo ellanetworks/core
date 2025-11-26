@@ -118,7 +118,7 @@ func SetAuditDBWriter(writeFn func([]byte) error) {
 	}
 }
 
-func SetNetworkDBWriter(writeFn func([]byte) error) {
+func SetRadioEventDBWriter(writeFn func([]byte) error) {
 	if writeFn == nil {
 		networkDBSink = nil
 		return
@@ -126,7 +126,7 @@ func SetNetworkDBWriter(writeFn func([]byte) error) {
 	ws := zapcore.AddSync(funcWriteSyncer{write: writeFn})
 	networkDBSink = ws
 
-	// If the network logger already exists, attach the DB core now.
+	// If the radio eventger already exists, attach the DB core now.
 	if NetworkLog != nil {
 		core := zapcore.NewCore(
 			zapcore.NewJSONEncoder(prodJSONEncoderConfig()),

@@ -10,19 +10,19 @@ import {
   Alert,
   Collapse,
 } from "@mui/material";
-import { updateNetworkLogRetentionPolicy } from "@/queries/network_logs";
+import { updateRadioEventRetentionPolicy } from "@/queries/radio_events";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
-interface EditNetworkLogRetentionPolicyModalProps {
+interface EditRadioEventRetentionPolicyModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
   initialDays: number;
 }
 
-const EditNetworkLogRetentionPolicyModal: React.FC<
-  EditNetworkLogRetentionPolicyModalProps
+const EditRadioEventRetentionPolicyModal: React.FC<
+  EditRadioEventRetentionPolicyModalProps
 > = ({ open, onClose, onSuccess, initialDays }) => {
   const router = useRouter();
   const { accessToken, authReady } = useAuth();
@@ -56,14 +56,14 @@ const EditNetworkLogRetentionPolicyModal: React.FC<
     setAlert({ message: "" });
 
     try {
-      await updateNetworkLogRetentionPolicy(accessToken, formValues.days);
+      await updateRadioEventRetentionPolicy(accessToken, formValues.days);
       onClose();
       onSuccess();
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred.";
       setAlert({
-        message: `Failed to update network log retention policy: ${errorMessage}`,
+        message: `Failed to update radio event retention policy: ${errorMessage}`,
       });
     } finally {
       setLoading(false);
@@ -89,7 +89,7 @@ const EditNetworkLogRetentionPolicyModal: React.FC<
           </Alert>
         </Collapse>
         <DialogContentText>
-          Set the number of days to retain network logs. After this period, logs
+          Set the number of days to retain radio events. After this period, logs
           will be automatically deleted.
         </DialogContentText>
         <TextField
@@ -118,4 +118,4 @@ const EditNetworkLogRetentionPolicyModal: React.FC<
   );
 };
 
-export default EditNetworkLogRetentionPolicyModal;
+export default EditRadioEventRetentionPolicyModal;

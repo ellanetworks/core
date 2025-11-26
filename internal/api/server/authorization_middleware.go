@@ -27,6 +27,8 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRoutes, PermReadRoute,
 		PermListRadios, PermReadRadio,
 		PermGetNATInfo,
+		PermGetSubscriberUsageRetentionPolicy, PermGetSubscriberUsage,
+		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermGetRadioEvent,
 	},
 
 	RoleNetworkManager: {
@@ -38,7 +40,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRoutes, PermCreateRoute, PermReadRoute, PermDeleteRoute,
 		PermListRadios, PermReadRadio,
 		PermGetNATInfo, PermUpdateNATInfo,
-		PermListNetworkLogs, PermGetNetworkLogRetentionPolicy, PermSetNetworkLogRetentionPolicy, PermClearNetworkLogs,
+		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermSetRadioEventRetentionPolicy, PermClearRadioEvents, PermGetRadioEvent,
 	},
 }
 
@@ -112,6 +114,13 @@ const (
 	PermListRadios = "radio:list"
 	PermReadRadio  = "radio:read"
 
+	// Radio event permissions
+	PermGetRadioEventRetentionPolicy = "radio_events:get_retention"
+	PermSetRadioEventRetentionPolicy = "radio_events:set_retention"
+	PermListRadioEvents              = "radio_events:list"
+	PermClearRadioEvents             = "radio_events:clear"
+	PermGetRadioEvent                = "radio_events:get"
+
 	// Backup and Restore permissions
 	PermBackup  = "backup:create"
 	PermRestore = "backup:restore"
@@ -120,13 +129,6 @@ const (
 	PermGetAuditLogRetentionPolicy = "audit_logs:get_retention"
 	PermSetAuditLogRetentionPolicy = "audit_logs:set_retention"
 	PermListAuditLogs              = "audit_logs:list"
-
-	// Network Log permissions
-	PermGetNetworkLogRetentionPolicy = "network_logs:get_retention"
-	PermSetNetworkLogRetentionPolicy = "network_logs:set_retention"
-	PermListNetworkLogs              = "network_logs:list"
-	PermClearNetworkLogs             = "network_logs:clear"
-	PermGetNetworkLog                = "network_logs:get"
 )
 
 func RequirePermission(permission string, jwtSecret []byte, next http.Handler) http.Handler {

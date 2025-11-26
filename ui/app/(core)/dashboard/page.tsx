@@ -32,10 +32,10 @@ import {
 } from "@/queries/subscribers";
 import { listRadios } from "@/queries/radios";
 import {
-  listNetworkLogs,
-  type APINetworkLog,
-  type ListNetworkLogsResponse,
-} from "@/queries/network_logs";
+  listRadioEvents,
+  type APIRadioEvent,
+  type ListRadioEventsResponse,
+} from "@/queries/radio_events";
 
 const MAX_WIDTH = 1200;
 
@@ -177,7 +177,7 @@ const Dashboard = () => {
 
   const [upSince, setUpSince] = useState<Date | null>(null);
 
-  const [networkLogs, setNetworkLogs] = useState<APINetworkLog[]>([]);
+  const [networkLogs, setRadioEvents] = useState<APIRadioEvent[]>([]);
   const [logsError, setLogsError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -326,18 +326,18 @@ const Dashboard = () => {
 
     const fetchLogs = async () => {
       try {
-        const res: ListNetworkLogsResponse = await listNetworkLogs(
+        const res: ListRadioEventsResponse = await listRadioEvents(
           accessToken,
           1,
           10,
         );
         if (!mounted) return;
-        setNetworkLogs(res.items ?? []);
+        setRadioEvents(res.items ?? []);
         setLogsError(null);
       } catch (e) {
         if (!mounted) return;
-        console.error("Error fetching network logs:", e);
-        setLogsError("Failed to fetch network logs.");
+        console.error("Error fetching radio events:", e);
+        setLogsError("Failed to fetch radio events.");
       }
     };
 

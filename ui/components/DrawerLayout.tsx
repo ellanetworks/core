@@ -205,21 +205,6 @@ export default function DrawerLayout({
             <ListItem disablePadding>
               <ListItemButton
                 component={Link}
-                href="/events"
-                selected={pathname === "/events"}
-                onClick={handleNavClick}
-                sx={drawerSelectedSx}
-              >
-                <ListItemIcon>
-                  <FeedIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText primary="Events" />
-              </ListItemButton>
-            </ListItem>
-
-            <ListItem disablePadding>
-              <ListItemButton
-                component={Link}
                 href="/operator"
                 selected={pathname === "/operator"}
                 onClick={handleNavClick}
