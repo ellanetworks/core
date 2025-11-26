@@ -223,7 +223,7 @@ You should see a new interface `uesimtun0` with the UE's IP address:
        valid_lft forever preferred_lft forever
 3: uesimtun0: <POINTOPOINT,PROMISC,NOTRAILERS,UP,LOWER_UP> mtu 1400 qdisc fq_codel state UNKNOWN group default qlen 500
     link/none
-    inet 10.45.0.1/16 scope global uesimtun0
+    inet 10.45.0.1/22 scope global uesimtun0
        valid_lft forever preferred_lft forever
     inet6 fe80::a331:940b:f57a:da80/64 scope link stable-privacy
        valid_lft forever preferred_lft forever
