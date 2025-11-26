@@ -1,11 +1,6 @@
 "use client";
 
-import React, {
-  useMemo,
-  useState,
-  useEffect,
-  useCallback,
-} from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -47,10 +42,7 @@ import {
 } from "@/queries/radios";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  useQuery,
-  keepPreviousData,
-} from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 import {
   EventToolbar,
@@ -647,7 +639,7 @@ const EventsTab: React.FC = () => {
 // ----------------------------- Radios page -----------------------------
 
 const Radio = () => {
-  const { role, accessToken, authReady } = useAuth(); // role/authReady also used in EventsTab if you prefer to pass them
+  const { role, accessToken, authReady } = useAuth();
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
 
@@ -655,19 +647,9 @@ const Radio = () => {
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
-  const initialTabFromUrl = (searchParams.get("tab") as TabKey) || "radios";
-  const [tab, setTab] = useState<TabKey>(initialTabFromUrl);
-
-  useEffect(() => {
-    const urlTab = searchParams.get("tab") as TabKey | null;
-    if (urlTab && urlTab !== tab) {
-      setTab(urlTab);
-    }
-  }, [searchParams, tab]);
+  const tab = (searchParams.get("tab") as TabKey) || "radios";
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: TabKey) => {
-    setTab(newValue);
-
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", newValue);
 
@@ -694,7 +676,7 @@ const Radio = () => {
         paginationModel.pageSize,
       );
     },
-    enabled: !!accessToken && tab === "radios", // only fetch when Radios tab is active
+    enabled: !!accessToken && tab === "radios",
     refetchInterval: 5000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
