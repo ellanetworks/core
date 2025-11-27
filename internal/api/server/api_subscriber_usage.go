@@ -43,67 +43,65 @@ func stotimeDefault(s string, def time.Time) time.Time {
 	return t
 }
 
-func GetSubscriberUsagePerDay(dbInstance *db.Database) http.Handler {
+func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 
 		startDate := stotimeDefault(q.Get("start"), time.Now().AddDate(0, 0, -7))
 		endDate := stotimeDefault(q.Get("end"), time.Now())
+		groupBy := q.Get("group_by")
 
 		subscriber := q.Get("subscriber")
 
 		ctx := r.Context()
 
-		dailyUsage, err := dbInstance.GetUsagePerDay(ctx, subscriber, startDate, endDate)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
+		switch groupBy {
+		case "day":
+			dailyUsage, err := dbInstance.GetUsagePerDay(ctx, subscriber, startDate, endDate)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
+				return
+			}
+
+			response := make([]map[string]SubscriberUsage, len(dailyUsage))
+
+			for i, usage := range dailyUsage {
+				response[i] = map[string]SubscriberUsage{
+					usage.GetDay().Format("2006-01-02"): {
+						UplinkBytes:   usage.BytesUplink,
+						DownlinkBytes: usage.BytesDownlink,
+						TotalBytes:    usage.BytesUplink + usage.BytesDownlink,
+					},
+				}
+			}
+
+			writeResponse(w, response, http.StatusOK, logger.APILog)
+			return
+		case "subscriber":
+			subscriberUsage, err := dbInstance.GetUsagePerSubscriber(ctx, subscriber, startDate, endDate)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
+				return
+			}
+
+			response := make([]map[string]SubscriberUsage, len(subscriberUsage))
+
+			for i, usage := range subscriberUsage {
+				response[i] = map[string]SubscriberUsage{
+					usage.IMSI: {
+						UplinkBytes:   usage.BytesUplink,
+						DownlinkBytes: usage.BytesDownlink,
+						TotalBytes:    usage.BytesUplink + usage.BytesDownlink,
+					},
+				}
+			}
+
+			writeResponse(w, response, http.StatusOK, logger.APILog)
+			return
+		default:
+			writeError(w, http.StatusBadRequest, "Invalid group_by parameter", errors.New("group_by must be either 'day' or 'subscriber'"), logger.APILog)
 			return
 		}
-
-		response := make([]map[string]SubscriberUsage, len(dailyUsage))
-		for i, usage := range dailyUsage {
-			response[i] = map[string]SubscriberUsage{
-				usage.GetDay().Format("2006-01-02"): {
-					UplinkBytes:   usage.BytesUplink,
-					DownlinkBytes: usage.BytesDownlink,
-					TotalBytes:    usage.BytesUplink + usage.BytesDownlink,
-				},
-			}
-		}
-
-		writeResponse(w, response, http.StatusOK, logger.APILog)
-	})
-}
-
-func GetSubscriberUsagePerSubscriber(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-
-		startDate := stotimeDefault(q.Get("start"), time.Now().AddDate(0, 0, -7))
-		endDate := stotimeDefault(q.Get("end"), time.Now())
-
-		subscriber := q.Get("subscriber")
-
-		ctx := r.Context()
-
-		dailyUsage, err := dbInstance.GetUsagePerSubscriber(ctx, subscriber, startDate, endDate)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
-			return
-		}
-
-		response := make([]map[string]SubscriberUsage, len(dailyUsage))
-		for i, usage := range dailyUsage {
-			response[i] = map[string]SubscriberUsage{
-				usage.IMSI: {
-					UplinkBytes:   usage.BytesUplink,
-					DownlinkBytes: usage.BytesDownlink,
-					TotalBytes:    usage.BytesUplink + usage.BytesDownlink,
-				},
-			}
-		}
-
-		writeResponse(w, response, http.StatusOK, logger.APILog)
 	})
 }
 

@@ -6,14 +6,15 @@ export type SubscriberUsage = {
   total_bytes: number;
 };
 
-export type UsagePerDayResult = Array<Record<string, SubscriberUsage>>;
+export type UsageResult = Array<Record<string, SubscriberUsage>>;
 
-export async function getUsagePerDay(
+export async function getUsage(
   authToken: string,
   start: string,
   end: string,
   subscriber: string,
-): Promise<UsagePerDayResult> {
+  groupBy: "day" | "subscriber",
+): Promise<UsageResult> {
   const params = new URLSearchParams({
     start,
     end,
@@ -24,7 +25,7 @@ export async function getUsagePerDay(
   }
 
   const response = await fetch(
-    `/api/v1/subscriber-usage/per-day?${params.toString()}`,
+    `/api/v1/subscriber-usage?group_by=${groupBy}&${params.toString()}`,
     {
       method: "GET",
       headers: {
@@ -34,53 +35,7 @@ export async function getUsagePerDay(
     },
   );
 
-  let json: { result: UsagePerDayResult; error?: string };
-  try {
-    json = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
-    );
-  }
-
-  return json.result;
-}
-
-export type UsagePerSubscriberResult = Array<Record<string, SubscriberUsage>>;
-
-export async function getUsagePerSubscriber(
-  authToken: string,
-  start: string,
-  end: string,
-  subscriber: string,
-): Promise<UsagePerSubscriberResult> {
-  const params = new URLSearchParams({
-    start,
-    end,
-  });
-
-  if (subscriber.trim() !== "") {
-    params.set("subscriber", subscriber);
-  }
-
-  const response = await fetch(
-    `/api/v1/subscriber-usage/per-subscriber?${params.toString()}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + authToken,
-      },
-    },
-  );
-
-  let json: { result: UsagePerSubscriberResult; error?: string };
+  let json: { result: UsageResult; error?: string };
   try {
     json = await response.json();
   } catch {

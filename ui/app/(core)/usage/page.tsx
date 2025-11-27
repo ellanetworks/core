@@ -18,12 +18,7 @@ import {
   type GridPaginationModel,
 } from "@mui/x-data-grid";
 import { BarChart } from "@mui/x-charts/BarChart";
-import {
-  getUsagePerSubscriber,
-  type UsagePerSubscriberResult,
-  getUsagePerDay,
-  type UsagePerDayResult,
-} from "@/queries/usage";
+import { getUsage, type UsageResult } from "@/queries/usage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 
@@ -106,7 +101,7 @@ const SubscriberUsage = () => {
   const {
     data: usagePerSubscriberData,
     isLoading: isUsagePerSubscriberLoading,
-  } = useQuery<UsagePerSubscriberResult>({
+  } = useQuery<UsageResult>({
     queryKey: [
       "usagePerSubscriber",
       accessToken,
@@ -115,11 +110,12 @@ const SubscriberUsage = () => {
       selectedSubscriber,
     ],
     queryFn: async () => {
-      return getUsagePerSubscriber(
+      return getUsage(
         accessToken || "",
         startDate,
         endDate,
         selectedSubscriber,
+        "subscriber",
       );
     },
     enabled: !!accessToken && !!startDate && !!endDate,
@@ -165,7 +161,7 @@ const SubscriberUsage = () => {
   );
 
   const { data: usagePerDayData, isLoading: isUsagePerDayLoading } =
-    useQuery<UsagePerDayResult>({
+    useQuery<UsageResult>({
       queryKey: [
         "usagePerDay",
         accessToken,
@@ -174,11 +170,12 @@ const SubscriberUsage = () => {
         selectedSubscriber,
       ],
       queryFn: async () => {
-        return getUsagePerDay(
+        return getUsage(
           accessToken || "",
           startDate,
           endDate,
           selectedSubscriber,
+          "day",
         );
       },
       enabled: !!accessToken && !!startDate && !!endDate,
