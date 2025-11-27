@@ -641,6 +641,8 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 	}
 
 	amfSelf.ReAllocateGutiToUe(ctx, ue)
+	// check in specs if we need to wait for confirmation before freeing old GUTI
+	amfSelf.FreeOldGuti(ue)
 
 	if anType == models.AccessType3GPPAccess {
 		err := gmm_message.SendRegistrationAccept(ctx, ue, anType, nil, nil, nil, nil, nil)
@@ -806,6 +808,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 	}
 
 	amfSelf.ReAllocateGutiToUe(ctx, ue)
+	// check in specs if we need to wait for confirmation before freeing old GUTI
+	amfSelf.FreeOldGuti(ue)
 
 	if ue.RegistrationRequest.AllowedPDUSessionStatus != nil {
 		allowedPsis := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.AllowedPDUSessionStatus.Buffer)
@@ -1253,6 +1257,12 @@ func HandleConfigurationUpdateComplete(ue *context.AmfUe, configurationUpdateCom
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
+	if ue.T3555 != nil {
+		ue.T3555.Stop()
+		ue.T3555 = nil // clear the timer
+	}
+	amfSelf := context.AMFSelf()
+	amfSelf.FreeOldGuti(ue)
 
 	return nil
 }
@@ -1473,7 +1483,6 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		return nil
 	}
 
-	ue.RanUe[anType].UeContextRequest = true
 	if serviceType == nasMessage.ServiceTypeSignalling {
 		err := sendServiceAccept(ctx, ue, anType, ctxList, suList, nil, nil, nil, nil)
 		return err
@@ -1493,7 +1502,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	if serviceRequest.UplinkDataStatus != nil {
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(serviceRequest.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
-		ue.SmContextList.Range(func(key, value interface{}) bool {
+		ue.SmContextList.Range(func(key, value any) bool {
 			pduSessionID := key.(int32)
 			smContext := value.(*context.SmContext)
 
@@ -1509,6 +1518,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
 					} else if ue.RanUe[anType].UeContextRequest {
+						ue.GmmLog.Debug("appending PDU session to context list")
 						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
 							pduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
 					} else {
@@ -1540,14 +1550,18 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		})
 	}
 	switch serviceType {
-	case nasMessage.ServiceTypeMobileTerminatedServices: // Trigger by Network
+	case nasMessage.ServiceTypeMobileTerminatedServices: // Triggered by Network
+		// TS 24.501 5.4.4.1 - We need to assign a new GUTI after a successful Service Request
+		// triggered by a paging request.
+		ue.ConfigurationUpdateCommandFlags = &context.ConfigurationUpdateCommandFlags{NeedGUTI: true}
+
 		if ue.N1N2Message != nil {
 			requestData := ue.N1N2Message.Request.JSONData
 			n1Msg := ue.N1N2Message.Request.BinaryDataN1Message
 			n2Info := ue.N1N2Message.Request.BinaryDataN2Information
 
-			// downlink signalling
-			if n2Info == nil {
+			// Paging was triggered for downlink signaling only
+			if n2Info == nil && n1Msg != nil {
 				err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi,
 					reactivationResult, errPduSessionID, errCause)
 				if err != nil {
@@ -1580,86 +1594,89 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 					ue.GmmLog.Info("sent downlink nas transport message")
 				}
 				ue.N1N2Message = nil
-				return nil
-			}
-			smInfo := requestData.N2InfoContainer.SmInfo
-			smContext, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
-			if !exist {
-				ue.N1N2Message = nil
-				return fmt.Errorf("service Request triggered by Network error for pduSessionID does not exist")
-			}
+			} else {
+				smInfo := requestData.N2InfoContainer.SmInfo
+				smContext, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
+				if !exist {
+					ue.N1N2Message = nil
+					return fmt.Errorf("service Request triggered by Network for pduSessionID that does not exist")
+				}
 
-			if smContext.AccessType() == models.AccessTypeNon3GPPAccess {
-				if serviceRequest.AllowedPDUSessionStatus != nil {
-					allowPduSessionPsi := nasConvert.PSIToBooleanArray(serviceRequest.AllowedPDUSessionStatus.Buffer)
-					if reactivationResult == nil {
-						reactivationResult = new([16]bool)
-					}
-					if allowPduSessionPsi[requestData.PduSessionID] {
-						response, err := consumer.SendUpdateSmContextChangeAccessType(ctx, ue, smContext, true)
-						if err != nil {
-							return err
-						} else if response == nil {
-							reactivationResult[requestData.PduSessionID] = true
-							errPduSessionID = append(errPduSessionID, uint8(requestData.PduSessionID))
-							cause := nasMessage.Cause5GMMProtocolErrorUnspecified
-							errCause = append(errCause, cause)
-						} else {
-							smContext.SetUserLocation(ue.Location)
-							smContext.SetAccessType(models.AccessType3GPPAccess)
-							if response.BinaryDataN2SmInformation != nil &&
-								response.JSONData.N2SmInfoType == models.N2SmInfoTypePduResSetupReq {
-								if ue.RanUe[anType].UeContextRequest {
-									ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
-										requestData.PduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
-								} else {
-									ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList,
-										requestData.PduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
+				if smContext.AccessType() == models.AccessTypeNon3GPPAccess {
+					if serviceRequest.AllowedPDUSessionStatus != nil {
+						allowPduSessionPsi := nasConvert.PSIToBooleanArray(serviceRequest.AllowedPDUSessionStatus.Buffer)
+						if reactivationResult == nil {
+							reactivationResult = new([16]bool)
+						}
+						if allowPduSessionPsi[requestData.PduSessionID] {
+							response, err := consumer.SendUpdateSmContextChangeAccessType(ctx, ue, smContext, true)
+							if err != nil {
+								return err
+							} else if response == nil {
+								reactivationResult[requestData.PduSessionID] = true
+								errPduSessionID = append(errPduSessionID, uint8(requestData.PduSessionID))
+								cause := nasMessage.Cause5GMMProtocolErrorUnspecified
+								errCause = append(errCause, cause)
+							} else {
+								smContext.SetUserLocation(ue.Location)
+								smContext.SetAccessType(models.AccessType3GPPAccess)
+								if response.BinaryDataN2SmInformation != nil &&
+									response.JSONData.N2SmInfoType == models.N2SmInfoTypePduResSetupReq {
+									if ue.RanUe[anType].UeContextRequest {
+										ue.GmmLog.Debug("appending PDU session to context list")
+										ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
+											requestData.PduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
+									} else {
+										ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList,
+											requestData.PduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
+									}
 								}
 							}
+						} else {
+							ue.GmmLog.Warn("UE was reachable but did not accept to re-activate the PDU Session", zap.Int32("pduSessionID", requestData.PduSessionID))
 						}
+					}
+				} else if smInfo.N2InfoContent.NgapIeType == models.NgapIeTypePduResSetupReq {
+					var nasPdu []byte
+					var err error
+					if n1Msg != nil {
+						pduSessionID := uint8(smInfo.PduSessionID)
+						nasPdu, err = gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
+						if err != nil {
+							return err
+						}
+					}
+					omecSnssai := models.Snssai{
+						Sst: smInfo.SNssai.Sst,
+						Sd:  smInfo.SNssai.Sd,
+					}
+					if ue.RanUe[anType].UeContextRequest {
+						ue.GmmLog.Debug("appending PDU session to context list")
+						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
 					} else {
-						ue.GmmLog.Warn("UE was reachable but did not accept to re-activate the PDU Session", zap.Int32("pduSessionID", requestData.PduSessionID))
+						ue.GmmLog.Debug("appending PDU session to su list")
+						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
 					}
 				}
-			} else if smInfo.N2InfoContent.NgapIeType == models.NgapIeTypePduResSetupReq {
-				var nasPdu []byte
-				var err error
-				if n1Msg != nil {
-					pduSessionID := uint8(smInfo.PduSessionID)
-					nasPdu, err = gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
-					if err != nil {
-						return err
-					}
-				}
-				omecSnssai := models.Snssai{
-					Sst: smInfo.SNssai.Sst,
-					Sd:  smInfo.SNssai.Sd,
-				}
-				if ue.RanUe[anType].UeContextRequest {
-					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
-				} else {
-					ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
+				ue.GmmLog.Debug("sending service accept")
+				err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause)
+				if err != nil {
+					return err
 				}
 			}
+		} else {
 			err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause)
 			if err != nil {
 				return err
 			}
 		}
-		// downlink signaling
-		if ue.ConfigurationUpdateMessage != nil {
-			err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause)
-			if err != nil {
-				return err
-			}
-			mobilityRestrictionList := ngap_message.BuildIEMobilityRestrictionList(ue)
-			err = ngap_message.SendDownlinkNasTransport(ue.RanUe[models.AccessType3GPPAccess], ue.ConfigurationUpdateMessage, &mobilityRestrictionList)
-			if err != nil {
-				return fmt.Errorf("error sending downlink nas transport: %v", err)
-			}
-			ue.GmmLog.Info("sent downlink nas transport")
-			ue.ConfigurationUpdateMessage = nil
+		if ue.ConfigurationUpdateCommandFlags != nil {
+			// Allocate a new GUTI after successful network triggered Service Request
+			amfSelf := context.AMFSelf()
+			amfSelf.ReAllocateGutiToUe(ctx, ue)
+
+			gmm_message.SendConfigurationUpdateCommand(ue, anType)
+			ue.ConfigurationUpdateCommandFlags = nil
 		}
 	case nasMessage.ServiceTypeData:
 		if anType == models.AccessType3GPPAccess {
@@ -1720,7 +1737,7 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.Access
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
-			ue.GmmLog.Info("Sent NGAP initial context setup request")
+			ue.GmmLog.Info("Sent NGAP initial context setup request with context list", zap.Int("len", len(ctxList.List)))
 		} else {
 			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasPdu, nil, nil, nil, nil)
 			if err != nil {

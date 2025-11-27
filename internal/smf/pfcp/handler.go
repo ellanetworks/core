@@ -69,17 +69,17 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 			},
 		}
 
-		// N1 Container Info
-		n1MsgContainer := models.N1MessageContainer{
-			N1MessageClass:   "SM",
-			N1MessageContent: &models.RefToBinaryData{ContentID: "GSM_NAS"},
-		}
-
 		// N1N2 Json Data
 		n1n2Request.JSONData = &models.N1N2MessageTransferReqData{
-			PduSessionID:       smContext.PDUSessionID,
-			N1MessageContainer: &n1MsgContainer,
-			N2InfoContainer:    &n2InfoContainer,
+			PduSessionID:    smContext.PDUSessionID,
+			N2InfoContainer: &n2InfoContainer,
+		}
+
+		if n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext); err != nil {
+			logger.SmfLog.Error("Build PDUSessionResourceSetupRequestTransfer failed", zap.Error(err))
+		} else {
+			n1n2Request.BinaryDataN2Information = n2Pdu
+			n1n2Request.JSONData.N2InfoContainer = &n2InfoContainer
 		}
 
 		rsp, err := amf_producer.CreateN1N2MessageTransfer(ctx, smContext.Supi, n1n2Request)
