@@ -21,10 +21,10 @@ import {
 import {
   Info as InfoIcon,
   BugReport as BugReportIcon,
+  BarChart as BarChartIcon,
   ReceiptLong as ReceiptLongIcon,
   Tune as TuneIcon,
   AdminPanelSettings as AdminPanelSettingsIcon,
-  Sensors as SensorsIcon,
   Groups as GroupsIcon,
   Dashboard as DashboardIcon,
   Feed as FeedIcon,
@@ -211,7 +211,7 @@ export default function DrawerLayout({
                 sx={drawerSelectedSx}
               >
                 <ListItemIcon>
-                  <SensorsIcon color="primary" />
+                  <FeedIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Operator" />
               </ListItemButton>
@@ -274,6 +274,21 @@ export default function DrawerLayout({
                   <GroupsIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Subscribers" />
+              </ListItemButton>
+            </ListItem>
+
+            <ListItem disablePadding>
+              <ListItemButton
+                component={Link}
+                href="/usage"
+                selected={pathname === "/usage"}
+                onClick={handleNavClick}
+                sx={drawerSelectedSx}
+              >
+                <ListItemIcon>
+                  <BarChartIcon color="primary" />
+                </ListItemIcon>
+                <ListItemText primary="Usage" />
               </ListItemButton>
             </ListItem>
 
