@@ -289,6 +289,9 @@ func (context *AMFContext) InPlmnSupport(ctx ctxt.Context, snssai models.Snssai)
 
 // Looks up a UE by the provided GUTI.
 func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (*AmfUe, bool) {
+	if guti == "" {
+		return nil, false
+	}
 	var (
 		ue *AmfUe
 		ok bool

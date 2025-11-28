@@ -847,7 +847,7 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 
 	b, err := nassecurity.Encode(ue, m)
 	if err != nil {
-		return nil, fmt.Errorf("BuildConfigurationUpdateCommand() err: %v", err), false
+		return nil, fmt.Errorf("could not encode NAS message: %v", err), false
 	}
 	return b, err, needTimer
 }

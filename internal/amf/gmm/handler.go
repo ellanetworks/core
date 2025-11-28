@@ -1518,7 +1518,6 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
 					} else if ue.RanUe[anType].UeContextRequest {
-						ue.GmmLog.Debug("appending PDU session to context list")
 						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
 							pduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
 					} else {
@@ -1623,7 +1622,6 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 								if response.BinaryDataN2SmInformation != nil &&
 									response.JSONData.N2SmInfoType == models.N2SmInfoTypePduResSetupReq {
 									if ue.RanUe[anType].UeContextRequest {
-										ue.GmmLog.Debug("appending PDU session to context list")
 										ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
 											requestData.PduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
 									} else {
@@ -1651,10 +1649,8 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 						Sd:  smInfo.SNssai.Sd,
 					}
 					if ue.RanUe[anType].UeContextRequest {
-						ue.GmmLog.Debug("appending PDU session to context list")
 						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
 					} else {
-						ue.GmmLog.Debug("appending PDU session to su list")
 						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
 					}
 				}
@@ -1737,13 +1733,13 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.Access
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
-			ue.GmmLog.Info("Sent NGAP initial context setup request with context list", zap.Int("len", len(ctxList.List)))
+			ue.GmmLog.Info("sent service accept with context list", zap.Int("len", len(ctxList.List)))
 		} else {
 			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasPdu, nil, nil, nil, nil)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
-			ue.GmmLog.Info("Sent NGAP initial context setup request")
+			ue.GmmLog.Info("sent service accept")
 		}
 	} else if len(suList.List) != 0 {
 		nasPdu, err := gmm_message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult,
@@ -1755,7 +1751,7 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.Access
 		if err != nil {
 			return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 		}
-		ue.GmmLog.Info("Sent NGAP pdu session resource setup request")
+		ue.GmmLog.Info("sent service accept")
 	} else {
 		err := gmm_message.SendServiceAccept(ue.RanUe[anType], pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
