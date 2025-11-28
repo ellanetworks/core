@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"time"
 
 	bpf "github.com/cilium/ebpf"
@@ -141,6 +142,8 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 	}
 
 	go upf.listenForTrafficNotifications()
+
+	go upf.monitorUsage(30*time.Second, ctx.Done())
 
 	if masquerade {
 		upf.startGC()
@@ -291,7 +294,7 @@ func (u *UPF) listenForTrafficNotifications() {
 		logger.UpfLog.Debug("Received notification for", zap.Uint64("SEID", event.LocalSEID), zap.Uint16("PDRID", event.PdrID), zap.Uint8("QFI", event.QFI))
 		if !u.bpfObjects.IsAlreadyNotified(event) {
 			logger.UpfLog.Debug("Notifying SMF of downlink data", zap.Uint64("SEID", event.LocalSEID), zap.Uint16("PDRID", event.PdrID), zap.Uint8("QFI", event.QFI))
-			err = core.SendPfcpSessionReportRequest(context.TODO(), event.LocalSEID, event.PdrID, event.QFI)
+			err = core.SendPfcpSessionReportRequestForDownlinkData(context.TODO(), event.LocalSEID, event.PdrID, event.QFI)
 			if err != nil {
 				logger.UpfLog.Warn("Failed to send downlink data notification", zap.Error(err))
 			} else {
@@ -299,4 +302,106 @@ func (u *UPF) listenForTrafficNotifications() {
 			}
 		}
 	}
+}
+
+func (u *UPF) monitorUsage(interval time.Duration, stop <-chan struct{}) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			err := u.pollUsageAndResetCounters()
+			if err != nil {
+				logger.UpfLog.Warn("Failed to poll usage and reset counters", zap.Error(err))
+			}
+		case <-stop:
+			return
+		}
+	}
+}
+
+func (u *UPF) getAndResetUsageForURR(urrID uint32) (uint64, error) {
+	var perCPU []uint64
+	var total uint64
+
+	ncpu := runtime.NumCPU()
+	zeroes := make([]uint64, ncpu)
+
+	err := u.bpfObjects.N3N6EntrypointMaps.UrrMap.Lookup(&urrID, &perCPU)
+	if err != nil {
+		return 0, fmt.Errorf("failed to lookup URR: %w", err)
+	}
+
+	err = u.bpfObjects.N3N6EntrypointMaps.UrrMap.Update(&urrID, zeroes, bpf.UpdateAny)
+	if err != nil {
+		return 0, fmt.Errorf("failed to reset URR: %w", err)
+	}
+
+	for _, v := range perCPU {
+		total += v
+	}
+
+	return total, nil
+}
+
+func (u *UPF) pollUsageAndResetCounters() error {
+	if u.pfcpConn == nil {
+		return fmt.Errorf("PFCP connection is nil")
+	}
+
+	if u.pfcpConn.SmfNodeAssociation == nil {
+		return fmt.Errorf("SMF node association is nil")
+	}
+
+	if u.pfcpConn.SmfNodeAssociation.Sessions == nil {
+		return fmt.Errorf("SMF node association sessions is nil")
+	}
+
+	sessions := u.pfcpConn.SmfNodeAssociation.Sessions
+
+	for localSeid, session := range sessions {
+		for _, pdr := range session.PDRs {
+			urrID := pdr.PdrInfo.UrrID
+			if urrID == 0 {
+				logger.UpfLog.Debug("URR ID is 0, skipping usage report", zap.Uint64("local_seid", localSeid), zap.Uint32("pdr_id", pdr.PdrInfo.PdrID))
+				continue
+			}
+
+			uvol := uint64(0)
+			dvol := uint64(0)
+			var err error
+
+			// Downlink PDR
+			if pdr.Ipv4 != nil || pdr.Ipv6 != nil {
+				dvol, err = u.getAndResetUsageForURR(urrID)
+				if err != nil {
+					logger.UpfLog.Warn("could not get usage for URR - downlink", zap.Uint32("urr_id", urrID), zap.Error(err), zap.Uint64("local_seid", localSeid), zap.Uint32("pdr_id", pdr.PdrInfo.PdrID))
+					continue
+				}
+			} else { // Uplink PDR
+				uvol, err = u.getAndResetUsageForURR(urrID)
+				if err != nil {
+					logger.UpfLog.Warn("could not get usage for URR - uplink", zap.Uint32("urr_id", urrID), zap.Error(err), zap.Uint64("local_seid", localSeid))
+					continue
+				}
+			}
+
+			err = core.SendPfcpSessionReportRequestForUsage(context.TODO(), localSeid, urrID, uvol, dvol)
+			if err != nil {
+				logger.UpfLog.Warn("could not send PFCP session report request for usage", zap.Error(err), zap.Uint64("local_seid", localSeid), zap.Uint32("urr_id", urrID))
+				continue
+			}
+
+			logger.UpfLog.Debug(
+				"Sent usage report",
+				zap.Uint64("local_seid", localSeid),
+				zap.Uint32("urr_id", urrID),
+				zap.Uint64("uplink_volume", uvol),
+				zap.Uint64("downlink_volume", dvol),
+			)
+		}
+	}
+
+	return nil
 }

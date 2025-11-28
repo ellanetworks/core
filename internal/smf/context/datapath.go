@@ -247,6 +247,7 @@ func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER, d
 
 	for _, DLPDR := range curDLTunnel.PDR {
 		DLPDR.QER = append(DLPDR.QER, defQER)
+		DLPDR.URR = defURR
 
 		if DLPDR.Precedence == 0 {
 			DLPDR.Precedence = defPrecedence
@@ -290,8 +291,19 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence 
 		return err
 	}
 
-	defURR := &URR{
+	defULURR := &URR{
 		URRID: 1,
+		MeasurementMethods: MeasurementMethods{
+			Volume: true,
+		},
+		ReportingTriggers: ReportingTriggers{
+			PeriodicReporting: true,
+		},
+		MeasurementPeriod: 60 * time.Second,
+	}
+
+	defDLURR := &URR{
+		URRID: 2,
 		MeasurementMethods: MeasurementMethods{
 			Volume: true,
 		},
@@ -303,14 +315,14 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence 
 
 	// Setup UpLink PDR
 	if dataPath.DPNode.UpLinkTunnel != nil {
-		if err := dataPath.DPNode.ActivateUpLinkPdr(smContext, defQER, defURR, precedence); err != nil {
+		if err := dataPath.DPNode.ActivateUpLinkPdr(smContext, defQER, defULURR, precedence); err != nil {
 			return fmt.Errorf("couldn't activate uplink pdr: %v", err)
 		}
 	}
 
 	// Setup DownLink PDR
 	if dataPath.DPNode.DownLinkTunnel != nil {
-		if err := dataPath.DPNode.ActivateDlLinkPdr(smContext, defQER, defURR, precedence, dataPath); err != nil {
+		if err := dataPath.DPNode.ActivateDlLinkPdr(smContext, defQER, defDLURR, precedence, dataPath); err != nil {
 			return fmt.Errorf("couldn't activate downlink pdr: %v", err)
 		}
 	}

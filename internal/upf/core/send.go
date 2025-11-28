@@ -13,7 +13,10 @@ import (
 	"github.com/wmnsk/go-pfcp/message"
 )
 
-var seq uint32
+var (
+	seq   uint32
+	urseq uint32
+)
 
 var dispatcher *pfcp_dispatcher.PfcpDispatcher = &pfcp_dispatcher.Dispatcher
 
@@ -21,13 +24,38 @@ func getSeqNumber() uint32 {
 	return atomic.AddUint32(&seq, 1)
 }
 
-func SendPfcpSessionReportRequest(ctx context.Context, localSeid uint64, pdrid uint16, qfi uint8) error {
+func getUsageReportSeqNumber() uint32 {
+	return atomic.AddUint32(&urseq, 1)
+}
+
+func SendPfcpSessionReportRequestForDownlinkData(ctx context.Context, localSeid uint64, pdrid uint16, qfi uint8) error {
 	conn := GetConnection()
 	session, ok := conn.SmfNodeAssociation.Sessions[localSeid]
 	if !ok {
 		return fmt.Errorf("failed to find session with localSeid: %d", localSeid)
 	}
-	pfcpMsg, err := BuildPfcpSessionReportRequest(session.RemoteSEID, getSeqNumber(), pdrid, qfi)
+	pfcpMsg, err := BuildPfcpSessionReportRequestForDownlinkData(session.RemoteSEID, getSeqNumber(), pdrid, qfi)
+	if err != nil {
+		return fmt.Errorf("failed to build PFCP Session Report Request: %v", err)
+	}
+	rsp, err := dispatcher.SMF.HandlePfcpSessionReportRequest(ctx, pfcpMsg)
+	if err != nil {
+		return fmt.Errorf("failed to send PFCP Session Report Request to smf: %v", err)
+	}
+	err = HandlePfcpSessionReportResponse(ctx, rsp)
+	if err != nil {
+		return fmt.Errorf("failed to handle PFCP Session Report Response: %v", err)
+	}
+	return nil
+}
+
+func SendPfcpSessionReportRequestForUsage(ctx context.Context, localSeid uint64, urrid uint32, uvol uint64, dvol uint64) error {
+	conn := GetConnection()
+	session, ok := conn.SmfNodeAssociation.Sessions[localSeid]
+	if !ok {
+		return fmt.Errorf("failed to find session with localSeid: %d", localSeid)
+	}
+	pfcpMsg, err := BuildPfcpSessionReportRequestForUsage(session.RemoteSEID, getSeqNumber(), urrid, getUsageReportSeqNumber(), uvol, dvol)
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Report Request: %v", err)
 	}

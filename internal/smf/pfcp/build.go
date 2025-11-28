@@ -10,11 +10,9 @@ import (
 	"encoding/binary"
 	"net"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	"go.uber.org/zap"
 )
 
 type Flag uint8
@@ -234,7 +232,6 @@ func buildReportingTriggerIE(rt *context.ReportingTriggers) *ie.IE {
 }
 
 func urrToCreateURR(urr *context.URR) *ie.IE {
-	logger.SmfLog.Warn("Creating URR with Volume Measurement Method only is supported", zap.Duration("measurement period", urr.MeasurementPeriod))
 	return ie.NewCreateURR(
 		ie.NewURRID(urr.URRID),
 		ie.NewMeasurementMethod(boolToInt(urr.MeasurementMethods.Event), boolToInt(urr.MeasurementMethods.Volume), boolToInt(urr.MeasurementMethods.Duration)),

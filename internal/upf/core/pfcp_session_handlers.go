@@ -113,11 +113,19 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 				return fmt.Errorf("measurement period is invalid: %s", err.Error())
 			}
 
+			internalId, err := bpfObjects.NewUrr()
+			if err != nil {
+				return fmt.Errorf("can't put URR: %s", err.Error())
+			}
+
+			session.NewUrr(urrId, internalId)
+
 			logger.UpfLog.Info(
-				"Received Usage Reporting Rule create - Not yet supported",
-				zap.Uint32("urrID", urrId),
+				"Received Usage Reporting Rule create",
+				zap.Uint32("urr_id", urrId),
 				zap.String("measurement_method", "Volume"),
-				zap.Duration("measurementPeriod", measurementPeriod),
+				zap.Duration("measurement_period", measurementPeriod),
+				zap.Uint32("internal_id", internalId),
 			)
 		}
 
@@ -343,7 +351,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			}
 
 			logger.UpfLog.Info(
-				"Received Usage Reporting Rule create - Not yet supported",
+				"Received Usage Reporting Rule create",
 				zap.Uint32("urrID", urrId),
 				zap.String("measurement_method", "Volume"),
 				zap.Duration("measurementPeriod", measurementPeriod),

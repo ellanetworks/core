@@ -10,6 +10,7 @@
 #include "xdp/utils/gtp.h"
 #include "xdp/utils/pdr.h"
 #include "xdp/utils/qer.h"
+#include "xdp/utils/urr.h"
 #include "xdp/utils/routing.h"
 #include "xdp/utils/statistics.h"
 #include "xdp/utils/nocp.h"
@@ -90,6 +91,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 
 	__u32 far_id = pdr->far_id;
 	__u32 qer_id = pdr->qer_id;
+	__u32 urr_id = pdr->urr_id;
 	if (pdr->sdf_mode) {
 		struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
 		if (match_sdf_filter_ipv4(ctx, sdf)) {
@@ -98,6 +100,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 				&ip4->saddr, &ip4->daddr);
 			far_id = pdr->sdf_rules.far_id;
 			qer_id = pdr->sdf_rules.qer_id;
+			urr_id = pdr->sdf_rules.urr_id;
 		} else if (pdr->sdf_mode & 1) {
 			return DEFAULT_XDP_ACTION;
 		}
@@ -155,6 +158,9 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		ctx->downlink_statistics->byte_counter.bytes +=
 			packet_size; // Count downlink traffic
 	}
+
+	update_urr_bytes(ctx, urr_id);
+
 	return send_to_gtp_tunnel(ctx, far->localip, far->remoteip, tos,
 				  qer->qfi, far->teid);
 }
