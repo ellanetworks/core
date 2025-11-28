@@ -84,7 +84,9 @@ type AmfUe struct {
 	Gpsi    string `json:"gpsi,omitempty"`
 	Pei     string `json:"pei,omitempty"`
 	Tmsi    int32  `json:"tmsi,omitempty"` // 5G-Tmsi
+	OldTmsi int32  `json:"oldtmsi,omitempty"`
 	Guti    string `json:"guti,omitempty"`
+	OldGuti string `json:"oldguti,omitempty"`
 	GroupID string `json:"groupID,omitempty"`
 	EBI     int32  `json:"ebi,omitempty"`
 	/* Ue Identity*/
@@ -113,7 +115,6 @@ type AmfUe struct {
 	PolicyAssociationID          string                    `json:"policyAssociationId,omitempty"`
 	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
 	RequestTriggerLocationChange bool                      `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTriggerLocCh
-	ConfigurationUpdateMessage   []byte                    `json:"configurationUpdateMessage,omitempty"`
 	/* N1N2Message */
 	N1N2MessageIDGenerator          *idgenerator.IDGenerator `json:"n1n2MessageIDGenerator,omitempty"`
 	N1N2Message                     *N1N2Message             `json:"-"`
@@ -124,10 +125,11 @@ type AmfUe struct {
 	//RanUe map[models.AccessType]*RanUe `json:"ranUe,omitempty" yaml:"ranUe" bson:"ranUe,omitempty"`
 	RanUe map[models.AccessType]*RanUe `json:"ranUe,omitempty"`
 	/* other */
-	OnGoing                       map[models.AccessType]*OnGoingProcedureWithPrio `json:"onGoing,omitempty"`
-	UeRadioCapability             string                                          `json:"ueRadioCapability,omitempty"` // OCTET string
-	Capability5GMM                nasType.Capability5GMM                          `json:"capability5GMM,omitempty"`
-	ConfigurationUpdateIndication nasType.ConfigurationUpdateIndication           `json:"configurationUpdateIndication,omitempty"`
+	OnGoing                         map[models.AccessType]*OnGoingProcedureWithPrio `json:"onGoing,omitempty"`
+	UeRadioCapability               string                                          `json:"ueRadioCapability,omitempty"` // OCTET string
+	Capability5GMM                  nasType.Capability5GMM                          `json:"capability5GMM,omitempty"`
+	ConfigurationUpdateIndication   nasType.ConfigurationUpdateIndication           `json:"configurationUpdateIndication,omitempty"`
+	ConfigurationUpdateCommandFlags *ConfigurationUpdateCommandFlags
 	/* context related to Paging */
 	UeRadioCapabilityForPaging                 *UERadioCapabilityForPaging                 `json:"ueRadioCapabilityForPaging,omitempty"`
 	InfoOnRecommendedCellsAndRanNodesForPaging *InfoOnRecommendedCellsAndRanNodesForPaging `json:"infoOnRecommendedCellsAndRanNodesForPaging,omitempty"`
@@ -164,6 +166,8 @@ type AmfUe struct {
 	T3560 *Timer `json:"t3560Value,omitempty"`
 	/* T3550 (for registration accept retransmission) */
 	T3550 *Timer `json:"t3550Value,omitempty"`
+	/* T3555 (for configuration update command retransmission) */
+	T3555 *Timer `json:"t3555Value,omitempty"`
 	/* T3522 (for deregistration request) */
 	T3522 *Timer `json:"t3522Value,omitempty"`
 	/* Ue Context Release Cause */
@@ -252,6 +256,22 @@ type NGRANCGI struct {
 	Present  int32
 	NRCGI    *models.Ncgi
 	EUTRACGI *models.Ecgi
+}
+
+// TS 24.501 8.2.19
+type ConfigurationUpdateCommandFlags struct {
+	NeedGUTI                                     bool
+	NeedNITZ                                     bool
+	NeedTaiList                                  bool
+	NeedRejectNSSAI                              bool
+	NeedAllowedNSSAI                             bool
+	NeedSmsIndication                            bool
+	NeedMicoIndication                           bool
+	NeedLadnInformation                          bool
+	NeedServiceAreaList                          bool
+	NeedConfiguredNSSAI                          bool
+	NeedNetworkSlicingIndication                 bool
+	NeedOperatordefinedAccessCategoryDefinitions bool
 }
 
 func (ue *AmfUe) init() {

@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/security"
 	"go.uber.org/zap"
 )
@@ -42,6 +43,7 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 		Full:  "ELLACORE5G",
 		Short: "ELLACORE",
 	}
+	self.TimeZone = nasConvert.GetTimeZone(time.Now())
 	self.T3502Value = 720
 	self.T3512Value = 3600
 	self.T3513Cfg = context.TimerValue{
@@ -55,6 +57,11 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 		MaxRetryTimes: 4,
 	}
 	self.T3550Cfg = context.TimerValue{
+		Enable:        true,
+		ExpireTime:    6 * time.Second,
+		MaxRetryTimes: 4,
+	}
+	self.T3555Cfg = context.TimerValue{
 		Enable:        true,
 		ExpireTime:    6 * time.Second,
 		MaxRetryTimes: 4,

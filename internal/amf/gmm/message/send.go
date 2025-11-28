@@ -356,3 +356,43 @@ func SendRegistrationAccept(
 
 	return nil
 }
+
+func SendConfigurationUpdateCommand(amfUe *context.AmfUe, accessType models.AccessType) {
+	flags := amfUe.ConfigurationUpdateCommandFlags
+
+	if amfUe.RanUe[accessType] == nil {
+		amfUe.GmmLog.Error("cannot SendConfigurationUpdateCommand: RanUe is nil")
+		return
+	}
+
+	nasMsg, err, startT3555 := BuildConfigurationUpdateCommand(amfUe, accessType, flags)
+	if err != nil {
+		amfUe.GmmLog.Error("error building ConfigurationUpdateCommand", zap.Error(err))
+		return
+	}
+	amfUe.GmmLog.Info("Send Configuration Update Command")
+
+	mobilityRestrictionList := ngap_message.BuildIEMobilityRestrictionList(amfUe)
+	err = ngap_message.SendDownlinkNasTransport(amfUe.RanUe[accessType], nasMsg, &mobilityRestrictionList)
+	if err != nil {
+		amfUe.GmmLog.Error("could not send configuration update command", zap.Error(err))
+		return
+	}
+
+	if startT3555 && context.AMFSelf().T3555Cfg.Enable {
+		cfg := context.AMFSelf().T3555Cfg
+		amfUe.GmmLog.Info("start T3555 timer")
+		amfUe.T3555 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+			amfUe.GmmLog.Warn("timer T3555 expired, retransmit Configuration Update Command",
+				zap.Int32("retry", expireTimes))
+			err = ngap_message.SendDownlinkNasTransport(amfUe.RanUe[accessType], nasMsg, &mobilityRestrictionList)
+			if err != nil {
+				amfUe.GmmLog.Error("could not send configuration update command", zap.Error(err))
+			}
+		}, func() {
+			amfUe.GmmLog.Warn("timer T3555 expired too many times, aborting configuration update procedure",
+				zap.Int32("maximum retries", cfg.MaxRetryTimes))
+		},
+		)
+	}
+}
