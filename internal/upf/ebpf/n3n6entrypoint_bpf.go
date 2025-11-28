@@ -54,9 +54,10 @@ type N3N6EntrypointPdrInfo struct {
 	PdrId              uint32
 	FarId              uint32
 	QerId              uint32
+	UrrId              uint32
 	OuterHeaderRemoval uint8
 	SdfMode            uint8
-	_                  [10]byte
+	_                  [6]byte
 	SdfRules           struct {
 		_         structs.HostLayout
 		SdfFilter struct {
@@ -92,7 +93,7 @@ type N3N6EntrypointPdrInfo struct {
 		_                  [3]byte
 		FarId              uint32
 		QerId              uint32
-		_                  [4]byte
+		UrrId              uint32
 	}
 }
 
@@ -195,6 +196,7 @@ type N3N6EntrypointMapSpecs struct {
 	QerMap             *ebpf.MapSpec `ebpf:"qer_map"`
 	UplinkRouteStats   *ebpf.MapSpec `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.MapSpec `ebpf:"uplink_statistics"`
+	UrrMap             *ebpf.MapSpec `ebpf:"urr_map"`
 }
 
 // N3N6EntrypointVariableSpecs contains global variables before they are loaded into the kernel.
@@ -239,6 +241,7 @@ type N3N6EntrypointMaps struct {
 	QerMap             *ebpf.Map `ebpf:"qer_map"`
 	UplinkRouteStats   *ebpf.Map `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.Map `ebpf:"uplink_statistics"`
+	UrrMap             *ebpf.Map `ebpf:"urr_map"`
 }
 
 func (m *N3N6EntrypointMaps) Close() error {
@@ -254,6 +257,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.QerMap,
 		m.UplinkRouteStats,
 		m.UplinkStatistics,
+		m.UrrMap,
 	)
 }
 

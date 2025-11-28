@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"runtime"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -20,6 +21,7 @@ type PdrInfo struct {
 	PdrID              uint32
 	FarID              uint32
 	QerID              uint32
+	UrrID              uint32
 	SdfFilter          *SdfFilter
 }
 
@@ -207,6 +209,24 @@ func (bpfObjects *BpfObjects) DeleteQer(internalID uint32) error {
 	return nil
 }
 
+func (bpfObjects *BpfObjects) NewUrr() (uint32, error) {
+	internalIDZero, err := bpfObjects.UrrIDTracker.GetNext()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get new urr id: %w", err)
+	}
+
+	internalID := internalIDZero + 1
+
+	zeroVals := make([]uint64, runtime.NumCPU())
+
+	err = bpfObjects.N3N6EntrypointMaps.UrrMap.Put(internalID, zeroVals)
+	if err != nil {
+		return 0, fmt.Errorf("failed to put urr id %d: %w", internalID, err)
+	}
+
+	return internalID, nil
+}
+
 func CombineN3N6PdrWithSdf(defaultPdr *N3N6EntrypointPdrInfo, sdfPdr PdrInfo) N3N6EntrypointPdrInfo {
 	var pdrToStore N3N6EntrypointPdrInfo
 	// Default mapping options.
@@ -216,6 +236,7 @@ func CombineN3N6PdrWithSdf(defaultPdr *N3N6EntrypointPdrInfo, sdfPdr PdrInfo) N3
 		pdrToStore.PdrId = defaultPdr.PdrId
 		pdrToStore.FarId = defaultPdr.FarId
 		pdrToStore.QerId = defaultPdr.QerId
+		pdrToStore.UrrId = defaultPdr.UrrId
 		pdrToStore.SdfMode = 2
 	} else {
 		pdrToStore.SdfMode = 1
@@ -236,6 +257,7 @@ func CombineN3N6PdrWithSdf(defaultPdr *N3N6EntrypointPdrInfo, sdfPdr PdrInfo) N3
 	pdrToStore.SdfRules.OuterHeaderRemoval = sdfPdr.OuterHeaderRemoval
 	pdrToStore.SdfRules.FarId = sdfPdr.FarID
 	pdrToStore.SdfRules.QerId = sdfPdr.QerID
+	pdrToStore.SdfRules.UrrId = sdfPdr.UrrID
 	return pdrToStore
 }
 
@@ -246,6 +268,7 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 	pdrToStore.PdrId = defaultPdr.PdrID
 	pdrToStore.FarId = defaultPdr.FarID
 	pdrToStore.QerId = defaultPdr.QerID
+	pdrToStore.UrrId = defaultPdr.UrrID
 	return pdrToStore
 }
 

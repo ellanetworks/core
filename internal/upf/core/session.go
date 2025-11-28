@@ -13,6 +13,7 @@ type Session struct {
 	PDRs       map[uint32]SPDRInfo
 	FARs       map[uint32]SFarInfo
 	QERs       map[uint32]SQerInfo
+	URRs       map[uint32]uint32
 }
 
 func NewSession(localSEID uint64, remoteSEID uint64) *Session {
@@ -22,6 +23,7 @@ func NewSession(localSEID uint64, remoteSEID uint64) *Session {
 		PDRs:       map[uint32]SPDRInfo{},
 		FARs:       map[uint32]SFarInfo{},
 		QERs:       map[uint32]SQerInfo{},
+		URRs:       map[uint32]uint32{},
 	}
 }
 
@@ -88,6 +90,14 @@ func (s *Session) RemoveQer(id uint32) SQerInfo {
 	sQerInfo := s.QERs[id]
 	delete(s.QERs, id)
 	return sQerInfo
+}
+
+func (s *Session) NewUrr(id uint32, internalID uint32) {
+	s.URRs[id] = internalID
+}
+
+func (s *Session) GetUrr(id uint32) uint32 {
+	return s.URRs[id]
 }
 
 func (s *Session) PutPDR(id uint32, info SPDRInfo) {

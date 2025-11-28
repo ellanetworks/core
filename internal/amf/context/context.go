@@ -82,12 +82,14 @@ type AMFContext struct {
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
 	SecurityAlgorithm               SecurityAlgorithm
 	NetworkName                     NetworkName
-	T3502Value                      int // unit is second
-	T3512Value                      int // unit is second
-	Non3gppDeregistrationTimerValue int // unit is second
+	T3502Value                      int    // unit is second
+	T3512Value                      int    // unit is second
+	Non3gppDeregistrationTimerValue int    // unit is second
+	TimeZone                        string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 - 5.2.2 Simple Data Types
 	T3513Cfg                        TimerValue
 	T3522Cfg                        TimerValue
 	T3550Cfg                        TimerValue
+	T3555Cfg                        TimerValue
 	T3560Cfg                        TimerValue
 	T3565Cfg                        TimerValue
 }
@@ -117,11 +119,17 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 func (context *AMFContext) ReAllocateGutiToUe(ctx ctxt.Context, ue *AmfUe) {
 	guamis := GetServedGuamiList(ctx)
 	servedGuami := guamis[0]
-	tmsiGenerator.FreeID(int64(ue.Tmsi))
+	ue.OldTmsi = ue.Tmsi
 	ue.Tmsi = context.TmsiAllocate()
 	plmnID := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc
 	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
+	ue.OldGuti = ue.Guti
 	ue.Guti = plmnID + servedGuami.AmfID + tmsiStr
+}
+
+func (context *AMFContext) FreeOldGuti(ue *AmfUe) {
+	tmsiGenerator.FreeID(int64(ue.OldTmsi))
+	ue.OldGuti = ""
 }
 
 func (context *AMFContext) AllocateRegistrationArea(ctx ctxt.Context, ue *AmfUe, anType models.AccessType) {
@@ -279,17 +287,25 @@ func (context *AMFContext) InPlmnSupport(ctx ctxt.Context, snssai models.Snssai)
 	return false
 }
 
-func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (ue *AmfUe, ok bool) {
-	context.UePool.Range(func(key, value interface{}) bool {
+// Looks up a UE by the provided GUTI.
+func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (*AmfUe, bool) {
+	if guti == "" {
+		return nil, false
+	}
+	var (
+		ue *AmfUe
+		ok bool
+	)
+	context.UePool.Range(func(key, value any) bool {
 		candidate := value.(*AmfUe)
-		if ok = (candidate.Guti == guti); ok {
+		if ok = (candidate.Guti == guti || candidate.OldGuti == guti); ok {
 			ue = candidate
 			return false
 		}
 		return true
 	})
 
-	return
+	return ue, ok
 }
 
 func (context *AMFContext) AmfUeFindBySupiLocal(supi string) (ue *AmfUe, ok bool) {
@@ -404,7 +420,7 @@ func (context *AMFContext) Get5gsNwFeatSuppMcsi() uint8 {
 	return 0
 }
 
-// Create new AMF context
+// Returns the AMFContext
 func AMFSelf() *AMFContext {
 	return &amfContext
 }

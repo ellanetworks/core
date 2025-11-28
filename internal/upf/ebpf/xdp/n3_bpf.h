@@ -10,6 +10,7 @@
 #include "xdp/utils/gtp.h"
 #include "xdp/utils/pdr.h"
 #include "xdp/utils/qer.h"
+#include "xdp/utils/urr.h"
 #include "xdp/utils/statistics.h"
 
 struct {
@@ -56,6 +57,7 @@ handle_gtp_packet(struct packet_context *ctx)
 
 	__u32 far_id = pdr->far_id;
 	__u32 qer_id = pdr->qer_id;
+	__u32 urr_id = pdr->urr_id;
 	__u8 outer_header_removal = pdr->outer_header_removal;
 
 	/* If an SDF is configured, match it against the inner packet */
@@ -86,6 +88,7 @@ handle_gtp_packet(struct packet_context *ctx)
 					   teid);
 				far_id = pdr->sdf_rules.far_id;
 				qer_id = pdr->sdf_rules.qer_id;
+				urr_id = pdr->sdf_rules.urr_id;
 				outer_header_removal =
 					pdr->sdf_rules.outer_header_removal;
 			} else {
@@ -114,6 +117,7 @@ handle_gtp_packet(struct packet_context *ctx)
 					   teid);
 				far_id = pdr->sdf_rules.far_id;
 				qer_id = pdr->sdf_rules.qer_id;
+				urr_id = pdr->sdf_rules.urr_id;
 				outer_header_removal =
 					pdr->sdf_rules.outer_header_removal;
 			} else {
@@ -184,6 +188,8 @@ handle_gtp_packet(struct packet_context *ctx)
 		__u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
 		ctx->uplink_statistics->byte_counter.bytes += packet_size;
 	}
+
+	update_urr_bytes(ctx, urr_id);
 
 	const __u32 key = 0;
 	struct route_stat *route_statistic =

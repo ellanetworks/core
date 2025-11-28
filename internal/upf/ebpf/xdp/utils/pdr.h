@@ -51,6 +51,7 @@ struct sdf_rules {
 	__u8 outer_header_removal;
 	__u32 far_id;
 	__u32 qer_id;
+	__u32 urr_id;
 };
 
 struct pdr_info {
@@ -58,6 +59,7 @@ struct pdr_info {
 	__u32 pdr_id;
 	__u32 far_id;
 	__u32 qer_id;
+	__u32 urr_id;
 	__u8 outer_header_removal;
 	__u8 sdf_mode; // 0 - no sdf, 1 - sdf only, 2 - sdf + default
 	struct sdf_rules sdf_rules;

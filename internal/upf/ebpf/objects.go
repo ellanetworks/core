@@ -36,6 +36,7 @@ type BpfObjects struct {
 
 	FarIDTracker     *IDTracker
 	QerIDTracker     *IDTracker
+	UrrIDTracker     *IDTracker
 	Masquerade       bool
 	N3InterfaceIndex uint32
 	N6InterfaceIndex uint32
@@ -86,6 +87,7 @@ func (bpfObjects *BpfObjects) Load() error {
 
 	bpfObjects.FarIDTracker = NewIDTracker(bpfObjects.N3N6EntrypointMaps.FarMap.MaxEntries())
 	bpfObjects.QerIDTracker = NewIDTracker(bpfObjects.N3N6EntrypointMaps.QerMap.MaxEntries())
+	bpfObjects.UrrIDTracker = NewIDTracker(bpfObjects.N3N6EntrypointMaps.UrrMap.MaxEntries())
 
 	return nil
 }
