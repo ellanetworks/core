@@ -63,7 +63,6 @@ func TestListUsage_Success(t *testing.T) {
 	if (*resp)[1]["2022-01-03"].TotalBytes != 4000 {
 		t.Fatalf("expected total bytes 4000, got %d", (*resp)[1]["2022-01-03"].TotalBytes)
 	}
-
 }
 
 func TestListUsage_Failure(t *testing.T) {
