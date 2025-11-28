@@ -67,6 +67,7 @@ nav:
       - Status: reference/api/status.md
       - Subscribers: reference/api/subscribers.md
       - Users: reference/api/users.md
+      - Usage: reference/api/usage.md
     - Configuration File: reference/config_file.md
     - Production Hardening: reference/production_hardening.md
     - Metrics: reference/metrics.md
