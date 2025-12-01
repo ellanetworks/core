@@ -247,9 +247,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get subscriber usage per day", func(t *testing.T) {
-		startDate := time.Now().AddDate(0, 0, -14).Format("2006-01-02")
-		endDate := time.Now().Format("2006-01-02")
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, startDate, endDate, "", GroupByDay)
+		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "2025-11-14", "2025-11-19", "", GroupByDay)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -285,9 +283,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Get subscriber usage per day - subscriber filter", func(t *testing.T) {
-		startDate := time.Now().AddDate(0, 0, -14).Format("2006-01-02")
-		endDate := time.Now().Format("2006-01-02")
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, startDate, endDate, "test_imsi_2", GroupByDay)
+		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "2025-11-14", "2025-11-19", "test_imsi_2", GroupByDay)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -419,9 +415,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get subscriber usage per day", func(t *testing.T) {
-		startDate := time.Now().AddDate(0, 0, -14).Format("2006-01-02")
-		endDate := time.Now().Format("2006-01-02")
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, startDate, endDate, "", GroupBySubscriber)
+		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "2025-11-14", "2025-11-19", "", GroupBySubscriber)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -457,9 +451,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Get subscriber usage per subscriber - subscriber filter", func(t *testing.T) {
-		startDate := time.Now().AddDate(0, 0, -14).Format("2006-01-02")
-		endDate := time.Now().Format("2006-01-02")
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, startDate, endDate, "test_imsi_2", GroupBySubscriber)
+		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "2025-11-14", "2025-11-19", "test_imsi_2", GroupBySubscriber)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
 		}
