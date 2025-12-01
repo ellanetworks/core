@@ -16,7 +16,7 @@ Ella Core logs many events, including errors, warnings, and information messages
 
 Ella Core automatically logs all user actions, including login attempts, API calls, and changes to the system configuration. Users can configure the output (`stdout` or `file`) for audit logs.
 
-In addition to the output defined via the configuration file, audit Logs are accessible via the [API](api/logs.md) and the Web UI.
+In addition to the output defined via the configuration file, audit Logs are accessible via the [API](api/audit_logs.md) and the Web UI.
 
 ### Example
 

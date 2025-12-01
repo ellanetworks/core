@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import {
   Box,
+  Button,
   Typography,
   CircularProgress,
   Alert,
@@ -12,6 +13,7 @@ import {
   IconButton,
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import {
@@ -23,12 +25,14 @@ import { BarChart } from "@mui/x-charts/BarChart";
 import {
   getUsage,
   getUsageRetentionPolicy,
+  clearUsageData,
   type UsageResult,
   type UsageRetentionPolicy,
 } from "@/queries/usage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import EditUsageRetentionPolicyModal from "@/components/EditUsageRetentionPolicyModal";
+import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 
 const MAX_WIDTH = 1400;
 
@@ -111,6 +115,9 @@ const SubscriberUsage = () => {
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
 
+  const [isUsageDataClearModalOpen, setUsageDataClearModalOpen] =
+    useState(false);
+
   const { data: retentionPolicy, refetch: refetchRetentionPolicy } =
     useQuery<UsageRetentionPolicy>({
       queryKey: ["usageRetentionPolicy", accessToken],
@@ -123,6 +130,7 @@ const SubscriberUsage = () => {
   const {
     data: usagePerSubscriberData,
     isLoading: isUsagePerSubscriberLoading,
+    refetch: refetchUsagePerSubscriber,
   } = useQuery<UsageResult>({
     queryKey: [
       "usagePerSubscriber",
@@ -188,26 +196,29 @@ const SubscriberUsage = () => {
     [theme],
   );
 
-  const { data: usagePerDayData, isLoading: isUsagePerDayLoading } =
-    useQuery<UsageResult>({
-      queryKey: [
-        "usagePerDay",
-        accessToken,
+  const {
+    data: usagePerDayData,
+    isLoading: isUsagePerDayLoading,
+    refetch: refetchUsagePerDay,
+  } = useQuery<UsageResult>({
+    queryKey: [
+      "usagePerDay",
+      accessToken,
+      startDate,
+      endDate,
+      selectedSubscriber,
+    ],
+    queryFn: async () => {
+      return getUsage(
+        accessToken || "",
         startDate,
         endDate,
         selectedSubscriber,
-      ],
-      queryFn: async () => {
-        return getUsage(
-          accessToken || "",
-          startDate,
-          endDate,
-          selectedSubscriber,
-          "day",
-        );
-      },
-      enabled: !!accessToken && !!startDate && !!endDate,
-    });
+        "day",
+      );
+    },
+    enabled: !!accessToken && !!startDate && !!endDate,
+  });
 
   const dailyRows: UsagePerDayRow[] = useMemo(() => {
     if (!usagePerDayData) return [];
@@ -321,6 +332,36 @@ const SubscriberUsage = () => {
     setDateRange((prev) => ({ ...prev, endDate: value }));
   };
 
+  const onClearAll = () => {
+    setUsageDataClearModalOpen(true);
+  };
+
+  const handleConfirmDeleteUsageData = async () => {
+    setUsageDataClearModalOpen(false);
+    if (!accessToken) return;
+
+    try {
+      await clearUsageData(accessToken);
+
+      await Promise.allSettled([
+        refetchUsagePerSubscriber(),
+        refetchUsagePerDay(),
+      ]);
+
+      setAlert({
+        message: "All usage data cleared successfully!",
+        severity: "success",
+      });
+    } catch (error: unknown) {
+      setAlert({
+        message: `Failed to clear usage data: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        severity: "error",
+      });
+    }
+  };
+
   const isInitialLoading =
     (isUsagePerSubscriberLoading && !usagePerSubscriberData) ||
     (isUsagePerDayLoading && !usagePerDayData);
@@ -430,6 +471,18 @@ const SubscriberUsage = () => {
                   ml: { xs: 0, sm: "auto" },
                 }}
               >
+                {canEdit && (
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    startIcon={<DeleteOutlineIcon />}
+                    onClick={onClearAll}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    Clear All
+                  </Button>
+                )}
                 <Typography variant="body2" color="text.secondary">
                   Retention: <strong>{retentionPolicy?.days ?? "…"}</strong>{" "}
                   days
@@ -528,6 +581,13 @@ const SubscriberUsage = () => {
           });
         }}
         initialData={retentionPolicy || { days: 30 }}
+      />
+      <DeleteConfirmationModal
+        title="Clear All Usage Data"
+        description="Are you sure you want to clear all usage data? This action cannot be undone."
+        open={isUsageDataClearModalOpen}
+        onClose={() => setUsageDataClearModalOpen(false)}
+        onConfirm={handleConfirmDeleteUsageData}
       />
     </Box>
   );

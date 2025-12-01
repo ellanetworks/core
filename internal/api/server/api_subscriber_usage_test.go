@@ -59,7 +59,7 @@ type GroupBy string
 
 const (
 	GroupByDay        GroupBy = "day"
-	GroupBySubscriber         = "subscriber"
+	GroupBySubscriber GroupBy = "subscriber"
 )
 
 func getSubscriberUsage(url string, client *http.Client, token string, startDate string, endDate string, subscriber string, groupBy GroupBy) (int, *GetSubscriberUsageResponse, error) {
