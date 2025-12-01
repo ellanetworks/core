@@ -86,8 +86,8 @@ github.com/moby/docker-image-spec v1.3.1 h1:jMKff3w6PgbfSa69GfNg+zN/XLhfXJGnEx3N
 github.com/moby/docker-image-spec v1.3.1/go.mod h1:eKmb5VW8vQEh/BAr2yvVNvuiJuY6UIocYsFu/DxxRpo=
 github.com/moby/moby/api v1.52.0 h1:00BtlJY4MXkkt84WhUZPRqt5TvPbgig2FZvTbe3igYg=
 github.com/moby/moby/api v1.52.0/go.mod h1:8mb+ReTlisw4pS6BRzCMts5M49W5M7bKt1cJy/YbAqc=
-github.com/moby/moby/client v0.1.0 h1:nt+hn6O9cyJQqq5UWnFGqsZRTS/JirUqzPjEl0Bdc/8=
-github.com/moby/moby/client v0.1.0/go.mod h1:O+/tw5d4a1Ha/ZA/tPxIZJapJRUS6LNZ1wiVRxYHyUE=
+github.com/moby/moby/client v0.2.1 h1:1Grh1552mvv6i+sYOdY+xKKVTvzJegcVMhuXocyDz/k=
+github.com/moby/moby/client v0.2.1/go.mod h1:O+/tw5d4a1Ha/ZA/tPxIZJapJRUS6LNZ1wiVRxYHyUE=
 github.com/mschoch/smat v0.2.0 h1:8imxQsjDm8yFEAVBe7azKmKSgzSkZXDuKkSq9374khM=
 github.com/mschoch/smat v0.2.0/go.mod h1:kc9mz7DoBKqDyiRL7VZN8KvXQMWeTaVnttLRXOlotKw=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
