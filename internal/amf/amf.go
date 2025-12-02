@@ -34,8 +34,8 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	}
 	self.URIScheme = models.URISchemeHTTP
 	security := &context.Security{
-		IntegrityOrder: []string{"NIA1", "NIA2"},
-		CipheringOrder: []string{"NEA0"},
+		IntegrityOrder: []string{"NIA2", "NIA0"},
+		CipheringOrder: []string{"NEA2", "NEA0"},
 	}
 	self.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)
 	self.SecurityAlgorithm.CipheringOrder = getEncAlgOrder(security.CipheringOrder)
