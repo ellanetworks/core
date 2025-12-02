@@ -120,7 +120,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 			session.NewUrr(urrId, internalId)
 
-			logger.UpfLog.Info(
+			logger.UpfLog.Debug(
 				"Received Usage Reporting Rule create",
 				zap.Uint32("urr_id", urrId),
 				zap.String("measurement_method", "Volume"),
@@ -350,7 +350,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				return fmt.Errorf("measurement period is invalid: %s", err.Error())
 			}
 
-			logger.UpfLog.Info(
+			logger.UpfLog.Debug(
 				"Received Usage Reporting Rule create",
 				zap.Uint32("urrID", urrId),
 				zap.String("measurement_method", "Volume"),
@@ -370,7 +370,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			if err != nil {
 				return fmt.Errorf("measurement period is invalid: %s", err.Error())
 			}
-			logger.UpfLog.Info(
+			logger.UpfLog.Debug(
 				"Received Usage Reporting Rule update - Not yet supported",
 				zap.Uint32("urrID", urrId),
 				zap.String("measurement_method", "Volume"),
@@ -383,7 +383,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			if err != nil {
 				return fmt.Errorf("URR ID missing")
 			}
-			logger.UpfLog.Info("Received Usage Reporting Rule remove - Not yet supported", zap.Uint32("urrID", urrId))
+			logger.UpfLog.Debug("Received Usage Reporting Rule remove - Not yet supported", zap.Uint32("urrID", urrId))
 		}
 
 		for _, pdr := range msg.CreatePDR {
