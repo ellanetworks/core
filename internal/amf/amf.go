@@ -33,12 +33,8 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 		Mpsi:    0,
 	}
 	self.URIScheme = models.URISchemeHTTP
-	security := &context.Security{
-		IntegrityOrder: []string{"NIA2", "NIA0"},
-		CipheringOrder: []string{"NEA2", "NEA0"},
-	}
-	self.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)
-	self.SecurityAlgorithm.CipheringOrder = getEncAlgOrder(security.CipheringOrder)
+	self.SecurityAlgorithm.IntegrityOrder = []uint8{security.AlgIntegrity128NIA2, security.AlgIntegrity128NIA0}
+	self.SecurityAlgorithm.CipheringOrder = []uint8{security.AlgCiphering128NEA2, security.AlgCiphering128NEA0}
 	self.NetworkName = context.NetworkName{
 		Full:  "ELLACORE5G",
 		Short: "ELLACORE",
@@ -86,42 +82,6 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 		return fmt.Errorf("failed to start NGAP service: %+v", err)
 	}
 	return nil
-}
-
-func getIntAlgOrder(integrityOrder []string) (intOrder []uint8) {
-	for _, intAlg := range integrityOrder {
-		switch intAlg {
-		case "NIA0":
-			intOrder = append(intOrder, security.AlgIntegrity128NIA0)
-		case "NIA1":
-			intOrder = append(intOrder, security.AlgIntegrity128NIA1)
-		case "NIA2":
-			intOrder = append(intOrder, security.AlgIntegrity128NIA2)
-		case "NIA3":
-			intOrder = append(intOrder, security.AlgIntegrity128NIA3)
-		default:
-			logger.AmfLog.Error("Unsupported algorithm", zap.String("algorithm", intAlg))
-		}
-	}
-	return
-}
-
-func getEncAlgOrder(cipheringOrder []string) (encOrder []uint8) {
-	for _, encAlg := range cipheringOrder {
-		switch encAlg {
-		case "NEA0":
-			encOrder = append(encOrder, security.AlgCiphering128NEA0)
-		case "NEA1":
-			encOrder = append(encOrder, security.AlgCiphering128NEA1)
-		case "NEA2":
-			encOrder = append(encOrder, security.AlgCiphering128NEA2)
-		case "NEA3":
-			encOrder = append(encOrder, security.AlgCiphering128NEA3)
-		default:
-			logger.AmfLog.Error("Unsupported algorithm", zap.String("algorithm", encAlg))
-		}
-	}
-	return
 }
 
 func StartNGAPService(ngapAddress string, ngapPort int) error {
