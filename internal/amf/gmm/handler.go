@@ -417,7 +417,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS message
 	// container IE, the UE shall set the security header type of the initial NAS message to "integrity protected"
 	if registrationRequest.NASMessageContainer != nil {
-		contents := registrationRequest.NASMessageContainer.GetNASMessageContainerContents()
+		contents := registrationRequest.GetNASMessageContainerContents()
 
 		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
 		// message container IE, the UE shall set the security header type of the initial NAS message to
@@ -429,7 +429,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		} else {
 			m := nas.NewMessage()
 			if err := m.GmmMessageDecode(&contents); err != nil {
-				return err
+				return fmt.Errorf("could not decode NAS message container: %v", err)
 			}
 
 			messageType := m.GmmMessage.GmmHeader.GetMessageType()
