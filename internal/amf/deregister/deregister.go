@@ -22,9 +22,9 @@ func DeregisterSubscriber(ctx ctxt.Context, supi string) error {
 		smContext := value.(*context.SmContext)
 		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 		if err != nil {
-			ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
+			ue.GmmLog.Debug("Error releasing SM context", zap.Error(err))
 		} else {
-			ue.GmmLog.Info("Release SmContext Success", zap.String("smContextRef", smContext.SmContextRef()))
+			ue.GmmLog.Debug("Released SM context", zap.String("smContextRef", smContext.SmContextRef()))
 		}
 		return true
 	})
