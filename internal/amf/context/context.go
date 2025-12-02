@@ -47,11 +47,6 @@ type NetworkFeatureSupport5GS struct {
 	Mcsi    uint8
 }
 
-type Security struct {
-	IntegrityOrder []string
-	CipheringOrder []string
-}
-
 type PlmnSupportItem struct {
 	PlmnID     models.PlmnID
 	SNssaiList []models.Snssai
