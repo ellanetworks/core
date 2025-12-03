@@ -326,18 +326,6 @@ func (context *AMFContext) AmfUeFindByGuti(guti string) (ue *AmfUe, ok bool) {
 	return
 }
 
-func (context *AMFContext) AmfUeFindByPolicyAssociationID(polAssoID string) (ue *AmfUe, ok bool) {
-	context.UePool.Range(func(key, value interface{}) bool {
-		candidate := value.(*AmfUe)
-		if ok = (candidate.PolicyAssociationID == polAssoID); ok {
-			ue = candidate
-			return false
-		}
-		return true
-	})
-	return
-}
-
 func (context *AMFContext) RanUeFindByAmfUeNgapIDLocal(amfUeNgapID int64) *RanUe {
 	if value, ok := context.RanUePool.Load(amfUeNgapID); ok {
 		return value.(*RanUe)

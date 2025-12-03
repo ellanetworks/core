@@ -160,7 +160,7 @@ func qerToCreateQER(qer *context.QER) *ie.IE {
 	if qer.GateStatus != nil {
 		createQERies = append(createQERies, ie.NewGateStatus(qer.GateStatus.ULGate, qer.GateStatus.DLGate))
 	}
-	createQERies = append(createQERies, ie.NewQFI(qer.QFI.QFI))
+	createQERies = append(createQERies, ie.NewQFI(qer.QFI))
 	if qer.MBR != nil {
 		createQERies = append(createQERies, ie.NewMBR(qer.MBR.ULMBR, qer.MBR.DLMBR))
 	}

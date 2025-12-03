@@ -134,7 +134,7 @@ type QER struct {
 	GBR        *GBR
 
 	State RuleState
-	QFI   QFI
+	QFI   uint8
 	QERID uint32
 }
 

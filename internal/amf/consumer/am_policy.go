@@ -29,11 +29,11 @@ func AMPolicyControlCreate(ctx ctxt.Context, ue *context.AmfUe, anType models.Ac
 		policyAssociationRequest.Rfsp = ue.AccessAndMobilitySubscriptionData.RfspIndex
 	}
 
-	res, locationHeader, err := pcf.CreateAMPolicy(ctx, policyAssociationRequest)
+	res, err := pcf.CreateAMPolicy(ctx, policyAssociationRequest)
 	if err != nil {
 		return fmt.Errorf("failed to create policy: %+v", err)
 	}
-	ue.PolicyAssociationID = locationHeader
+
 	ue.AmPolicyAssociation = res
 	if res.Triggers != nil {
 		for _, trigger := range res.Triggers {
@@ -46,7 +46,7 @@ func AMPolicyControlCreate(ctx ctxt.Context, ue *context.AmfUe, anType models.Ac
 }
 
 func AMPolicyControlUpdate(ctx ctxt.Context, ue *context.AmfUe, updateRequest models.PolicyAssociationUpdateRequest) error {
-	res, err := pcf.UpdateAMPolicy(ctx, ue.PolicyAssociationID, updateRequest)
+	res, err := pcf.UpdateAMPolicy(ctx, ue.Supi, updateRequest)
 	if err != nil {
 		return fmt.Errorf("failed to update policy: %+v", err)
 	}
@@ -67,7 +67,7 @@ func AMPolicyControlUpdate(ctx ctxt.Context, ue *context.AmfUe, updateRequest mo
 }
 
 func AMPolicyControlDelete(ctx ctxt.Context, ue *context.AmfUe) error {
-	err := pcf.DeleteAMPolicy(ctx, ue.PolicyAssociationID)
+	err := pcf.DeleteAMPolicy(ctx, ue.Supi)
 	if err != nil {
 		return fmt.Errorf("could not delete policy: %+v", err)
 	}

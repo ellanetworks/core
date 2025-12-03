@@ -175,7 +175,7 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) 
 		logger.SmfLog.Error("new QER failed")
 		return nil, err
 	} else {
-		newQER.QFI.QFI = defQosData.QFI
+		newQER.QFI = defQosData.QFI
 		newQER.GateStatus = &GateStatus{
 			ULGate: GateOpen,
 			DLGate: GateOpen,
