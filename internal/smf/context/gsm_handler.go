@@ -16,10 +16,8 @@ import (
 )
 
 func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmentRequest) {
-	// Retrieve PDUSessionID
 	smContext.PDUSessionID = int32(req.PDUSessionID.GetPDUSessionID())
 
-	// Retrieve PTI (Procedure transaction identity)
 	smContext.Pti = req.GetPTI()
 
 	// Handle PDUSessionType

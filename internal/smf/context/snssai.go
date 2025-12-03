@@ -6,13 +6,8 @@ package context
 
 import "github.com/ellanetworks/core/internal/models"
 
-type SNssai struct {
-	Sd  string
-	Sst int32
-}
-
 type SnssaiUPFInfo struct {
-	SNssai  SNssai
+	SNssai  models.Snssai
 	DnnList []DnnUPFInfoItem
 }
 

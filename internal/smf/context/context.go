@@ -69,7 +69,7 @@ func GetSnssaiInfo(ctx context.Context) (*SnssaiSmfInfo, error) {
 	}
 
 	snssaiInfo := &SnssaiSmfInfo{
-		Snssai: SNssai{
+		Snssai: models.Snssai{
 			Sst: operator.Sst,
 			Sd:  operator.GetHexSd(),
 		},
