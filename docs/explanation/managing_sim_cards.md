@@ -30,6 +30,9 @@ export ADMIN_CODE=76543210
 ./pySim-prog.py -p0 -n Ella -t sysmoISIM-SJA5 -i $IMSI -c $MCC -x $MCC -y $MNC -o $OPC -k $KEY -a $ADMIN_CODE -j 1
 ```
 
+!!! note
+    Some devices like iPhones also require the Home Network Public Key to be programmed on the SIM card. If you are using PySim, please refer to the [SUCI Concealement documentation](https://downloads.osmocom.org/docs/pysim/master/html/suci-tutorial.html).
+
 ## Using eSIM
 
 eSIMs (embedded SIMs) allow for remote provisioning of SIM profiles. This can simplify the management of SIM cards, especially in large-scale deployments. You can use an eSIM management platform to create and manage subscriber profiles, which can then be downloaded to eSIM-enabled devices.
