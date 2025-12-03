@@ -38,7 +38,7 @@ volatile const int n6_vlan = 0;
 static __always_inline __u32 parse_gtp(struct packet_context *ctx)
 {
 	struct gtpuhdr *gtp = (struct gtpuhdr *)ctx->data;
-	if ((const char *)(gtp + 1) > ctx->data_end)
+	if ((const void *)(gtp + 1) > ctx->data_end)
 		return -1;
 
 	ctx->data += sizeof(*gtp);
@@ -66,7 +66,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	return XDP_TX;
 }
 
-static __always_inline int guess_eth_protocol(const char *data)
+static __always_inline int guess_eth_protocol(const void *data)
 {
 	const __u8 ip_version = (*(const __u8 *)data) >> 4;
 	switch (ip_version) {
@@ -99,10 +99,10 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx)
 		sizeof(struct iphdr) + sizeof(struct udphdr) +
 		sizeof(struct gtpuhdr) + ext_gtp_header_size;
 
-	char *data = (char *)(long)ctx->xdp_ctx->data;
-	const char *data_end = (const char *)(long)ctx->xdp_ctx->data_end;
+	void *data = (void *)(long)ctx->xdp_ctx->data;
+	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
 	struct ethhdr *eth = (struct ethhdr *)data;
-	if ((const char *)(eth + 1) > data_end) {
+	if ((const void *)(eth + 1) > data_end) {
 		upf_printk("upf: remove_gtp_header: can't parse eth");
 		return -1;
 	}
@@ -128,7 +128,7 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx)
 
 	struct ethhdr *new_eth =
 		(struct ethhdr *)(data - sizeof(struct ethhdr));
-	if ((const char *)(new_eth + 1) > data_end) {
+	if ((const void *)(new_eth + 1) > data_end) {
 		upf_printk("upf: remove_gtp_header: can't set new eth");
 		return -1;
 	}
@@ -137,11 +137,11 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx)
 			(struct vlan_hdr *)(data - sizeof(struct vlan_hdr));
 		new_eth = (struct ethhdr *)(data - sizeof(struct vlan_hdr) -
 					    sizeof(struct ethhdr));
-		if ((const char *)(new_eth + 1) > data_end) {
+		if ((const void *)(new_eth + 1) > data_end) {
 			upf_printk("upf: remove_gtp_header: can't set new eth");
 			return -1;
 		}
-		if ((const char *)(vlan + 1) > data_end) {
+		if ((const void *)(vlan + 1) > data_end) {
 			upf_printk(
 				"upf: remove_gtp_header: can't set new vlan");
 			return -1;
@@ -161,8 +161,8 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx)
 		return result;
 
 	/* Update packet pointers */
-	data = (char *)(long)ctx->xdp_ctx->data;
-	data_end = (const char *)(long)ctx->xdp_ctx->data_end;
+	data = (void *)(long)ctx->xdp_ctx->data;
+	data_end = (const void *)(long)ctx->xdp_ctx->data_end;
 	return context_reinit(ctx, data, data_end);
 }
 
@@ -260,11 +260,11 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 		return -1;
 	}
 
-	char *data = (char *)(long)ctx->xdp_ctx->data;
-	const char *data_end = (const char *)(long)ctx->xdp_ctx->data_end;
+	void *data = (void *)(long)ctx->xdp_ctx->data;
+	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
 
 	struct ethhdr *orig_eth = (struct ethhdr *)(data + gtp_encap_size);
-	if ((const char *)(orig_eth + 1) > data_end) {
+	if ((const void *)(orig_eth + 1) > data_end) {
 		return -1;
 	}
 
@@ -273,17 +273,18 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 	eth->h_proto = bpf_htons(ETH_P_IP);
 
 	struct iphdr *ip = (struct iphdr *)(eth + 1);
-	if ((const char *)(ip + 1) > data_end) {
+	if ((const void *)(ip + 1) > data_end) {
 		return -1;
 	}
 
+	struct vlan_hdr *vlan = NULL;
 	if (n3_vlan) {
 		eth->h_proto = bpf_htons(ETH_P_8021Q);
-		struct vlan_hdr *vlan = (struct vlan_hdr *)ip;
+		vlan = (struct vlan_hdr *)ip;
 		vlan->h_vlan_TCI = bpf_htons(n3_vlan & 0x0FFF);
 		vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
 		ip = (struct iphdr *)((void *)ip + sizeof(struct vlan_hdr));
-		if ((const char *)(ip + 1) > data_end) {
+		if ((const void *)(ip + 1) > data_end) {
 			return -1;
 		}
 	}
@@ -294,7 +295,7 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 
 	/* Add the UDP header */
 	struct udphdr *udp = (struct udphdr *)(ip + 1);
-	if ((const char *)(udp + 1) > data_end)
+	if ((const void *)(udp + 1) > data_end)
 		return -1;
 
 	fill_udp_header(udp, GTP_UDP_PORT,
@@ -302,14 +303,14 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 
 	/* Add the GTP header */
 	struct gtpuhdr *gtp = (struct gtpuhdr *)(udp + 1);
-	if ((const char *)(gtp + 1) > data_end)
+	if ((const void *)(gtp + 1) > data_end)
 		return -1;
 
 	fill_gtp_header(gtp, teid, gtp_ext_hdr_size + ip_packet_len);
 
 	/* Add the GTP ext header */
 	struct gtp_hdr_ext *gtp_ext = (struct gtp_hdr_ext *)(gtp + 1);
-	if ((const char *)(gtp_ext + 1) > data_end)
+	if ((const void *)(gtp_ext + 1) > data_end)
 		return -1;
 
 	fill_gtp_ext_header(gtp_ext);
@@ -317,7 +318,7 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 	/* Add the GTP PDU session container header */
 	struct gtp_hdr_ext_pdu_session_container *gtp_psc =
 		(struct gtp_hdr_ext_pdu_session_container *)(gtp_ext + 1);
-	if ((const char *)(gtp_psc + 1) > data_end)
+	if ((const void *)(gtp_psc + 1) > data_end)
 		return -1;
 
 	fill_gtp_ext_header_psc(gtp_psc, qfi,
@@ -333,9 +334,9 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 	// udp->check = cs;
 
 	/* Update packet pointers */
-	context_set_ip4(ctx, (char *)(long)ctx->xdp_ctx->data,
-			(const char *)(long)ctx->xdp_ctx->data_end, eth, ip,
-			udp, gtp);
+	context_set_ip4(ctx, (void *)(long)ctx->xdp_ctx->data,
+			(const void *)(long)ctx->xdp_ctx->data_end, eth, vlan,
+			 ip, udp, gtp);
 	return 0;
 }
 

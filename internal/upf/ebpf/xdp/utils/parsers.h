@@ -37,7 +37,7 @@
 static __always_inline int parse_ethernet(struct packet_context *ctx)
 {
 	struct ethhdr *eth = (struct ethhdr *)ctx->data;
-	if ((const char *)(eth + 1) > ctx->data_end) {
+	if ((const void *)(eth + 1) > ctx->data_end) {
 		return -1;
 	}
 
@@ -49,7 +49,7 @@ static __always_inline int parse_ethernet(struct packet_context *ctx)
 	    eth->h_proto == bpf_htons(ETH_P_8021AD)) {
 		struct vlan_hdr *vlan = (struct vlan_hdr *)ctx->data;
 
-		if ((const char *)(ctx->data + sizeof(*vlan)) > ctx->data_end) {
+		if ((const void *)(ctx->data + sizeof(*vlan)) > ctx->data_end) {
 			return -1;
 		}
 
@@ -68,7 +68,7 @@ static __always_inline struct iphdr *
 detect_ip4_header(struct packet_context *ctx)
 {
 	struct iphdr *ip4 = (struct iphdr *)ctx->data;
-	if ((const char *)(ip4 + 1) > ctx->data_end) {
+	if ((const void *)(ip4 + 1) > ctx->data_end) {
 		return NULL;
 	}
 	return ip4;
@@ -93,7 +93,7 @@ static __always_inline int parse_ip4(struct packet_context *ctx)
 static __always_inline int parse_ip6(struct packet_context *ctx)
 {
 	struct ipv6hdr *ip6 = (struct ipv6hdr *)ctx->data;
-	if ((const char *)(ip6 + 1) > ctx->data_end) {
+	if ((const void *)(ip6 + 1) > ctx->data_end) {
 		return -1;
 	}
 
@@ -108,7 +108,7 @@ static __always_inline struct udphdr *
 detect_udp_header(struct packet_context *ctx, int offset)
 {
 	struct udphdr *udp = (struct udphdr *)(ctx->data + offset);
-	if ((const char *)(udp + 1) > ctx->data_end) {
+	if ((const void *)(udp + 1) > ctx->data_end) {
 		return NULL;
 	}
 	return udp;
@@ -130,7 +130,7 @@ static __always_inline struct tcphdr *
 detect_tcp_header(struct packet_context *ctx, int offset)
 {
 	struct tcphdr *tcp = (struct tcphdr *)(ctx->data + offset);
-	if ((const char *)(tcp + 1) > ctx->data_end) {
+	if ((const void *)(tcp + 1) > ctx->data_end) {
 		return NULL;
 	}
 	return tcp;
@@ -153,7 +153,7 @@ static __always_inline int parse_tcp(struct packet_context *ctx)
 static __always_inline int parse_icmp(struct packet_context *ctx)
 {
 	struct icmphdr *icmp = (struct icmphdr *)ctx->data;
-	if ((const char *)(icmp + 1) > ctx->data_end) {
+	if ((const void *)(icmp + 1) > ctx->data_end) {
 		return -1;
 	}
 
@@ -205,34 +205,36 @@ static __always_inline void swap_ip(struct iphdr *iph)
 }
 
 static __always_inline void
-context_set_ip4(struct packet_context *ctx, char *data, const char *data_end,
-		struct ethhdr *eth, struct iphdr *ip4, struct udphdr *udp,
-		struct gtpuhdr *gtp)
+context_set_ip4(struct packet_context *ctx, void *data, const void *data_end,
+		struct ethhdr *eth, struct vlan_hdr *vlan, struct iphdr *ip4,
+		struct udphdr *udp, struct gtpuhdr *gtp)
 {
 	ctx->data = data;
 	ctx->data_end = data_end;
 	ctx->eth = eth;
+	ctx->vlan = vlan;
 	ctx->ip4 = ip4;
-	ctx->ip6 = 0;
+	ctx->ip6 = NULL;
 	ctx->udp = udp;
 	ctx->gtp = gtp;
 }
 
 static __always_inline void context_reset(struct packet_context *ctx,
-					  char *data, const char *data_end)
+					  void *data, const void *data_end)
 {
 	ctx->data = data;
 	ctx->data_end = data_end;
-	ctx->eth = 0;
-	ctx->ip4 = 0;
-	ctx->ip6 = 0;
-	ctx->udp = 0;
-	ctx->gtp = 0;
-	ctx->icmp = 0;
+	ctx->eth = NULL;
+	ctx->vlan = NULL;
+	ctx->ip4 = NULL;
+	ctx->ip6 = NULL;
+	ctx->udp = NULL;
+	ctx->gtp = NULL;
+	ctx->icmp = NULL;
 }
 
 static __always_inline long context_reinit(struct packet_context *ctx,
-					   char *data, const char *data_end)
+					   void *data, const void *data_end)
 {
 	context_reset(ctx, data, data_end);
 

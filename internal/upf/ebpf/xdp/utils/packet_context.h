@@ -36,8 +36,8 @@ struct vlan_hdr {
 
 /* Header cursor to keep track of current parsing position */
 struct packet_context {
-	char *data;
-	const char *data_end;
+	void *data;
+	const void *data_end;
 	struct upf_statistic *uplink_statistics;
 	struct upf_statistic *downlink_statistics;
 	struct counters *counter;
