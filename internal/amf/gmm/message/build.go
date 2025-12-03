@@ -16,11 +16,13 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
 	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
+	"go.uber.org/zap"
 )
 
 func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause *uint8) ([]byte, error) {
@@ -327,10 +329,27 @@ func BuildSecurityModeCommand(ue *context.AmfUe, eapSuccess bool, eapMessage str
 	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfCipheringAlgorithm(ue.CipheringAlg)
 	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfIntegrityProtectionAlgorithm(ue.IntegrityAlg)
 
+	logger.AmfLog.Warn("TO DELETE: SelectedNASSecurityAlgorithms",
+		zap.Uint8("CipheringAlg", securityModeCommand.SelectedNASSecurityAlgorithms.GetTypeOfCipheringAlgorithm()),
+		zap.Uint8("IntegrityAlg", securityModeCommand.SelectedNASSecurityAlgorithms.GetTypeOfIntegrityProtectionAlgorithm()),
+	)
+
 	securityModeCommand.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.NgKsi)
 
 	securityModeCommand.ReplayedUESecurityCapabilities.SetLen(ue.UESecurityCapability.GetLen())
 	securityModeCommand.ReplayedUESecurityCapabilities.Buffer = ue.UESecurityCapability.Buffer
+
+	logger.AmfLog.Warn(
+		"TO DELETE: Replayed UESecurityCapabilities",
+		zap.Uint8("NEA0", ue.UESecurityCapability.GetEA0_5G()),
+		zap.Uint8("NEA1", ue.UESecurityCapability.GetEA1_128_5G()),
+		zap.Uint8("NEA2", ue.UESecurityCapability.GetEA2_128_5G()),
+		zap.Uint8("NEA3", ue.UESecurityCapability.GetEA3_128_5G()),
+		zap.Uint8("NIA0", ue.UESecurityCapability.GetIA0_5G()),
+		zap.Uint8("NIA1", ue.UESecurityCapability.GetIA1_128_5G()),
+		zap.Uint8("NIA2", ue.UESecurityCapability.GetIA2_128_5G()),
+		zap.Uint8("NIA3", ue.UESecurityCapability.GetIA3_128_5G()),
+	)
 
 	if ue.Pei != "" {
 		securityModeCommand.IMEISVRequest = nasType.NewIMEISVRequest(nasMessage.SecurityModeCommandIMEISVRequestType)
