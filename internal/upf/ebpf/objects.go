@@ -77,11 +77,15 @@ func (bpfObjects *BpfObjects) Load() error {
 
 	n3n6Spec, err := LoadN3N6Entrypoint()
 	if err != nil {
-		logger.UpfLog.Error("failed to load N3/N6spec", zap.Error(err))
+		logger.UpfLog.Error("failed to load N3/N6 spec", zap.Error(err))
 		return err
 	}
 	if err := bpfObjects.loadAndAssignFromSpec(n3n6Spec, &bpfObjects.N3N6EntrypointObjects, &collectionOptions); err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 program", zap.Error(err))
+		var ve *ebpf.VerifierError
+		if errors.As(err, &ve) {
+			logger.UpfLog.Debug("verifier logs", zap.Error(ve))
+		}
 		return err
 	}
 

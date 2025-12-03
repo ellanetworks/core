@@ -124,8 +124,8 @@ int upf_n3_n6_entrypoint_func(struct xdp_md *ctx)
 	}
 
 	struct packet_context context = {
-		.data = (char *)(long)ctx->data,
-		.data_end = (const char *)(long)ctx->data_end,
+		.data = (void *)(long)ctx->data,
+		.data_end = (const void *)(long)ctx->data_end,
 		.xdp_ctx = ctx,
 		.downlink_statistics = downlink_statistic,
 		.uplink_statistics = uplink_statistic,

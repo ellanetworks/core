@@ -63,8 +63,8 @@ handle_gtp_packet(struct packet_context *ctx)
 	/* If an SDF is configured, match it against the inner packet */
 	if (pdr->sdf_mode) {
 		struct packet_context inner_context = {
-			.data = (char *)(long)ctx->data,
-			.data_end = (const char *)(long)ctx->data_end,
+			.data = (void *)(long)ctx->data,
+			.data_end = (const void *)(long)ctx->data_end,
 		};
 
 		if (inner_context.data + 1 > inner_context.data_end)

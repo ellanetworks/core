@@ -42,15 +42,15 @@ static __always_inline __u32 prepare_icmp_echo_reply(struct packet_context *ctx,
 	struct ethhdr *eth = ctx->eth;
 	swap_mac(eth);
 
-	const char *data_end = (const char *)(long)ctx->xdp_ctx->data_end;
+	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
 	struct iphdr *ip = ctx->ip4;
-	if ((const char *)(ip + 1) > data_end)
+	if ((const void *)(ip + 1) > data_end)
 		return -1;
 
 	swap_ip(ip);
 
 	struct icmphdr *icmp = (struct icmphdr *)(ip + 1);
-	if ((const char *)(icmp + 1) > data_end)
+	if ((const void *)(icmp + 1) > data_end)
 		return -1;
 
 	if (icmp->type != ICMP_ECHO)
