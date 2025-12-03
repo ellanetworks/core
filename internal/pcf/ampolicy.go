@@ -15,21 +15,21 @@ import (
 
 var tracer = otel.Tracer("ella-core/pcf")
 
-func DeleteAMPolicy(ctx context.Context, polAssoID string) error {
+func DeleteAMPolicy(ctx context.Context, supi string) error {
 	_, span := tracer.Start(ctx, "PCF Delete AMPolicy")
 	defer span.End()
 	span.SetAttributes(
-		attribute.String("ue.policy_association_id", polAssoID),
+		attribute.String("ue.supi", supi),
 	)
-	ue, err := pcfCtx.FindUEBySUPI(polAssoID)
+	ue, err := pcfCtx.FindUEBySUPI(supi)
 	if err != nil {
-		return fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoID)
+		return fmt.Errorf("ue not found in PCF for supi: %s", supi)
 	}
 	if ue == nil {
-		return fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoID)
+		return fmt.Errorf("ue not found in PCF for supi: %s", supi)
 	}
 	if ue.AMPolicyData == nil {
-		return fmt.Errorf("policy association ID not found in PCF: %s", polAssoID)
+		return fmt.Errorf("policy association ID not found in PCF: %s", supi)
 	}
 	ue.AMPolicyData = nil
 	return nil
