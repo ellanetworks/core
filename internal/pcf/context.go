@@ -28,11 +28,11 @@ type SessionPolicy struct {
 
 type PccPolicy struct {
 	QosDecs       *models.QosData
-	SessionPolicy *SessionPolicy // dnn is key
+	SessionPolicy *SessionPolicy
 }
 
 type PcfSubscriberPolicyData struct {
-	PccPolicy *PccPolicy // sst+sd is key
+	PccPolicy *PccPolicy
 	Supi      string
 }
 

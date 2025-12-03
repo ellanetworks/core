@@ -103,11 +103,6 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 		return nil, fmt.Errorf("subscriber policy is nil for subscriber %s", ue.Supi)
 	}
 
-	decision := &models.SmPolicyDecision{
-		SessRule: deepCopySessionRule(subscriberPolicy.PccPolicy.SessionPolicy.SessionRule),
-		QosDecs:  deepCopyQosData(subscriberPolicy.PccPolicy.QosDecs),
-	}
-
 	dnnData, err := GetSMPolicyDnnData(*smData, request.SliceInfo, request.Dnn)
 	if err != nil {
 		return nil, fmt.Errorf("error finding SM Policy DNN Data for dnn %s: %s", request.Dnn, err)
@@ -117,36 +112,10 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 		return nil, fmt.Errorf("SM Policy DNN Data is empty for dnn %s", request.Dnn)
 	}
 
-	if dnnData.GbrDl != "" {
-		_, err := ConvertBitRateToKbps(dnnData.GbrDl)
-		if err != nil {
-			return nil, fmt.Errorf("can't convert GBR DL to Kbps: %s", err)
-		}
-	}
-
-	if dnnData.GbrUl != "" {
-		_, err := ConvertBitRateToKbps(dnnData.GbrUl)
-		if err != nil {
-			return nil, fmt.Errorf("can't convert GBR UL to Kbps: %s", err)
-		}
+	decision := &models.SmPolicyDecision{
+		SessRule: deepCopySessionRule(subscriberPolicy.PccPolicy.SessionPolicy.SessionRule),
+		QosDecs:  deepCopyQosData(subscriberPolicy.PccPolicy.QosDecs),
 	}
 
 	return decision, nil
-}
-
-func DeleteSMPolicy(ctx context.Context, supi string) error {
-	_, span := tracer.Start(ctx, "PCF Delete SMPolicy")
-	span.SetAttributes(
-		attribute.String("supi", supi),
-	)
-	defer span.End()
-	ue, err := pcfCtx.FindUEBySUPI(supi)
-	if err != nil {
-		return fmt.Errorf("ue not found in PCF for supi: %s", supi)
-	}
-	if ue == nil {
-		return fmt.Errorf("ue not found in PCF for supi: %s", supi)
-	}
-
-	return nil
 }

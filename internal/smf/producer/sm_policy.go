@@ -40,15 +40,6 @@ func SendSMPolicyAssociationCreate(ctx ctxt.Context, smContext *context.SMContex
 	return smPolicyDecision, nil
 }
 
-func SendSMPolicyAssociationDelete(ctx ctxt.Context, supi string, pduSessionID int32) error {
-	smPolicyID := fmt.Sprintf("%s-%d", supi, pduSessionID)
-	err := pcf.DeleteSMPolicy(ctx, smPolicyID)
-	if err != nil {
-		return fmt.Errorf("smf policy delete failed, [%v] ", err.Error())
-	}
-	return nil
-}
-
 func validateSmPolicyDecision(smPolicy *models.SmPolicyDecision) error {
 	// Validate just presence of important IEs as of now
 	if smPolicy == nil {

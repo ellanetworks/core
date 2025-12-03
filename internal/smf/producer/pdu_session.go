@@ -203,14 +203,8 @@ func HandlePDUSessionSMContextRelease(ctx ctxt.Context, smContext *context.SMCon
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
-	// Send Policy delete
-	err := SendSMPolicyAssociationDelete(ctx, smContext.Supi, smContext.PDUSessionID)
-	if err != nil {
-		smContext.SubCtxLog.Error("error deleting policy association", zap.Error(err))
-	}
-
 	// Release UE IP-Address
-	err = smContext.ReleaseUeIPAddr(ctx)
+	err := smContext.ReleaseUeIPAddr(ctx)
 	if err != nil {
 		smContext.SubPduSessLog.Error("release UE IP address failed", zap.Error(err))
 	}
