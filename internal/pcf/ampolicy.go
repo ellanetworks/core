@@ -81,7 +81,7 @@ func CreateAMPolicy(ctx context.Context, policyAssociationRequest models.PolicyA
 		ue = val.(*UeContext)
 	}
 	if ue == nil {
-		newUe, err := pcfCtx.NewPCFUe(policyAssociationRequest.Supi)
+		newUe, err := pcfCtx.NewUE(policyAssociationRequest.Supi)
 		if err != nil {
 			return nil, fmt.Errorf("supi Format Error: %s", err.Error())
 		}
