@@ -8,7 +8,6 @@ package pcf
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel/attribute"
@@ -95,12 +94,7 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 		return nil, fmt.Errorf("can't find corresponding AM Policy")
 	}
 
-	decision := &models.SmPolicyDecision{}
-
-	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
-	sliceid := sstStr + request.SliceInfo.Sd
-
-	subscriberPolicy, err := GetSubscriberPolicy(ctx, ue.Supi)
+	subscriberPolicy, err := GetSubscriberPolicy(ctx, ue.Supi, request.SliceInfo.Sst, request.SliceInfo.Sd, request.Dnn)
 	if err != nil {
 		return nil, fmt.Errorf("can't find subscriber policy for subscriber %s: %s", ue.Supi, err)
 	}
@@ -109,19 +103,10 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 		return nil, fmt.Errorf("subscriber policy is nil for subscriber %s", ue.Supi)
 	}
 
-	pccPolicy, ok := subscriberPolicy.PccPolicy[sliceid]
-	if !ok {
-		return nil, fmt.Errorf("can't find PCC policy for slice %s", sliceid)
+	decision := &models.SmPolicyDecision{
+		SessRule: deepCopySessionRule(subscriberPolicy.PccPolicy.SessionPolicy.SessionRule),
+		QosDecs:  deepCopyQosData(subscriberPolicy.PccPolicy.QosDecs),
 	}
-
-	sessPolicy, exist := pccPolicy.SessionPolicy[request.Dnn]
-	if !exist {
-		return nil, fmt.Errorf("can't find session policy for dnn %s", request.Dnn)
-	}
-
-	decision.SessRule = deepCopySessionRule(sessPolicy.SessionRule)
-
-	decision.QosDecs = deepCopyQosData(pccPolicy.QosDecs)
 
 	dnnData, err := GetSMPolicyDnnData(*smData, request.SliceInfo, request.Dnn)
 	if err != nil {

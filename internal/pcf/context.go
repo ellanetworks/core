@@ -28,11 +28,11 @@ type SessionPolicy struct {
 
 type PccPolicy struct {
 	QosDecs       *models.QosData
-	SessionPolicy map[string]*SessionPolicy // dnn is key
+	SessionPolicy *SessionPolicy // dnn is key
 }
 
 type PcfSubscriberPolicyData struct {
-	PccPolicy map[string]*PccPolicy // sst+sd is key
+	PccPolicy *PccPolicy // sst+sd is key
 	Supi      string
 }
 
@@ -53,7 +53,7 @@ func (c *PCFContext) FindUEBySUPI(supi string) (*UeContext, error) {
 	return nil, fmt.Errorf("ue not found in PCF for supi: %s", supi)
 }
 
-func GetSubscriberPolicy(ctx context.Context, imsi string) (*PcfSubscriberPolicyData, error) {
+func GetSubscriberPolicy(ctx context.Context, imsi string, sst int32, sd string, dnn string) (*PcfSubscriberPolicyData, error) {
 	subscriber, err := pcfCtx.DBInstance.GetSubscriber(ctx, imsi)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscriber %s: %w", imsi, err)
@@ -69,48 +69,41 @@ func GetSubscriberPolicy(ctx context.Context, imsi string) (*PcfSubscriberPolicy
 		return nil, fmt.Errorf("failed to get data network %d: %w", policy.DataNetworkID, err)
 	}
 
+	if dataNetwork.Name != dnn {
+		return nil, fmt.Errorf("subscriber %s has no policy for dnn %s", imsi, dnn)
+	}
+
 	operator, err := pcfCtx.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator: %w", err)
 	}
 
+	if operator.Sst != sst || operator.GetHexSd() != sd {
+		return nil, fmt.Errorf("subscriber %s has no policy for slice sst: %d sd: %s", imsi, sst, sd)
+	}
+
 	subscriberPolicies := &PcfSubscriberPolicyData{
-		Supi:      imsi,
-		PccPolicy: make(map[string]*PccPolicy),
-	}
-
-	pccPolicyID := fmt.Sprintf("%d%s", operator.Sst, operator.GetHexSd())
-
-	if _, exists := subscriberPolicies.PccPolicy[pccPolicyID]; !exists {
-		subscriberPolicies.PccPolicy[pccPolicyID] = &PccPolicy{
-			SessionPolicy: make(map[string]*SessionPolicy),
-		}
-	}
-
-	if _, exists := subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[dataNetwork.Name]; !exists {
-		subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[dataNetwork.Name] = &SessionPolicy{
-			SessionRule: &models.SessionRule{},
-		}
-	}
-
-	// Create QoS data
-	qosData := &models.QosData{
-		Var5qi:               policy.Var5qi,
-		Arp:                  &models.Arp{PriorityLevel: policy.Arp},
-		DefQosFlowIndication: true,
-	}
-	subscriberPolicies.PccPolicy[pccPolicyID].QosDecs = qosData
-
-	// Add session rule
-	subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[dataNetwork.Name].SessionRule = &models.SessionRule{
-		AuthDefQos: &models.AuthorizedDefaultQos{
-			Var5qi: qosData.Var5qi,
-			Arp:    qosData.Arp,
-		},
-		AuthSessAmbr: &models.Ambr{
-			Uplink:   policy.BitrateUplink,
-			Downlink: policy.BitrateDownlink,
+		Supi: imsi,
+		PccPolicy: &PccPolicy{
+			SessionPolicy: &SessionPolicy{
+				SessionRule: &models.SessionRule{
+					AuthDefQos: &models.AuthorizedDefaultQos{
+						Var5qi: policy.Var5qi,
+						Arp:    &models.Arp{PriorityLevel: policy.Arp},
+					},
+					AuthSessAmbr: &models.Ambr{
+						Uplink:   policy.BitrateUplink,
+						Downlink: policy.BitrateDownlink,
+					},
+				},
+			},
+			QosDecs: &models.QosData{
+				Var5qi:               policy.Var5qi,
+				Arp:                  &models.Arp{PriorityLevel: policy.Arp},
+				DefQosFlowIndication: true,
+			},
 		},
 	}
+
 	return subscriberPolicies, nil
 }
