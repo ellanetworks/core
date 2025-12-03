@@ -12,4 +12,4 @@ This section provides detailed reference material for Ella Core, from configurat
 - [TLS](tls.md)
 - [Performance](performance.md)
 - [System Requirements](system_reqs.md)
-- [Supported Radios](supported_radios.md)
+- [Supported 5G Equipment](supported_5g_equipment.md)

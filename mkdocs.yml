@@ -77,7 +77,7 @@ nav:
     - TLS: reference/tls.md
     - Performance: reference/performance.md
     - System Requirements: reference/system_reqs.md
-    - Supported Radios: reference/supported_radios.md
+    - Supported 5G Equipment: reference/supported_5g_equipment.md
   - Explanation:
     - explanation/index.md
     - Architecture: explanation/architecture.md
