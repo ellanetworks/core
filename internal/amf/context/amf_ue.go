@@ -112,7 +112,7 @@ type AmfUe struct {
 	Kseaf                             string                                    `json:"kseaf,omitempty"`
 	Kamf                              string                                    `json:"kamf,omitempty"`
 	/* context about PCF */
-	PolicyAssociationID          string                    `json:"policyAssociationId,omitempty"`
+	// PolicyAssociationID          string                    `json:"policyAssociationId,omitempty"`
 	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
 	RequestTriggerLocationChange bool                      `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTriggerLocCh
 	/* N1N2Message */
@@ -625,7 +625,6 @@ func (ue *AmfUe) GetOnGoing(anType models.AccessType) OnGoingProcedureWithPrio {
 
 func (ue *AmfUe) RemoveAmPolicyAssociation() {
 	ue.AmPolicyAssociation = nil
-	ue.PolicyAssociationID = ""
 }
 
 // SM Context realted function

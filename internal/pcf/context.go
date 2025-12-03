@@ -9,7 +9,6 @@ package pcf
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -40,24 +39,18 @@ type PcfSubscriberPolicyData struct {
 // Allocate PCF Ue with supi and add to pcf Context and returns allocated ue
 func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 	newUeContext := &UeContext{}
-	newUeContext.AMPolicyData = make(map[string]*UeAMPolicyData)
-	newUeContext.PolAssociationIDGenerator = 1
 	newUeContext.Supi = Supi
 	c.UePool.Store(Supi, newUeContext)
 	return newUeContext, nil
 }
 
 // Find PcfUe which the policyId belongs to
-func (c *PCFContext) PCFUeFindByPolicyID(PolicyID string) (*UeContext, error) {
-	index := strings.LastIndex(PolicyID, "-")
-	if index == -1 {
-		return nil, fmt.Errorf("invalid policy ID format: %s", PolicyID)
-	}
-	supi := PolicyID[:index]
+func (c *PCFContext) FindUEBySUPI(supi string) (*UeContext, error) {
 	if value, ok := c.UePool.Load(supi); ok {
 		return value.(*UeContext), nil
 	}
-	return nil, fmt.Errorf("ue not found in PCF for policy association ID: %s", PolicyID)
+
+	return nil, fmt.Errorf("ue not found in PCF for supi: %s", supi)
 }
 
 func GetSubscriberPolicy(ctx context.Context, imsi string) (*PcfSubscriberPolicyData, error) {

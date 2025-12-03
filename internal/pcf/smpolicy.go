@@ -149,18 +149,18 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 	return decision, nil
 }
 
-func DeleteSMPolicy(ctx context.Context, smPolicyID string) error {
+func DeleteSMPolicy(ctx context.Context, supi string) error {
 	_, span := tracer.Start(ctx, "PCF Delete SMPolicy")
 	span.SetAttributes(
-		attribute.String("smPolicyID", smPolicyID),
+		attribute.String("supi", supi),
 	)
 	defer span.End()
-	ue, err := pcfCtx.PCFUeFindByPolicyID(smPolicyID)
+	ue, err := pcfCtx.FindUEBySUPI(supi)
 	if err != nil {
-		return fmt.Errorf("ue not found in PCF for smPolicyID: %s", smPolicyID)
+		return fmt.Errorf("ue not found in PCF for supi: %s", supi)
 	}
 	if ue == nil {
-		return fmt.Errorf("ue not found in PCF for smPolicyID: %s", smPolicyID)
+		return fmt.Errorf("ue not found in PCF for supi: %s", supi)
 	}
 
 	return nil

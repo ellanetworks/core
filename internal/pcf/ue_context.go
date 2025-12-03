@@ -15,9 +15,8 @@ import (
 )
 
 type UeContext struct {
-	Supi                      string
-	AMPolicyData              map[string]*UeAMPolicyData // use PolAssoId(ue.Supi-numPolId) as key
-	PolAssociationIDGenerator uint32
+	Supi         string
+	AMPolicyData *UeAMPolicyData // use PolAssoId(ue.Supi-numPolId) as key
 }
 
 type UeAMPolicyData struct {
@@ -28,26 +27,26 @@ type UeAMPolicyData struct {
 	Rfsp        int32
 }
 
-func (ue *UeContext) NewUeAMPolicyData(assolID string, req models.PolicyAssociationRequest) *UeAMPolicyData {
-	ue.AMPolicyData[assolID] = &UeAMPolicyData{
+func (ue *UeContext) NewUeAMPolicyData(req models.PolicyAssociationRequest) *UeAMPolicyData {
+	ue.AMPolicyData = &UeAMPolicyData{
 		AccessType:  req.AccessType,
 		ServingPlmn: req.ServingPlmn,
 		Rfsp:        req.Rfsp,
 		UserLoc:     req.UserLoc,
 	}
-	return ue.AMPolicyData[assolID]
+	return ue.AMPolicyData
 }
 
 // returns AM Policy which AccessType and plmnID match
 func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnID *models.PlmnID) *UeAMPolicyData {
-	if ue == nil || plmnID == nil {
+	if ue == nil || plmnID == nil || ue.AMPolicyData == nil {
 		return nil
 	}
-	for _, amPolicy := range ue.AMPolicyData {
-		if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnID) {
-			return amPolicy
-		}
+
+	if ue.AMPolicyData.AccessType == anType && reflect.DeepEqual(*ue.AMPolicyData.ServingPlmn, *plmnID) {
+		return ue.AMPolicyData
 	}
+
 	return nil
 }
 
