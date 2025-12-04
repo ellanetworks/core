@@ -22,7 +22,6 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
@@ -171,37 +170,6 @@ type AmfUe struct {
 	GmmLog      *zap.Logger `json:"-"`
 	TxLog       *zap.Logger `json:"-"`
 	ProducerLog *zap.Logger `json:"-"`
-}
-
-type InterfaceType uint8
-
-const (
-	NgapMessage InterfaceType = iota
-	SbiMessage
-	NasMessage
-)
-
-type InterfaceMsg interface{}
-
-/*type InterfaceMsg struct {
-	AnType        models.AccessType
-	NasMsg        []byte
-	ProcedureCode int64
-	NgapMsg       *ngapType.NGAPPDU
-	Ran           *AmfRan
-	//MsgType is Nas or Sbi interface msg
-	IntfType InterfaceType
-}*/
-
-type NasMsg struct {
-	AnType        models.AccessType
-	NasMsg        []byte
-	ProcedureCode int64
-}
-
-type NgapMsg struct {
-	NgapMsg *ngapType.NGAPPDU
-	Ran     *AmfRan
 }
 
 type N1N2Message struct {

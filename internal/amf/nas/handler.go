@@ -12,8 +12,15 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
+	"github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
+
+type NasMsg struct {
+	AnType        models.AccessType
+	NasMsg        []byte
+	ProcedureCode int64
+}
 
 // HandleNAS processes an uplink NAS PDU and emits a span around the entire operation.
 func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu []byte) error {
@@ -44,7 +51,7 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 
 		eeCtx.AttachRanUe(ue)
 
-		nasMsg := context.NasMsg{
+		nasMsg := NasMsg{
 			AnType:        ue.Ran.AnType,
 			NasMsg:        nasPdu,
 			ProcedureCode: procedureCode,
@@ -72,7 +79,7 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 }
 
 // DispatchMsg decodes and dispatches a NAS message for initially attached UEs.
-func DispatchMsg(ctx ctxt.Context, amfUe *context.AmfUe, transInfo context.NasMsg) error {
+func DispatchMsg(ctx ctxt.Context, amfUe *context.AmfUe, transInfo NasMsg) error {
 	msg, err := nassecurity.Decode(ctx, amfUe, transInfo.AnType, transInfo.NasMsg)
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
