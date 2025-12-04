@@ -25,6 +25,24 @@ type SMFContext struct {
 	LocalSEIDCount uint64
 }
 
+type DNS struct {
+	IPv4Addr net.IP
+	IPv6Addr net.IP
+}
+
+// SnssaiSmfDnnInfo records the SMF per S-NSSAI DNN information
+type SnssaiSmfDnnInfo struct {
+	DNS DNS
+	MTU uint16
+}
+
+// SnssaiSmfInfo records the SMF S-NSSAI related information
+type SnssaiSmfInfo struct {
+	DnnInfos map[string]*SnssaiSmfDnnInfo
+	PlmnID   models.PlmnID
+	Snssai   models.Snssai
+}
+
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
 func RetrieveDnnInformation(ctx context.Context, ueSnssai models.Snssai, dnn string) (*SnssaiSmfDnnInfo, error) {
 	supportedSnssai, err := GetSnssaiInfo(ctx)

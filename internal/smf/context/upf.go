@@ -11,7 +11,6 @@ import (
 	"math"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 )
@@ -22,10 +21,6 @@ type UPTunnel struct {
 		IPAddress net.IP
 		TEID      uint32
 	}
-}
-
-type RecoveryTimeStamp struct {
-	RecoveryTimeStamp time.Time
 }
 
 type UPF struct {

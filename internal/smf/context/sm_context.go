@@ -37,6 +37,19 @@ var (
 
 var smContextActive uint64
 
+type ProtocolConfigurationOptions struct {
+	DNSIPv4Request     bool
+	DNSIPv6Request     bool
+	IPv4LinkMTURequest bool
+}
+
+type PFCPSessionContext struct {
+	PDRs       map[uint16]*PDR
+	NodeID     net.IP
+	LocalSEID  uint64
+	RemoteSEID uint64
+}
+
 type SMContext struct {
 	Ref                            string
 	Supi                           string

@@ -14,8 +14,6 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-const DefaultNonGBR5QI = 9
-
 func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error) {
 	if ctx.Tunnel == nil || ctx.Tunnel.DataPath == nil {
 		return nil, fmt.Errorf("data path is not established")

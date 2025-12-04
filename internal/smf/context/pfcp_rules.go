@@ -20,6 +20,23 @@ const (
 
 type RuleState uint8
 
+const (
+	OuterHeaderCreationGtpUUdpIpv4 uint16 = 256
+	OuterHeaderRemovalGtpUUdpIpv4  uint8  = 0
+)
+
+type OuterHeaderRemoval struct {
+	OuterHeaderRemovalDescription uint8
+}
+
+type OuterHeaderCreation struct {
+	IPv4Address                    net.IP
+	IPv6Address                    net.IP
+	TeID                           uint32
+	PortNumber                     uint16
+	OuterHeaderCreationDescription uint16
+}
+
 // Packet Detection Rule. Table 7.5.2.2-1
 type PDR struct {
 	OuterHeaderRemoval *OuterHeaderRemoval
@@ -73,6 +90,25 @@ type UEIPAddress struct {
 	Ipv6PrefixLength         uint8
 }
 
+const (
+	SourceInterfaceAccess uint8 = iota
+	SourceInterfaceCore
+)
+
+const (
+	DestinationInterfaceAccess uint8 = iota
+	DestinationInterfaceCore
+	DestinationInterfaceSgiLanN6Lan
+)
+
+type SourceInterface struct {
+	InterfaceValue uint8 // 0x00001111
+}
+
+type DestinationInterface struct {
+	InterfaceValue uint8 // 0x00001111
+}
+
 // Packet Detection. 7.5.2.2-2
 type PDI struct {
 	LocalFTeID      *FTEID
@@ -81,6 +117,14 @@ type PDI struct {
 	ApplicationID   string
 	NetworkInstance string
 	SourceInterface SourceInterface
+}
+
+type ApplyAction struct {
+	Dupl bool
+	Nocp bool
+	Buff bool
+	Forw bool
+	Drop bool
 }
 
 // Forwarding Action Rule. 7.5.2.3-1
@@ -125,6 +169,26 @@ type BAR struct {
 	SuggestedBufferingPacketsCount SuggestedBufferingPacketsCount
 
 	State RuleState
+}
+
+type GBR struct {
+	ULGBR uint64 // 40-bit data
+	DLGBR uint64 // 40-bit data
+}
+
+const (
+	GateOpen uint8 = iota
+	GateClose
+)
+
+type GateStatus struct {
+	ULGate uint8 // 0x00001100
+	DLGate uint8 // 0x00000011
+}
+
+type MBR struct {
+	ULMBR uint64 // 40-bit data
+	DLMBR uint64 // 40-bit data
 }
 
 // QoS Enhancement Rule
