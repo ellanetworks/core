@@ -9,6 +9,7 @@ package pfcp
 import (
 	ctxt "context"
 	"fmt"
+	"net"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
@@ -28,7 +29,7 @@ func getSeqNumber() uint32 {
 
 func SendPfcpSessionEstablishmentRequest(
 	ctx ctxt.Context,
-	upNodeID context.NodeID,
+	upNodeID net.IP,
 	smCtx *context.SMContext,
 	pdrList []*context.PDR,
 	farList []*context.FAR,
@@ -36,13 +37,13 @@ func SendPfcpSessionEstablishmentRequest(
 	qerList []*context.QER,
 	urrList []*context.URR,
 ) error {
-	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
+	upNodeIDStr := upNodeID.String()
 	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return fmt.Errorf("PFCP context not found for Node ID: %v", upNodeID)
 	}
 
-	nodeIDIPAddress := context.SMFSelf().CPNodeID.ResolveNodeIDToIP()
+	nodeIDIPAddress := context.SMFSelf().CPNodeID
 
 	pfcpMsg, err := BuildPfcpSessionEstablishmentRequest(
 		getSeqNumber(),
@@ -110,7 +111,7 @@ func HandlePfcpSessionEstablishmentResponse(ctx ctxt.Context, msg *message.Sessi
 			}
 
 			// Update with one received from UPF
-			smContext.PDUAddress.IP = ueIPAddress
+			smContext.PDUAddress = ueIPAddress
 		}
 
 		// Store F-TEID created by UPF
@@ -123,9 +124,8 @@ func HandlePfcpSessionEstablishmentResponse(ctx ctxt.Context, msg *message.Sessi
 		if smfSelf.UPF == nil {
 			return fmt.Errorf("can't find UPF: %s", nodeID)
 		}
-		n3Interface := context.UPFInterfaceInfo{}
-		n3Interface.IPv4EndPointAddress = fteid.IPv4Address
-		upf.N3Interface = n3Interface
+
+		upf.N3Interface = fteid.IPv4Address
 	}
 	smContext.SMLock.Unlock()
 
@@ -168,7 +168,7 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 
 func SendPfcpSessionModificationRequest(
 	ctx ctxt.Context,
-	upNodeID context.NodeID,
+	upNodeID net.IP,
 	smCtx *context.SMContext,
 	pdrList []*context.PDR,
 	farList []*context.FAR,
@@ -176,12 +176,12 @@ func SendPfcpSessionModificationRequest(
 	qerList []*context.QER,
 ) error {
 	seqNum := getSeqNumber()
-	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
+	upNodeIDStr := upNodeID.String()
 	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
-	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIDToIP(), pdrList, farList, qerList)
+	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID, pdrList, farList, qerList)
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Modification Request: %v", err)
 	}
@@ -212,14 +212,14 @@ func HandlePfcpSessionDeletionResponse(msg *message.SessionDeletionResponse) err
 	return nil
 }
 
-func SendPfcpSessionDeletionRequest(ctx ctxt.Context, upNodeID context.NodeID, smCtx *context.SMContext) error {
+func SendPfcpSessionDeletionRequest(ctx ctxt.Context, upNodeID net.IP, smCtx *context.SMContext) error {
 	seqNum := getSeqNumber()
-	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
+	upNodeIDStr := upNodeID.String()
 	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
-	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIDToIP())
+	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID)
 	rsp, err := dispatcher.UPF.HandlePfcpSessionDeletionRequest(ctx, pfcpMsg)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP Session Establishment Request to upf: %v", err)

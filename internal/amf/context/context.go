@@ -72,7 +72,6 @@ type AMFContext struct {
 	RelativeCapacity                int64
 	NfID                            string
 	Name                            string
-	URIScheme                       models.URIScheme
 	NgapPort                        int
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
 	SecurityAlgorithm               SecurityAlgorithm
@@ -341,10 +340,6 @@ func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	}
 
 	return nil
-}
-
-func (context *AMFContext) GetIPv4Uri() string {
-	return fmt.Sprintf("%s://", context.URIScheme)
 }
 
 func (context *AMFContext) Get5gsNwFeatSuppImsVoPS() uint8 {

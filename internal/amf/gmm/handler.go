@@ -132,8 +132,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			updateData := models.SmContextUpdateData{
 				Release: true,
 				Cause:   models.CauseRelDueToDuplicateSessionID,
-				SmContextStatusURI: fmt.Sprintf("%s/namf-callback/v1/smContextStatus/%s/%d",
-					ue.ServingAMF.GetIPv4Uri(), ue.Guti, pduSessionID),
 			}
 			ue.GmmLog.Warn("Duplicated PDU session ID", zap.Int32("pduSessionID", pduSessionID))
 			smContext.SetDuplicatedPduSessionID(true)
@@ -383,7 +381,6 @@ func getRegistrationType5GSName(regType5Gs uint8) string {
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
 func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, procedureCode int64, registrationRequest *nasMessage.RegistrationRequest) error {
 	var guamiFromUeGuti models.Guami
-	amfSelf := context.AMFSelf()
 
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
@@ -543,8 +540,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	}
 
 	if ue.ServingAmfChanged {
-		ue.TargetAmfURI = amfSelf.GetIPv4Uri()
-		logger.AmfLog.Debug("Serving AMF has changed - Unsupported", zap.String("targetAmfUri", ue.TargetAmfURI))
+		logger.AmfLog.Debug("Serving AMF has changed - Unsupported")
 	}
 
 	return nil
@@ -1089,7 +1085,6 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			// It's possible we need to change this whole block to the following:
 			//  allowedNssaiNgap := ngapConvert.AllowedNssaiToNgap(ue.AllowedNssai[anType])
 			//	ngap_message.SendRerouteNasRequest(ue, anType, nil, ue.RanUe[anType].InitialUEMessage, &allowedNssaiNgap)
-			ue.TargetAmfURI = amfSelf.GetIPv4Uri()
 
 			var n1Message bytes.Buffer
 			err = ue.RegistrationRequest.EncodeRegistrationRequest(&n1Message)

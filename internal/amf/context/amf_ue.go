@@ -75,7 +75,6 @@ type AmfUe struct {
 	RegistrationAcceptForNon3GPPAccess []byte                          `json:"registrationAcceptForNon3GPPAccess,omitempty"`
 	RetransmissionOfInitialNASMsg      bool                            `json:"retransmissionOfInitialNASMsg,omitempty"`
 	/* Used for AMF relocation */
-	TargetAmfURI string `json:"targetAmfUri,omitempty"`
 	/* Ue Identity*/
 	PlmnID models.PlmnID `json:"plmnID,omitempty"`
 	Suci   string        `json:"suci,omitempty"`

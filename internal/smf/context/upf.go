@@ -7,31 +7,16 @@
 package context
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/ellanetworks/core/internal/util/idgenerator"
-	"github.com/free5gc/nas/nasMessage"
 )
 
-type UPTunnel struct {
-	DataPath      *DataPath
-	ANInformation struct {
-		IPAddress net.IP
-		TEID      uint32
-	}
-}
-
-type RecoveryTimeStamp struct {
-	RecoveryTimeStamp time.Time
-}
-
 type UPF struct {
-	N3Interface UPFInterfaceInfo
+	N3Interface net.IP
 
 	pdrPool sync.Map
 	farPool sync.Map
@@ -43,36 +28,20 @@ type UPF struct {
 	barIDGenerator *idgenerator.IDGenerator
 	qerIDGenerator *idgenerator.IDGenerator
 
-	NodeID NodeID
+	NodeID net.IP
 
 	// lock
 	UpfLock sync.RWMutex
 }
 
-// UPFInterfaceInfo store the UPF interface information
-type UPFInterfaceInfo struct {
-	IPv4EndPointAddress net.IP
-}
-
-// IP returns the IP of the user plane IP information of the pduSessType
-func (i *UPFInterfaceInfo) IP(pduSessType uint8) (net.IP, error) {
-	if (pduSessType == nasMessage.PDUSessionTypeIPv4 || pduSessType == nasMessage.PDUSessionTypeIPv4IPv6) && i.IPv4EndPointAddress != nil {
-		return i.IPv4EndPointAddress.To4(), nil
-	}
-
-	return nil, errors.New("not matched ip address")
-}
-
-func NewUPF(nodeID *NodeID) (upf *UPF) {
+func NewUPF(nodeID net.IP) (upf *UPF) {
 	upf = new(UPF)
-	upf.NodeID = *nodeID
+	upf.NodeID = nodeID
 	upf.pdrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint16)
 	upf.farIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 	upf.barIDGenerator = idgenerator.NewGenerator(1, math.MaxUint8)
 	upf.qerIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
-	upf.N3Interface = UPFInterfaceInfo{
-		IPv4EndPointAddress: nil,
-	}
+	upf.N3Interface = nil
 
 	return upf
 }

@@ -13,10 +13,8 @@ import (
 
 func TestActivateUpLinkPdr(t *testing.T) {
 	smContext := &context.SMContext{
-		PDUAddress: &context.UeIPAddr{
-			IP: net.IPv4(192, 168, 1, 1),
-		},
-		Dnn: "internet",
+		PDUAddress: net.IPv4(192, 168, 1, 1),
+		Dnn:        "internet",
 	}
 
 	defQER := &context.QER{}
@@ -69,10 +67,8 @@ func TestActivateUpLinkPdr(t *testing.T) {
 
 func TestActivateDlLinkPdr(t *testing.T) {
 	smContext := &context.SMContext{
-		PDUAddress: &context.UeIPAddr{
-			IP: net.IP{192, 168, 1, 1},
-		},
-		Dnn: "internet",
+		PDUAddress: net.IP{192, 168, 1, 1},
+		Dnn:        "internet",
 		Tunnel: &context.UPTunnel{
 			ANInformation: struct {
 				IPAddress net.IP

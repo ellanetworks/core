@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/service"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/security"
 	"go.uber.org/zap"
@@ -32,7 +31,6 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 		Mcsi:    0,
 		Mpsi:    0,
 	}
-	self.URIScheme = models.URISchemeHTTP
 	self.SecurityAlgorithm.IntegrityOrder = []uint8{security.AlgIntegrity128NIA2, security.AlgIntegrity128NIA0}
 	self.SecurityAlgorithm.CipheringOrder = []uint8{security.AlgCiphering128NEA2, security.AlgCiphering128NEA0}
 	self.NetworkName = context.NetworkName{

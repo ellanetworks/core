@@ -38,7 +38,7 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 			Sst: 1,
 			Sd:  "010203",
 		},
-		PDUAddress:                   &context.UeIPAddr{},
+		PDUAddress:                   nil,
 		ProtocolConfigurationOptions: &context.ProtocolConfigurationOptions{},
 	}
 
@@ -99,7 +99,7 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
 			Sst: 1,
 			Sd:  "",
 		},
-		PDUAddress:                   &context.UeIPAddr{},
+		PDUAddress:                   nil,
 		ProtocolConfigurationOptions: &context.ProtocolConfigurationOptions{},
 	}
 
