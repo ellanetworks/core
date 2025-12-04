@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -21,19 +20,11 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	CONNECTED    = "Connected"
-	DISCONNECTED = "Disconnected"
-	IDLE         = "Idle"
-)
-
 var (
-	smContextPool    sync.Map
-	canonicalRef     sync.Map
-	seidSMContextMap sync.Map
+	smContextPool    sync.Map // key: smContext.Ref, value: *SMContext
+	canonicalRef     sync.Map // key: canonicalName(identifier, pduSessID), value: smContext.Ref
+	seidSMContextMap sync.Map // key: PFCP SEID, value: *SMContext
 )
-
-var smContextActive uint64
 
 type ProtocolConfigurationOptions struct {
 	DNSIPv4Request     bool
@@ -106,14 +97,6 @@ func ResolveRef(identifier string, pduSessID int32) (ref string, err error) {
 	return
 }
 
-func incSMContextActive() {
-	atomic.AddUint64(&smContextActive, 1)
-}
-
-func decSMContextActive() {
-	atomic.AddUint64(&smContextActive, ^uint64(0))
-}
-
 func NewSMContext(identifier string, pduSessID int32) *SMContext {
 	smContext := new(SMContext)
 	// Create Ref and identifier
@@ -132,9 +115,6 @@ func NewSMContext(identifier string, pduSessID int32) *SMContext {
 		DNSIPv4Request: false,
 		DNSIPv6Request: false,
 	}
-
-	// Sess Stats
-	incSMContextActive()
 
 	// initialise log tags
 	smContext.initLogTags()
@@ -157,7 +137,12 @@ func GetSMContext(ref string) (smContext *SMContext) {
 }
 
 func GetPDUSessionCount() int {
-	return int(smContextActive)
+	count := 0
+	smContextPool.Range(func(_ any, _ any) bool {
+		count++
+		return true
+	})
+	return count
 }
 
 func RemoveSMContext(ctx context.Context, ref string) {
@@ -179,7 +164,7 @@ func RemoveSMContext(ctx context.Context, ref string) {
 	smContextPool.Delete(ref)
 
 	canonicalRef.Delete(canonicalName(smContext.Supi, smContext.PDUSessionID))
-	decSMContextActive()
+
 	smContext.SubCtxLog.Info("SM Context removed", zap.String("ref", ref))
 }
 
