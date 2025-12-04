@@ -50,7 +50,6 @@ func SendCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *
 }
 
 func buildCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext) (smContextCreateData models.SmContextCreateData) {
-	amfSelf := context.AMFSelf()
 	smContextCreateData.Supi = ue.Supi
 	smContextCreateData.Pei = ue.Pei
 	smContextCreateData.Gpsi = ue.Gpsi
@@ -61,7 +60,6 @@ func buildCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext 
 		Sd:  snssai.Sd,
 	}
 	smContextCreateData.Dnn = smContext.Dnn()
-	smContextCreateData.ServingNfID = amfSelf.NfID
 	guami := context.GetServedGuami(ctx)
 	smContextCreateData.Guami = &models.Guami{
 		PlmnID: &models.PlmnID{

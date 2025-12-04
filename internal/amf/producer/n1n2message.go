@@ -232,10 +232,6 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 
 	var pagingPriority *ngapType.PagingPriority
 
-	if _, err := ue.N1N2MessageIDGenerator.Allocate(); err != nil {
-		return n1n2MessageTransferRspData, fmt.Errorf("allocate n1n2MessageID error: %v", err)
-	}
-
 	// Case A (UE is CM-IDLE in 3GPP access and the associated access type is 3GPP access)
 	// in subclause 5.2.2.3.1.2 of TS29518
 	if anType == models.AccessType3GPPAccess {

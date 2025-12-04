@@ -11,7 +11,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"reflect"
 	"regexp"
 	"sync"
@@ -19,7 +18,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/fsm"
-	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
@@ -76,18 +74,16 @@ type AmfUe struct {
 	RetransmissionOfInitialNASMsg      bool                            `json:"retransmissionOfInitialNASMsg,omitempty"`
 	/* Used for AMF relocation */
 	/* Ue Identity*/
-	PlmnID models.PlmnID `json:"plmnID,omitempty"`
-	Suci   string        `json:"suci,omitempty"`
-	Supi   string        `json:"supi,omitempty"`
-	// UnauthenticatedSupi bool          `json:"unauthenticatedSupi,omitempty"`
-	Gpsi    string `json:"gpsi,omitempty"`
-	Pei     string `json:"pei,omitempty"`
-	Tmsi    int32  `json:"tmsi,omitempty"` // 5G-Tmsi
-	OldTmsi int32  `json:"oldtmsi,omitempty"`
-	Guti    string `json:"guti,omitempty"`
-	OldGuti string `json:"oldguti,omitempty"`
-	GroupID string `json:"groupID,omitempty"`
-	EBI     int32  `json:"ebi,omitempty"`
+	PlmnID  models.PlmnID `json:"plmnID,omitempty"`
+	Suci    string        `json:"suci,omitempty"`
+	Supi    string        `json:"supi,omitempty"`
+	Gpsi    string        `json:"gpsi,omitempty"`
+	Pei     string        `json:"pei,omitempty"`
+	Tmsi    int32         `json:"tmsi,omitempty"` // 5G-Tmsi
+	OldTmsi int32         `json:"oldtmsi,omitempty"`
+	Guti    string        `json:"guti,omitempty"`
+	OldGuti string        `json:"oldguti,omitempty"`
+	EBI     int32         `json:"ebi,omitempty"`
 	/* Ue Identity*/
 	/* User Location*/
 	RatType                  models.RatType      `json:"ratType,omitempty"`
@@ -114,9 +110,7 @@ type AmfUe struct {
 	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
 	RequestTriggerLocationChange bool                      `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTriggerLocCh
 	/* N1N2Message */
-	N1N2MessageIDGenerator          *idgenerator.IDGenerator `json:"n1n2MessageIDGenerator,omitempty"`
-	N1N2Message                     *N1N2Message             `json:"-"`
-	N1N2MessageSubscribeIDGenerator *idgenerator.IDGenerator `json:"n1n2MessageSubscribeIDGenerator,omitempty"`
+	N1N2Message *N1N2Message `json:"-"`
 	/* Pdu Sesseion context */
 	SmContextList sync.Map `json:"-"` // map[int32]*SmContext, pdu session id as key
 	/* Related Context*/
@@ -143,12 +137,10 @@ type AmfUe struct {
 	Kn3iwf                   []uint8                      `json:"kn3iwf,omitempty"`    // 32 byte
 	NH                       []uint8                      `json:"nh,omitempty"`        // 32 byte
 	NCC                      uint8                        `json:"ncc,omitempty"`       // 0..7
-	// ULCount                  security.Count               `json:"ulCount,omitempty" yaml:"ulCount" bson:"ulCount,omitempty"`
-	// DLCount                  security.Count               `json:"dlCount,omitempty" yaml:"dlCount" bson:"dlCount,omitempty"`
-	ULCount      security.Count `json:"-"`
-	DLCount      security.Count `json:"-"`
-	CipheringAlg uint8          `json:"cipheringAlg,omitempty"`
-	IntegrityAlg uint8          `json:"integrityAlg,omitempty"`
+	ULCount                  security.Count               `json:"-"`
+	DLCount                  security.Count               `json:"-"`
+	CipheringAlg             uint8                        `json:"cipheringAlg,omitempty"`
+	IntegrityAlg             uint8                        `json:"integrityAlg,omitempty"`
 	/* Registration Area */
 	RegistrationArea map[models.AccessType][]models.Tai `json:"registrationArea,omitempty"`
 	LadnInfo         []LADN                             `json:"ladnInfo,omitempty"`
@@ -174,10 +166,6 @@ type AmfUe struct {
 	T3502Value                      int `json:"t3502Value,omitempty"`                      // Second
 	T3512Value                      int `json:"t3512Value,omitempty"`                      // default 54 min
 	Non3gppDeregistrationTimerValue int `json:"non3gppDeregistrationTimerValue,omitempty"` // default 54 min
-
-	// AmfInstanceName and Ip
-	AmfInstanceName string `json:"amfInstanceName,omitempty"`
-	AmfInstanceIP   string `json:"amfInstanceIp,omitempty"`
 
 	NASLog      *zap.Logger `json:"-"`
 	GmmLog      *zap.Logger `json:"-"`
@@ -280,16 +268,12 @@ func (ue *AmfUe) init() {
 	ue.RanUe = make(map[models.AccessType]*RanUe)
 	ue.RegistrationArea = make(map[models.AccessType][]models.Tai)
 	ue.AllowedNssai = make(map[models.AccessType][]models.AllowedSnssai)
-	ue.N1N2MessageIDGenerator = idgenerator.NewGenerator(1, 2147483647)
-	ue.N1N2MessageSubscribeIDGenerator = idgenerator.NewGenerator(1, 2147483647)
 	ue.OnGoing = make(map[models.AccessType]*OnGoingProcedureWithPrio)
 	ue.OnGoing[models.AccessTypeNon3GPPAccess] = new(OnGoingProcedureWithPrio)
 	ue.OnGoing[models.AccessTypeNon3GPPAccess].Procedure = OnGoingProcedureNothing
 	ue.OnGoing[models.AccessType3GPPAccess] = new(OnGoingProcedureWithPrio)
 	ue.OnGoing[models.AccessType3GPPAccess].Procedure = OnGoingProcedureNothing
 	ue.ReleaseCause = make(map[models.AccessType]*CauseAll)
-	ue.AmfInstanceName = os.Getenv("HOSTNAME")
-	ue.AmfInstanceIP = os.Getenv("POD_IP")
 }
 
 func (ue *AmfUe) CmConnect(anType models.AccessType) bool {

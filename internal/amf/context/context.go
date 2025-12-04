@@ -70,7 +70,6 @@ type AMFContext struct {
 	AmfRanPool                      sync.Map         // map[net.Conn]*AmfRan
 	LadnPool                        map[string]*LADN // dnn as key
 	RelativeCapacity                int64
-	NfID                            string
 	Name                            string
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
 	SecurityAlgorithm               SecurityAlgorithm
