@@ -18,14 +18,10 @@ import (
 
 var smfContext SMFContext
 
-type N3InterfaceUpfInfoItem struct {
-	NetworkInstance string
-}
-
 type SMFContext struct {
 	DBInstance     *db.Database
 	UPF            *UPF
-	CPNodeID       NodeID
+	CPNodeID       net.IP
 	LocalSEIDCount uint64
 }
 

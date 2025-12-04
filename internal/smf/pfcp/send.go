@@ -42,7 +42,7 @@ func SendPfcpSessionEstablishmentRequest(
 		return fmt.Errorf("PFCP context not found for Node ID: %v", upNodeID)
 	}
 
-	nodeIDIPAddress := context.SMFSelf().CPNodeID.ResolveNodeIDToIP()
+	nodeIDIPAddress := context.SMFSelf().CPNodeID
 
 	pfcpMsg, err := BuildPfcpSessionEstablishmentRequest(
 		getSeqNumber(),
@@ -123,9 +123,8 @@ func HandlePfcpSessionEstablishmentResponse(ctx ctxt.Context, msg *message.Sessi
 		if smfSelf.UPF == nil {
 			return fmt.Errorf("can't find UPF: %s", nodeID)
 		}
-		n3Interface := context.UPFInterfaceInfo{}
-		n3Interface.IPv4EndPointAddress = fteid.IPv4Address
-		upf.N3Interface = n3Interface
+
+		upf.N3Interface = fteid.IPv4Address
 	}
 	smContext.SMLock.Unlock()
 
@@ -181,7 +180,7 @@ func SendPfcpSessionModificationRequest(
 	if !ok {
 		return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
-	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIDToIP(), pdrList, farList, qerList)
+	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID, pdrList, farList, qerList)
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Modification Request: %v", err)
 	}
@@ -219,7 +218,7 @@ func SendPfcpSessionDeletionRequest(ctx ctxt.Context, upNodeID context.NodeID, s
 	if !ok {
 		return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
-	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIDToIP())
+	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID)
 	rsp, err := dispatcher.UPF.HandlePfcpSessionDeletionRequest(ctx, pfcpMsg)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP Session Establishment Request to upf: %v", err)

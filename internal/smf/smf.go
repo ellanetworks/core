@@ -4,6 +4,7 @@ package smf
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
@@ -17,7 +18,7 @@ func Start(dbInstance *db.Database) error {
 	}
 	smfContext := context.SMFSelf()
 	smfContext.DBInstance = dbInstance
-	smfContext.CPNodeID = *context.NewNodeID("0.0.0.0")
+	smfContext.CPNodeID = net.ParseIP("0.0.0.0")
 	upfNodeID := context.NewNodeID(config.UpfNodeID)
 	smfContext.UPF = context.NewUPF(upfNodeID)
 	metrics.RegisterSmfMetrics()
