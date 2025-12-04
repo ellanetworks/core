@@ -598,7 +598,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 
 	if ue.ServingAmfChanged || ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) ||
 		!ue.SubscriptionDataValid {
-		if err := communicateWithUDM(ctx, ue, anType); err != nil {
+		if err := communicateWithUDM(ctx, ue); err != nil {
 			return err
 		}
 	}
@@ -723,7 +723,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 
 	if ue.ServingAmfChanged || ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) ||
 		!ue.SubscriptionDataValid {
-		if err := communicateWithUDM(ctx, ue, anType); err != nil {
+		if err := communicateWithUDM(ctx, ue); err != nil {
 			return err
 		}
 	}
@@ -1014,13 +1014,8 @@ func negotiateDRXParameters(ue *context.AmfUe, requestedDRXParameters *nasType.R
 	}
 }
 
-func communicateWithUDM(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType) error {
-	err := consumer.UeCmRegistration(ctx, ue, accessType, true)
-	if err != nil {
-		ue.GmmLog.Error("UECM_Registration Error", zap.Error(err))
-	}
-
-	err = consumer.SDMGetAmData(ctx, ue)
+func communicateWithUDM(ctx ctxt.Context, ue *context.AmfUe) error {
+	err := consumer.SDMGetAmData(ctx, ue)
 	if err != nil {
 		return fmt.Errorf("error getting am data: %v", err)
 	}

@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/udm"
-	"github.com/ellanetworks/core/internal/util/marshtojsonstring"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
@@ -90,24 +89,18 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 
 	smContext.PDUAddress = &context.UeIPAddr{IP: ip}
 
-	snssaiStr, err := marshtojsonstring.MarshToJSONString(createData.SNssai)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed marshalling SNssai: %v", err)
-	}
-
-	snssai := snssaiStr[0]
-	sessSubData, err := udm.GetAndSetSmData(ctx, smContext.Supi, createData.Dnn, snssai)
+	sessSubData, err := udm.GetSmData(ctx, smContext.Supi)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("failed to get SM context from UDM: %v", err)
 	}
 
-	if len(sessSubData) == 0 {
+	if sessSubData == nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("SM context not found in UDM")
 	}
 
-	smContext.DnnConfiguration = sessSubData[0].DnnConfigurations[createData.Dnn]
+	smContext.DnnConfiguration = sessSubData.DnnConfigurations[createData.Dnn]
 
 	// Decode UE content(PCO)
 	establishmentRequest := m.PDUSessionEstablishmentRequest

@@ -16,16 +16,18 @@ import (
 )
 
 func SDMGetAmData(ctx ctxt.Context, ue *context.AmfUe) error {
-	data, err := udm.GetAmDataAndSetAMSubscription(ctx, ue.Supi)
+	data, err := udm.GetAmData(ctx, ue.Supi)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get AM data from UDM: %v", err)
 	}
+
 	ue.AccessAndMobilitySubscriptionData = data
+
 	return nil
 }
 
 func SDMGetSmfSelectData(ctx ctxt.Context, ue *context.AmfUe) error {
-	data, err := udm.GetAndSetSmfSelectData(ctx, ue.Supi)
+	data, err := udm.GetSmfSelectData(ctx, ue.Supi)
 	if err != nil {
 		return err
 	}
