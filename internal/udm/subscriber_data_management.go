@@ -24,18 +24,27 @@ var AllowedSscModes = []string{
 }
 
 func GetAmData(ctx context.Context, ueID string) (*models.AccessAndMobilitySubscriptionData, error) {
+	ctx, span := tracer.Start(ctx, "UDM GetAmData")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", ueID),
+	)
+
 	subscriber, err := udmContext.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
+
 	policy, err := udmContext.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
+
 	operator, err := udmContext.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
+
 	amData := &models.AccessAndMobilitySubscriptionData{
 		Nssai: &models.Nssai{
 			DefaultSingleNssais: make([]models.Snssai, 0),
@@ -57,22 +66,13 @@ func GetAmData(ctx context.Context, ueID string) (*models.AccessAndMobilitySubsc
 	return amData, nil
 }
 
-func GetAmDataAndSetAMSubscription(ctx context.Context, supi string) (*models.AccessAndMobilitySubscriptionData, error) {
-	ctx, span := tracer.Start(ctx, "UDM GetAmDataAndSetAMSubscription")
+func GetSmData(ctx context.Context, ueID string) (*models.SessionManagementSubscriptionData, error) {
+	ctx, span := tracer.Start(ctx, "UDM GetSmData")
 	defer span.End()
 	span.SetAttributes(
-		attribute.String("ue.supi", supi),
+		attribute.String("ue.supi", ueID),
 	)
-	amData, err := GetAmData(ctx, supi)
-	if err != nil {
-		return nil, fmt.Errorf("GetAmData error: %+v", err)
-	}
-	udmUe := udmContext.NewUdmUe(supi)
-	udmUe.SetAMSubsriptionData(amData)
-	return amData, nil
-}
 
-func GetSmData(ctx context.Context, ueID string) (*models.SessionManagementSubscriptionData, error) {
 	subscriber, err := udmContext.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
@@ -93,31 +93,30 @@ func GetSmData(ctx context.Context, ueID string) (*models.SessionManagementSubsc
 		return nil, fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
 	}
 
-	sNssai := &models.Snssai{
-		Sst: operator.Sst,
-		Sd:  operator.GetHexSd(),
-	}
-
 	smDataObjModel := &models.SessionManagementSubscriptionData{
-		SingleNssai:       sNssai,
-		DnnConfigurations: make(map[string]models.DnnConfiguration),
-	}
-	smDataObjModel.DnnConfigurations[dataNetwork.Name] = models.DnnConfiguration{
-		PduSessionTypes: &models.PduSessionTypes{
-			DefaultSessionType:  models.PduSessionTypeIPv4,
-			AllowedSessionTypes: make([]models.PduSessionType, 0),
+		SingleNssai: &models.Snssai{
+			Sst: operator.Sst,
+			Sd:  operator.GetHexSd(),
 		},
-		SscModes: &models.SscModes{
-			DefaultSscMode:  models.SscMode1,
-			AllowedSscModes: make([]models.SscMode, 0),
-		},
-		SessionAmbr: &models.Ambr{
-			Downlink: policy.BitrateDownlink,
-			Uplink:   policy.BitrateUplink,
-		},
-		Var5gQosProfile: &models.SubscribedDefaultQos{
-			Var5qi: policy.Var5qi,
-			Arp:    &models.Arp{PriorityLevel: policy.Arp},
+		DnnConfigurations: map[string]models.DnnConfiguration{
+			dataNetwork.Name: {
+				PduSessionTypes: &models.PduSessionTypes{
+					DefaultSessionType:  models.PduSessionTypeIPv4,
+					AllowedSessionTypes: make([]models.PduSessionType, 0),
+				},
+				SscModes: &models.SscModes{
+					DefaultSscMode:  models.SscMode1,
+					AllowedSscModes: make([]models.SscMode, 0),
+				},
+				SessionAmbr: &models.Ambr{
+					Downlink: policy.BitrateDownlink,
+					Uplink:   policy.BitrateUplink,
+				},
+				Var5gQosProfile: &models.SubscribedDefaultQos{
+					Var5qi: policy.Var5qi,
+					Arp:    &models.Arp{PriorityLevel: policy.Arp},
+				},
+			},
 		},
 	}
 
@@ -129,56 +128,45 @@ func GetSmData(ctx context.Context, ueID string) (*models.SessionManagementSubsc
 	return smDataObjModel, nil
 }
 
-func GetAndSetSmData(ctx context.Context, supi string, Dnn string, Snssai string) (*models.SessionManagementSubscriptionData, error) {
-	smData, err := GetSmData(ctx, supi)
-	if err != nil {
-		return nil, fmt.Errorf("error getting sm data: %+v", err)
-	}
-
-	udmUe := udmContext.NewUdmUe(supi)
-
-	udmUe.SetSMSubsData(smData)
-
-	var rspSMSubData *models.SessionManagementSubscriptionData
-
-	udmUe.SmSubsDataLock.RLock()
-
-	rspSMSubData = udmUe.SessionManagementSubsData
-
-	udmUe.SmSubsDataLock.RUnlock()
-
-	return rspSMSubData, nil
-}
-
 func GetNssai(ctx context.Context, supi string) (*models.Nssai, error) {
 	ctx, span := tracer.Start(ctx, "UDM GetNssai")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", supi),
 	)
+
 	accessAndMobilitySubscriptionDataResp, err := GetAmData(ctx, supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
+
 	nssaiResp := *accessAndMobilitySubscriptionDataResp.Nssai
-	udmUe := udmContext.NewUdmUe(supi)
-	udmUe.Nssai = &nssaiResp
-	return udmUe.Nssai, nil
+
+	return &nssaiResp, nil
 }
 
 func GetSmfSelectData(ctx context.Context, ueID string) (*models.SmfSelectionSubscriptionData, error) {
+	ctx, span := tracer.Start(ctx, "UDM GetSmfSelectData")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", ueID),
+	)
+
 	operator, err := udmContext.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
+
 	subscriber, err := udmContext.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
+
 	policy, err := udmContext.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
+
 	dataNetwork, err := udmContext.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
@@ -196,24 +184,8 @@ func GetSmfSelectData(ctx context.Context, ueID string) (*models.SmfSelectionSub
 		Dnn: dataNetwork.Name,
 	})
 	smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
-	return smfSelectionData, nil
-}
 
-func GetAndSetSmfSelectData(ctx context.Context, supi string) (*models.SmfSelectionSubscriptionData, error) {
-	ctx, span := tracer.Start(ctx, "UDM SetSmfSelectData")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.supi", supi),
-	)
-	var body models.SmfSelectionSubscriptionData
-	udmContext.CreateSmfSelectionSubsDataforUe(supi, body)
-	smfSelectionSubscriptionDataResp, err := GetSmfSelectData(ctx, supi)
-	if err != nil {
-		return nil, fmt.Errorf("error getting smf selection data: %+v", err)
-	}
-	udmUe := udmContext.NewUdmUe(supi)
-	udmUe.SetSmfSelectionSubsData(smfSelectionSubscriptionDataResp)
-	return udmUe.SmfSelSubsData, nil
+	return smfSelectionData, nil
 }
 
 func GetUeContextInSmfData(ctx context.Context, supi string) (*models.UeContextInSmfData, error) {
@@ -222,8 +194,7 @@ func GetUeContextInSmfData(ctx context.Context, supi string) (*models.UeContextI
 	span.SetAttributes(
 		attribute.String("ue.supi", supi),
 	)
-	var body models.UeContextInSmfData
-	udmContext.CreateUeContextInSmfDataforUe(supi, body)
+
 	pdusess := []*models.SmfRegistration{}
 	pduSessionMap := make(map[string]models.PduSession)
 	for _, element := range pdusess {
@@ -246,7 +217,5 @@ func GetUeContextInSmfData(ctx context.Context, supi string) (*models.UeContextI
 
 	ueContextInSmfData.PgwInfo = pgwInfoArray
 
-	udmUe := udmContext.NewUdmUe(supi)
-	udmUe.UeCtxtInSmfData = &ueContextInSmfData
-	return udmUe.UeCtxtInSmfData, nil
+	return &ueContextInSmfData, nil
 }
