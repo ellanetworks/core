@@ -62,13 +62,13 @@ func buildCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext 
 	}
 	smContextCreateData.Dnn = smContext.Dnn()
 	smContextCreateData.ServingNfID = amfSelf.NfID
-	guamiList := context.GetServedGuamiList(ctx)
+	guami := context.GetServedGuami(ctx)
 	smContextCreateData.Guami = &models.Guami{
 		PlmnID: &models.PlmnID{
-			Mcc: guamiList[0].PlmnID.Mcc,
-			Mnc: guamiList[0].PlmnID.Mnc,
+			Mcc: guami.PlmnID.Mcc,
+			Mnc: guami.PlmnID.Mnc,
 		},
-		AmfID: guamiList[0].AmfID,
+		AmfID: guami.AmfID,
 	}
 	// take seving networking plmn from userlocation.Tai
 	if ue.Tai.PlmnID != nil {
@@ -78,10 +78,10 @@ func buildCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext 
 		}
 	} else {
 		// ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc %v, Mnc: %v] is taken from Guami List", guamiList[0].PlmnID.Mcc, guamiList[0].PlmnID.Mnc)
-		ue.GmmLog.Warn("Tai is not received from Serving Network, Serving Plmn is taken from Guami List", zap.String("mcc", guamiList[0].PlmnID.Mcc), zap.String("mnc", guamiList[0].PlmnID.Mnc))
+		ue.GmmLog.Warn("Tai is not received from Serving Network, Serving Plmn is taken from Guami List", zap.String("mcc", guami.PlmnID.Mcc), zap.String("mnc", guami.PlmnID.Mnc))
 		smContextCreateData.ServingNetwork = &models.PlmnID{
-			Mcc: guamiList[0].PlmnID.Mcc,
-			Mnc: guamiList[0].PlmnID.Mnc,
+			Mcc: guami.PlmnID.Mcc,
+			Mnc: guami.PlmnID.Mnc,
 		}
 	}
 	smContextCreateData.N1SmMsg = new(models.RefToBinaryData)

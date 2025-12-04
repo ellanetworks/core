@@ -64,24 +64,22 @@ func GetSupportTaiList(ctx context.Context) []models.Tai {
 	return tais
 }
 
-func GetServedGuamiList(ctx context.Context) []models.Guami {
+func GetServedGuami(ctx context.Context) *models.Guami {
 	amfSelf := AMFSelf()
-	guamis := make([]models.Guami, 0)
+
 	dbNetwork, err := amfSelf.DBInstance.GetOperator(ctx)
 	if err != nil {
 		logger.AmfLog.Warn("Failed to get operator", zap.Error(err))
-		return guamis
+		return nil
 	}
-	plmnID := models.PlmnID{
-		Mcc: dbNetwork.Mcc,
-		Mnc: dbNetwork.Mnc,
+
+	return &models.Guami{
+		PlmnID: &models.PlmnID{
+			Mcc: dbNetwork.Mcc,
+			Mnc: dbNetwork.Mnc,
+		},
+		AmfID: "cafe00", // To edit
 	}
-	guami := models.Guami{
-		PlmnID: &plmnID,
-		AmfID:  "cafe00", // To edit
-	}
-	guamis = append(guamis, guami)
-	return guamis
 }
 
 func GetSupportedPlmn(ctx context.Context) *PlmnSupportItem {
@@ -96,11 +94,9 @@ func GetSupportedPlmn(ctx context.Context) *PlmnSupportItem {
 			Mcc: operator.Mcc,
 			Mnc: operator.Mnc,
 		},
-		SNssaiList: []models.Snssai{
-			{
-				Sst: operator.Sst,
-				Sd:  operator.GetHexSd(),
-			},
+		SNssai: models.Snssai{
+			Sst: operator.Sst,
+			Sd:  operator.GetHexSd(),
 		},
 	}
 	return plmnSupportItem

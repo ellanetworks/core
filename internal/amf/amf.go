@@ -20,7 +20,6 @@ import (
 
 func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	self := context.AMFSelf()
-	self.NgapPort = n2Port
 	self.NetworkFeatureSupport5GS = &context.NetworkFeatureSupport5GS{
 		Emc:     0,
 		EmcN3:   0,
@@ -99,9 +98,9 @@ func StartNGAPService(ngapAddress string, ngapPort int) error {
 func Close() {
 	amfSelf := context.AMFSelf()
 
-	guamiList := context.GetServedGuamiList(ctxt.Background())
-	unavailableGuamiList := message.BuildUnavailableGUAMIList(guamiList)
-	amfSelf.AmfRanPool.Range(func(key, value interface{}) bool {
+	guami := context.GetServedGuami(ctxt.Background())
+	unavailableGuamiList := message.BuildUnavailableGUAMIList(guami)
+	amfSelf.AmfRanPool.Range(func(key, value any) bool {
 		ran := value.(*context.AmfRan)
 		err := message.SendAMFStatusIndication(ran, unavailableGuamiList)
 		if err != nil {

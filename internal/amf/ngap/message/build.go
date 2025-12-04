@@ -120,21 +120,21 @@ func BuildNGSetupResponse(ctx ctxt.Context) ([]byte, error) {
 	ie.Value.ServedGUAMIList = new(ngapType.ServedGUAMIList)
 
 	servedGUAMIList := ie.Value.ServedGUAMIList
-	guamiList := context.GetServedGuamiList(ctx)
-	for _, guami := range guamiList {
-		servedGUAMIItem := ngapType.ServedGUAMIItem{}
-		plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
-		if err != nil {
-			logger.AmfLog.Error("error converting PLMN ID to NGAP", zap.Error(err))
-			continue
-		}
-		servedGUAMIItem.GUAMI.PLMNIdentity = *plmnID
-		regionID, setID, prtID := ngapConvert.AmfIdToNgap(guami.AmfID)
-		servedGUAMIItem.GUAMI.AMFRegionID.Value = regionID
-		servedGUAMIItem.GUAMI.AMFSetID.Value = setID
-		servedGUAMIItem.GUAMI.AMFPointer.Value = prtID
-		servedGUAMIList.List = append(servedGUAMIList.List, servedGUAMIItem)
+	guami := context.GetServedGuami(ctx)
+
+	plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
+	if err != nil {
+		return nil, fmt.Errorf("error converting PLMN ID to NGAP: %+v", err)
 	}
+
+	servedGUAMIItem := ngapType.ServedGUAMIItem{}
+
+	servedGUAMIItem.GUAMI.PLMNIdentity = *plmnID
+	regionID, setID, prtID := ngapConvert.AmfIdToNgap(guami.AmfID)
+	servedGUAMIItem.GUAMI.AMFRegionID.Value = regionID
+	servedGUAMIItem.GUAMI.AMFSetID.Value = setID
+	servedGUAMIItem.GUAMI.AMFPointer.Value = prtID
+	servedGUAMIList.List = append(servedGUAMIList.List, servedGUAMIItem)
 
 	nGSetupResponseIEs.List = append(nGSetupResponseIEs.List, ie)
 
@@ -159,20 +159,23 @@ func BuildNGSetupResponse(ctx ctxt.Context) ([]byte, error) {
 	pLMNSupportList := ie.Value.PLMNSupportList
 	plmnSupported := context.GetSupportedPlmn(ctx)
 	pLMNSupportItem := ngapType.PLMNSupportItem{}
-	plmnID, err := util.PlmnIDToNgap(plmnSupported.PlmnID)
+	plmnID, err = util.PlmnIDToNgap(plmnSupported.PlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("error converting PLMN ID to NGAP: %+v", err)
 	}
 	pLMNSupportItem.PLMNIdentity = *plmnID
-	for _, snssai := range plmnSupported.SNssaiList {
-		sliceSupportItem := ngapType.SliceSupportItem{}
-		snssaiNgap, err := util.SNssaiToNgap(snssai)
-		if err != nil {
-			return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
-		}
-		sliceSupportItem.SNSSAI = snssaiNgap
-		pLMNSupportItem.SliceSupportList.List = append(pLMNSupportItem.SliceSupportList.List, sliceSupportItem)
+
+	snssaiNgap, err := util.SNssaiToNgap(plmnSupported.SNssai)
+	if err != nil {
+		return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
 	}
+
+	sliceSupportItem := ngapType.SliceSupportItem{
+		SNSSAI: snssaiNgap,
+	}
+
+	pLMNSupportItem.SliceSupportList.List = append(pLMNSupportItem.SliceSupportList.List, sliceSupportItem)
+
 	pLMNSupportList.List = append(pLMNSupportList.List, pLMNSupportItem)
 	nGSetupResponseIEs.List = append(nGSetupResponseIEs.List, ie)
 
@@ -898,8 +901,7 @@ func BuildInitialContextSetupRequest(
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	guamiList := context.GetServedGuamiList(ctx)
-	servedGuami := guamiList[0]
+	servedGuami := context.GetServedGuami(ctx)
 
 	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
 	if err != nil {
@@ -1468,16 +1470,17 @@ func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Ca
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 	plmnSupport := context.GetSupportedPlmn(ctx)
-	for _, snssaiItem := range plmnSupport.SNssaiList {
-		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
-		ngapSnssai, err := util.SNssaiToNgap(snssaiItem)
-		if err != nil {
-			return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
-		}
-		allowedNSSAIItem.SNSSAI = ngapSnssai
-		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
+	ngapSnssai, err := util.SNssaiToNgap(plmnSupport.SNssai)
+	if err != nil {
+		return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
 	}
+
+	allowedNSSAIItem := ngapType.AllowedNSSAIItem{
+		SNSSAI: ngapSnssai,
+	}
+
+	allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
 
 	handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
 
@@ -1505,8 +1508,7 @@ func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Ca
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	guamiList := context.GetServedGuamiList(ctx)
-	servedGuami := guamiList[0]
+	servedGuami := context.GetServedGuami(ctx)
 
 	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
 	if err != nil {
@@ -1657,15 +1659,18 @@ func BuildPathSwitchRequestAcknowledge(
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 	plmnSupport := context.GetSupportedPlmn(ctx)
-	for _, modelSnssai := range plmnSupport.SNssaiList {
-		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
-		ngapSnssai, err := util.SNssaiToNgap(modelSnssai)
-		if err != nil {
-			return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
-		}
-		allowedNSSAIItem.SNSSAI = ngapSnssai
-		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
+
+	ngapSnssai, err := util.SNssaiToNgap(plmnSupport.SNssai)
+	if err != nil {
+		return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
 	}
+
+	allowedNSSAIItem := ngapType.AllowedNSSAIItem{
+		SNSSAI: ngapSnssai,
+	}
+
+	allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
+
 	pathSwitchRequestAckIEs.List = append(pathSwitchRequestAckIEs.List, ie)
 
 	// Core Network Assistance Information (optional)

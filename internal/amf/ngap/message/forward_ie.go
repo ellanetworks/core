@@ -183,20 +183,20 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 	return mobilityRestrictionList
 }
 
-func BuildUnavailableGUAMIList(guamiList []models.Guami) (unavailableGUAMIList ngapType.UnavailableGUAMIList) {
-	for _, guami := range guamiList {
-		item := ngapType.UnavailableGUAMIItem{}
-		plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
-		if err != nil {
-			logger.AmfLog.Error("Convert PLMN ID to NGAP failed", zap.Error(err))
-			continue
-		}
-		item.GUAMI.PLMNIdentity = *plmnID
-		regionID, setID, ptrID := ngapConvert.AmfIdToNgap(guami.AmfID)
-		item.GUAMI.AMFRegionID.Value = regionID
-		item.GUAMI.AMFSetID.Value = setID
-		item.GUAMI.AMFPointer.Value = ptrID
-		unavailableGUAMIList.List = append(unavailableGUAMIList.List, item)
+func BuildUnavailableGUAMIList(guami *models.Guami) (unavailableGUAMIList ngapType.UnavailableGUAMIList) {
+	item := ngapType.UnavailableGUAMIItem{}
+
+	plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
+	if err != nil {
+		logger.AmfLog.Error("Convert PLMN ID to NGAP failed", zap.Error(err))
+		return
 	}
+
+	item.GUAMI.PLMNIdentity = *plmnID
+	regionID, setID, ptrID := ngapConvert.AmfIdToNgap(guami.AmfID)
+	item.GUAMI.AMFRegionID.Value = regionID
+	item.GUAMI.AMFSetID.Value = setID
+	item.GUAMI.AMFPointer.Value = ptrID
+	unavailableGUAMIList.List = append(unavailableGUAMIList.List, item)
 	return
 }

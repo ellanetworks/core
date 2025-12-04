@@ -469,8 +469,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.Guti = guti
 		ue.GmmLog.Debug("UE used GUTI identity for registration", zap.String("guti", guti))
 
-		guamiList := context.GetServedGuamiList(ctx)
-		servedGuami := guamiList[0]
+		servedGuami := context.GetServedGuami(ctx)
 		if reflect.DeepEqual(guamiFromUeGuti, servedGuami) {
 			ue.ServingAmfChanged = false
 		} else {

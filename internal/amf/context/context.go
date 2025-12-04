@@ -48,8 +48,8 @@ type NetworkFeatureSupport5GS struct {
 }
 
 type PlmnSupportItem struct {
-	PlmnID     models.PlmnID
-	SNssaiList []models.Snssai
+	PlmnID models.PlmnID
+	SNssai models.Snssai
 }
 
 type NetworkName struct {
@@ -72,7 +72,6 @@ type AMFContext struct {
 	RelativeCapacity                int64
 	NfID                            string
 	Name                            string
-	NgapPort                        int
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
 	SecurityAlgorithm               SecurityAlgorithm
 	NetworkName                     NetworkName
@@ -111,8 +110,7 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 }
 
 func (context *AMFContext) ReAllocateGutiToUe(ctx ctxt.Context, ue *AmfUe) {
-	guamis := GetServedGuamiList(ctx)
-	servedGuami := guamis[0]
+	servedGuami := GetServedGuami(ctx)
 	ue.OldTmsi = ue.Tmsi
 	ue.Tmsi = context.TmsiAllocate()
 	plmnID := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc
@@ -273,12 +271,8 @@ func (context *AMFContext) DeleteAmfRan(conn *sctp.SCTPConn) {
 
 func (context *AMFContext) InPlmnSupport(ctx ctxt.Context, snssai models.Snssai) bool {
 	plmnSupportItem := GetSupportedPlmn(ctx)
-	for _, supportSnssai := range plmnSupportItem.SNssaiList {
-		if reflect.DeepEqual(supportSnssai, snssai) {
-			return true
-		}
-	}
-	return false
+
+	return reflect.DeepEqual(plmnSupportItem.SNssai, snssai)
 }
 
 // Looks up a UE by the provided GUTI.

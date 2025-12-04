@@ -79,8 +79,7 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 				var err error
 
 				if fiveGSTMSI != nil {
-					guamiList := context.GetServedGuamiList(ctx)
-					servedGuami := guamiList[0]
+					servedGuami := context.GetServedGuami(ctx)
 
 					// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
 					// GUAMI := <MCC><MNC><AMF Region ID><AMF Set ID><AMF Pointer>
@@ -1431,8 +1430,7 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 
 		if fiveGSTMSI != nil {
 			ranUe.Log.Debug("Receive 5G-S-TMSI")
-			guamiList := context.GetServedGuamiList(ctx)
-			servedGuami := guamiList[0]
+			servedGuami := context.GetServedGuami(ctx)
 
 			// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
 			// GUAMI := <MCC><MNC><AMF Region ID><AMF Set ID><AMF Pointer>

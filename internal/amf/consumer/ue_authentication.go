@@ -21,8 +21,7 @@ import (
 )
 
 func SendUEAuthenticationAuthenticateRequest(ctx ctxt.Context, ue *context.AmfUe, resynchronizationInfo *models.ResynchronizationInfo) (*models.UeAuthenticationCtx, error) {
-	guamiList := context.GetServedGuamiList(ctx)
-	servedGuami := guamiList[0]
+	servedGuami := context.GetServedGuami(ctx)
 	var plmnID *models.PlmnID
 	if ue.Tai.PlmnID != nil {
 		plmnID = ue.Tai.PlmnID
