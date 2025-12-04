@@ -11,8 +11,12 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/golang-jwt/jwt/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
 )
+
+var tracer = otel.Tracer("ella-core/api/authentication_middleware")
 
 const AuthenticationAction = "user_authentication"
 
@@ -48,6 +52,11 @@ func parseAPIToken(presented string) (tokenID, secret string, ok bool) {
 // authenticateRequest validates the Authorization header (JWT or API token),
 // and returns (userID, email, roleID) for authorization.
 func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) (int, string, RoleID, error) {
+	_, span := tracer.Start(r.Context(), "Authenticate",
+		trace.WithAttributes(),
+	)
+	defer span.End()
+
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		return 0, "", 0, errors.New("missing Authorization header")
@@ -74,6 +83,8 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 		if tok.ExpiresAt != nil && time.Now().After(*tok.ExpiresAt) {
 			return 0, "", 0, errors.New("API token expired")
 		}
+
+		// CompareHashAndPassword uses constant time comparison, making it safer but slower
 		if err := bcrypt.CompareHashAndPassword([]byte(tok.TokenHash), []byte(token)); err != nil {
 			return 0, "", 0, errors.New("invalid API token")
 		}

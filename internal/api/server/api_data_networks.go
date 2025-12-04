@@ -193,11 +193,6 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusBadRequest, "Maximum number of data networks reached ("+strconv.Itoa(MaxNumPolicies)+")", nil, logger.APILog)
 		}
 
-		if _, err := dbInstance.GetDataNetwork(r.Context(), createDataNetworkParams.Name); err == nil {
-			writeError(w, http.StatusBadRequest, "Data Network already exists", nil, logger.APILog)
-			return
-		}
-
 		dbDataNetwork := &db.DataNetwork{
 			Name:   createDataNetworkParams.Name,
 			IPPool: createDataNetworkParams.IPPool,
@@ -206,12 +201,17 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 		}
 
 		if err := dbInstance.CreateDataNetwork(r.Context(), dbDataNetwork); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to create policy", err, logger.APILog)
+			if errors.Is(err, db.ErrAlreadyExists) {
+				writeError(w, http.StatusConflict, "Data Network already exists", err, logger.APILog)
+				return
+			}
+
+			writeError(w, http.StatusInternalServerError, "Failed to create data network", err, logger.APILog)
 			return
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Data Network created successfully"}, http.StatusCreated, logger.APILog)
-		logger.LogAuditEvent(CreateDataNetworkAction, email, getClientIP(r), "User created policy: "+createDataNetworkParams.Name)
+		logger.LogAuditEvent(CreateDataNetworkAction, email, getClientIP(r), "User created data network: "+createDataNetworkParams.Name)
 	})
 }
 
@@ -240,24 +240,24 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		policy, err := dbInstance.GetDataNetwork(r.Context(), name)
+		dn, err := dbInstance.GetDataNetwork(r.Context(), name)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "Data Network not found", err, logger.APILog)
 			return
 		}
 
-		policy.Name = updateDataNetworkParams.Name
-		policy.IPPool = updateDataNetworkParams.IPPool
-		policy.DNS = updateDataNetworkParams.DNS
-		policy.MTU = updateDataNetworkParams.MTU
+		dn.Name = updateDataNetworkParams.Name
+		dn.IPPool = updateDataNetworkParams.IPPool
+		dn.DNS = updateDataNetworkParams.DNS
+		dn.MTU = updateDataNetworkParams.MTU
 
-		if err := dbInstance.UpdateDataNetwork(r.Context(), policy); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to update policy", err, logger.APILog)
+		if err := dbInstance.UpdateDataNetwork(r.Context(), dn); err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to update data network", err, logger.APILog)
 			return
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Data Network updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdateDataNetworkAction, email, getClientIP(r), "User updated policy: "+updateDataNetworkParams.Name)
+		logger.LogAuditEvent(UpdateDataNetworkAction, email, getClientIP(r), "User updated data network: "+updateDataNetworkParams.Name)
 	})
 }
 

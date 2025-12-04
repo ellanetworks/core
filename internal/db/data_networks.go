@@ -20,7 +20,7 @@ const QueryCreateDataNetworksTable = `
 	CREATE TABLE IF NOT EXISTS %s (
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		name TEXT NOT NULL,
+		name TEXT NOT NULL UNIQUE,
 
 		ipPool TEXT NOT NULL,
 		dns TEXT NOT NULL,
@@ -187,14 +187,6 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 		attribute.String("db.collection", target),
 	)
 
-	// ensure unique name
-	if _, err := db.GetDataNetwork(ctx, dataNetwork.Name); err == nil {
-		dup := fmt.Errorf("data network with name %s already exists", dataNetwork.Name)
-		span.RecordError(dup)
-		span.SetStatus(codes.Error, "duplicate key")
-		return dup
-	}
-
 	q, err := sqlair.Prepare(stmt, DataNetwork{})
 	if err != nil {
 		span.RecordError(err)
@@ -202,6 +194,12 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 		return err
 	}
 	if err := db.conn.Query(ctx, q, dataNetwork).Run(); err != nil {
+		if isUniqueNameError(err) {
+			span.RecordError(ErrAlreadyExists)
+			span.SetStatus(codes.Error, "unique constraint failed")
+			return ErrAlreadyExists
+		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err

@@ -20,7 +20,7 @@ const QueryCreatePoliciesTable = `
 	CREATE TABLE IF NOT EXISTS %s (
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		name TEXT NOT NULL,
+		name TEXT NOT NULL UNIQUE,
 
 		bitrateUplink TEXT NOT NULL,
 		bitrateDownlink TEXT NOT NULL,
@@ -193,21 +193,20 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 		attribute.String("db.collection", target),
 	)
 
-	// ensure unique name
-	if _, err := db.GetPolicy(ctx, policy.Name); err == nil {
-		dup := fmt.Errorf("policy with name %s already exists", policy.Name)
-		span.RecordError(dup)
-		span.SetStatus(codes.Error, "duplicate key")
-		return dup
-	}
-
 	q, err := sqlair.Prepare(stmt, Policy{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
+
 	if err := db.conn.Query(ctx, q, policy).Run(); err != nil {
+		if isUniqueNameError(err) {
+			span.RecordError(ErrAlreadyExists)
+			span.SetStatus(codes.Error, "unique constraint failed")
+			return ErrAlreadyExists
+		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err

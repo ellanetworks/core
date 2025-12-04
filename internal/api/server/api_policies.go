@@ -215,11 +215,6 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if _, err := dbInstance.GetPolicy(r.Context(), createPolicyParams.Name); err == nil {
-			writeError(w, http.StatusBadRequest, "Policy already exists", nil, logger.APILog)
-			return
-		}
-
 		numPolicies, err := dbInstance.CountPolicies(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to count policies", err, logger.APILog)
@@ -247,6 +242,11 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		if err := dbInstance.CreatePolicy(r.Context(), dbPolicy); err != nil {
+			if errors.Is(err, db.ErrAlreadyExists) {
+				writeError(w, http.StatusConflict, "Policy already exists", err, logger.APILog)
+				return
+			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to create policy", err, logger.APILog)
 			return
 		}
