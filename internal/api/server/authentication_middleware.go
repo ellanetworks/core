@@ -83,6 +83,8 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 		if tok.ExpiresAt != nil && time.Now().After(*tok.ExpiresAt) {
 			return 0, "", 0, errors.New("API token expired")
 		}
+
+		// CompareHashAndPassword uses constant time comparison, making it safer but slower
 		if err := bcrypt.CompareHashAndPassword([]byte(tok.TokenHash), []byte(token)); err != nil {
 			return 0, "", 0, errors.New("invalid API token")
 		}
