@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// We should likely combine these three maps into a single sync.Map and unify the key ID
 var (
 	smContextPool    sync.Map // key: smContext.Ref, value: *SMContext
 	canonicalRef     sync.Map // key: canonicalName(identifier, pduSessID), value: smContext.Ref

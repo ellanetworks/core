@@ -72,6 +72,7 @@ func SMFSelf() *SMFContext {
 
 func GetSnssaiInfo(ctx context.Context) (*SnssaiSmfInfo, error) {
 	self := SMFSelf()
+
 	operator, err := self.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
