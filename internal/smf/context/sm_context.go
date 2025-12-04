@@ -37,10 +37,6 @@ var (
 
 var smContextActive uint64
 
-type UeIPAddr struct {
-	IP net.IP
-}
-
 type SMContext struct {
 	Ref                            string
 	Supi                           string
@@ -58,7 +54,7 @@ type SMContext struct {
 	Snssai                         *models.Snssai
 	ServingNetwork                 *models.PlmnID
 	UeLocation                     *models.UserLocation
-	PDUAddress                     *UeIPAddr
+	PDUAddress                     net.IP
 	Tunnel                         *UPTunnel
 	DNNInfo                        *SnssaiSmfDnnInfo
 	ProtocolConfigurationOptions   *ProtocolConfigurationOptions
@@ -183,13 +179,13 @@ func (smContext *SMContext) ReleaseUeIPAddr(ctx context.Context) error {
 	if smContext.PDUAddress == nil {
 		return nil
 	}
-	if ip := smContext.PDUAddress.IP; ip != nil {
+	if ip := smContext.PDUAddress; ip != nil {
 		err := smfSelf.DBInstance.ReleaseIP(ctx, smContext.Supi)
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}
-		smContext.SubPduSessLog.Info("Released IP Address", zap.String("IP", smContext.PDUAddress.IP.String()))
-		smContext.PDUAddress.IP = net.IPv4(0, 0, 0, 0)
+		smContext.SubPduSessLog.Info("Released IP Address", zap.String("IP", smContext.PDUAddress.String()))
+		smContext.PDUAddress = net.IPv4(0, 0, 0, 0)
 	}
 	return nil
 }
@@ -214,7 +210,7 @@ func (smContext *SMContext) BuildCreatedData() (createdData *models.SmContextCre
 }
 
 func (smContext *SMContext) PDUAddressToNAS() (addr [12]byte, addrLen uint8) {
-	copy(addr[:], smContext.PDUAddress.IP)
+	copy(addr[:], smContext.PDUAddress)
 	switch smContext.SelectedPDUSessionType {
 	case nasMessage.PDUSessionTypeIPv4:
 		addrLen = 4 + 1

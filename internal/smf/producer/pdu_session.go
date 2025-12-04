@@ -87,7 +87,7 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 
 	smContext.SubPduSessLog.Info("Successfully allocated IP address", zap.String("IP", ip.String()))
 
-	smContext.PDUAddress = &context.UeIPAddr{IP: ip}
+	smContext.PDUAddress = ip
 
 	sessSubData, err := udm.GetSmData(ctx, smContext.Supi)
 	if err != nil {

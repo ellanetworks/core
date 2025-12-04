@@ -155,7 +155,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 					continue
 				}
 				subscriberSessions = append(subscriberSessions, SubscriberSession{
-					IPAddress: session.PDUAddress.IP.String(),
+					IPAddress: session.PDUAddress.String(),
 				})
 			}
 
@@ -214,7 +214,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 				continue
 			}
 			subscriberSessions = append(subscriberSessions, SubscriberSession{
-				IPAddress: session.PDUAddress.IP.String(),
+				IPAddress: session.PDUAddress.String(),
 			})
 		}
 

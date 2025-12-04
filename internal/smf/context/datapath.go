@@ -194,7 +194,7 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) 
 func (node *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER, defURR *URR, defPrecedence uint32) error {
 	ueIPAddr := UEIPAddress{}
 	ueIPAddr.V4 = true
-	ueIPAddr.IPv4Address = smContext.PDUAddress.IP.To4()
+	ueIPAddr.IPv4Address = smContext.PDUAddress.To4()
 
 	curULTunnel := node.UpLinkTunnel
 	for _, ULPDR := range curULTunnel.PDR {
@@ -243,7 +243,7 @@ func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER, d
 	// UPF provided UE ip-addr
 	ueIPAddr := UEIPAddress{}
 	ueIPAddr.V4 = true
-	ueIPAddr.IPv4Address = smContext.PDUAddress.IP.To4()
+	ueIPAddr.IPv4Address = smContext.PDUAddress.To4()
 
 	for _, DLPDR := range curDLTunnel.PDR {
 		DLPDR.QER = append(DLPDR.QER, defQER)
@@ -329,7 +329,7 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence 
 
 	ueIPAddr := UEIPAddress{}
 	ueIPAddr.V4 = true
-	ueIPAddr.IPv4Address = smContext.PDUAddress.IP.To4()
+	ueIPAddr.IPv4Address = smContext.PDUAddress.To4()
 
 	if dataPath.DPNode.DownLinkTunnel != nil {
 		for _, DNDLPDR := range dataPath.DPNode.DownLinkTunnel.PDR {
