@@ -38,14 +38,13 @@ type SnssaiSmfDnnInfo struct {
 
 // SnssaiSmfInfo records the SMF S-NSSAI related information
 type SnssaiSmfInfo struct {
-	DnnInfos map[string]*SnssaiSmfDnnInfo
-	PlmnID   models.PlmnID
+	DnnInfos *SnssaiSmfDnnInfo
 	Snssai   models.Snssai
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
 func RetrieveDnnInformation(ctx context.Context, ueSnssai models.Snssai, dnn string) (*SnssaiSmfDnnInfo, error) {
-	supportedSnssai, err := GetSnssaiInfo(ctx)
+	supportedSnssai, err := GetSnssaiInfo(ctx, dnn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get snssai information: %v", err)
 	}
@@ -58,7 +57,7 @@ func RetrieveDnnInformation(ctx context.Context, ueSnssai models.Snssai, dnn str
 		return nil, fmt.Errorf("ue requested sd %s, but sd %s is supported", ueSnssai.Sd, supportedSnssai.Snssai.Sd)
 	}
 
-	return supportedSnssai.DnnInfos[dnn], nil
+	return supportedSnssai.DnnInfos, nil
 }
 
 func AllocateLocalSEID() (uint64, error) {
@@ -70,7 +69,7 @@ func SMFSelf() *SMFContext {
 	return &smfContext
 }
 
-func GetSnssaiInfo(ctx context.Context) (*SnssaiSmfInfo, error) {
+func GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
 	self := SMFSelf()
 
 	operator, err := self.DBInstance.GetOperator(ctx)
@@ -78,9 +77,13 @@ func GetSnssaiInfo(ctx context.Context) (*SnssaiSmfInfo, error) {
 		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
 	}
 
-	dataNetworks, _, err := self.DBInstance.ListDataNetworksPage(ctx, 1, 1000)
+	dataNetwork, err := self.DBInstance.GetDataNetwork(ctx, dnn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list policies from db: %v", err)
+	}
+
+	if dataNetwork == nil {
+		return nil, fmt.Errorf("data network %s not found", dnn)
 	}
 
 	snssaiInfo := &SnssaiSmfInfo{
@@ -88,24 +91,13 @@ func GetSnssaiInfo(ctx context.Context) (*SnssaiSmfInfo, error) {
 			Sst: operator.Sst,
 			Sd:  operator.GetHexSd(),
 		},
-		PlmnID: models.PlmnID{
-			Mcc: operator.Mcc,
-			Mnc: operator.Mnc,
+		DnnInfos: &SnssaiSmfDnnInfo{
+			DNS: DNS{
+				IPv4Addr: net.ParseIP(dataNetwork.DNS).To4(),
+			},
+			MTU: uint16(dataNetwork.MTU),
 		},
-		DnnInfos: make(map[string]*SnssaiSmfDnnInfo),
 	}
 
-	for _, dn := range dataNetworks {
-		dnn := dn.Name
-		dnsPrimary := dn.DNS
-		mtu := dn.MTU
-		dnnInfo := SnssaiSmfDnnInfo{
-			DNS: DNS{
-				IPv4Addr: net.ParseIP(dnsPrimary).To4(),
-			},
-			MTU: uint16(mtu),
-		}
-		snssaiInfo.DnnInfos[dnn] = &dnnInfo
-	}
 	return snssaiInfo, nil
 }
