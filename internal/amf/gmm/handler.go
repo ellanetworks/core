@@ -126,7 +126,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 		switch requestType.GetRequestTypeValue() {
 		case nasMessage.ULNASTransportRequestTypeInitialRequest:
-			smContext.StoreULNASTransport(ulNasTransport)
 			//  perform a local release of the PDU session identified by the PDU session ID and shall request
 			// the SMF to perform a local release of the PDU session
 			updateData := models.SmContextUpdateData{
@@ -134,7 +133,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				Cause:   models.CauseRelDueToDuplicateSessionID,
 			}
 			ue.GmmLog.Warn("Duplicated PDU session ID", zap.Int32("pduSessionID", pduSessionID))
-			smContext.SetDuplicatedPduSessionID(true)
 			response, err := consumer.SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
 			if err != nil {
 				return err
@@ -228,7 +226,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				dnn = dataNetwork.Name
 			}
 
-			newSmContext := consumer.SelectSmf(ue, anType, pduSessionID, snssai, dnn)
+			newSmContext := consumer.SelectSmf(anType, pduSessionID, snssai, dnn)
 
 			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ctx, ue, newSmContext, smMessage)
 			if err != nil {
@@ -267,7 +265,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 					smContext = context.NewSmContext(pduSessionID)
 					smContext.SetAccessType(anType)
 					smContext.SetDnn(ueContextInSmf.Dnn)
-					smContext.SetPlmnID(*ueContextInSmf.PlmnID)
 					ue.StoreSmContext(pduSessionID, smContext)
 					return forward5GSMMessageToSMF(ctx, ue, anType, pduSessionID, smContext, smMessage)
 				}

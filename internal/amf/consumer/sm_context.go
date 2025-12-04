@@ -19,22 +19,16 @@ import (
 const N2SMInfoID = "N2SmInfo"
 
 func SelectSmf(
-	ue *context.AmfUe,
 	anType models.AccessType,
 	pduSessionID int32,
 	snssai models.Snssai,
 	dnn string,
 ) *context.SmContext {
-	nsiInformation := ue.GetNsiInformationFromSnssai(anType, snssai)
 	smContext := context.NewSmContext(pduSessionID)
-	smContext.SetSnssai(snssai)
 
+	smContext.SetSnssai(snssai)
 	smContext.SetDnn(dnn)
 	smContext.SetAccessType(anType)
-
-	if nsiInformation != nil {
-		smContext.SetNsInstance(nsiInformation.NsiID)
-	}
 
 	return smContext
 }

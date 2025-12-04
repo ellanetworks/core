@@ -313,20 +313,6 @@ func BuildDownlinkNasTransport(ue *context.RanUe, nasPdu []byte,
 
 	downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
 
-	// Old AMF (optional)
-	if ue.OldAmfName != "" {
-		ie = ngapType.DownlinkNASTransportIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDOldAMF
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.DownlinkNASTransportIEsPresentOldAMF
-		ie.Value.OldAMF = new(ngapType.AMFName)
-
-		ie.Value.OldAMF.Value = ue.OldAmfName
-
-		downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
-		ue.OldAmfName = "" // clear data
-	}
-
 	// RAN Paging Priority (optional)
 	// Mobility Restriction List (optional)
 	if ue.Ran.AnType == models.AccessType3GPPAccess && mobilityRestrictionList != nil {
@@ -847,18 +833,6 @@ func BuildInitialContextSetupRequest(
 	rANUENGAPID.Value = ranUe.RanUeNgapID
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
-
-	// Old AMF (optional)
-	if ranUe.OldAmfName != "" {
-		ie = ngapType.InitialContextSetupRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDOldAMF
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentOldAMF
-		ie.Value.OldAMF = new(ngapType.AMFName)
-		ie.Value.OldAMF.Value = ranUe.OldAmfName
-		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
-		ranUe.OldAmfName = "" // clear data
-	}
 
 	// UE Aggregate Maximum Bit Rate (conditional: if pdu session resource setup)
 	// The subscribed UE-AMBR is a subscription parameter which is

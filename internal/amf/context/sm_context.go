@@ -11,28 +11,18 @@ import (
 	"sync"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasMessage"
 )
 
 type SmContext struct {
 	Mu *sync.RWMutex // protect the following fields
 
-	PduSessionIDVal int32
-	SmContextRefVal string
-	SnssaiVal       models.Snssai
-	DnnVal          string
-	AccessTypeVal   models.AccessType
-	NsInstanceVal   string
-	UserLocationVal models.UserLocation
-	PlmnIDVal       models.PlmnID
-
-	SmfIDVal              string
-	HSmfIDVal             string
-	VSmfIDVal             string
+	PduSessionIDVal       int32
+	SmContextRefVal       string
+	SnssaiVal             models.Snssai
+	DnnVal                string
+	AccessTypeVal         models.AccessType
+	UserLocationVal       models.UserLocation
 	PduSessionInactiveVal bool
-
-	UlNASTransportVal *nasMessage.ULNASTransport
-	DuplicatedVal     bool
 }
 
 func NewSmContext(pduSessionID int32) *SmContext {
@@ -55,12 +45,6 @@ func (c *SmContext) PduSessionID() int32 {
 	c.Mu.RLock()
 	defer c.Mu.RUnlock()
 	return c.PduSessionIDVal
-}
-
-func (c *SmContext) SetPduSessionID(id int32) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.PduSessionIDVal = id
 }
 
 func (c *SmContext) SmContextRef() string {
@@ -111,18 +95,6 @@ func (c *SmContext) SetDnn(dnn string) {
 	c.DnnVal = dnn
 }
 
-func (c *SmContext) NsInstance() string {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
-	return c.NsInstanceVal
-}
-
-func (c *SmContext) SetNsInstance(nsInstanceID string) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.NsInstanceVal = nsInstanceID
-}
-
 func (c *SmContext) UserLocation() models.UserLocation {
 	c.Mu.RLock()
 	defer c.Mu.RUnlock()
@@ -133,64 +105,4 @@ func (c *SmContext) SetUserLocation(userLocation models.UserLocation) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.UserLocationVal = userLocation
-}
-
-func (c *SmContext) SetPlmnID(plmnID models.PlmnID) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.PlmnIDVal = plmnID
-}
-
-func (c *SmContext) HSmfID() string {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
-	return c.HSmfIDVal
-}
-
-func (c *SmContext) SetHSmfID(hsmfID string) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.HSmfIDVal = hsmfID
-}
-
-func (c *SmContext) VSmfID() string {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
-	return c.VSmfIDVal
-}
-
-func (c *SmContext) SetVSmfID(vsmfID string) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.VSmfIDVal = vsmfID
-}
-
-func (c *SmContext) PduSessionIDDuplicated() bool {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
-	return c.DuplicatedVal
-}
-
-func (c *SmContext) SetDuplicatedPduSessionID(duplicated bool) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.DuplicatedVal = duplicated
-}
-
-func (c *SmContext) ULNASTransport() *nasMessage.ULNASTransport {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
-	return c.UlNASTransportVal
-}
-
-func (c *SmContext) StoreULNASTransport(msg *nasMessage.ULNASTransport) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.UlNASTransportVal = msg
-}
-
-func (c *SmContext) DeleteULNASTransport() {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.UlNASTransportVal = nil
 }

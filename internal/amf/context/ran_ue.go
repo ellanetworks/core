@@ -44,15 +44,12 @@ type RanUe struct {
 	TargetUe                         *RanUe
 	Tai                              models.Tai
 	Location                         models.UserLocation
-	SupportVoPS                      bool
 	SupportedFeatures                string
-	LastActTime                      *time.Time
 	AmfUe                            *AmfUe
 	Ran                              *AmfRan
 	RoutingID                        string
 	Trsr                             string /* Trace Recording Session Reference */
 	ReleaseAction                    RelAction
-	OldAmfName                       string
 	InitialUEMessage                 []byte
 	RRCEstablishmentCause            string // Received from initial ue message; pattern: ^[0-9a-fA-F]+$
 	UeContextRequest                 bool
