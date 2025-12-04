@@ -72,30 +72,34 @@ func GetAmDataAndSetAMSubscription(ctx context.Context, supi string) (*models.Ac
 	return amData, nil
 }
 
-func GetSmData(ctx context.Context, ueID string) ([]models.SessionManagementSubscriptionData, error) {
+func GetSmData(ctx context.Context, ueID string) (*models.SessionManagementSubscriptionData, error) {
 	subscriber, err := udmContext.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
+
 	policy, err := udmContext.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
+
 	operator, err := udmContext.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
+
 	dataNetwork, err := udmContext.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
 	}
 
-	smData := make([]models.SessionManagementSubscriptionData, 0)
-	smDataObjModel := models.SessionManagementSubscriptionData{
-		SingleNssai: &models.Snssai{
-			Sst: operator.Sst,
-			Sd:  operator.GetHexSd(),
-		},
+	sNssai := &models.Snssai{
+		Sst: operator.Sst,
+		Sd:  operator.GetHexSd(),
+	}
+
+	smDataObjModel := &models.SessionManagementSubscriptionData{
+		SingleNssai:       sNssai,
 		DnnConfigurations: make(map[string]models.DnnConfiguration),
 	}
 	smDataObjModel.DnnConfigurations[dataNetwork.Name] = models.DnnConfiguration{
@@ -116,35 +120,34 @@ func GetSmData(ctx context.Context, ueID string) ([]models.SessionManagementSubs
 			Arp:    &models.Arp{PriorityLevel: policy.Arp},
 		},
 	}
+
 	smDataObjModel.DnnConfigurations[dataNetwork.Name].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[dataNetwork.Name].PduSessionTypes.AllowedSessionTypes, AllowedSessionTypes...)
 	for _, sscMode := range AllowedSscModes {
 		smDataObjModel.DnnConfigurations[dataNetwork.Name].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[dataNetwork.Name].SscModes.AllowedSscModes, models.SscMode(sscMode))
 	}
-	smData = append(smData, smDataObjModel)
-	return smData, nil
+
+	return smDataObjModel, nil
 }
 
-func GetAndSetSmData(ctx context.Context, supi string, Dnn string, Snssai string) ([]models.SessionManagementSubscriptionData, error) {
-	sessionManagementSubscriptionDataResp, err := GetSmData(ctx, supi)
+func GetAndSetSmData(ctx context.Context, supi string, Dnn string, Snssai string) (*models.SessionManagementSubscriptionData, error) {
+	smData, err := GetSmData(ctx, supi)
 	if err != nil {
 		return nil, fmt.Errorf("error getting sm data: %+v", err)
 	}
 
 	udmUe := udmContext.NewUdmUe(supi)
-	smData, err := udmContext.ManageSmData(sessionManagementSubscriptionDataResp, Snssai, Dnn)
-	if err != nil {
-		return nil, fmt.Errorf("error managing sm data: %+v", err)
-	}
+
 	udmUe.SetSMSubsData(smData)
 
-	rspSMSubDataList := make([]models.SessionManagementSubscriptionData, 0, 4)
+	var rspSMSubData *models.SessionManagementSubscriptionData
 
 	udmUe.SmSubsDataLock.RLock()
-	for _, eachSMSubData := range udmUe.SessionManagementSubsData {
-		rspSMSubDataList = append(rspSMSubDataList, eachSMSubData)
-	}
+
+	rspSMSubData = udmUe.SessionManagementSubsData
+
 	udmUe.SmSubsDataLock.RUnlock()
-	return rspSMSubDataList, nil
+
+	return rspSMSubData, nil
 }
 
 func GetNssai(ctx context.Context, supi string) (*models.Nssai, error) {

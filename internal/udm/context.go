@@ -7,12 +7,10 @@
 package udm
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/util/marshtojsonstring"
 )
 
 var udmContext UDMContext
@@ -24,23 +22,6 @@ type UDMContext struct {
 
 func SetDBInstance(dbInstance *db.Database) {
 	udmContext.DBInstance = dbInstance
-}
-
-func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string, dnnFromReq string) (map[string]models.SessionManagementSubscriptionData, error) {
-	smDataMap := make(map[string]models.SessionManagementSubscriptionData)
-	AllDnns := make([]map[string]models.DnnConfiguration, len(smDatafromUDR))
-
-	for idx, smSubscriptionData := range smDatafromUDR {
-		singleNssai, err := marshtojsonstring.MarshToJSONString(smSubscriptionData.SingleNssai)
-		if err != nil {
-			return nil, fmt.Errorf("error in marshalling singleNssai")
-		}
-		singleNssaiStr := singleNssai[0]
-		smDataMap[singleNssaiStr] = smSubscriptionData
-		AllDnns[idx] = smSubscriptionData.DnnConfigurations
-	}
-
-	return smDataMap, nil
 }
 
 // functions related UecontextInSmfData
