@@ -36,6 +36,7 @@ Ella Core has been tested with a variety of 5G user equipment and should work wi
 
 - **Crosscall CORE-Z5**
 - **Motorola G73 5G**
+- **Motorola Moto G 5G (2024)**
 
 ### Simulators
 
