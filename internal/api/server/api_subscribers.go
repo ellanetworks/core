@@ -294,11 +294,6 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			opcHex = hex.EncodeToString(derivedOPC)
 		}
 
-		if _, err := dbInstance.GetSubscriber(r.Context(), params.Imsi); err == nil {
-			writeError(w, http.StatusBadRequest, "Subscriber already exists", errors.New("duplicate"), logger.APILog)
-			return
-		}
-
 		policy, err := dbInstance.GetPolicy(r.Context(), params.PolicyName)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "Policy not found", err, logger.APILog)
@@ -325,6 +320,11 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		if err := dbInstance.CreateSubscriber(r.Context(), newSubscriber); err != nil {
+			if errors.Is(err, db.ErrAlreadyExists) {
+				writeError(w, http.StatusConflict, "Subscriber already exists", err, logger.APILog)
+				return
+			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to create subscriber", err, logger.APILog)
 			return
 		}

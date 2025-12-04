@@ -23,7 +23,7 @@ const QueryCreateSubscribersTable = `
 	CREATE TABLE IF NOT EXISTS %s (
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		imsi TEXT NOT NULL,
+		imsi TEXT NOT NULL UNIQUE,
 
 		ipAddress TEXT,
 
@@ -162,13 +162,6 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 		attribute.String("db.collection", target),
 	)
 
-	if _, err := db.GetSubscriber(ctx, subscriber.Imsi); err == nil {
-		dupErr := fmt.Errorf("subscriber with imsi %s already exists", subscriber.Imsi)
-		span.RecordError(dupErr)
-		span.SetStatus(codes.Error, "duplicate key")
-		return dupErr
-	}
-
 	q, err := sqlair.Prepare(stmt, Subscriber{})
 	if err != nil {
 		span.RecordError(err)
@@ -177,6 +170,12 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 	}
 
 	if err := db.conn.Query(ctx, q, subscriber).Run(); err != nil {
+		if isUniqueNameError(err) {
+			span.RecordError(ErrAlreadyExists)
+			span.SetStatus(codes.Error, "unique constraint failed")
+			return ErrAlreadyExists
+		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err

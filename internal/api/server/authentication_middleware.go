@@ -96,7 +96,7 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 	}
 
 	// JWT path
-	cl, err := getClaimsFromJWT(r.Context(), token, jwtSecret)
+	cl, err := getClaimsFromJWT(token, jwtSecret)
 	if err != nil {
 		return 0, "", 0, err
 	}
@@ -124,7 +124,7 @@ func Authenticate(jwtSecret []byte, store *db.Database, next http.Handler) http.
 	})
 }
 
-func getClaimsFromJWT(ctx context.Context, bearerToken string, jwtSecret []byte) (*claims, error) {
+func getClaimsFromJWT(bearerToken string, jwtSecret []byte) (*claims, error) {
 	claims := claims{}
 	token, err := jwt.ParseWithClaims(bearerToken, &claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
