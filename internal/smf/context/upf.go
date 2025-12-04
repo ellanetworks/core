@@ -41,15 +41,15 @@ type UPF struct {
 	barIDGenerator *idgenerator.IDGenerator
 	qerIDGenerator *idgenerator.IDGenerator
 
-	NodeID NodeID
+	NodeID net.IP
 
 	// lock
 	UpfLock sync.RWMutex
 }
 
-func NewUPF(nodeID *NodeID) (upf *UPF) {
+func NewUPF(nodeID net.IP) (upf *UPF) {
 	upf = new(UPF)
-	upf.NodeID = *nodeID
+	upf.NodeID = nodeID
 	upf.pdrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint16)
 	upf.farIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 	upf.barIDGenerator = idgenerator.NewGenerator(1, math.MaxUint8)

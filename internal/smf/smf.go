@@ -19,7 +19,7 @@ func Start(dbInstance *db.Database) error {
 	smfContext := context.SMFSelf()
 	smfContext.DBInstance = dbInstance
 	smfContext.CPNodeID = net.ParseIP("0.0.0.0")
-	upfNodeID := context.NewNodeID(config.UpfNodeID)
+	upfNodeID := net.ParseIP(config.UpfNodeID)
 	smfContext.UPF = context.NewUPF(upfNodeID)
 	metrics.RegisterSmfMetrics()
 	return nil

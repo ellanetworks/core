@@ -141,9 +141,8 @@ func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 	node.DownLinkTunnel = &GTPTunnel{}
 }
 
-func (node *DataPathNode) GetNodeIP() (ip string) {
-	ip = node.UPF.NodeID.ResolveNodeIDToIP().String()
-	return
+func (node *DataPathNode) GetNodeIP() string {
+	return node.UPF.NodeID.String()
 }
 
 func (dataPath *DataPath) ActivateUlDlTunnel(smContext *SMContext) error {

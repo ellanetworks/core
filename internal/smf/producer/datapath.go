@@ -7,6 +7,7 @@ package producer
 import (
 	ctxt "context"
 	"fmt"
+	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
@@ -15,7 +16,7 @@ import (
 )
 
 type PFCPState struct {
-	nodeID  context.NodeID
+	nodeID  net.IP
 	pdrList []*context.PDR
 	farList []*context.FAR
 	qerList []*context.QER

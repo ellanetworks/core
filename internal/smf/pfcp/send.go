@@ -9,6 +9,7 @@ package pfcp
 import (
 	ctxt "context"
 	"fmt"
+	"net"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
@@ -28,7 +29,7 @@ func getSeqNumber() uint32 {
 
 func SendPfcpSessionEstablishmentRequest(
 	ctx ctxt.Context,
-	upNodeID context.NodeID,
+	upNodeID net.IP,
 	smCtx *context.SMContext,
 	pdrList []*context.PDR,
 	farList []*context.FAR,
@@ -36,7 +37,7 @@ func SendPfcpSessionEstablishmentRequest(
 	qerList []*context.QER,
 	urrList []*context.URR,
 ) error {
-	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
+	upNodeIDStr := upNodeID.String()
 	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return fmt.Errorf("PFCP context not found for Node ID: %v", upNodeID)
@@ -167,7 +168,7 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 
 func SendPfcpSessionModificationRequest(
 	ctx ctxt.Context,
-	upNodeID context.NodeID,
+	upNodeID net.IP,
 	smCtx *context.SMContext,
 	pdrList []*context.PDR,
 	farList []*context.FAR,
@@ -175,7 +176,7 @@ func SendPfcpSessionModificationRequest(
 	qerList []*context.QER,
 ) error {
 	seqNum := getSeqNumber()
-	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
+	upNodeIDStr := upNodeID.String()
 	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
@@ -211,9 +212,9 @@ func HandlePfcpSessionDeletionResponse(msg *message.SessionDeletionResponse) err
 	return nil
 }
 
-func SendPfcpSessionDeletionRequest(ctx ctxt.Context, upNodeID context.NodeID, smCtx *context.SMContext) error {
+func SendPfcpSessionDeletionRequest(ctx ctxt.Context, upNodeID net.IP, smCtx *context.SMContext) error {
 	seqNum := getSeqNumber()
-	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
+	upNodeIDStr := upNodeID.String()
 	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)

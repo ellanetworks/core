@@ -221,7 +221,7 @@ func (smContext *SMContext) PDUAddressToNAS() (addr [12]byte, addrLen uint8) {
 	return
 }
 
-func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID NodeID) {
+func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID net.IP) {
 	for _, pfcpCtx := range smContext.PFCPContext {
 		if pfcpCtx.LocalSEID == seid {
 			nodeID = pfcpCtx.NodeID
@@ -233,7 +233,7 @@ func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID NodeID) {
 
 func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) error {
 	curDataPathNode := dataPath.DPNode
-	NodeIDtoIP := curDataPathNode.UPF.NodeID.ResolveNodeIDToIP().String()
+	NodeIDtoIP := curDataPathNode.UPF.NodeID.String()
 	if _, exist := smContext.PFCPContext[NodeIDtoIP]; !exist {
 		allocatedSEID, err := AllocateLocalSEID()
 		if err != nil {
@@ -250,8 +250,8 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) err
 	return nil
 }
 
-func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[uint8]*PDR) error {
-	NodeIDtoIP := nodeID.ResolveNodeIDToIP().String()
+func (smContext *SMContext) PutPDRtoPFCPSession(nodeID net.IP, pdrList map[uint8]*PDR) error {
+	NodeIDtoIP := nodeID.String()
 	if pfcpSessCtx, exist := smContext.PFCPContext[NodeIDtoIP]; exist {
 		for name, pdr := range pdrList {
 			pfcpSessCtx.PDRs[pdrList[name].PDRID] = pdr
@@ -262,8 +262,8 @@ func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[uint8
 	return nil
 }
 
-func (smContext *SMContext) RemovePDRfromPFCPSession(nodeID NodeID, pdr *PDR) {
-	NodeIDtoIP := nodeID.ResolveNodeIDToIP().String()
+func (smContext *SMContext) RemovePDRfromPFCPSession(nodeID net.IP, pdr *PDR) {
+	NodeIDtoIP := nodeID.String()
 	pfcpSessCtx := smContext.PFCPContext[NodeIDtoIP]
 	delete(pfcpSessCtx.PDRs, pdr.PDRID)
 }

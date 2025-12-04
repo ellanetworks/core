@@ -5,9 +5,11 @@
 
 package context
 
+import "net"
+
 type PFCPSessionContext struct {
 	PDRs       map[uint16]*PDR
-	NodeID     NodeID
+	NodeID     net.IP
 	LocalSEID  uint64
 	RemoteSEID uint64
 }
