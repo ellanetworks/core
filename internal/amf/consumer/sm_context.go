@@ -9,7 +9,6 @@ package consumer
 import (
 	ctxt "context"
 	"fmt"
-	"strconv"
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/models"
@@ -93,8 +92,6 @@ func buildCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext 
 	}
 
 	smContextCreateData.UeTimeZone = ue.TimeZone
-	smContextCreateData.SmContextStatusURI = amfSelf.GetIPv4Uri() + "/namf-callback/v1/smContextStatus/" +
-		ue.Guti + "/" + strconv.Itoa(int(smContext.PduSessionID()))
 
 	return smContextCreateData
 }

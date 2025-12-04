@@ -60,7 +60,6 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 
 	// Create SM context
 	smContext.SetCreateData(createData)
-	smContext.SmStatusNotifyURI = createData.SmContextStatusURI
 
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()

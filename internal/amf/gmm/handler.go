@@ -132,8 +132,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			updateData := models.SmContextUpdateData{
 				Release: true,
 				Cause:   models.CauseRelDueToDuplicateSessionID,
-				SmContextStatusURI: fmt.Sprintf("%s/namf-callback/v1/smContextStatus/%s/%d",
-					ue.ServingAMF.GetIPv4Uri(), ue.Guti, pduSessionID),
 			}
 			ue.GmmLog.Warn("Duplicated PDU session ID", zap.Int32("pduSessionID", pduSessionID))
 			smContext.SetDuplicatedPduSessionID(true)

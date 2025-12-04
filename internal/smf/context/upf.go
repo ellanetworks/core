@@ -15,14 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 )
 
-type UPTunnel struct {
-	DataPath      *DataPath
-	ANInformation struct {
-		IPAddress net.IP
-		TEID      uint32
-	}
-}
-
 type UPF struct {
 	N3Interface net.IP
 

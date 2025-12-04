@@ -20,7 +20,6 @@ type SmContextUpdateData struct {
 	N2SmInfoType       N2SmInfoType
 	TargetID           *NgRanTargetID
 	TargetServingNfID  string
-	SmContextStatusURI string
 	Release            bool
 	Cause              Cause
 	NgApCause          *NgApCause

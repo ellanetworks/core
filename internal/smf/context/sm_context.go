@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
-	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -49,16 +48,22 @@ type PFCPSessionContext struct {
 	RemoteSEID uint64
 }
 
+type UPTunnel struct {
+	DataPath      *DataPath
+	ANInformation struct {
+		IPAddress net.IP
+		TEID      uint32
+	}
+}
+
 type SMContext struct {
 	Ref                            string
 	Supi                           string
-	Pei                            string
 	Identifier                     string
 	Gpsi                           string
 	Dnn                            string
 	UeTimeZone                     string
 	ServingNfID                    string
-	SmStatusNotifyURI              string
 	UpCnxState                     models.UpCnxState
 	AnType                         models.AccessType
 	RatType                        models.RatType
@@ -74,7 +79,6 @@ type SMContext struct {
 	SubPfcpLog                     *zap.Logger
 	SubPduSessLog                  *zap.Logger
 	SubCtxLog                      *zap.Logger
-	QFIGenerator                   *idgenerator.IDGenerator
 	SmPolicyUpdates                []*qos.PolicyUpdate
 	SmPolicyData                   qos.SmCtxtPolicyData
 	PFCPContext                    map[string]*PFCPSessionContext
