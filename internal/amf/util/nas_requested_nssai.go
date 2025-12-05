@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
 )
 
@@ -76,28 +75,4 @@ func snssaiToModels(lengthOfSnssaiContents uint8, buf []byte) (models.MappingOfS
 	default:
 		return snssai, fmt.Errorf("invalid length of S-NSSAI contents: %d", lengthOfSnssaiContents)
 	}
-}
-
-func RejectedNssaiToNas(rejectedNssaiInPlmn []models.Snssai, rejectedNssaiInTa []models.Snssai) (nasType.RejectedNSSAI, error) {
-	var rejectedNssaiNas nasType.RejectedNSSAI
-
-	var byteArray []uint8
-	for _, rejectedSnssai := range rejectedNssaiInPlmn {
-		rejectedSnssaiNas, err := RejectedSnssaiToNas(rejectedSnssai, nasMessage.RejectedSnssaiCauseNotAvailableInCurrentPlmn)
-		if err != nil {
-			return rejectedNssaiNas, fmt.Errorf("failed conversion of rejected NSSAI to NAS: %v", err)
-		}
-		byteArray = append(byteArray, rejectedSnssaiNas...)
-	}
-	for _, rejectedSnssai := range rejectedNssaiInTa {
-		rejectedSnssaiNas, err := RejectedSnssaiToNas(rejectedSnssai, nasMessage.RejectedSnssaiCauseNotAvailableInCurrentPlmn)
-		if err != nil {
-			return rejectedNssaiNas, fmt.Errorf("failed conversion of rejected NSSAI to NAS: %v", err)
-		}
-		byteArray = append(byteArray, rejectedSnssaiNas...)
-	}
-
-	rejectedNssaiNas.SetLen(uint8(len(byteArray)))
-	rejectedNssaiNas.SetRejectedNSSAIContents(byteArray)
-	return rejectedNssaiNas, nil
 }

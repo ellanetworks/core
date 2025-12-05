@@ -7,7 +7,6 @@ type SmContextCreateData struct {
 	PduSessionID   int32
 	Dnn            string
 	SNssai         *Snssai
-	ServingNfID    string
 	Guami          *Guami
 	ServingNetwork *PlmnID
 	N1SmMsg        *RefToBinaryData

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/api"
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/jobs"
@@ -19,7 +20,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 	smf_pfcp "github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/tracing"
-	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/upf"
 	upf_pfcp "github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/version"
@@ -135,8 +135,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	if err := pcf.Start(dbInstance); err != nil {
 		return fmt.Errorf("couldn't start PCF: %w", err)
 	}
-	if err := udm.Start(dbInstance); err != nil {
-		return fmt.Errorf("couldn't start UDM: %w", err)
+	if err := ausf.Start(dbInstance); err != nil {
+		return fmt.Errorf("couldn't start AUSF: %w", err)
 	}
 
 	defer func() {

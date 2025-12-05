@@ -14,9 +14,20 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 var smfContext SMFContext
+
+var tracer = otel.Tracer("ella-core/smf")
+
+var AllowedSessionTypes = []models.PduSessionType{models.PduSessionTypeIPv4}
+
+var AllowedSscModes = []string{
+	"SSC_MODE_2",
+	"SSC_MODE_3",
+}
 
 type SMFContext struct {
 	DBInstance     *db.Database
@@ -70,6 +81,12 @@ func SMFSelf() *SMFContext {
 }
 
 func GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
+	ctx, span := tracer.Start(ctx, "SMF GetSnssaiInfo")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("dnn", dnn),
+	)
+
 	self := SMFSelf()
 
 	operator, err := self.DBInstance.GetOperator(ctx)
@@ -100,4 +117,50 @@ func GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
 	}
 
 	return snssaiInfo, nil
+}
+
+func GetDnnConfig(ctx context.Context, ueID string) (*models.DnnConfiguration, error) {
+	ctx, span := tracer.Start(ctx, "SMF GetDnnConfig")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", ueID),
+	)
+
+	self := SMFSelf()
+
+	subscriber, err := self.DBInstance.GetSubscriber(ctx, ueID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
+	}
+
+	policy, err := self.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
+	}
+
+	dnnConfig := &models.DnnConfiguration{
+		PduSessionTypes: &models.PduSessionTypes{
+			DefaultSessionType:  models.PduSessionTypeIPv4,
+			AllowedSessionTypes: make([]models.PduSessionType, 0),
+		},
+		SscModes: &models.SscModes{
+			DefaultSscMode:  models.SscMode1,
+			AllowedSscModes: make([]models.SscMode, 0),
+		},
+		SessionAmbr: &models.Ambr{
+			Downlink: policy.BitrateDownlink,
+			Uplink:   policy.BitrateUplink,
+		},
+		Var5gQosProfile: &models.SubscribedDefaultQos{
+			Var5qi: policy.Var5qi,
+			Arp:    &models.Arp{PriorityLevel: policy.Arp},
+		},
+	}
+
+	dnnConfig.PduSessionTypes.AllowedSessionTypes = append(dnnConfig.PduSessionTypes.AllowedSessionTypes, AllowedSessionTypes...)
+	for _, sscMode := range AllowedSscModes {
+		dnnConfig.SscModes.AllowedSscModes = append(dnnConfig.SscModes.AllowedSscModes, models.SscMode(sscMode))
+	}
+
+	return dnnConfig, nil
 }

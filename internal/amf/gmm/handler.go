@@ -126,7 +126,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 		switch requestType.GetRequestTypeValue() {
 		case nasMessage.ULNASTransportRequestTypeInitialRequest:
-			smContext.StoreULNASTransport(ulNasTransport)
 			//  perform a local release of the PDU session identified by the PDU session ID and shall request
 			// the SMF to perform a local release of the PDU session
 			updateData := models.SmContextUpdateData{
@@ -134,7 +133,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				Cause:   models.CauseRelDueToDuplicateSessionID,
 			}
 			ue.GmmLog.Warn("Duplicated PDU session ID", zap.Int32("pduSessionID", pduSessionID))
-			smContext.SetDuplicatedPduSessionID(true)
 			response, err := consumer.SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
 			if err != nil {
 				return err
@@ -199,7 +197,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				snssai = util.SnssaiToModels(ulNasTransport.SNSSAI)
 			} else {
 				if allowedNssai, ok := ue.AllowedNssai[anType]; ok {
-					snssai = *allowedNssai[0].AllowedSnssai
+					snssai = *allowedNssai
 				} else {
 					return fmt.Errorf("allowed nssai is not found for access type: %s in UE context", anType)
 				}
@@ -210,25 +208,16 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			} else {
 				// if user's subscription context obtained from UDM does not contain the default DNN for the,
 				// S-NSSAI, the AMF shall use a locally configured DNN as the DNN
-				subscriber, err := ue.ServingAMF.DBInstance.GetSubscriber(ctxt.Background(), ue.Supi)
+
+				_, dnnResp, err := context.GetSubscriberData(ctx, ue.Supi)
 				if err != nil {
-					return fmt.Errorf("couldn't get subscriber information: %v", err)
+					return fmt.Errorf("failed to get subscriber data: %v", err)
 				}
 
-				policy, err := ue.ServingAMF.DBInstance.GetPolicyByID(ctxt.Background(), subscriber.PolicyID)
-				if err != nil {
-					return fmt.Errorf("couldn't get policy information: %v", err)
-				}
-
-				dataNetwork, err := ue.ServingAMF.DBInstance.GetDataNetworkByID(ctxt.Background(), policy.DataNetworkID)
-				if err != nil {
-					return fmt.Errorf("couldn't get data network information: %v", err)
-				}
-
-				dnn = dataNetwork.Name
+				dnn = dnnResp
 			}
 
-			newSmContext := consumer.SelectSmf(ue, anType, pduSessionID, snssai, dnn)
+			newSmContext := consumer.SelectSmf(anType, pduSessionID, snssai, dnn)
 
 			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ctx, ue, newSmContext, smMessage)
 			if err != nil {
@@ -253,31 +242,11 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:
 			fallthrough
 		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
-			if ue.UeContextInSmfData != nil {
-				// TS 24.501 5.4.5.2.5 case a) 3)
-				pduSessionIDStr := fmt.Sprintf("%d", pduSessionID)
-				if ueContextInSmf, ok := ue.UeContextInSmfData.PduSessions[pduSessionIDStr]; !ok {
-					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
-					if err != nil {
-						return fmt.Errorf("error sending downlink nas transport: %s", err)
-					}
-					ue.GmmLog.Info("sent downlink nas transport to UE")
-				} else {
-					// TS 24.501 5.4.5.2.3 case a) 1) iv)
-					smContext = context.NewSmContext(pduSessionID)
-					smContext.SetAccessType(anType)
-					smContext.SetDnn(ueContextInSmf.Dnn)
-					smContext.SetPlmnID(*ueContextInSmf.PlmnID)
-					ue.StoreSmContext(pduSessionID, smContext)
-					return forward5GSMMessageToSMF(ctx, ue, anType, pduSessionID, smContext, smMessage)
-				}
-			} else {
-				err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
-				if err != nil {
-					return fmt.Errorf("error sending downlink nas transport: %s", err)
-				}
-				ue.GmmLog.Info("sent downlink nas transport to UE")
+			err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+			if err != nil {
+				return fmt.Errorf("error sending downlink nas transport: %s", err)
 			}
+			ue.GmmLog.Info("sent downlink nas transport to UE")
 		default:
 		}
 	}
@@ -469,8 +438,10 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.Guti = guti
 		ue.GmmLog.Debug("UE used GUTI identity for registration", zap.String("guti", guti))
 
-		guamiList := context.GetServedGuamiList(ctx)
-		servedGuami := guamiList[0]
+		servedGuami, err := context.GetServedGuami(ctx)
+		if err != nil {
+			return fmt.Errorf("could not get served guami: %v", err)
+		}
 		if reflect.DeepEqual(guamiFromUeGuti, servedGuami) {
 			ue.ServingAmfChanged = false
 		} else {
@@ -506,7 +477,11 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	ue.Tai = ue.RanUe[anType].Tai
 
 	// Check TAI
-	supportTaiList := context.GetSupportTaiList(ctx)
+	supportTaiList, err := context.GetSupportTaiList(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting supported tai list: %v", err)
+	}
+
 	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {
@@ -559,8 +534,11 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 	ue.UpdateSecurityContext(anType)
 
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
-	if len(ue.SubscribedNssai) == 0 {
-		getSubscribedNssai(ctx, ue)
+	if ue.SubscribedNssai == nil {
+		err := consumer.GetAndSetSubscribedNSSAI(ctx, ue)
+		if err != nil {
+			ue.GmmLog.Error("error getting slice selection subscription data", zap.Error(err))
+		}
 	}
 
 	if err := handleRequestedNssai(ctx, ue, anType); err != nil {
@@ -571,7 +549,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.Capability5GMM = *ue.RegistrationRequest.Capability5GMM
 	}
 
-	if len(ue.AllowedNssai[anType]) == 0 {
+	if ue.AllowedNssai[anType] == nil {
 		err := gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMM5GSServicesNotAllowed, "")
 		if err != nil {
 			ue.GmmLog.Error("error sending registration reject", zap.Error(err))
@@ -594,7 +572,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 
 	if ue.ServingAmfChanged || ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) ||
 		!ue.SubscriptionDataValid {
-		if err := communicateWithUDM(ctx, ue); err != nil {
+		if err := getAndSetSubscriberData(ctx, ue); err != nil {
 			return err
 		}
 	}
@@ -625,8 +603,6 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 
 	amfSelf.AllocateRegistrationArea(ctx, ue, anType)
 	ue.GmmLog.Debug("use original GUTI", zap.String("guti", ue.Guti))
-
-	assignLadnInfo(ue, anType)
 
 	amfSelf.AddAmfUeToUePool(ue, ue.Supi)
 	ue.T3502Value = amfSelf.T3502Value
@@ -679,8 +655,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 	}
 
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
-	if len(ue.SubscribedNssai) == 0 {
-		getSubscribedNssai(ctx, ue)
+	if ue.SubscribedNssai == nil {
+		err := consumer.GetAndSetSubscribedNSSAI(ctx, ue)
+		if err != nil {
+			ue.GmmLog.Error("error getting slice selection subscription data", zap.Error(err))
+		}
 	}
 
 	if err := handleRequestedNssai(ctx, ue, anType); err != nil {
@@ -719,7 +698,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 
 	if ue.ServingAmfChanged || ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) ||
 		!ue.SubscriptionDataValid {
-		if err := communicateWithUDM(ctx, ue); err != nil {
+		if err := getAndSetSubscriberData(ctx, ue); err != nil {
 			return err
 		}
 	}
@@ -924,7 +903,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 	}
 
 	amfSelf.AllocateRegistrationArea(ctx, ue, anType)
-	assignLadnInfo(ue, anType)
 
 	if ue.RanUe[anType].UeContextRequest {
 		if anType == models.AccessType3GPPAccess {
@@ -1010,31 +988,15 @@ func negotiateDRXParameters(ue *context.AmfUe, requestedDRXParameters *nasType.R
 	}
 }
 
-func communicateWithUDM(ctx ctxt.Context, ue *context.AmfUe) error {
-	err := consumer.SDMGetAmData(ctx, ue)
+func getAndSetSubscriberData(ctx ctxt.Context, ue *context.AmfUe) error {
+	err := consumer.GetAndSetSubscriberData(ctx, ue)
 	if err != nil {
-		return fmt.Errorf("error getting am data: %v", err)
-	}
-
-	err = consumer.SDMGetSmfSelectData(ctx, ue)
-	if err != nil {
-		return fmt.Errorf("error getting smf selection data: %v", err)
-	}
-
-	err = consumer.SDMGetUeContextInSmfData(ctx, ue)
-	if err != nil {
-		return fmt.Errorf("error getting ue context in smf data: %v", err)
+		return fmt.Errorf("error getting subscriber data: %v", err)
 	}
 
 	ue.SubscriptionDataValid = true
-	return nil
-}
 
-func getSubscribedNssai(ctx ctxt.Context, ue *context.AmfUe) {
-	err := consumer.SDMGetSliceSelectionSubscriptionData(ctx, ue)
-	if err != nil {
-		ue.GmmLog.Error("error getting slice selection subscription data", zap.Error(err))
-	}
+	return nil
 }
 
 // TS 23.502 4.2.2.2.3 Registration with AMF Re-allocation
@@ -1048,36 +1010,25 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		}
 
 		needSliceSelection := false
-		var newAllowed []models.AllowedSnssai
+		var newAllowed *models.Snssai
 
 		for _, requestedSnssai := range requestedNssai {
 			if ue.InSubscribedNssai(requestedSnssai.ServingSnssai) {
-				allowedSnssai := models.AllowedSnssai{
-					AllowedSnssai: &models.Snssai{
-						Sst: requestedSnssai.ServingSnssai.Sst,
-						Sd:  requestedSnssai.ServingSnssai.Sd,
-					},
-					MappedHomeSnssai: requestedSnssai.HomeSnssai,
+				newAllowed = &models.Snssai{
+					Sst: requestedSnssai.ServingSnssai.Sst,
+					Sd:  requestedSnssai.ServingSnssai.Sd,
 				}
-				newAllowed = append(newAllowed, allowedSnssai)
 			} else {
 				needSliceSelection = true
 				break
 			}
 		}
+
 		ue.AllowedNssai[anType] = newAllowed
 
 		if needSliceSelection {
 			// Step 4
-			err := consumer.NSSelectionGetForRegistration(ue, requestedNssai)
-			if err != nil {
-				err := gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMProtocolErrorUnspecified, "")
-				if err != nil {
-					return fmt.Errorf("error sending registration reject: %v", err)
-				}
-				ue.GmmLog.Info("sent registration reject to UE")
-				return fmt.Errorf("failed to get network slice selection: %s", err)
-			}
+			ue.AllowedNssai[models.AccessType3GPPAccess] = ue.SubscribedNssai
 
 			// Guillaume: I'm not sure if what we have here is the right thing to do
 			// As we removed the NRF, we don't search for other AMF's anymore and we hardcode the
@@ -1097,71 +1048,14 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 	// if registration request has no requested nssai, or non of snssai in requested nssai is permitted by nssf
 	// then use ue subscribed snssai which is marked as default as allowed nssai
-	if len(ue.AllowedNssai[anType]) == 0 {
-		var newAllowed []models.AllowedSnssai
-		for _, snssai := range ue.SubscribedNssai {
-			if snssai.DefaultIndication {
-				if amfSelf.InPlmnSupport(ctx, *snssai.SubscribedSnssai) {
-					allowedSnssai := models.AllowedSnssai{
-						AllowedSnssai: snssai.SubscribedSnssai,
-					}
-					newAllowed = append(newAllowed, allowedSnssai)
-				}
-			}
+	if ue.AllowedNssai[anType] == nil {
+		var newAllowed *models.Snssai
+		if amfSelf.InPlmnSupport(ctx, *ue.SubscribedNssai) {
+			newAllowed = ue.SubscribedNssai
 		}
 		ue.AllowedNssai[anType] = newAllowed
 	}
 	return nil
-}
-
-func assignLadnInfo(ue *context.AmfUe, accessType models.AccessType) {
-	amfSelf := context.AMFSelf()
-
-	ue.LadnInfo = nil
-	if ue.RegistrationRequest.LADNIndication != nil {
-		ue.LadnInfo = make([]context.LADN, 0)
-		// request for LADN information
-		if ue.RegistrationRequest.LADNIndication.GetLen() == 0 {
-			if ue.HasWildCardSubscribedDNN() {
-				for _, ladn := range amfSelf.LadnPool {
-					if ue.TaiListInRegistrationArea(ladn.TaiLists, accessType) {
-						ue.LadnInfo = append(ue.LadnInfo, *ladn)
-					}
-				}
-			} else {
-				for _, snssaiInfos := range ue.SmfSelectionData.SubscribedSnssaiInfos {
-					for _, dnnInfo := range snssaiInfos.DnnInfos {
-						if ladn, ok := amfSelf.LadnPool[dnnInfo.Dnn]; ok { // check if this dnn is a ladn
-							if ue.TaiListInRegistrationArea(ladn.TaiLists, accessType) {
-								ue.LadnInfo = append(ue.LadnInfo, *ladn)
-							}
-						}
-					}
-				}
-			}
-		} else {
-			requestedLadnList := nasConvert.LadnToModels(ue.RegistrationRequest.LADNIndication.GetLADNDNNValue())
-			for _, requestedLadn := range requestedLadnList {
-				if ladn, ok := amfSelf.LadnPool[requestedLadn]; ok {
-					if ue.TaiListInRegistrationArea(ladn.TaiLists, accessType) {
-						ue.LadnInfo = append(ue.LadnInfo, *ladn)
-					}
-				}
-			}
-		}
-	} else if ue.SmfSelectionData != nil {
-		for _, snssaiInfos := range ue.SmfSelectionData.SubscribedSnssaiInfos {
-			for _, dnnInfo := range snssaiInfos.DnnInfos {
-				if dnnInfo.Dnn != "*" {
-					if ladn, ok := amfSelf.LadnPool[dnnInfo.Dnn]; ok {
-						if ue.TaiListInRegistrationArea(ladn.TaiLists, accessType) {
-							ue.LadnInfo = append(ue.LadnInfo, *ladn)
-						}
-					}
-				}
-			}
-		}
-	}
 }
 
 func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.IdentityResponse) error {

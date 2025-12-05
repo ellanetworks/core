@@ -55,7 +55,6 @@ type SMContext struct {
 	Gpsi                           string
 	Dnn                            string
 	UeTimeZone                     string
-	ServingNfID                    string
 	UpCnxState                     models.UpCnxState
 	AnType                         models.AccessType
 	RatType                        models.RatType
@@ -202,7 +201,6 @@ func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData
 	smContext.RatType = createData.RatType
 	smContext.UeLocation = createData.UeLocation
 	smContext.UeTimeZone = createData.UeTimeZone
-	smContext.ServingNfID = createData.ServingNfID
 }
 
 func (smContext *SMContext) BuildCreatedData() (createdData *models.SmContextCreatedData) {

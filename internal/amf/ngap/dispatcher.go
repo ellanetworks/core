@@ -25,6 +25,11 @@ import (
 
 var tracer = otel.Tracer("ella-core/ngap")
 
+type NgapMsg struct {
+	NgapMsg *ngapType.NGAPPDU
+	Ran     *context.AmfRan
+}
+
 func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 	var ran *context.AmfRan
 	amfSelf := context.AMFSelf()
@@ -73,7 +78,7 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 	/* uecontext is found, submit the message to transaction queue*/
 	if ranUe != nil && ranUe.AmfUe != nil {
 		ranUe.AmfUe.TxLog.Debug("Uecontext found, dispatching NGAP message")
-		ngapMsg := context.NgapMsg{
+		ngapMsg := NgapMsg{
 			Ran:     ran,
 			NgapMsg: pdu,
 		}
@@ -290,7 +295,7 @@ func getUnsuccessfulOutcomeMessageType(present int) string {
 	}
 }
 
-func NgapMsgHandler(conn *sctp.SCTPConn, ue *context.AmfUe, msg context.NgapMsg) {
+func NgapMsgHandler(conn *sctp.SCTPConn, ue *context.AmfUe, msg NgapMsg) {
 	DispatchNgapMsg(conn, msg.Ran, msg.NgapMsg)
 }
 

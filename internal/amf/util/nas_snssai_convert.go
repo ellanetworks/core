@@ -40,22 +40,3 @@ func SnssaiToNas(snssai models.Snssai) ([]uint8, error) {
 	}
 	return buf, nil
 }
-
-func RejectedSnssaiToNas(snssai models.Snssai, rejectCause uint8) ([]uint8, error) {
-	var rejectedSnssai []uint8
-
-	if snssai.Sd == "" {
-		rejectedSnssai = append(rejectedSnssai, (0x01<<4)+rejectCause)
-		rejectedSnssai = append(rejectedSnssai, uint8(snssai.Sst))
-	} else {
-		rejectedSnssai = append(rejectedSnssai, (0x04<<4)+rejectCause)
-		rejectedSnssai = append(rejectedSnssai, uint8(snssai.Sst))
-		if sDBytes, err := hex.DecodeString(snssai.Sd); err != nil {
-			return nil, fmt.Errorf("Decode snssai.sd failed: %+v", err)
-		} else {
-			rejectedSnssai = append(rejectedSnssai, sDBytes...)
-		}
-	}
-
-	return rejectedSnssai, nil
-}
