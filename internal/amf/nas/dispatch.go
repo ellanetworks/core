@@ -40,7 +40,7 @@ func Dispatch(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType,
 	msgTypeName := MessageName(msg.GmmMessage.GmmHeader.GetMessageType())
 	spanName := fmt.Sprintf("AMF NAS %s", msgTypeName)
 
-	_, span := tracer.Start(ctx, spanName,
+	ctx, span := tracer.Start(ctx, spanName,
 		trace.WithAttributes(
 			attribute.String("nas.accessType", string(accessType)),
 			attribute.Int64("nas.procedureCode", procedureCode),

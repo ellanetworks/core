@@ -95,7 +95,7 @@ type AmfUe struct {
 	Dnn                               string
 	TraceData                         *models.TraceData
 	SubscribedNssai                   *models.Snssai
-	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData
+	Ambr                              *models.AmbrRm
 	RoutingIndicator                  string
 	AuthenticationCtx                 *models.UeAuthenticationCtx
 	AuthFailureCauseSynchFailureTimes int

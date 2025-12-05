@@ -54,7 +54,11 @@ func buildCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext 
 		Sd:  snssai.Sd,
 	}
 	smContextCreateData.Dnn = smContext.Dnn()
-	guami := context.GetServedGuami(ctx)
+	guami, err := context.GetServedGuami(ctx)
+	if err != nil {
+		ue.GmmLog.Error("Could not get served guami", zap.Error(err))
+		return smContextCreateData
+	}
 	smContextCreateData.Guami = &models.Guami{
 		PlmnID: &models.PlmnID{
 			Mcc: guami.PlmnID.Mcc,

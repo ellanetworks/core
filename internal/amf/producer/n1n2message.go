@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var tracer = otel.Tracer("ella-core/amf")
+var tracer = otel.Tracer("ella-core/amf/producer")
 
 func CreateN1N2MessageTransfer(ctx ctxt.Context, ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
 	ctx, span := tracer.Start(ctx, "AMF N1N2 MessageTransfer")

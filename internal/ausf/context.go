@@ -9,12 +9,14 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 )
 
 type AUSFContext struct {
 	suciSupiMap sync.Map
 	UePool      sync.Map
+	DBInstance  *db.Database
 }
 
 type AusfUeContext struct {
@@ -103,4 +105,13 @@ func GetSupiFromSuciSupiMap(ref string) string {
 
 func IsServingNetworkAuthorized(lookup string) bool {
 	return servingNetworkRegex.MatchString(lookup)
+}
+
+func SetDBInstance(dbInstance *db.Database) {
+	ausfContext.DBInstance = dbInstance
+}
+
+func Start(dbInstance *db.Database) error {
+	ausfContext.DBInstance = dbInstance
+	return nil
 }

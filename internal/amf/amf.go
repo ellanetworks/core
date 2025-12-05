@@ -97,7 +97,12 @@ func StartNGAPService(ngapAddress string, ngapPort int) error {
 func Close() {
 	amfSelf := context.AMFSelf()
 
-	guami := context.GetServedGuami(ctxt.Background())
+	guami, err := context.GetServedGuami(ctxt.Background())
+	if err != nil {
+		logger.AmfLog.Error("Could not get served guami", zap.Error(err))
+		return
+	}
+
 	unavailableGuamiList := message.BuildUnavailableGUAMIList(guami)
 	amfSelf.AmfRanPool.Range(func(key, value any) bool {
 		ran := value.(*context.AmfRan)

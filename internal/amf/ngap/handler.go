@@ -76,10 +76,12 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 			}
 			ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 			if ranUe == nil {
-				var err error
-
 				if fiveGSTMSI != nil {
-					servedGuami := context.GetServedGuami(ctx)
+					servedGuami, err := context.GetServedGuami(ctx)
+					if err != nil {
+						ran.Log.Error("Could not get served guami", zap.Error(err))
+						return nil, nil
+					}
 
 					// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
 					// GUAMI := <MCC><MNC><AMF Region ID><AMF Set ID><AMF Pointer>
@@ -585,7 +587,14 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		}
 	} else {
 		var found bool
-		supportTaiList := context.GetSupportTaiList(ctx)
+		supportTaiList, err := context.GetSupportTaiList(ctx)
+		if err != nil {
+			ran.Log.Error("Could not get supported TAI list from Core", zap.Error(err))
+			cause.Present = ngapType.CausePresentMisc
+			cause.Misc = &ngapType.CauseMisc{
+				Value: ngapType.CauseMiscPresentUnspecified,
+			}
+		}
 		taiList := make([]models.Tai, len(supportTaiList))
 		copy(taiList, supportTaiList)
 		for i := range taiList {
@@ -1430,7 +1439,11 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 
 		if fiveGSTMSI != nil {
 			ranUe.Log.Debug("Receive 5G-S-TMSI")
-			servedGuami := context.GetServedGuami(ctx)
+			servedGuami, err := context.GetServedGuami(ctx)
+			if err != nil {
+				ranUe.Log.Error("Could not get served guami", zap.Error(err))
+				return
+			}
 
 			// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
 			// GUAMI := <MCC><MNC><AMF Region ID><AMF Set ID><AMF Pointer>
@@ -3808,7 +3821,15 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, message
 		}
 	} else {
 		var found bool
-		supportTaiList := context.GetSupportTaiList(ctx)
+		supportTaiList, err := context.GetSupportTaiList(ctx)
+		if err != nil {
+			ran.Log.Error("Get Support Tai List Error", zap.Error(err))
+			cause.Present = ngapType.CausePresentMisc
+			cause.Misc = &ngapType.CauseMisc{
+				Value: ngapType.CauseMiscPresentUnspecified,
+			}
+			return
+		}
 		taiList := make([]models.Tai, len(supportTaiList))
 		copy(taiList, supportTaiList)
 		for i := range taiList {

@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/smf/qos"
-	"github.com/ellanetworks/core/internal/udm"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
@@ -88,7 +87,7 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 
 	smContext.PDUAddress = ip
 
-	dnnConfig, err := udm.GetDnnConfig(ctx, smContext.Supi)
+	dnnConfig, err := context.GetDnnConfig(ctx, smContext.Supi)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("failed to get SM context from UDM: %v", err)

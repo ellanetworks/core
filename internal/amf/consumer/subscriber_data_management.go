@@ -11,28 +11,27 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/udm"
 )
 
 func GetAndSetSubscriberData(ctx ctxt.Context, ue *context.AmfUe) error {
-	subData, err := udm.GetSubscriberData(ctx, ue.Supi)
+	bitRate, dnn, err := context.GetSubscriberData(ctx, ue.Supi)
 	if err != nil {
-		return fmt.Errorf("failed to get subscriber data from UDM: %v", err)
+		return fmt.Errorf("failed to get subscriber data: %v", err)
 	}
 
-	ue.Dnn = subData.Dnn
-	ue.AccessAndMobilitySubscriptionData = subData.AccessAndMobilitySubscriptionData
+	ue.Dnn = dnn
+	ue.Ambr = bitRate
 
 	return nil
 }
 
 func GetAndSetSubscribedNSSAI(ctx ctxt.Context, ue *context.AmfUe) error {
-	snssai, err := udm.GetSnssai(ctx)
+	plmn, err := context.GetSupportedPlmn(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve snssai from UDM: %s", err.Error())
+		return fmt.Errorf("failed to get plmn: %s", err.Error())
 	}
 
-	ue.SubscribedNssai = snssai
+	ue.SubscribedNssai = &plmn.SNssai
 
 	return nil
 }

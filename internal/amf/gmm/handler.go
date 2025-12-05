@@ -208,22 +208,13 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			} else {
 				// if user's subscription context obtained from UDM does not contain the default DNN for the,
 				// S-NSSAI, the AMF shall use a locally configured DNN as the DNN
-				subscriber, err := ue.ServingAMF.DBInstance.GetSubscriber(ctxt.Background(), ue.Supi)
+
+				_, dnnResp, err := context.GetSubscriberData(ctx, ue.Supi)
 				if err != nil {
-					return fmt.Errorf("couldn't get subscriber information: %v", err)
+					return fmt.Errorf("failed to get subscriber data: %v", err)
 				}
 
-				policy, err := ue.ServingAMF.DBInstance.GetPolicyByID(ctxt.Background(), subscriber.PolicyID)
-				if err != nil {
-					return fmt.Errorf("couldn't get policy information: %v", err)
-				}
-
-				dataNetwork, err := ue.ServingAMF.DBInstance.GetDataNetworkByID(ctxt.Background(), policy.DataNetworkID)
-				if err != nil {
-					return fmt.Errorf("couldn't get data network information: %v", err)
-				}
-
-				dnn = dataNetwork.Name
+				dnn = dnnResp
 			}
 
 			newSmContext := consumer.SelectSmf(anType, pduSessionID, snssai, dnn)
@@ -447,7 +438,10 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.Guti = guti
 		ue.GmmLog.Debug("UE used GUTI identity for registration", zap.String("guti", guti))
 
-		servedGuami := context.GetServedGuami(ctx)
+		servedGuami, err := context.GetServedGuami(ctx)
+		if err != nil {
+			return fmt.Errorf("could not get served guami: %v", err)
+		}
 		if reflect.DeepEqual(guamiFromUeGuti, servedGuami) {
 			ue.ServingAmfChanged = false
 		} else {
@@ -483,7 +477,11 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	ue.Tai = ue.RanUe[anType].Tai
 
 	// Check TAI
-	supportTaiList := context.GetSupportTaiList(ctx)
+	supportTaiList, err := context.GetSupportTaiList(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting supported tai list: %v", err)
+	}
+
 	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {

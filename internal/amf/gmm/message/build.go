@@ -481,18 +481,20 @@ func BuildRegistrationAccept(
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
 	}
 
-	plmnSupported := context.GetSupportedPlmn(ctx)
-	if plmnSupported != nil {
-		registrationAccept.EquivalentPlmns = nasType.NewEquivalentPlmns(nasMessage.RegistrationAcceptEquivalentPlmnsType)
-		var buf []uint8
-		plmnID, err := util.PlmnIDToNas(plmnSupported.PlmnID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert PLMN ID to NAS: %s", err)
-		}
-		buf = append(buf, plmnID...)
-		registrationAccept.EquivalentPlmns.SetLen(uint8(len(buf)))
-		copy(registrationAccept.EquivalentPlmns.Octet[:], buf)
+	plmnSupported, err := context.GetSupportedPlmn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get supported PLMN: %s", err)
 	}
+
+	registrationAccept.EquivalentPlmns = nasType.NewEquivalentPlmns(nasMessage.RegistrationAcceptEquivalentPlmnsType)
+	var buf []uint8
+	plmnID, err := util.PlmnIDToNas(plmnSupported.PlmnID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert PLMN ID to NAS: %s", err)
+	}
+	buf = append(buf, plmnID...)
+	registrationAccept.EquivalentPlmns.SetLen(uint8(len(buf)))
+	copy(registrationAccept.EquivalentPlmns.Octet[:], buf)
 
 	if len(ue.RegistrationArea[anType]) > 0 {
 		registrationAccept.TAIList = nasType.NewTAIList(nasMessage.RegistrationAcceptTAIListType)

@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -61,7 +60,7 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 	}
 
-	authInfoResult, err := udm.CreateAuthData(ctx, authInfoReq, suci)
+	authInfoResult, err := CreateAuthData(ctx, authInfoReq, suci)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auth data: %s", err)
 	}

@@ -108,7 +108,11 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 }
 
 func (context *AMFContext) ReAllocateGutiToUe(ctx ctxt.Context, ue *AmfUe) {
-	servedGuami := GetServedGuami(ctx)
+	servedGuami, err := GetServedGuami(ctx)
+	if err != nil {
+		logger.AmfLog.Error("Could not get served guami", zap.Error(err))
+		return
+	}
 	ue.OldTmsi = ue.Tmsi
 	ue.Tmsi = context.TmsiAllocate()
 	plmnID := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc
@@ -128,7 +132,12 @@ func (context *AMFContext) AllocateRegistrationArea(ctx ctxt.Context, ue *AmfUe,
 		ue.RegistrationArea[anType] = nil
 	}
 
-	supportTaiList := GetSupportTaiList(ctx)
+	supportTaiList, err := GetSupportTaiList(ctx)
+	if err != nil {
+		logger.AmfLog.Error("Could not get supported TAI list", zap.Error(err))
+		return
+	}
+
 	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {
@@ -268,7 +277,11 @@ func (context *AMFContext) DeleteAmfRan(conn *sctp.SCTPConn) {
 }
 
 func (context *AMFContext) InPlmnSupport(ctx ctxt.Context, snssai models.Snssai) bool {
-	plmnSupportItem := GetSupportedPlmn(ctx)
+	plmnSupportItem, err := GetSupportedPlmn(ctx)
+	if err != nil {
+		logger.AmfLog.Error("Could not get supported PLMN", zap.Error(err))
+		return false
+	}
 
 	return reflect.DeepEqual(plmnSupportItem.SNssai, snssai)
 }

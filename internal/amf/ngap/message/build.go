@@ -120,7 +120,11 @@ func BuildNGSetupResponse(ctx ctxt.Context) ([]byte, error) {
 	ie.Value.ServedGUAMIList = new(ngapType.ServedGUAMIList)
 
 	servedGUAMIList := ie.Value.ServedGUAMIList
-	guami := context.GetServedGuami(ctx)
+
+	guami, err := context.GetServedGuami(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get served guami: %v", err)
+	}
 
 	plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
 	if err != nil {
@@ -157,7 +161,12 @@ func BuildNGSetupResponse(ctx ctxt.Context) ([]byte, error) {
 	ie.Value.PLMNSupportList = new(ngapType.PLMNSupportList)
 
 	pLMNSupportList := ie.Value.PLMNSupportList
-	plmnSupported := context.GetSupportedPlmn(ctx)
+
+	plmnSupported, err := context.GetSupportedPlmn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get supported PLMN: %s", err)
+	}
+
 	pLMNSupportItem := ngapType.PLMNSupportItem{}
 	plmnID, err = util.PlmnIDToNgap(plmnSupported.PlmnID)
 	if err != nil {
@@ -617,8 +626,8 @@ func BuildPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte,
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
 	ie.Value.Present = ngapType.PDUSessionResourceSetupRequestIEsPresentUEAggregateMaximumBitRate
 	ie.Value.UEAggregateMaximumBitRate = new(ngapType.UEAggregateMaximumBitRate)
-	ueAmbrUL := ngapConvert.UEAmbrToInt64(ue.AmfUe.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Uplink)
-	ueAmbrDL := ngapConvert.UEAmbrToInt64(ue.AmfUe.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Downlink)
+	ueAmbrUL := ngapConvert.UEAmbrToInt64(ue.AmfUe.Ambr.Uplink)
+	ueAmbrDL := ngapConvert.UEAmbrToInt64(ue.AmfUe.Ambr.Downlink)
 	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value = ueAmbrUL
 	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value = ueAmbrDL
 	pDUSessionResourceSetupRequestIEs.List = append(pDUSessionResourceSetupRequestIEs.List, ie)
@@ -844,8 +853,8 @@ func BuildInitialContextSetupRequest(
 		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentUEAggregateMaximumBitRate
 		ie.Value.UEAggregateMaximumBitRate = new(ngapType.UEAggregateMaximumBitRate)
 
-		ueAmbrUL := ngapConvert.UEAmbrToInt64(amfUe.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Uplink)
-		ueAmbrDL := ngapConvert.UEAmbrToInt64(amfUe.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Downlink)
+		ueAmbrUL := ngapConvert.UEAmbrToInt64(amfUe.Ambr.Uplink)
+		ueAmbrDL := ngapConvert.UEAmbrToInt64(amfUe.Ambr.Downlink)
 		ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value = ueAmbrUL
 		ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value = ueAmbrDL
 
@@ -875,7 +884,10 @@ func BuildInitialContextSetupRequest(
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	servedGuami := context.GetServedGuami(ctx)
+	servedGuami, err := context.GetServedGuami(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get served guami: %+v", err)
+	}
 
 	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
 	if err != nil {
@@ -1376,8 +1388,8 @@ func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Ca
 	ie.Value.Present = ngapType.HandoverRequestIEsPresentUEAggregateMaximumBitRate
 	ie.Value.UEAggregateMaximumBitRate = new(ngapType.UEAggregateMaximumBitRate)
 
-	ueAmbrUL := ngapConvert.UEAmbrToInt64(amfUe.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Uplink)
-	ueAmbrDL := ngapConvert.UEAmbrToInt64(amfUe.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Downlink)
+	ueAmbrUL := ngapConvert.UEAmbrToInt64(amfUe.Ambr.Uplink)
+	ueAmbrDL := ngapConvert.UEAmbrToInt64(amfUe.Ambr.Downlink)
 	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value = ueAmbrUL
 	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value = ueAmbrDL
 
@@ -1442,7 +1454,11 @@ func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Ca
 	ie.Value.AllowedNSSAI = new(ngapType.AllowedNSSAI)
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
-	plmnSupport := context.GetSupportedPlmn(ctx)
+
+	plmnSupport, err := context.GetSupportedPlmn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting supported plmn: %s", err)
+	}
 
 	ngapSnssai, err := util.SNssaiToNgap(plmnSupport.SNssai)
 	if err != nil {
@@ -1481,7 +1497,10 @@ func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Ca
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	servedGuami := context.GetServedGuami(ctx)
+	servedGuami, err := context.GetServedGuami(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting served guami: %s", err)
+	}
 
 	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
 	if err != nil {
@@ -1631,7 +1650,11 @@ func BuildPathSwitchRequestAcknowledge(
 	ie.Value.AllowedNSSAI = new(ngapType.AllowedNSSAI)
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
-	plmnSupport := context.GetSupportedPlmn(ctx)
+
+	plmnSupport, err := context.GetSupportedPlmn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting supported plmn: %s", err)
+	}
 
 	ngapSnssai, err := util.SNssaiToNgap(plmnSupport.SNssai)
 	if err != nil {
