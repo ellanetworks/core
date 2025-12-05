@@ -22,6 +22,7 @@
 #include <bpf/bpf_helpers.h>
 #include <linux/if_ether.h>
 #include <linux/in.h>
+#include <linux/in6.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <linux/types.h>
@@ -34,6 +35,13 @@ volatile const int n3_ifindex;
 volatile const int n3_ifindex = 0;
 volatile const int n6_ifindex;
 volatile const int n6_ifindex = 0;
+
+struct {
+	__uint(type, BPF_MAP_TYPE_RINGBUF);
+	__uint(key, 0);
+	__uint(value, 0);
+	__uint(max_entries, 4096);
+} no_neigh_map SEC(".maps");
 
 struct route_stat {
 	__u64 fib_lookup_ip4_cache;
@@ -93,6 +101,8 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 	switch (rc) {
 	case BPF_FIB_LKUP_RET_NO_NEIGH:
 		__builtin_memset(fib_params.dmac, 0xFF, 6);
+		__be32 daddr = ctx->ip4->daddr;
+		bpf_ringbuf_output(&no_neigh_map, &daddr, sizeof(daddr), 0);
 		// The fall-through is voluntary here
 	case BPF_FIB_LKUP_RET_SUCCESS:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: nexthop: %pI4",
@@ -143,6 +153,9 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 	switch (rc) {
 	case BPF_FIB_LKUP_RET_NO_NEIGH:
 		__builtin_memset(fib_params.dmac, 0xFF, 6);
+		struct in6_addr daddr = {};
+		__builtin_memcpy(&daddr, &ctx->ip6->daddr, sizeof(daddr));
+		bpf_ringbuf_output(&no_neigh_map, &daddr, sizeof(daddr), 0);
 		// The fall-through is voluntary here
 	case BPF_FIB_LKUP_RET_SUCCESS:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: nexthop: %pI4",

@@ -189,6 +189,7 @@ type N3N6EntrypointMapSpecs struct {
 	DownlinkStatistics *ebpf.MapSpec `ebpf:"downlink_statistics"`
 	FarMap             *ebpf.MapSpec `ebpf:"far_map"`
 	NatCt              *ebpf.MapSpec `ebpf:"nat_ct"`
+	NoNeighMap         *ebpf.MapSpec `ebpf:"no_neigh_map"`
 	NocpMap            *ebpf.MapSpec `ebpf:"nocp_map"`
 	PdrsDownlinkIp4    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
@@ -234,6 +235,7 @@ type N3N6EntrypointMaps struct {
 	DownlinkStatistics *ebpf.Map `ebpf:"downlink_statistics"`
 	FarMap             *ebpf.Map `ebpf:"far_map"`
 	NatCt              *ebpf.Map `ebpf:"nat_ct"`
+	NoNeighMap         *ebpf.Map `ebpf:"no_neigh_map"`
 	NocpMap            *ebpf.Map `ebpf:"nocp_map"`
 	PdrsDownlinkIp4    *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
@@ -250,6 +252,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.DownlinkStatistics,
 		m.FarMap,
 		m.NatCt,
+		m.NoNeighMap,
 		m.NocpMap,
 		m.PdrsDownlinkIp4,
 		m.PdrsDownlinkIp6,
