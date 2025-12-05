@@ -1,8 +1,6 @@
 package ebpf
 
 import (
-	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"net"
 	"runtime"
@@ -117,22 +115,6 @@ type FarInfo struct {
 	RemoteIP              uint32
 	LocalIP               uint32
 	TransportLevelMarking uint16
-}
-
-func (f FarInfo) MarshalJSON() ([]byte, error) {
-	remoteIP := make(net.IP, 4)
-	localIP := make(net.IP, 4)
-	binary.LittleEndian.PutUint32(remoteIP, f.RemoteIP)
-	binary.LittleEndian.PutUint32(localIP, f.LocalIP)
-	data := map[string]interface{}{
-		"action":                  f.Action,
-		"outer_header_creation":   f.OuterHeaderCreation,
-		"teid":                    f.TeID,
-		"remote_ip":               remoteIP.String(),
-		"local_ip":                localIP.String(),
-		"transport_level_marking": f.TransportLevelMarking,
-	}
-	return json.Marshal(data)
 }
 
 func (bpfObjects *BpfObjects) NewFar(farInfo FarInfo) (uint32, error) {
@@ -288,8 +270,4 @@ func Copy16Ip[T ~[]byte](arr T) [16]byte {
 		c[i] = (arr)[arrLen-1-i]
 	}
 	return c
-}
-
-func (sdfFilter *SdfFilter) String() string {
-	return fmt.Sprintf("%+v", *sdfFilter)
 }

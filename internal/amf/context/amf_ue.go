@@ -56,118 +56,115 @@ const (
 )
 
 type AmfUe struct {
-	// Mutex sync.Mutex `json:"mutex,omitempty" yaml:"mutex" bson:"mutex,omitempty"`
-	Mutex sync.Mutex `json:"-"`
+	Mutex sync.Mutex
 	/* the AMF which serving this AmfUe now */
-	ServingAMF *AMFContext `json:"servingAMF,omitempty"` // never nil
+	ServingAMF *AMFContext // never nil
 
 	/* Gmm State */
-	State map[models.AccessType]*fsm.State `json:"-"`
+	State map[models.AccessType]*fsm.State
 	/* Registration procedure related context */
-	RegistrationType5GS                uint8                           `json:"registrationType5GS,omitempty"`
-	IdentityTypeUsedForRegistration    uint8                           `json:"identityTypeUsedForRegistration,omitempty"`
-	RegistrationRequest                *nasMessage.RegistrationRequest `json:"registrationRequest,omitempty"`
-	ServingAmfChanged                  bool                            `json:"servingAmfChanged,omitempty"`
-	DeregistrationTargetAccessType     uint8                           `json:"deregistrationTargetAccessType,omitempty"` // only used when deregistration procedure is initialized by the network
-	RegistrationAcceptForNon3GPPAccess []byte                          `json:"registrationAcceptForNon3GPPAccess,omitempty"`
-	RetransmissionOfInitialNASMsg      bool                            `json:"retransmissionOfInitialNASMsg,omitempty"`
+	RegistrationType5GS                uint8
+	IdentityTypeUsedForRegistration    uint8
+	RegistrationRequest                *nasMessage.RegistrationRequest
+	ServingAmfChanged                  bool
+	DeregistrationTargetAccessType     uint8 // only used when deregistration procedure is initialized by the network
+	RegistrationAcceptForNon3GPPAccess []byte
+	RetransmissionOfInitialNASMsg      bool
 	/* Used for AMF relocation */
 	/* Ue Identity*/
-	PlmnID  models.PlmnID `json:"plmnID,omitempty"`
-	Suci    string        `json:"suci,omitempty"`
-	Supi    string        `json:"supi,omitempty"`
-	Gpsi    string        `json:"gpsi,omitempty"`
-	Pei     string        `json:"pei,omitempty"`
-	Tmsi    int32         `json:"tmsi,omitempty"` // 5G-Tmsi
-	OldTmsi int32         `json:"oldtmsi,omitempty"`
-	Guti    string        `json:"guti,omitempty"`
-	OldGuti string        `json:"oldguti,omitempty"`
-	EBI     int32         `json:"ebi,omitempty"`
+	PlmnID  models.PlmnID
+	Suci    string
+	Supi    string
+	Gpsi    string
+	Pei     string
+	Tmsi    int32
+	OldTmsi int32
+	Guti    string
+	OldGuti string
+	EBI     int32
 	/* Ue Identity*/
 	/* User Location*/
-	RatType                  models.RatType      `json:"ratType,omitempty"`
-	Location                 models.UserLocation `json:"location,omitempty"`
-	Tai                      models.Tai          `json:"tai,omitempty"`
-	LocationChanged          bool                `json:"locationChanged,omitempty"`
-	LastVisitedRegisteredTai models.Tai          `json:"lastVisitedRegisteredTai,omitempty"`
-	TimeZone                 string              `json:"timezone,omitempty"`
+	RatType                  models.RatType
+	Location                 models.UserLocation
+	Tai                      models.Tai
+	LocationChanged          bool
+	LastVisitedRegisteredTai models.Tai
+	TimeZone                 string
 	/* context about udm */
-	// UdmId                             string                                    `json:"udmId,omitempty"`
-	SubscriptionDataValid             bool                                      `json:"subscriptionDataValid,omitempty"`
-	SmfSelectionData                  *models.SmfSelectionSubscriptionData      `json:"smfSelectionData,omitempty"`
-	UeContextInSmfData                *models.UeContextInSmfData                `json:"ueContextInSmfData,omitempty"`
-	TraceData                         *models.TraceData                         `json:"traceData,omitempty"`
-	SubscribedNssai                   []models.SubscribedSnssai                 `json:"subscribeNssai,omitempty"`
-	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData `json:"accessAndMobilitySubscriptionData,omitempty"`
-	RoutingIndicator                  string                                    `json:"routingIndicator,omitempty"`
-	AuthenticationCtx                 *models.UeAuthenticationCtx               `json:"authenticationCtx,omitempty"`
-	AuthFailureCauseSynchFailureTimes int                                       `json:"authFailureCauseSynchFailureTimes,omitempty"`
-	ABBA                              []uint8                                   `json:"abba,omitempty"`
-	Kseaf                             string                                    `json:"kseaf,omitempty"`
-	Kamf                              string                                    `json:"kamf,omitempty"`
+	SubscriptionDataValid             bool
+	SmfSelectionData                  *models.SmfSelectionSubscriptionData
+	UeContextInSmfData                *models.UeContextInSmfData
+	TraceData                         *models.TraceData
+	SubscribedNssai                   []models.SubscribedSnssai
+	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData
+	RoutingIndicator                  string
+	AuthenticationCtx                 *models.UeAuthenticationCtx
+	AuthFailureCauseSynchFailureTimes int
+	ABBA                              []uint8
+	Kseaf                             string
+	Kamf                              string
 	/* context about PCF */
-	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
-	RequestTriggerLocationChange bool                      `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTriggerLocCh
+	AmPolicyAssociation          *models.PolicyAssociation
+	RequestTriggerLocationChange bool // true if AmPolicyAssociation.Trigger contains RequestTriggerLocCh
 	/* N1N2Message */
-	N1N2Message *N1N2Message `json:"-"`
+	N1N2Message *N1N2Message
 	/* Pdu Sesseion context */
-	SmContextList sync.Map `json:"-"` // map[int32]*SmContext, pdu session id as key
+	SmContextList sync.Map // map[int32]*SmContext, pdu session id as key
 	/* Related Context*/
-	//RanUe map[models.AccessType]*RanUe `json:"ranUe,omitempty" yaml:"ranUe" bson:"ranUe,omitempty"`
-	RanUe map[models.AccessType]*RanUe `json:"ranUe,omitempty"`
+	RanUe map[models.AccessType]*RanUe
 	/* other */
-	OnGoing                         map[models.AccessType]*OnGoingProcedureWithPrio `json:"onGoing,omitempty"`
-	UeRadioCapability               string                                          `json:"ueRadioCapability,omitempty"` // OCTET string
-	Capability5GMM                  nasType.Capability5GMM                          `json:"capability5GMM,omitempty"`
-	ConfigurationUpdateIndication   nasType.ConfigurationUpdateIndication           `json:"configurationUpdateIndication,omitempty"`
+	OnGoing                         map[models.AccessType]*OnGoingProcedureWithPrio
+	UeRadioCapability               string // OCTET string
+	Capability5GMM                  nasType.Capability5GMM
+	ConfigurationUpdateIndication   nasType.ConfigurationUpdateIndication
 	ConfigurationUpdateCommandFlags *ConfigurationUpdateCommandFlags
 	/* context related to Paging */
-	UeRadioCapabilityForPaging                 *UERadioCapabilityForPaging                 `json:"ueRadioCapabilityForPaging,omitempty"`
-	InfoOnRecommendedCellsAndRanNodesForPaging *InfoOnRecommendedCellsAndRanNodesForPaging `json:"infoOnRecommendedCellsAndRanNodesForPaging,omitempty"`
-	UESpecificDRX                              uint8                                       `json:"ueSpecificDRX,omitempty"`
+	UeRadioCapabilityForPaging                 *UERadioCapabilityForPaging
+	InfoOnRecommendedCellsAndRanNodesForPaging *InfoOnRecommendedCellsAndRanNodesForPaging
+	UESpecificDRX                              uint8
 	/* Security Context */
-	SecurityContextAvailable bool                         `json:"securityContextAvailable,omitempty"`
-	UESecurityCapability     nasType.UESecurityCapability `json:"ueSecurityCapability,omitempty"` // for security command
-	NgKsi                    models.NgKsi                 `json:"ngKsi,omitempty"`
-	MacFailed                bool                         `json:"macFailed,omitempty"` // set to true if the integrity check of current NAS message is failed
-	KnasInt                  [16]uint8                    `json:"knasInt,omitempty"`   // 16 byte
-	KnasEnc                  [16]uint8                    `json:"knasEnc,omitempty"`   // 16 byte
-	Kgnb                     []uint8                      `json:"kgnb,omitempty"`      // 32 byte
-	Kn3iwf                   []uint8                      `json:"kn3iwf,omitempty"`    // 32 byte
-	NH                       []uint8                      `json:"nh,omitempty"`        // 32 byte
-	NCC                      uint8                        `json:"ncc,omitempty"`       // 0..7
-	ULCount                  security.Count               `json:"-"`
-	DLCount                  security.Count               `json:"-"`
-	CipheringAlg             uint8                        `json:"cipheringAlg,omitempty"`
-	IntegrityAlg             uint8                        `json:"integrityAlg,omitempty"`
+	SecurityContextAvailable bool
+	UESecurityCapability     nasType.UESecurityCapability // for security command
+	NgKsi                    models.NgKsi
+	MacFailed                bool      // set to true if the integrity check of current NAS message is failed
+	KnasInt                  [16]uint8 // 16 byte
+	KnasEnc                  [16]uint8 // 16 byte
+	Kgnb                     []uint8   // 32 byte
+	Kn3iwf                   []uint8   // 32 byte
+	NH                       []uint8   // 32 byte
+	NCC                      uint8     // 0..7
+	ULCount                  security.Count
+	DLCount                  security.Count
+	CipheringAlg             uint8
+	IntegrityAlg             uint8
 	/* Registration Area */
-	RegistrationArea map[models.AccessType][]models.Tai `json:"registrationArea,omitempty"`
-	LadnInfo         []LADN                             `json:"ladnInfo,omitempty"`
+	RegistrationArea map[models.AccessType][]models.Tai
+	LadnInfo         []LADN
 	/* Network Slicing related context and Nssf */
-	AllowedNssai map[models.AccessType]*models.Snssai `json:"allowedNssai,omitempty"`
+	AllowedNssai map[models.AccessType]*models.Snssai
 	/* T3513(Paging) */
-	T3513 *Timer `json:"t3513Value,omitempty"` // for paging
+	T3513 *Timer // for paging
 	/* T3565(Notification) */
-	T3565 *Timer `json:"t3565Value,omitempty"` // for NAS Notification
+	T3565 *Timer // for NAS Notification
 	/* T3560 (for authentication request/security mode command retransmission) */
-	T3560 *Timer `json:"t3560Value,omitempty"`
+	T3560 *Timer
 	/* T3550 (for registration accept retransmission) */
-	T3550 *Timer `json:"t3550Value,omitempty"`
+	T3550 *Timer
 	/* T3555 (for configuration update command retransmission) */
-	T3555 *Timer `json:"t3555Value,omitempty"`
+	T3555 *Timer
 	/* T3522 (for deregistration request) */
-	T3522 *Timer `json:"t3522Value,omitempty"`
+	T3522 *Timer
 	/* Ue Context Release Cause */
-	ReleaseCause map[models.AccessType]*CauseAll `json:"releaseCause,omitempty"`
+	ReleaseCause map[models.AccessType]*CauseAll
 	/* T3502 (Assigned by AMF, and used by UE to initialize registration procedure) */
-	T3502Value                      int `json:"t3502Value,omitempty"`                      // Second
-	T3512Value                      int `json:"t3512Value,omitempty"`                      // default 54 min
-	Non3gppDeregistrationTimerValue int `json:"non3gppDeregistrationTimerValue,omitempty"` // default 54 min
+	T3502Value                      int // Second
+	T3512Value                      int // default 54 min
+	Non3gppDeregistrationTimerValue int // default 54 min
 
-	NASLog      *zap.Logger `json:"-"`
-	GmmLog      *zap.Logger `json:"-"`
-	TxLog       *zap.Logger `json:"-"`
-	ProducerLog *zap.Logger `json:"-"`
+	NASLog      *zap.Logger
+	GmmLog      *zap.Logger
+	TxLog       *zap.Logger
+	ProducerLog *zap.Logger
 }
 
 type N1N2Message struct {
