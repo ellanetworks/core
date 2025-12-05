@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 )
 
@@ -27,11 +26,13 @@ func SDMGetAmData(ctx ctxt.Context, ue *context.AmfUe) error {
 }
 
 func SDMGetSmfSelectData(ctx ctxt.Context, ue *context.AmfUe) error {
-	data, err := udm.GetSmfSelectData(ctx, ue.Supi)
+	dnn, err := udm.GetDNN(ctx, ue.Supi)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get DNN from UDM for subscriber %s: %v", ue.Supi, err)
 	}
-	ue.SmfSelectionData = data
+
+	ue.Dnn = dnn
+
 	return nil
 }
 
@@ -40,34 +41,19 @@ func SDMGetUeContextInSmfData(ctx ctxt.Context, ue *context.AmfUe) (err error) {
 	if err != nil {
 		return err
 	}
+
 	ue.UeContextInSmfData = data
+
 	return nil
 }
 
 func SDMGetSliceSelectionSubscriptionData(ctx ctxt.Context, ue *context.AmfUe) error {
-	nssai, err := udm.GetNssai(ctx, ue.Supi)
+	snssai, err := udm.GetSnssai(ctx)
 	if err != nil {
-		return fmt.Errorf("get nssai failed: %s", err.Error())
+		return fmt.Errorf("failed to retrieve snssai from UDM: %s", err.Error())
 	}
-	for _, defaultSnssai := range nssai.DefaultSingleNssais {
-		subscribedSnssai := models.SubscribedSnssai{
-			SubscribedSnssai: &models.Snssai{
-				Sst: defaultSnssai.Sst,
-				Sd:  defaultSnssai.Sd,
-			},
-			DefaultIndication: true,
-		}
-		ue.SubscribedNssai = append(ue.SubscribedNssai, subscribedSnssai)
-	}
-	for _, snssai := range nssai.SingleNssais {
-		subscribedSnssai := models.SubscribedSnssai{
-			SubscribedSnssai: &models.Snssai{
-				Sst: snssai.Sst,
-				Sd:  snssai.Sd,
-			},
-			DefaultIndication: false,
-		}
-		ue.SubscribedNssai = append(ue.SubscribedNssai, subscribedSnssai)
-	}
+
+	ue.SubscribedNssai = snssai
+
 	return nil
 }

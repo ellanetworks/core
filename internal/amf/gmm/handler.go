@@ -555,8 +555,11 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 	ue.UpdateSecurityContext(anType)
 
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
-	if len(ue.SubscribedNssai) == 0 {
-		getSubscribedNssai(ctx, ue)
+	if ue.SubscribedNssai == nil {
+		err := consumer.SDMGetSliceSelectionSubscriptionData(ctx, ue)
+		if err != nil {
+			ue.GmmLog.Error("error getting slice selection subscription data", zap.Error(err))
+		}
 	}
 
 	if err := handleRequestedNssai(ctx, ue, anType); err != nil {
@@ -675,8 +678,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 	}
 
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
-	if len(ue.SubscribedNssai) == 0 {
-		getSubscribedNssai(ctx, ue)
+	if ue.SubscribedNssai == nil {
+		err := consumer.SDMGetSliceSelectionSubscriptionData(ctx, ue)
+		if err != nil {
+			ue.GmmLog.Error("error getting slice selection subscription data", zap.Error(err))
+		}
 	}
 
 	if err := handleRequestedNssai(ctx, ue, anType); err != nil {
@@ -1026,13 +1032,6 @@ func communicateWithUDM(ctx ctxt.Context, ue *context.AmfUe) error {
 	return nil
 }
 
-func getSubscribedNssai(ctx ctxt.Context, ue *context.AmfUe) {
-	err := consumer.SDMGetSliceSelectionSubscriptionData(ctx, ue)
-	if err != nil {
-		ue.GmmLog.Error("error getting slice selection subscription data", zap.Error(err))
-	}
-}
-
 // TS 23.502 4.2.2.2.3 Registration with AMF Re-allocation
 func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType) error {
 	amfSelf := context.AMFSelf()
@@ -1062,7 +1061,7 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 		if needSliceSelection {
 			// Step 4
-			ue.AllowedNssai[models.AccessType3GPPAccess] = ue.SubscribedNssai[0].SubscribedSnssai
+			ue.AllowedNssai[models.AccessType3GPPAccess] = ue.SubscribedNssai
 
 			// Guillaume: I'm not sure if what we have here is the right thing to do
 			// As we removed the NRF, we don't search for other AMF's anymore and we hardcode the
@@ -1084,12 +1083,8 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	// then use ue subscribed snssai which is marked as default as allowed nssai
 	if ue.AllowedNssai[anType] == nil {
 		var newAllowed *models.Snssai
-		for _, snssai := range ue.SubscribedNssai {
-			if snssai.DefaultIndication {
-				if amfSelf.InPlmnSupport(ctx, *snssai.SubscribedSnssai) {
-					newAllowed = snssai.SubscribedSnssai
-				}
-			}
+		if amfSelf.InPlmnSupport(ctx, *ue.SubscribedNssai) {
+			newAllowed = ue.SubscribedNssai
 		}
 		ue.AllowedNssai[anType] = newAllowed
 	}
@@ -1111,13 +1106,9 @@ func assignLadnInfo(ue *context.AmfUe, accessType models.AccessType) {
 					}
 				}
 			} else {
-				for _, snssaiInfos := range ue.SmfSelectionData.SubscribedSnssaiInfos {
-					for _, dnnInfo := range snssaiInfos.DnnInfos {
-						if ladn, ok := amfSelf.LadnPool[dnnInfo.Dnn]; ok { // check if this dnn is a ladn
-							if ue.TaiListInRegistrationArea(ladn.TaiLists, accessType) {
-								ue.LadnInfo = append(ue.LadnInfo, *ladn)
-							}
-						}
+				if ladn, ok := amfSelf.LadnPool[ue.Dnn]; ok { // check if this dnn is a ladn
+					if ue.TaiListInRegistrationArea(ladn.TaiLists, accessType) {
+						ue.LadnInfo = append(ue.LadnInfo, *ladn)
 					}
 				}
 			}
@@ -1131,15 +1122,11 @@ func assignLadnInfo(ue *context.AmfUe, accessType models.AccessType) {
 				}
 			}
 		}
-	} else if ue.SmfSelectionData != nil {
-		for _, snssaiInfos := range ue.SmfSelectionData.SubscribedSnssaiInfos {
-			for _, dnnInfo := range snssaiInfos.DnnInfos {
-				if dnnInfo.Dnn != "*" {
-					if ladn, ok := amfSelf.LadnPool[dnnInfo.Dnn]; ok {
-						if ue.TaiListInRegistrationArea(ladn.TaiLists, accessType) {
-							ue.LadnInfo = append(ue.LadnInfo, *ladn)
-						}
-					}
+	} else if ue.Dnn != "" {
+		if ue.Dnn != "*" {
+			if ladn, ok := amfSelf.LadnPool[ue.Dnn]; ok {
+				if ue.TaiListInRegistrationArea(ladn.TaiLists, accessType) {
+					ue.LadnInfo = append(ue.LadnInfo, *ladn)
 				}
 			}
 		}

@@ -108,46 +108,6 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 	}
 	mobilityRestrictionList.ServingPLMN = *plmnID
 
-	if ue.AccessAndMobilitySubscriptionData != nil && len(ue.AccessAndMobilitySubscriptionData.RatRestrictions) > 0 {
-		mobilityRestrictionList.RATRestrictions = new(ngapType.RATRestrictions)
-		ratRestrictions := mobilityRestrictionList.RATRestrictions
-		for _, ratType := range ue.AccessAndMobilitySubscriptionData.RatRestrictions {
-			item := ngapType.RATRestrictionsItem{}
-			plmnID, err := util.PlmnIDToNgap(ue.PlmnID)
-			if err != nil {
-				logger.AmfLog.Error("Convert PLMN ID to NGAP failed", zap.Error(err))
-				continue
-			}
-			item.PLMNIdentity = *plmnID
-			item.RATRestrictionInformation = util.RATRestrictionInformationToNgap(ratType)
-			ratRestrictions.List = append(ratRestrictions.List, item)
-		}
-	}
-
-	if ue.AccessAndMobilitySubscriptionData != nil && len(ue.AccessAndMobilitySubscriptionData.ForbiddenAreas) > 0 {
-		mobilityRestrictionList.ForbiddenAreaInformation = new(ngapType.ForbiddenAreaInformation)
-		forbiddenAreaInformation := mobilityRestrictionList.ForbiddenAreaInformation
-		for _, info := range ue.AccessAndMobilitySubscriptionData.ForbiddenAreas {
-			item := ngapType.ForbiddenAreaInformationItem{}
-			plmnID, err := util.PlmnIDToNgap(ue.PlmnID)
-			if err != nil {
-				logger.AmfLog.Error("Convert PLMN ID to NGAP failed", zap.Error(err))
-				continue
-			}
-			item.PLMNIdentity = *plmnID
-			for _, tac := range info.Tacs {
-				tacBytes, err := hex.DecodeString(tac)
-				if err != nil {
-					logger.AmfLog.Error("DecodeString tac error", zap.Error(err))
-				}
-				tacNgap := ngapType.TAC{}
-				tacNgap.Value = tacBytes
-				item.ForbiddenTACs.List = append(item.ForbiddenTACs.List, tacNgap)
-			}
-			forbiddenAreaInformation.List = append(forbiddenAreaInformation.List, item)
-		}
-	}
-
 	if ue.AmPolicyAssociation != nil && ue.AmPolicyAssociation.ServAreaRes != nil {
 		mobilityRestrictionList.ServiceAreaInformation = new(ngapType.ServiceAreaInformation)
 		serviceAreaInformation := mobilityRestrictionList.ServiceAreaInformation

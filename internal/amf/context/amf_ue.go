@@ -92,10 +92,10 @@ type AmfUe struct {
 	TimeZone                 string
 	/* context about udm */
 	SubscriptionDataValid             bool
-	SmfSelectionData                  *models.SmfSelectionSubscriptionData
+	Dnn                               string
 	UeContextInSmfData                *models.UeContextInSmfData
 	TraceData                         *models.TraceData
-	SubscribedNssai                   []models.SubscribedSnssai
+	SubscribedNssai                   *models.Snssai
 	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData
 	RoutingIndicator                  string
 	AuthenticationCtx                 *models.UeAuthenticationCtx
@@ -307,12 +307,7 @@ func (ue *AmfUe) InAllowedNssai(targetSNssai models.Snssai, anType models.Access
 }
 
 func (ue *AmfUe) InSubscribedNssai(targetSNssai *models.Snssai) bool {
-	for _, sNssai := range ue.SubscribedNssai {
-		if sNssai.SubscribedSnssai.Sst == targetSNssai.Sst && sNssai.SubscribedSnssai.Sd == targetSNssai.Sd {
-			return true
-		}
-	}
-	return false
+	return ue.SubscribedNssai.Sst == targetSNssai.Sst && ue.SubscribedNssai.Sd == targetSNssai.Sd
 }
 
 func (ue *AmfUe) TaiListInRegistrationArea(taiList []models.Tai, accessType models.AccessType) bool {
@@ -325,14 +320,7 @@ func (ue *AmfUe) TaiListInRegistrationArea(taiList []models.Tai, accessType mode
 }
 
 func (ue *AmfUe) HasWildCardSubscribedDNN() bool {
-	for _, snssaiInfo := range ue.SmfSelectionData.SubscribedSnssaiInfos {
-		for _, dnnInfo := range snssaiInfo.DnnInfos {
-			if dnnInfo.Dnn == "*" {
-				return true
-			}
-		}
-	}
-	return false
+	return ue.Dnn == "*"
 }
 
 func (ue *AmfUe) SecurityContextIsValid() bool {

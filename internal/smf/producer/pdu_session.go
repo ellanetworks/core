@@ -88,18 +88,18 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 
 	smContext.PDUAddress = ip
 
-	sessSubData, err := udm.GetSmData(ctx, smContext.Supi)
+	dnnConfig, err := udm.GetDnnConfig(ctx, smContext.Supi)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("failed to get SM context from UDM: %v", err)
 	}
 
-	if sessSubData == nil {
+	if dnnConfig == nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("SM context not found in UDM")
 	}
 
-	smContext.DnnConfiguration = sessSubData.DnnConfigurations[createData.Dnn]
+	smContext.DnnConfiguration = *dnnConfig
 
 	// Decode UE content(PCO)
 	establishmentRequest := m.PDUSessionEstablishmentRequest
