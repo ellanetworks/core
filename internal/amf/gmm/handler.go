@@ -197,7 +197,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				snssai = util.SnssaiToModels(ulNasTransport.SNSSAI)
 			} else {
 				if allowedNssai, ok := ue.AllowedNssai[anType]; ok {
-					snssai = *allowedNssai.AllowedSnssai
+					snssai = *allowedNssai
 				} else {
 					return fmt.Errorf("allowed nssai is not found for access type: %s in UE context", anType)
 				}
@@ -1044,16 +1044,13 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		}
 
 		needSliceSelection := false
-		var newAllowed *models.AllowedSnssai
+		var newAllowed *models.Snssai
 
 		for _, requestedSnssai := range requestedNssai {
 			if ue.InSubscribedNssai(requestedSnssai.ServingSnssai) {
-				newAllowed = &models.AllowedSnssai{
-					AllowedSnssai: &models.Snssai{
-						Sst: requestedSnssai.ServingSnssai.Sst,
-						Sd:  requestedSnssai.ServingSnssai.Sd,
-					},
-					MappedHomeSnssai: requestedSnssai.HomeSnssai,
+				newAllowed = &models.Snssai{
+					Sst: requestedSnssai.ServingSnssai.Sst,
+					Sd:  requestedSnssai.ServingSnssai.Sd,
 				}
 			} else {
 				needSliceSelection = true
@@ -1065,9 +1062,7 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 		if needSliceSelection {
 			// Step 4
-			ue.AllowedNssai[models.AccessType3GPPAccess] = &models.AllowedSnssai{
-				AllowedSnssai: ue.SubscribedNssai[0].SubscribedSnssai,
-			}
+			ue.AllowedNssai[models.AccessType3GPPAccess] = ue.SubscribedNssai[0].SubscribedSnssai
 
 			// Guillaume: I'm not sure if what we have here is the right thing to do
 			// As we removed the NRF, we don't search for other AMF's anymore and we hardcode the
@@ -1088,13 +1083,11 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	// if registration request has no requested nssai, or non of snssai in requested nssai is permitted by nssf
 	// then use ue subscribed snssai which is marked as default as allowed nssai
 	if ue.AllowedNssai[anType] == nil {
-		var newAllowed *models.AllowedSnssai
+		var newAllowed *models.Snssai
 		for _, snssai := range ue.SubscribedNssai {
 			if snssai.DefaultIndication {
 				if amfSelf.InPlmnSupport(ctx, *snssai.SubscribedSnssai) {
-					newAllowed = &models.AllowedSnssai{
-						AllowedSnssai: snssai.SubscribedSnssai,
-					}
+					newAllowed = snssai.SubscribedSnssai
 				}
 			}
 		}

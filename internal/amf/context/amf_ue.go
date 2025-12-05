@@ -144,7 +144,7 @@ type AmfUe struct {
 	RegistrationArea map[models.AccessType][]models.Tai `json:"registrationArea,omitempty"`
 	LadnInfo         []LADN                             `json:"ladnInfo,omitempty"`
 	/* Network Slicing related context and Nssf */
-	AllowedNssai map[models.AccessType]*models.AllowedSnssai `json:"allowedNssai,omitempty"`
+	AllowedNssai map[models.AccessType]*models.Snssai `json:"allowedNssai,omitempty"`
 	/* T3513(Paging) */
 	T3513 *Timer `json:"t3513Value,omitempty"` // for paging
 	/* T3565(Notification) */
@@ -233,7 +233,7 @@ func (ue *AmfUe) init() {
 	ue.State[models.AccessTypeNon3GPPAccess] = fsm.NewState(Deregistered)
 	ue.RanUe = make(map[models.AccessType]*RanUe)
 	ue.RegistrationArea = make(map[models.AccessType][]models.Tai)
-	ue.AllowedNssai = make(map[models.AccessType]*models.AllowedSnssai)
+	ue.AllowedNssai = make(map[models.AccessType]*models.Snssai)
 	ue.OnGoing = make(map[models.AccessType]*OnGoingProcedureWithPrio)
 	ue.OnGoing[models.AccessTypeNon3GPPAccess] = new(OnGoingProcedureWithPrio)
 	ue.OnGoing[models.AccessTypeNon3GPPAccess].Procedure = OnGoingProcedureNothing
@@ -306,7 +306,7 @@ func (ue *AmfUe) GetAnType() models.AccessType {
 }
 
 func (ue *AmfUe) InAllowedNssai(targetSNssai models.Snssai, anType models.AccessType) bool {
-	return reflect.DeepEqual(*ue.AllowedNssai[anType].AllowedSnssai, targetSNssai)
+	return reflect.DeepEqual(*ue.AllowedNssai[anType], targetSNssai)
 }
 
 func (ue *AmfUe) InSubscribedNssai(targetSNssai *models.Snssai) bool {
@@ -316,16 +316,6 @@ func (ue *AmfUe) InSubscribedNssai(targetSNssai *models.Snssai) bool {
 		}
 	}
 	return false
-}
-
-func (ue *AmfUe) GetNsiInformationFromSnssai(anType models.AccessType, snssai models.Snssai) *models.NsiInformation {
-	if reflect.DeepEqual(*ue.AllowedNssai[anType].AllowedSnssai, snssai) {
-		if len(ue.AllowedNssai[anType].NsiInformationList) != 0 {
-			return &ue.AllowedNssai[anType].NsiInformationList[0]
-		}
-	}
-
-	return nil
 }
 
 func (ue *AmfUe) TaiListInRegistrationArea(taiList []models.Tai, accessType models.AccessType) bool {
@@ -546,7 +536,7 @@ func (ue *AmfUe) ClearRegistrationRequestData(accessType models.AccessType) {
 func (ue *AmfUe) ClearRegistrationData() {
 	// Allowed Nssai should be cleared first as it is a new Registration
 	ue.SubscribedNssai = nil
-	ue.AllowedNssai = make(map[models.AccessType]*models.AllowedSnssai)
+	ue.AllowedNssai = make(map[models.AccessType]*models.Snssai)
 	ue.SubscriptionDataValid = false
 	// Clearing SMContextList locally
 	ue.SmContextList.Range(func(key, _ interface{}) bool {

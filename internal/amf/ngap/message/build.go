@@ -905,7 +905,7 @@ func BuildInitialContextSetupRequest(
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 
-	snssaiNgap, err := util.SNssaiToNgap(*amfUe.AllowedNssai[anType].AllowedSnssai)
+	snssaiNgap, err := util.SNssaiToNgap(*amfUe.AllowedNssai[anType])
 	if err != nil {
 		return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
 	}

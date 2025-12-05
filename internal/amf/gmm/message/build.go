@@ -507,12 +507,12 @@ func BuildRegistrationAccept(
 	if ue.AllowedNssai[anType] != nil {
 		registrationAccept.AllowedNSSAI = nasType.NewAllowedNSSAI(nasMessage.RegistrationAcceptAllowedNSSAIType)
 
-		var buf []uint8
-
-		snssai, err := util.SnssaiToNas(*ue.AllowedNssai[anType].AllowedSnssai)
+		snssai, err := util.SnssaiToNas(*ue.AllowedNssai[anType])
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert SNSSAI to NAS: %s", err)
 		}
+
+		var buf []uint8
 
 		buf = append(buf, snssai...)
 		registrationAccept.AllowedNSSAI.SetLen(uint8(len(buf)))
@@ -655,7 +655,7 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 
 			var buf []uint8
 
-			allowedSnssaiNas, err := util.SnssaiToNas(*ue.AllowedNssai[anType].AllowedSnssai)
+			allowedSnssaiNas, err := util.SnssaiToNas(*ue.AllowedNssai[anType])
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert allowed SNSSAI to NAS: %v", err), false
 			}
