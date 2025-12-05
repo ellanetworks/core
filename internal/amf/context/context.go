@@ -48,8 +48,8 @@ type NetworkFeatureSupport5GS struct {
 }
 
 type PlmnSupportItem struct {
-	PlmnID     models.PlmnID
-	SNssaiList []models.Snssai
+	PlmnID models.PlmnID
+	SNssai models.Snssai
 }
 
 type NetworkName struct {
@@ -65,14 +65,11 @@ type TimerValue struct {
 
 type AMFContext struct {
 	DBInstance                      *db.Database
-	UePool                          sync.Map         // map[supi]*AmfUe
-	RanUePool                       sync.Map         // map[AmfUeNgapID]*RanUe
-	AmfRanPool                      sync.Map         // map[net.Conn]*AmfRan
-	LadnPool                        map[string]*LADN // dnn as key
+	UePool                          sync.Map // map[supi]*AmfUe
+	RanUePool                       sync.Map // map[AmfUeNgapID]*RanUe
+	AmfRanPool                      sync.Map // map[net.Conn]*AmfRan
 	RelativeCapacity                int64
-	NfID                            string
 	Name                            string
-	NgapPort                        int
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
 	SecurityAlgorithm               SecurityAlgorithm
 	NetworkName                     NetworkName
@@ -111,8 +108,11 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 }
 
 func (context *AMFContext) ReAllocateGutiToUe(ctx ctxt.Context, ue *AmfUe) {
-	guamis := GetServedGuamiList(ctx)
-	servedGuami := guamis[0]
+	servedGuami, err := GetServedGuami(ctx)
+	if err != nil {
+		logger.AmfLog.Error("Could not get served guami", zap.Error(err))
+		return
+	}
 	ue.OldTmsi = ue.Tmsi
 	ue.Tmsi = context.TmsiAllocate()
 	plmnID := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc
@@ -132,7 +132,12 @@ func (context *AMFContext) AllocateRegistrationArea(ctx ctxt.Context, ue *AmfUe,
 		ue.RegistrationArea[anType] = nil
 	}
 
-	supportTaiList := GetSupportTaiList(ctx)
+	supportTaiList, err := GetSupportTaiList(ctx)
+	if err != nil {
+		logger.AmfLog.Error("Could not get supported TAI list", zap.Error(err))
+		return
+	}
+
 	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {
@@ -272,13 +277,13 @@ func (context *AMFContext) DeleteAmfRan(conn *sctp.SCTPConn) {
 }
 
 func (context *AMFContext) InPlmnSupport(ctx ctxt.Context, snssai models.Snssai) bool {
-	plmnSupportItem := GetSupportedPlmn(ctx)
-	for _, supportSnssai := range plmnSupportItem.SNssaiList {
-		if reflect.DeepEqual(supportSnssai, snssai) {
-			return true
-		}
+	plmnSupportItem, err := GetSupportedPlmn(ctx)
+	if err != nil {
+		logger.AmfLog.Error("Could not get supported PLMN", zap.Error(err))
+		return false
 	}
-	return false
+
+	return reflect.DeepEqual(plmnSupportItem.SNssai, snssai)
 }
 
 // Looks up a UE by the provided GUTI.

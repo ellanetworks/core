@@ -1,13 +1,18 @@
-package udm_test
+// Copyright 2024 Ella Networks
+// Copyright 2019 free5GC.org
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
+// SPDX-License-Identifier: Apache-2.0
+
+package ausf_test
 
 import (
 	"context"
 	"path/filepath"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/udm"
 )
 
 func TestCreateAuthDataBadSuci(t *testing.T) {
@@ -18,10 +23,10 @@ func TestCreateAuthDataBadSuci(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
-	udm.SetDBInstance(testdb)
+	ausf.SetDBInstance(testdb)
 	authInfoRequest := models.AuthenticationInfoRequest{}
 	ueSuci := "123"
-	authInfoResult, err := udm.CreateAuthData(context.Background(), authInfoRequest, ueSuci)
+	authInfoResult, err := ausf.CreateAuthData(context.Background(), authInfoRequest, ueSuci)
 	if err == nil {
 		t.Fatalf("failed to create auth data: %v", err)
 	}

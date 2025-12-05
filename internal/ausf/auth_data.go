@@ -1,8 +1,4 @@
-// Copyright 2024 Ella Networks
-// Copyright 2019 free5GC.org
-// SPDX-License-Identifier: Apache-2.0
-
-package udm
+package ausf
 
 import (
 	"context"
@@ -73,12 +69,12 @@ func strictHex(s string, n int) string {
 }
 
 func EditAuthenticationSubscription(ctx context.Context, ueID string, sequenceNumber string) error {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ctx, ueID)
+	subscriber, err := ausfContext.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 	subscriber.SequenceNumber = sequenceNumber
-	err = udmContext.DBInstance.UpdateSubscriber(ctx, subscriber)
+	err = ausfContext.DBInstance.UpdateSubscriber(ctx, subscriber)
 	if err != nil {
 		return fmt.Errorf("couldn't update subscriber %s: %v", ueID, err)
 	}
@@ -112,7 +108,7 @@ func convertDBAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 }
 
 func GetAuthSubsData(ctx context.Context, ueID string) (*models.AuthenticationSubscription, error) {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ctx, ueID)
+	subscriber, err := ausfContext.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
@@ -121,15 +117,15 @@ func GetAuthSubsData(ctx context.Context, ueID string) (*models.AuthenticationSu
 }
 
 func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationInfoRequest, suc string) (*models.AuthenticationInfoResult, error) {
-	ctx, span := tracer.Start(ctx, "UDM CreateAuthData")
+	ctx, span := tracer.Start(ctx, "AUSF CreateAuthData")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("suci", suc),
 	)
-	if udmContext.DBInstance == nil {
+	if ausfContext.DBInstance == nil {
 		return nil, fmt.Errorf("db instance is nil")
 	}
-	hnPrivateKey, err := udmContext.DBInstance.GetHomeNetworkPrivateKey(ctx)
+	hnPrivateKey, err := ausfContext.DBInstance.GetHomeNetworkPrivateKey(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get home network private key: %w", err)
 	}

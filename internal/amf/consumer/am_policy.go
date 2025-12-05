@@ -25,10 +25,6 @@ func AMPolicyControlCreate(ctx ctxt.Context, ue *context.AmfUe, anType models.Ac
 		},
 	}
 
-	if ue.AccessAndMobilitySubscriptionData != nil {
-		policyAssociationRequest.Rfsp = ue.AccessAndMobilitySubscriptionData.RfspIndex
-	}
-
 	res, err := pcf.CreateAMPolicy(ctx, policyAssociationRequest)
 	if err != nil {
 		return fmt.Errorf("failed to create policy: %+v", err)

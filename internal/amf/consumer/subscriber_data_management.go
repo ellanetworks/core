@@ -11,63 +11,27 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/udm"
 )
 
-func SDMGetAmData(ctx ctxt.Context, ue *context.AmfUe) error {
-	data, err := udm.GetAmData(ctx, ue.Supi)
+func GetAndSetSubscriberData(ctx ctxt.Context, ue *context.AmfUe) error {
+	bitRate, dnn, err := context.GetSubscriberData(ctx, ue.Supi)
 	if err != nil {
-		return fmt.Errorf("failed to get AM data from UDM: %v", err)
+		return fmt.Errorf("failed to get subscriber data: %v", err)
 	}
 
-	ue.AccessAndMobilitySubscriptionData = data
+	ue.Dnn = dnn
+	ue.Ambr = bitRate
 
 	return nil
 }
 
-func SDMGetSmfSelectData(ctx ctxt.Context, ue *context.AmfUe) error {
-	data, err := udm.GetSmfSelectData(ctx, ue.Supi)
+func GetAndSetSubscribedNSSAI(ctx ctxt.Context, ue *context.AmfUe) error {
+	plmn, err := context.GetSupportedPlmn(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get plmn: %s", err.Error())
 	}
-	ue.SmfSelectionData = data
-	return nil
-}
 
-func SDMGetUeContextInSmfData(ctx ctxt.Context, ue *context.AmfUe) (err error) {
-	data, err := udm.GetUeContextInSmfData(ctx, ue.Supi)
-	if err != nil {
-		return err
-	}
-	ue.UeContextInSmfData = data
-	return nil
-}
+	ue.SubscribedNssai = &plmn.SNssai
 
-func SDMGetSliceSelectionSubscriptionData(ctx ctxt.Context, ue *context.AmfUe) error {
-	nssai, err := udm.GetNssai(ctx, ue.Supi)
-	if err != nil {
-		return fmt.Errorf("get nssai failed: %s", err.Error())
-	}
-	for _, defaultSnssai := range nssai.DefaultSingleNssais {
-		subscribedSnssai := models.SubscribedSnssai{
-			SubscribedSnssai: &models.Snssai{
-				Sst: defaultSnssai.Sst,
-				Sd:  defaultSnssai.Sd,
-			},
-			DefaultIndication: true,
-		}
-		ue.SubscribedNssai = append(ue.SubscribedNssai, subscribedSnssai)
-	}
-	for _, snssai := range nssai.SingleNssais {
-		subscribedSnssai := models.SubscribedSnssai{
-			SubscribedSnssai: &models.Snssai{
-				Sst: snssai.Sst,
-				Sd:  snssai.Sd,
-			},
-			DefaultIndication: false,
-		}
-		ue.SubscribedNssai = append(ue.SubscribedNssai, subscribedSnssai)
-	}
 	return nil
 }

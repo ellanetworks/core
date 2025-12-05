@@ -120,21 +120,25 @@ func BuildNGSetupResponse(ctx ctxt.Context) ([]byte, error) {
 	ie.Value.ServedGUAMIList = new(ngapType.ServedGUAMIList)
 
 	servedGUAMIList := ie.Value.ServedGUAMIList
-	guamiList := context.GetServedGuamiList(ctx)
-	for _, guami := range guamiList {
-		servedGUAMIItem := ngapType.ServedGUAMIItem{}
-		plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
-		if err != nil {
-			logger.AmfLog.Error("error converting PLMN ID to NGAP", zap.Error(err))
-			continue
-		}
-		servedGUAMIItem.GUAMI.PLMNIdentity = *plmnID
-		regionID, setID, prtID := ngapConvert.AmfIdToNgap(guami.AmfID)
-		servedGUAMIItem.GUAMI.AMFRegionID.Value = regionID
-		servedGUAMIItem.GUAMI.AMFSetID.Value = setID
-		servedGUAMIItem.GUAMI.AMFPointer.Value = prtID
-		servedGUAMIList.List = append(servedGUAMIList.List, servedGUAMIItem)
+
+	guami, err := context.GetServedGuami(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get served guami: %v", err)
 	}
+
+	plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
+	if err != nil {
+		return nil, fmt.Errorf("error converting PLMN ID to NGAP: %+v", err)
+	}
+
+	servedGUAMIItem := ngapType.ServedGUAMIItem{}
+
+	servedGUAMIItem.GUAMI.PLMNIdentity = *plmnID
+	regionID, setID, prtID := ngapConvert.AmfIdToNgap(guami.AmfID)
+	servedGUAMIItem.GUAMI.AMFRegionID.Value = regionID
+	servedGUAMIItem.GUAMI.AMFSetID.Value = setID
+	servedGUAMIItem.GUAMI.AMFPointer.Value = prtID
+	servedGUAMIList.List = append(servedGUAMIList.List, servedGUAMIItem)
 
 	nGSetupResponseIEs.List = append(nGSetupResponseIEs.List, ie)
 
@@ -157,22 +161,30 @@ func BuildNGSetupResponse(ctx ctxt.Context) ([]byte, error) {
 	ie.Value.PLMNSupportList = new(ngapType.PLMNSupportList)
 
 	pLMNSupportList := ie.Value.PLMNSupportList
-	plmnSupported := context.GetSupportedPlmn(ctx)
+
+	plmnSupported, err := context.GetSupportedPlmn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get supported PLMN: %s", err)
+	}
+
 	pLMNSupportItem := ngapType.PLMNSupportItem{}
-	plmnID, err := util.PlmnIDToNgap(plmnSupported.PlmnID)
+	plmnID, err = util.PlmnIDToNgap(plmnSupported.PlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("error converting PLMN ID to NGAP: %+v", err)
 	}
 	pLMNSupportItem.PLMNIdentity = *plmnID
-	for _, snssai := range plmnSupported.SNssaiList {
-		sliceSupportItem := ngapType.SliceSupportItem{}
-		snssaiNgap, err := util.SNssaiToNgap(snssai)
-		if err != nil {
-			return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
-		}
-		sliceSupportItem.SNSSAI = snssaiNgap
-		pLMNSupportItem.SliceSupportList.List = append(pLMNSupportItem.SliceSupportList.List, sliceSupportItem)
+
+	snssaiNgap, err := util.SNssaiToNgap(plmnSupported.SNssai)
+	if err != nil {
+		return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
 	}
+
+	sliceSupportItem := ngapType.SliceSupportItem{
+		SNSSAI: snssaiNgap,
+	}
+
+	pLMNSupportItem.SliceSupportList.List = append(pLMNSupportItem.SliceSupportList.List, sliceSupportItem)
+
 	pLMNSupportList.List = append(pLMNSupportList.List, pLMNSupportItem)
 	nGSetupResponseIEs.List = append(nGSetupResponseIEs.List, ie)
 
@@ -309,20 +321,6 @@ func BuildDownlinkNasTransport(ue *context.RanUe, nasPdu []byte,
 	ie.Value.NASPDU.Value = nasPdu
 
 	downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
-
-	// Old AMF (optional)
-	if ue.OldAmfName != "" {
-		ie = ngapType.DownlinkNASTransportIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDOldAMF
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.DownlinkNASTransportIEsPresentOldAMF
-		ie.Value.OldAMF = new(ngapType.AMFName)
-
-		ie.Value.OldAMF.Value = ue.OldAmfName
-
-		downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
-		ue.OldAmfName = "" // clear data
-	}
 
 	// RAN Paging Priority (optional)
 	// Mobility Restriction List (optional)
@@ -628,8 +626,8 @@ func BuildPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte,
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
 	ie.Value.Present = ngapType.PDUSessionResourceSetupRequestIEsPresentUEAggregateMaximumBitRate
 	ie.Value.UEAggregateMaximumBitRate = new(ngapType.UEAggregateMaximumBitRate)
-	ueAmbrUL := ngapConvert.UEAmbrToInt64(ue.AmfUe.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Uplink)
-	ueAmbrDL := ngapConvert.UEAmbrToInt64(ue.AmfUe.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Downlink)
+	ueAmbrUL := ngapConvert.UEAmbrToInt64(ue.AmfUe.Ambr.Uplink)
+	ueAmbrDL := ngapConvert.UEAmbrToInt64(ue.AmfUe.Ambr.Downlink)
 	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value = ueAmbrUL
 	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value = ueAmbrDL
 	pDUSessionResourceSetupRequestIEs.List = append(pDUSessionResourceSetupRequestIEs.List, ie)
@@ -845,18 +843,6 @@ func BuildInitialContextSetupRequest(
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
-	// Old AMF (optional)
-	if ranUe.OldAmfName != "" {
-		ie = ngapType.InitialContextSetupRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDOldAMF
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentOldAMF
-		ie.Value.OldAMF = new(ngapType.AMFName)
-		ie.Value.OldAMF.Value = ranUe.OldAmfName
-		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
-		ranUe.OldAmfName = "" // clear data
-	}
-
 	// UE Aggregate Maximum Bit Rate (conditional: if pdu session resource setup)
 	// The subscribed UE-AMBR is a subscription parameter which is
 	// retrieved from UDM and provided to the (R)AN by the AMF
@@ -867,8 +853,8 @@ func BuildInitialContextSetupRequest(
 		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentUEAggregateMaximumBitRate
 		ie.Value.UEAggregateMaximumBitRate = new(ngapType.UEAggregateMaximumBitRate)
 
-		ueAmbrUL := ngapConvert.UEAmbrToInt64(amfUe.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Uplink)
-		ueAmbrDL := ngapConvert.UEAmbrToInt64(amfUe.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Downlink)
+		ueAmbrUL := ngapConvert.UEAmbrToInt64(amfUe.Ambr.Uplink)
+		ueAmbrDL := ngapConvert.UEAmbrToInt64(amfUe.Ambr.Downlink)
 		ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value = ueAmbrUL
 		ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value = ueAmbrDL
 
@@ -898,8 +884,10 @@ func BuildInitialContextSetupRequest(
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	guamiList := context.GetServedGuamiList(ctx)
-	servedGuami := guamiList[0]
+	servedGuami, err := context.GetServedGuami(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get served guami: %+v", err)
+	}
 
 	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
 	if err != nil {
@@ -929,15 +917,14 @@ func BuildInitialContextSetupRequest(
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 
-	for _, allowedSnssai := range amfUe.AllowedNssai[anType] {
-		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
-		snssaiNgap, err := util.SNssaiToNgap(*allowedSnssai.AllowedSnssai)
-		if err != nil {
-			return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
-		}
-		allowedNSSAIItem.SNSSAI = snssaiNgap
-		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
+	snssaiNgap, err := util.SNssaiToNgap(*amfUe.AllowedNssai[anType])
+	if err != nil {
+		return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
 	}
+
+	allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
+	allowedNSSAIItem.SNSSAI = snssaiNgap
+	allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
 
 	if len(allowedNSSAI.List) == 0 {
 		return nil, fmt.Errorf("allowed NSSAI list is empty")
@@ -1401,8 +1388,8 @@ func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Ca
 	ie.Value.Present = ngapType.HandoverRequestIEsPresentUEAggregateMaximumBitRate
 	ie.Value.UEAggregateMaximumBitRate = new(ngapType.UEAggregateMaximumBitRate)
 
-	ueAmbrUL := ngapConvert.UEAmbrToInt64(amfUe.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Uplink)
-	ueAmbrDL := ngapConvert.UEAmbrToInt64(amfUe.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Downlink)
+	ueAmbrUL := ngapConvert.UEAmbrToInt64(amfUe.Ambr.Uplink)
+	ueAmbrDL := ngapConvert.UEAmbrToInt64(amfUe.Ambr.Downlink)
 	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value = ueAmbrUL
 	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value = ueAmbrDL
 
@@ -1467,17 +1454,22 @@ func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Ca
 	ie.Value.AllowedNSSAI = new(ngapType.AllowedNSSAI)
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
-	plmnSupport := context.GetSupportedPlmn(ctx)
-	for _, snssaiItem := range plmnSupport.SNssaiList {
-		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
-		ngapSnssai, err := util.SNssaiToNgap(snssaiItem)
-		if err != nil {
-			return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
-		}
-		allowedNSSAIItem.SNSSAI = ngapSnssai
-		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
+	plmnSupport, err := context.GetSupportedPlmn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting supported plmn: %s", err)
 	}
+
+	ngapSnssai, err := util.SNssaiToNgap(plmnSupport.SNssai)
+	if err != nil {
+		return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
+	}
+
+	allowedNSSAIItem := ngapType.AllowedNSSAIItem{
+		SNSSAI: ngapSnssai,
+	}
+
+	allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
 
 	handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
 
@@ -1505,8 +1497,10 @@ func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Ca
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	guamiList := context.GetServedGuamiList(ctx)
-	servedGuami := guamiList[0]
+	servedGuami, err := context.GetServedGuami(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting served guami: %s", err)
+	}
 
 	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
 	if err != nil {
@@ -1656,16 +1650,23 @@ func BuildPathSwitchRequestAcknowledge(
 	ie.Value.AllowedNSSAI = new(ngapType.AllowedNSSAI)
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
-	plmnSupport := context.GetSupportedPlmn(ctx)
-	for _, modelSnssai := range plmnSupport.SNssaiList {
-		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
-		ngapSnssai, err := util.SNssaiToNgap(modelSnssai)
-		if err != nil {
-			return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
-		}
-		allowedNSSAIItem.SNSSAI = ngapSnssai
-		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
+
+	plmnSupport, err := context.GetSupportedPlmn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting supported plmn: %s", err)
 	}
+
+	ngapSnssai, err := util.SNssaiToNgap(plmnSupport.SNssai)
+	if err != nil {
+		return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
+	}
+
+	allowedNSSAIItem := ngapType.AllowedNSSAIItem{
+		SNSSAI: ngapSnssai,
+	}
+
+	allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
+
 	pathSwitchRequestAckIEs.List = append(pathSwitchRequestAckIEs.List, ie)
 
 	// Core Network Assistance Information (optional)

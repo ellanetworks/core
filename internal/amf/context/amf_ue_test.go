@@ -9,13 +9,9 @@ import (
 
 func TestNotInSubscribedNssai(t *testing.T) {
 	amfUe := &context.AmfUe{}
-	amfUe.SubscribedNssai = []models.SubscribedSnssai{
-		{
-			SubscribedSnssai: &models.Snssai{
-				Sst: 1,
-				Sd:  "1",
-			},
-		},
+	amfUe.SubscribedNssai = &models.Snssai{
+		Sst: 1,
+		Sd:  "1",
 	}
 	targetSNssai := &models.Snssai{
 		Sst: 2,
@@ -29,13 +25,9 @@ func TestNotInSubscribedNssai(t *testing.T) {
 
 func TestInSubscribedNssai(t *testing.T) {
 	amfUe := &context.AmfUe{}
-	amfUe.SubscribedNssai = []models.SubscribedSnssai{
-		{
-			SubscribedSnssai: &models.Snssai{
-				Sst: 1,
-				Sd:  "1",
-			},
-		},
+	amfUe.SubscribedNssai = &models.Snssai{
+		Sst: 1,
+		Sd:  "1",
 	}
 	targetSNssai := &models.Snssai{
 		Sst: 1,

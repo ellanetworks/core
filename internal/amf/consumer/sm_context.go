@@ -19,22 +19,16 @@ import (
 const N2SMInfoID = "N2SmInfo"
 
 func SelectSmf(
-	ue *context.AmfUe,
 	anType models.AccessType,
 	pduSessionID int32,
 	snssai models.Snssai,
 	dnn string,
 ) *context.SmContext {
-	nsiInformation := ue.GetNsiInformationFromSnssai(anType, snssai)
 	smContext := context.NewSmContext(pduSessionID)
-	smContext.SetSnssai(snssai)
 
+	smContext.SetSnssai(snssai)
 	smContext.SetDnn(dnn)
 	smContext.SetAccessType(anType)
-
-	if nsiInformation != nil {
-		smContext.SetNsInstance(nsiInformation.NsiID)
-	}
 
 	return smContext
 }
@@ -50,7 +44,6 @@ func SendCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *
 }
 
 func buildCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext) (smContextCreateData models.SmContextCreateData) {
-	amfSelf := context.AMFSelf()
 	smContextCreateData.Supi = ue.Supi
 	smContextCreateData.Pei = ue.Pei
 	smContextCreateData.Gpsi = ue.Gpsi
@@ -61,14 +54,17 @@ func buildCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext 
 		Sd:  snssai.Sd,
 	}
 	smContextCreateData.Dnn = smContext.Dnn()
-	smContextCreateData.ServingNfID = amfSelf.NfID
-	guamiList := context.GetServedGuamiList(ctx)
+	guami, err := context.GetServedGuami(ctx)
+	if err != nil {
+		ue.GmmLog.Error("Could not get served guami", zap.Error(err))
+		return smContextCreateData
+	}
 	smContextCreateData.Guami = &models.Guami{
 		PlmnID: &models.PlmnID{
-			Mcc: guamiList[0].PlmnID.Mcc,
-			Mnc: guamiList[0].PlmnID.Mnc,
+			Mcc: guami.PlmnID.Mcc,
+			Mnc: guami.PlmnID.Mnc,
 		},
-		AmfID: guamiList[0].AmfID,
+		AmfID: guami.AmfID,
 	}
 	// take seving networking plmn from userlocation.Tai
 	if ue.Tai.PlmnID != nil {
@@ -78,10 +74,10 @@ func buildCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext 
 		}
 	} else {
 		// ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc %v, Mnc: %v] is taken from Guami List", guamiList[0].PlmnID.Mcc, guamiList[0].PlmnID.Mnc)
-		ue.GmmLog.Warn("Tai is not received from Serving Network, Serving Plmn is taken from Guami List", zap.String("mcc", guamiList[0].PlmnID.Mcc), zap.String("mnc", guamiList[0].PlmnID.Mnc))
+		ue.GmmLog.Warn("Tai is not received from Serving Network, Serving Plmn is taken from Guami List", zap.String("mcc", guami.PlmnID.Mcc), zap.String("mnc", guami.PlmnID.Mnc))
 		smContextCreateData.ServingNetwork = &models.PlmnID{
-			Mcc: guamiList[0].PlmnID.Mcc,
-			Mnc: guamiList[0].PlmnID.Mnc,
+			Mcc: guami.PlmnID.Mcc,
+			Mnc: guami.PlmnID.Mnc,
 		}
 	}
 	smContextCreateData.N1SmMsg = new(models.RefToBinaryData)
@@ -126,11 +122,7 @@ func SendUpdateSmContextActivateUpCnxState(
 	if smContext.AccessType() != accessType {
 		updateData.AnType = smContext.AccessType()
 	}
-	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
-		if context.InTaiList(ue.Tai, ladn.TaiLists) {
-			updateData.PresenceInLadn = models.PresenceStateInArea
-		}
-	}
+
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
 }
 
@@ -190,13 +182,7 @@ func SendUpdateSmContextXnHandover(
 	}
 	updateData.ToBeSwitched = true
 	updateData.UeLocation = &ue.Location
-	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
-		if context.InTaiList(ue.Tai, ladn.TaiLists) {
-			updateData.PresenceInLadn = models.PresenceStateInArea
-		} else {
-			updateData.PresenceInLadn = models.PresenceStateOutOfArea
-		}
-	}
+
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, N2SmInfo)
 }
 
@@ -273,13 +259,7 @@ func SendUpdateSmContextN2HandoverComplete(ctx ctxt.Context, ue *context.AmfUe, 
 			AmfID: guami.AmfID,
 		}
 	}
-	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
-		if context.InTaiList(ue.Tai, ladn.TaiLists) {
-			updateData.PresenceInLadn = models.PresenceStateInArea
-		} else {
-			updateData.PresenceInLadn = models.PresenceStateOutOfArea
-		}
-	}
+
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
 }
 
