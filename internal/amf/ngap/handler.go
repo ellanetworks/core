@@ -77,21 +77,21 @@ func FetchRanUeContext(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.
 			ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 			if ranUe == nil {
 				if fiveGSTMSI != nil {
-					servedGuami, err := context.GetServedGuami(ctx)
+					operatorInfo, err := context.GetOperatorInfo(ctx)
 					if err != nil {
-						ran.Log.Error("Could not get served guami", zap.Error(err))
+						ran.Log.Error("Could not get operator info", zap.Error(err))
 						return nil, nil
 					}
 
 					// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
 					// GUAMI := <MCC><MNC><AMF Region ID><AMF Set ID><AMF Pointer>
 					// 5G-GUTI := <GUAMI><5G-TMSI>
-					tmpReginID, _, _ := ngapConvert.AmfIdToNgap(servedGuami.AmfID)
+					tmpReginID, _, _ := ngapConvert.AmfIdToNgap(operatorInfo.Guami.AmfID)
 					amfID := ngapConvert.AmfIdToModels(tmpReginID, fiveGSTMSI.AMFSetID.Value, fiveGSTMSI.AMFPointer.Value)
 
 					tmsi := hex.EncodeToString(fiveGSTMSI.FiveGTMSI.Value)
 
-					guti := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc + amfID + tmsi
+					guti := operatorInfo.Guami.PlmnID.Mcc + operatorInfo.Guami.PlmnID.Mnc + amfID + tmsi
 
 					if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); ok {
 						ranUe, err = ran.NewRanUe(rANUENGAPID.Value)
@@ -1438,21 +1438,21 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 
 		if fiveGSTMSI != nil {
 			ranUe.Log.Debug("Receive 5G-S-TMSI")
-			servedGuami, err := context.GetServedGuami(ctx)
+			operatorInfo, err := context.GetOperatorInfo(ctx)
 			if err != nil {
-				ranUe.Log.Error("Could not get served guami", zap.Error(err))
+				ranUe.Log.Error("Could not get operator info", zap.Error(err))
 				return
 			}
 
 			// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
 			// GUAMI := <MCC><MNC><AMF Region ID><AMF Set ID><AMF Pointer>
 			// 5G-GUTI := <GUAMI><5G-TMSI>
-			tmpReginID, _, _ := ngapConvert.AmfIdToNgap(servedGuami.AmfID)
+			tmpReginID, _, _ := ngapConvert.AmfIdToNgap(operatorInfo.Guami.AmfID)
 			amfID := ngapConvert.AmfIdToModels(tmpReginID, fiveGSTMSI.AMFSetID.Value, fiveGSTMSI.AMFPointer.Value)
 
 			tmsi := hex.EncodeToString(fiveGSTMSI.FiveGTMSI.Value)
 
-			guti := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc + amfID + tmsi
+			guti := operatorInfo.Guami.PlmnID.Mcc + operatorInfo.Guami.PlmnID.Mnc + amfID + tmsi
 
 			if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); !ok {
 				ranUe.Log.Warn("Unknown UE", zap.String("GUTI", guti))
@@ -3820,17 +3820,17 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, message
 		}
 	} else {
 		var found bool
-		supportTaiList, err := context.GetSupportTaiList(ctx)
+		operatorInfo, err := context.GetOperatorInfo(ctx)
 		if err != nil {
-			ran.Log.Error("Get Support Tai List Error", zap.Error(err))
+			ran.Log.Error("Could not get operator info", zap.Error(err))
 			cause.Present = ngapType.CausePresentMisc
 			cause.Misc = &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnspecified,
 			}
 			return
 		}
-		taiList := make([]models.Tai, len(supportTaiList))
-		copy(taiList, supportTaiList)
+		taiList := make([]models.Tai, len(operatorInfo.Tais))
+		copy(taiList, operatorInfo.Tais)
 		for i := range taiList {
 			tac, err := util.TACConfigToModels(taiList[i].Tac)
 			if err != nil {

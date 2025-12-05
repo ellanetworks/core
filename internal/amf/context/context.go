@@ -108,17 +108,17 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 }
 
 func (context *AMFContext) ReAllocateGutiToUe(ctx ctxt.Context, ue *AmfUe) {
-	servedGuami, err := GetServedGuami(ctx)
+	operatorInfo, err := GetOperatorInfo(ctx)
 	if err != nil {
-		logger.AmfLog.Error("Could not get served guami", zap.Error(err))
+		logger.AmfLog.Error("Could not get operator info", zap.Error(err))
 		return
 	}
 	ue.OldTmsi = ue.Tmsi
 	ue.Tmsi = context.TmsiAllocate()
-	plmnID := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc
+	plmnID := operatorInfo.Guami.PlmnID.Mcc + operatorInfo.Guami.PlmnID.Mnc
 	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
 	ue.OldGuti = ue.Guti
-	ue.Guti = plmnID + servedGuami.AmfID + tmsiStr
+	ue.Guti = plmnID + operatorInfo.Guami.AmfID + tmsiStr
 }
 
 func (context *AMFContext) FreeOldGuti(ue *AmfUe) {
@@ -132,14 +132,14 @@ func (context *AMFContext) AllocateRegistrationArea(ctx ctxt.Context, ue *AmfUe,
 		ue.RegistrationArea[anType] = nil
 	}
 
-	supportTaiList, err := GetSupportTaiList(ctx)
+	operatorInfo, err := GetOperatorInfo(ctx)
 	if err != nil {
 		logger.AmfLog.Error("Could not get supported TAI list", zap.Error(err))
 		return
 	}
 
-	taiList := make([]models.Tai, len(supportTaiList))
-	copy(taiList, supportTaiList)
+	taiList := make([]models.Tai, len(operatorInfo.Tais))
+	copy(taiList, operatorInfo.Tais)
 	for i := range taiList {
 		tmp, err := strconv.ParseUint(taiList[i].Tac, 10, 32)
 		if err != nil {
@@ -277,13 +277,13 @@ func (context *AMFContext) DeleteAmfRan(conn *sctp.SCTPConn) {
 }
 
 func (context *AMFContext) InPlmnSupport(ctx ctxt.Context, snssai models.Snssai) bool {
-	plmnSupportItem, err := GetSupportedPlmn(ctx)
+	operatorInfo, err := GetOperatorInfo(ctx)
 	if err != nil {
-		logger.AmfLog.Error("Could not get supported PLMN", zap.Error(err))
+		logger.AmfLog.Error("Could not get operator info", zap.Error(err))
 		return false
 	}
 
-	return reflect.DeepEqual(plmnSupportItem.SNssai, snssai)
+	return reflect.DeepEqual(operatorInfo.SupportedPLMN.SNssai, snssai)
 }
 
 // Looks up a UE by the provided GUTI.

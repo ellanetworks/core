@@ -26,12 +26,12 @@ func GetAndSetSubscriberData(ctx ctxt.Context, ue *context.AmfUe) error {
 }
 
 func GetAndSetSubscribedNSSAI(ctx ctxt.Context, ue *context.AmfUe) error {
-	plmn, err := context.GetSupportedPlmn(ctx)
+	operatorInfo, err := context.GetOperatorInfo(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get plmn: %s", err.Error())
+		return fmt.Errorf("failed to get operator info: %s", err.Error())
 	}
 
-	ue.SubscribedNssai = &plmn.SNssai
+	ue.SubscribedNssai = &operatorInfo.SupportedPLMN.SNssai
 
 	return nil
 }

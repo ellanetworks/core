@@ -874,17 +874,17 @@ func BuildInitialContextSetupRequest(
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	servedGuami, err := context.GetServedGuami(ctx)
+	operatorInfo, err := context.GetOperatorInfo(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("cannot get served guami: %+v", err)
+		return nil, fmt.Errorf("cannot get operator info: %+v", err)
 	}
 
-	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
+	ngapPlmnID, err := util.PlmnIDToNgap(*operatorInfo.Guami.PlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot convert PlmnID to ngap PlmnID: %+v", err)
 	}
 	*plmnID = *ngapPlmnID
-	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfID)
+	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(operatorInfo.Guami.AmfID)
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
@@ -1445,12 +1445,12 @@ func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Ca
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 
-	plmnSupport, err := context.GetSupportedPlmn(ctx)
+	operatorInfo, err := context.GetOperatorInfo(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error getting supported plmn: %s", err)
+		return nil, fmt.Errorf("error getting operator info: %s", err)
 	}
 
-	ngapSnssai, err := util.SNssaiToNgap(plmnSupport.SNssai)
+	ngapSnssai, err := util.SNssaiToNgap(operatorInfo.SupportedPLMN.SNssai)
 	if err != nil {
 		return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
 	}
@@ -1487,17 +1487,12 @@ func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Ca
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	servedGuami, err := context.GetServedGuami(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error getting served guami: %s", err)
-	}
-
-	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
+	ngapPlmnID, err := util.PlmnIDToNgap(*operatorInfo.Guami.PlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("error converting plmn id to ngap: %s", err)
 	}
 	*plmnID = *ngapPlmnID
-	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfID)
+	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(operatorInfo.Guami.AmfID)
 
 	handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
 
@@ -1641,12 +1636,12 @@ func BuildPathSwitchRequestAcknowledge(
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 
-	plmnSupport, err := context.GetSupportedPlmn(ctx)
+	operatorInfo, err := context.GetOperatorInfo(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error getting supported plmn: %s", err)
 	}
 
-	ngapSnssai, err := util.SNssaiToNgap(plmnSupport.SNssai)
+	ngapSnssai, err := util.SNssaiToNgap(operatorInfo.SupportedPLMN.SNssai)
 	if err != nil {
 		return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
 	}
