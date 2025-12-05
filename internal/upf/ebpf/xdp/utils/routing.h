@@ -91,6 +91,9 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 	int rc = bpf_fib_lookup(ctx->xdp_ctx, &fib_params, sizeof(fib_params),
 				flags);
 	switch (rc) {
+	case BPF_FIB_LKUP_RET_NO_NEIGH:
+		__builtin_memset(fib_params.dmac, 0xFF, 6);
+		// The fall-through is voluntary here
 	case BPF_FIB_LKUP_RET_SUCCESS:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: nexthop: %pI4",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr,
@@ -110,7 +113,6 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 	case BPF_FIB_LKUP_RET_NOT_FWDED:
 	case BPF_FIB_LKUP_RET_FWD_DISABLED:
 	case BPF_FIB_LKUP_RET_UNSUPP_LWT:
-	case BPF_FIB_LKUP_RET_NO_NEIGH:
 	case BPF_FIB_LKUP_RET_FRAG_NEEDED:
 	default:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
@@ -139,6 +141,9 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 	int rc = bpf_fib_lookup(ctx->xdp_ctx, &fib_params, sizeof(fib_params),
 				0 /*BPF_FIB_LOOKUP_OUTPUT*/);
 	switch (rc) {
+	case BPF_FIB_LKUP_RET_NO_NEIGH:
+		__builtin_memset(fib_params.dmac, 0xFF, 6);
+		// The fall-through is voluntary here
 	case BPF_FIB_LKUP_RET_SUCCESS:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: nexthop: %pI4",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, fib_params.ipv4_dst);
@@ -173,7 +178,6 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 	case BPF_FIB_LKUP_RET_NOT_FWDED:
 	case BPF_FIB_LKUP_RET_FWD_DISABLED:
 	case BPF_FIB_LKUP_RET_UNSUPP_LWT:
-	case BPF_FIB_LKUP_RET_NO_NEIGH:
 	case BPF_FIB_LKUP_RET_FRAG_NEEDED:
 	default:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
