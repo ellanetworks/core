@@ -197,7 +197,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				snssai = util.SnssaiToModels(ulNasTransport.SNSSAI)
 			} else {
 				if allowedNssai, ok := ue.AllowedNssai[anType]; ok {
-					snssai = *allowedNssai[0].AllowedSnssai
+					snssai = *allowedNssai.AllowedSnssai
 				} else {
 					return fmt.Errorf("allowed nssai is not found for access type: %s in UE context", anType)
 				}
@@ -567,7 +567,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.Capability5GMM = *ue.RegistrationRequest.Capability5GMM
 	}
 
-	if len(ue.AllowedNssai[anType]) == 0 {
+	if ue.AllowedNssai[anType] == nil {
 		err := gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMM5GSServicesNotAllowed, "")
 		if err != nil {
 			ue.GmmLog.Error("error sending registration reject", zap.Error(err))
@@ -1044,35 +1044,29 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		}
 
 		needSliceSelection := false
-		var newAllowed []models.AllowedSnssai
+		var newAllowed *models.AllowedSnssai
 
 		for _, requestedSnssai := range requestedNssai {
 			if ue.InSubscribedNssai(requestedSnssai.ServingSnssai) {
-				allowedSnssai := models.AllowedSnssai{
+				newAllowed = &models.AllowedSnssai{
 					AllowedSnssai: &models.Snssai{
 						Sst: requestedSnssai.ServingSnssai.Sst,
 						Sd:  requestedSnssai.ServingSnssai.Sd,
 					},
 					MappedHomeSnssai: requestedSnssai.HomeSnssai,
 				}
-				newAllowed = append(newAllowed, allowedSnssai)
 			} else {
 				needSliceSelection = true
 				break
 			}
 		}
+
 		ue.AllowedNssai[anType] = newAllowed
 
 		if needSliceSelection {
 			// Step 4
-			err := consumer.NSSelectionGetForRegistration(ue, requestedNssai)
-			if err != nil {
-				err := gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMProtocolErrorUnspecified, "")
-				if err != nil {
-					return fmt.Errorf("error sending registration reject: %v", err)
-				}
-				ue.GmmLog.Info("sent registration reject to UE")
-				return fmt.Errorf("failed to get network slice selection: %s", err)
+			ue.AllowedNssai[models.AccessType3GPPAccess] = &models.AllowedSnssai{
+				AllowedSnssai: ue.SubscribedNssai[0].SubscribedSnssai,
 			}
 
 			// Guillaume: I'm not sure if what we have here is the right thing to do
@@ -1093,15 +1087,14 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 	// if registration request has no requested nssai, or non of snssai in requested nssai is permitted by nssf
 	// then use ue subscribed snssai which is marked as default as allowed nssai
-	if len(ue.AllowedNssai[anType]) == 0 {
-		var newAllowed []models.AllowedSnssai
+	if ue.AllowedNssai[anType] == nil {
+		var newAllowed *models.AllowedSnssai
 		for _, snssai := range ue.SubscribedNssai {
 			if snssai.DefaultIndication {
 				if amfSelf.InPlmnSupport(ctx, *snssai.SubscribedSnssai) {
-					allowedSnssai := models.AllowedSnssai{
+					newAllowed = &models.AllowedSnssai{
 						AllowedSnssai: snssai.SubscribedSnssai,
 					}
-					newAllowed = append(newAllowed, allowedSnssai)
 				}
 			}
 		}

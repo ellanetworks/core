@@ -905,15 +905,14 @@ func BuildInitialContextSetupRequest(
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 
-	for _, allowedSnssai := range amfUe.AllowedNssai[anType] {
-		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
-		snssaiNgap, err := util.SNssaiToNgap(*allowedSnssai.AllowedSnssai)
-		if err != nil {
-			return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
-		}
-		allowedNSSAIItem.SNSSAI = snssaiNgap
-		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
+	snssaiNgap, err := util.SNssaiToNgap(*amfUe.AllowedNssai[anType].AllowedSnssai)
+	if err != nil {
+		return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
 	}
+
+	allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
+	allowedNSSAIItem.SNSSAI = snssaiNgap
+	allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
 
 	if len(allowedNSSAI.List) == 0 {
 		return nil, fmt.Errorf("allowed NSSAI list is empty")

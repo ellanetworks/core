@@ -504,16 +504,17 @@ func BuildRegistrationAccept(
 		registrationAccept.TAIList.SetPartialTrackingAreaIdentityList(taiListNas)
 	}
 
-	if len(ue.AllowedNssai[anType]) > 0 {
+	if ue.AllowedNssai[anType] != nil {
 		registrationAccept.AllowedNSSAI = nasType.NewAllowedNSSAI(nasMessage.RegistrationAcceptAllowedNSSAIType)
+
 		var buf []uint8
-		for _, allowedSnssai := range ue.AllowedNssai[anType] {
-			snssai, err := util.SnssaiToNas(*allowedSnssai.AllowedSnssai)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert SNSSAI to NAS: %s", err)
-			}
-			buf = append(buf, snssai...)
+
+		snssai, err := util.SnssaiToNas(*ue.AllowedNssai[anType].AllowedSnssai)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert SNSSAI to NAS: %s", err)
 		}
+
+		buf = append(buf, snssai...)
 		registrationAccept.AllowedNSSAI.SetLen(uint8(len(buf)))
 		registrationAccept.AllowedNSSAI.SetSNSSAIValue(buf)
 	}
@@ -568,13 +569,6 @@ func BuildRegistrationAccept(
 		}
 		registrationAccept.LADNInformation.SetLen(uint16(len(buf)))
 		registrationAccept.LADNInformation.SetLADND(buf)
-	}
-
-	if ue.NetworkSlicingSubscriptionChanged {
-		registrationAccept.NetworkSlicingIndication = nasType.NewNetworkSlicingIndication(nasMessage.RegistrationAcceptNetworkSlicingIndicationType)
-		registrationAccept.NetworkSlicingIndication.SetNSSCI(1)
-		registrationAccept.NetworkSlicingIndication.SetDCNI(0)
-		ue.NetworkSlicingSubscriptionChanged = false // reset the value
 	}
 
 	if anType == models.AccessType3GPPAccess && ue.AmPolicyAssociation != nil &&
@@ -656,18 +650,17 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 	}
 
 	if flags.NeedAllowedNSSAI {
-		if len(ue.AllowedNssai[anType]) > 0 {
-			configurationUpdateCommand.AllowedNSSAI = nasType.
-				NewAllowedNSSAI(nasMessage.ConfigurationUpdateCommandAllowedNSSAIType)
+		if ue.AllowedNssai[anType] != nil {
+			configurationUpdateCommand.AllowedNSSAI = nasType.NewAllowedNSSAI(nasMessage.ConfigurationUpdateCommandAllowedNSSAIType)
 
 			var buf []uint8
-			for _, allowedSnssai := range ue.AllowedNssai[anType] {
-				allowedSnssaiNas, err := util.SnssaiToNas(*allowedSnssai.AllowedSnssai)
-				if err != nil {
-					return nil, fmt.Errorf("failed to convert allowed SNSSAI to NAS: %v", err), false
-				}
-				buf = append(buf, allowedSnssaiNas...)
+
+			allowedSnssaiNas, err := util.SnssaiToNas(*ue.AllowedNssai[anType].AllowedSnssai)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert allowed SNSSAI to NAS: %v", err), false
 			}
+
+			buf = append(buf, allowedSnssaiNas...)
 			configurationUpdateCommand.AllowedNSSAI.SetLen(uint8(len(buf)))
 			configurationUpdateCommand.AllowedNSSAI.SetSNSSAIValue(buf)
 		} else {
@@ -699,18 +692,7 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 	// }
 
 	if flags.NeedRejectNSSAI {
-		if ue.NetworkSliceInfo != nil &&
-			(len(ue.NetworkSliceInfo.RejectedNssaiInPlmn) != 0 || len(ue.NetworkSliceInfo.RejectedNssaiInTa) != 0) {
-			rejectedNssaiNas, err := util.RejectedNssaiToNas(
-				ue.NetworkSliceInfo.RejectedNssaiInPlmn, ue.NetworkSliceInfo.RejectedNssaiInTa)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert rejected NSSAI to NAS: %v", err), false
-			}
-			configurationUpdateCommand.RejectedNSSAI = &rejectedNssaiNas
-			configurationUpdateCommand.RejectedNSSAI.SetIei(nasMessage.ConfigurationUpdateCommandRejectedNSSAIType)
-		} else {
-			ue.GmmLog.Warn("Require Rejected NSSAI, but got nothing.")
-		}
+		ue.GmmLog.Warn("Require Rejected NSSAI, but got nothing.")
 	}
 
 	if flags.NeedTaiList && anType == models.AccessType3GPPAccess {
