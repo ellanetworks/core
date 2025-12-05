@@ -70,7 +70,6 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 		MaxRetryTimes: 4,
 	}
 	self.DBInstance = dbInstance
-	self.LadnPool = make(map[string]*context.LADN)
 	self.Name = "amf"
 	self.RelativeCapacity = 0xff
 

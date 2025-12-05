@@ -606,8 +606,6 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 	amfSelf.AllocateRegistrationArea(ctx, ue, anType)
 	ue.GmmLog.Debug("use original GUTI", zap.String("guti", ue.Guti))
 
-	assignLadnInfo(ue, anType)
-
 	amfSelf.AddAmfUeToUePool(ue, ue.Supi)
 	ue.T3502Value = amfSelf.T3502Value
 	if anType == models.AccessType3GPPAccess {
@@ -907,7 +905,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 	}
 
 	amfSelf.AllocateRegistrationArea(ctx, ue, anType)
-	assignLadnInfo(ue, anType)
 
 	if ue.RanUe[anType].UeContextRequest {
 		if anType == models.AccessType3GPPAccess {
@@ -1061,48 +1058,6 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		ue.AllowedNssai[anType] = newAllowed
 	}
 	return nil
-}
-
-func assignLadnInfo(ue *context.AmfUe, accessType models.AccessType) {
-	amfSelf := context.AMFSelf()
-
-	ue.LadnInfo = nil
-	if ue.RegistrationRequest.LADNIndication != nil {
-		ue.LadnInfo = make([]context.LADN, 0)
-		// request for LADN information
-		if ue.RegistrationRequest.LADNIndication.GetLen() == 0 {
-			if ue.HasWildCardSubscribedDNN() {
-				for _, ladn := range amfSelf.LadnPool {
-					if ue.TaiListInRegistrationArea(ladn.TaiLists, accessType) {
-						ue.LadnInfo = append(ue.LadnInfo, *ladn)
-					}
-				}
-			} else {
-				if ladn, ok := amfSelf.LadnPool[ue.Dnn]; ok { // check if this dnn is a ladn
-					if ue.TaiListInRegistrationArea(ladn.TaiLists, accessType) {
-						ue.LadnInfo = append(ue.LadnInfo, *ladn)
-					}
-				}
-			}
-		} else {
-			requestedLadnList := nasConvert.LadnToModels(ue.RegistrationRequest.LADNIndication.GetLADNDNNValue())
-			for _, requestedLadn := range requestedLadnList {
-				if ladn, ok := amfSelf.LadnPool[requestedLadn]; ok {
-					if ue.TaiListInRegistrationArea(ladn.TaiLists, accessType) {
-						ue.LadnInfo = append(ue.LadnInfo, *ladn)
-					}
-				}
-			}
-		}
-	} else if ue.Dnn != "" {
-		if ue.Dnn != "*" {
-			if ladn, ok := amfSelf.LadnPool[ue.Dnn]; ok {
-				if ue.TaiListInRegistrationArea(ladn.TaiLists, accessType) {
-					ue.LadnInfo = append(ue.LadnInfo, *ladn)
-				}
-			}
-		}
-	}
 }
 
 func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.IdentityResponse) error {

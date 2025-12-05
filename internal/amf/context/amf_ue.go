@@ -138,7 +138,6 @@ type AmfUe struct {
 	IntegrityAlg             uint8
 	/* Registration Area */
 	RegistrationArea map[models.AccessType][]models.Tai
-	LadnInfo         []LADN
 	/* Network Slicing related context and Nssf */
 	AllowedNssai map[models.AccessType]*models.Snssai
 	/* T3513(Paging) */
@@ -316,10 +315,6 @@ func (ue *AmfUe) TaiListInRegistrationArea(taiList []models.Tai, accessType mode
 		}
 	}
 	return true
-}
-
-func (ue *AmfUe) HasWildCardSubscribedDNN() bool {
-	return ue.Dnn == "*"
 }
 
 func (ue *AmfUe) SecurityContextIsValid() bool {

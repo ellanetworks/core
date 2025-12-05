@@ -118,11 +118,7 @@ func SendUpdateSmContextActivateUpCnxState(
 	if smContext.AccessType() != accessType {
 		updateData.AnType = smContext.AccessType()
 	}
-	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
-		if context.InTaiList(ue.Tai, ladn.TaiLists) {
-			updateData.PresenceInLadn = models.PresenceStateInArea
-		}
-	}
+
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
 }
 
@@ -182,13 +178,7 @@ func SendUpdateSmContextXnHandover(
 	}
 	updateData.ToBeSwitched = true
 	updateData.UeLocation = &ue.Location
-	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
-		if context.InTaiList(ue.Tai, ladn.TaiLists) {
-			updateData.PresenceInLadn = models.PresenceStateInArea
-		} else {
-			updateData.PresenceInLadn = models.PresenceStateOutOfArea
-		}
-	}
+
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, N2SmInfo)
 }
 
@@ -265,13 +255,7 @@ func SendUpdateSmContextN2HandoverComplete(ctx ctxt.Context, ue *context.AmfUe, 
 			AmfID: guami.AmfID,
 		}
 	}
-	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
-		if context.InTaiList(ue.Tai, ladn.TaiLists) {
-			updateData.PresenceInLadn = models.PresenceStateInArea
-		} else {
-			updateData.PresenceInLadn = models.PresenceStateOutOfArea
-		}
-	}
+
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
 }
 

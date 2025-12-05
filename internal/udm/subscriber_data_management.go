@@ -39,21 +39,12 @@ func GetSubscriberData(ctx context.Context, ueID string) (*models.SubscriberData
 		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
 
-	operator, err := udmContext.DBInstance.GetOperator(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get operator: %v", err)
-	}
-
 	dataNetwork, err := udmContext.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
 	}
 
 	amData := &models.AccessAndMobilitySubscriptionData{
-		Snssai: &models.Snssai{
-			Sd:  operator.GetHexSd(),
-			Sst: operator.Sst,
-		},
 		SubscribedUeAmbr: &models.AmbrRm{
 			Downlink: policy.BitrateDownlink,
 			Uplink:   policy.BitrateUplink,

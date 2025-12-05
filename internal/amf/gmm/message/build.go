@@ -557,20 +557,6 @@ func BuildRegistrationAccept(
 		registrationAccept.PDUSessionReactivationResultErrorCause.Buffer = buf
 	}
 
-	if ue.LadnInfo != nil {
-		registrationAccept.LADNInformation = nasType.NewLADNInformation(nasMessage.RegistrationAcceptLADNInformationType)
-		buf := make([]uint8, 0)
-		for _, ladn := range ue.LadnInfo {
-			ladnNas, err := util.LadnToNas(ladn.Dnn, ladn.TaiLists)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert LADN to NAS: %s", err)
-			}
-			buf = append(buf, ladnNas...)
-		}
-		registrationAccept.LADNInformation.SetLen(uint16(len(buf)))
-		registrationAccept.LADNInformation.SetLADND(buf)
-	}
-
 	if anType == models.AccessType3GPPAccess && ue.AmPolicyAssociation != nil &&
 		ue.AmPolicyAssociation.ServAreaRes != nil {
 		registrationAccept.ServiceAreaList = nasType.NewServiceAreaList(nasMessage.RegistrationAcceptServiceAreaListType)
@@ -726,22 +712,7 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 	}
 
 	if flags.NeedLadnInformation && anType == models.AccessType3GPPAccess {
-		if len(ue.LadnInfo) > 0 {
-			configurationUpdateCommand.LADNInformation = nasType.
-				NewLADNInformation(nasMessage.ConfigurationUpdateCommandLADNInformationType)
-			var buf []uint8
-			for _, ladn := range ue.LadnInfo {
-				ladnNas, err := util.LadnToNas(ladn.Dnn, ladn.TaiLists)
-				if err != nil {
-					return nil, fmt.Errorf("failed to convert Ladn to NAS: %v", err), false
-				}
-				buf = append(buf, ladnNas...)
-			}
-			configurationUpdateCommand.LADNInformation.SetLen(uint16(len(buf)))
-			configurationUpdateCommand.LADNInformation.SetLADND(buf)
-		} else {
-			ue.GmmLog.Warn("Require LADN Information, but got nothing.")
-		}
+		ue.GmmLog.Warn("Require LADN Information, but got nothing.")
 	}
 
 	amfSelf := context.AMFSelf()

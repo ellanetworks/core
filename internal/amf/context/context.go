@@ -65,10 +65,9 @@ type TimerValue struct {
 
 type AMFContext struct {
 	DBInstance                      *db.Database
-	UePool                          sync.Map         // map[supi]*AmfUe
-	RanUePool                       sync.Map         // map[AmfUeNgapID]*RanUe
-	AmfRanPool                      sync.Map         // map[net.Conn]*AmfRan
-	LadnPool                        map[string]*LADN // dnn as key
+	UePool                          sync.Map // map[supi]*AmfUe
+	RanUePool                       sync.Map // map[AmfUeNgapID]*RanUe
+	AmfRanPool                      sync.Map // map[net.Conn]*AmfRan
 	RelativeCapacity                int64
 	Name                            string
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
