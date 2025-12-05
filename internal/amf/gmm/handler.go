@@ -423,6 +423,12 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	if len(mobileIdentity5GSContents) == 0 {
 		return errors.New("mobile identity 5GS is empty")
 	}
+
+	operatorInfo, err := context.GetOperatorInfo(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting operator info: %v", err)
+	}
+
 	ue.IdentityTypeUsedForRegistration = nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0])
 	switch ue.IdentityTypeUsedForRegistration { // get type of identity
 	case nasMessage.MobileIdentity5GSTypeNoIdentity:
@@ -438,11 +444,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.Guti = guti
 		ue.GmmLog.Debug("UE used GUTI identity for registration", zap.String("guti", guti))
 
-		operatorInfo, err := context.GetOperatorInfo(ctx)
-		if err != nil {
-			return fmt.Errorf("could not get operator info: %v", err)
-		}
-		if reflect.DeepEqual(guamiFromUeGuti, operatorInfo) {
+		if reflect.DeepEqual(guamiFromUeGuti, operatorInfo.Guami) {
 			ue.ServingAmfChanged = false
 		} else {
 			ue.GmmLog.Debug("Serving AMF has changed but 5G-Core is not supporting for now")
@@ -477,11 +479,6 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	ue.Tai = ue.RanUe[anType].Tai
 
 	// Check TAI
-	operatorInfo, err := context.GetOperatorInfo(ctx)
-	if err != nil {
-		return fmt.Errorf("error getting supported tai list: %v", err)
-	}
-
 	taiList := make([]models.Tai, len(operatorInfo.Tais))
 	copy(taiList, operatorInfo.Tais)
 	for i := range taiList {
