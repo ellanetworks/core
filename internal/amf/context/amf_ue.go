@@ -93,7 +93,6 @@ type AmfUe struct {
 	/* context about udm */
 	SubscriptionDataValid             bool
 	Dnn                               string
-	UeContextInSmfData                *models.UeContextInSmfData
 	TraceData                         *models.TraceData
 	SubscribedNssai                   *models.Snssai
 	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData

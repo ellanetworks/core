@@ -251,30 +251,11 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:
 			fallthrough
 		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
-			if ue.UeContextInSmfData != nil {
-				// TS 24.501 5.4.5.2.5 case a) 3)
-				pduSessionIDStr := fmt.Sprintf("%d", pduSessionID)
-				if ueContextInSmf, ok := ue.UeContextInSmfData.PduSessions[pduSessionIDStr]; !ok {
-					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
-					if err != nil {
-						return fmt.Errorf("error sending downlink nas transport: %s", err)
-					}
-					ue.GmmLog.Info("sent downlink nas transport to UE")
-				} else {
-					// TS 24.501 5.4.5.2.3 case a) 1) iv)
-					smContext = context.NewSmContext(pduSessionID)
-					smContext.SetAccessType(anType)
-					smContext.SetDnn(ueContextInSmf.Dnn)
-					ue.StoreSmContext(pduSessionID, smContext)
-					return forward5GSMMessageToSMF(ctx, ue, anType, pduSessionID, smContext, smMessage)
-				}
-			} else {
-				err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
-				if err != nil {
-					return fmt.Errorf("error sending downlink nas transport: %s", err)
-				}
-				ue.GmmLog.Info("sent downlink nas transport to UE")
+			err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+			if err != nil {
+				return fmt.Errorf("error sending downlink nas transport: %s", err)
 			}
+			ue.GmmLog.Info("sent downlink nas transport to UE")
 		default:
 		}
 	}
@@ -556,7 +537,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
 	if ue.SubscribedNssai == nil {
-		err := consumer.SDMGetSliceSelectionSubscriptionData(ctx, ue)
+		err := consumer.GetAndSetSubscribedNSSAI(ctx, ue)
 		if err != nil {
 			ue.GmmLog.Error("error getting slice selection subscription data", zap.Error(err))
 		}
@@ -593,7 +574,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 
 	if ue.ServingAmfChanged || ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) ||
 		!ue.SubscriptionDataValid {
-		if err := communicateWithUDM(ctx, ue); err != nil {
+		if err := getAndSetSubscriberData(ctx, ue); err != nil {
 			return err
 		}
 	}
@@ -679,7 +660,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
 	if ue.SubscribedNssai == nil {
-		err := consumer.SDMGetSliceSelectionSubscriptionData(ctx, ue)
+		err := consumer.GetAndSetSubscribedNSSAI(ctx, ue)
 		if err != nil {
 			ue.GmmLog.Error("error getting slice selection subscription data", zap.Error(err))
 		}
@@ -721,7 +702,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 
 	if ue.ServingAmfChanged || ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) ||
 		!ue.SubscriptionDataValid {
-		if err := communicateWithUDM(ctx, ue); err != nil {
+		if err := getAndSetSubscriberData(ctx, ue); err != nil {
 			return err
 		}
 	}
@@ -1012,23 +993,14 @@ func negotiateDRXParameters(ue *context.AmfUe, requestedDRXParameters *nasType.R
 	}
 }
 
-func communicateWithUDM(ctx ctxt.Context, ue *context.AmfUe) error {
-	err := consumer.SDMGetAmData(ctx, ue)
+func getAndSetSubscriberData(ctx ctxt.Context, ue *context.AmfUe) error {
+	err := consumer.GetAndSetSubscriberData(ctx, ue)
 	if err != nil {
-		return fmt.Errorf("error getting am data: %v", err)
-	}
-
-	err = consumer.SDMGetSmfSelectData(ctx, ue)
-	if err != nil {
-		return fmt.Errorf("error getting smf selection data: %v", err)
-	}
-
-	err = consumer.SDMGetUeContextInSmfData(ctx, ue)
-	if err != nil {
-		return fmt.Errorf("error getting ue context in smf data: %v", err)
+		return fmt.Errorf("error getting subscriber data: %v", err)
 	}
 
 	ue.SubscriptionDataValid = true
+
 	return nil
 }
 

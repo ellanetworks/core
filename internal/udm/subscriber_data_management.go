@@ -7,7 +7,6 @@ package udm
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel"
@@ -23,8 +22,8 @@ var AllowedSscModes = []string{
 	"SSC_MODE_3",
 }
 
-func GetAmData(ctx context.Context, ueID string) (*models.AccessAndMobilitySubscriptionData, error) {
-	ctx, span := tracer.Start(ctx, "UDM GetAmData")
+func GetSubscriberData(ctx context.Context, ueID string) (*models.SubscriberData, error) {
+	ctx, span := tracer.Start(ctx, "UDM GetSubscriberData")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", ueID),
@@ -45,6 +44,11 @@ func GetAmData(ctx context.Context, ueID string) (*models.AccessAndMobilitySubsc
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
 
+	dataNetwork, err := udmContext.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
+	}
+
 	amData := &models.AccessAndMobilitySubscriptionData{
 		Snssai: &models.Snssai{
 			Sd:  operator.GetHexSd(),
@@ -56,7 +60,12 @@ func GetAmData(ctx context.Context, ueID string) (*models.AccessAndMobilitySubsc
 		},
 	}
 
-	return amData, nil
+	subscriberData := &models.SubscriberData{
+		AccessAndMobilitySubscriptionData: amData,
+		Dnn:                               dataNetwork.Name,
+	}
+
+	return subscriberData, nil
 }
 
 func GetDnnConfig(ctx context.Context, ueID string) (*models.DnnConfiguration, error) {
@@ -118,51 +127,4 @@ func GetSnssai(ctx context.Context) (*models.Snssai, error) {
 	}
 
 	return snssai, nil
-}
-
-func GetDNN(ctx context.Context, ueID string) (string, error) {
-	ctx, span := tracer.Start(ctx, "UDM GetDNN")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.supi", ueID),
-	)
-
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ctx, ueID)
-	if err != nil {
-		return "", fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
-	}
-
-	policy, err := udmContext.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
-	if err != nil {
-		return "", fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
-	}
-
-	dataNetwork, err := udmContext.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
-	if err != nil {
-		return "", fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
-	}
-
-	return dataNetwork.Name, nil
-}
-
-func GetUeContextInSmfData(ctx context.Context, supi string) (*models.UeContextInSmfData, error) {
-	_, span := tracer.Start(ctx, "UDM GetUeContextInSmfData")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.supi", supi),
-	)
-
-	pdusess := []*models.SmfRegistration{}
-	pduSessionMap := make(map[string]models.PduSession)
-	for _, element := range pdusess {
-		var pduSession models.PduSession
-		pduSession.Dnn = element.Dnn
-		pduSession.SmfInstanceID = element.SmfInstanceID
-		pduSession.PlmnID = element.PlmnID
-		pduSessionMap[strconv.Itoa(int(element.PduSessionID))] = pduSession
-	}
-	var ueContextInSmfData models.UeContextInSmfData
-	ueContextInSmfData.PduSessions = pduSessionMap
-
-	return &ueContextInSmfData, nil
 }
