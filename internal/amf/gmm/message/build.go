@@ -481,14 +481,14 @@ func BuildRegistrationAccept(
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
 	}
 
-	plmnSupported, err := context.GetSupportedPlmn(ctx)
+	operatorInfo, err := context.GetOperatorInfo(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get supported PLMN: %s", err)
+		return nil, fmt.Errorf("failed to get operator info: %s", err)
 	}
 
 	registrationAccept.EquivalentPlmns = nasType.NewEquivalentPlmns(nasMessage.RegistrationAcceptEquivalentPlmnsType)
 	var buf []uint8
-	plmnID, err := util.PlmnIDToNas(plmnSupported.PlmnID)
+	plmnID, err := util.PlmnIDToNas(operatorInfo.SupportedPLMN.PlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert PLMN ID to NAS: %s", err)
 	}

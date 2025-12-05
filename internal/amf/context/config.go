@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -45,76 +46,64 @@ func ListAmfRan(page int, perPage int) (int, []AmfRan) {
 	return total, ranListPage
 }
 
-func GetSupportTaiList(ctx context.Context) ([]models.Tai, error) {
-	ctx, span := tracer.Start(ctx, "AMF GetSupportTaiList")
-	defer span.End()
-
-	amfSelf := AMFSelf()
-
-	dbNetwork, err := amfSelf.DBInstance.GetOperator(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get operator: %s", err)
-	}
-
-	tais := make([]models.Tai, 0)
-
-	supportedTacs := dbNetwork.GetSupportedTacs()
-
-	for _, tac := range supportedTacs {
-		tai := models.Tai{
-			PlmnID: &models.PlmnID{
-				Mcc: dbNetwork.Mcc,
-				Mnc: dbNetwork.Mnc,
-			},
-			Tac: tac,
-		}
-		tais = append(tais, tai)
-	}
-	return tais, nil
+type OperatorInfo struct {
+	Tais          []models.Tai
+	Guami         *models.Guami
+	SupportedPLMN *PlmnSupportItem
 }
 
-func GetServedGuami(ctx context.Context) (*models.Guami, error) {
-	ctx, span := tracer.Start(ctx, "AMF GetServedGuami")
-	defer span.End()
-
-	amfSelf := AMFSelf()
-
-	dbNetwork, err := amfSelf.DBInstance.GetOperator(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get operator: %s", err)
-	}
-
-	return &models.Guami{
-		PlmnID: &models.PlmnID{
-			Mcc: dbNetwork.Mcc,
-			Mnc: dbNetwork.Mnc,
-		},
-		AmfID: "cafe00", // To edit
-	}, nil
-}
-
-func GetSupportedPlmn(ctx context.Context) (*PlmnSupportItem, error) {
-	ctx, span := tracer.Start(ctx, "AMF GetSupportedPlmn")
+func GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
+	ctx, span := tracer.Start(ctx, "AMF GetOperatorInfo")
 	defer span.End()
 
 	amfSelf := AMFSelf()
 
 	operator, err := amfSelf.DBInstance.GetOperator(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get operator: %v", err)
+		return nil, fmt.Errorf("failed to get operator: %s", err)
 	}
 
-	plmnSupportItem := &PlmnSupportItem{
-		PlmnID: models.PlmnID{
-			Mcc: operator.Mcc,
-			Mnc: operator.Mnc,
+	operatorInfo := &OperatorInfo{
+		Tais: getSupportedTAIs(operator),
+		Guami: &models.Guami{
+			PlmnID: &models.PlmnID{
+				Mcc: operator.Mcc,
+				Mnc: operator.Mnc,
+			},
+			AmfID: "cafe00", // To edit
 		},
-		SNssai: models.Snssai{
-			Sst: operator.Sst,
-			Sd:  operator.GetHexSd(),
+		SupportedPLMN: &PlmnSupportItem{
+			PlmnID: models.PlmnID{
+				Mcc: operator.Mcc,
+				Mnc: operator.Mnc,
+			},
+			SNssai: models.Snssai{
+				Sst: operator.Sst,
+				Sd:  operator.GetHexSd(),
+			},
 		},
 	}
-	return plmnSupportItem, nil
+
+	return operatorInfo, nil
+}
+
+func getSupportedTAIs(operator *db.Operator) []models.Tai {
+	tais := make([]models.Tai, 0)
+
+	supportedTacs := operator.GetSupportedTacs()
+
+	for _, tac := range supportedTacs {
+		tai := models.Tai{
+			PlmnID: &models.PlmnID{
+				Mcc: operator.Mcc,
+				Mnc: operator.Mnc,
+			},
+			Tac: tac,
+		}
+		tais = append(tais, tai)
+	}
+
+	return tais
 }
 
 func GetSubscriberData(ctx context.Context, ueID string) (*models.AmbrRm, string, error) {

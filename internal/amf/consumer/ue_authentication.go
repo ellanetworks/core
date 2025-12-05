@@ -21,17 +21,17 @@ import (
 )
 
 func SendUEAuthenticationAuthenticateRequest(ctx ctxt.Context, ue *context.AmfUe, resynchronizationInfo *models.ResynchronizationInfo) (*models.UeAuthenticationCtx, error) {
-	servedGuami, err := context.GetServedGuami(ctx)
+	operatorInfo, err := context.GetOperatorInfo(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("could not get served guami: %v", err)
+		return nil, fmt.Errorf("could not get operator info: %v", err)
 	}
 
 	var plmnID *models.PlmnID
 	if ue.Tai.PlmnID != nil {
 		plmnID = ue.Tai.PlmnID
 	} else {
-		ue.GmmLog.Warn("Tai is not received from Serving Network", zap.String("mcc", servedGuami.PlmnID.Mcc), zap.String("mnc", servedGuami.PlmnID.Mnc))
-		plmnID = servedGuami.PlmnID
+		ue.GmmLog.Warn("Tai is not received from Serving Network", zap.String("mcc", operatorInfo.Guami.PlmnID.Mcc), zap.String("mnc", operatorInfo.Guami.PlmnID.Mnc))
+		plmnID = operatorInfo.Guami.PlmnID
 	}
 
 	var authInfo models.AuthenticationInfo
