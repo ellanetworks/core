@@ -159,8 +159,8 @@ func NasSendToRan(ue *context.AmfUe, accessType models.AccessType, packet []byte
 	return nil
 }
 
-func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan) error {
-	pkt, err := BuildNGSetupResponse(ctx)
+func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan, guami *models.Guami, plmnSupported *context.PlmnSupportItem) error {
+	pkt, err := BuildNGSetupResponse(ctx, guami, plmnSupported)
 	if err != nil {
 		return fmt.Errorf("error building NG Setup Response: %s", err.Error())
 	}

@@ -579,6 +579,12 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		}
 	}
 
+	operatorInfo, err := context.GetOperatorInfo(ctx)
+	if err != nil {
+		ran.Log.Error("Could not get operator info", zap.Error(err))
+		return
+	}
+
 	if len(ran.SupportedTAList) == 0 {
 		ran.Log.Warn("NG Setup failure: No supported TA exist in NG Setup request")
 		cause.Present = ngapType.CausePresentMisc
@@ -587,16 +593,9 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		}
 	} else {
 		var found bool
-		supportTaiList, err := context.GetSupportTaiList(ctx)
-		if err != nil {
-			ran.Log.Error("Could not get supported TAI list from Core", zap.Error(err))
-			cause.Present = ngapType.CausePresentMisc
-			cause.Misc = &ngapType.CauseMisc{
-				Value: ngapType.CauseMiscPresentUnspecified,
-			}
-		}
-		taiList := make([]models.Tai, len(supportTaiList))
-		copy(taiList, supportTaiList)
+
+		taiList := make([]models.Tai, len(operatorInfo.Tais))
+		copy(taiList, operatorInfo.Tais)
 		for i := range taiList {
 			tac, err := util.TACConfigToModels(taiList[i].Tac)
 			if err != nil {
@@ -623,7 +622,7 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 	}
 
 	if cause.Present == ngapType.CausePresentNothing {
-		err := ngap_message.SendNGSetupResponse(ctx, ran)
+		err := ngap_message.SendNGSetupResponse(ctx, ran, operatorInfo.Guami, operatorInfo.SupportedPLMN)
 		if err != nil {
 			ran.Log.Error("error sending NG Setup Response", zap.Error(err))
 			return

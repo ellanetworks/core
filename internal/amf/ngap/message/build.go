@@ -86,7 +86,7 @@ func BuildPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte,
 	return ngap.Encoder(pdu)
 }
 
-func BuildNGSetupResponse(ctx ctxt.Context) ([]byte, error) {
+func BuildNGSetupResponse(ctx ctxt.Context, guami *models.Guami, plmnSupported *context.PlmnSupportItem) ([]byte, error) {
 	amfSelf := context.AMFSelf()
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
@@ -120,11 +120,6 @@ func BuildNGSetupResponse(ctx ctxt.Context) ([]byte, error) {
 	ie.Value.ServedGUAMIList = new(ngapType.ServedGUAMIList)
 
 	servedGUAMIList := ie.Value.ServedGUAMIList
-
-	guami, err := context.GetServedGuami(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("could not get served guami: %v", err)
-	}
 
 	plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
 	if err != nil {
@@ -161,11 +156,6 @@ func BuildNGSetupResponse(ctx ctxt.Context) ([]byte, error) {
 	ie.Value.PLMNSupportList = new(ngapType.PLMNSupportList)
 
 	pLMNSupportList := ie.Value.PLMNSupportList
-
-	plmnSupported, err := context.GetSupportedPlmn(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get supported PLMN: %s", err)
-	}
 
 	pLMNSupportItem := ngapType.PLMNSupportItem{}
 	plmnID, err = util.PlmnIDToNgap(plmnSupported.PlmnID)
