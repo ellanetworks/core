@@ -172,9 +172,13 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 					}
 					ue.ProducerLog.Info("Sent NGAP pdu session resource setup request to UE")
 				} else {
+					operatorInfo, err := context.GetOperatorInfo(ctx)
+					if err != nil {
+						return nil, fmt.Errorf("error getting operator info: %v", err)
+					}
 					list := ngapType.PDUSessionResourceSetupListCxtReq{}
 					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&list, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
-					err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nil, &list, nil, nil, nil)
+					err = ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nil, &list, nil, nil, nil, operatorInfo.Guami)
 					if err != nil {
 						return nil, fmt.Errorf("send initial context setup request error: %v", err)
 					}

@@ -33,8 +33,8 @@ func SelectSmf(
 	return smContext
 }
 
-func SendCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (string, *models.PostSmContextsErrorResponse, error) {
-	smContextCreateData := buildCreateSmContextRequest(ctx, ue, smContext)
+func SendCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte, supportedGuami *models.Guami) (string, *models.PostSmContextsErrorResponse, error) {
+	smContextCreateData := buildCreateSmContextRequest(ue, smContext, supportedGuami)
 	postSmContextsRequest := models.PostSmContextsRequest{
 		JSONData:              &smContextCreateData,
 		BinaryDataN1SmMessage: nasPdu,
@@ -43,7 +43,7 @@ func SendCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *
 	return pdusession.CreateSmContext(ctx, postSmContextsRequest)
 }
 
-func buildCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext) (smContextCreateData models.SmContextCreateData) {
+func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, supportedGuami *models.Guami) (smContextCreateData models.SmContextCreateData) {
 	smContextCreateData.Supi = ue.Supi
 	smContextCreateData.Pei = ue.Pei
 	smContextCreateData.Gpsi = ue.Gpsi
@@ -54,17 +54,13 @@ func buildCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext 
 		Sd:  snssai.Sd,
 	}
 	smContextCreateData.Dnn = smContext.Dnn()
-	operatorInfo, err := context.GetOperatorInfo(ctx)
-	if err != nil {
-		ue.GmmLog.Error("Could not get operator info", zap.Error(err))
-		return smContextCreateData
-	}
+
 	smContextCreateData.Guami = &models.Guami{
 		PlmnID: &models.PlmnID{
-			Mcc: operatorInfo.Guami.PlmnID.Mcc,
-			Mnc: operatorInfo.Guami.PlmnID.Mnc,
+			Mcc: supportedGuami.PlmnID.Mcc,
+			Mnc: supportedGuami.PlmnID.Mnc,
 		},
-		AmfID: operatorInfo.Guami.AmfID,
+		AmfID: supportedGuami.AmfID,
 	}
 	// take seving networking plmn from userlocation.Tai
 	if ue.Tai.PlmnID != nil {
@@ -74,10 +70,10 @@ func buildCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext 
 		}
 	} else {
 		// ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc %v, Mnc: %v] is taken from Guami List", guamiList[0].PlmnID.Mcc, guamiList[0].PlmnID.Mnc)
-		ue.GmmLog.Warn("Tai is not received from Serving Network, Serving Plmn is taken from Guami List", zap.String("mcc", operatorInfo.Guami.PlmnID.Mcc), zap.String("mnc", operatorInfo.Guami.PlmnID.Mnc))
+		ue.GmmLog.Warn("Tai is not received from Serving Network, Serving Plmn is taken from Guami List", zap.String("mcc", supportedGuami.PlmnID.Mcc), zap.String("mnc", supportedGuami.PlmnID.Mnc))
 		smContextCreateData.ServingNetwork = &models.PlmnID{
-			Mcc: operatorInfo.Guami.PlmnID.Mcc,
-			Mnc: operatorInfo.Guami.PlmnID.Mnc,
+			Mcc: supportedGuami.PlmnID.Mcc,
+			Mnc: supportedGuami.PlmnID.Mnc,
 		}
 	}
 	smContextCreateData.N1SmMsg = new(models.RefToBinaryData)

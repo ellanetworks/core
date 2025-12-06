@@ -2981,7 +2981,12 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, message *nga
 			ranUe.Log.Error(err.Error())
 			return
 		}
-		err = ngap_message.SendPathSwitchRequestAcknowledge(ctx, ranUe, pduSessionResourceSwitchedList, pduSessionResourceReleasedListPSAck, false, nil, nil, nil)
+		operatorInfo, err := context.GetOperatorInfo(ctx)
+		if err != nil {
+			ranUe.Log.Error("Get Operator Info Error", zap.Error(err))
+			return
+		}
+		err = ngap_message.SendPathSwitchRequestAcknowledge(ctx, ranUe, pduSessionResourceSwitchedList, pduSessionResourceReleasedListPSAck, false, nil, nil, nil, operatorInfo.SupportedPLMN)
 		if err != nil {
 			ranUe.Log.Error("error sending path switch request acknowledge", zap.Error(err))
 			return
@@ -3471,7 +3476,11 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 			return
 		}
 		amfUe.UpdateNH()
-		err := ngap_message.SendHandoverRequest(ctx, sourceUe, targetRan, *cause, pduSessionReqList, *sourceToTargetTransparentContainer)
+		operatorInfo, err := context.GetOperatorInfo(ctx)
+		if err != nil {
+			sourceUe.Log.Error("Could not get operator info", zap.Error(err))
+		}
+		err = ngap_message.SendHandoverRequest(ctx, sourceUe, targetRan, *cause, pduSessionReqList, *sourceToTargetTransparentContainer, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 		if err != nil {
 			sourceUe.Log.Error("error sending handover request to target UE", zap.Error(err))
 			return

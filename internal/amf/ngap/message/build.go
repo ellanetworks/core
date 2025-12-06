@@ -766,6 +766,7 @@ func BuildInitialContextSetupRequest(
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
 	coreNetworkAssistanceInfo *ngapType.CoreNetworkAssistanceInformation,
 	emergencyFallbackIndicator *ngapType.EmergencyFallbackIndicator,
+	supportedGUAMI *models.Guami,
 ) ([]byte, error) {
 	// Old AMF: new amf should get old amf's amf name
 
@@ -874,17 +875,12 @@ func BuildInitialContextSetupRequest(
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	operatorInfo, err := context.GetOperatorInfo(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get operator info: %+v", err)
-	}
-
-	ngapPlmnID, err := util.PlmnIDToNgap(*operatorInfo.Guami.PlmnID)
+	ngapPlmnID, err := util.PlmnIDToNgap(*supportedGUAMI.PlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot convert PlmnID to ngap PlmnID: %+v", err)
 	}
 	*plmnID = *ngapPlmnID
-	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(operatorInfo.Guami.AmfID)
+	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(supportedGUAMI.AmfID)
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
@@ -1317,7 +1313,15 @@ a Nsmf_PDUSession_CreateSMContext Response(N2 SM Information (PDU Session ID, ca
 // sourceToTargetTransparentContainer is received from S-RAN
 // nsci: new security context indicator, if amfUe has updated security context,
 // set nsci to true, otherwise set to false
-func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer) ([]byte, error) {
+func BuildHandoverRequest(
+	ctx ctxt.Context,
+	ue *context.RanUe,
+	cause ngapType.Cause,
+	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
+	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer,
+	supportedPLMN *context.PlmnSupportItem,
+	supportedGUAMI *models.Guami,
+) ([]byte, error) {
 	amfUe := ue.AmfUe
 	if amfUe == nil {
 		return nil, fmt.Errorf("AmfUe is nil")
@@ -1445,12 +1449,7 @@ func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Ca
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 
-	operatorInfo, err := context.GetOperatorInfo(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error getting operator info: %s", err)
-	}
-
-	ngapSnssai, err := util.SNssaiToNgap(operatorInfo.SupportedPLMN.SNssai)
+	ngapSnssai, err := util.SNssaiToNgap(supportedPLMN.SNssai)
 	if err != nil {
 		return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
 	}
@@ -1487,12 +1486,12 @@ func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Ca
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	ngapPlmnID, err := util.PlmnIDToNgap(*operatorInfo.Guami.PlmnID)
+	ngapPlmnID, err := util.PlmnIDToNgap(*supportedGUAMI.PlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("error converting plmn id to ngap: %s", err)
 	}
 	*plmnID = *ngapPlmnID
-	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(operatorInfo.Guami.AmfID)
+	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(supportedGUAMI.AmfID)
 
 	handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
 
@@ -1517,6 +1516,7 @@ func BuildPathSwitchRequestAcknowledge(
 	coreNetworkAssistanceInformation *ngapType.CoreNetworkAssistanceInformation,
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
+	supportedPLMN *context.PlmnSupportItem,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
@@ -1636,12 +1636,7 @@ func BuildPathSwitchRequestAcknowledge(
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 
-	operatorInfo, err := context.GetOperatorInfo(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error getting supported plmn: %s", err)
-	}
-
-	ngapSnssai, err := util.SNssaiToNgap(operatorInfo.SupportedPLMN.SNssai)
+	ngapSnssai, err := util.SNssaiToNgap(supportedPLMN.SNssai)
 	if err != nil {
 		return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
 	}
