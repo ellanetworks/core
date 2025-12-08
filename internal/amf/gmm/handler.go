@@ -383,38 +383,6 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.T3565 = nil // clear the timer
 	}
 
-	// TO DELETE START
-	ue.RegistrationRequest = registrationRequest
-	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
-	regName := getRegistrationType5GSName(ue.RegistrationType5GS)
-	ue.GmmLog.Debug("Received Registration Request", zap.String("registrationType", regName), zap.Int64("procedureCode", procedureCode))
-	// TO DELETE END
-
-	// if ue.MacFailed {
-	// 	err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
-	// 	if err != nil {
-	// 		return fmt.Errorf("error sending registration reject: %v", err)
-	// 	}
-	// 	ue.GmmLog.Info("sent registration reject to UE")
-	// 	return fmt.Errorf("NAS message integrity check failed")
-	// }
-
-	// Send Authtication / Security Procedure not support
-	// Rejecting ServiceRequest if it is received in Deregistered State
-	if !ue.SecurityContextIsValid() && ue.RegistrationType5GS == nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
-		ue.GmmLog.Warn("Security context is not valid", zap.String("supi", ue.Supi))
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
-		if err != nil {
-			return fmt.Errorf("error sending registration reject: %v", err)
-		}
-		// ue.GmmLog.Info("sent registration reject")
-		// err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[anType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
-		// if err != nil {
-		// 	return fmt.Errorf("error sending ue context release command: %v", err)
-		// }
-		return nil
-	}
-
 	// TS 24.501 8.2.6.21: if the UE is sending a REGISTRATION REQUEST message as an initial NAS message,
 	// the UE has a valid 5G NAS security context and the UE needs to send non-cleartext IEs
 	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS message
@@ -422,16 +390,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	if registrationRequest.NASMessageContainer != nil {
 		contents := registrationRequest.NASMessageContainer.GetNASMessageContainerContents()
 
-		logger.AmfLog.Warn(
-			"TO DELETE: NAS Message Container",
-			zap.String("contents", hex.Dump(contents)),
-			zap.Int("CypheringAlg", int(ue.CipheringAlg)),
-		)
-
 		if !ue.SecurityContextIsValid() {
-			// ue.GmmLog.Warn("Security context is not valid, cannot process NAS message container")
-			// return errors.New("security context is not valid")
-			// send registration reject
 			err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
