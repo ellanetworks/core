@@ -62,10 +62,13 @@ func login(url string, client *http.Client, data *LoginParams) (int, *LoginRespo
 			panic(err)
 		}
 	}()
+
 	var loginResponse LoginResponse
+
 	if err := json.NewDecoder(res.Body).Decode(&loginResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &loginResponse, nil
 }
 
@@ -360,6 +363,48 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 
 		if response.Error != "Invalid token" {
 			t.Fatalf("expected error %q, got %q", "Invalid token", response.Error)
+		}
+	})
+}
+
+func TestRefreshAfterUserDeletion(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	adminToken, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	t.Run("1. Delete user", func(t *testing.T) {
+		statusCode, _, err := deleteUser(ts.URL, client, adminToken, FirstUserEmail)
+		if err != nil {
+			t.Fatalf("couldn't list users: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+	})
+
+	t.Run("2. Refresh", func(t *testing.T) {
+		statusCode, resp, err := refresh(ts.URL, client)
+		if err != nil {
+			t.Fatalf("couldn't refresh token: %s", err)
+		}
+
+		if statusCode != http.StatusUnauthorized {
+			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
+		}
+
+		if resp.Error != "Invalid session user" {
+			t.Fatalf("expected error %q, got %q", "Invalid session user", resp.Error)
 		}
 	})
 }
