@@ -93,17 +93,16 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 }
 
 func StmsiToGuti(ctx ctxt.Context, buf [7]byte) (string, error) {
-	servedGuami, err := context.GetServedGuami(ctx)
+	operatorInfo, err := context.GetOperatorInfo(ctx)
 	if err != nil {
-		return "", fmt.Errorf("could not get served guami: %v", err)
+		return "", fmt.Errorf("could not get operator info: %v", err)
 	}
 
-	tmpReginID := servedGuami.AmfID[:2]
+	tmpReginID := operatorInfo.Guami.AmfID[:2]
 	amfID := hex.EncodeToString(buf[1:3])
 	tmsi5G := hex.EncodeToString(buf[3:])
 
-	guti := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc + tmpReginID + amfID + tmsi5G
-
+	guti := operatorInfo.Guami.PlmnID.Mcc + operatorInfo.Guami.PlmnID.Mnc + tmpReginID + amfID + tmsi5G
 	return guti, nil
 }
 

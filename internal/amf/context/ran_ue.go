@@ -213,18 +213,18 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation 
 		ranUe.Location.N3gaLocation.UeIpv6Addr = ipv6Addr
 		ranUe.Location.N3gaLocation.PortNumber = ngapConvert.PortNumberToInt(port)
 
-		supportTaiList, err := GetSupportTaiList(ctx)
+		operatorInfo, err := GetOperatorInfo(ctx)
 		if err != nil {
 			logger.AmfLog.Error("Error getting supported TAI list", zap.Error(err))
 			return
 		}
-		tmp, err := strconv.ParseUint(supportTaiList[0].Tac, 10, 32)
+		tmp, err := strconv.ParseUint(operatorInfo.Tais[0].Tac, 10, 32)
 		if err != nil {
-			logger.AmfLog.Error("Error parsing TAC", zap.String("Tac", supportTaiList[0].Tac), zap.Error(err))
+			logger.AmfLog.Error("Error parsing TAC", zap.String("Tac", operatorInfo.Tais[0].Tac), zap.Error(err))
 		}
 		tac := fmt.Sprintf("%06x", tmp)
 		ranUe.Location.N3gaLocation.N3gppTai = &models.Tai{
-			PlmnID: supportTaiList[0].PlmnID,
+			PlmnID: operatorInfo.Tais[0].PlmnID,
 			Tac:    tac,
 		}
 		ranUe.Tai = *ranUe.Location.N3gaLocation.N3gppTai

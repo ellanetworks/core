@@ -219,7 +219,12 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 			newSmContext := consumer.SelectSmf(anType, pduSessionID, snssai, dnn)
 
-			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ctx, ue, newSmContext, smMessage)
+			operatorInfo, err := context.GetOperatorInfo(ctx)
+			if err != nil {
+				return fmt.Errorf("could not get operator info: %v", err)
+			}
+
+			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ctx, ue, newSmContext, smMessage, operatorInfo.Guami)
 			if err != nil {
 				ue.GmmLog.Error("couldn't send create sm context request", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
 			}
@@ -423,6 +428,12 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	if len(mobileIdentity5GSContents) == 0 {
 		return errors.New("mobile identity 5GS is empty")
 	}
+
+	operatorInfo, err := context.GetOperatorInfo(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting operator info: %v", err)
+	}
+
 	ue.IdentityTypeUsedForRegistration = nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0])
 	switch ue.IdentityTypeUsedForRegistration { // get type of identity
 	case nasMessage.MobileIdentity5GSTypeNoIdentity:
@@ -438,11 +449,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.Guti = guti
 		ue.GmmLog.Debug("UE used GUTI identity for registration", zap.String("guti", guti))
 
-		servedGuami, err := context.GetServedGuami(ctx)
-		if err != nil {
-			return fmt.Errorf("could not get served guami: %v", err)
-		}
-		if reflect.DeepEqual(guamiFromUeGuti, servedGuami) {
+		if reflect.DeepEqual(guamiFromUeGuti, operatorInfo.Guami) {
 			ue.ServingAmfChanged = false
 		} else {
 			ue.GmmLog.Debug("Serving AMF has changed but 5G-Core is not supporting for now")
@@ -477,13 +484,8 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	ue.Tai = ue.RanUe[anType].Tai
 
 	// Check TAI
-	supportTaiList, err := context.GetSupportTaiList(ctx)
-	if err != nil {
-		return fmt.Errorf("error getting supported tai list: %v", err)
-	}
-
-	taiList := make([]models.Tai, len(supportTaiList))
-	copy(taiList, supportTaiList)
+	taiList := make([]models.Tai, len(operatorInfo.Tais))
+	copy(taiList, operatorInfo.Tais)
 	for i := range taiList {
 		tac, err := util.TACConfigToModels(taiList[i].Tac)
 		if err != nil {
@@ -533,15 +535,17 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 	// update Kgnb/Kn3iwf
 	ue.UpdateSecurityContext(anType)
 
-	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
-	if ue.SubscribedNssai == nil {
-		err := consumer.GetAndSetSubscribedNSSAI(ctx, ue)
-		if err != nil {
-			ue.GmmLog.Error("error getting slice selection subscription data", zap.Error(err))
-		}
+	operatorInfo, err := context.GetOperatorInfo(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	if err := handleRequestedNssai(ctx, ue, anType); err != nil {
+	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
+	if ue.SubscribedNssai == nil {
+		ue.SubscribedNssai = &operatorInfo.SupportedPLMN.SNssai
+	}
+
+	if err := handleRequestedNssai(ctx, ue, anType, operatorInfo.SupportedPLMN); err != nil {
 		return err
 	}
 
@@ -577,7 +581,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 		}
 	}
 
-	err := consumer.AMPolicyControlCreate(ctx, ue, anType)
+	err = consumer.AMPolicyControlCreate(ctx, ue, anType)
 	if err != nil {
 		ue.GmmLog.Error("AM Policy Control Create Error", zap.Error(err))
 		err := gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMM5GSServicesNotAllowed, "")
@@ -601,7 +605,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 		}
 	}
 
-	amfSelf.AllocateRegistrationArea(ctx, ue, anType)
+	amfSelf.AllocateRegistrationArea(ctx, ue, anType, operatorInfo.Tais)
 	ue.GmmLog.Debug("use original GUTI", zap.String("guti", ue.Guti))
 
 	amfSelf.AddAmfUeToUePool(ue, ue.Supi)
@@ -612,12 +616,12 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.Non3gppDeregistrationTimerValue = amfSelf.Non3gppDeregistrationTimerValue
 	}
 
-	amfSelf.ReAllocateGutiToUe(ctx, ue)
+	amfSelf.ReAllocateGutiToUe(ctx, ue, operatorInfo.Guami)
 	// check in specs if we need to wait for confirmation before freeing old GUTI
 	amfSelf.FreeOldGuti(ue)
 
 	if anType == models.AccessType3GPPAccess {
-		err := gmm_message.SendRegistrationAccept(ctx, ue, anType, nil, nil, nil, nil, nil)
+		err := gmm_message.SendRegistrationAccept(ctx, ue, anType, nil, nil, nil, nil, nil, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 		if err != nil {
 			return fmt.Errorf("error sending GMM registration accept: %v", err)
 		}
@@ -625,12 +629,12 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 	} else {
 		// TS 23.502 4.12.2.2 10a ~ 13: if non-3gpp, AMF should send initial context setup request to N3IWF first,
 		// and send registration accept after receiving initial context setup response
-		err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nil, nil, nil, nil, nil)
+		err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nil, nil, nil, nil, nil, operatorInfo.Guami)
 		if err != nil {
 			return fmt.Errorf("error sending initial context setup request: %v", err)
 		}
 		ue.GmmLog.Info("Sent NGAP initial context setup request to N3IWF")
-		registrationAccept, err := gmm_message.BuildRegistrationAccept(ctx, ue, anType, nil, nil, nil, nil)
+		registrationAccept, err := gmm_message.BuildRegistrationAccept(ctx, ue, anType, nil, nil, nil, nil, operatorInfo.SupportedPLMN)
 		if err != nil {
 			ue.GmmLog.Error("Build Registration Accept", zap.Error(err))
 			return nil
@@ -654,15 +658,17 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		}
 	}
 
-	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
-	if ue.SubscribedNssai == nil {
-		err := consumer.GetAndSetSubscribedNSSAI(ctx, ue)
-		if err != nil {
-			ue.GmmLog.Error("error getting slice selection subscription data", zap.Error(err))
-		}
+	operatorInfo, err := context.GetOperatorInfo(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	if err := handleRequestedNssai(ctx, ue, anType); err != nil {
+	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
+	if ue.SubscribedNssai == nil {
+		ue.SubscribedNssai = &operatorInfo.SupportedPLMN.SNssai
+	}
+
+	if err := handleRequestedNssai(ctx, ue, anType, operatorInfo.SupportedPLMN); err != nil {
 		return err
 	}
 
@@ -782,7 +788,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		}
 	}
 
-	amfSelf.ReAllocateGutiToUe(ctx, ue)
+	amfSelf.ReAllocateGutiToUe(ctx, ue, operatorInfo.Guami)
 	// check in specs if we need to wait for confirmation before freeing old GUTI
 	amfSelf.FreeOldGuti(ue)
 
@@ -797,7 +803,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 			if n2Info == nil {
 				if len(suList.List) != 0 {
 					nasPdu, err := gmm_message.BuildRegistrationAccept(ctx, ue, anType, pduSessionStatus,
-						reactivationResult, errPduSessionID, errCause)
+						reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
 					if err != nil {
 						return err
 					}
@@ -807,7 +813,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 					}
 					ue.GmmLog.Info("Sent NGAP pdu session resource setup request")
 				} else {
-					err := gmm_message.SendRegistrationAccept(ctx, ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList)
+					err := gmm_message.SendRegistrationAccept(ctx, ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 					if err != nil {
 						return fmt.Errorf("error sending GMM registration accept: %v", err)
 					}
@@ -902,23 +908,23 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		ue.LocationChanged = false
 	}
 
-	amfSelf.AllocateRegistrationArea(ctx, ue, anType)
+	amfSelf.AllocateRegistrationArea(ctx, ue, anType, operatorInfo.Tais)
 
 	if ue.RanUe[anType].UeContextRequest {
 		if anType == models.AccessType3GPPAccess {
-			err := gmm_message.SendRegistrationAccept(ctx, ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList)
+			err := gmm_message.SendRegistrationAccept(ctx, ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 			if err != nil {
 				return fmt.Errorf("error sending GMM registration accept: %v", err)
 			}
 			ue.GmmLog.Info("Sent GMM registration accept")
 		} else {
-			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nil, &ctxList, nil, nil, nil)
+			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nil, &ctxList, nil, nil, nil, operatorInfo.Guami)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
 			ue.GmmLog.Info("Sent NGAP initial context setup request")
 			registrationAccept, err := gmm_message.BuildRegistrationAccept(ctx, ue, anType,
-				pduSessionStatus, reactivationResult, errPduSessionID, errCause)
+				pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
 			if err != nil {
 				ue.GmmLog.Error("Build Registration Accept", zap.Error(err))
 				return nil
@@ -927,7 +933,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		}
 		return nil
 	} else {
-		nasPdu, err := gmm_message.BuildRegistrationAccept(ctx, ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause)
+		nasPdu, err := gmm_message.BuildRegistrationAccept(ctx, ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
 		if err != nil {
 			return fmt.Errorf("error building registration accept: %v", err)
 		}
@@ -989,18 +995,20 @@ func negotiateDRXParameters(ue *context.AmfUe, requestedDRXParameters *nasType.R
 }
 
 func getAndSetSubscriberData(ctx ctxt.Context, ue *context.AmfUe) error {
-	err := consumer.GetAndSetSubscriberData(ctx, ue)
+	bitRate, dnn, err := context.GetSubscriberData(ctx, ue.Supi)
 	if err != nil {
-		return fmt.Errorf("error getting subscriber data: %v", err)
+		return fmt.Errorf("failed to get subscriber data: %v", err)
 	}
 
+	ue.Dnn = dnn
+	ue.Ambr = bitRate
 	ue.SubscriptionDataValid = true
 
 	return nil
 }
 
 // TS 23.502 4.2.2.2.3 Registration with AMF Re-allocation
-func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType) error {
+func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, supportedPLMN *context.PlmnSupportItem) error {
 	amfSelf := context.AMFSelf()
 
 	if ue.RegistrationRequest.RequestedNSSAI != nil {
@@ -1050,7 +1058,7 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	// then use ue subscribed snssai which is marked as default as allowed nssai
 	if ue.AllowedNssai[anType] == nil {
 		var newAllowed *models.Snssai
-		if amfSelf.InPlmnSupport(ctx, *ue.SubscribedNssai) {
+		if amfSelf.InPlmnSupport(ctx, *ue.SubscribedNssai, supportedPLMN) {
 			newAllowed = ue.SubscribedNssai
 		}
 		ue.AllowedNssai[anType] = newAllowed
@@ -1367,8 +1375,13 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		return nil
 	}
 
+	operatorInfo, err := context.GetOperatorInfo(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting operator info: %v", err)
+	}
+
 	if serviceType == nasMessage.ServiceTypeSignalling {
-		err := sendServiceAccept(ctx, ue, anType, ctxList, suList, nil, nil, nil, nil)
+		err := sendServiceAccept(ctx, ue, anType, ctxList, suList, nil, nil, nil, nil, operatorInfo.Guami)
 		return err
 	}
 	if ue.N1N2Message != nil {
@@ -1446,7 +1459,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			// Paging was triggered for downlink signaling only
 			if n2Info == nil && n1Msg != nil {
 				err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi,
-					reactivationResult, errPduSessionID, errCause)
+					reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 				if err != nil {
 					return err
 				}
@@ -1539,13 +1552,13 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 					}
 				}
 				ue.GmmLog.Debug("sending service accept")
-				err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause)
+				err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 				if err != nil {
 					return err
 				}
 			}
 		} else {
-			err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause)
+			err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 			if err != nil {
 				return err
 			}
@@ -1553,7 +1566,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		if ue.ConfigurationUpdateCommandFlags != nil {
 			// Allocate a new GUTI after successful network triggered Service Request
 			amfSelf := context.AMFSelf()
-			amfSelf.ReAllocateGutiToUe(ctx, ue)
+			amfSelf.ReAllocateGutiToUe(ctx, ue, operatorInfo.Guami)
 
 			gmm_message.SendConfigurationUpdateCommand(ue, anType)
 			ue.ConfigurationUpdateCommandFlags = nil
@@ -1578,13 +1591,13 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 					return nil
 				}
 			}
-			err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause)
+			err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 			if err != nil {
 				return err
 			}
 		} else {
 			err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi,
-				reactivationResult, errPduSessionID, errCause)
+				reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 			if err != nil {
 				return err
 			}
@@ -1601,7 +1614,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, ctxList ngapType.PDUSessionResourceSetupListCxtReq,
 	suList ngapType.PDUSessionResourceSetupListSUReq, pDUSessionStatus *[16]bool,
-	reactivationResult *[16]bool, errPduSessionID, errCause []uint8,
+	reactivationResult *[16]bool, errPduSessionID, errCause []uint8, supportedGUAMI *models.Guami,
 ) error {
 	if ue.RanUe[anType].UeContextRequest {
 		// update Kgnb/Kn3iwf
@@ -1613,13 +1626,13 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.Access
 			return err
 		}
 		if len(ctxList.List) != 0 {
-			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasPdu, &ctxList, nil, nil, nil)
+			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasPdu, &ctxList, nil, nil, nil, supportedGUAMI)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
 			ue.GmmLog.Info("sent service accept with context list", zap.Int("len", len(ctxList.List)))
 		} else {
-			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasPdu, nil, nil, nil, nil)
+			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasPdu, nil, nil, nil, nil, supportedGUAMI)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
