@@ -932,6 +932,10 @@ func BuildInitialContextSetupRequest(
 	ueSecurityCapabilities := ie.Value.UESecurityCapabilities
 	nrEncryptionAlgorighm := []byte{0x00, 0x00}
 
+	if amfUe.UESecurityCapability == nil {
+		return nil, fmt.Errorf("UE Security Capability is nil")
+	}
+
 	nrEncryptionAlgorighm[0] |= amfUe.UESecurityCapability.GetEA1_128_5G() << 7
 	nrEncryptionAlgorighm[0] |= amfUe.UESecurityCapability.GetEA2_128_5G() << 6
 	nrEncryptionAlgorighm[0] |= amfUe.UESecurityCapability.GetEA3_128_5G() << 5

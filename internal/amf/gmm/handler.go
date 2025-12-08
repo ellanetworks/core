@@ -550,7 +550,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	}
 
 	if registrationRequest.UESecurityCapability != nil {
-		ue.UESecurityCapability = *registrationRequest.UESecurityCapability
+		ue.UESecurityCapability = registrationRequest.UESecurityCapability
 	}
 
 	if ue.ServingAmfChanged {

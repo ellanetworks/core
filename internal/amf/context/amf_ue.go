@@ -123,7 +123,7 @@ type AmfUe struct {
 	UESpecificDRX                              uint8
 	/* Security Context */
 	SecurityContextAvailable bool
-	UESecurityCapability     nasType.UESecurityCapability // for security command
+	UESecurityCapability     *nasType.UESecurityCapability // for security command
 	NgKsi                    models.NgKsi
 	MacFailed                bool      // set to true if the integrity check of current NAS message is failed
 	KnasInt                  [16]uint8 // 16 byte
