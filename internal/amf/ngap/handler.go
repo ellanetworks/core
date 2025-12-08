@@ -628,7 +628,7 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 			return
 		}
 	} else {
-		err := ngap_message.SendNGSetupFailure(ran, cause)
+		err := ngap_message.SendNGSetupFailure(ctx, ran, cause)
 		if err != nil {
 			ran.Log.Error("error sending NG Setup Failure", zap.Error(err))
 			return
@@ -721,7 +721,7 @@ func HandleUplinkNasTransport(ctx ctxt.Context, ran *context.AmfRan, message *ng
 	}
 }
 
-func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
+func HandleNGReset(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var cause *ngapType.Cause
 	var resetType *ngapType.ResetType
 
@@ -769,7 +769,7 @@ func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		ran.Log.Debug("ResetType Present: NG Interface")
 		ran.RemoveAllUeInRan()
 		ran.Log.Debug("All UE Context in RAN have been removed")
-		err := ngap_message.SendNGResetAcknowledge(ran, nil)
+		err := ngap_message.SendNGResetAcknowledge(ctx, ran, nil)
 		if err != nil {
 			ran.Log.Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return
@@ -814,7 +814,7 @@ func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 				ran.Log.Error(err.Error())
 			}
 		}
-		err := ngap_message.SendNGResetAcknowledge(ran, partOfNGInterface)
+		err := ngap_message.SendNGResetAcknowledge(ctx, ran, partOfNGInterface)
 		if err != nil {
 			ran.Log.Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return
@@ -940,7 +940,7 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := ngap_message.SendErrorIndication(ran, nil, nil, &cause, nil)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -1359,7 +1359,7 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 				Value: ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState,
 			},
 		}
-		err := ngap_message.SendErrorIndication(ran, nil, nil, &cause, &criticalityDiagnostics)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, &cause, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -1412,7 +1412,7 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 		procedureCriticality := ngapType.CriticalityPresentIgnore
 		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage, &procedureCriticality,
 			&iesCriticalityDiagnostics)
-		err := ngap_message.SendErrorIndication(ran, nil, nil, nil, &criticalityDiagnostics)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -1618,7 +1618,7 @@ func HandlePDUSessionResourceSetupResponse(ctx ctxt.Context, ran *context.AmfRan
 	}
 }
 
-func BuildAndSendN1N2Msg(ranUe *context.RanUe, n1Msg, n2Info []byte, N2SmInfoType models.N2SmInfoType, pduSessID int32) {
+func BuildAndSendN1N2Msg(ctx ctxt.Context, ranUe *context.RanUe, n1Msg, n2Info []byte, N2SmInfoType models.N2SmInfoType, pduSessID int32) {
 	amfUe := ranUe.AmfUe
 	if n2Info != nil {
 		switch N2SmInfoType {
@@ -1636,7 +1636,7 @@ func BuildAndSendN1N2Msg(ranUe *context.RanUe, n1Msg, n2Info []byte, N2SmInfoTyp
 			}
 			list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 			ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessID, n2Info)
-			err := ngap_message.SendPDUSessionResourceReleaseCommand(ranUe, nasPdu, list)
+			err := ngap_message.SendPDUSessionResourceReleaseCommand(ctx, ranUe, nasPdu, list)
 			if err != nil {
 				ranUe.Log.Error("error sending pdu session resource release command", zap.Error(err))
 				return
@@ -1872,7 +1872,7 @@ func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, messa
 					}
 					list := ngapType.PDUSessionResourceModifyListModReq{}
 					ngap_message.AppendPDUSessionResourceModifyListModReq(&list, pduSessionID, nasPdu, n2Info)
-					err := ngap_message.SendPDUSessionResourceModifyRequest(ranUe, list)
+					err := ngap_message.SendPDUSessionResourceModifyRequest(ctx, ranUe, list)
 					if err != nil {
 						ranUe.Log.Error("error sending pdu session resource modify request", zap.Error(err))
 						return
@@ -1906,7 +1906,7 @@ func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, messa
 				responseData := response.JSONData
 				n2Info := response.BinaryDataN1SmMessage
 				n1Msg := response.BinaryDataN2SmInformation
-				BuildAndSendN1N2Msg(ranUe, n1Msg, n2Info, responseData.N2SmInfoType, pduSessionID)
+				BuildAndSendN1N2Msg(ctx, ranUe, n1Msg, n2Info, responseData.N2SmInfoType, pduSessionID)
 			} else if err != nil {
 				return
 			} else {
@@ -1944,7 +1944,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 				Value: ngapType.CauseProtocolPresentAbstractSyntaxErrorReject,
 			},
 		}
-		err := ngap_message.SendErrorIndication(ran, nil, nil, &cause, nil)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 		}
@@ -1960,7 +1960,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 				Value: ngapType.CauseProtocolPresentAbstractSyntaxErrorReject,
 			},
 		}
-		err := ngap_message.SendErrorIndication(ran, nil, nil, &cause, nil)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 		}
@@ -2003,7 +2003,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 		procedureCriticality := ngapType.CriticalityPresentReject
 		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage, &procedureCriticality,
 			&iesCriticalityDiagnostics)
-		err := ngap_message.SendErrorIndication(ran, nil, nil, nil, &criticalityDiagnostics)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -2021,7 +2021,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := ngap_message.SendErrorIndication(ran, nil, nil, &cause, nil)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -2061,7 +2061,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 		}
 	}
 
-	err := ngap_message.SendPDUSessionResourceModifyConfirm(ranUe, pduSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyListModCfm, nil)
+	err := ngap_message.SendPDUSessionResourceModifyConfirm(ctx, ranUe, pduSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyListModCfm, nil)
 	if err != nil {
 		ranUe.Log.Error("error sending pdu session resource modify confirm", zap.Error(err))
 		return
@@ -2192,7 +2192,7 @@ func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, me
 	}
 
 	if ranUe.Ran.AnType == models.AccessTypeNon3GPPAccess {
-		err := ngap_message.SendDownlinkNasTransport(ranUe, amfUe.RegistrationAcceptForNon3GPPAccess, nil)
+		err := ngap_message.SendDownlinkNasTransport(ctx, ranUe, amfUe.RegistrationAcceptForNon3GPPAccess, nil)
 		if err != nil {
 			ranUe.Log.Error("error sending downlink nas transport", zap.Error(err))
 			return
@@ -2367,7 +2367,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := ngap_message.SendErrorIndication(ran, nil, nil, cause, nil)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -2443,7 +2443,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 				}
 				return true
 			})
-			err := ngap_message.SendUEContextReleaseCommand(ranUe, context.UeContextReleaseUeContext, causeGroup, causeValue)
+			err := ngap_message.SendUEContextReleaseCommand(ctx, ranUe, context.UeContextReleaseUeContext, causeGroup, causeValue)
 			if err != nil {
 				ranUe.Log.Error("error sending ue context release command", zap.Error(err))
 				return
@@ -2452,7 +2452,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 		}
 	}
 
-	err = ngap_message.SendUEContextReleaseCommand(ranUe, context.UeContextN2NormalRelease, causeGroup, causeValue)
+	err = ngap_message.SendUEContextReleaseCommand(ctx, ranUe, context.UeContextN2NormalRelease, causeGroup, causeValue)
 	if err != nil {
 		ranUe.Log.Error("error sending ue context release command", zap.Error(err))
 		return
@@ -2761,7 +2761,7 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := ngap_message.SendErrorIndication(ran, nil, nil, &cause, nil)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -2794,7 +2794,7 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 			}
 		}
 		amfUe.AttachRanUe(targetUe)
-		err := ngap_message.SendUEContextReleaseCommand(sourceUe, context.UeContextReleaseHandover, ngapType.CausePresentNas,
+		err := ngap_message.SendUEContextReleaseCommand(ctx, sourceUe, context.UeContextReleaseHandover, ngapType.CausePresentNas,
 			ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			ran.Log.Error("error sending ue context release command", zap.Error(err))
@@ -2870,7 +2870,7 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, message *nga
 	ranUe = context.AMFSelf().RanUeFindByAmfUeNgapID(sourceAMFUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", sourceAMFUENGAPID.Value))
-		err := ngap_message.SendPathSwitchRequestFailure(ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
+		err := ngap_message.SendPathSwitchRequestFailure(ctx, ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
 			ran.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
@@ -2885,7 +2885,7 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, message *nga
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
 		ranUe.Log.Error("AmfUe is nil")
-		err := ngap_message.SendPathSwitchRequestFailure(ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
+		err := ngap_message.SendPathSwitchRequestFailure(ctx, ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
 			ranUe.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
@@ -2899,7 +2899,7 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, message *nga
 		amfUe.UpdateNH()
 	} else {
 		ranUe.Log.Error("No Security Context", zap.String("supi", amfUe.Supi))
-		err := ngap_message.SendPathSwitchRequestFailure(ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
+		err := ngap_message.SendPathSwitchRequestFailure(ctx, ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
 			ranUe.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
@@ -2993,14 +2993,14 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, message *nga
 		}
 		ranUe.Log.Info("sent path switch request acknowledge")
 	} else if len(pduSessionResourceReleasedListPSFail.List) > 0 {
-		err := ngap_message.SendPathSwitchRequestFailure(ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, &pduSessionResourceReleasedListPSFail, nil)
+		err := ngap_message.SendPathSwitchRequestFailure(ctx, ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, &pduSessionResourceReleasedListPSFail, nil)
 		if err != nil {
 			ranUe.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
 		}
 		ranUe.Log.Info("sent path switch request failure")
 	} else {
-		err := ngap_message.SendPathSwitchRequestFailure(ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
+		err := ngap_message.SendPathSwitchRequestFailure(ctx, ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
 			ranUe.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
@@ -3068,7 +3068,7 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, mes
 		procedureCriticality := ngapType.CriticalityPresentReject
 		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage,
 			&procedureCriticality, &iesCriticalityDiagnostics)
-		err := ngap_message.SendErrorIndication(ran, nil, nil, nil, &criticalityDiagnostics)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -3154,14 +3154,14 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, mes
 					Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
 				},
 			}
-			err := ngap_message.SendHandoverPreparationFailure(sourceUe, *cause, nil)
+			err := ngap_message.SendHandoverPreparationFailure(ctx, sourceUe, *cause, nil)
 			if err != nil {
 				ran.Log.Error("error sending handover preparation failure", zap.Error(err))
 			}
 			ran.Log.Info("sent handover preparation failure to source UE")
 			return
 		}
-		err := ngap_message.SendHandoverCommand(sourceUe, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, *targetToSourceTransparentContainer, nil)
+		err := ngap_message.SendHandoverCommand(ctx, sourceUe, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, *targetToSourceTransparentContainer, nil)
 		if err != nil {
 			ran.Log.Error("error sending handover command to source UE", zap.Error(err))
 		}
@@ -3234,7 +3234,7 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := ngap_message.SendErrorIndication(ran, nil, nil, &cause, nil)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -3266,7 +3266,7 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 				return true
 			})
 		}
-		err := ngap_message.SendHandoverPreparationFailure(sourceUe, *cause, criticalityDiagnostics)
+		err := ngap_message.SendHandoverPreparationFailure(ctx, sourceUe, *cause, criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending handover preparation failure", zap.Error(err))
 			return
@@ -3274,7 +3274,7 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 		ran.Log.Info("sent handover preparation failure to source UE")
 	}
 
-	err = ngap_message.SendUEContextReleaseCommand(targetUe, context.UeContextReleaseHandover, causePresent, causeValue)
+	err = ngap_message.SendUEContextReleaseCommand(ctx, targetUe, context.UeContextReleaseHandover, causePresent, causeValue)
 	if err != nil {
 		ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		return
@@ -3370,7 +3370,7 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 		procedureCriticality := ngapType.CriticalityPresentReject
 		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage,
 			&procedureCriticality, &iesCriticalityDiagnostics)
-		err := ngap_message.SendErrorIndication(ran, nil, nil, nil, &criticalityDiagnostics)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -3388,7 +3388,7 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := ngap_message.SendErrorIndication(ran, nil, nil, &cause, nil)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err), zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
 			return
@@ -3417,7 +3417,7 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 				Value: ngapType.CauseNasPresentAuthenticationFailure,
 			},
 		}
-		err := ngap_message.SendHandoverPreparationFailure(sourceUe, *cause, nil)
+		err := ngap_message.SendHandoverPreparationFailure(ctx, sourceUe, *cause, nil)
 		if err != nil {
 			sourceUe.Log.Error("error sending handover preparation failure", zap.Error(err))
 			return
@@ -3467,7 +3467,7 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 					Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
 				},
 			}
-			err := ngap_message.SendHandoverPreparationFailure(sourceUe, *cause, nil)
+			err := ngap_message.SendHandoverPreparationFailure(ctx, sourceUe, *cause, nil)
 			if err != nil {
 				sourceUe.Log.Error("error sending handover preparation failure", zap.Error(err))
 				return
@@ -3548,7 +3548,7 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := ngap_message.SendErrorIndication(ran, nil, nil, &cause, nil)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err), zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
 			return
@@ -3596,12 +3596,12 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 				return true
 			})
 		}
-		err := ngap_message.SendUEContextReleaseCommand(targetUe, context.UeContextReleaseHandover, causePresent, causeValue)
+		err := ngap_message.SendUEContextReleaseCommand(ctx, targetUe, context.UeContextReleaseHandover, causePresent, causeValue)
 		if err != nil {
 			ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
 			return
 		}
-		err = ngap_message.SendHandoverCancelAcknowledge(sourceUe, nil)
+		err = ngap_message.SendHandoverCancelAcknowledge(ctx, sourceUe, nil)
 		if err != nil {
 			ran.Log.Error("error sending handover cancel acknowledge to source UE", zap.Error(err))
 			return
@@ -3865,13 +3865,13 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, message
 	}
 
 	if cause.Present == ngapType.CausePresentNothing {
-		err := ngap_message.SendRanConfigurationUpdateAcknowledge(ran, nil)
+		err := ngap_message.SendRanConfigurationUpdateAcknowledge(ctx, ran, nil)
 		if err != nil {
 			ran.Log.Error("error sending ran configuration update acknowledge", zap.Error(err))
 		}
 		ran.Log.Info("sent ran configuration update acknowledge to target ran", zap.Any("RAN ID", ran.RanID))
 	} else {
-		err := ngap_message.SendRanConfigurationUpdateFailure(ran, cause, nil)
+		err := ngap_message.SendRanConfigurationUpdateFailure(ctx, ran, cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending ran configuration update failure", zap.Error(err))
 		}
@@ -3879,7 +3879,7 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, message
 	}
 }
 
-func HandleUplinkRanConfigurationTransfer(ran *context.AmfRan, message *ngapType.NGAPPDU) {
+func HandleUplinkRanConfigurationTransfer(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var sONConfigurationTransferUL *ngapType.SONConfigurationTransfer
 
 	if ran == nil {
@@ -3927,7 +3927,7 @@ func HandleUplinkRanConfigurationTransfer(ran *context.AmfRan, message *ngapType
 			return
 		}
 
-		err := ngap_message.SendDownlinkRanConfigurationTransfer(targetRan, sONConfigurationTransferUL)
+		err := ngap_message.SendDownlinkRanConfigurationTransfer(ctx, targetRan, sONConfigurationTransferUL)
 		if err != nil {
 			ran.Log.Error("error sending downlink ran configuration transfer", zap.Error(err))
 		}
@@ -4138,7 +4138,7 @@ func HandleLocationReport(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		}
 
 	case ngapType.EventTypePresentStopChangeOfServeCell:
-		err := ngap_message.SendLocationReportingControl(ranUe, nil, 0, locationReportingRequestType.EventType)
+		err := ngap_message.SendLocationReportingControl(ctx, ranUe, nil, 0, locationReportingRequestType.EventType)
 		if err != nil {
 			ranUe.Log.Error("error sending location reporting control", zap.Error(err))
 		}
@@ -4390,7 +4390,7 @@ func HandleErrorIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	}
 }
 
-func HandleCellTrafficTrace(ran *context.AmfRan, message *ngapType.NGAPPDU) {
+func HandleCellTrafficTrace(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var aMFUENGAPID *ngapType.AMFUENGAPID
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var nGRANTraceID *ngapType.NGRANTraceID
@@ -4453,7 +4453,7 @@ func HandleCellTrafficTrace(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		procedureCriticality := ngapType.CriticalityPresentIgnore
 		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage, &procedureCriticality,
 			&iesCriticalityDiagnostics)
-		err := ngap_message.SendErrorIndication(ran, nil, nil, nil, &criticalityDiagnostics)
+		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -4472,7 +4472,7 @@ func HandleCellTrafficTrace(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 					Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 				},
 			}
-			err := ngap_message.SendErrorIndication(ran, nil, nil, &cause, nil)
+			err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
 			if err != nil {
 				ran.Log.Error("error sending error indication", zap.Error(err))
 				return

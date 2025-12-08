@@ -143,7 +143,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 			}
 			if n2Info == nil {
 				ue.ProducerLog.Debug("Forward N1 Message to UE")
-				err := ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasPdu, nil)
+				err := ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe[anType], nasPdu, nil)
 				if err != nil {
 					return nil, fmt.Errorf("send downlink nas transport error: %v", err)
 				}
@@ -166,7 +166,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 				if ue.RanUe[anType].SentInitialContextSetupRequest {
 					list := ngapType.PDUSessionResourceSetupListSUReq{}
 					ngap_message.AppendPDUSessionResourceSetupListSUReq(&list, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
-					err := ngap_message.SendPDUSessionResourceSetupRequest(ue.RanUe[anType], nil, list)
+					err := ngap_message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe[anType], nil, list)
 					if err != nil {
 						return nil, fmt.Errorf("send pdu session resource setup request error: %v", err)
 					}
@@ -193,7 +193,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 				ue.ProducerLog.Debug("AMF Transfer NGAP PDU Session Resource Modify Request from SMF")
 				list := ngapType.PDUSessionResourceModifyListModReq{}
 				ngap_message.AppendPDUSessionResourceModifyListModReq(&list, smInfo.PduSessionID, nasPdu, n2Info)
-				err := ngap_message.SendPDUSessionResourceModifyRequest(ue.RanUe[anType], list)
+				err := ngap_message.SendPDUSessionResourceModifyRequest(ctx, ue.RanUe[anType], list)
 				if err != nil {
 					return nil, fmt.Errorf("send pdu session resource modify request error: %v", err)
 				}
@@ -206,7 +206,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 				ue.ProducerLog.Debug("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 				list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 				ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, smInfo.PduSessionID, n2Info)
-				err := ngap_message.SendPDUSessionResourceReleaseCommand(ue.RanUe[anType], nasPdu, list)
+				err := ngap_message.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe[anType], nasPdu, list)
 				if err != nil {
 					return nil, fmt.Errorf("send pdu session resource release command error: %v", err)
 				}
@@ -261,7 +261,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 			if err != nil {
 				return n1n2MessageTransferRspData, fmt.Errorf("build paging error: %v", err)
 			}
-			err = ngap_message.SendPaging(ue, pkg)
+			err = ngap_message.SendPaging(ctx, ue, pkg)
 			if err != nil {
 				return n1n2MessageTransferRspData, fmt.Errorf("send paging error: %v", err)
 			}
@@ -273,7 +273,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 		if ue.CmConnect(models.AccessType3GPPAccess) {
 			if n2Info == nil {
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseN1N2TransferInitiated
-				err := gmm_message.SendDLNASTransport(ue.RanUe[models.AccessType3GPPAccess], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
+				err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[models.AccessType3GPPAccess], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 				if err != nil {
 					return n1n2MessageTransferRspData, fmt.Errorf("error sending downlink nas transport: %v", err)
 				}
@@ -288,7 +288,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 				if err != nil {
 					return n1n2MessageTransferRspData, fmt.Errorf("build notification error: %v", err)
 				}
-				err = gmm_message.SendNotification(ue.RanUe[models.AccessType3GPPAccess], nasMsg)
+				err = gmm_message.SendNotification(ctx, ue.RanUe[models.AccessType3GPPAccess], nasMsg)
 				if err != nil {
 					return n1n2MessageTransferRspData, fmt.Errorf("send notification error: %v", err)
 				}
@@ -317,7 +317,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 			if err != nil {
 				return n1n2MessageTransferRspData, fmt.Errorf("build paging error: %v", err)
 			}
-			err = ngap_message.SendPaging(ue, pkg)
+			err = ngap_message.SendPaging(ctx, ue, pkg)
 			if err != nil {
 				return n1n2MessageTransferRspData, fmt.Errorf("send paging error: %v", err)
 			}
