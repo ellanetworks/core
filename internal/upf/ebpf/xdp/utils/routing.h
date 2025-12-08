@@ -101,7 +101,7 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 	switch (rc) {
 	case BPF_FIB_LKUP_RET_NO_NEIGH:
 		__builtin_memset(fib_params.dmac, 0xFF, 6);
-		__be32 daddr = ctx->ip4->daddr;
+		__be32 daddr = fib_params.ipv4_dst;
 		bpf_ringbuf_output(&no_neigh_map, &daddr, sizeof(daddr), 0);
 		// The fall-through is voluntary here
 	case BPF_FIB_LKUP_RET_SUCCESS:
@@ -154,7 +154,7 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 	case BPF_FIB_LKUP_RET_NO_NEIGH:
 		__builtin_memset(fib_params.dmac, 0xFF, 6);
 		struct in6_addr daddr = {};
-		__builtin_memcpy(&daddr, &ctx->ip6->daddr, sizeof(daddr));
+		__builtin_memcpy(&daddr, &fib_params.ipv6_dst, sizeof(daddr));
 		bpf_ringbuf_output(&no_neigh_map, &daddr, sizeof(daddr), 0);
 		// The fall-through is voluntary here
 	case BPF_FIB_LKUP_RET_SUCCESS:
