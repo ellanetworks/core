@@ -390,13 +390,29 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	ue.GmmLog.Debug("Received Registration Request", zap.String("registrationType", regName), zap.Int64("procedureCode", procedureCode))
 	// TO DELETE END
 
-	if ue.MacFailed {
+	// if ue.MacFailed {
+	// 	err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
+	// 	if err != nil {
+	// 		return fmt.Errorf("error sending registration reject: %v", err)
+	// 	}
+	// 	ue.GmmLog.Info("sent registration reject to UE")
+	// 	return fmt.Errorf("NAS message integrity check failed")
+	// }
+
+	// Send Authtication / Security Procedure not support
+	// Rejecting ServiceRequest if it is received in Deregistered State
+	if !ue.SecurityContextIsValid() || ue.State[anType].Current() == context.Deregistered {
+		ue.GmmLog.Warn("Security context is not valid", zap.String("supi", ue.Supi))
 		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
-		ue.GmmLog.Info("sent registration reject to UE")
-		return fmt.Errorf("NAS message integrity check failed")
+		ue.GmmLog.Info("sent registration reject")
+		err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[anType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		if err != nil {
+			return fmt.Errorf("error sending ue context release command: %v", err)
+		}
+		return nil
 	}
 
 	// TS 24.501 8.2.6.21: if the UE is sending a REGISTRATION REQUEST message as an initial NAS message,
