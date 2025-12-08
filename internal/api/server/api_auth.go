@@ -102,6 +102,11 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 			return
 		}
 
+		if user == nil {
+			writeError(w, http.StatusUnauthorized, "Invalid session user", errors.New("invalid session user"), logger.APILog)
+			return
+		}
+
 		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
