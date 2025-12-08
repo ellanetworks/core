@@ -428,6 +428,18 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 			zap.Int("CypheringAlg", int(ue.CipheringAlg)),
 		)
 
+		if !ue.SecurityContextIsValid() {
+			// ue.GmmLog.Warn("Security context is not valid, cannot process NAS message container")
+			// return errors.New("security context is not valid")
+			// send registration reject
+			err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
+			if err != nil {
+				return fmt.Errorf("error sending registration reject: %v", err)
+			}
+			ue.GmmLog.Info("sent registration reject to UE")
+			return fmt.Errorf("security context is not valid")
+		}
+
 		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
 		// message container IE, the UE shall set the security header type of the initial NAS message to
 		// "integrity protected"; then the AMF shall decipher the value part of the NAS message container IE
