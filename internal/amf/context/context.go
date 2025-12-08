@@ -107,18 +107,13 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 	return val, nil
 }
 
-func (context *AMFContext) ReAllocateGutiToUe(ctx ctxt.Context, ue *AmfUe) {
-	servedGuami, err := GetServedGuami(ctx)
-	if err != nil {
-		logger.AmfLog.Error("Could not get served guami", zap.Error(err))
-		return
-	}
+func (context *AMFContext) ReAllocateGutiToUe(ctx ctxt.Context, ue *AmfUe, supportedGuami *models.Guami) {
 	ue.OldTmsi = ue.Tmsi
 	ue.Tmsi = context.TmsiAllocate()
-	plmnID := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc
+	plmnID := supportedGuami.PlmnID.Mcc + supportedGuami.PlmnID.Mnc
 	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
 	ue.OldGuti = ue.Guti
-	ue.Guti = plmnID + servedGuami.AmfID + tmsiStr
+	ue.Guti = plmnID + supportedGuami.AmfID + tmsiStr
 }
 
 func (context *AMFContext) FreeOldGuti(ue *AmfUe) {
@@ -126,20 +121,14 @@ func (context *AMFContext) FreeOldGuti(ue *AmfUe) {
 	ue.OldGuti = ""
 }
 
-func (context *AMFContext) AllocateRegistrationArea(ctx ctxt.Context, ue *AmfUe, anType models.AccessType) {
+func (context *AMFContext) AllocateRegistrationArea(ctx ctxt.Context, ue *AmfUe, anType models.AccessType, supportedTais []models.Tai) {
 	// clear the previous registration area if need
 	if len(ue.RegistrationArea[anType]) > 0 {
 		ue.RegistrationArea[anType] = nil
 	}
 
-	supportTaiList, err := GetSupportTaiList(ctx)
-	if err != nil {
-		logger.AmfLog.Error("Could not get supported TAI list", zap.Error(err))
-		return
-	}
-
-	taiList := make([]models.Tai, len(supportTaiList))
-	copy(taiList, supportTaiList)
+	taiList := make([]models.Tai, len(supportedTais))
+	copy(taiList, supportedTais)
 	for i := range taiList {
 		tmp, err := strconv.ParseUint(taiList[i].Tac, 10, 32)
 		if err != nil {
@@ -276,14 +265,8 @@ func (context *AMFContext) DeleteAmfRan(conn *sctp.SCTPConn) {
 	context.AmfRanPool.Delete(conn)
 }
 
-func (context *AMFContext) InPlmnSupport(ctx ctxt.Context, snssai models.Snssai) bool {
-	plmnSupportItem, err := GetSupportedPlmn(ctx)
-	if err != nil {
-		logger.AmfLog.Error("Could not get supported PLMN", zap.Error(err))
-		return false
-	}
-
-	return reflect.DeepEqual(plmnSupportItem.SNssai, snssai)
+func (context *AMFContext) InPlmnSupport(ctx ctxt.Context, snssai models.Snssai, supportedPLMN *PlmnSupportItem) bool {
+	return reflect.DeepEqual(supportedPLMN.SNssai, snssai)
 }
 
 // Looks up a UE by the provided GUTI.
