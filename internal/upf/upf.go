@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"runtime"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/ellanetworks/core/internal/config"
+	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/upf/core"
@@ -40,6 +42,7 @@ type UPF struct {
 	n6Link             *link.Link
 	pfcpConn           *core.PfcpConnection
 	notificationReader *ringbuf.Reader
+	noNeighReader      *ringbuf.Reader
 
 	gcCancel context.CancelFunc
 }
@@ -133,17 +136,25 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 		return nil, fmt.Errorf("coud not start traffic notification reader: %s", err.Error())
 	}
 
+	noNeighReader, err := ringbuf.NewReader(bpfObjects.NoNeighMap)
+	if err != nil {
+		return nil, fmt.Errorf("coud not start missing neighbour reader: %s", err.Error())
+	}
+
 	upf := &UPF{
 		bpfObjects:         bpfObjects,
 		n3Link:             n3Link,
 		n6Link:             n6Link,
 		pfcpConn:           pfcpConn,
 		notificationReader: notificationReader,
+		noNeighReader:      noNeighReader,
 	}
 
 	go upf.listenForTrafficNotifications()
 
 	go upf.monitorUsage(30*time.Second, ctx.Done())
+
+	go upf.listenForMissingNeighbours()
 
 	if masquerade {
 		upf.startGC()
@@ -170,6 +181,9 @@ func (u *UPF) Close() {
 	}
 	if err := u.notificationReader.Close(); err != nil {
 		logger.UpfLog.Warn("Failed to close notification reader", zap.Error(err))
+	}
+	if err := u.noNeighReader.Close(); err != nil {
+		logger.UpfLog.Warn("Failed to close missing neighbour reader", zap.Error(err))
 	}
 	logger.UpfLog.Info("UPF resources released")
 }
@@ -404,4 +418,23 @@ func (u *UPF) pollUsageAndResetCounters() error {
 	}
 
 	return nil
+}
+
+func (u *UPF) listenForMissingNeighbours() {
+	var record ringbuf.Record
+	for {
+		err := u.noNeighReader.ReadInto(&record)
+		if errors.Is(err, os.ErrClosed) {
+			return
+		}
+		ip, ok := netip.AddrFromSlice(record.RawSample)
+		if !ok {
+			logger.UpfLog.Debug("could not parse IP from bytes", zap.Binary("bytes", record.RawSample))
+			continue
+		}
+		if err := kernel.AddNeighbour(ip.AsSlice()); err != nil {
+			logger.UpfLog.Warn("could not add neighbour", zap.String("destination", ip.String()), zap.Error(err))
+			continue
+		}
+	}
 }

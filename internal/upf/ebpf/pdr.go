@@ -1,12 +1,14 @@
 package ebpf
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"runtime"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
@@ -122,6 +124,7 @@ func (bpfObjects *BpfObjects) NewFar(farInfo FarInfo) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
+	addRemoteIPToNeigh(farInfo.RemoteIP)
 	logger.UpfLog.Debug("Put FAR", zap.Uint32("internalID", internalID), zap.Any("farInfo", farInfo))
 	err = bpfObjects.N3N6EntrypointMaps.FarMap.Put(internalID, unsafe.Pointer(&farInfo))
 	if err != nil {
@@ -131,6 +134,7 @@ func (bpfObjects *BpfObjects) NewFar(farInfo FarInfo) (uint32, error) {
 }
 
 func (bpfObjects *BpfObjects) UpdateFar(internalID uint32, farInfo FarInfo) error {
+	addRemoteIPToNeigh(farInfo.RemoteIP)
 	logger.UpfLog.Debug("Update FAR", zap.Uint32("internalID", internalID), zap.Any("farInfo", farInfo))
 	err := bpfObjects.N3N6EntrypointMaps.FarMap.Update(internalID, unsafe.Pointer(&farInfo), ebpf.UpdateExist)
 	if err != nil {
@@ -270,4 +274,14 @@ func Copy16Ip[T ~[]byte](arr T) [16]byte {
 		c[i] = (arr)[arrLen-1-i]
 	}
 	return c
+}
+
+func addRemoteIPToNeigh(remoteIP uint32) {
+	ip_bytes := make([]byte, 4)
+	binary.NativeEndian.PutUint32(ip_bytes, remoteIP)
+	ip := net.IP(ip_bytes)
+
+	if err := kernel.AddNeighbour(ip); err != nil {
+		logger.UpfLog.Warn("could not add gnb IP to neighbour list", zap.String("IP", ip.String()), zap.Error(err))
+	}
 }

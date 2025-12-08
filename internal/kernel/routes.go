@@ -1,9 +1,7 @@
 package kernel
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
 	"net"
 	"os"
 
@@ -75,8 +73,7 @@ func (rk *RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priori
 	logger.EllaLog.Debug("Added route", zap.String("destination", destination.String()), zap.String("gateway", gateway.String()), zap.Int("priority", priority), zap.String("interface", interfaceName))
 
 	// Tells the kernel that the gateway is in use, and ARP requests should be sent out
-	rk.addNeighborForLink(gateway, link)
-	return nil
+	return addNeighbourForLink(gateway, link)
 }
 
 // DeleteRoute removes a route from the kernel for the interface defined by ifKey.
@@ -231,23 +228,12 @@ func (rk *RealKernel) EnsureGatewaysOnInterfaceInNeighTable(ifKey NetworkInterfa
 
 	for _, route := range routes {
 		if route.Gw != nil {
-			rk.addNeighborForLink(route.Gw, link)
+			err := addNeighbourForLink(route.Gw, link)
+			if err != nil {
+				logger.EllaLog.Warn("failed to add gateway to neighbour list, arp may need to be triggered manually", zap.String("gateway", route.Gw.String()), zap.Error(err))
+			}
 		}
 	}
 
 	return nil
-}
-
-func (rk *RealKernel) addNeighborForLink(neigh net.IP, link netlink.Link) {
-	// Tells the kernel that the gateway is in use, and ARP requests should be sent out
-	nlNeigh := netlink.Neigh{
-		LinkIndex: link.Attrs().Index,
-		IP:        neigh,
-		Flags:     netlink.NTF_USE,
-	}
-	if err := netlink.NeighAdd(&nlNeigh); err != nil {
-		if !errors.Is(err, fs.ErrExist) {
-			logger.EllaLog.Warn("failed to add gateway to neighbour list, arp may need to be triggered manually", zap.String("gateway", neigh.String()), zap.Error(err))
-		}
-	}
 }
