@@ -425,7 +425,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 
 	ue.RegistrationRequest = registrationRequest
 	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
-	regName = getRegistrationType5GSName(ue.RegistrationType5GS)
+	regName := getRegistrationType5GSName(ue.RegistrationType5GS)
 	ue.GmmLog.Debug("Received Registration Request", zap.String("registrationType", regName), zap.Int64("procedureCode", procedureCode))
 
 	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSReserved {
