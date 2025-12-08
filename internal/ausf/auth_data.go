@@ -68,19 +68,6 @@ func strictHex(s string, n int) string {
 	}
 }
 
-func EditAuthenticationSubscription(ctx context.Context, ueID string, sequenceNumber string) error {
-	subscriber, err := ausfContext.DBInstance.GetSubscriber(ctx, ueID)
-	if err != nil {
-		return fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
-	}
-	subscriber.SequenceNumber = sequenceNumber
-	err = ausfContext.DBInstance.UpdateSubscriber(ctx, subscriber)
-	if err != nil {
-		return fmt.Errorf("couldn't update subscriber %s: %v", ueID, err)
-	}
-	return nil
-}
-
 func convertDBAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
 	authSubsData := &models.AuthenticationSubscription{}
 	authSubsData.AuthenticationManagementField = AuthenticationManagementField
@@ -122,9 +109,11 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	span.SetAttributes(
 		attribute.String("suci", suc),
 	)
+
 	if ausfContext.DBInstance == nil {
 		return nil, fmt.Errorf("db instance is nil")
 	}
+
 	hnPrivateKey, err := ausfContext.DBInstance.GetHomeNetworkPrivateKey(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get home network private key: %w", err)
@@ -275,9 +264,9 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	SQNheStr := fmt.Sprintf("%x", bigSQN)
 	SQNheStr = strictHex(SQNheStr, 12)
 
-	err = EditAuthenticationSubscription(ctx, supi, SQNheStr)
+	err = ausfContext.DBInstance.EditSubscriberSequenceNumber(ctx, supi, SQNheStr)
 	if err != nil {
-		return nil, fmt.Errorf("update sqn error: %w", err)
+		return nil, fmt.Errorf("couldn't update subscriber %s: %v", supi, err)
 	}
 
 	// Run milenage
