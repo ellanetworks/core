@@ -401,7 +401,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 
 	// Send Authtication / Security Procedure not support
 	// Rejecting ServiceRequest if it is received in Deregistered State
-	if !ue.SecurityContextIsValid() || ue.State[anType].Current() == context.Deregistered {
+	if !ue.SecurityContextIsValid() || ue.State[anType].Current() == context.Deregistered && ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
 		ue.GmmLog.Warn("Security context is not valid", zap.String("supi", ue.Supi))
 		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
 		if err != nil {
