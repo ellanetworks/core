@@ -390,17 +390,22 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	if registrationRequest.NASMessageContainer != nil {
 		contents := registrationRequest.NASMessageContainer.GetNASMessageContainerContents()
 
+		logger.AmfLog.Warn(
+			"TO DELETE: NAS Message Container",
+			zap.String("contents", hex.Dump(contents)),
+			zap.Int("CypheringAlg", int(ue.CipheringAlg)),
+		)
+
 		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
 		// message container IE, the UE shall set the security header type of the initial NAS message to
 		// "integrity protected"; then the AMF shall decipher the value part of the NAS message container IE
-		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
-			security.DirectionUplink, contents)
+		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
 		if err != nil {
 			ue.SecurityContextAvailable = false
 		} else {
 			m := nas.NewMessage()
 			if err := m.GmmMessageDecode(&contents); err != nil {
-				return err
+				return fmt.Errorf("could not decode NAS message container: %v", err)
 			}
 
 			messageType := m.GmmMessage.GmmHeader.GetMessageType()
