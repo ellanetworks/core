@@ -67,6 +67,7 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 	ranUe, _ := FetchRanUeContext(ctx, ran, pdu)
 
 	logger.LogNetworkEvent(
+		ctx,
 		logger.NGAPNetworkProtocol,
 		getMessageType(pdu),
 		logger.DirectionInbound,

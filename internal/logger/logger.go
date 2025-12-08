@@ -3,10 +3,12 @@
 package logger
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"os"
+	"time"
 
+	"github.com/ellanetworks/core/internal/dbwriter"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -27,8 +29,9 @@ var (
 
 	atomicLevel zap.AtomicLevel
 
-	auditDBSink   zapcore.WriteSyncer
-	networkDBSink zapcore.WriteSyncer
+	auditDBSink zapcore.WriteSyncer
+
+	dbInstance dbwriter.DBWriter
 )
 
 // Default: console only, info level.
@@ -71,10 +74,6 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 		return fmt.Errorf("could not make cores: %w", err)
 	}
 
-	if networkDBSink != nil {
-		networkCores = append(networkCores, zapcore.NewCore(jsonEnc, networkDBSink, atomicLevel))
-	}
-
 	networkLogger := zap.New(zapcore.NewTee(networkCores...), zap.AddCaller())
 
 	// Swap roots
@@ -95,6 +94,10 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	return nil
 }
 
+func SetDb(db dbwriter.DBWriter) {
+	dbInstance = db
+}
+
 // SetAuditDBWriter registers a function that persists one JSON-encoded audit entry.
 // This function should be called after the DB is ready.
 func SetAuditDBWriter(writeFn func([]byte) error) {
@@ -113,27 +116,6 @@ func SetAuditDBWriter(writeFn func([]byte) error) {
 			atomicLevel,
 		)
 		AuditLog = AuditLog.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
-			return zapcore.NewTee(c, core)
-		}))
-	}
-}
-
-func SetRadioEventDBWriter(writeFn func([]byte) error) {
-	if writeFn == nil {
-		networkDBSink = nil
-		return
-	}
-	ws := zapcore.AddSync(funcWriteSyncer{write: writeFn})
-	networkDBSink = ws
-
-	// If the radio eventger already exists, attach the DB core now.
-	if NetworkLog != nil {
-		core := zapcore.NewCore(
-			zapcore.NewJSONEncoder(prodJSONEncoderConfig()),
-			networkDBSink,
-			atomicLevel,
-		)
-		NetworkLog = NetworkLog.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
 			return zapcore.NewTee(c, core)
 		}))
 	}
@@ -251,13 +233,13 @@ const (
 )
 
 func LogNetworkEvent(
+	ctx context.Context,
 	protocol NetworkProtocol,
 	messageType string,
 	dir LogDirection,
 	localAddress string,
 	remoteAddress string,
 	rawBytes []byte,
-	fields ...zap.Field,
 ) {
 	if NetworkLog == nil {
 		return
@@ -269,73 +251,32 @@ func LogNetworkEvent(
 			zap.String("dir", string(dir)),
 			zap.String("local_address", localAddress),
 			zap.String("remote_address", remoteAddress),
-			zap.Any("fields", fields),
 		)
 		return
 	}
 
-	enc := zapcore.NewMapObjectEncoder()
-	for _, f := range fields {
-		f.AddTo(enc)
-	}
-
-	var detailsStr string
-
-	reserved := map[string]struct{}{
-		"message_type":   {},
-		"direction":      {},
-		"raw":            {},
-		"protocol":       {},
-		"timestamp":      {},
-		"local_address":  {},
-		"remote_address": {},
-		"component":      {},
-		"caller":         {},
-		"message":        {},
-	}
-
-	if raw, ok := enc.Fields["details"]; ok {
-		switch v := raw.(type) {
-		case string:
-			detailsStr = v
-		default:
-			if b, err := json.Marshal(v); err == nil {
-				detailsStr = string(b)
-			}
-		}
-		delete(enc.Fields, "details")
-	}
-
-	if detailsStr == "" {
-		agg := make(map[string]any, len(enc.Fields))
-		for k, v := range enc.Fields {
-			if _, isReserved := reserved[k]; !isReserved {
-				agg[k] = v
-			}
-		}
-		if len(agg) > 0 {
-			if b, err := json.Marshal(agg); err == nil {
-				detailsStr = string(b)
-			}
-		}
-	}
-
-	// Optional safety: cap the size
-	const maxDetails = 4096
-	if len(detailsStr) > maxDetails {
-		detailsStr = detailsStr[:maxDetails] + "...(truncated)"
-	}
-
-	// Emit a single, consistent log line. DB reader already expects details as string.
 	NetworkLog.Info("network_event",
 		zap.String("protocol", string(protocol)),
 		zap.String("message_type", messageType),
 		zap.String("direction", string(dir)),
 		zap.String("local_address", localAddress),
 		zap.String("remote_address", remoteAddress),
-		zap.Binary("raw", rawBytes),
-		zap.String("details", detailsStr),
 	)
+
+	err := dbInstance.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
+		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		Protocol:      string(protocol),
+		MessageType:   messageType,
+		Direction:     string(dir),
+		LocalAddress:  localAddress,
+		RemoteAddress: remoteAddress,
+		Raw:           rawBytes,
+	})
+	if err != nil {
+		NetworkLog.Warn("failed to insert radio event",
+			zap.Error(err),
+		)
+	}
 }
 
 type funcWriteSyncer struct {

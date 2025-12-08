@@ -3,11 +3,11 @@ package db
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/canonical/sqlair"
+	"github.com/ellanetworks/core/internal/dbwriter"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -75,17 +75,17 @@ const countRadioEventsFilteredStmt = `
     AND ($RadioEventFilters.timestamp_to    IS NULL OR timestamp <  $RadioEventFilters.timestamp_to)
 `
 
-type RadioEvent struct {
-	ID            int    `db:"id"`
-	Timestamp     string `db:"timestamp"` // store as RFC3339 string; parse in API layer if needed
-	Protocol      string `db:"protocol"`
-	MessageType   string `db:"message_type"`
-	Direction     string `db:"direction"`
-	LocalAddress  string `db:"local_address"`
-	RemoteAddress string `db:"remote_address"`
-	Raw           []byte `db:"raw"`
-	Details       string `db:"details"` // JSON or plain text (we store a string)
-}
+// type RadioEvent struct {
+// 	ID            int    `db:"id"`
+// 	Timestamp     string `db:"timestamp"` // store as RFC3339 string; parse in API layer if needed
+// 	Protocol      string `db:"protocol"`
+// 	MessageType   string `db:"message_type"`
+// 	Direction     string `db:"direction"`
+// 	LocalAddress  string `db:"local_address"`
+// 	RemoteAddress string `db:"remote_address"`
+// 	Raw           []byte `db:"raw"`
+// 	Details       string `db:"details"` // JSON or plain text (we store a string)
+// }
 
 type RadioEventFilters struct {
 	Protocol      *string `db:"protocol"`       // exact match
@@ -97,26 +97,28 @@ type RadioEventFilters struct {
 	TimestampTo   *string `db:"timestamp_to"`   // RFC3339 (UTC), exclusive upper bound
 }
 
-type zapNetworkJSON struct {
-	Timestamp     string `json:"timestamp"`
-	Level         string `json:"level"`
-	Protocol      string `json:"protocol"`
-	MessageType   string `json:"message_type"`
-	Direction     string `json:"direction"`
-	LocalAddress  string `json:"local_address"`
-	RemoteAddress string `json:"remote_address"`
-	Raw           []byte `json:"raw"`
-	Details       string `json:"details"`
-}
+// type zapNetworkJSON struct {
+// 	Timestamp     string `json:"timestamp"`
+// 	Level         string `json:"level"`
+// 	Protocol      string `json:"protocol"`
+// 	MessageType   string `json:"message_type"`
+// 	Direction     string `json:"direction"`
+// 	LocalAddress  string `json:"local_address"`
+// 	RemoteAddress string `json:"remote_address"`
+// 	Raw           []byte `json:"raw"`
+// 	Details       string `json:"details"`
+// }
 
-func (db *Database) RadioEventWriteFunc(ctx context.Context) func([]byte) error {
-	return func(b []byte) error {
-		return db.InsertRadioEventJSON(ctx, b)
-	}
-}
+// func (db *Database) RadioEventWriteFunc(ctx context.Context) func([]byte) error {
+// 	return func(b []byte) error {
+// 		return db.InsertRadioEventJSON(ctx, b)
+// 	}
+// }
 
 // InsertRadioEventJSON parses the zap JSON and inserts a structured row.
-func (db *Database) InsertRadioEventJSON(ctx context.Context, raw []byte) error {
+// type RadioEvent struct{}
+
+func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.RadioEvent) error {
 	const operation = "INSERT"
 	const target = RadioEventsTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -132,32 +134,14 @@ func (db *Database) InsertRadioEventJSON(ctx context.Context, raw []byte) error 
 		attribute.String("db.collection", target),
 	)
 
-	// Parse incoming JSON
-	var z zapNetworkJSON
-	if err := json.Unmarshal(raw, &z); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "unmarshal failed")
-		return err
-	}
-
-	row := RadioEvent{
-		Timestamp:     z.Timestamp,
-		Protocol:      z.Protocol,
-		MessageType:   z.MessageType,
-		Direction:     z.Direction,
-		LocalAddress:  z.LocalAddress,
-		RemoteAddress: z.RemoteAddress,
-		Raw:           z.Raw,
-		Details:       z.Details,
-	}
-
-	stmt, err := sqlair.Prepare(query, RadioEvent{})
+	stmt, err := sqlair.Prepare(query, dbwriter.RadioEvent{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	if err := db.conn.Query(ctx, stmt, row).Run(); err != nil {
+
+	if err := db.conn.Query(ctx, stmt, radioEvent).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -167,7 +151,7 @@ func (db *Database) InsertRadioEventJSON(ctx context.Context, raw []byte) error 
 	return nil
 }
 
-func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, filters *RadioEventFilters) ([]RadioEvent, int, error) {
+func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, filters *RadioEventFilters) ([]dbwriter.RadioEvent, int, error) {
 	if filters == nil {
 		filters = &RadioEventFilters{}
 	}
@@ -192,7 +176,7 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 	)
 
 	// Prepare both statements with all the bind models they use
-	listStmt, err := sqlair.Prepare(listSQL, ListArgs{}, RadioEventFilters{}, RadioEvent{})
+	listStmt, err := sqlair.Prepare(listSQL, ListArgs{}, RadioEventFilters{}, dbwriter.RadioEvent{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare list failed")
@@ -219,7 +203,7 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 	}
 
 	// Rows with filters
-	var logs []RadioEvent
+	var logs []dbwriter.RadioEvent
 	if err := db.conn.Query(ctx, listStmt, args, filters).GetAll(&logs); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
@@ -307,7 +291,7 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 	return nil
 }
 
-func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*RadioEvent, error) {
+func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.RadioEvent, error) {
 	const operation = "SELECT"
 	const target = RadioEventsTableName
 	spanName := fmt.Sprintf("%s %s (by ID)", operation, target)
@@ -324,14 +308,14 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*RadioEvent,
 		attribute.Int("id", id),
 	)
 
-	stmt, err := sqlair.Prepare(query, RadioEvent{})
+	stmt, err := sqlair.Prepare(query, dbwriter.RadioEvent{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return nil, err
 	}
 
-	log := RadioEvent{ID: id}
+	log := dbwriter.RadioEvent{ID: id}
 
 	if err := db.conn.Query(ctx, stmt, log).Get(&log); err != nil {
 		if err == sql.ErrNoRows {
