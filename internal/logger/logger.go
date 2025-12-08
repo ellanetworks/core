@@ -98,29 +98,6 @@ func SetDb(db dbwriter.DBWriter) {
 	dbInstance = db
 }
 
-// SetAuditDBWriter registers a function that persists one JSON-encoded audit entry.
-// This function should be called after the DB is ready.
-func SetAuditDBWriter(writeFn func([]byte) error) {
-	if writeFn == nil {
-		auditDBSink = nil
-		return
-	}
-	ws := zapcore.AddSync(funcWriteSyncer{write: writeFn})
-	auditDBSink = ws
-
-	// If the audit logger already exists, attach the DB core now.
-	if AuditLog != nil {
-		core := zapcore.NewCore(
-			zapcore.NewJSONEncoder(prodJSONEncoderConfig()),
-			auditDBSink,
-			atomicLevel,
-		)
-		AuditLog = AuditLog.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
-			return zapcore.NewTee(c, core)
-		}))
-	}
-}
-
 // makeCores returns console core (+ file core if requested).
 func makeCores(mode, filePath string, consoleEnc, jsonEnc zapcore.Encoder) ([]zapcore.Core, error) {
 	cores := []zapcore.Core{
@@ -210,13 +187,32 @@ func CapitalColorLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder
 }
 
 // LogAuditEvent logs an audit event to the audit logger.
-func LogAuditEvent(action, actor, ip, details string) {
+func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
 	AuditLog.Info("Audit event",
 		zap.String("action", action),
 		zap.String("actor", actor),
 		zap.String("ip", ip),
 		zap.String("details", details),
 	)
+
+	if dbInstance == nil {
+		NetworkLog.Warn("dbInstance is nil, cannot log network event to database")
+		return
+	}
+
+	err := dbInstance.InsertAuditLog(ctx, &dbwriter.AuditLog{
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Level:     "INFO",
+		Actor:     actor,
+		Action:    action,
+		IP:        ip,
+		Details:   details,
+	})
+	if err != nil {
+		AuditLog.Warn("failed to insert audit log",
+			zap.Error(err),
+		)
+	}
 }
 
 type LogDirection string
@@ -263,6 +259,11 @@ func LogNetworkEvent(
 		zap.String("remote_address", remoteAddress),
 	)
 
+	if dbInstance == nil {
+		NetworkLog.Warn("dbInstance is nil, cannot log network event to database")
+		return
+	}
+
 	err := dbInstance.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
 		Timestamp:     time.Now().UTC().Format(time.RFC3339),
 		Protocol:      string(protocol),
@@ -279,13 +280,13 @@ func LogNetworkEvent(
 	}
 }
 
-type funcWriteSyncer struct {
-	write func([]byte) error
-}
+// type funcWriteSyncer struct {
+// 	write func([]byte) error
+// }
 
-func (f funcWriteSyncer) Write(p []byte) (int, error) {
-	if err := f.write(p); err != nil {
-		return 0, err
-	}
-	return len(p), nil
-}
+// func (f funcWriteSyncer) Write(p []byte) (int, error) {
+// 	if err := f.write(p); err != nil {
+// 		return 0, err
+// 	}
+// 	return len(p), nil
+// }

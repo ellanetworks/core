@@ -160,7 +160,7 @@ func DeleteDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 		writeResponse(w, SuccessResponse{Message: "DataNetwork deleted successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(DeleteDataNetworkAction, email, getClientIP(r), "User deleted data network: "+name)
+		logger.LogAuditEvent(r.Context(), DeleteDataNetworkAction, email, getClientIP(r), "User deleted data network: "+name)
 	})
 }
 
@@ -211,7 +211,7 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Data Network created successfully"}, http.StatusCreated, logger.APILog)
-		logger.LogAuditEvent(CreateDataNetworkAction, email, getClientIP(r), "User created data network: "+createDataNetworkParams.Name)
+		logger.LogAuditEvent(r.Context(), CreateDataNetworkAction, email, getClientIP(r), "User created data network: "+createDataNetworkParams.Name)
 	})
 }
 
@@ -257,7 +257,7 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Data Network updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdateDataNetworkAction, email, getClientIP(r), "User updated data network: "+updateDataNetworkParams.Name)
+		logger.LogAuditEvent(r.Context(), UpdateDataNetworkAction, email, getClientIP(r), "User updated data network: "+updateDataNetworkParams.Name)
 	})
 }
 

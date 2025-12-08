@@ -131,10 +131,12 @@ func editAuditLogRetentionPolicy(url string, client *http.Client, token string, 
 func TestAPIAuditLogs(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
+
 	defer ts.Close()
 	client := ts.Client()
 

@@ -147,7 +147,7 @@ func UpdateRadioEventRetentionPolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Radio event retention policy updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdateRadioEventRetentionPolicyAction, email, getClientIP(r), fmt.Sprintf("User updated radio event retention policy to %d days", params.Days))
+		logger.LogAuditEvent(r.Context(), UpdateRadioEventRetentionPolicyAction, email, getClientIP(r), fmt.Sprintf("User updated radio event retention policy to %d days", params.Days))
 	})
 }
 
@@ -247,6 +247,6 @@ func ClearRadioEvents(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "All radio events cleared successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent("clear_network_logs", email, getClientIP(r), "User cleared all radio events")
+		logger.LogAuditEvent(r.Context(), "clear_network_logs", email, getClientIP(r), "User cleared all radio events")
 	})
 }

@@ -137,6 +137,7 @@ func UpdateN3Interface(dbInstance *db.Database, upf UPFUpdater, cfg config.Confi
 		writeResponse(w, SuccessResponse{Message: "N3 interface updated"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
+			r.Context(),
 			UpdateN3SettingsAction,
 			email,
 			getClientIP(r),

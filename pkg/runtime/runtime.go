@@ -79,15 +79,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	logger.SetDb(dbInstance)
 
-	logCtx, logCancel := context.WithCancel(context.Background())
-	defer logCancel()
-
-	auditWriter := dbInstance.AuditWriteFunc(logCtx)
-	// radioEventWriter := dbInstance.RadioEventWriteFunc(logCtx)
-
-	logger.SetAuditDBWriter(auditWriter)
-	// logger.SetRadioEventDBWriter(radioEventWriter)
-
 	metrics.RegisterDatabaseMetrics(dbInstance)
 
 	jobs.StartDataRetentionWorker(dbInstance)

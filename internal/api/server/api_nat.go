@@ -66,6 +66,7 @@ func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater) http.Handler {
 		writeResponse(w, SuccessResponse{Message: "NAT settings updated successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
+			r.Context(),
 			UpdateNATSettingsAction,
 			email,
 			getClientIP(r),

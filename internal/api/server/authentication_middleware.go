@@ -115,7 +115,7 @@ func Authenticate(jwtSecret []byte, store *db.Database, next http.Handler) http.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		uid, email, role, err := authenticateRequest(r, jwtSecret, store)
 		if err != nil {
-			logger.LogAuditEvent(AuthenticationAction, "", getClientIP(r), "Unauthorized: "+err.Error())
+			logger.LogAuditEvent(r.Context(), AuthenticationAction, "", getClientIP(r), "Unauthorized: "+err.Error())
 			writeError(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
 			return
 		}

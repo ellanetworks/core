@@ -4,12 +4,13 @@ package db_test
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 func TestAuditLogsEndToEnd(t *testing.T) {
@@ -40,15 +41,26 @@ func TestAuditLogsEndToEnd(t *testing.T) {
 		t.Fatalf("Expected no audit logs, but found %d", len(res))
 	}
 
-	rawEntry1 := `{"timestamp":"2024-10-01T12:00:00Z","component":"Audit","action":"test_action","actor":"test_actor","details":"This is a test audit log entry","ip":"1.2.3.4"}`
-	rawEntry2 := `{"timestamp":"2024-10-01T13:00:00Z","component":"Audit","action":"another_action","actor":"another_actor","details":"This is another test audit log entry","ip":"2.3.4.5"}`
-
-	err = database.InsertAuditLogJSON(context.Background(), []byte(rawEntry1))
+	err = database.InsertAuditLog(context.Background(), &dbwriter.AuditLog{
+		Timestamp: "2024-10-01T12:00:00Z",
+		Level:     "info",
+		Actor:     "test_actor",
+		Action:    "test_action",
+		IP:        "1.2.3.4",
+		Details:   "This is a test audit log entry",
+	})
 	if err != nil {
 		t.Fatalf("couldn't insert audit log: %s", err)
 	}
 
-	err = database.InsertAuditLogJSON(context.Background(), []byte(rawEntry2))
+	err = database.InsertAuditLog(context.Background(), &dbwriter.AuditLog{
+		Timestamp: "2024-10-01T13:00:00Z",
+		Level:     "info",
+		Actor:     "another_actor",
+		Action:    "another_action",
+		IP:        "2.3.4.5",
+		Details:   "This is another test audit log entry",
+	})
 	if err != nil {
 		t.Fatalf("couldn't insert audit log: %s", err)
 	}
@@ -103,19 +115,19 @@ func TestAuditLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 		}
 	}()
 
+	logger.SetDb(database)
+
 	ctx := context.Background()
 
 	insert := func(ts time.Time, action string) {
-		raw := fmt.Sprintf(`{
-			"timestamp":"%s",
-			"level":"info",
-			"component":"Audit",
-			"action":"%s",
-			"actor":"tester",
-			"details":"test",
-			"ip":"127.0.0.1"
-		}`, ts.UTC().Format(time.RFC3339), action)
-		if err := database.InsertAuditLogJSON(ctx, []byte(raw)); err != nil {
+		if err := database.InsertAuditLog(ctx, &dbwriter.AuditLog{
+			Timestamp: ts.UTC().Format(time.RFC3339),
+			Level:     "info",
+			Actor:     "tester",
+			Action:    action,
+			IP:        "127.0.0.1",
+			Details:   "test",
+		}); err != nil {
 			t.Fatalf("insert failed (%s): %v", action, err)
 		}
 	}

@@ -5,11 +5,11 @@ package db
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/canonical/sqlair"
+	"github.com/ellanetworks/core/internal/dbwriter"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -37,33 +37,8 @@ const (
 	countAuditLogsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
-type AuditLog struct {
-	ID        int    `db:"id"`
-	Timestamp string `db:"timestamp"` // store as RFC3339 string; parse in API layer if needed
-	Level     string `db:"level"`
-	Actor     string `db:"actor"`
-	Action    string `db:"action"`
-	IP        string `db:"ip"`
-	Details   string `db:"details"` // JSON or plain text (we store a string)
-}
-
-type zapAuditJSON struct {
-	Timestamp string `json:"timestamp"`
-	Level     string `json:"level"`
-	Actor     string `json:"actor"`
-	Action    string `json:"action"`
-	IP        string `json:"ip"`
-	Details   string `json:"details"` // could be string or object in the future
-}
-
-func (db *Database) AuditWriteFunc(ctx context.Context) func([]byte) error {
-	return func(b []byte) error {
-		return db.InsertAuditLogJSON(ctx, b)
-	}
-}
-
 // InsertAuditLogJSON parses the zap JSON and inserts a structured row.
-func (db *Database) InsertAuditLogJSON(ctx context.Context, raw []byte) error {
+func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.AuditLog) error {
 	const operation = "INSERT"
 	const target = AuditLogsTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -79,30 +54,13 @@ func (db *Database) InsertAuditLogJSON(ctx context.Context, raw []byte) error {
 		attribute.String("db.collection", target),
 	)
 
-	// Parse incoming JSON
-	var z zapAuditJSON
-	if err := json.Unmarshal(raw, &z); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "unmarshal failed")
-		return err
-	}
-
-	row := AuditLog{
-		Timestamp: z.Timestamp,
-		Level:     z.Level,
-		Actor:     z.Actor,
-		Action:    z.Action,
-		IP:        z.IP,
-		Details:   z.Details,
-	}
-
-	stmt, err := sqlair.Prepare(query, AuditLog{})
+	stmt, err := sqlair.Prepare(query, dbwriter.AuditLog{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	if err := db.conn.Query(ctx, stmt, row).Run(); err != nil {
+	if err := db.conn.Query(ctx, stmt, auditLog).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -112,7 +70,7 @@ func (db *Database) InsertAuditLogJSON(ctx context.Context, raw []byte) error {
 	return nil
 }
 
-func (db *Database) ListAuditLogsPage(ctx context.Context, page, perPage int) ([]AuditLog, int, error) {
+func (db *Database) ListAuditLogsPage(ctx context.Context, page, perPage int) ([]dbwriter.AuditLog, int, error) {
 	const operation = "SELECT"
 	const target = AuditLogsTableName
 	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
@@ -130,7 +88,7 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, page, perPage int) ([
 		attribute.Int("per_page", perPage),
 	)
 
-	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, AuditLog{})
+	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, dbwriter.AuditLog{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
@@ -149,7 +107,7 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, page, perPage int) ([
 		return nil, 0, err
 	}
 
-	var logs []AuditLog
+	var logs []dbwriter.AuditLog
 
 	if err := db.conn.Query(ctx, stmt, args).GetAll(&logs); err != nil {
 		if err == sql.ErrNoRows {

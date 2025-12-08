@@ -141,6 +141,7 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 		user, err := dbInstance.GetUser(r.Context(), loginParams.Email)
 		if err != nil {
 			logger.LogAuditEvent(
+				r.Context(),
 				LoginAction,
 				loginParams.Email,
 				getClientIP(r),
@@ -152,6 +153,7 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 
 		if bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(loginParams.Password)) != nil {
 			logger.LogAuditEvent(
+				r.Context(),
 				LoginAction,
 				user.Email,
 				getClientIP(r),
@@ -170,6 +172,7 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 		writeResponse(w, SuccessResponse{Message: "Login successful"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
+			r.Context(),
 			LoginAction,
 			user.Email,
 			getClientIP(r),

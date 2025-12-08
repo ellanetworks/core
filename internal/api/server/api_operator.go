@@ -308,6 +308,7 @@ func UpdateOperatorSlice(dbInstance *db.Database) http.Handler {
 		writeResponse(w, resp, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
+			r.Context(),
 			UpdateOperatorSliceAction,
 			email,
 			getClientIP(r),
@@ -358,6 +359,7 @@ func UpdateOperatorTracking(dbInstance *db.Database) http.Handler {
 		writeResponse(w, resp, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
+			r.Context(),
 			UpdateOperatorTrackingAction,
 			email,
 			getClientIP(r),
@@ -417,6 +419,7 @@ func UpdateOperatorID(dbInstance *db.Database) http.Handler {
 		writeResponse(w, resp, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
+			r.Context(),
 			UpdateOperatorIDAction,
 			email,
 			getClientIP(r),
@@ -468,6 +471,7 @@ func UpdateOperatorCode(dbInstance *db.Database) http.Handler {
 		writeResponse(w, SuccessResponse{Message: "Operator Code updated successfully"}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
+			r.Context(),
 			UpdateOperatorCodeAction,
 			email,
 			getClientIP(r),
@@ -510,6 +514,7 @@ func UpdateOperatorHomeNetwork(dbInstance *db.Database) http.Handler {
 		writeResponse(w, SuccessResponse{Message: "Home Network private key updated successfully"}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
+			r.Context(),
 			UpdateOperatorHomeNetworkAction,
 			email,
 			getClientIP(r),
