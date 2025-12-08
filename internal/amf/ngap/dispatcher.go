@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var tracer = otel.Tracer("ella-core/ngap")
+var tracer = otel.Tracer("ella-core/amf/ngap")
 
 type NgapMsg struct {
 	NgapMsg *ngapType.NGAPPDU
@@ -336,7 +336,7 @@ func DispatchNgapMsg(conn *sctp.SCTPConn, ran *context.AmfRan, pdu *ngapType.NGA
 		case ngapType.ProcedureCodeUplinkNASTransport:
 			HandleUplinkNasTransport(ctx, ran, pdu)
 		case ngapType.ProcedureCodeNGReset:
-			HandleNGReset(ran, pdu)
+			HandleNGReset(ctx, ran, pdu)
 		case ngapType.ProcedureCodeHandoverCancel:
 			HandleHandoverCancel(ctx, ran, pdu)
 		case ngapType.ProcedureCodeUEContextReleaseRequest:
@@ -366,11 +366,11 @@ func DispatchNgapMsg(conn *sctp.SCTPConn, ran *context.AmfRan, pdu *ngapType.NGA
 		case ngapType.ProcedureCodeUplinkUEAssociatedNRPPaTransport:
 			HandleUplinkUEAssociatedNRPPATransport(ran, pdu)
 		case ngapType.ProcedureCodeUplinkRANConfigurationTransfer:
-			HandleUplinkRanConfigurationTransfer(ran, pdu)
+			HandleUplinkRanConfigurationTransfer(ctx, ran, pdu)
 		case ngapType.ProcedureCodePDUSessionResourceModifyIndication:
 			HandlePDUSessionResourceModifyIndication(ctx, ran, pdu)
 		case ngapType.ProcedureCodeCellTrafficTrace:
-			HandleCellTrafficTrace(ran, pdu)
+			HandleCellTrafficTrace(ctx, ran, pdu)
 		case ngapType.ProcedureCodeUplinkRANStatusTransfer:
 			HandleUplinkRanStatusTransfer(ran, pdu)
 		case ngapType.ProcedureCodeUplinkNonUEAssociatedNRPPaTransport:
