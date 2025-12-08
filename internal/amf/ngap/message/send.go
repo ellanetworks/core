@@ -112,12 +112,6 @@ func SendToRan(ctx ctxt.Context, ran *context.AmfRan, packet []byte, msgType NGA
 		return fmt.Errorf("ran address is nil")
 	}
 
-	ctx, sctpSpan := tracer.Start(ctx, "SCTP Write",
-		trace.WithAttributes(),
-		trace.WithSpanKind(trace.SpanKindClient),
-	)
-	defer sctpSpan.End()
-
 	info := sctp.SndRcvInfo{
 		Stream: sid,
 		PPID:   nativeToNetworkEndianness32(sctp.NGAPPPID),
@@ -126,12 +120,6 @@ func SendToRan(ctx ctxt.Context, ran *context.AmfRan, packet []byte, msgType NGA
 		return fmt.Errorf("send write to sctp connection: %s", err.Error())
 	}
 
-	sctpSpan.End()
-
-	_, logSpan := tracer.Start(ctx, "Log network event",
-		trace.WithAttributes(),
-		trace.WithSpanKind(trace.SpanKindClient),
-	)
 	logger.LogNetworkEvent(
 		ctx,
 		logger.NGAPNetworkProtocol,
@@ -141,7 +129,6 @@ func SendToRan(ctx ctxt.Context, ran *context.AmfRan, packet []byte, msgType NGA
 		ran.Conn.RemoteAddr().String(),
 		packet,
 	)
-	logSpan.End()
 
 	return nil
 }

@@ -75,18 +75,6 @@ const countRadioEventsFilteredStmt = `
     AND ($RadioEventFilters.timestamp_to    IS NULL OR timestamp <  $RadioEventFilters.timestamp_to)
 `
 
-// type RadioEvent struct {
-// 	ID            int    `db:"id"`
-// 	Timestamp     string `db:"timestamp"` // store as RFC3339 string; parse in API layer if needed
-// 	Protocol      string `db:"protocol"`
-// 	MessageType   string `db:"message_type"`
-// 	Direction     string `db:"direction"`
-// 	LocalAddress  string `db:"local_address"`
-// 	RemoteAddress string `db:"remote_address"`
-// 	Raw           []byte `db:"raw"`
-// 	Details       string `db:"details"` // JSON or plain text (we store a string)
-// }
-
 type RadioEventFilters struct {
 	Protocol      *string `db:"protocol"`       // exact match
 	Direction     *string `db:"direction"`      // "inbound" | "outbound"
@@ -96,27 +84,6 @@ type RadioEventFilters struct {
 	TimestampFrom *string `db:"timestamp_from"` // RFC3339 (UTC)
 	TimestampTo   *string `db:"timestamp_to"`   // RFC3339 (UTC), exclusive upper bound
 }
-
-// type zapNetworkJSON struct {
-// 	Timestamp     string `json:"timestamp"`
-// 	Level         string `json:"level"`
-// 	Protocol      string `json:"protocol"`
-// 	MessageType   string `json:"message_type"`
-// 	Direction     string `json:"direction"`
-// 	LocalAddress  string `json:"local_address"`
-// 	RemoteAddress string `json:"remote_address"`
-// 	Raw           []byte `json:"raw"`
-// 	Details       string `json:"details"`
-// }
-
-// func (db *Database) RadioEventWriteFunc(ctx context.Context) func([]byte) error {
-// 	return func(b []byte) error {
-// 		return db.InsertRadioEventJSON(ctx, b)
-// 	}
-// }
-
-// InsertRadioEventJSON parses the zap JSON and inserts a structured row.
-// type RadioEvent struct{}
 
 func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.RadioEvent) error {
 	const operation = "INSERT"
