@@ -383,6 +383,13 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.T3565 = nil // clear the timer
 	}
 
+	// TO DELETE (BEGIN)
+	ue.RegistrationRequest = registrationRequest
+	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
+	regName := getRegistrationType5GSName(ue.RegistrationType5GS)
+	ue.GmmLog.Debug("Received Registration Request", zap.String("registrationType", regName), zap.Int64("procedureCode", procedureCode))
+	// TO DELETE (END)
+
 	// TS 24.501 8.2.6.21: if the UE is sending a REGISTRATION REQUEST message as an initial NAS message,
 	// the UE has a valid 5G NAS security context and the UE needs to send non-cleartext IEs
 	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS message
@@ -395,7 +402,20 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
 			}
+
 			ue.GmmLog.Info("sent registration reject to UE")
+
+			err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[anType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
+			if err != nil {
+				ue.GmmLog.Error("error sending ue context release command", zap.Error(err))
+			}
+
+			ue.GmmLog.Info("sent ue context release command to UE")
+
+			ue.Remove()
+
+			logger.AmfLog.Info("removed UE context as security context is not valid")
+
 			return fmt.Errorf("security context is not valid")
 		}
 
@@ -425,7 +445,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 
 	ue.RegistrationRequest = registrationRequest
 	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
-	regName := getRegistrationType5GSName(ue.RegistrationType5GS)
+	regName = getRegistrationType5GSName(ue.RegistrationType5GS)
 	ue.GmmLog.Debug("Received Registration Request", zap.String("registrationType", regName), zap.Int64("procedureCode", procedureCode))
 
 	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSReserved {
