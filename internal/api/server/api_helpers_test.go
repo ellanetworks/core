@@ -2,7 +2,6 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
 	"io/fs"
 	"net"
@@ -72,15 +71,7 @@ func setupServer(filepath string) (*httptest.Server, []byte, *db.Database, error
 		return nil, nil, nil, err
 	}
 
-	ctx := context.Background()
-
-	auditWriter := testdb.AuditWriteFunc(ctx)
-
-	radioEventWriter := testdb.RadioEventWriteFunc(ctx)
-
-	logger.SetAuditDBWriter(auditWriter)
-
-	logger.SetRadioEventDBWriter(radioEventWriter)
+	logger.SetDb(testdb)
 
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}

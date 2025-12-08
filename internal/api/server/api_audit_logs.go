@@ -83,7 +83,7 @@ func UpdateAuditLogRetentionPolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Audit log retention policy updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdateAuditLogRetentionPolicyAction, email, getClientIP(r), fmt.Sprintf("User updated audit log retention policy to %d days", params.Days))
+		logger.LogAuditEvent(r.Context(), UpdateAuditLogRetentionPolicyAction, email, getClientIP(r), fmt.Sprintf("User updated audit log retention policy to %d days", params.Days))
 	})
 }
 

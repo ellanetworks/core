@@ -77,14 +77,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
 
-	logCtx, logCancel := context.WithCancel(context.Background())
-	defer logCancel()
-
-	auditWriter := dbInstance.AuditWriteFunc(logCtx)
-	radioEventWriter := dbInstance.RadioEventWriteFunc(logCtx)
-
-	logger.SetAuditDBWriter(auditWriter)
-	logger.SetRadioEventDBWriter(radioEventWriter)
+	logger.SetDb(dbInstance)
 
 	metrics.RegisterDatabaseMetrics(dbInstance)
 

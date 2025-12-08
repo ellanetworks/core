@@ -260,6 +260,7 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 		writeResponse(w, SuccessResponse{Message: "User created successfully"}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
+			r.Context(),
 			CreateUserAction,
 			email,
 			getClientIP(r),
@@ -304,7 +305,7 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "User updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdateUserAction, requester, getClientIP(r), "User updated user: "+updateUserParams.Email)
+		logger.LogAuditEvent(r.Context(), UpdateUserAction, requester, getClientIP(r), "User updated user: "+updateUserParams.Email)
 	})
 }
 
@@ -350,7 +351,7 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdateUserPasswordAction, requester, getClientIP(r), "User updated password for user: "+updateUserParams.Email)
+		logger.LogAuditEvent(r.Context(), UpdateUserPasswordAction, requester, getClientIP(r), "User updated password for user: "+updateUserParams.Email)
 	})
 }
 
@@ -385,7 +386,7 @@ func UpdateMyUserPassword(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdateUserPasswordAction, email, getClientIP(r), "User updated own password")
+		logger.LogAuditEvent(r.Context(), UpdateUserPasswordAction, email, getClientIP(r), "User updated own password")
 	})
 }
 
@@ -415,7 +416,7 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "User deleted successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(DeleteUserAction, requester, getClientIP(r), "User deleted user: "+emailParam)
+		logger.LogAuditEvent(r.Context(), DeleteUserAction, requester, getClientIP(r), "User deleted user: "+emailParam)
 	})
 }
 
@@ -603,6 +604,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 
 		writeResponse(w, response, http.StatusCreated, logger.APILog)
 		logger.LogAuditEvent(
+			r.Context(),
 			CreateAPITokenAction,
 			email,
 			getClientIP(r),
@@ -651,6 +653,7 @@ func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 
 		writeResponse(w, SuccessResponse{Message: "API token deleted successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(
+			r.Context(),
 			DeleteAPITokenAction,
 			email,
 			getClientIP(r),

@@ -4,13 +4,13 @@ package db_test
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/dbwriter"
 )
 
 func TestRadioEventsEndToEnd(t *testing.T) {
@@ -39,15 +39,28 @@ func TestRadioEventsEndToEnd(t *testing.T) {
 		t.Fatalf("Expected no setwork logs, but found %d", len(res))
 	}
 
-	rawEntry1 := `{"timestamp":"2024-10-01T12:00:00Z","component":"Network","message_type":"test_event","direction":"inbound","protocol":"ngap","details":"This is a test setwork log entry", "raw":"SGVsbG8gd29ybGQh"}`
-	rawEntry2 := `{"timestamp":"2024-10-01T13:00:00Z","component":"Network","message_type":"another_event","direction":"outbound","protocol":"another_protocol","details":"This is another test setwork log entry", "raw":"QW5vdGhlciBsb2cgZW50cnk="}`
-
-	err = database.InsertRadioEventJSON(context.Background(), []byte(rawEntry1))
+	err = database.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
+		Timestamp:     "2024-10-01T12:00:00Z",
+		Protocol:      "ngap",
+		MessageType:   "test_event",
+		Direction:     "inbound",
+		LocalAddress:  "127.0.0.1",
+		RemoteAddress: "192.168.1.1",
+		Raw:           []byte("SGVsbG8gd29ybGQh"),
+	})
 	if err != nil {
 		t.Fatalf("couldn't insert setwork log: %s", err)
 	}
 
-	err = database.InsertRadioEventJSON(context.Background(), []byte(rawEntry2))
+	err = database.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
+		Timestamp:     "2024-10-01T13:00:00Z",
+		Protocol:      "another_protocol",
+		MessageType:   "another_event",
+		Direction:     "outbound",
+		LocalAddress:  "127.0.0.1",
+		RemoteAddress: "192.168.1.1",
+		Raw:           []byte("QW5vdGhlciBsb2cgZW50cnk="),
+	})
 	if err != nil {
 		t.Fatalf("couldn't insert setwork log: %s", err)
 	}
@@ -104,18 +117,15 @@ func TestGetRadioEventByID(t *testing.T) {
 
 	ctx := context.Background()
 
-	raw := `{
-		"timestamp":"2024-10-01T12:00:00Z",
-		"level":"info",
-		"component":"Network",
-		"message_type":"test_event",
-		"direction":"inbound",
-		"protocol":"ngap",
-		"details":"This is a test setwork log entry",
-		"raw":"SGVsbG8gd29ybGQh"
-	}`
-
-	if err := database.InsertRadioEventJSON(ctx, []byte(raw)); err != nil {
+	if err := database.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
+		Timestamp:     "2024-10-01T12:00:00Z",
+		Protocol:      "ngap",
+		MessageType:   "test_event",
+		Direction:     "inbound",
+		LocalAddress:  "127.0.0.1",
+		RemoteAddress: "192.168.1.1",
+		Raw:           []byte("SGVsbG8gd29ybGQh"),
+	}); err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
 
@@ -161,17 +171,13 @@ func TestRadioEventsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	ctx := context.Background()
 
 	insert := func(ts time.Time, event string) {
-		raw := fmt.Sprintf(`{
-			"timestamp":"%s",
-			"level":"info",
-			"component":"Network",
-			"message_type":"%s",
-			"direction":"inbound",
-			"protocol":"tester",
-			"details":"test",
-			"raw":"dGVzdA=="
-		}`, ts.UTC().Format(time.RFC3339), event)
-		if err := database.InsertRadioEventJSON(ctx, []byte(raw)); err != nil {
+		if err := database.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
+			Timestamp:   ts.UTC().Format(time.RFC3339),
+			MessageType: event,
+			Direction:   "inbound",
+			Protocol:    "tester",
+			Raw:         []byte("dGVzdA=="),
+		}); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)
 		}
 	}
@@ -255,17 +261,13 @@ func TestListRadioEventsProtocolFilter(t *testing.T) {
 	ctx := context.Background()
 
 	insert := func(protocol, event string) {
-		raw := fmt.Sprintf(`{
-			"timestamp":"%s",
-			"level":"info",
-			"component":"Network",
-			"message_type":"%s",
-			"direction":"inbound",
-			"protocol":"%s",
-			"details":"test",
-			"raw":"dGVzdA=="
-		}`, time.Now().UTC().Format(time.RFC3339), event, protocol)
-		if err := database.InsertRadioEventJSON(ctx, []byte(raw)); err != nil {
+		if err := database.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
+			Protocol:    protocol,
+			MessageType: event,
+			Direction:   "inbound",
+			Timestamp:   time.Now().UTC().Format(time.RFC3339),
+			Raw:         []byte("dGVzdA=="),
+		}); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)
 		}
 	}
@@ -311,17 +313,13 @@ func TestListRadioEventsTimestampFilter(t *testing.T) {
 	ctx := context.Background()
 
 	insert := func(ts time.Time, event string) {
-		raw := fmt.Sprintf(`{
-			"timestamp":"%s",
-			"level":"info",
-			"component":"Network",
-			"message_type":"%s",
-			"direction":"inbound",
-			"protocol":"tester",
-			"details":"test",
-			"raw":"dGVzdA=="
-		}`, ts.UTC().Format(time.RFC3339), event)
-		if err := database.InsertRadioEventJSON(ctx, []byte(raw)); err != nil {
+		if err := database.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
+			Timestamp:   ts.UTC().Format(time.RFC3339),
+			MessageType: event,
+			Protocol:    "tester",
+			Direction:   "inbound",
+			Raw:         []byte("dGVzdA=="),
+		}); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)
 		}
 	}
@@ -385,17 +383,13 @@ func TestListRadioEventsTimestampAndProtocolFilters(t *testing.T) {
 	ctx := context.Background()
 
 	insert := func(ts time.Time, protocol, event string) {
-		raw := fmt.Sprintf(`{
-			"timestamp":"%s",
-			"level":"info",
-			"component":"Network",
-			"message_type":"%s",
-			"direction":"inbound",
-			"protocol":"%s",
-			"details":"test",
-			"raw":"dGVzdA=="
-		}`, ts.UTC().Format(time.RFC3339), event, protocol)
-		if err := database.InsertRadioEventJSON(ctx, []byte(raw)); err != nil {
+		if err := database.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
+			Timestamp:   ts.UTC().Format(time.RFC3339),
+			MessageType: event,
+			Protocol:    protocol,
+			Direction:   "inbound",
+			Raw:         []byte("dGVzdA=="),
+		}); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)
 		}
 	}

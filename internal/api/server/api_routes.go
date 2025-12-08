@@ -266,7 +266,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 
 		response := CreateSuccessResponse{Message: "Route created successfully", ID: routeID}
 		writeResponse(w, response, http.StatusCreated, logger.APILog)
-		logger.LogAuditEvent(CreateRouteAction, email, getClientIP(r), "User created route: "+fmt.Sprint(routeID))
+		logger.LogAuditEvent(r.Context(), CreateRouteAction, email, getClientIP(r), "User created route: "+fmt.Sprint(routeID))
 	})
 }
 
@@ -343,6 +343,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 
 		writeResponse(w, SuccessResponse{Message: "Route deleted successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(
+			r.Context(),
 			DeleteRouteAction,
 			email,
 			getClientIP(r),

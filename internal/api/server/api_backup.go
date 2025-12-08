@@ -45,6 +45,7 @@ func Backup(dbInstance *db.Database) http.HandlerFunc {
 		http.ServeContent(w, r, "", time.Now(), tempFile)
 
 		logger.LogAuditEvent(
+			r.Context(),
 			BackupAction,
 			emailStr,
 			getClientIP(r),

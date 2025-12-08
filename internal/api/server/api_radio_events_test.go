@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/dbwriter"
 )
 
 type RadioEvent struct {
@@ -201,21 +203,38 @@ func TestListRadioEventsWithFilter(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	rawEntry1 := `{"timestamp":"2024-10-01T10:00:00Z","protocol":"NGAP","message_type":"test_event","direction":"inbound","details":"Whatever 1", "raw":"SGVsbG8gd29ybGQh"}`
-	rawEntry2 := `{"timestamp":"2024-10-01T11:00:00Z","protocol":"NGAP","message_type":"another_event","direction":"outbound","details":"Whatever 2", "raw":"SGVsbG8gd29ybGQh"}`
-	rawEntry3 := `{"timestamp":"2024-10-01T12:00:00Z","protocol":"NAS","message_type":"test_event","direction":"inbound","details":"Whatever 3", "raw":"SGVsbG8gd29ybGQh"}`
-
-	err = testdb.InsertRadioEventJSON(context.Background(), []byte(rawEntry1))
+	err = testdb.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
+		Timestamp:   "2024-10-01T10:00:00Z",
+		Protocol:    "NGAP",
+		MessageType: "test_event",
+		Direction:   "inbound",
+		Details:     "Whatever 1",
+		Raw:         []byte("SGVsbG8gd29ybGQh"),
+	})
 	if err != nil {
 		t.Fatalf("couldn't insert radio event: %s", err)
 	}
 
-	err = testdb.InsertRadioEventJSON(context.Background(), []byte(rawEntry2))
+	err = testdb.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
+		Timestamp:   "2024-10-01T11:00:00Z",
+		Protocol:    "NGAP",
+		MessageType: "another_event",
+		Direction:   "outbound",
+		Details:     "Whatever 2",
+		Raw:         []byte("SGVsbG8gd29ybGQh"),
+	})
 	if err != nil {
 		t.Fatalf("couldn't insert radio event: %s", err)
 	}
 
-	err = testdb.InsertRadioEventJSON(context.Background(), []byte(rawEntry3))
+	err = testdb.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
+		Timestamp:   "2024-10-01T12:00:00Z",
+		Protocol:    "NAS",
+		MessageType: "test_event",
+		Direction:   "inbound",
+		Details:     "Whatever 3",
+		Raw:         []byte("SGVsbG8gd29ybGQh"),
+	})
 	if err != nil {
 		t.Fatalf("couldn't insert radio event: %s", err)
 	}

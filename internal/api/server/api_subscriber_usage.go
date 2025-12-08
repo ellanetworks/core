@@ -149,7 +149,7 @@ func UpdateSubscriberUsageRetentionPolicy(dbInstance *db.Database) http.Handler 
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Subscriber usage retention policy updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdateSubscriberUsageRetentionPolicyAction, email, getClientIP(r), fmt.Sprintf("User updated subscriber usage retention policy to %d days", params.Days))
+		logger.LogAuditEvent(r.Context(), UpdateSubscriberUsageRetentionPolicyAction, email, getClientIP(r), fmt.Sprintf("User updated subscriber usage retention policy to %d days", params.Days))
 	})
 }
 
@@ -167,6 +167,6 @@ func ClearSubscriberUsage(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "All subscriber usage cleared successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent("clear_subscriber_usage", email, getClientIP(r), "User cleared all subscriber usage")
+		logger.LogAuditEvent(r.Context(), "clear_subscriber_usage", email, getClientIP(r), "User cleared all subscriber usage")
 	})
 }

@@ -3,10 +3,12 @@
 package logger
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"os"
+	"time"
 
+	"github.com/ellanetworks/core/internal/dbwriter"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -27,8 +29,9 @@ var (
 
 	atomicLevel zap.AtomicLevel
 
-	auditDBSink   zapcore.WriteSyncer
-	networkDBSink zapcore.WriteSyncer
+	auditDBSink zapcore.WriteSyncer
+
+	dbInstance dbwriter.DBWriter
 )
 
 // Default: console only, info level.
@@ -71,10 +74,6 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 		return fmt.Errorf("could not make cores: %w", err)
 	}
 
-	if networkDBSink != nil {
-		networkCores = append(networkCores, zapcore.NewCore(jsonEnc, networkDBSink, atomicLevel))
-	}
-
 	networkLogger := zap.New(zapcore.NewTee(networkCores...), zap.AddCaller())
 
 	// Swap roots
@@ -95,48 +94,8 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	return nil
 }
 
-// SetAuditDBWriter registers a function that persists one JSON-encoded audit entry.
-// This function should be called after the DB is ready.
-func SetAuditDBWriter(writeFn func([]byte) error) {
-	if writeFn == nil {
-		auditDBSink = nil
-		return
-	}
-	ws := zapcore.AddSync(funcWriteSyncer{write: writeFn})
-	auditDBSink = ws
-
-	// If the audit logger already exists, attach the DB core now.
-	if AuditLog != nil {
-		core := zapcore.NewCore(
-			zapcore.NewJSONEncoder(prodJSONEncoderConfig()),
-			auditDBSink,
-			atomicLevel,
-		)
-		AuditLog = AuditLog.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
-			return zapcore.NewTee(c, core)
-		}))
-	}
-}
-
-func SetRadioEventDBWriter(writeFn func([]byte) error) {
-	if writeFn == nil {
-		networkDBSink = nil
-		return
-	}
-	ws := zapcore.AddSync(funcWriteSyncer{write: writeFn})
-	networkDBSink = ws
-
-	// If the radio eventger already exists, attach the DB core now.
-	if NetworkLog != nil {
-		core := zapcore.NewCore(
-			zapcore.NewJSONEncoder(prodJSONEncoderConfig()),
-			networkDBSink,
-			atomicLevel,
-		)
-		NetworkLog = NetworkLog.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
-			return zapcore.NewTee(c, core)
-		}))
-	}
+func SetDb(db dbwriter.DBWriter) {
+	dbInstance = db
 }
 
 // makeCores returns console core (+ file core if requested).
@@ -228,13 +187,32 @@ func CapitalColorLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder
 }
 
 // LogAuditEvent logs an audit event to the audit logger.
-func LogAuditEvent(action, actor, ip, details string) {
+func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
 	AuditLog.Info("Audit event",
 		zap.String("action", action),
 		zap.String("actor", actor),
 		zap.String("ip", ip),
 		zap.String("details", details),
 	)
+
+	if dbInstance == nil {
+		NetworkLog.Warn("dbInstance is nil, cannot log network event to database")
+		return
+	}
+
+	err := dbInstance.InsertAuditLog(ctx, &dbwriter.AuditLog{
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Level:     "INFO",
+		Actor:     actor,
+		Action:    action,
+		IP:        ip,
+		Details:   details,
+	})
+	if err != nil {
+		AuditLog.Warn("failed to insert audit log",
+			zap.Error(err),
+		)
+	}
 }
 
 type LogDirection string
@@ -251,13 +229,13 @@ const (
 )
 
 func LogNetworkEvent(
+	ctx context.Context,
 	protocol NetworkProtocol,
 	messageType string,
 	dir LogDirection,
 	localAddress string,
 	remoteAddress string,
 	rawBytes []byte,
-	fields ...zap.Field,
 ) {
 	if NetworkLog == nil {
 		return
@@ -269,82 +247,46 @@ func LogNetworkEvent(
 			zap.String("dir", string(dir)),
 			zap.String("local_address", localAddress),
 			zap.String("remote_address", remoteAddress),
-			zap.Any("fields", fields),
 		)
 		return
 	}
 
-	enc := zapcore.NewMapObjectEncoder()
-	for _, f := range fields {
-		f.AddTo(enc)
-	}
-
-	var detailsStr string
-
-	reserved := map[string]struct{}{
-		"message_type":   {},
-		"direction":      {},
-		"raw":            {},
-		"protocol":       {},
-		"timestamp":      {},
-		"local_address":  {},
-		"remote_address": {},
-		"component":      {},
-		"caller":         {},
-		"message":        {},
-	}
-
-	if raw, ok := enc.Fields["details"]; ok {
-		switch v := raw.(type) {
-		case string:
-			detailsStr = v
-		default:
-			if b, err := json.Marshal(v); err == nil {
-				detailsStr = string(b)
-			}
-		}
-		delete(enc.Fields, "details")
-	}
-
-	if detailsStr == "" {
-		agg := make(map[string]any, len(enc.Fields))
-		for k, v := range enc.Fields {
-			if _, isReserved := reserved[k]; !isReserved {
-				agg[k] = v
-			}
-		}
-		if len(agg) > 0 {
-			if b, err := json.Marshal(agg); err == nil {
-				detailsStr = string(b)
-			}
-		}
-	}
-
-	// Optional safety: cap the size
-	const maxDetails = 4096
-	if len(detailsStr) > maxDetails {
-		detailsStr = detailsStr[:maxDetails] + "...(truncated)"
-	}
-
-	// Emit a single, consistent log line. DB reader already expects details as string.
 	NetworkLog.Info("network_event",
 		zap.String("protocol", string(protocol)),
 		zap.String("message_type", messageType),
 		zap.String("direction", string(dir)),
 		zap.String("local_address", localAddress),
 		zap.String("remote_address", remoteAddress),
-		zap.Binary("raw", rawBytes),
-		zap.String("details", detailsStr),
 	)
-}
 
-type funcWriteSyncer struct {
-	write func([]byte) error
-}
-
-func (f funcWriteSyncer) Write(p []byte) (int, error) {
-	if err := f.write(p); err != nil {
-		return 0, err
+	if dbInstance == nil {
+		NetworkLog.Warn("dbInstance is nil, cannot log network event to database")
+		return
 	}
-	return len(p), nil
+
+	err := dbInstance.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
+		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		Protocol:      string(protocol),
+		MessageType:   messageType,
+		Direction:     string(dir),
+		LocalAddress:  localAddress,
+		RemoteAddress: remoteAddress,
+		Raw:           rawBytes,
+	})
+	if err != nil {
+		NetworkLog.Warn("failed to insert radio event",
+			zap.Error(err),
+		)
+	}
 }
+
+// type funcWriteSyncer struct {
+// 	write func([]byte) error
+// }
+
+// func (f funcWriteSyncer) Write(p []byte) (int, error) {
+// 	if err := f.write(p); err != nil {
+// 		return 0, err
+// 	}
+// 	return len(p), nil
+// }

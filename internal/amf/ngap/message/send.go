@@ -79,7 +79,7 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 }
 
 func SendToRan(ctx ctxt.Context, ran *context.AmfRan, packet []byte, msgType NGAPProcedure) error {
-	_, span := tracer.Start(ctx, "Send To RAN",
+	ctx, span := tracer.Start(ctx, "Send To RAN",
 		trace.WithAttributes(),
 		trace.WithSpanKind(trace.SpanKindServer),
 	)
@@ -121,6 +121,7 @@ func SendToRan(ctx ctxt.Context, ran *context.AmfRan, packet []byte, msgType NGA
 	}
 
 	logger.LogNetworkEvent(
+		ctx,
 		logger.NGAPNetworkProtocol,
 		string(msgType),
 		logger.DirectionOutbound,

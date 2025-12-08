@@ -192,7 +192,7 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 		writeResponse(w, SuccessResponse{Message: "Policy deleted successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(DeletePolicyAction, email, getClientIP(r), "User deleted policy: "+name)
+		logger.LogAuditEvent(r.Context(), DeletePolicyAction, email, getClientIP(r), "User deleted policy: "+name)
 	})
 }
 
@@ -252,7 +252,7 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Policy created successfully"}, http.StatusCreated, logger.APILog)
-		logger.LogAuditEvent(CreatePolicyAction, email, getClientIP(r), "User created policy: "+createPolicyParams.Name)
+		logger.LogAuditEvent(r.Context(), CreatePolicyAction, email, getClientIP(r), "User created policy: "+createPolicyParams.Name)
 	})
 }
 
@@ -306,7 +306,7 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Policy updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdatePolicyAction, email, getClientIP(r), "User updated policy: "+updatePolicyParams.Name)
+		logger.LogAuditEvent(r.Context(), UpdatePolicyAction, email, getClientIP(r), "User updated policy: "+updatePolicyParams.Name)
 	})
 }
 

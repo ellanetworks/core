@@ -60,6 +60,7 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 
 		writeResponse(w, SuccessResponse{Message: "Database restored successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(
+			r.Context(),
 			RestoreAction,
 			emailStr,
 			getClientIP(r),

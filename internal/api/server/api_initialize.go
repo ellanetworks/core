@@ -81,6 +81,7 @@ func Initialize(dbInstance *db.Database, secureCookie bool) http.Handler {
 		writeResponse(w, SuccessResponse{Message: "System initialized successfully"}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
+			r.Context(),
 			InitializeAction,
 			newUser.Email,
 			getClientIP(r),
