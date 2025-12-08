@@ -407,11 +407,11 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
-		ue.GmmLog.Info("sent registration reject")
-		err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[anType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
-		if err != nil {
-			return fmt.Errorf("error sending ue context release command: %v", err)
-		}
+		// ue.GmmLog.Info("sent registration reject")
+		// err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[anType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		// if err != nil {
+		// 	return fmt.Errorf("error sending ue context release command: %v", err)
+		// }
 		return nil
 	}
 
