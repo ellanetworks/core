@@ -26,8 +26,11 @@ import (
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
 	"github.com/free5gc/ngap/ngapType"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
+
+var tracer = otel.Tracer("ella-core/amf/nas/handler")
 
 func PlmnIDStringToModels(plmnIDStr string) models.PlmnID {
 	var plmnID models.PlmnID
@@ -354,6 +357,9 @@ func getRegistrationType5GSName(regType5Gs uint8) string {
 
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
 func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, procedureCode int64, registrationRequest *nasMessage.RegistrationRequest) error {
+	ctx, span := tracer.Start(ctx, "AMF HandleRegistrationRequest")
+	defer span.End()
+
 	var guamiFromUeGuti models.Guami
 
 	if ue == nil {
@@ -1128,6 +1134,9 @@ func HandleConfigurationUpdateComplete(ue *context.AmfUe, configurationUpdateCom
 }
 
 func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType) (bool, error) {
+	ctx, span := tracer.Start(ctx, "AuthenticationProcedure")
+	defer span.End()
+
 	// Check whether UE has SUCI and SUPI
 	if IdentityVerification(ue) {
 		ue.GmmLog.Debug("UE has SUCI / SUPI")

@@ -40,6 +40,7 @@ const (
 	getSubscriberStmt            = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
 	createSubscriberStmt         = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKey, opc, policyID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.policyID)"
 	editSubscriberStmt           = "UPDATE %s SET ipAddress=$Subscriber.ipAddress, sequenceNumber=$Subscriber.sequenceNumber, permanentKey=$Subscriber.permanentKey, opc=$Subscriber.opc, policyID=$Subscriber.policyID WHERE imsi==$Subscriber.imsi"
+	editSubscriberSeqNumStmt     = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
 	deleteSubscriberStmt         = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
 	countSubscribersStmt         = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 	countSubscribersInPolicyStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE policyID=$Subscriber.policyID"
@@ -201,11 +202,42 @@ func (db *Database) UpdateSubscriber(ctx context.Context, subscriber *Subscriber
 		attribute.String("db.collection", target),
 	)
 
-	// verify existence
-	if _, err := db.GetSubscriber(ctx, subscriber.Imsi); err != nil {
+	q, err := sqlair.Prepare(stmt, Subscriber{})
+	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "not found")
+		span.SetStatus(codes.Error, "prepare failed")
 		return err
+	}
+
+	if err := db.conn.Query(ctx, q, subscriber).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return nil
+}
+
+func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi string, sequenceNumber string) error {
+	operation := "UPDATE"
+	target := db.subscribersTable
+	spanName := fmt.Sprintf("%s %s (sequence number)", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
+	stmt := fmt.Sprintf(editSubscriberSeqNumStmt, db.subscribersTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	subscriber := &Subscriber{
+		Imsi:           imsi,
+		SequenceNumber: sequenceNumber,
 	}
 
 	q, err := sqlair.Prepare(stmt, Subscriber{})

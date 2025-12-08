@@ -122,7 +122,7 @@ func SendAuthenticationRequest(ctx ctxt.Context, ue *context.RanUe) error {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	_, span := tracer.Start(ctx, "Send Authentication Request",
+	ctx, span := tracer.Start(ctx, "Send Authentication Request",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 		),
