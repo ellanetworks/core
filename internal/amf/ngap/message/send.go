@@ -16,8 +16,12 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
+
+var tracer = otel.Tracer("ella-core/amf/ngap/send")
 
 type NGAPProcedure string
 
@@ -74,7 +78,13 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 	}
 }
 
-func SendToRan(ran *context.AmfRan, packet []byte, msgType NGAPProcedure) error {
+func SendToRan(ctx ctxt.Context, ran *context.AmfRan, packet []byte, msgType NGAPProcedure) error {
+	_, span := tracer.Start(ctx, "Send To RAN",
+		trace.WithAttributes(),
+		trace.WithSpanKind(trace.SpanKindServer),
+	)
+	defer span.End()
+
 	sid, err := getSCTPStreamID(msgType)
 	if err != nil {
 		return fmt.Errorf("could not determine SCTP stream ID from NGAP message type (%s): %s", msgType, err.Error())
@@ -122,7 +132,7 @@ func SendToRan(ran *context.AmfRan, packet []byte, msgType NGAPProcedure) error 
 	return nil
 }
 
-func SendToRanUe(ue *context.RanUe, packet []byte, ngapMsgType NGAPProcedure) error {
+func SendToRanUe(ctx ctxt.Context, ue *context.RanUe, packet []byte, ngapMsgType NGAPProcedure) error {
 	var ran *context.AmfRan
 
 	if ue == nil {
@@ -133,7 +143,7 @@ func SendToRanUe(ue *context.RanUe, packet []byte, ngapMsgType NGAPProcedure) er
 		return fmt.Errorf("ran is nil")
 	}
 
-	err := SendToRan(ran, packet, ngapMsgType)
+	err := SendToRan(ctx, ran, packet, ngapMsgType)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -141,7 +151,7 @@ func SendToRanUe(ue *context.RanUe, packet []byte, ngapMsgType NGAPProcedure) er
 	return nil
 }
 
-func NasSendToRan(ue *context.AmfUe, accessType models.AccessType, packet []byte, msgType NGAPProcedure) error {
+func NasSendToRan(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, packet []byte, msgType NGAPProcedure) error {
 	if ue == nil {
 		return fmt.Errorf("amf ue is nil")
 	}
@@ -151,7 +161,7 @@ func NasSendToRan(ue *context.AmfUe, accessType models.AccessType, packet []byte
 		return fmt.Errorf("ran ue is nil")
 	}
 
-	err := SendToRanUe(ranUe, packet, msgType)
+	err := SendToRanUe(ctx, ranUe, packet, msgType)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -165,7 +175,7 @@ func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan, guami *models.Gu
 		return fmt.Errorf("error building NG Setup Response: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, NGAPProcedureNGSetupResponse)
+	err = SendToRan(ctx, ran, pkt, NGAPProcedureNGSetupResponse)
 	if err != nil {
 		return fmt.Errorf("couldn't send packet to ran: %s", err.Error())
 	}
@@ -173,7 +183,7 @@ func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan, guami *models.Gu
 	return nil
 }
 
-func SendNGSetupFailure(ran *context.AmfRan, cause ngapType.Cause) error {
+func SendNGSetupFailure(ctx ctxt.Context, ran *context.AmfRan, cause ngapType.Cause) error {
 	if cause.Present == ngapType.CausePresentNothing {
 		return fmt.Errorf("cause present is nil")
 	}
@@ -183,7 +193,7 @@ func SendNGSetupFailure(ran *context.AmfRan, cause ngapType.Cause) error {
 		return fmt.Errorf("error building NG Setup Failure: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, NGAPProcedureNGSetupFailure)
+	err = SendToRan(ctx, ran, pkt, NGAPProcedureNGSetupFailure)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -191,7 +201,7 @@ func SendNGSetupFailure(ran *context.AmfRan, cause ngapType.Cause) error {
 	return nil
 }
 
-func SendNGResetAcknowledge(ran *context.AmfRan, partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) error {
+func SendNGResetAcknowledge(ctx ctxt.Context, ran *context.AmfRan, partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) error {
 	if partOfNGInterface != nil && len(partOfNGInterface.List) == 0 {
 		return fmt.Errorf("length of partOfNGInterface is 0")
 	}
@@ -201,7 +211,7 @@ func SendNGResetAcknowledge(ran *context.AmfRan, partOfNGInterface *ngapType.UEA
 		return fmt.Errorf("error building NG Reset Acknowledge: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, NGAPProcedureNGResetAcknowledge)
+	err = SendToRan(ctx, ran, pkt, NGAPProcedureNGResetAcknowledge)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -209,7 +219,7 @@ func SendNGResetAcknowledge(ran *context.AmfRan, partOfNGInterface *ngapType.UEA
 	return nil
 }
 
-func SendDownlinkNasTransport(ue *context.RanUe, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
+func SendDownlinkNasTransport(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
 	if ue == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
@@ -223,7 +233,7 @@ func SendDownlinkNasTransport(ue *context.RanUe, nasPdu []byte, mobilityRestrict
 		return fmt.Errorf("error building DownlinkNasTransport: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, NGAPProcedureDownlinkNasTransport)
+	err = SendToRanUe(ctx, ue, pkt, NGAPProcedureDownlinkNasTransport)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -231,7 +241,7 @@ func SendDownlinkNasTransport(ue *context.RanUe, nasPdu []byte, mobilityRestrict
 	return nil
 }
 
-func SendPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte, pduSessionResourceReleasedList ngapType.PDUSessionResourceToReleaseListRelCmd) error {
+func SendPDUSessionResourceReleaseCommand(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte, pduSessionResourceReleasedList ngapType.PDUSessionResourceToReleaseListRelCmd) error {
 	if ue == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
@@ -241,7 +251,7 @@ func SendPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte, pduS
 		return fmt.Errorf("error building pdu session resource release: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, NGAPProcedurePDUSessionResourceReleaseCommand)
+	err = SendToRanUe(ctx, ue, pkt, NGAPProcedurePDUSessionResourceReleaseCommand)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -249,7 +259,7 @@ func SendPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte, pduS
 	return nil
 }
 
-func SendUEContextReleaseCommand(ue *context.RanUe, action context.RelAction, causePresent int, cause aper.Enumerated) error {
+func SendUEContextReleaseCommand(ctx ctxt.Context, ue *context.RanUe, action context.RelAction, causePresent int, cause aper.Enumerated) error {
 	if ue == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
@@ -269,7 +279,7 @@ func SendUEContextReleaseCommand(ue *context.RanUe, action context.RelAction, ca
 		}
 	}
 
-	err = SendToRanUe(ue, pkt, NGAPProcedureUEContextReleaseCommand)
+	err = SendToRanUe(ctx, ue, pkt, NGAPProcedureUEContextReleaseCommand)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -277,7 +287,7 @@ func SendUEContextReleaseCommand(ue *context.RanUe, action context.RelAction, ca
 	return nil
 }
 
-func SendErrorIndication(ran *context.AmfRan, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+func SendErrorIndication(ctx ctxt.Context, ran *context.AmfRan, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	if ran == nil {
 		return fmt.Errorf("ran is nil")
 	}
@@ -287,7 +297,7 @@ func SendErrorIndication(ran *context.AmfRan, amfUeNgapID, ranUeNgapID *int64, c
 		return fmt.Errorf("error building error indication: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, NGAPProcedureErrorIndication)
+	err = SendToRan(ctx, ran, pkt, NGAPProcedureErrorIndication)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -295,7 +305,7 @@ func SendErrorIndication(ran *context.AmfRan, amfUeNgapID, ranUeNgapID *int64, c
 	return nil
 }
 
-func SendHandoverCancelAcknowledge(ue *context.RanUe, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+func SendHandoverCancelAcknowledge(ctx ctxt.Context, ue *context.RanUe, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	if ue == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
@@ -306,14 +316,14 @@ func SendHandoverCancelAcknowledge(ue *context.RanUe, criticalityDiagnostics *ng
 	if err != nil {
 		return fmt.Errorf("error building handover cancel acknowledge: %s", err.Error())
 	}
-	err = SendToRanUe(ue, pkt, NGAPProcedureHandoverCancelAcknowledge)
+	err = SendToRanUe(ctx, ue, pkt, NGAPProcedureHandoverCancelAcknowledge)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
 	return nil
 }
 
-func SendPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) error {
+func SendPDUSessionResourceSetupRequest(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) error {
 	if ue == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
@@ -327,7 +337,7 @@ func SendPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte, pduSes
 		return fmt.Errorf("error building pdu session resource setup request: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, NGAPProcedurePDUSessionResourceSetupRequest)
+	err = SendToRanUe(ctx, ue, pkt, NGAPProcedurePDUSessionResourceSetupRequest)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -336,6 +346,7 @@ func SendPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte, pduSes
 }
 
 func SendPDUSessionResourceModifyConfirm(
+	ctx ctxt.Context,
 	ue *context.RanUe,
 	pduSessionResourceModifyConfirmList ngapType.PDUSessionResourceModifyListModCfm,
 	pduSessionResourceFailedToModifyList ngapType.PDUSessionResourceFailedToModifyListModCfm,
@@ -359,7 +370,7 @@ func SendPDUSessionResourceModifyConfirm(
 		return fmt.Errorf("error building pdu session resource modify confirm: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, NGAPProcedurePDUSessionResourceModifyConfirm)
+	err = SendToRanUe(ctx, ue, pkt, NGAPProcedurePDUSessionResourceModifyConfirm)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -368,7 +379,7 @@ func SendPDUSessionResourceModifyConfirm(
 }
 
 // pduSessionResourceModifyRequestList: from SMF
-func SendPDUSessionResourceModifyRequest(ue *context.RanUe, pduSessionResourceModifyRequestList ngapType.PDUSessionResourceModifyListModReq) error {
+func SendPDUSessionResourceModifyRequest(ctx ctxt.Context, ue *context.RanUe, pduSessionResourceModifyRequestList ngapType.PDUSessionResourceModifyListModReq) error {
 	if ue == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
@@ -384,7 +395,7 @@ func SendPDUSessionResourceModifyRequest(ue *context.RanUe, pduSessionResourceMo
 		return fmt.Errorf("error building pdu session resource modify request: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, NGAPProcedurePDUSessionResourceModifyRequest)
+	err = SendToRanUe(ctx, ue, pkt, NGAPProcedurePDUSessionResourceModifyRequest)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -421,7 +432,7 @@ func SendInitialContextSetupRequest(
 
 	amfUe.RanUe[anType].SentInitialContextSetupRequest = true
 
-	err = NasSendToRan(amfUe, anType, pkt, NGAPProcedureInitialContextSetupRequest)
+	err = NasSendToRan(ctx, amfUe, anType, pkt, NGAPProcedureInitialContextSetupRequest)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -434,6 +445,7 @@ func SendInitialContextSetupRequest(
 // criticalityDiagnostics = criticalityDiagonstics IE in receiver node's error indication
 // when received node can't comprehend the IE or missing IE
 func SendHandoverCommand(
+	ctx ctxt.Context,
 	sourceUe *context.RanUe,
 	pduSessionResourceHandoverList ngapType.PDUSessionResourceHandoverList,
 	pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd,
@@ -458,7 +470,7 @@ func SendHandoverCommand(
 		return fmt.Errorf("error building handover command: %s", err.Error())
 	}
 
-	err = SendToRanUe(sourceUe, pkt, NGAPProcedureHandoverCommand)
+	err = SendToRanUe(ctx, sourceUe, pkt, NGAPProcedureHandoverCommand)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -469,7 +481,7 @@ func SendHandoverCommand(
 // cause = initiate the Handover Cancel procedure with the appropriate value for the Cause IE.
 // criticalityDiagnostics = criticalityDiagonstics IE in receiver node's error indication
 // when received node can't comprehend the IE or missing IE
-func SendHandoverPreparationFailure(sourceUe *context.RanUe, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+func SendHandoverPreparationFailure(ctx ctxt.Context, sourceUe *context.RanUe, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	if sourceUe == nil {
 		return fmt.Errorf("source ue is nil")
 	}
@@ -490,7 +502,7 @@ func SendHandoverPreparationFailure(sourceUe *context.RanUe, cause ngapType.Caus
 		return fmt.Errorf("error building handover preparation failure: %s", err.Error())
 	}
 
-	err = SendToRanUe(sourceUe, pkt, NGAPProcedureHandoverPreparationFailure)
+	err = SendToRanUe(ctx, sourceUe, pkt, NGAPProcedureHandoverPreparationFailure)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -556,7 +568,7 @@ func SendHandoverRequest(
 		return fmt.Errorf("error building handover request: %s", err.Error())
 	}
 
-	err = SendToRanUe(targetUe, pkt, NGAPProcedureHandoverRequest)
+	err = SendToRanUe(ctx, targetUe, pkt, NGAPProcedureHandoverRequest)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -603,7 +615,7 @@ func SendPathSwitchRequestAcknowledge(
 		return fmt.Errorf("error building path switch request acknowledge: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, NGAPProcedurePathSwitchRequestAcknowledge)
+	err = SendToRanUe(ctx, ue, pkt, NGAPProcedurePathSwitchRequestAcknowledge)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -614,6 +626,7 @@ func SendPathSwitchRequestAcknowledge(
 // pduSessionResourceReleasedList: provided by AMF, and the transfer data is from SMF
 // criticalityDiagnostics: from received node when received not comprehended IE or missing IE
 func SendPathSwitchRequestFailure(
+	ctx ctxt.Context,
 	ran *context.AmfRan,
 	amfUeNgapID,
 	ranUeNgapID int64,
@@ -630,7 +643,7 @@ func SendPathSwitchRequestFailure(
 		return fmt.Errorf("error building path switch request failure: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, NGAPProcedurePathSwitchRequestFailure)
+	err = SendToRan(ctx, ran, pkt, NGAPProcedurePathSwitchRequestFailure)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -648,7 +661,7 @@ func SendPathSwitchRequestFailure(
 // is associated with non-3GPP access, the AMF sends a Paging message with associated access "non-3GPP" to
 // NG-RAN node(s) via 3GPP access.
 // more paging policy with 3gpp/non-3gpp access is described in TS 23.501 5.6.8
-func SendPaging(ue *context.AmfUe, ngapBuf []byte) error {
+func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
 	if ue == nil {
 		return fmt.Errorf("amf ue is nil")
 	}
@@ -658,7 +671,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) error {
 		ran := value.(*context.AmfRan)
 		for _, item := range ran.SupportedTAList {
 			if context.InTaiList(item.Tai, taiList) {
-				err := SendToRan(ran, ngapBuf, NGAPProcedurePaging)
+				err := SendToRan(ctx, ran, ngapBuf, NGAPProcedurePaging)
 				if err != nil {
 					ue.GmmLog.Error("failed to send paging", zap.Error(err))
 					continue
@@ -678,7 +691,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) error {
 				ran := value.(*context.AmfRan)
 				for _, item := range ran.SupportedTAList {
 					if context.InTaiList(item.Tai, taiList) {
-						err := SendToRan(ran, ngapBuf, NGAPProcedurePaging)
+						err := SendToRan(ctx, ran, ngapBuf, NGAPProcedurePaging)
 						if err != nil {
 							ue.GmmLog.Error("failed to send paging", zap.Error(err))
 							continue
@@ -699,7 +712,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) error {
 }
 
 // criticality ->from received node when received node can't comprehend the IE or missing IE
-func SendRanConfigurationUpdateAcknowledge(ran *context.AmfRan, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+func SendRanConfigurationUpdateAcknowledge(ctx ctxt.Context, ran *context.AmfRan, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	if ran == nil {
 		return fmt.Errorf("ran is nil")
 	}
@@ -709,7 +722,7 @@ func SendRanConfigurationUpdateAcknowledge(ran *context.AmfRan, criticalityDiagn
 		return fmt.Errorf("error building ran configuration update acknowledge: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, NGAPProcedureRanConfigurationUpdateAcknowledge)
+	err = SendToRan(ctx, ran, pkt, NGAPProcedureRanConfigurationUpdateAcknowledge)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -720,7 +733,7 @@ func SendRanConfigurationUpdateAcknowledge(ran *context.AmfRan, criticalityDiagn
 // criticality ->from received node when received node can't comprehend the IE or missing IE
 // If the AMF cannot accept the update,
 // it shall respond with a RAN CONFIGURATION UPDATE FAILURE message and appropriate cause value.
-func SendRanConfigurationUpdateFailure(ran *context.AmfRan, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+func SendRanConfigurationUpdateFailure(ctx ctxt.Context, ran *context.AmfRan, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	if ran == nil {
 		return fmt.Errorf("ran is nil")
 	}
@@ -730,7 +743,7 @@ func SendRanConfigurationUpdateFailure(ran *context.AmfRan, cause ngapType.Cause
 		return fmt.Errorf("error building ran configuration update failure: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, NGAPProcedureRanConfigurationUpdateFailure)
+	err = SendToRan(ctx, ran, pkt, NGAPProcedureRanConfigurationUpdateFailure)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -744,7 +757,7 @@ func SendRanConfigurationUpdateFailure(ran *context.AmfRan, cause ngapType.Cause
 // forwarding the transaction towards the old AMF and detect that the AMF is unavailable. When
 // it detects unavailable, it marks the AMF and its associated GUAMI(s) as unavailable.
 // Defined in 23.501 5.21.2.2.2
-func SendAMFStatusIndication(ran *context.AmfRan, unavailableGUAMIList ngapType.UnavailableGUAMIList) error {
+func SendAMFStatusIndication(ctx ctxt.Context, ran *context.AmfRan, unavailableGUAMIList ngapType.UnavailableGUAMIList) error {
 	if ran == nil {
 		return fmt.Errorf("ran is nil")
 	}
@@ -760,7 +773,7 @@ func SendAMFStatusIndication(ran *context.AmfRan, unavailableGUAMIList ngapType.
 		return fmt.Errorf("error building amf status indication: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, NGAPProcedureAMFStatusIndication)
+	err = SendToRan(ctx, ran, pkt, NGAPProcedureAMFStatusIndication)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -769,7 +782,7 @@ func SendAMFStatusIndication(ran *context.AmfRan, unavailableGUAMIList ngapType.
 }
 
 // SONConfigurationTransfer = sONConfigurationTransfer from uplink Ran Configuration Transfer
-func SendDownlinkRanConfigurationTransfer(ran *context.AmfRan, transfer *ngapType.SONConfigurationTransfer) error {
+func SendDownlinkRanConfigurationTransfer(ctx ctxt.Context, ran *context.AmfRan, transfer *ngapType.SONConfigurationTransfer) error {
 	if ran == nil {
 		return fmt.Errorf("ran is nil")
 	}
@@ -779,7 +792,7 @@ func SendDownlinkRanConfigurationTransfer(ran *context.AmfRan, transfer *ngapTyp
 		return fmt.Errorf("error building downlink ran configuration transfer: %s", err.Error())
 	}
 
-	err = SendToRan(ran, pkt, NGAPProcedureDownlinkRanConfigurationTransfer)
+	err = SendToRan(ctx, ran, pkt, NGAPProcedureDownlinkRanConfigurationTransfer)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -798,6 +811,7 @@ func SendDownlinkRanConfigurationTransfer(ran *context.AmfRan, transfer *ngapTyp
 // Location Reference ID To Be Cancelled IE shall be present if the Event Type IE is set to "Stop UE presence
 // in the area of interest". otherwise set it to 0
 func SendLocationReportingControl(
+	ctx ctxt.Context,
 	ue *context.RanUe,
 	AOIList *ngapType.AreaOfInterestList,
 	LocationReportingReferenceIDToBeCancelled int64,
@@ -822,7 +836,7 @@ func SendLocationReportingControl(
 		return fmt.Errorf("error building location reporting control: %s", err.Error())
 	}
 
-	err = SendToRanUe(ue, pkt, NGAPProcedureLocationReportingControl)
+	err = SendToRanUe(ctx, ue, pkt, NGAPProcedureLocationReportingControl)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}

@@ -22,7 +22,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var tracer = otel.Tracer("ella-core/nas")
+var tracer = otel.Tracer("ella-core/amf/nas")
 
 func Dispatch(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, procedureCode int64, msg *nas.Message) error {
 	if msg.GmmMessage == nil {

@@ -97,6 +97,8 @@ func StartNGAPService(ngapAddress string, ngapPort int) error {
 func Close() {
 	amfSelf := context.AMFSelf()
 
+	ctx := ctxt.Background()
+
 	operatorInfo, err := context.GetOperatorInfo(ctxt.Background())
 	if err != nil {
 		logger.AmfLog.Error("Could not get operator info", zap.Error(err))
@@ -106,7 +108,7 @@ func Close() {
 	unavailableGuamiList := message.BuildUnavailableGUAMIList(operatorInfo.Guami)
 	amfSelf.AmfRanPool.Range(func(key, value any) bool {
 		ran := value.(*context.AmfRan)
-		err := message.SendAMFStatusIndication(ran, unavailableGuamiList)
+		err := message.SendAMFStatusIndication(ctx, ran, unavailableGuamiList)
 		if err != nil {
 			logger.AmfLog.Error("failed to send AMF Status Indication to RAN", zap.Error(err))
 		}

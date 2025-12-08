@@ -229,7 +229,7 @@ func Authentication(ctx ctxt.Context, state *fsm.State, event fsm.EventType, arg
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
 		accessType := args[ArgAccessType].(models.AccessType)
 
-		if err := HandleAuthenticationError(amfUe, accessType); err != nil {
+		if err := HandleAuthenticationError(ctx, amfUe, accessType); err != nil {
 			logger.AmfLog.Error("Error handling authentication error", zap.Error(err))
 		}
 	case NwInitiatedDeregistrationEvent:
@@ -287,7 +287,7 @@ func SecurityMode(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 					logger.AmfLog.Error("Error sending event", zap.Error(err))
 				}
 			} else {
-				err := gmm_message.SendSecurityModeCommand(amfUe.RanUe[accessType], eapSuccess, eapMessage)
+				err := gmm_message.SendSecurityModeCommand(ctx, amfUe.RanUe[accessType], eapSuccess, eapMessage)
 				if err != nil {
 					logger.AmfLog.Error("error sending security mode command", zap.Error(err))
 				}
@@ -305,7 +305,7 @@ func SecurityMode(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 				logger.AmfLog.Error("Error handling security mode complete", zap.Error(err))
 			}
 		case nas.MsgTypeSecurityModeReject:
-			if err := HandleSecurityModeReject(amfUe, accessType, gmmMessage.SecurityModeReject); err != nil {
+			if err := HandleSecurityModeReject(ctx, amfUe, accessType, gmmMessage.SecurityModeReject); err != nil {
 				logger.AmfLog.Error("Error handling security mode reject", zap.Error(err))
 			}
 			err := GmmFSM.SendEvent(ctx, state, SecurityModeFailEvent, fsm.ArgsType{

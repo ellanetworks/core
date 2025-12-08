@@ -28,7 +28,7 @@ import (
 
 var mutex sync.Mutex
 
-var tracer = otel.Tracer("ella-core/nas/security")
+var tracer = otel.Tracer("ella-core/amf/nas/security")
 
 func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 	if ue == nil {
