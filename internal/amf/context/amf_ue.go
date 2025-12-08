@@ -453,7 +453,7 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) {
 	ue.CipheringAlg = security.AlgCiphering128NEA0
 	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	if ue.UESecurityCapability.GetLen() == 0 {
+	if ue.UESecurityCapability == nil {
 		logger.AmfLog.Debug("AMF UE Security Capability is not available")
 		return
 	}
