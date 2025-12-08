@@ -159,8 +159,8 @@ func NasSendToRan(ue *context.AmfUe, accessType models.AccessType, packet []byte
 	return nil
 }
 
-func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan) error {
-	pkt, err := BuildNGSetupResponse(ctx)
+func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan, guami *models.Guami, plmnSupported *context.PlmnSupportItem) error {
+	pkt, err := BuildNGSetupResponse(ctx, guami, plmnSupported)
 	if err != nil {
 		return fmt.Errorf("error building NG Setup Response: %s", err.Error())
 	}
@@ -401,6 +401,7 @@ func SendInitialContextSetupRequest(
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
 	coreNetworkAssistanceInfo *ngapType.CoreNetworkAssistanceInformation,
 	emergencyFallbackIndicator *ngapType.EmergencyFallbackIndicator,
+	supportedGUAMI *models.Guami,
 ) error {
 	if amfUe == nil {
 		return fmt.Errorf("amf ue is nil")
@@ -413,7 +414,7 @@ func SendInitialContextSetupRequest(
 	}
 
 	pkt, err := BuildInitialContextSetupRequest(ctx, amfUe, anType, nasPdu, pduSessionResourceSetupRequestList,
-		rrcInactiveTransitionReportRequest, coreNetworkAssistanceInfo, emergencyFallbackIndicator)
+		rrcInactiveTransitionReportRequest, coreNetworkAssistanceInfo, emergencyFallbackIndicator, supportedGUAMI)
 	if err != nil {
 		return fmt.Errorf("error building initial context setup request: %s", err)
 	}
@@ -504,7 +505,16 @@ a Nsmf_PDUSession_CreateSMContext Response(N2 SM Information (PDU Session ID, ca
 // sourceToTargetTransparentContainer is received from S-RAN
 // nsci: new security context indicator, if amfUe has updated security context, set nsci to true, otherwise set to false
 // N2 handover in same AMF
-func SendHandoverRequest(ctx ctxt.Context, sourceUe *context.RanUe, targetRan *context.AmfRan, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer) error {
+func SendHandoverRequest(
+	ctx ctxt.Context,
+	sourceUe *context.RanUe,
+	targetRan *context.AmfRan,
+	cause ngapType.Cause,
+	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
+	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer,
+	supportedPLMN *context.PlmnSupportItem,
+	supportedGUAMI *models.Guami,
+) error {
 	if sourceUe == nil {
 		return fmt.Errorf("source ue is nil")
 	}
@@ -541,7 +551,7 @@ func SendHandoverRequest(ctx ctxt.Context, sourceUe *context.RanUe, targetRan *c
 		return fmt.Errorf("attach source ue target ue error: %s", err.Error())
 	}
 
-	pkt, err := BuildHandoverRequest(ctx, targetUe, cause, pduSessionResourceSetupListHOReq, sourceToTargetTransparentContainer)
+	pkt, err := BuildHandoverRequest(ctx, targetUe, cause, pduSessionResourceSetupListHOReq, sourceToTargetTransparentContainer, supportedPLMN, supportedGUAMI)
 	if err != nil {
 		return fmt.Errorf("error building handover request: %s", err.Error())
 	}
@@ -572,6 +582,7 @@ func SendPathSwitchRequestAcknowledge(
 	coreNetworkAssistanceInformation *ngapType.CoreNetworkAssistanceInformation,
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
+	supportedPLMN *context.PlmnSupportItem,
 ) error {
 	if ue == nil {
 		return fmt.Errorf("ran ue is nil")
@@ -587,7 +598,7 @@ func SendPathSwitchRequestAcknowledge(
 
 	pkt, err := BuildPathSwitchRequestAcknowledge(ctx, ue, pduSessionResourceSwitchedList, pduSessionResourceReleasedList,
 		newSecurityContextIndicator, coreNetworkAssistanceInformation, rrcInactiveTransitionReportRequest,
-		criticalityDiagnostics)
+		criticalityDiagnostics, supportedPLMN)
 	if err != nil {
 		return fmt.Errorf("error building path switch request acknowledge: %s", err.Error())
 	}

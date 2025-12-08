@@ -444,6 +444,7 @@ func BuildRegistrationAccept(
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
+	supportedPLMN *context.PlmnSupportItem,
 ) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -481,14 +482,9 @@ func BuildRegistrationAccept(
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
 	}
 
-	plmnSupported, err := context.GetSupportedPlmn(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get supported PLMN: %s", err)
-	}
-
 	registrationAccept.EquivalentPlmns = nasType.NewEquivalentPlmns(nasMessage.RegistrationAcceptEquivalentPlmnsType)
 	var buf []uint8
-	plmnID, err := util.PlmnIDToNas(plmnSupported.PlmnID)
+	plmnID, err := util.PlmnIDToNas(supportedPLMN.PlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert PLMN ID to NAS: %s", err)
 	}
