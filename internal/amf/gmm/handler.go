@@ -383,6 +383,15 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.T3565 = nil // clear the timer
 	}
 
+	if ue.MacFailed {
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMMACFailure, "")
+		if err != nil {
+			return fmt.Errorf("error sending registration reject: %v", err)
+		}
+		ue.GmmLog.Info("sent registration reject to UE")
+		return fmt.Errorf("NAS message integrity check failed")
+	}
+
 	// TS 24.501 8.2.6.21: if the UE is sending a REGISTRATION REQUEST message as an initial NAS message,
 	// the UE has a valid 5G NAS security context and the UE needs to send non-cleartext IEs
 	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS message
