@@ -394,54 +394,54 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	// the UE has a valid 5G NAS security context and the UE needs to send non-cleartext IEs
 	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS message
 	// container IE, the UE shall set the security header type of the initial NAS message to "integrity protected"
-	if registrationRequest.NASMessageContainer != nil {
-		contents := registrationRequest.NASMessageContainer.GetNASMessageContainerContents()
+	// if registrationRequest.NASMessageContainer != nil {
+	// 	contents := registrationRequest.NASMessageContainer.GetNASMessageContainerContents()
 
-		if !ue.SecurityContextIsValid() && ue.RegistrationType5GS != nasMessage.RegistrationType5GSInitialRegistration {
-			err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
-			if err != nil {
-				return fmt.Errorf("error sending registration reject: %v", err)
-			}
+	// 	if !ue.SecurityContextIsValid() && ue.RegistrationType5GS != nasMessage.RegistrationType5GSInitialRegistration {
+	// 		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
+	// 		if err != nil {
+	// 			return fmt.Errorf("error sending registration reject: %v", err)
+	// 		}
 
-			ue.GmmLog.Info("sent registration reject to UE")
+	// 		ue.GmmLog.Info("sent registration reject to UE")
 
-			err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[anType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
-			if err != nil {
-				ue.GmmLog.Error("error sending ue context release command", zap.Error(err))
-			}
+	// 		err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[anType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
+	// 		if err != nil {
+	// 			ue.GmmLog.Error("error sending ue context release command", zap.Error(err))
+	// 		}
 
-			ue.GmmLog.Info("sent ue context release command to UE")
+	// 		ue.GmmLog.Info("sent ue context release command to UE")
 
-			ue.Remove()
+	// 		ue.Remove()
 
-			logger.AmfLog.Info("removed UE context as security context is not valid")
+	// 		logger.AmfLog.Info("removed UE context as security context is not valid")
 
-			return fmt.Errorf("security context is not valid")
-		}
+	// 		return fmt.Errorf("security context is not valid")
+	// 	}
 
-		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
-		// message container IE, the UE shall set the security header type of the initial NAS message to
-		// "integrity protected"; then the AMF shall decipher the value part of the NAS message container IE
-		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
-		if err != nil {
-			ue.SecurityContextAvailable = false
-		} else {
-			m := nas.NewMessage()
-			if err := m.GmmMessageDecode(&contents); err != nil {
-				return fmt.Errorf("could not decode NAS message container: %v", err)
-			}
+	// 	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
+	// 	// message container IE, the UE shall set the security header type of the initial NAS message to
+	// 	// "integrity protected"; then the AMF shall decipher the value part of the NAS message container IE
+	// 	err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
+	// 	if err != nil {
+	// 		ue.SecurityContextAvailable = false
+	// 	} else {
+	// 		m := nas.NewMessage()
+	// 		if err := m.GmmMessageDecode(&contents); err != nil {
+	// 			return fmt.Errorf("could not decode NAS message container: %v", err)
+	// 		}
 
-			messageType := m.GmmMessage.GmmHeader.GetMessageType()
-			if messageType != nas.MsgTypeRegistrationRequest {
-				return fmt.Errorf("expected registration request, got %d", messageType)
-			}
-			// TS 24.501 4.4.6: The AMF shall consider the NAS message that is obtained from the NAS message container
-			// IE as the initial NAS message that triggered the procedure
-			registrationRequest = m.RegistrationRequest
-		}
-		// TS 33.501 6.4.6 step 3: if the initial NAS message was protected but did not pass the integrity check
-		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
-	}
+	// 		messageType := m.GmmMessage.GmmHeader.GetMessageType()
+	// 		if messageType != nas.MsgTypeRegistrationRequest {
+	// 			return fmt.Errorf("expected registration request, got %d", messageType)
+	// 		}
+	// 		// TS 24.501 4.4.6: The AMF shall consider the NAS message that is obtained from the NAS message container
+	// 		// IE as the initial NAS message that triggered the procedure
+	// 		registrationRequest = m.RegistrationRequest
+	// 	}
+	// 	// TS 33.501 6.4.6 step 3: if the initial NAS message was protected but did not pass the integrity check
+	// 	ue.RetransmissionOfInitialNASMsg = ue.MacFailed
+	// }
 
 	ue.RegistrationRequest = registrationRequest
 	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
