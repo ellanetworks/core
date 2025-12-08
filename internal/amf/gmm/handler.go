@@ -383,38 +383,6 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.T3565 = nil // clear the timer
 	}
 
-	// TS 24.501 8.2.6.21: if the UE is sending a REGISTRATION REQUEST message as an initial NAS message,
-	// the UE has a valid 5G NAS security context and the UE needs to send non-cleartext IEs
-	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS message
-	// container IE, the UE shall set the security header type of the initial NAS message to "integrity protected"
-	if registrationRequest.NASMessageContainer != nil {
-		contents := registrationRequest.NASMessageContainer.GetNASMessageContainerContents()
-
-		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
-		// message container IE, the UE shall set the security header type of the initial NAS message to
-		// "integrity protected"; then the AMF shall decipher the value part of the NAS message container IE
-		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
-			security.DirectionUplink, contents)
-		if err != nil {
-			ue.SecurityContextAvailable = false
-		} else {
-			m := nas.NewMessage()
-			if err := m.GmmMessageDecode(&contents); err != nil {
-				return err
-			}
-
-			messageType := m.GmmMessage.GmmHeader.GetMessageType()
-			if messageType != nas.MsgTypeRegistrationRequest {
-				return fmt.Errorf("expected registration request, got %d", messageType)
-			}
-			// TS 24.501 4.4.6: The AMF shall consider the NAS message that is obtained from the NAS message container
-			// IE as the initial NAS message that triggered the procedure
-			registrationRequest = m.RegistrationRequest
-		}
-		// TS 33.501 6.4.6 step 3: if the initial NAS message was protected but did not pass the integrity check
-		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
-	}
-
 	ue.RegistrationRequest = registrationRequest
 	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
 	regName := getRegistrationType5GSName(ue.RegistrationType5GS)
@@ -513,7 +481,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	}
 
 	if registrationRequest.UESecurityCapability != nil {
-		ue.UESecurityCapability = *registrationRequest.UESecurityCapability
+		ue.UESecurityCapability = registrationRequest.UESecurityCapability
 	}
 
 	if ue.ServingAmfChanged {

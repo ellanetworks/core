@@ -123,7 +123,7 @@ type AmfUe struct {
 	UESpecificDRX                              uint8
 	/* Security Context */
 	SecurityContextAvailable bool
-	UESecurityCapability     nasType.UESecurityCapability // for security command
+	UESecurityCapability     *nasType.UESecurityCapability // for security command
 	NgKsi                    models.NgKsi
 	MacFailed                bool      // set to true if the integrity check of current NAS message is failed
 	KnasInt                  [16]uint8 // 16 byte
@@ -453,7 +453,7 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) {
 	ue.CipheringAlg = security.AlgCiphering128NEA0
 	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	if ue.UESecurityCapability.GetLen() == 0 {
+	if ue.UESecurityCapability == nil {
 		logger.AmfLog.Debug("AMF UE Security Capability is not available")
 		return
 	}
