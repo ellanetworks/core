@@ -397,7 +397,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	if registrationRequest.NASMessageContainer != nil {
 		contents := registrationRequest.NASMessageContainer.GetNASMessageContainerContents()
 
-		if !ue.SecurityContextIsValid() {
+		if !ue.SecurityContextIsValid() && ue.RegistrationType5GS != nasMessage.RegistrationType5GSInitialRegistration {
 			err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
