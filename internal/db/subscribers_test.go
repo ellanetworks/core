@@ -188,8 +188,8 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't retrieve subscriber: %s", err)
 	}
-	if retrievedSubscriber.IPAddress != allocatedIP.String() {
-		t.Fatalf("IP address in database %s does not match allocated IP %s", retrievedSubscriber.IPAddress, allocatedIP.String())
+	if *retrievedSubscriber.IPAddress != allocatedIP.String() {
+		t.Fatalf("IP address in database %s does not match allocated IP %s", *retrievedSubscriber.IPAddress, allocatedIP.String())
 	}
 
 	// Step 5: Release the IP
@@ -203,7 +203,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't retrieve subscriber after release: %s", err)
 	}
-	if retrievedSubscriber.IPAddress != "" {
+	if retrievedSubscriber.IPAddress != nil {
 		t.Fatalf("IP address was not cleared from the database after release")
 	}
 
@@ -343,12 +343,13 @@ func TestCountSubscribersWithIP(t *testing.T) {
 		t.Fatalf("Expected 0 subscribers with IP, but got %d", count)
 	}
 
+	ip := "192.168.1.2"
 	subscriber1 := &db.Subscriber{
 		Imsi:           "001010100007487",
 		SequenceNumber: "123456",
 		PermanentKey:   "123456",
 		Opc:            "123456",
-		IPAddress:      "192.168.1.2",
+		IPAddress:      &ip,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber1)
 	if err != nil {
@@ -375,12 +376,13 @@ func TestCountSubscribersWithIP(t *testing.T) {
 		t.Fatalf("Expected 1 subscriber with IP, but got %d", count)
 	}
 
+	ip = "192.168.1.3"
 	subscriber3 := &db.Subscriber{
 		Imsi:           "001010100007489",
 		SequenceNumber: "123458",
 		PermanentKey:   "123458",
 		Opc:            "123458",
-		IPAddress:      "192.168.1.3",
+		IPAddress:      &ip,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber3)
 	if err != nil {

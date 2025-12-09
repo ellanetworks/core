@@ -51,13 +51,13 @@ const (
 )
 
 type Subscriber struct {
-	ID             int    `db:"id"`
-	Imsi           string `db:"imsi"`
-	IPAddress      string `db:"ipAddress"`
-	SequenceNumber string `db:"sequenceNumber"`
-	PermanentKey   string `db:"permanentKey"`
-	Opc            string `db:"opc"`
-	PolicyID       int    `db:"policyID"`
+	ID             int     `db:"id"`
+	Imsi           string  `db:"imsi"`
+	IPAddress      *string `db:"ipAddress"`
+	SequenceNumber string  `db:"sequenceNumber"`
+	PermanentKey   string  `db:"permanentKey"`
+	Opc            string  `db:"opc"`
+	PolicyID       int     `db:"policyID"`
 }
 
 func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage int) ([]Subscriber, int, error) {
@@ -390,10 +390,10 @@ func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error)
 		ipStr := ip.String()
 
 		var existing Subscriber
-		err = db.conn.Query(ctx, checkStmt, Subscriber{IPAddress: ipStr}).Get(&existing)
+		err = db.conn.Query(ctx, checkStmt, Subscriber{IPAddress: &ipStr}).Get(&existing)
 		if err == sql.ErrNoRows {
 			// IP is not allocated, assign it to the subscriber
-			subscriber.IPAddress = ipStr
+			subscriber.IPAddress = &ipStr
 
 			stmt, err := sqlair.Prepare(fmt.Sprintf(allocateIPStmt, SubscribersTableName), Subscriber{})
 			if err != nil {
@@ -419,7 +419,7 @@ func (db *Database) releaseIP(ctx context.Context, imsi string) error {
 		return fmt.Errorf("failed to get subscriber: %v", err)
 	}
 
-	if subscriber.IPAddress == "" {
+	if subscriber.IPAddress == nil {
 		return nil
 	}
 

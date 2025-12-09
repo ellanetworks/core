@@ -50,10 +50,13 @@ func TestDatabaseMetrics(t *testing.T) {
 		}
 	}
 
+	ip1 := "10.45.0.2"
+	ip2 := "10.0.0.3"
+
 	subscribers := []db.Subscriber{
-		{Imsi: "001", IPAddress: "10.45.0.2", PolicyID: 1},
-		{Imsi: "002", IPAddress: "10.0.0.3", PolicyID: 2},
-		{Imsi: "003", IPAddress: "", PolicyID: 1},
+		{Imsi: "001", IPAddress: &ip1, PolicyID: 1},
+		{Imsi: "002", IPAddress: &ip2, PolicyID: 2},
+		{Imsi: "003", IPAddress: nil, PolicyID: 1},
 	}
 	for _, subscriber := range subscribers {
 		err := database.CreateSubscriber(context.Background(), &subscriber)
