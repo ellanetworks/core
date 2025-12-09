@@ -23,11 +23,9 @@ func TestActivateUpLinkPdr(t *testing.T) {
 	node := &context.DataPathNode{
 		UPF: &context.UPF{},
 		UpLinkTunnel: &context.GTPTunnel{
-			PDR: map[uint8]*context.PDR{
-				0: {
-					Precedence: 0,
-					FAR:        &context.FAR{},
-				},
+			PDR: &context.PDR{
+				Precedence: 0,
+				FAR:        &context.FAR{},
 			},
 		},
 	}
@@ -37,31 +35,30 @@ func TestActivateUpLinkPdr(t *testing.T) {
 		t.Errorf("expected no error, got %v", err)
 	}
 
-	pdr := node.UpLinkTunnel.PDR[0]
-	if pdr == nil {
+	if node.UpLinkTunnel.PDR == nil {
 		t.Fatalf("expected pdr to be not nil")
 	}
 
-	if pdr.PDI.SourceInterface.InterfaceValue != context.SourceInterfaceAccess {
-		t.Errorf("expected SourceInterface to be %v, got %v", context.SourceInterfaceAccess, pdr.PDI.SourceInterface.InterfaceValue)
+	if node.UpLinkTunnel.PDR.PDI.SourceInterface.InterfaceValue != context.SourceInterfaceAccess {
+		t.Errorf("expected SourceInterface to be %v, got %v", context.SourceInterfaceAccess, node.UpLinkTunnel.PDR.PDI.SourceInterface.InterfaceValue)
 	}
-	if pdr.PDI.LocalFTeID == nil {
+	if node.UpLinkTunnel.PDR.PDI.LocalFTeID == nil {
 		t.Errorf("expected pdr.PDI.LocalFTeID to be not nil")
 	}
-	if !pdr.PDI.LocalFTeID.Ch {
+	if !node.UpLinkTunnel.PDR.PDI.LocalFTeID.Ch {
 		t.Errorf("expected pdr.PDI.LocalFTeID.Ch to be true")
 	}
-	if pdr.PDI.UEIPAddress == nil {
+	if node.UpLinkTunnel.PDR.PDI.UEIPAddress == nil {
 		t.Errorf("expected pdr.PDI.UEIPAddress to be not nil")
 	}
-	if !pdr.PDI.UEIPAddress.V4 {
+	if !node.UpLinkTunnel.PDR.PDI.UEIPAddress.V4 {
 		t.Errorf("expected pdr.PDI.UEIPAddress.V4 to be true")
 	}
-	if !pdr.PDI.UEIPAddress.IPv4Address.Equal(net.IP{192, 168, 1, 1}) {
-		t.Errorf("expected pdr.PDI.UEIPAddress.IPv4Address to be %v, got %v", net.IP{192, 168, 1, 1}, pdr.PDI.UEIPAddress.IPv4Address)
+	if !node.UpLinkTunnel.PDR.PDI.UEIPAddress.IPv4Address.Equal(net.IP{192, 168, 1, 1}) {
+		t.Errorf("expected pdr.PDI.UEIPAddress.IPv4Address to be %v, got %v", net.IP{192, 168, 1, 1}, node.UpLinkTunnel.PDR.PDI.UEIPAddress.IPv4Address)
 	}
-	if pdr.PDI.NetworkInstance != "internet" {
-		t.Errorf("expected pdr.PDI.NetworkInstance to be 'internet', got %v", pdr.PDI.NetworkInstance)
+	if node.UpLinkTunnel.PDR.PDI.NetworkInstance != "internet" {
+		t.Errorf("expected pdr.PDI.NetworkInstance to be 'internet', got %v", node.UpLinkTunnel.PDR.PDI.NetworkInstance)
 	}
 }
 
@@ -86,12 +83,10 @@ func TestActivateDlLinkPdr(t *testing.T) {
 	node := &context.DataPathNode{
 		UPF: &context.UPF{},
 		DownLinkTunnel: &context.GTPTunnel{
-			PDR: map[uint8]*context.PDR{
-				0: {
-					Precedence: 0,
-					FAR:        &context.FAR{},
-					URR:        &context.URR{},
-				},
+			PDR: &context.PDR{
+				Precedence: 0,
+				FAR:        &context.FAR{},
+				URR:        &context.URR{},
 			},
 		},
 	}
@@ -105,21 +100,20 @@ func TestActivateDlLinkPdr(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	pdr := node.DownLinkTunnel.PDR[0]
-	if pdr == nil {
+	if node.DownLinkTunnel.PDR == nil {
 		t.Fatalf("expected pdr to be not nil")
 	}
 
-	if pdr.PDI.SourceInterface.InterfaceValue != context.SourceInterfaceCore {
-		t.Errorf("expected SourceInterface to be %v, got %v", context.SourceInterfaceCore, pdr.PDI.SourceInterface.InterfaceValue)
+	if node.DownLinkTunnel.PDR.PDI.SourceInterface.InterfaceValue != context.SourceInterfaceCore {
+		t.Errorf("expected SourceInterface to be %v, got %v", context.SourceInterfaceCore, node.DownLinkTunnel.PDR.PDI.SourceInterface.InterfaceValue)
 	}
-	if pdr.PDI.UEIPAddress == nil {
+	if node.DownLinkTunnel.PDR.PDI.UEIPAddress == nil {
 		t.Errorf("expected pdr.PDI.UEIPAddress to be not nil")
 	}
-	if !pdr.PDI.UEIPAddress.V4 {
+	if !node.DownLinkTunnel.PDR.PDI.UEIPAddress.V4 {
 		t.Errorf("expected pdr.PDI.UEIPAddress.V4 to be true")
 	}
-	if !pdr.PDI.UEIPAddress.IPv4Address.Equal(net.IP{192, 168, 1, 1}) {
-		t.Errorf("expected pdr.PDI.UEIPAddress.IPv4Address to be %v, got %v", net.IP{192, 168, 1, 1}, pdr.PDI.UEIPAddress.IPv4Address)
+	if !node.DownLinkTunnel.PDR.PDI.UEIPAddress.IPv4Address.Equal(net.IP{192, 168, 1, 1}) {
+		t.Errorf("expected pdr.PDI.UEIPAddress.IPv4Address to be %v, got %v", net.IP{192, 168, 1, 1}, node.DownLinkTunnel.PDR.PDI.UEIPAddress.IPv4Address)
 	}
 }

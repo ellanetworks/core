@@ -87,15 +87,15 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	// Get Qos Flow
 	var qosAddFlow *models.QosData
 
-	if ctx.SmPolicyData.SmCtxtQosData.QosData != nil {
-		qosAddFlow = ctx.SmPolicyData.SmCtxtQosData.QosData
+	if ctx.SmPolicyData.SmCtxtQosData != nil {
+		qosAddFlow = ctx.SmPolicyData.SmCtxtQosData
 	}
 
 	// PCF has provided some update
 	if len(ctx.SmPolicyUpdates) > 0 {
 		smPolicyUpdates := ctx.SmPolicyUpdates[0]
-		if smPolicyUpdates.QosFlowUpdate != nil && smPolicyUpdates.QosFlowUpdate.GetAddQosFlowUpdate() != nil {
-			qosAddFlow = smPolicyUpdates.QosFlowUpdate.GetAddQosFlowUpdate()
+		if smPolicyUpdates.QosFlowUpdate != nil && smPolicyUpdates.QosFlowUpdate.Add != nil {
+			qosAddFlow = smPolicyUpdates.QosFlowUpdate.Add
 		}
 	}
 

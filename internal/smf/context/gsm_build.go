@@ -138,7 +138,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 
 		// IPv4 DNS
 		if smContext.ProtocolConfigurationOptions.DNSIPv4Request {
-			err := protocolConfigurationOptions.AddDNSServerIPv4Address(smContext.DNNInfo.DNS.IPv4Addr)
+			err := protocolConfigurationOptions.AddDNSServerIPv4Address(smContext.DNNInfo.DNS)
 			if err != nil {
 				smContext.SubGsmLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err))
 			}
@@ -146,10 +146,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 
 		// IPv6 DNS
 		if smContext.ProtocolConfigurationOptions.DNSIPv6Request {
-			err := protocolConfigurationOptions.AddDNSServerIPv6Address(smContext.DNNInfo.DNS.IPv6Addr)
-			if err != nil {
-				smContext.SubGsmLog.Warn("Error while adding DNS IPv6 Addr", zap.Error(err))
-			}
+			logger.SmfLog.Warn("IPv6 DNS request is not supported")
 		}
 
 		// MTU

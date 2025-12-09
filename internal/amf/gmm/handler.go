@@ -132,8 +132,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			//  perform a local release of the PDU session identified by the PDU session ID and shall request
 			// the SMF to perform a local release of the PDU session
 			updateData := models.SmContextUpdateData{
-				Release: true,
-				Cause:   models.CauseRelDueToDuplicateSessionID,
+				Cause: models.CauseRelDueToDuplicateSessionID,
 			}
 			ue.GmmLog.Warn("Duplicated PDU session ID", zap.Int32("pduSessionID", pduSessionID))
 			response, err := consumer.SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
@@ -222,12 +221,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 			newSmContext := consumer.SelectSmf(anType, pduSessionID, snssai, dnn)
 
-			operatorInfo, err := context.GetOperatorInfo(ctx)
-			if err != nil {
-				return fmt.Errorf("could not get operator info: %v", err)
-			}
-
-			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ctx, ue, newSmContext, smMessage, operatorInfo.Guami)
+			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ctx, ue, newSmContext, smMessage)
 			if err != nil {
 				ue.GmmLog.Error("couldn't send create sm context request", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
 			}
@@ -269,20 +263,7 @@ func forward5GSMMessageToSMF(
 	smContext *context.SmContext,
 	smMessage []byte,
 ) error {
-	smContextUpdateData := models.SmContextUpdateData{
-		N1SmMsg: &models.RefToBinaryData{
-			ContentID: "N1SmMsg",
-		},
-	}
-	smContextUpdateData.Pei = ue.Pei
-	smContextUpdateData.Gpsi = ue.Gpsi
-	if !context.CompareUserLocation(ue.Location, smContext.UserLocation()) {
-		smContextUpdateData.AddUeLocation = &ue.Location
-	}
-
-	if accessType != smContext.AccessType() {
-		smContextUpdateData.AnType = accessType
-	}
+	smContextUpdateData := models.SmContextUpdateData{}
 
 	response, err := consumer.SendUpdateSmContextRequest(ctx, smContext, smContextUpdateData, smMessage, nil)
 	if err != nil {
@@ -769,7 +750,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 					}
 					ue.GmmLog.Info("Sent GMM registration accept")
 				}
-				switch requestData.N1MessageContainer.N1MessageClass {
+				switch requestData.N1MessageClass {
 				case models.N1MessageClassSM:
 					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 					if err != nil {
@@ -807,7 +788,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 					reactivationResult = new([16]bool)
 				}
 				if allowedPsis[requestData.PduSessionID] {
-					response, err := consumer.SendUpdateSmContextChangeAccessType(ctx, ue, smContext, true)
+					response, err := consumer.SendUpdateSmContextChangeAccessType(ctx, ue, smContext)
 					if err != nil {
 						return err
 					} else if response == nil {
@@ -827,7 +808,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 				} else {
 					ue.GmmLog.Warn("UE was reachable but did not accept to re-activate the PDU Session", zap.Int32("pduSessionID", requestData.PduSessionID))
 				}
-			} else if smInfo.N2InfoContent.NgapIeType == models.NgapIeTypePduResSetupReq {
+			} else if smInfo.NgapIeType == models.NgapIeTypePduResSetupReq {
 				var nasPdu []byte
 				var err error
 				if n1Msg != nil {
@@ -1388,7 +1369,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				if err != nil {
 					return err
 				}
-				switch requestData.N1MessageContainer.N1MessageClass {
+				switch requestData.N1MessageClass {
 				case models.N1MessageClassSM:
 					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 					if err != nil {
@@ -1430,7 +1411,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 							reactivationResult = new([16]bool)
 						}
 						if allowPduSessionPsi[requestData.PduSessionID] {
-							response, err := consumer.SendUpdateSmContextChangeAccessType(ctx, ue, smContext, true)
+							response, err := consumer.SendUpdateSmContextChangeAccessType(ctx, ue, smContext)
 							if err != nil {
 								return err
 							} else if response == nil {
@@ -1456,7 +1437,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 							ue.GmmLog.Warn("UE was reachable but did not accept to re-activate the PDU Session", zap.Int32("pduSessionID", requestData.PduSessionID))
 						}
 					}
-				} else if smInfo.N2InfoContent.NgapIeType == models.NgapIeTypePduResSetupReq {
+				} else if smInfo.NgapIeType == models.NgapIeTypePduResSetupReq {
 					var nasPdu []byte
 					var err error
 					if n1Msg != nil {

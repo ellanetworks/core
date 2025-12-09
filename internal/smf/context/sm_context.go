@@ -34,8 +34,6 @@ type ProtocolConfigurationOptions struct {
 }
 
 type PFCPSessionContext struct {
-	PDRs       map[uint16]*PDR
-	NodeID     net.IP
 	LocalSEID  uint64
 	RemoteSEID uint64
 }
@@ -52,16 +50,10 @@ type SMContext struct {
 	Ref                            string
 	Supi                           string
 	Identifier                     string
-	Gpsi                           string
 	Dnn                            string
-	UeTimeZone                     string
 	UpCnxState                     models.UpCnxState
-	AnType                         models.AccessType
-	RatType                        models.RatType
-	DnnConfiguration               *models.DnnConfiguration
+	AllowedSessionType             models.PduSessionType
 	Snssai                         *models.Snssai
-	ServingNetwork                 *models.PlmnID
-	UeLocation                     *models.UserLocation
 	PDUAddress                     net.IP
 	Tunnel                         *UPTunnel
 	DNNInfo                        *SnssaiSmfDnnInfo
@@ -81,20 +73,17 @@ type SMContext struct {
 	EstAcceptCause5gSMValue        uint8
 }
 
-func canonicalName(identifier string, pduSessID int32) (canonical string) {
+func canonicalName(identifier string, pduSessID int32) string {
 	return fmt.Sprintf("%s-%d", identifier, pduSessID)
 }
 
-func ResolveRef(identifier string, pduSessID int32) (ref string, err error) {
-	if value, ok := canonicalRef.Load(canonicalName(identifier, pduSessID)); ok {
-		ref = value.(string)
-		err = nil
-	} else {
-		ref = ""
-		err = fmt.Errorf(
-			"UE '%s' - PDUSessionID '%d' not found in SMContext", identifier, pduSessID)
+func ResolveRef(identifier string, pduSessID int32) (string, error) {
+	value, ok := canonicalRef.Load(canonicalName(identifier, pduSessID))
+	if ok {
+		return value.(string), nil
 	}
-	return
+
+	return "", fmt.Errorf("UE '%s' - PDUSessionID '%d' not found in SMContext", identifier, pduSessID)
 }
 
 func NewSMContext(identifier string, pduSessID int32) *SMContext {
@@ -129,11 +118,12 @@ func (smContext *SMContext) initLogTags() {
 	smContext.SubGsmLog = logger.SmfLog.With(zap.String("uuid", smContext.Ref), zap.String("id", smContext.Identifier), zap.Int32("pduid", smContext.PDUSessionID))
 }
 
-func GetSMContext(ref string) (smContext *SMContext) {
+func GetSMContext(ref string) *SMContext {
 	if value, ok := smContextPool.Load(ref); ok {
-		smContext = value.(*SMContext)
+		return value.(*SMContext)
 	}
-	return
+
+	return nil
 }
 
 func GetPDUSessionCount() int {
@@ -168,11 +158,12 @@ func RemoveSMContext(ctx context.Context, ref string) {
 	smContext.SubCtxLog.Info("SM Context removed", zap.String("ref", ref))
 }
 
-func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
+func GetSMContextBySEID(SEID uint64) *SMContext {
 	if value, ok := seidSMContextMap.Load(SEID); ok {
-		smContext = value.(*SMContext)
+		return value.(*SMContext)
 	}
-	return
+
+	return nil
 }
 
 func (smContext *SMContext) ReleaseUeIPAddr(ctx context.Context) error {
@@ -192,79 +183,52 @@ func (smContext *SMContext) ReleaseUeIPAddr(ctx context.Context) error {
 }
 
 func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData) {
-	smContext.Gpsi = createData.Gpsi
 	smContext.Supi = createData.Supi
 	smContext.Dnn = createData.Dnn
 	smContext.Snssai = createData.SNssai
-	smContext.ServingNetwork = createData.ServingNetwork
-	smContext.AnType = createData.AnType
-	smContext.RatType = createData.RatType
-	smContext.UeLocation = createData.UeLocation
-	smContext.UeTimeZone = createData.UeTimeZone
 }
 
-func (smContext *SMContext) PDUAddressToNAS() (addr [12]byte, addrLen uint8) {
+func (smContext *SMContext) PDUAddressToNAS() ([12]byte, uint8) {
+	var addr [12]byte
+
 	copy(addr[:], smContext.PDUAddress)
+
 	switch smContext.SelectedPDUSessionType {
 	case nasMessage.PDUSessionTypeIPv4:
-		addrLen = 4 + 1
-	case nasMessage.PDUSessionTypeIPv6:
+		return addr, 4 + 1
 	case nasMessage.PDUSessionTypeIPv4IPv6:
-		addrLen = 12 + 1
+		return addr, 12 + 1
+	default:
+		return addr, 0
 	}
-	return
-}
-
-func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID net.IP) {
-	for _, pfcpCtx := range smContext.PFCPContext {
-		if pfcpCtx.LocalSEID == seid {
-			nodeID = pfcpCtx.NodeID
-		}
-	}
-
-	return
 }
 
 func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) error {
 	curDataPathNode := dataPath.DPNode
 	NodeIDtoIP := curDataPathNode.UPF.NodeID.String()
-	if _, exist := smContext.PFCPContext[NodeIDtoIP]; !exist {
-		allocatedSEID, err := AllocateLocalSEID()
-		if err != nil {
-			return fmt.Errorf("failed allocating SEID, %v", err)
-		}
-		smContext.PFCPContext[NodeIDtoIP] = &PFCPSessionContext{
-			PDRs:      make(map[uint16]*PDR),
-			NodeID:    curDataPathNode.UPF.NodeID,
-			LocalSEID: allocatedSEID,
-		}
 
-		seidSMContextMap.Store(allocatedSEID, smContext)
+	_, exist := smContext.PFCPContext[NodeIDtoIP]
+	if exist {
+		return nil
 	}
-	return nil
-}
 
-func (smContext *SMContext) PutPDRtoPFCPSession(nodeID net.IP, pdrList map[uint8]*PDR) error {
-	NodeIDtoIP := nodeID.String()
-	if pfcpSessCtx, exist := smContext.PFCPContext[NodeIDtoIP]; exist {
-		for name, pdr := range pdrList {
-			pfcpSessCtx.PDRs[pdrList[name].PDRID] = pdr
-		}
-	} else {
-		return fmt.Errorf("error, can't find PFCPContext[%s] to put PDR(%v)", NodeIDtoIP, pdrList)
+	allocatedSEID, err := AllocateLocalSEID()
+	if err != nil {
+		return fmt.Errorf("failed allocating SEID, %v", err)
 	}
-	return nil
-}
 
-func (smContext *SMContext) RemovePDRfromPFCPSession(nodeID net.IP, pdr *PDR) {
-	NodeIDtoIP := nodeID.String()
-	pfcpSessCtx := smContext.PFCPContext[NodeIDtoIP]
-	delete(pfcpSessCtx.PDRs, pdr.PDRID)
+	smContext.PFCPContext[NodeIDtoIP] = &PFCPSessionContext{
+		LocalSEID: allocatedSEID,
+	}
+
+	seidSMContextMap.Store(allocatedSEID, smContext)
+
+	return nil
 }
 
 func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint8) error {
-	dnnPDUSessionType := smContext.DnnConfiguration.PduSessionTypes
-	if dnnPDUSessionType == nil {
+	allowedPDUSessionType := smContext.AllowedSessionType
+	if allowedPDUSessionType == "" {
 		return fmt.Errorf("this SMContext[%s] has no subscription pdu session type info", smContext.Ref)
 	}
 
@@ -272,18 +236,16 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 	allowIPv6 := false
 	allowEthernet := false
 
-	for _, allowedPDUSessionType := range smContext.DnnConfiguration.PduSessionTypes.AllowedSessionTypes {
-		switch allowedPDUSessionType {
-		case models.PduSessionTypeIPv4:
-			allowIPv4 = true
-		case models.PduSessionTypeIPv6:
-			allowIPv6 = true
-		case models.PduSessionTypeIPv4v6:
-			allowIPv4 = true
-			allowIPv6 = true
-		case models.PduSessionTypeEthernet:
-			allowEthernet = true
-		}
+	switch smContext.AllowedSessionType {
+	case models.PduSessionTypeIPv4:
+		allowIPv4 = true
+	case models.PduSessionTypeIPv6:
+		allowIPv6 = true
+	case models.PduSessionTypeIPv4v6:
+		allowIPv4 = true
+		allowIPv6 = true
+	case models.PduSessionTypeEthernet:
+		allowEthernet = true
 	}
 
 	if !allowIPv4 {
@@ -335,23 +297,21 @@ func (smContext *SMContext) SelectedSessionRule() *models.SessionRule {
 	// Policy update in progress
 	if len(smContext.SmPolicyUpdates) > 0 {
 		return smContext.SmPolicyUpdates[0].SessRuleUpdate.ActiveSessRule
-	} else {
-		return smContext.SmPolicyData.SmCtxtSessionRules.ActiveRule
 	}
+
+	return smContext.SmPolicyData.SmCtxtSessionRules.ActiveRule
 }
 
 func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(cause uint8) *models.PostSmContextsErrorResponse {
-	var rsp *models.PostSmContextsErrorResponse
-
-	if buf, err := BuildGSMPDUSessionEstablishmentReject(smContext, cause); err != nil {
-		rsp = &models.PostSmContextsErrorResponse{}
-	} else {
-		rsp = &models.PostSmContextsErrorResponse{
-			BinaryDataN1SmMessage: buf,
-			Cause:                 cause,
-		}
+	buf, err := BuildGSMPDUSessionEstablishmentReject(smContext, cause)
+	if err != nil {
+		return &models.PostSmContextsErrorResponse{}
 	}
-	return rsp
+
+	return &models.PostSmContextsErrorResponse{
+		BinaryDataN1SmMessage: buf,
+		Cause:                 cause,
+	}
 }
 
 func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
@@ -388,6 +348,7 @@ func PDUSessionsByIMSI(imsi string) []*SMContext {
 		}
 		return true
 	})
+
 	return out
 }
 
@@ -405,5 +366,6 @@ func PDUSessionsByDNN(dnn string) []*SMContext {
 		}
 		return true
 	})
+
 	return out
 }

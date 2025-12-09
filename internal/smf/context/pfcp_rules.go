@@ -42,7 +42,7 @@ type PDR struct {
 
 	FAR *FAR
 	URR *URR
-	QER []*QER
+	QER *QER
 
 	PDI        PDI
 	State      RuleState

@@ -25,6 +25,7 @@ func CreateSmContext(ctx ctxt.Context, request models.PostSmContextsRequest) (st
 	span.SetAttributes(
 		attribute.String("ue.supi", request.JSONData.Supi),
 	)
+
 	if request.JSONData == nil {
 		errResponse := &models.PostSmContextsErrorResponse{}
 		return "", errResponse, fmt.Errorf("missing JSONData in request")

@@ -120,7 +120,7 @@ func SubscriberExists(ctx context.Context, ueID string) bool {
 	return err == nil
 }
 
-func GetSubscriberData(ctx context.Context, ueID string) (*models.AmbrRm, string, error) {
+func GetSubscriberData(ctx context.Context, ueID string) (*models.Ambr, string, error) {
 	ctx, span := tracer.Start(ctx, "AMF GetSubscriberData",
 		trace.WithAttributes(
 			attribute.String("supi", ueID),
@@ -145,7 +145,7 @@ func GetSubscriberData(ctx context.Context, ueID string) (*models.AmbrRm, string
 		return nil, "", fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
 	}
 
-	bitRate := &models.AmbrRm{
+	bitRate := &models.Ambr{
 		Downlink: policy.BitrateDownlink,
 		Uplink:   policy.BitrateUplink,
 	}

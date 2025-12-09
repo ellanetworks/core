@@ -12,7 +12,6 @@ import (
 type SessRulesUpdate struct {
 	add, mod, del  *models.SessionRule
 	ActiveSessRule *models.SessionRule
-	activeRuleName uint8
 }
 
 // Get Session rule changes delta
@@ -52,5 +51,4 @@ func CommitSessionRulesUpdate(smCtxtPolData *SmCtxtPolicyData, update *SessRules
 
 	// Set Active Rule
 	smCtxtPolData.SmCtxtSessionRules.ActiveRule = update.ActiveSessRule
-	smCtxtPolData.SmCtxtSessionRules.ActiveRuleName = update.activeRuleName
 }

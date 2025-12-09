@@ -29,27 +29,20 @@ func getSeqNumber() uint32 {
 
 func SendPfcpSessionEstablishmentRequest(
 	ctx ctxt.Context,
-	upNodeID net.IP,
-	smCtx *context.SMContext,
+	localSEID uint64,
 	pdrList []*context.PDR,
 	farList []*context.FAR,
 	barList []*context.BAR,
 	qerList []*context.QER,
 	urrList []*context.URR,
 ) error {
-	upNodeIDStr := upNodeID.String()
-	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
-	if !ok {
-		return fmt.Errorf("PFCP context not found for Node ID: %v", upNodeID)
-	}
-
 	nodeIDIPAddress := context.SMFSelf().CPNodeID
 
 	pfcpMsg, err := BuildPfcpSessionEstablishmentRequest(
 		getSeqNumber(),
 		nodeIDIPAddress.String(),
 		nodeIDIPAddress,
-		pfcpContext.LocalSEID,
+		localSEID,
 		pdrList,
 		farList,
 		qerList,
@@ -58,10 +51,12 @@ func SendPfcpSessionEstablishmentRequest(
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Establishment Request: %v", err)
 	}
+
 	rsp, err := dispatcher.UPF.HandlePfcpSessionEstablishmentRequest(ctx, pfcpMsg)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP Session Establishment Request to upf: %v", err)
 	}
+
 	err = HandlePfcpSessionEstablishmentResponse(ctx, rsp)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
@@ -168,31 +163,30 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 
 func SendPfcpSessionModificationRequest(
 	ctx ctxt.Context,
-	upNodeID net.IP,
-	smCtx *context.SMContext,
+	localSEID uint64,
+	remoteSEID uint64,
 	pdrList []*context.PDR,
 	farList []*context.FAR,
 	barList []*context.BAR,
 	qerList []*context.QER,
 ) error {
 	seqNum := getSeqNumber()
-	upNodeIDStr := upNodeID.String()
-	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
-	if !ok {
-		return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
-	}
-	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID, pdrList, farList, qerList)
+
+	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, localSEID, remoteSEID, context.SMFSelf().CPNodeID, pdrList, farList, qerList)
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Modification Request: %v", err)
 	}
+
 	rsp, err := dispatcher.UPF.HandlePfcpSessionModificationRequest(ctx, pfcpMsg)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP Session Establishment Request to upf: %v", err)
 	}
+
 	err = HandlePfcpSessionModificationResponse(rsp)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
 	}
+
 	return nil
 }
 

@@ -22,12 +22,7 @@ var smfContext SMFContext
 
 var tracer = otel.Tracer("ella-core/smf")
 
-var AllowedSessionTypes = []models.PduSessionType{models.PduSessionTypeIPv4}
-
-var AllowedSscModes = []string{
-	"SSC_MODE_2",
-	"SSC_MODE_3",
-}
+var AllowedSessionType = models.PduSessionTypeIPv4
 
 type SMFContext struct {
 	DBInstance     *db.Database
@@ -36,14 +31,9 @@ type SMFContext struct {
 	LocalSEIDCount uint64
 }
 
-type DNS struct {
-	IPv4Addr net.IP
-	IPv6Addr net.IP
-}
-
 // SnssaiSmfDnnInfo records the SMF per S-NSSAI DNN information
 type SnssaiSmfDnnInfo struct {
-	DNS DNS
+	DNS net.IP
 	MTU uint16
 }
 
@@ -109,9 +99,7 @@ func GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
 			Sd:  operator.GetHexSd(),
 		},
 		DnnInfos: &SnssaiSmfDnnInfo{
-			DNS: DNS{
-				IPv4Addr: net.ParseIP(dataNetwork.DNS).To4(),
-			},
+			DNS: net.ParseIP(dataNetwork.DNS).To4(),
 			MTU: uint16(dataNetwork.MTU),
 		},
 	}
@@ -119,13 +107,12 @@ func GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
 	return snssaiInfo, nil
 }
 
-type SubscriberConfig struct {
-	DnnConfig *models.DnnConfiguration
-	SmPolicy  *models.SmPolicyDecision
+func GetAllowedSessionType() models.PduSessionType {
+	return AllowedSessionType
 }
 
-func GetSubscriberConfig(ctx context.Context, ueID string) (*SubscriberConfig, error) {
-	ctx, span := tracer.Start(ctx, "SMF GetSubscriberConfig")
+func GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyDecision, error) {
+	ctx, span := tracer.Start(ctx, "SMF GetSubscriberPolicy")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", ueID),
@@ -143,30 +130,6 @@ func GetSubscriberConfig(ctx context.Context, ueID string) (*SubscriberConfig, e
 		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
 
-	dnnConfig := &models.DnnConfiguration{
-		PduSessionTypes: &models.PduSessionTypes{
-			DefaultSessionType:  models.PduSessionTypeIPv4,
-			AllowedSessionTypes: make([]models.PduSessionType, 0),
-		},
-		SscModes: &models.SscModes{
-			DefaultSscMode:  models.SscMode1,
-			AllowedSscModes: make([]models.SscMode, 0),
-		},
-		SessionAmbr: &models.Ambr{
-			Downlink: policy.BitrateDownlink,
-			Uplink:   policy.BitrateUplink,
-		},
-		Var5gQosProfile: &models.SubscribedDefaultQos{
-			Var5qi: policy.Var5qi,
-			Arp:    &models.Arp{PriorityLevel: policy.Arp},
-		},
-	}
-
-	dnnConfig.PduSessionTypes.AllowedSessionTypes = append(dnnConfig.PduSessionTypes.AllowedSessionTypes, AllowedSessionTypes...)
-	for _, sscMode := range AllowedSscModes {
-		dnnConfig.SscModes.AllowedSscModes = append(dnnConfig.SscModes.AllowedSscModes, models.SscMode(sscMode))
-	}
-
 	subscriberPolicy := &models.SmPolicyDecision{
 		SessRule: &models.SessionRule{
 			AuthDefQos: &models.AuthorizedDefaultQos{
@@ -179,16 +142,10 @@ func GetSubscriberConfig(ctx context.Context, ueID string) (*SubscriberConfig, e
 			},
 		},
 		QosDecs: &models.QosData{
-			Var5qi:               policy.Var5qi,
-			Arp:                  &models.Arp{PriorityLevel: policy.Arp},
-			DefQosFlowIndication: true,
+			Var5qi: policy.Var5qi,
+			Arp:    &models.Arp{PriorityLevel: policy.Arp},
 		},
 	}
 
-	subConfig := &SubscriberConfig{
-		DnnConfig: dnnConfig,
-		SmPolicy:  subscriberPolicy,
-	}
-
-	return subConfig, nil
+	return subscriberPolicy, nil
 }

@@ -98,16 +98,17 @@ func pdrToCreatePDR(pdr *context.PDR) *ie.IE {
 	ies = append(ies, ie.NewPDRID(pdr.PDRID))
 	ies = append(ies, ie.NewPrecedence(pdr.Precedence))
 	ies = append(ies, createPDIIE(&pdr.PDI))
+
 	if pdr.OuterHeaderRemoval != nil {
 		ies = append(ies, ie.NewOuterHeaderRemoval(pdr.OuterHeaderRemoval.OuterHeaderRemovalDescription, 0))
 	}
+
 	if pdr.FAR != nil {
 		ies = append(ies, ie.NewFARID(pdr.FAR.FARID))
 	}
-	for _, qer := range pdr.QER {
-		if qer != nil {
-			ies = append(ies, ie.NewQERID(qer.QERID))
-		}
+
+	if pdr.QER != nil {
+		ies = append(ies, ie.NewQERID(pdr.QER.QERID))
 	}
 
 	if pdr.URR != nil {
@@ -252,17 +253,19 @@ func pdrToUpdatePDR(pdr *context.PDR) *ie.IE {
 	updatePDRies = append(updatePDRies, ie.NewPDRID(pdr.PDRID))
 	updatePDRies = append(updatePDRies, ie.NewPrecedence(pdr.Precedence))
 	updatePDRies = append(updatePDRies, createPDIIE(&pdr.PDI))
+
 	if pdr.OuterHeaderRemoval != nil {
 		updatePDRies = append(updatePDRies, ie.NewOuterHeaderRemoval(pdr.OuterHeaderRemoval.OuterHeaderRemovalDescription, 0))
 	}
+
 	if pdr.FAR != nil {
 		updatePDRies = append(updatePDRies, ie.NewFARID(pdr.FAR.FARID))
 	}
-	for _, qer := range pdr.QER {
-		if qer != nil {
-			updatePDRies = append(updatePDRies, ie.NewQERID(qer.QERID))
-		}
+
+	if pdr.QER != nil {
+		updatePDRies = append(updatePDRies, ie.NewQERID(pdr.QER.QERID))
 	}
+
 	return ie.NewUpdatePDR(updatePDRies...)
 }
 

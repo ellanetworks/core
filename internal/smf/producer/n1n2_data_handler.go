@@ -47,9 +47,6 @@ func HandleUpdateN1Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 				response.BinaryDataN1SmMessage = buf
 			}
 
-			response.JSONData.N1SmMsg = &models.RefToBinaryData{ContentID: "PDUSessionReleaseCommand"}
-
-			response.JSONData.N2SmInfo = &models.RefToBinaryData{ContentID: "PDUResourceReleaseCommand"}
 			response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResRelCmd
 
 			if buf, err := context.BuildPDUSessionResourceReleaseCommandTransfer(smContext); err != nil {
@@ -81,7 +78,6 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 
 	switch smContextUpdateData.UpCnxState {
 	case models.UpCnxStateActivating:
-		response.JSONData.N2SmInfo = &models.RefToBinaryData{ContentID: "PDUSessionResourceSetupRequestTransfer"}
 		response.JSONData.UpCnxState = models.UpCnxStateActivating
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResSetupReq
 
@@ -98,24 +94,21 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 		if smContext.Tunnel != nil {
 			response.JSONData.UpCnxState = models.UpCnxStateDeactivated
 			smContext.UpCnxState = body.JSONData.UpCnxState
-			smContext.UeLocation = body.JSONData.UeLocation
 			farList := []*context.FAR{}
 			dataPath := smContext.Tunnel.DataPath
 			ANUPF := dataPath.DPNode
-			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-				if DLPDR == nil {
-					smContext.SubPduSessLog.Error("AN Release Error")
-				} else {
-					DLPDR.FAR.State = context.RuleUpdate
-					DLPDR.FAR.ApplyAction.Forw = false
-					DLPDR.FAR.ApplyAction.Buff = true
-					DLPDR.FAR.ApplyAction.Nocp = true
-					// Set DL Tunnel info to nil
-					if DLPDR.FAR.ForwardingParameters != nil {
-						DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
-					}
-					farList = append(farList, DLPDR.FAR)
+			if ANUPF.DownLinkTunnel.PDR == nil {
+				smContext.SubPduSessLog.Error("AN Release Error")
+			} else {
+				ANUPF.DownLinkTunnel.PDR.FAR.State = context.RuleUpdate
+				ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction.Forw = false
+				ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction.Buff = true
+				ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction.Nocp = true
+				// Set DL Tunnel info to nil
+				if ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters != nil {
+					ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
 				}
+				farList = append(farList, ANUPF.DownLinkTunnel.PDR.FAR)
 			}
 
 			pfcpParam.farList = append(pfcpParam.farList, farList...)
@@ -143,9 +136,6 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 			response.BinaryDataN2SmInformation = n2Buf
 		}
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResSetupReq
-		response.JSONData.N2SmInfo = &models.RefToBinaryData{
-			ContentID: "PDU_RES_SETUP_REQ",
-		}
 		response.JSONData.HoState = models.HoStatePreparing
 	case models.HoStatePrepared:
 		smContext.SubPduSessLog.Info("Ho state received", zap.Any("HoState", smContextUpdateData.HoState))
@@ -162,9 +152,6 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 		}
 
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypeHandoverCmd
-		response.JSONData.N2SmInfo = &models.RefToBinaryData{
-			ContentID: "HANDOVER_CMD",
-		}
 		response.JSONData.HoState = models.HoStatePreparing
 	case models.HoStateCompleted:
 		smContext.SubPduSessLog.Info("Ho state received", zap.Any("HoState", smContextUpdateData.HoState))
@@ -182,7 +169,6 @@ func HandleUpdateCause(body models.UpdateSmContextRequest, smContext *context.SM
 		smContext.SubPduSessLog.Info("update cause received", zap.Any("Cause", smContextUpdateData.Cause))
 		//* release PDU Session Here
 
-		response.JSONData.N2SmInfo = &models.RefToBinaryData{ContentID: "PDUResourceReleaseCommand"}
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResRelCmd
 		smContext.PDUSessionReleaseDueToDupPduID = true
 
@@ -213,21 +199,19 @@ func HandleUpdateN2Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 		dataPath := tunnel.DataPath
 		if dataPath.Activated {
 			ANUPF := dataPath.DPNode
-			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-				DLPDR.FAR.ApplyAction = context.ApplyAction{Buff: false, Drop: false, Dupl: false, Forw: true, Nocp: false}
-				DLPDR.FAR.ForwardingParameters = &context.ForwardingParameters{
-					DestinationInterface: context.DestinationInterface{
-						InterfaceValue: context.DestinationInterfaceAccess,
-					},
-					NetworkInstance: smContext.Dnn,
-				}
-
-				DLPDR.State = context.RuleUpdate
-				DLPDR.FAR.State = context.RuleUpdate
-
-				pdrList = append(pdrList, DLPDR)
-				farList = append(farList, DLPDR.FAR)
+			ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction = context.ApplyAction{Buff: false, Drop: false, Dupl: false, Forw: true, Nocp: false}
+			ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters = &context.ForwardingParameters{
+				DestinationInterface: context.DestinationInterface{
+					InterfaceValue: context.DestinationInterfaceAccess,
+				},
+				NetworkInstance: smContext.Dnn,
 			}
+
+			ANUPF.DownLinkTunnel.PDR.State = context.RuleUpdate
+			ANUPF.DownLinkTunnel.PDR.FAR.State = context.RuleUpdate
+
+			pdrList = append(pdrList, ANUPF.DownLinkTunnel.PDR)
+			farList = append(farList, ANUPF.DownLinkTunnel.PDR.FAR)
 		}
 
 		if err := context.HandlePDUSessionResourceSetupResponseTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
@@ -265,19 +249,14 @@ func HandleUpdateN2Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 		}
 
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePathSwitchReqAck
-		response.JSONData.N2SmInfo = &models.RefToBinaryData{
-			ContentID: "PATH_SWITCH_REQ_ACK",
-		}
 
 		pdrList := []*context.PDR{}
 		farList := []*context.FAR{}
 		dataPath := tunnel.DataPath
 		if dataPath.Activated {
 			ANUPF := dataPath.DPNode
-			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-				pdrList = append(pdrList, DLPDR)
-				farList = append(farList, DLPDR.FAR)
-			}
+			pdrList = append(pdrList, ANUPF.DownLinkTunnel.PDR)
+			farList = append(farList, ANUPF.DownLinkTunnel.PDR.FAR)
 		}
 
 		pfcpParam.pdrList = append(pfcpParam.pdrList, pdrList...)
@@ -289,7 +268,6 @@ func HandleUpdateN2Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 			smContext.SubPduSessLog.Error("handle PathSwitchRequestSetupFailedTransfer failed", zap.Error(err))
 		}
 	case models.N2SmInfoTypeHandoverRequired:
-		response.JSONData.N2SmInfo = &models.RefToBinaryData{ContentID: "Handover"}
 	}
 
 	return nil

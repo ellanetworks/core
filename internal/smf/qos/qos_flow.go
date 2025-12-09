@@ -124,16 +124,6 @@ func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *
 		qfd.addQosFlowRateParam(qosData.MaxbrDl, QFDParameterIDMfbrDl)
 	}
 
-	// GFBR uplink
-	if qosData.GbrUl != "" {
-		qfd.addQosFlowRateParam(qosData.GbrUl, QFDParameterIDGfbrUl)
-	}
-
-	// GFBR downlink
-	if qosData.GbrDl != "" {
-		qfd.addQosFlowRateParam(qosData.GbrDl, QFDParameterIDGfbrDl)
-	}
-
 	// Set E-Bit of QFD for the "create new QoS flow description" operation
 	qfd.SetQFDEBitCreateNewQFD()
 
@@ -270,23 +260,11 @@ func GetQosFlowDescUpdate(pcfQosData, ctxtQosData *models.QosData) *QosFlowsUpda
 func CommitQosFlowDescUpdate(smCtxtPolData *SmCtxtPolicyData, update *QosFlowsUpdate) {
 	// Add new Flows
 	if update.Add != nil {
-		smCtxtPolData.SmCtxtQosData.QosData = update.Add
+		smCtxtPolData.SmCtxtQosData = update.Add
 	}
 
 	// Delete Flows
 	if update.del != nil {
-		smCtxtPolData.SmCtxtQosData.QosData = nil
+		smCtxtPolData.SmCtxtQosData = nil
 	}
-}
-
-func (upd *QosFlowsUpdate) GetAddQosFlowUpdate() *models.QosData {
-	return upd.Add
-}
-
-func GetDefaultQoSDataFromPolicyDecision(smPolicyDecision *models.SmPolicyDecision) *models.QosData {
-	if smPolicyDecision.QosDecs != nil && smPolicyDecision.QosDecs.DefQosFlowIndication {
-		return smPolicyDecision.QosDecs
-	}
-
-	return nil
 }

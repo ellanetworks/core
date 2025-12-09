@@ -217,8 +217,9 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 }
 
 func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.SessionModificationRequest) (*message.SessionModificationResponse, error) {
-	_, span := tracer.Start(ctx, "UPF Session Modify")
+	ctx, span := tracer.Start(ctx, "UPF Session Modify")
 	defer span.End()
+
 	conn := GetConnection()
 	if conn == nil {
 		return nil, fmt.Errorf("no connection")

@@ -19,19 +19,14 @@ type PolicyUpdate struct {
 
 type SmCtxtPolicyData struct {
 	// maintain all session rule-info and current active sess rule
-	SmCtxtQosData      SmCtxtQosData
+	SmCtxtQosData      *models.QosData
 	SmCtxtSessionRules SmCtxtSessionRulesInfo
 }
 
 // maintain all session rule-info and current active sess rule
 type SmCtxtSessionRulesInfo struct {
-	ActiveRule     *models.SessionRule
-	SessionRule    *models.SessionRule
-	ActiveRuleName uint8
-}
-
-type SmCtxtQosData struct {
-	QosData *models.QosData
+	ActiveRule  *models.SessionRule
+	SessionRule *models.SessionRule
 }
 
 func BuildSmPolicyUpdate(smCtxtPolData *SmCtxtPolicyData, smPolicyDecision *models.SmPolicyDecision) *PolicyUpdate {
@@ -41,7 +36,7 @@ func BuildSmPolicyUpdate(smCtxtPolData *SmCtxtPolicyData, smPolicyDecision *mode
 	update.SmPolicyDecision = smPolicyDecision
 
 	// Qos Flows update
-	update.QosFlowUpdate = GetQosFlowDescUpdate(smPolicyDecision.QosDecs, smCtxtPolData.SmCtxtQosData.QosData)
+	update.QosFlowUpdate = GetQosFlowDescUpdate(smPolicyDecision.QosDecs, smCtxtPolData.SmCtxtQosData)
 
 	// Session Rule update
 	update.SessRuleUpdate = GetSessionRulesUpdate(smPolicyDecision.SessRule, smCtxtPolData.SmCtxtSessionRules.SessionRule)
