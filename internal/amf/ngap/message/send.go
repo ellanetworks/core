@@ -17,6 +17,7 @@ import (
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -80,8 +81,10 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 
 func SendToRan(ctx ctxt.Context, ran *context.AmfRan, packet []byte, msgType NGAPProcedure) error {
 	ctx, span := tracer.Start(ctx, "Send To RAN",
-		trace.WithAttributes(),
-		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithAttributes(
+			attribute.String("ngap.messageType", string(msgType)),
+		),
+		trace.WithSpanKind(trace.SpanKindClient),
 	)
 	defer span.End()
 

@@ -125,7 +125,7 @@ func (bpfObjects *BpfObjects) NewFar(ctx context.Context, farInfo FarInfo) (uint
 	if err != nil {
 		return 0, err
 	}
-	addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
+	go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 	logger.UpfLog.Debug("Put FAR", zap.Uint32("internalID", internalID), zap.Any("farInfo", farInfo))
 	err = bpfObjects.N3N6EntrypointMaps.FarMap.Put(internalID, unsafe.Pointer(&farInfo))
 	if err != nil {
@@ -135,7 +135,7 @@ func (bpfObjects *BpfObjects) NewFar(ctx context.Context, farInfo FarInfo) (uint
 }
 
 func (bpfObjects *BpfObjects) UpdateFar(ctx context.Context, internalID uint32, farInfo FarInfo) error {
-	addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
+	go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 	logger.UpfLog.Debug("Update FAR", zap.Uint32("internalID", internalID), zap.Any("farInfo", farInfo))
 	err := bpfObjects.N3N6EntrypointMaps.FarMap.Update(internalID, unsafe.Pointer(&farInfo), ebpf.UpdateExist)
 	if err != nil {
