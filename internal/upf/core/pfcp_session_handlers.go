@@ -37,7 +37,7 @@ func (u UpfPfcpHandler) HandlePfcpSessionModificationRequest(ctx context.Context
 }
 
 func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.SessionEstablishmentRequest) (*message.SessionEstablishmentResponse, error) {
-	_, span := tracer.Start(ctx, "UPF Session Establish")
+	ctx, span := tracer.Start(ctx, "UPF Session Establishment")
 	defer span.End()
 
 	conn := GetConnection()
@@ -75,7 +75,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 			farid, _ := far.FARID()
 			logger.UpfLog.Debug("Saving FAR info to session", zap.Uint32("farID", farid), zap.Any("farInfo", farInfo))
-			internalID, err := bpfObjects.NewFar(farInfo)
+			internalID, err := bpfObjects.NewFar(ctx, farInfo)
 			if err != nil {
 				return fmt.Errorf("can't put FAR: %s", err.Error())
 			}
@@ -266,7 +266,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			if err != nil {
 				return fmt.Errorf("FAR ID missing: %s", err.Error())
 			}
-			if internalID, err := bpfObjects.NewFar(farInfo); err == nil {
+			if internalID, err := bpfObjects.NewFar(ctx, farInfo); err == nil {
 				session.NewFar(farid, internalID, farInfo)
 			} else {
 				return fmt.Errorf("can't put FAR: %s", err.Error())
@@ -284,7 +284,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				return fmt.Errorf("couldn't extract FAR info: %s", err.Error())
 			}
 			session.UpdateFar(farid, sFarInfo.FarInfo)
-			if err := bpfObjects.UpdateFar(sFarInfo.GlobalID, sFarInfo.FarInfo); err != nil {
+			if err := bpfObjects.UpdateFar(ctx, sFarInfo.GlobalID, sFarInfo.FarInfo); err != nil {
 				return fmt.Errorf("can't update FAR: %s", err.Error())
 			}
 		}
