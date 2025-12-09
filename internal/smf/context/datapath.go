@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/util"
 	"go.uber.org/zap"
 )
@@ -132,33 +131,30 @@ func (dataPath *DataPath) ActivateUlDlTunnel(smContext *SMContext) error {
 }
 
 func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) {
-	var flowQER *QER
+	smPolicyDec := smContext.SmPolicyUpdates[0].SmPolicyDecision
+
+	if smPolicyDec.QosDecs == nil {
+		return nil, fmt.Errorf("QOS Data not found in Policy Decision")
+	}
+
+	newQER, err := node.UPF.AddQER()
+	if err != nil {
+		return nil, fmt.Errorf("failed to add QER: %v", err)
+	}
 
 	sessionRule := smContext.SelectedSessionRule()
 
-	// Get Default Qos-Data for the session
-	smPolicyDec := smContext.SmPolicyUpdates[0].SmPolicyDecision
-
-	defQosData := qos.GetDefaultQoSDataFromPolicyDecision(smPolicyDec)
-	if defQosData == nil {
-		return nil, fmt.Errorf("default QOS Data not found in Policy Decision")
+	newQER.QFI = smPolicyDec.QosDecs.QFI
+	newQER.GateStatus = &GateStatus{
+		ULGate: GateOpen,
+		DLGate: GateOpen,
 	}
-	if newQER, err := node.UPF.AddQER(); err != nil {
-		logger.SmfLog.Error("new QER failed")
-		return nil, err
-	} else {
-		newQER.QFI = defQosData.QFI
-		newQER.GateStatus = &GateStatus{
-			ULGate: GateOpen,
-			DLGate: GateOpen,
-		}
-		newQER.MBR = &MBR{
-			ULMBR: util.BitRateTokbps(sessionRule.AuthSessAmbr.Uplink),
-			DLMBR: util.BitRateTokbps(sessionRule.AuthSessAmbr.Downlink),
-		}
-
-		flowQER = newQER
+	newQER.MBR = &MBR{
+		ULMBR: util.BitRateTokbps(sessionRule.AuthSessAmbr.Uplink),
+		DLMBR: util.BitRateTokbps(sessionRule.AuthSessAmbr.Downlink),
 	}
+
+	flowQER := newQER
 
 	return flowQER, nil
 }

@@ -94,8 +94,8 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	// PCF has provided some update
 	if len(ctx.SmPolicyUpdates) > 0 {
 		smPolicyUpdates := ctx.SmPolicyUpdates[0]
-		if smPolicyUpdates.QosFlowUpdate != nil && smPolicyUpdates.QosFlowUpdate.GetAddQosFlowUpdate() != nil {
-			qosAddFlow = smPolicyUpdates.QosFlowUpdate.GetAddQosFlowUpdate()
+		if smPolicyUpdates.QosFlowUpdate != nil && smPolicyUpdates.QosFlowUpdate.Add != nil {
+			qosAddFlow = smPolicyUpdates.QosFlowUpdate.Add
 		}
 	}
 

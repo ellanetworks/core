@@ -268,15 +268,3 @@ func CommitQosFlowDescUpdate(smCtxtPolData *SmCtxtPolicyData, update *QosFlowsUp
 		smCtxtPolData.SmCtxtQosData = nil
 	}
 }
-
-func (upd *QosFlowsUpdate) GetAddQosFlowUpdate() *models.QosData {
-	return upd.Add
-}
-
-func GetDefaultQoSDataFromPolicyDecision(smPolicyDecision *models.SmPolicyDecision) *models.QosData {
-	if smPolicyDecision.QosDecs != nil && smPolicyDecision.QosDecs.DefQosFlowIndication {
-		return smPolicyDecision.QosDecs
-	}
-
-	return nil
-}

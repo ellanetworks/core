@@ -52,7 +52,7 @@ type SMContext struct {
 	Identifier                     string
 	Dnn                            string
 	UpCnxState                     models.UpCnxState
-	DnnConfiguration               *models.DnnConfiguration
+	AllowedSessionType             models.PduSessionType
 	Snssai                         *models.Snssai
 	PDUAddress                     net.IP
 	Tunnel                         *UPTunnel
@@ -227,8 +227,8 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) err
 }
 
 func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint8) error {
-	dnnPDUSessionType := smContext.DnnConfiguration.PduSessionTypes
-	if dnnPDUSessionType == nil {
+	allowedPDUSessionType := smContext.AllowedSessionType
+	if allowedPDUSessionType == "" {
 		return fmt.Errorf("this SMContext[%s] has no subscription pdu session type info", smContext.Ref)
 	}
 
@@ -236,18 +236,16 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 	allowIPv6 := false
 	allowEthernet := false
 
-	for _, allowedPDUSessionType := range smContext.DnnConfiguration.PduSessionTypes.AllowedSessionTypes {
-		switch allowedPDUSessionType {
-		case models.PduSessionTypeIPv4:
-			allowIPv4 = true
-		case models.PduSessionTypeIPv6:
-			allowIPv6 = true
-		case models.PduSessionTypeIPv4v6:
-			allowIPv4 = true
-			allowIPv6 = true
-		case models.PduSessionTypeEthernet:
-			allowEthernet = true
-		}
+	switch smContext.AllowedSessionType {
+	case models.PduSessionTypeIPv4:
+		allowIPv4 = true
+	case models.PduSessionTypeIPv6:
+		allowIPv6 = true
+	case models.PduSessionTypeIPv4v6:
+		allowIPv4 = true
+		allowIPv6 = true
+	case models.PduSessionTypeEthernet:
+		allowEthernet = true
 	}
 
 	if !allowIPv4 {

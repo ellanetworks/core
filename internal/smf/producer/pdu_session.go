@@ -75,10 +75,10 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
-	subscriberConfig, err := context.GetSubscriberConfig(ctx, smContext.Supi)
+	subscriberPolicy, err := context.GetSubscriberPolicy(ctx, smContext.Supi)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("failed to find subscriber data: %v", err)
+		return "", response, fmt.Errorf("failed to find subscriber policy: %v", err)
 	}
 
 	dnnInfo, err := context.RetrieveDnnInformation(ctx, *createData.SNssai, createData.Dnn)
@@ -102,13 +102,14 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 
 	smContext.PDUAddress = ip
 
-	smContext.DnnConfiguration = subscriberConfig.DnnConfig
+	smContext.AllowedSessionType = context.GetAllowedSessionType()
 
 	// Decode UE content(PCO)
 	establishmentRequest := m.PDUSessionEstablishmentRequest
 	smContext.HandlePDUSessionEstablishmentRequest(establishmentRequest)
 
-	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, subscriberConfig.SmPolicy)
+	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, subscriberPolicy)
+
 	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
 
 	defaultPath := &context.DataPath{

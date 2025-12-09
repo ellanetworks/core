@@ -19,26 +19,22 @@ func TestBuildAuthorizedQosFlowDescriptions(t *testing.T) {
 	smCtxtPolData := &qos.SmCtxtPolicyData{}
 
 	smPolicyDecision.QosDecs = &models.QosData{
-		QFI:                  1,
-		Var5qi:               5,
-		MaxbrUl:              "101 Mbps",
-		MaxbrDl:              "201 Mbps",
-		PriorityLevel:        5,
-		DefQosFlowIndication: true,
+		QFI:           1,
+		Var5qi:        5,
+		MaxbrUl:       "101 Mbps",
+		MaxbrDl:       "201 Mbps",
+		PriorityLevel: 5,
 	}
 
 	smPolicyUpdates := qos.BuildSmPolicyUpdate(smCtxtPolData, smPolicyDecision)
 
 	authorizedQosFlow, err := qos.BuildAuthorizedQosFlowDescription(smPolicyUpdates.QosFlowUpdate.Add)
 	if err != nil {
-		t.Errorf("Error building Authorized QoS Flow Descriptions: %v", err)
-		return
+		t.Fatalf("Error building Authorized QoS Flow Descriptions: %v", err)
 	}
 
 	expectedBytes := []byte{
-		0x1, 0x20, 0x45, 0x1, 0x1, 0x5, 0x4, 0x3, 0x6, 0x0,
-		0x65, 0x5, 0x3, 0x6, 0x0, 0xc9, 0x2, 0x3, 0x6, 0x0, 0xb, 0x3, 0x3, 0x6,
-		0x0, 0x15,
+		0x1, 0x20, 0x43, 0x1, 0x1, 0x5, 0x4, 0x3, 0x6, 0x0, 0x65, 0x5, 0x3, 0x6, 0x0, 0xc9,
 	}
 	if string(expectedBytes) != string(authorizedQosFlow.Content) {
 		t.Errorf("Expected: %v, got: %v", expectedBytes, authorizedQosFlow.Content)
