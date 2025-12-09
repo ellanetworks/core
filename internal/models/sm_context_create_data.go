@@ -5,5 +5,4 @@ type SmContextCreateData struct {
 	PduSessionID int32
 	Dnn          string
 	SNssai       *Snssai
-	UeLocation   *UserLocation
 }

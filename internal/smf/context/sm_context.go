@@ -54,7 +54,6 @@ type SMContext struct {
 	UpCnxState                     models.UpCnxState
 	DnnConfiguration               *models.DnnConfiguration
 	Snssai                         *models.Snssai
-	UeLocation                     *models.UserLocation
 	PDUAddress                     net.IP
 	Tunnel                         *UPTunnel
 	DNNInfo                        *SnssaiSmfDnnInfo
@@ -187,7 +186,6 @@ func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData
 	smContext.Supi = createData.Supi
 	smContext.Dnn = createData.Dnn
 	smContext.Snssai = createData.SNssai
-	smContext.UeLocation = createData.UeLocation
 }
 
 func (smContext *SMContext) PDUAddressToNAS() ([12]byte, uint8) {

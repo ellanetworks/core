@@ -270,12 +270,12 @@ func GetQosFlowDescUpdate(pcfQosData, ctxtQosData *models.QosData) *QosFlowsUpda
 func CommitQosFlowDescUpdate(smCtxtPolData *SmCtxtPolicyData, update *QosFlowsUpdate) {
 	// Add new Flows
 	if update.Add != nil {
-		smCtxtPolData.SmCtxtQosData.QosData = update.Add
+		smCtxtPolData.SmCtxtQosData = update.Add
 	}
 
 	// Delete Flows
 	if update.del != nil {
-		smCtxtPolData.SmCtxtQosData.QosData = nil
+		smCtxtPolData.SmCtxtQosData = nil
 	}
 }
 

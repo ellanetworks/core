@@ -94,7 +94,6 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 		if smContext.Tunnel != nil {
 			response.JSONData.UpCnxState = models.UpCnxStateDeactivated
 			smContext.UpCnxState = body.JSONData.UpCnxState
-			smContext.UeLocation = body.JSONData.UeLocation
 			farList := []*context.FAR{}
 			dataPath := smContext.Tunnel.DataPath
 			ANUPF := dataPath.DPNode

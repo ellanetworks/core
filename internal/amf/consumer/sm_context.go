@@ -73,9 +73,7 @@ func SendUpdateSmContextActivateUpCnxState(
 ) {
 	updateData := models.SmContextUpdateData{}
 	updateData.UpCnxState = models.UpCnxStateActivating
-	if !context.CompareUserLocation(ue.Location, smContext.UserLocation()) {
-		updateData.UeLocation = &ue.Location
-	}
+
 	if smContext.AccessType() != accessType {
 		updateData.AnType = smContext.AccessType()
 	}
@@ -89,7 +87,6 @@ func SendUpdateSmContextDeactivateUpCnxState(ctx ctxt.Context, ue *context.AmfUe
 ) {
 	updateData := models.SmContextUpdateData{}
 	updateData.UpCnxState = models.UpCnxStateDeactivated
-	updateData.UeLocation = &ue.Location
 	if cause.Cause != nil {
 		updateData.Cause = *cause.Cause
 	}
@@ -120,7 +117,6 @@ func SendUpdateSmContextN2Info(
 ) {
 	updateData := models.SmContextUpdateData{}
 	updateData.N2SmInfoType = n2SmType
-	updateData.UeLocation = &ue.Location
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, N2SmInfo)
 }
 
@@ -134,7 +130,6 @@ func SendUpdateSmContextXnHandover(
 		updateData.N2SmInfoType = n2SmType
 	}
 	updateData.ToBeSwitched = true
-	updateData.UeLocation = &ue.Location
 
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, N2SmInfo)
 }

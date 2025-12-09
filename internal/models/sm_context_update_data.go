@@ -1,15 +1,14 @@
 package models
 
 type SmContextUpdateData struct {
-	Pei                string
-	Gpsi               string
-	ServingNfID        string
-	Guami              *Guami
-	ServingNetwork     *PlmnID
-	AnType             AccessType
-	RatType            RatType
+	Pei            string
+	Gpsi           string
+	ServingNfID    string
+	Guami          *Guami
+	ServingNetwork *PlmnID
+	AnType         AccessType
+	// RatType            RatType
 	PresenceInLadn     PresenceState
-	UeLocation         *UserLocation
 	AddUeLocation      *UserLocation
 	UpCnxState         UpCnxState
 	HoState            HoState

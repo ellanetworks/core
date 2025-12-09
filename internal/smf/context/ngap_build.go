@@ -87,8 +87,8 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	// Get Qos Flow
 	var qosAddFlow *models.QosData
 
-	if ctx.SmPolicyData.SmCtxtQosData.QosData != nil {
-		qosAddFlow = ctx.SmPolicyData.SmCtxtQosData.QosData
+	if ctx.SmPolicyData.SmCtxtQosData != nil {
+		qosAddFlow = ctx.SmPolicyData.SmCtxtQosData
 	}
 
 	// PCF has provided some update

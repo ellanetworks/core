@@ -280,7 +280,7 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 			n1n2Request.JSONData.N1MessageClass = models.N1MessageClassSM
 		}
 	}
-	rspData, err := amf_producer.CreateN1N2MessageTransfer(ctx, smContext.Supi, n1n2Request)
+	cause, err := amf_producer.CreateN1N2MessageTransfer(ctx, smContext.Supi, n1n2Request)
 	if err != nil {
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {
@@ -290,12 +290,12 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 	}
 
 	smContext.SubPduSessLog.Debug("Sent n1 n2 transfer request")
-	if rspData.Cause == models.N1N2MessageTransferCauseN1MsgNotTransferred {
+	if cause == models.N1N2MessageTransferCauseN1MsgNotTransferred {
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {
 			return fmt.Errorf("failed to commit sm policy decision: %v", err)
 		}
-		return fmt.Errorf("failed to send n1 n2 transfer request: %v", rspData.Cause)
+		return fmt.Errorf("failed to send n1 n2 transfer request: %v", cause)
 	}
 
 	err = smContext.CommitSmPolicyDecision(true)
