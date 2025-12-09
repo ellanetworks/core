@@ -222,12 +222,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 			newSmContext := consumer.SelectSmf(anType, pduSessionID, snssai, dnn)
 
-			operatorInfo, err := context.GetOperatorInfo(ctx)
-			if err != nil {
-				return fmt.Errorf("could not get operator info: %v", err)
-			}
-
-			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ctx, ue, newSmContext, smMessage, operatorInfo.Guami)
+			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ctx, ue, newSmContext, smMessage)
 			if err != nil {
 				ue.GmmLog.Error("couldn't send create sm context request", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
 			}

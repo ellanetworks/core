@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
-	"go.uber.org/zap"
 )
 
 const N2SMInfoID = "N2SmInfo"
@@ -33,59 +32,23 @@ func SelectSmf(
 	return smContext
 }
 
-func SendCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte, supportedGuami *models.Guami) (string, *models.PostSmContextsErrorResponse, error) {
-	smContextCreateData := buildCreateSmContextRequest(ue, smContext, supportedGuami)
+func SendCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (string, *models.PostSmContextsErrorResponse, error) {
+	snssai := smContext.Snssai()
+
 	postSmContextsRequest := models.PostSmContextsRequest{
-		JSONData:              &smContextCreateData,
+		JSONData: &models.SmContextCreateData{
+			Supi:         ue.Supi,
+			PduSessionID: smContext.PduSessionID(),
+			SNssai: &models.Snssai{
+				Sst: snssai.Sst,
+				Sd:  snssai.Sd,
+			},
+			Dnn: smContext.Dnn(),
+		},
 		BinaryDataN1SmMessage: nasPdu,
 	}
 
 	return pdusession.CreateSmContext(ctx, postSmContextsRequest)
-}
-
-func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, supportedGuami *models.Guami) (smContextCreateData models.SmContextCreateData) {
-	smContextCreateData.Supi = ue.Supi
-	smContextCreateData.Pei = ue.Pei
-	smContextCreateData.Gpsi = ue.Gpsi
-	smContextCreateData.PduSessionID = smContext.PduSessionID()
-	snssai := smContext.Snssai()
-	smContextCreateData.SNssai = &models.Snssai{
-		Sst: snssai.Sst,
-		Sd:  snssai.Sd,
-	}
-	smContextCreateData.Dnn = smContext.Dnn()
-
-	smContextCreateData.Guami = &models.Guami{
-		PlmnID: &models.PlmnID{
-			Mcc: supportedGuami.PlmnID.Mcc,
-			Mnc: supportedGuami.PlmnID.Mnc,
-		},
-		AmfID: supportedGuami.AmfID,
-	}
-	// take seving networking plmn from userlocation.Tai
-	if ue.Tai.PlmnID != nil {
-		smContextCreateData.ServingNetwork = &models.PlmnID{
-			Mcc: ue.Tai.PlmnID.Mcc,
-			Mnc: ue.Tai.PlmnID.Mnc,
-		}
-	} else {
-		// ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc %v, Mnc: %v] is taken from Guami List", guamiList[0].PlmnID.Mcc, guamiList[0].PlmnID.Mnc)
-		ue.GmmLog.Warn("Tai is not received from Serving Network, Serving Plmn is taken from Guami List", zap.String("mcc", supportedGuami.PlmnID.Mcc), zap.String("mnc", supportedGuami.PlmnID.Mnc))
-		smContextCreateData.ServingNetwork = &models.PlmnID{
-			Mcc: supportedGuami.PlmnID.Mcc,
-			Mnc: supportedGuami.PlmnID.Mnc,
-		}
-	}
-	smContextCreateData.N1SmMsg = new(models.RefToBinaryData)
-	smContextCreateData.N1SmMsg.ContentID = "n1SmMsg"
-	smContextCreateData.AnType = smContext.AccessType()
-	if ue.RatType != "" {
-		smContextCreateData.RatType = ue.RatType
-	}
-
-	smContextCreateData.UeTimeZone = ue.TimeZone
-
-	return smContextCreateData
 }
 
 // Upadate SmContext Request

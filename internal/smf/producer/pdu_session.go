@@ -18,8 +18,12 @@ import (
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
+
+var tracer = otel.Tracer("ella-core/smf/pdu")
 
 func HandlePduSessionContextReplacement(ctx ctxt.Context, smCtxtRef string) error {
 	smCtxt := context.GetSMContext(smCtxtRef)
@@ -44,13 +48,21 @@ func HandlePduSessionContextReplacement(ctx ctxt.Context, smCtxtRef string) erro
 }
 
 func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmContextsRequest, smContext *context.SMContext) (string, *models.PostSmContextsErrorResponse, error) {
-	// GSM State
-	// PDU Session Establishment Accept/Reject
+	ctx, span := tracer.Start(ctx, "SMF Handle PDU Session SM Context Create")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("smf.smContextRef", smContext.Ref),
+	)
 
-	// Check has PDU Session Establishment Request
 	m := nas.NewMessage()
-	if err := m.GsmMessageDecode(&request.BinaryDataN1SmMessage); err != nil ||
-		m.GsmHeader.GetMessageType() != nas.MsgTypePDUSessionEstablishmentRequest {
+
+	err := m.GsmMessageDecode(&request.BinaryDataN1SmMessage)
+	if err != nil {
+		errRsp := &models.PostSmContextsErrorResponse{}
+		return "", errRsp, fmt.Errorf("error decoding NAS message: %v", err)
+	}
+
+	if m.GsmHeader.GetMessageType() != nas.MsgTypePDUSessionEstablishmentRequest {
 		errRsp := &models.PostSmContextsErrorResponse{}
 		return "", errRsp, fmt.Errorf("error decoding NAS message: %v", err)
 	}
