@@ -44,17 +44,6 @@ func InTaiList(servedTai models.Tai, taiList []models.Tai) bool {
 	return false
 }
 
-func TacInAreas(targetTac string, areas []models.Area) bool {
-	for _, area := range areas {
-		for _, tac := range area.Tacs {
-			if targetTac == tac {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func AttachSourceUeTargetUe(sourceUe, targetUe *RanUe) error {
 	if sourceUe == nil {
 		return fmt.Errorf("source ue is nil")

@@ -87,7 +87,6 @@ type AmfUe struct {
 	RatType                  models.RatType
 	Location                 models.UserLocation
 	Tai                      models.Tai
-	LocationChanged          bool
 	LastVisitedRegisteredTai models.Tai
 	TimeZone                 string
 	/* context about udm */
@@ -102,9 +101,6 @@ type AmfUe struct {
 	ABBA                              []uint8
 	Kseaf                             string
 	Kamf                              string
-	/* context about PCF */
-	AmPolicyAssociation          *models.PolicyAssociation
-	RequestTriggerLocationChange bool // true if AmPolicyAssociation.Trigger contains RequestTriggerLocCh
 	/* N1N2Message */
 	N1N2Message *N1N2Message
 	/* Pdu Sesseion context */
@@ -532,10 +528,6 @@ func (ue *AmfUe) SetOnGoing(anType models.AccessType, onGoing *OnGoingProcedureW
 
 func (ue *AmfUe) GetOnGoing(anType models.AccessType) OnGoingProcedureWithPrio {
 	return *ue.OnGoing[anType]
-}
-
-func (ue *AmfUe) RemoveAmPolicyAssociation() {
-	ue.AmPolicyAssociation = nil
 }
 
 // SM Context realted function

@@ -119,8 +119,13 @@ func GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
 	return snssaiInfo, nil
 }
 
-func GetDnnConfig(ctx context.Context, ueID string) (*models.DnnConfiguration, error) {
-	ctx, span := tracer.Start(ctx, "SMF GetDnnConfig")
+type SubscriberConfig struct {
+	DnnConfig *models.DnnConfiguration
+	SmPolicy  *models.SmPolicyDecision
+}
+
+func GetSubscriberConfig(ctx context.Context, ueID string) (*SubscriberConfig, error) {
+	ctx, span := tracer.Start(ctx, "SMF GetSubscriberConfig")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", ueID),
@@ -162,5 +167,28 @@ func GetDnnConfig(ctx context.Context, ueID string) (*models.DnnConfiguration, e
 		dnnConfig.SscModes.AllowedSscModes = append(dnnConfig.SscModes.AllowedSscModes, models.SscMode(sscMode))
 	}
 
-	return dnnConfig, nil
+	subscriberPolicy := &models.SmPolicyDecision{
+		SessRule: &models.SessionRule{
+			AuthDefQos: &models.AuthorizedDefaultQos{
+				Var5qi: policy.Var5qi,
+				Arp:    &models.Arp{PriorityLevel: policy.Arp},
+			},
+			AuthSessAmbr: &models.Ambr{
+				Uplink:   policy.BitrateUplink,
+				Downlink: policy.BitrateDownlink,
+			},
+		},
+		QosDecs: &models.QosData{
+			Var5qi:               policy.Var5qi,
+			Arp:                  &models.Arp{PriorityLevel: policy.Arp},
+			DefQosFlowIndication: true,
+		},
+	}
+
+	subConfig := &SubscriberConfig{
+		DnnConfig: dnnConfig,
+		SmPolicy:  subscriberPolicy,
+	}
+
+	return subConfig, nil
 }

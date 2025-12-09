@@ -155,9 +155,6 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation 
 				locationInfoEUTRA.TimeStamp.Value)
 		}
 		if ranUe.AmfUe != nil {
-			if ranUe.AmfUe.Tai != ranUe.Tai {
-				ranUe.AmfUe.LocationChanged = true
-			}
 			ranUe.AmfUe.Location = ranUe.Location
 			ranUe.AmfUe.Tai = *ranUe.AmfUe.Location.NrLocation.Tai
 		}
@@ -192,9 +189,6 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation 
 			ranUe.Location.NrLocation.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(locationInfoNR.TimeStamp.Value)
 		}
 		if ranUe.AmfUe != nil {
-			if ranUe.AmfUe.Tai != ranUe.Tai {
-				ranUe.AmfUe.LocationChanged = true
-			}
 			ranUe.AmfUe.Location = ranUe.Location
 			ranUe.AmfUe.Tai = *ranUe.AmfUe.Location.NrLocation.Tai
 		}

@@ -58,7 +58,7 @@ type SMContext struct {
 	UpCnxState                     models.UpCnxState
 	AnType                         models.AccessType
 	RatType                        models.RatType
-	DnnConfiguration               models.DnnConfiguration
+	DnnConfiguration               *models.DnnConfiguration
 	Snssai                         *models.Snssai
 	ServingNetwork                 *models.PlmnID
 	UeLocation                     *models.UserLocation
@@ -201,12 +201,6 @@ func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData
 	smContext.RatType = createData.RatType
 	smContext.UeLocation = createData.UeLocation
 	smContext.UeTimeZone = createData.UeTimeZone
-}
-
-func (smContext *SMContext) BuildCreatedData() (createdData *models.SmContextCreatedData) {
-	createdData = new(models.SmContextCreatedData)
-	createdData.SNssai = smContext.Snssai
-	return
 }
 
 func (smContext *SMContext) PDUAddressToNAS() (addr [12]byte, addrLen uint8) {

@@ -63,17 +63,20 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
+	subscriberConfig, err := context.GetSubscriberConfig(ctx, smContext.Supi)
+	if err != nil {
+		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
+		return "", response, fmt.Errorf("failed to find subscriber data: %v", err)
+	}
+
 	dnnInfo, err := context.RetrieveDnnInformation(ctx, *createData.SNssai, createData.Dnn)
 	if err != nil {
 		logger.SmfLog.Warn("error retrieving DNN information", zap.String("SST", fmt.Sprintf("%d", createData.SNssai.Sst)), zap.String("SD", createData.SNssai.Sd), zap.String("DNN", createData.Dnn), zap.Error(err))
-	}
-
-	smContext.DNNInfo = dnnInfo
-
-	if smContext.DNNInfo == nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
 		return "", response, nil
 	}
+
+	smContext.DNNInfo = dnnInfo
 
 	// IP Allocation
 	smfSelf := context.SMFSelf()
@@ -87,32 +90,13 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 
 	smContext.PDUAddress = ip
 
-	dnnConfig, err := context.GetDnnConfig(ctx, smContext.Supi)
-	if err != nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("failed to get SM context from UDM: %v", err)
-	}
-
-	if dnnConfig == nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("SM context not found in UDM")
-	}
-
-	smContext.DnnConfiguration = *dnnConfig
+	smContext.DnnConfiguration = subscriberConfig.DnnConfig
 
 	// Decode UE content(PCO)
 	establishmentRequest := m.PDUSessionEstablishmentRequest
 	smContext.HandlePDUSessionEstablishmentRequest(establishmentRequest)
 
-	// PCF Policy Association
-	smPolicyDecision, err := SendSMPolicyAssociationCreate(ctx, smContext)
-	if err != nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("failed to create policy association: %v", err)
-	}
-	smContext.SubPduSessLog.Info("Created policy association")
-
-	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, smPolicyDecision)
+	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, subscriberConfig.SmPolicy)
 	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
 
 	defaultPath := context.GenerateDataPath(smfSelf.UPF, smContext)
@@ -125,8 +109,6 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
-
-	_ = smContext.BuildCreatedData()
 
 	smContext.SubPduSessLog.Info("Successfully created PDU session context")
 

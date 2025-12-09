@@ -540,8 +540,13 @@ func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe, acce
 	}
 	amfUe.GmmLog.Info("Send Configuration Update Command")
 
-	mobilityRestrictionList := ngap_message.BuildIEMobilityRestrictionList(amfUe)
-	err = ngap_message.SendDownlinkNasTransport(ctx, amfUe.RanUe[accessType], nasMsg, &mobilityRestrictionList)
+	mobilityRestrictionList, err := ngap_message.BuildIEMobilityRestrictionList(amfUe)
+	if err != nil {
+		amfUe.GmmLog.Error("could not build Mobility Restriction List IE", zap.Error(err))
+		return
+	}
+
+	err = ngap_message.SendDownlinkNasTransport(ctx, amfUe.RanUe[accessType], nasMsg, mobilityRestrictionList)
 	if err != nil {
 		amfUe.GmmLog.Error("could not send configuration update command", zap.Error(err))
 		return
@@ -553,7 +558,7 @@ func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe, acce
 		amfUe.T3555 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.GmmLog.Warn("timer T3555 expired, retransmit Configuration Update Command",
 				zap.Int32("retry", expireTimes))
-			err = ngap_message.SendDownlinkNasTransport(ctx, amfUe.RanUe[accessType], nasMsg, &mobilityRestrictionList)
+			err = ngap_message.SendDownlinkNasTransport(ctx, amfUe.RanUe[accessType], nasMsg, mobilityRestrictionList)
 			if err != nil {
 				amfUe.GmmLog.Error("could not send configuration update command", zap.Error(err))
 			}
