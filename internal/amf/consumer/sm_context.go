@@ -74,10 +74,6 @@ func SendUpdateSmContextActivateUpCnxState(
 	updateData := models.SmContextUpdateData{}
 	updateData.UpCnxState = models.UpCnxStateActivating
 
-	if smContext.AccessType() != accessType {
-		updateData.AnType = smContext.AccessType()
-	}
-
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
 }
 
@@ -90,24 +86,13 @@ func SendUpdateSmContextDeactivateUpCnxState(ctx ctxt.Context, ue *context.AmfUe
 	if cause.Cause != nil {
 		updateData.Cause = *cause.Cause
 	}
-	if cause.NgapCause != nil {
-		updateData.NgApCause = &models.NgApCause{
-			Group: cause.NgapCause.Group,
-			Value: cause.NgapCause.Value,
-		}
-	}
-	if cause.Var5GmmCause != nil {
-		updateData.Var5gMmCauseValue = *cause.Var5GmmCause
-	}
+
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
 }
 
-func SendUpdateSmContextChangeAccessType(ctx ctxt.Context, ue *context.AmfUe,
-	smContext *context.SmContext, anTypeCanBeChanged bool) (
-	*models.UpdateSmContextResponse, error,
-) {
+func SendUpdateSmContextChangeAccessType(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext) (*models.UpdateSmContextResponse, error) {
 	updateData := models.SmContextUpdateData{}
-	updateData.AnTypeCanBeChanged = anTypeCanBeChanged
+
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
 }
 
@@ -125,81 +110,42 @@ func SendUpdateSmContextXnHandover(
 	ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (
 	*models.UpdateSmContextResponse, error,
 ) {
-	updateData := models.SmContextUpdateData{}
-	if n2SmType != "" {
-		updateData.N2SmInfoType = n2SmType
+	updateData := models.SmContextUpdateData{
+		N2SmInfoType: n2SmType,
 	}
-	updateData.ToBeSwitched = true
 
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, N2SmInfo)
 }
 
 func SendUpdateSmContextXnHandoverFailed(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (*models.UpdateSmContextResponse, error) {
-	updateData := models.SmContextUpdateData{}
-	if n2SmType != "" {
-		updateData.N2SmInfoType = n2SmType
+	updateData := models.SmContextUpdateData{
+		N2SmInfoType: n2SmType,
 	}
-	updateData.FailedToBeSwitched = true
+
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, N2SmInfo)
 }
 
-func SendUpdateSmContextN2HandoverPreparing(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte, amfid string, targetID *models.NgRanTargetID) (*models.UpdateSmContextResponse, error) {
-	updateData := models.SmContextUpdateData{}
-	if n2SmType != "" {
-		updateData.N2SmInfoType = n2SmType
+func SendUpdateSmContextN2HandoverPreparing(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (*models.UpdateSmContextResponse, error) {
+	updateData := models.SmContextUpdateData{
+		N2SmInfoType: n2SmType,
+		HoState:      models.HoStatePreparing,
 	}
-	updateData.HoState = models.HoStatePreparing
-	updateData.TargetID = &models.NgRanTargetID{
-		RanNodeID: &models.GlobalRanNodeID{
-			PlmnID: &models.PlmnID{
-				Mcc: targetID.RanNodeID.PlmnID.Mcc,
-				Mnc: targetID.RanNodeID.PlmnID.Mnc,
-			},
-			GNbID: &models.GNbID{
-				BitLength: targetID.RanNodeID.GNbID.BitLength,
-				GNBValue:  targetID.RanNodeID.GNbID.GNBValue,
-			},
-		},
-		Tai: &models.Tai{
-			PlmnID: &models.PlmnID{
-				Mcc: targetID.Tai.PlmnID.Mcc,
-				Mnc: targetID.Tai.PlmnID.Mnc,
-			},
-			Tac: targetID.Tai.Tac,
-		},
-	}
-	// amf changed in same plmn
-	if amfid != "" {
-		updateData.TargetServingNfID = amfid
-	}
+
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, N2SmInfo)
 }
 
 func SendUpdateSmContextN2HandoverPrepared(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (*models.UpdateSmContextResponse, error) {
-	updateData := models.SmContextUpdateData{}
-	if n2SmType != "" {
-		updateData.N2SmInfoType = n2SmType
+	updateData := models.SmContextUpdateData{
+		N2SmInfoType: n2SmType,
+		HoState:      models.HoStatePrepared,
 	}
-	updateData.HoState = models.HoStatePrepared
+
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, N2SmInfo)
 }
 
-func SendUpdateSmContextN2HandoverComplete(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext, amfid string, guami *models.Guami) (*models.UpdateSmContextResponse, error) {
-	updateData := models.SmContextUpdateData{}
-	updateData.HoState = models.HoStateCompleted
-	if amfid != "" {
-		updateData.ServingNfID = amfid
-		updateData.ServingNetwork = &models.PlmnID{
-			Mcc: guami.PlmnID.Mcc,
-			Mnc: guami.PlmnID.Mnc,
-		}
-		updateData.Guami = &models.Guami{
-			PlmnID: &models.PlmnID{
-				Mcc: guami.PlmnID.Mcc,
-				Mnc: guami.PlmnID.Mnc,
-			},
-			AmfID: guami.AmfID,
-		}
+func SendUpdateSmContextN2HandoverComplete(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext) (*models.UpdateSmContextResponse, error) {
+	updateData := models.SmContextUpdateData{
+		HoState: models.HoStateCompleted,
 	}
 
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
@@ -211,15 +157,7 @@ func SendUpdateSmContextN2HandoverCanceled(ctx ctxt.Context, ue *context.AmfUe, 
 	if cause.Cause != nil {
 		updateData.Cause = *cause.Cause
 	}
-	if cause.NgapCause != nil {
-		updateData.NgApCause = &models.NgApCause{
-			Group: cause.NgapCause.Group,
-			Value: cause.NgapCause.Value,
-		}
-	}
-	if cause.Var5GmmCause != nil {
-		updateData.Var5gMmCauseValue = *cause.Var5GmmCause
-	}
+
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
 }
 

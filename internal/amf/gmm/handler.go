@@ -132,8 +132,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			//  perform a local release of the PDU session identified by the PDU session ID and shall request
 			// the SMF to perform a local release of the PDU session
 			updateData := models.SmContextUpdateData{
-				Release: true,
-				Cause:   models.CauseRelDueToDuplicateSessionID,
+				Cause: models.CauseRelDueToDuplicateSessionID,
 			}
 			ue.GmmLog.Warn("Duplicated PDU session ID", zap.Int32("pduSessionID", pduSessionID))
 			response, err := consumer.SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
@@ -265,15 +264,6 @@ func forward5GSMMessageToSMF(
 	smMessage []byte,
 ) error {
 	smContextUpdateData := models.SmContextUpdateData{}
-	smContextUpdateData.Pei = ue.Pei
-	smContextUpdateData.Gpsi = ue.Gpsi
-	if !context.CompareUserLocation(ue.Location, smContext.UserLocation()) {
-		smContextUpdateData.AddUeLocation = &ue.Location
-	}
-
-	if accessType != smContext.AccessType() {
-		smContextUpdateData.AnType = accessType
-	}
 
 	response, err := consumer.SendUpdateSmContextRequest(ctx, smContext, smContextUpdateData, smMessage, nil)
 	if err != nil {
@@ -798,7 +788,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 					reactivationResult = new([16]bool)
 				}
 				if allowedPsis[requestData.PduSessionID] {
-					response, err := consumer.SendUpdateSmContextChangeAccessType(ctx, ue, smContext, true)
+					response, err := consumer.SendUpdateSmContextChangeAccessType(ctx, ue, smContext)
 					if err != nil {
 						return err
 					} else if response == nil {
@@ -1421,7 +1411,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 							reactivationResult = new([16]bool)
 						}
 						if allowPduSessionPsi[requestData.PduSessionID] {
-							response, err := consumer.SendUpdateSmContextChangeAccessType(ctx, ue, smContext, true)
+							response, err := consumer.SendUpdateSmContextChangeAccessType(ctx, ue, smContext)
 							if err != nil {
 								return err
 							} else if response == nil {

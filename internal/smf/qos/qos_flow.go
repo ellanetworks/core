@@ -124,16 +124,6 @@ func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *
 		qfd.addQosFlowRateParam(qosData.MaxbrDl, QFDParameterIDMfbrDl)
 	}
 
-	// GFBR uplink
-	if qosData.GbrUl != "" {
-		qfd.addQosFlowRateParam(qosData.GbrUl, QFDParameterIDGfbrUl)
-	}
-
-	// GFBR downlink
-	if qosData.GbrDl != "" {
-		qfd.addQosFlowRateParam(qosData.GbrDl, QFDParameterIDGfbrDl)
-	}
-
 	// Set E-Bit of QFD for the "create new QoS flow description" operation
 	qfd.SetQFDEBitCreateNewQFD()
 

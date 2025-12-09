@@ -13,28 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-func CompareUserLocation(loc1 models.UserLocation, loc2 models.UserLocation) bool {
-	if loc1.EutraLocation != nil && loc2.EutraLocation != nil {
-		eutraloc1 := *loc1.EutraLocation
-		eutraloc2 := *loc2.EutraLocation
-		eutraloc1.UeLocationTimestamp = nil
-		eutraloc2.UeLocationTimestamp = nil
-		return reflect.DeepEqual(eutraloc1, eutraloc2)
-	}
-	if loc1.N3gaLocation != nil && loc2.N3gaLocation != nil {
-		return reflect.DeepEqual(loc1, loc2)
-	}
-	if loc1.NrLocation != nil && loc2.NrLocation != nil {
-		nrloc1 := *loc1.NrLocation
-		nrloc2 := *loc2.NrLocation
-		nrloc1.UeLocationTimestamp = nil
-		nrloc2.UeLocationTimestamp = nil
-		return reflect.DeepEqual(nrloc1, nrloc2)
-	}
-
-	return false
-}
-
 func InTaiList(servedTai models.Tai, taiList []models.Tai) bool {
 	for _, tai := range taiList {
 		if reflect.DeepEqual(tai, servedTai) {

@@ -23,8 +23,6 @@ func TestBuildAuthorizedQosFlowDescriptions(t *testing.T) {
 		Var5qi:               5,
 		MaxbrUl:              "101 Mbps",
 		MaxbrDl:              "201 Mbps",
-		GbrUl:                "11 Mbps",
-		GbrDl:                "21 Mbps",
 		PriorityLevel:        5,
 		DefQosFlowIndication: true,
 	}

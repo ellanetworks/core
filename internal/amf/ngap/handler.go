@@ -2788,7 +2788,7 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 			if !ok {
 				ran.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionid))
 			}
-			_, err := consumer.SendUpdateSmContextN2HandoverComplete(ctx, amfUe, smContext, "", nil)
+			_, err := consumer.SendUpdateSmContextN2HandoverComplete(ctx, amfUe, smContext)
 			if err != nil {
 				ran.Log.Error("Send UpdateSmContextN2HandoverComplete Error", zap.Error(err))
 			}
@@ -3436,17 +3436,13 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 	} else {
 		// Handover in same AMF
 		sourceUe.HandOverType.Value = handoverType.Value
-		tai := util.TaiToModels(targetID.TargetRANNodeID.SelectedTAI)
-		targetID := models.NgRanTargetID{
-			RanNodeID: &targetRanNodeID,
-			Tai:       &tai,
-		}
+
 		var pduSessionReqList ngapType.PDUSessionResourceSetupListHOReq
 		for _, pDUSessionResourceHoItem := range pDUSessionResourceListHORqd.List {
 			pduSessionIDInt32 := int32(pDUSessionResourceHoItem.PDUSessionID.Value)
 			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDInt32); exist {
 				response, err := consumer.SendUpdateSmContextN2HandoverPreparing(ctx, amfUe, smContext,
-					models.N2SmInfoTypeHandoverRequired, pDUSessionResourceHoItem.HandoverRequiredTransfer, "", &targetID)
+					models.N2SmInfoTypeHandoverRequired, pDUSessionResourceHoItem.HandoverRequiredTransfer)
 				if err != nil {
 					sourceUe.Log.Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Int32("PduSessionID", pduSessionIDInt32))
 				}
