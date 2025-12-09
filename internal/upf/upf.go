@@ -432,7 +432,7 @@ func (u *UPF) listenForMissingNeighbours() {
 			logger.UpfLog.Debug("could not parse IP from bytes", zap.Binary("bytes", record.RawSample))
 			continue
 		}
-		if err := kernel.AddNeighbour(ip.AsSlice()); err != nil {
+		if err := kernel.AddNeighbour(context.TODO(), ip.AsSlice()); err != nil {
 			logger.UpfLog.Warn("could not add neighbour", zap.String("destination", ip.String()), zap.Error(err))
 			continue
 		}
