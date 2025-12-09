@@ -34,8 +34,7 @@ type ProtocolConfigurationOptions struct {
 }
 
 type PFCPSessionContext struct {
-	PDRs       map[uint16]*PDR
-	NodeID     net.IP
+	// PDRs       map[uint16]*PDR
 	LocalSEID  uint64
 	RemoteSEID uint64
 }
@@ -207,16 +206,6 @@ func (smContext *SMContext) PDUAddressToNAS() ([12]byte, uint8) {
 	}
 }
 
-func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID net.IP) {
-	for _, pfcpCtx := range smContext.PFCPContext {
-		if pfcpCtx.LocalSEID == seid {
-			nodeID = pfcpCtx.NodeID
-		}
-	}
-
-	return
-}
-
 func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) error {
 	curDataPathNode := dataPath.DPNode
 	NodeIDtoIP := curDataPathNode.UPF.NodeID.String()
@@ -232,35 +221,12 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) err
 	}
 
 	smContext.PFCPContext[NodeIDtoIP] = &PFCPSessionContext{
-		PDRs:      make(map[uint16]*PDR),
-		NodeID:    curDataPathNode.UPF.NodeID,
 		LocalSEID: allocatedSEID,
 	}
 
 	seidSMContextMap.Store(allocatedSEID, smContext)
 
 	return nil
-}
-
-func (smContext *SMContext) PutPDRtoPFCPSession(nodeID net.IP, pdrList map[uint8]*PDR) error {
-	NodeIDtoIP := nodeID.String()
-
-	pfcpSessCtx, exist := smContext.PFCPContext[NodeIDtoIP]
-	if !exist {
-		return fmt.Errorf("can't find PFCPContext[%s] to put PDR(%v)", NodeIDtoIP, pdrList)
-	}
-
-	for name, pdr := range pdrList {
-		pfcpSessCtx.PDRs[pdrList[name].PDRID] = pdr
-	}
-
-	return nil
-}
-
-func (smContext *SMContext) RemovePDRfromPFCPSession(nodeID net.IP, pdr *PDR) {
-	NodeIDtoIP := nodeID.String()
-	pfcpSessCtx := smContext.PFCPContext[NodeIDtoIP]
-	delete(pfcpSessCtx.PDRs, pdr.PDRID)
 }
 
 func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint8) error {

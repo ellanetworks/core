@@ -34,22 +34,12 @@ type DataPath struct {
 }
 
 func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
-	var err error
-	var pdr *PDR
-
-	destUPF := node.UPF
-
-	// Default PDR
-	if pdr, err = destUPF.AddPDR(); err != nil {
+	pdr, err := node.UPF.AddPDR()
+	if err != nil {
 		return fmt.Errorf("add PDR failed: %s", err)
-	} else {
-		node.UpLinkTunnel.PDR[0] = pdr
 	}
 
-	if err = smContext.PutPDRtoPFCPSession(destUPF.NodeID, node.UpLinkTunnel.PDR); err != nil {
-		logger.SmfLog.Error("couldn't put PDR to PFCP session", zap.Error(err))
-		return err
-	}
+	node.UpLinkTunnel.PDR[0] = pdr
 
 	return nil
 }
@@ -65,12 +55,8 @@ func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 	if err != nil {
 		return fmt.Errorf("add PDR failed: %s", err)
 	}
-	node.DownLinkTunnel.PDR[0] = pdr
 
-	// Put PDRs in PFCP session
-	if err = smContext.PutPDRtoPFCPSession(destUPF.NodeID, node.DownLinkTunnel.PDR); err != nil {
-		return fmt.Errorf("error in put PDR to PFCP session: %s", err)
-	}
+	node.DownLinkTunnel.PDR[0] = pdr
 
 	return nil
 }
@@ -81,9 +67,6 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 			logger.SmfLog.Debug("PDR is nil in UpLink Tunnel", zap.Uint8("id", id))
 			continue
 		}
-
-		// Remove PDR from PFCP Session
-		smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
 
 		// Remove of UPF
 		node.UPF.RemovePDR(pdr)
@@ -113,9 +96,6 @@ func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 	for id, pdr := range node.DownLinkTunnel.PDR {
 		if pdr != nil {
 			logger.SmfLog.Info("deactivated DownLinkTunnel PDR", zap.Uint8("id", id), zap.Uint16("pdrId", pdr.PDRID))
-
-			// Remove PDR from PFCP Session
-			smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
 
 			// Remove from UPF
 			node.UPF.RemovePDR(pdr)
