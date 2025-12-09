@@ -555,17 +555,6 @@ func BuildRegistrationAccept(
 		registrationAccept.PDUSessionReactivationResultErrorCause.Buffer = buf
 	}
 
-	if anType == models.AccessType3GPPAccess && ue.AmPolicyAssociation != nil &&
-		ue.AmPolicyAssociation.ServAreaRes != nil {
-		registrationAccept.ServiceAreaList = nasType.NewServiceAreaList(nasMessage.RegistrationAcceptServiceAreaListType)
-		partialServiceAreaList, err := util.PartialServiceAreaListToNas(ue.PlmnID, *ue.AmPolicyAssociation.ServAreaRes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert PartialServiceAreaList to NAS: %s", err)
-		}
-		registrationAccept.ServiceAreaList.SetLen(uint8(len(partialServiceAreaList)))
-		registrationAccept.ServiceAreaList.SetPartialServiceAreaList(partialServiceAreaList)
-	}
-
 	if anType == models.AccessType3GPPAccess && ue.T3512Value != 0 {
 		registrationAccept.T3512Value = nasType.NewT3512Value(nasMessage.RegistrationAcceptT3512ValueType)
 		registrationAccept.T3512Value.SetLen(1)
@@ -694,19 +683,7 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 	}
 
 	if flags.NeedServiceAreaList && anType == models.AccessType3GPPAccess {
-		if ue.AmPolicyAssociation != nil && ue.AmPolicyAssociation.ServAreaRes != nil {
-			configurationUpdateCommand.ServiceAreaList = nasType.
-				NewServiceAreaList(nasMessage.ConfigurationUpdateCommandServiceAreaListType)
-			partialServiceAreaList, err := util.
-				PartialServiceAreaListToNas(ue.PlmnID, *ue.AmPolicyAssociation.ServAreaRes)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert service area list to NAS: %v", err), false
-			}
-			configurationUpdateCommand.ServiceAreaList.SetLen(uint8(len(partialServiceAreaList)))
-			configurationUpdateCommand.ServiceAreaList.SetPartialServiceAreaList(partialServiceAreaList)
-		} else {
-			ue.GmmLog.Warn("Require Service Area List, but got nothing.")
-		}
+		ue.GmmLog.Warn("Require Service Area List, but got nothing.")
 	}
 
 	if flags.NeedLadnInformation && anType == models.AccessType3GPPAccess {

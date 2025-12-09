@@ -50,7 +50,7 @@ func UpdateAMPolicy(ctx context.Context, supi string, policyAssociationUpdateReq
 	}
 
 	amPolicyData := ue.AMPolicyData
-	var response models.PolicyUpdate
+
 	for _, trigger := range policyAssociationUpdateRequest.Triggers {
 		switch trigger {
 		case models.RequestTriggerLocCh:
@@ -63,7 +63,9 @@ func UpdateAMPolicy(ctx context.Context, supi string, policyAssociationUpdateReq
 		}
 	}
 
-	response.Triggers = amPolicyData.Triggers
+	response := models.PolicyUpdate{
+		Triggers: amPolicyData.Triggers,
+	}
 
 	return &response, nil
 }
@@ -96,11 +98,8 @@ func CreateAMPolicy(ctx context.Context, policyAssociationRequest models.PolicyA
 		if err != nil {
 			return nil, fmt.Errorf("ue not found in database: %s", ue.Supi)
 		}
-		amPolicy = ue.NewUeAMPolicyData(policyAssociationRequest)
-	}
 
-	if amPolicy.Rfsp != 0 {
-		response.Rfsp = amPolicy.Rfsp
+		ue.NewUeAMPolicyData(policyAssociationRequest)
 	}
 
 	return &response, nil

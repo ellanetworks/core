@@ -566,19 +566,6 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 		return err
 	}
 
-	// Service Area Restriction are applicable only to 3GPP access
-	if anType == models.AccessType3GPPAccess {
-		if ue.AmPolicyAssociation != nil && ue.AmPolicyAssociation.ServAreaRes != nil {
-			servAreaRes := ue.AmPolicyAssociation.ServAreaRes
-			if servAreaRes.RestrictionType == models.RestrictionTypeAllowedAreas {
-				numOfallowedTAs := 0
-				for _, area := range servAreaRes.Areas {
-					numOfallowedTAs += len(area.Tacs)
-				}
-			}
-		}
-	}
-
 	amfSelf.AllocateRegistrationArea(ctx, ue, anType, operatorInfo.Tais)
 	ue.GmmLog.Debug("use original GUTI", zap.String("guti", ue.Guti))
 
@@ -692,16 +679,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
 		allowReEstablishPduSession := true
-
-		// determines that the UE is in non-allowed area or is not in allowed area
-		if ue.AmPolicyAssociation != nil && ue.AmPolicyAssociation.ServAreaRes != nil {
-			switch ue.AmPolicyAssociation.ServAreaRes.RestrictionType {
-			case models.RestrictionTypeAllowedAreas:
-				allowReEstablishPduSession = context.TacInAreas(ue.Tai.Tac, ue.AmPolicyAssociation.ServAreaRes.Areas)
-			case models.RestrictionTypeNotAllowedAreas:
-				allowReEstablishPduSession = !context.TacInAreas(ue.Tai.Tac, ue.AmPolicyAssociation.ServAreaRes.Areas)
-			}
-		}
 
 		if !allowReEstablishPduSession {
 			for pduSessionID, hasUplinkData := range uplinkDataPsi {
@@ -872,9 +849,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 	}
 
 	if ue.LocationChanged && ue.RequestTriggerLocationChange {
-		updateReq := models.PolicyAssociationUpdateRequest{}
-		updateReq.Triggers = append(updateReq.Triggers, models.RequestTriggerLocCh)
-		updateReq.UserLoc = &ue.Location
+		updateReq := models.PolicyAssociationUpdateRequest{
+			Triggers: []models.RequestTrigger{models.RequestTriggerLocCh},
+			UserLoc:  &ue.Location,
+		}
 		err := consumer.AMPolicyControlUpdate(ctx, ue, updateReq)
 		if err != nil {
 			ue.GmmLog.Error("AM Policy Control Update Error", zap.Error(err))
@@ -1550,24 +1528,6 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		}
 	case nasMessage.ServiceTypeData:
 		if anType == models.AccessType3GPPAccess {
-			if ue.AmPolicyAssociation != nil && ue.AmPolicyAssociation.ServAreaRes != nil {
-				var accept bool
-				switch ue.AmPolicyAssociation.ServAreaRes.RestrictionType {
-				case models.RestrictionTypeAllowedAreas:
-					accept = context.TacInAreas(ue.Tai.Tac, ue.AmPolicyAssociation.ServAreaRes.Areas)
-				case models.RestrictionTypeNotAllowedAreas:
-					accept = !context.TacInAreas(ue.Tai.Tac, ue.AmPolicyAssociation.ServAreaRes.Areas)
-				}
-
-				if !accept {
-					err := gmm_message.SendServiceReject(ctx, ue.RanUe[anType], nil, nasMessage.Cause5GMMRestrictedServiceArea)
-					if err != nil {
-						return fmt.Errorf("error sending service reject: %v", err)
-					}
-					ue.GmmLog.Info("sent service reject")
-					return nil
-				}
-			}
 			err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 			if err != nil {
 				return err

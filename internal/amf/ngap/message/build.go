@@ -998,8 +998,12 @@ func BuildInitialContextSetupRequest(
 		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentMobilityRestrictionList
 		ie.Value.MobilityRestrictionList = new(ngapType.MobilityRestrictionList)
 
-		mobilityRestrictionList := BuildIEMobilityRestrictionList(amfUe)
-		ie.Value.MobilityRestrictionList = &mobilityRestrictionList
+		mobilityRestrictionList, err := BuildIEMobilityRestrictionList(amfUe)
+		if err != nil {
+			return nil, fmt.Errorf("error building Mobility Restriction List IE: %s", err)
+		}
+
+		ie.Value.MobilityRestrictionList = mobilityRestrictionList
 
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 	}
@@ -1016,19 +1020,6 @@ func BuildInitialContextSetupRequest(
 			return nil, fmt.Errorf("cannot decode UeRadioCapability: %+v", err)
 		}
 		ie.Value.UERadioCapability.Value = uecapa
-		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
-	}
-
-	// Index to RAT/Frequency Selection Priority (optional)
-	if amfUe.AmPolicyAssociation != nil && amfUe.AmPolicyAssociation.Rfsp != 0 {
-		ie = ngapType.InitialContextSetupRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDIndexToRFSP
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentIndexToRFSP
-		ie.Value.IndexToRFSP = new(ngapType.IndexToRFSP)
-
-		ie.Value.IndexToRFSP.Value = int64(amfUe.AmPolicyAssociation.Rfsp)
-
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 	}
 

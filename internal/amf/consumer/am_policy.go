@@ -46,12 +46,7 @@ func AMPolicyControlUpdate(ctx ctxt.Context, ue *context.AmfUe, updateRequest mo
 	if err != nil {
 		return fmt.Errorf("failed to update policy: %+v", err)
 	}
-	if res.ServAreaRes != nil {
-		ue.AmPolicyAssociation.ServAreaRes = res.ServAreaRes
-	}
-	if res.Rfsp != 0 {
-		ue.AmPolicyAssociation.Rfsp = res.Rfsp
-	}
+
 	ue.AmPolicyAssociation.Triggers = res.Triggers
 	ue.RequestTriggerLocationChange = false
 	for _, trigger := range res.Triggers {

@@ -5,5 +5,5 @@ type PolicyAssociationRequest struct {
 	AccessType  AccessType
 	UserLoc     *UserLocation
 	ServingPlmn *PlmnID
-	Rfsp        int32
+	// Rfsp        int32
 }

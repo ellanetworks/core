@@ -6,7 +6,7 @@
 package message
 
 import (
-	"encoding/hex"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
@@ -99,48 +99,15 @@ func AppendPDUSessionResourceToReleaseListRelCmd(list *ngapType.PDUSessionResour
 	list.List = append(list.List, item)
 }
 
-func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrictionList {
-	mobilityRestrictionList := ngapType.MobilityRestrictionList{}
+func BuildIEMobilityRestrictionList(ue *context.AmfUe) (*ngapType.MobilityRestrictionList, error) {
 	plmnID, err := util.PlmnIDToNgap(ue.PlmnID)
 	if err != nil {
-		logger.AmfLog.Error("Convert PLMN ID to NGAP failed", zap.Error(err))
-		return mobilityRestrictionList
+		return nil, fmt.Errorf("could not convert PLMN ID to NGAP: %s", err)
 	}
-	mobilityRestrictionList.ServingPLMN = *plmnID
 
-	if ue.AmPolicyAssociation != nil && ue.AmPolicyAssociation.ServAreaRes != nil {
-		mobilityRestrictionList.ServiceAreaInformation = new(ngapType.ServiceAreaInformation)
-		serviceAreaInformation := mobilityRestrictionList.ServiceAreaInformation
-
-		item := ngapType.ServiceAreaInformationItem{}
-		plmnID, err := util.PlmnIDToNgap(ue.PlmnID)
-		if err != nil {
-			logger.AmfLog.Error("Convert PLMN ID to NGAP failed", zap.Error(err))
-			return mobilityRestrictionList
-		}
-		item.PLMNIdentity = *plmnID
-		var tacList []ngapType.TAC
-		for _, area := range ue.AmPolicyAssociation.ServAreaRes.Areas {
-			for _, tac := range area.Tacs {
-				tacBytes, err := hex.DecodeString(tac)
-				if err != nil {
-					logger.AmfLog.Error("DecodeString tac error", zap.Error(err))
-				}
-				tacNgap := ngapType.TAC{}
-				tacNgap.Value = tacBytes
-				tacList = append(tacList, tacNgap)
-			}
-		}
-		if ue.AmPolicyAssociation.ServAreaRes.RestrictionType == models.RestrictionTypeAllowedAreas {
-			item.AllowedTACs = new(ngapType.AllowedTACs)
-			item.AllowedTACs.List = append(item.AllowedTACs.List, tacList...)
-		} else {
-			item.NotAllowedTACs = new(ngapType.NotAllowedTACs)
-			item.NotAllowedTACs.List = append(item.NotAllowedTACs.List, tacList...)
-		}
-		serviceAreaInformation.List = append(serviceAreaInformation.List, item)
-	}
-	return mobilityRestrictionList
+	return &ngapType.MobilityRestrictionList{
+		ServingPLMN: *plmnID,
+	}, nil
 }
 
 func BuildUnavailableGUAMIList(guami *models.Guami) (unavailableGUAMIList ngapType.UnavailableGUAMIList) {

@@ -28,17 +28,14 @@ type UeAMPolicyData struct {
 	ServingPlmn *models.PlmnID
 	UserLoc     *models.UserLocation
 	Triggers    []models.RequestTrigger
-	Rfsp        int32
 }
 
-func (ue *UeContext) NewUeAMPolicyData(req models.PolicyAssociationRequest) *UeAMPolicyData {
+func (ue *UeContext) NewUeAMPolicyData(req models.PolicyAssociationRequest) {
 	ue.AMPolicyData = &UeAMPolicyData{
 		AccessType:  req.AccessType,
 		ServingPlmn: req.ServingPlmn,
-		Rfsp:        req.Rfsp,
 		UserLoc:     req.UserLoc,
 	}
-	return ue.AMPolicyData
 }
 
 // returns AM Policy which AccessType and plmnID match
