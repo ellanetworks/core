@@ -102,20 +102,18 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 			farList := []*context.FAR{}
 			dataPath := smContext.Tunnel.DataPath
 			ANUPF := dataPath.DPNode
-			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-				if DLPDR == nil {
-					smContext.SubPduSessLog.Error("AN Release Error")
-				} else {
-					DLPDR.FAR.State = context.RuleUpdate
-					DLPDR.FAR.ApplyAction.Forw = false
-					DLPDR.FAR.ApplyAction.Buff = true
-					DLPDR.FAR.ApplyAction.Nocp = true
-					// Set DL Tunnel info to nil
-					if DLPDR.FAR.ForwardingParameters != nil {
-						DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
-					}
-					farList = append(farList, DLPDR.FAR)
+			if ANUPF.DownLinkTunnel.PDR == nil {
+				smContext.SubPduSessLog.Error("AN Release Error")
+			} else {
+				ANUPF.DownLinkTunnel.PDR.FAR.State = context.RuleUpdate
+				ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction.Forw = false
+				ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction.Buff = true
+				ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction.Nocp = true
+				// Set DL Tunnel info to nil
+				if ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters != nil {
+					ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
 				}
+				farList = append(farList, ANUPF.DownLinkTunnel.PDR.FAR)
 			}
 
 			pfcpParam.farList = append(pfcpParam.farList, farList...)
@@ -213,21 +211,19 @@ func HandleUpdateN2Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 		dataPath := tunnel.DataPath
 		if dataPath.Activated {
 			ANUPF := dataPath.DPNode
-			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-				DLPDR.FAR.ApplyAction = context.ApplyAction{Buff: false, Drop: false, Dupl: false, Forw: true, Nocp: false}
-				DLPDR.FAR.ForwardingParameters = &context.ForwardingParameters{
-					DestinationInterface: context.DestinationInterface{
-						InterfaceValue: context.DestinationInterfaceAccess,
-					},
-					NetworkInstance: smContext.Dnn,
-				}
-
-				DLPDR.State = context.RuleUpdate
-				DLPDR.FAR.State = context.RuleUpdate
-
-				pdrList = append(pdrList, DLPDR)
-				farList = append(farList, DLPDR.FAR)
+			ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction = context.ApplyAction{Buff: false, Drop: false, Dupl: false, Forw: true, Nocp: false}
+			ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters = &context.ForwardingParameters{
+				DestinationInterface: context.DestinationInterface{
+					InterfaceValue: context.DestinationInterfaceAccess,
+				},
+				NetworkInstance: smContext.Dnn,
 			}
+
+			ANUPF.DownLinkTunnel.PDR.State = context.RuleUpdate
+			ANUPF.DownLinkTunnel.PDR.FAR.State = context.RuleUpdate
+
+			pdrList = append(pdrList, ANUPF.DownLinkTunnel.PDR)
+			farList = append(farList, ANUPF.DownLinkTunnel.PDR.FAR)
 		}
 
 		if err := context.HandlePDUSessionResourceSetupResponseTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
@@ -274,10 +270,8 @@ func HandleUpdateN2Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 		dataPath := tunnel.DataPath
 		if dataPath.Activated {
 			ANUPF := dataPath.DPNode
-			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-				pdrList = append(pdrList, DLPDR)
-				farList = append(farList, DLPDR.FAR)
-			}
+			pdrList = append(pdrList, ANUPF.DownLinkTunnel.PDR)
+			farList = append(farList, ANUPF.DownLinkTunnel.PDR.FAR)
 		}
 
 		pfcpParam.pdrList = append(pfcpParam.pdrList, pdrList...)

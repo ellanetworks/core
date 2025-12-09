@@ -113,8 +113,8 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 
 	defaultPath := &context.DataPath{
 		DPNode: &context.DataPathNode{
-			UpLinkTunnel:   &context.GTPTunnel{PDR: make(map[uint8]*context.PDR)},
-			DownLinkTunnel: &context.GTPTunnel{PDR: make(map[uint8]*context.PDR)},
+			UpLinkTunnel:   &context.GTPTunnel{},
+			DownLinkTunnel: &context.GTPTunnel{},
 			UPF:            smfSelf.UPF,
 		},
 	}

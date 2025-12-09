@@ -35,28 +35,24 @@ func SendPFCPRules(ctx ctxt.Context, smContext *context.SMContext) error {
 		urrList := make([]*context.URR, 0, 2)
 
 		if curDataPathNode.UpLinkTunnel != nil && curDataPathNode.UpLinkTunnel.PDR != nil {
-			for _, pdr := range curDataPathNode.UpLinkTunnel.PDR {
-				pdrList = append(pdrList, pdr)
-				farList = append(farList, pdr.FAR)
-				if pdr.QER != nil {
-					qerList = append(qerList, pdr.QER...)
-				}
-				if pdr.URR != nil {
-					urrList = append(urrList, pdr.URR)
-				}
+			pdrList = append(pdrList, curDataPathNode.UpLinkTunnel.PDR)
+			farList = append(farList, curDataPathNode.UpLinkTunnel.PDR.FAR)
+			if curDataPathNode.UpLinkTunnel.PDR.QER != nil {
+				qerList = append(qerList, curDataPathNode.UpLinkTunnel.PDR.QER...)
+			}
+			if curDataPathNode.UpLinkTunnel.PDR.URR != nil {
+				urrList = append(urrList, curDataPathNode.UpLinkTunnel.PDR.URR)
 			}
 		}
 		if curDataPathNode.DownLinkTunnel != nil && curDataPathNode.DownLinkTunnel.PDR != nil {
-			for _, pdr := range curDataPathNode.DownLinkTunnel.PDR {
-				pdrList = append(pdrList, pdr)
-				farList = append(farList, pdr.FAR)
+			pdrList = append(pdrList, curDataPathNode.DownLinkTunnel.PDR)
+			farList = append(farList, curDataPathNode.DownLinkTunnel.PDR.FAR)
 
-				if pdr.QER != nil {
-					qerList = append(qerList, pdr.QER...)
-				}
-				if pdr.URR != nil {
-					urrList = append(urrList, pdr.URR)
-				}
+			if curDataPathNode.DownLinkTunnel.PDR.QER != nil {
+				qerList = append(qerList, curDataPathNode.DownLinkTunnel.PDR.QER...)
+			}
+			if curDataPathNode.DownLinkTunnel.PDR.URR != nil {
+				urrList = append(urrList, curDataPathNode.DownLinkTunnel.PDR.URR)
 			}
 		}
 
