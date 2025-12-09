@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
-	"github.com/ellanetworks/core/internal/pcf"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
@@ -124,9 +123,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 	if err := amf.Start(dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port); err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
-	}
-	if err := pcf.Start(dbInstance); err != nil {
-		return fmt.Errorf("couldn't start PCF: %w", err)
 	}
 	if err := ausf.Start(dbInstance); err != nil {
 		return fmt.Errorf("couldn't start AUSF: %w", err)

@@ -1,76 +1,89 @@
 // Copyright 2024 Ella Networks
+// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+// Copyright 2019 free5GC.org
+// SPDX-License-Identifier: Apache-2.0
 
 package pcf
 
-import (
-	"fmt"
-	"reflect"
-	"sync"
+// var tracer = otel.Tracer("ella-core/pcf")
 
-	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/models"
-)
+// var pcfCtx *PCFContext
 
-var pcfCtx *PCFContext
+// type PCFContext struct {
+// 	DBInstance *db.Database
+// }
 
-type PCFContext struct {
-	UePool     sync.Map
-	DBInstance *db.Database
-}
+// func Start(dbInstance *db.Database) error {
+// 	pcfCtx = &PCFContext{
+// 		DBInstance: dbInstance,
+// 	}
+// 	return nil
+// }
 
-type UeContext struct {
-	Supi         string
-	AMPolicyData *UeAMPolicyData
-}
+// func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*models.SmPolicyDecision, error) {
+// 	ctx, span := tracer.Start(ctx, "PCF Create SMPolicy")
+// 	span.SetAttributes(
+// 		attribute.String("ue.supi", request.Supi),
+// 	)
 
-type UeAMPolicyData struct {
-	AccessType  models.AccessType
-	ServingPlmn *models.PlmnID
-	UserLoc     *models.UserLocation
-	Triggers    []models.RequestTrigger
-}
+// 	if request.Supi == "" || request.SliceInfo == nil || request.Dnn == "" {
+// 		return nil, fmt.Errorf("Errorneous/Missing Mandotory IE")
+// 	}
 
-func (ue *UeContext) NewUeAMPolicyData(req models.PolicyAssociationRequest) {
-	ue.AMPolicyData = &UeAMPolicyData{
-		AccessType:  req.AccessType,
-		ServingPlmn: req.ServingPlmn,
-		UserLoc:     req.UserLoc,
-	}
-}
+// 	subscriberPolicy, err := GetSubscriberPolicy(ctx, request.Supi, request.SliceInfo.Sst, request.SliceInfo.Sd, request.Dnn)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("can't find subscriber policy for subscriber %s: %s", request.Supi, err)
+// 	}
 
-// returns AM Policy which AccessType and plmnID match
-func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnID *models.PlmnID) *UeAMPolicyData {
-	if ue == nil || plmnID == nil || ue.AMPolicyData == nil {
-		return nil
-	}
+// 	return subscriberPolicy, nil
+// }
 
-	if ue.AMPolicyData.AccessType == anType && reflect.DeepEqual(*ue.AMPolicyData.ServingPlmn, *plmnID) {
-		return ue.AMPolicyData
-	}
+// func GetSubscriberPolicy(ctx context.Context, imsi string, sst int32, sd string, dnn string) (*models.SmPolicyDecision, error) {
+// 	subscriber, err := pcfCtx.DBInstance.GetSubscriber(ctx, imsi)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to get subscriber %s: %w", imsi, err)
+// 	}
 
-	return nil
-}
+// 	policy, err := pcfCtx.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to get policy %d: %w", subscriber.PolicyID, err)
+// 	}
 
-// Allocate PCF Ue with supi and add to pcf Context and returns allocated ue
-func (c *PCFContext) NewUE(Supi string) (*UeContext, error) {
-	newUeContext := &UeContext{}
-	newUeContext.Supi = Supi
-	c.UePool.Store(Supi, newUeContext)
-	return newUeContext, nil
-}
+// 	dataNetwork, err := pcfCtx.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to get data network %d: %w", policy.DataNetworkID, err)
+// 	}
 
-// Find PcfUe which the policyId belongs to
-func (c *PCFContext) FindUEBySUPI(supi string) (*UeContext, error) {
-	if value, ok := c.UePool.Load(supi); ok {
-		return value.(*UeContext), nil
-	}
+// 	if dataNetwork.Name != dnn {
+// 		return nil, fmt.Errorf("subscriber %s has no policy for dnn %s", imsi, dnn)
+// 	}
 
-	return nil, fmt.Errorf("ue not found in PCF for supi: %s", supi)
-}
+// 	operator, err := pcfCtx.DBInstance.GetOperator(ctx)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to get operator: %w", err)
+// 	}
 
-func Start(dbInstance *db.Database) error {
-	pcfCtx = &PCFContext{
-		DBInstance: dbInstance,
-	}
-	return nil
-}
+// 	if operator.Sst != sst || operator.GetHexSd() != sd {
+// 		return nil, fmt.Errorf("subscriber %s has no policy for slice sst: %d sd: %s", imsi, sst, sd)
+// 	}
+
+// 	subscriberPolicy := &models.SmPolicyDecision{
+// 		SessRule: &models.SessionRule{
+// 			AuthDefQos: &models.AuthorizedDefaultQos{
+// 				Var5qi: policy.Var5qi,
+// 				Arp:    &models.Arp{PriorityLevel: policy.Arp},
+// 			},
+// 			AuthSessAmbr: &models.Ambr{
+// 				Uplink:   policy.BitrateUplink,
+// 				Downlink: policy.BitrateDownlink,
+// 			},
+// 		},
+// 		QosDecs: &models.QosData{
+// 			Var5qi:               policy.Var5qi,
+// 			Arp:                  &models.Arp{PriorityLevel: policy.Arp},
+// 			DefQosFlowIndication: true,
+// 		},
+// 	}
+
+// 	return subscriberPolicy, nil
+// }

@@ -98,21 +98,22 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 		return "", response, fmt.Errorf("SM context not found in UDM")
 	}
 
-	smContext.DnnConfiguration = *dnnConfig
+	smContext.DnnConfiguration = dnnConfig
 
 	// Decode UE content(PCO)
 	establishmentRequest := m.PDUSessionEstablishmentRequest
 	smContext.HandlePDUSessionEstablishmentRequest(establishmentRequest)
 
 	// PCF Policy Association
-	smPolicyDecision, err := SendSMPolicyAssociationCreate(ctx, smContext)
+	subscriberPolicy, err := context.GetSubscriberPolicy(ctx, smContext.Supi, smContext.Snssai.Sst, smContext.Snssai.Sd, smContext.Dnn)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("failed to create policy association: %v", err)
+		return "", response, fmt.Errorf("can't find subscriber policy for subscriber %s: %s", smContext.Supi, err)
 	}
-	smContext.SubPduSessLog.Info("Created policy association")
 
-	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, smPolicyDecision)
+	smContext.SubPduSessLog.Info("Retrieved subscriber policy", zap.String("supi", smContext.Supi))
+
+	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, subscriberPolicy)
 	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
 
 	defaultPath := context.GenerateDataPath(smfSelf.UPF, smContext)

@@ -106,6 +106,20 @@ func getSupportedTAIs(operator *db.Operator) []models.Tai {
 	return tais
 }
 
+func SubscriberExists(ctx context.Context, ueID string) bool {
+	ctx, span := tracer.Start(ctx, "AMF SubscriberExists",
+		trace.WithAttributes(
+			attribute.String("supi", ueID),
+		),
+	)
+	defer span.End()
+
+	amfSelf := AMFSelf()
+
+	_, err := amfSelf.DBInstance.GetSubscriber(ctx, ueID)
+	return err == nil
+}
+
 func GetSubscriberData(ctx context.Context, ueID string) (*models.AmbrRm, string, error) {
 	ctx, span := tracer.Start(ctx, "AMF GetSubscriberData",
 		trace.WithAttributes(

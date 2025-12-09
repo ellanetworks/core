@@ -58,7 +58,7 @@ type SMContext struct {
 	UpCnxState                     models.UpCnxState
 	AnType                         models.AccessType
 	RatType                        models.RatType
-	DnnConfiguration               models.DnnConfiguration
+	DnnConfiguration               *models.DnnConfiguration
 	Snssai                         *models.Snssai
 	ServingNetwork                 *models.PlmnID
 	UeLocation                     *models.UserLocation

@@ -555,15 +555,14 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 		}
 	}
 
-	err = consumer.AMPolicyControlCreate(ctx, ue, anType)
-	if err != nil {
-		ue.GmmLog.Error("AM Policy Control Create Error", zap.Error(err))
+	if !context.SubscriberExists(ctx, ue.Supi) {
+		ue.GmmLog.Error("Subscriber does not exist", zap.Error(err))
 		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMM5GSServicesNotAllowed, "")
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
 		ue.GmmLog.Info("sent registration reject to UE")
-		return err
+		return fmt.Errorf("ue not found in database: %s", ue.Supi)
 	}
 
 	amfSelf.AllocateRegistrationArea(ctx, ue, anType, operatorInfo.Tais)
@@ -846,18 +845,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 					omecSnssai, nasPdu, n2Info)
 			}
 		}
-	}
-
-	if ue.LocationChanged && ue.RequestTriggerLocationChange {
-		updateReq := models.PolicyAssociationUpdateRequest{
-			Triggers: []models.RequestTrigger{models.RequestTriggerLocCh},
-			UserLoc:  &ue.Location,
-		}
-		err := consumer.AMPolicyControlUpdate(ctx, ue, updateReq)
-		if err != nil {
-			ue.GmmLog.Error("AM Policy Control Update Error", zap.Error(err))
-		}
-		ue.LocationChanged = false
 	}
 
 	amfSelf.AllocateRegistrationArea(ctx, ue, anType, operatorInfo.Tais)
@@ -1176,23 +1163,6 @@ func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe
 		return true
 	})
 
-	if ue.AmPolicyAssociation != nil {
-		terminateAmPolicyAssocaition := true
-		switch accessType {
-		case models.AccessType3GPPAccess:
-			terminateAmPolicyAssocaition = ue.State[models.AccessTypeNon3GPPAccess].Is(context.Deregistered)
-		case models.AccessTypeNon3GPPAccess:
-			terminateAmPolicyAssocaition = ue.State[models.AccessType3GPPAccess].Is(context.Deregistered)
-		}
-
-		if terminateAmPolicyAssocaition {
-			err = consumer.AMPolicyControlDelete(ctx, ue)
-			if err != nil {
-				ue.GmmLog.Error("AM Policy Control Delete Error", zap.Error(err))
-			}
-			ue.GmmLog.Info("deleted AM Policy Association")
-		}
-	}
 	// if ue is not connected mode, removing UE Context
 	if !ue.State[accessType].Is(context.Registered) {
 		if ue.CmConnect(accessType) {
@@ -1954,23 +1924,6 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType mod
 		}
 		return true
 	})
-
-	if ue.AmPolicyAssociation != nil {
-		terminateAmPolicyAssocaition := true
-		switch anType {
-		case models.AccessType3GPPAccess:
-			terminateAmPolicyAssocaition = ue.State[models.AccessTypeNon3GPPAccess].Is(context.Deregistered)
-		case models.AccessTypeNon3GPPAccess:
-			terminateAmPolicyAssocaition = ue.State[models.AccessType3GPPAccess].Is(context.Deregistered)
-		}
-
-		if terminateAmPolicyAssocaition {
-			err := consumer.AMPolicyControlDelete(ctx, ue)
-			if err != nil {
-				ue.GmmLog.Error("AM Policy Control Delete Error", zap.Error(err))
-			}
-		}
-	}
 
 	// if Deregistration type is not switch-off, send Deregistration Accept
 	if deregistrationRequest.GetSwitchOff() == 0 && ue.RanUe[anType] != nil {
