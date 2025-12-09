@@ -57,12 +57,13 @@ func SendPFCPRules(ctx ctxt.Context, smContext *context.SMContext) error {
 			}
 		}
 
-		pfcpState := pfcpPool[curDataPathNode.GetNodeIP()]
-
-		pfcpState.pdrList = append(pfcpState.pdrList, pdrList...)
-		pfcpState.farList = append(pfcpState.farList, farList...)
-		pfcpState.qerList = append(pfcpState.qerList, qerList...)
-		pfcpState.urrList = append(pfcpState.urrList, urrList...)
+		pfcpPool[curDataPathNode.GetNodeIP()] = &PFCPState{
+			nodeID:  curDataPathNode.UPF.NodeID,
+			pdrList: pdrList,
+			farList: farList,
+			qerList: qerList,
+			urrList: urrList,
+		}
 	}
 
 	for ip, pfcpState := range pfcpPool {
