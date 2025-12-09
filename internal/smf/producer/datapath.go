@@ -38,18 +38,19 @@ func SendPFCPRules(ctx ctxt.Context, smContext *context.SMContext) error {
 			pdrList = append(pdrList, curDataPathNode.UpLinkTunnel.PDR)
 			farList = append(farList, curDataPathNode.UpLinkTunnel.PDR.FAR)
 			if curDataPathNode.UpLinkTunnel.PDR.QER != nil {
-				qerList = append(qerList, curDataPathNode.UpLinkTunnel.PDR.QER...)
+				qerList = append(qerList, curDataPathNode.UpLinkTunnel.PDR.QER)
 			}
 			if curDataPathNode.UpLinkTunnel.PDR.URR != nil {
 				urrList = append(urrList, curDataPathNode.UpLinkTunnel.PDR.URR)
 			}
 		}
+
 		if curDataPathNode.DownLinkTunnel != nil && curDataPathNode.DownLinkTunnel.PDR != nil {
 			pdrList = append(pdrList, curDataPathNode.DownLinkTunnel.PDR)
 			farList = append(farList, curDataPathNode.DownLinkTunnel.PDR.FAR)
 
 			if curDataPathNode.DownLinkTunnel.PDR.QER != nil {
-				qerList = append(qerList, curDataPathNode.DownLinkTunnel.PDR.QER...)
+				qerList = append(qerList, curDataPathNode.DownLinkTunnel.PDR.QER)
 			}
 			if curDataPathNode.DownLinkTunnel.PDR.URR != nil {
 				urrList = append(urrList, curDataPathNode.DownLinkTunnel.PDR.URR)
@@ -57,20 +58,11 @@ func SendPFCPRules(ctx ctxt.Context, smContext *context.SMContext) error {
 		}
 
 		pfcpState := pfcpPool[curDataPathNode.GetNodeIP()]
-		if pfcpState == nil {
-			pfcpPool[curDataPathNode.GetNodeIP()] = &PFCPState{
-				nodeID:  curDataPathNode.UPF.NodeID,
-				pdrList: pdrList,
-				farList: farList,
-				qerList: qerList,
-				urrList: urrList,
-			}
-		} else {
-			pfcpState.pdrList = append(pfcpState.pdrList, pdrList...)
-			pfcpState.farList = append(pfcpState.farList, farList...)
-			pfcpState.qerList = append(pfcpState.qerList, qerList...)
-			pfcpState.urrList = append(pfcpState.urrList, urrList...)
-		}
+
+		pfcpState.pdrList = append(pfcpState.pdrList, pdrList...)
+		pfcpState.farList = append(pfcpState.farList, farList...)
+		pfcpState.qerList = append(pfcpState.qerList, qerList...)
+		pfcpState.urrList = append(pfcpState.urrList, urrList...)
 	}
 
 	for ip, pfcpState := range pfcpPool {

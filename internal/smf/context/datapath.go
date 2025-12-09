@@ -73,12 +73,9 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 		}
 	}
 
-	if qerList := node.UpLinkTunnel.PDR.QER; qerList != nil {
-		for _, qer := range qerList {
-			if qer != nil {
-				node.UPF.RemoveQER(qer)
-			}
-		}
+	qer := node.UpLinkTunnel.PDR.QER
+	if qer != nil {
+		node.UPF.RemoveQER(qer)
 	}
 
 	logger.SmfLog.Info("deactivated UpLinkTunnel PDR ")
@@ -106,12 +103,9 @@ func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 		}
 	}
 
-	if qerList := node.DownLinkTunnel.PDR.QER; qerList != nil {
-		for _, qer := range qerList {
-			if qer != nil {
-				node.UPF.RemoveQER(qer)
-			}
-		}
+	qer := node.DownLinkTunnel.PDR.QER
+	if qer != nil {
+		node.UPF.RemoveQER(qer)
 	}
 
 	node.DownLinkTunnel = &GTPTunnel{}
@@ -176,7 +170,7 @@ func (node *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER, d
 
 	curULTunnel := node.UpLinkTunnel
 
-	curULTunnel.PDR.QER = append(curULTunnel.PDR.QER, defQER)
+	curULTunnel.PDR.QER = defQER
 	curULTunnel.PDR.URR = defURR
 
 	// Set Default precedence
@@ -222,7 +216,7 @@ func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER, d
 	ueIPAddr.V4 = true
 	ueIPAddr.IPv4Address = smContext.PDUAddress.To4()
 
-	curDLTunnel.PDR.QER = append(curDLTunnel.PDR.QER, defQER)
+	curDLTunnel.PDR.QER = defQER
 	curDLTunnel.PDR.URR = defURR
 
 	if curDLTunnel.PDR.Precedence == 0 {
