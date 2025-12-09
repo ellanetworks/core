@@ -18,11 +18,6 @@ import (
 type UPF struct {
 	N3Interface net.IP
 
-	pdrPool sync.Map
-	farPool sync.Map
-	barPool sync.Map
-	qerPool sync.Map
-
 	pdrIDGenerator *idgenerator.IDGenerator
 	farIDGenerator *idgenerator.IDGenerator
 	barIDGenerator *idgenerator.IDGenerator
@@ -34,8 +29,8 @@ type UPF struct {
 	UpfLock sync.RWMutex
 }
 
-func NewUPF(nodeID net.IP) (upf *UPF) {
-	upf = new(UPF)
+func NewUPF(nodeID net.IP) *UPF {
+	upf := new(UPF)
 	upf.NodeID = nodeID
 	upf.pdrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint16)
 	upf.farIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
@@ -51,18 +46,17 @@ func (upf *UPF) pdrID() (uint16, error) {
 	if err != nil {
 		return 0, fmt.Errorf("could not allocate PDR ID: %v", err)
 	}
+
 	return uint16(pdrID), nil
 }
 
 func (upf *UPF) farID() (uint32, error) {
-	var farID uint32
-	if tmpID, err := upf.farIDGenerator.Allocate(); err != nil {
+	tmpID, err := upf.farIDGenerator.Allocate()
+	if err != nil {
 		return 0, err
-	} else {
-		farID = uint32(tmpID)
 	}
 
-	return farID, nil
+	return uint32(tmpID), nil
 }
 
 func (upf *UPF) barID() (uint8, error) {
@@ -77,101 +71,82 @@ func (upf *UPF) barID() (uint8, error) {
 }
 
 func (upf *UPF) qerID() (uint32, error) {
-	var qerID uint32
-	if tmpID, err := upf.qerIDGenerator.Allocate(); err != nil {
+	tmpID, err := upf.qerIDGenerator.Allocate()
+	if err != nil {
 		return 0, err
-	} else {
-		qerID = uint32(tmpID)
 	}
 
-	return qerID, nil
+	return uint32(tmpID), nil
 }
 
 func (upf *UPF) AddPDR() (*PDR, error) {
-	pdr := new(PDR)
-	if PDRID, err := upf.pdrID(); err != nil {
+	pdrID, err := upf.pdrID()
+	if err != nil {
 		return nil, err
-	} else {
-		pdr.PDRID = PDRID
-		upf.pdrPool.Store(pdr.PDRID, pdr)
 	}
 
-	if newFAR, err := upf.AddFAR(); err != nil {
+	pdr := new(PDR)
+	pdr.PDRID = pdrID
+
+	newFAR, err := upf.AddFAR()
+	if err != nil {
 		return nil, err
-	} else {
-		pdr.FAR = newFAR
 	}
+
+	pdr.FAR = newFAR
 
 	return pdr, nil
 }
 
 func (upf *UPF) AddFAR() (*FAR, error) {
-	far := new(FAR)
-	// set default FAR action to drop
-	far.ApplyAction.Drop = true
-	if FARID, err := upf.farID(); err != nil {
+	farID, err := upf.farID()
+	if err != nil {
 		return nil, err
-	} else {
-		far.FARID = FARID
-		upf.farPool.Store(far.FARID, far)
 	}
+
+	far := new(FAR)
+	far.ApplyAction.Drop = true
+	far.FARID = farID
 
 	return far, nil
 }
 
 func (upf *UPF) AddBAR() (*BAR, error) {
-	bar := new(BAR)
-	if BARID, err := upf.barID(); err != nil {
+	BARID, err := upf.barID()
+	if err != nil {
 		return nil, err
-	} else {
-		bar.BARID = BARID
-		upf.barPool.Store(bar.BARID, bar)
 	}
+
+	bar := new(BAR)
+	bar.BARID = BARID
 
 	return bar, nil
 }
 
 func (upf *UPF) AddQER() (*QER, error) {
-	qer := new(QER)
-	if QERID, err := upf.qerID(); err != nil {
+	qerID, err := upf.qerID()
+	if err != nil {
 		return nil, err
-	} else {
-		qer.QERID = QERID
-		upf.qerPool.Store(qer.QERID, qer)
 	}
+
+	qer := new(QER)
+	qer.QERID = qerID
 
 	return qer, nil
 }
 
 func (upf *UPF) RemovePDR(pdr *PDR) {
 	upf.pdrIDGenerator.FreeID(int64(pdr.PDRID))
-	upf.pdrPool.Delete(pdr.PDRID)
 }
 
 func (upf *UPF) RemoveFAR(far *FAR) {
 	upf.farIDGenerator.FreeID(int64(far.FARID))
-	upf.farPool.Delete(far.FARID)
 }
 
 func (upf *UPF) RemoveBAR(bar *BAR) {
 	upf.barIDGenerator.FreeID(int64(bar.BARID))
-	upf.barPool.Delete(bar.BARID)
 }
 
 func (upf *UPF) RemoveQER(qer *QER) {
 	upf.qerIDGenerator.FreeID(int64(qer.QERID))
-	upf.qerPool.Delete(qer.QERID)
-}
-
-func GenerateDataPath(upf *UPF, smContext *SMContext) *DataPath {
-	curDataPathNode := &DataPathNode{
-		UpLinkTunnel:   &GTPTunnel{PDR: make(map[uint8]*PDR)},
-		DownLinkTunnel: &GTPTunnel{PDR: make(map[uint8]*PDR)},
-		UPF:            upf,
-	}
-
-	dataPath := &DataPath{
-		DPNode: curDataPathNode,
-	}
-	return dataPath
 }

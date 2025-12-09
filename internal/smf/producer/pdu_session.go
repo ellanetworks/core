@@ -111,7 +111,14 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, subscriberConfig.SmPolicy)
 	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
 
-	defaultPath := context.GenerateDataPath(smfSelf.UPF, smContext)
+	defaultPath := &context.DataPath{
+		DPNode: &context.DataPathNode{
+			UpLinkTunnel:   &context.GTPTunnel{PDR: make(map[uint8]*context.PDR)},
+			DownLinkTunnel: &context.GTPTunnel{PDR: make(map[uint8]*context.PDR)},
+			UPF:            smfSelf.UPF,
+		},
+	}
+
 	smContext.Tunnel = &context.UPTunnel{
 		DataPath: defaultPath,
 	}

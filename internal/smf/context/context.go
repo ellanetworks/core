@@ -36,14 +36,9 @@ type SMFContext struct {
 	LocalSEIDCount uint64
 }
 
-type DNS struct {
-	IPv4Addr net.IP
-	IPv6Addr net.IP
-}
-
 // SnssaiSmfDnnInfo records the SMF per S-NSSAI DNN information
 type SnssaiSmfDnnInfo struct {
-	DNS DNS
+	DNS net.IP
 	MTU uint16
 }
 
@@ -109,9 +104,7 @@ func GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
 			Sd:  operator.GetHexSd(),
 		},
 		DnnInfos: &SnssaiSmfDnnInfo{
-			DNS: DNS{
-				IPv4Addr: net.ParseIP(dataNetwork.DNS).To4(),
-			},
+			DNS: net.ParseIP(dataNetwork.DNS).To4(),
 			MTU: uint16(dataNetwork.MTU),
 		},
 	}
