@@ -110,8 +110,6 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 		return "", response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
 
-	_ = smContext.BuildCreatedData()
-
 	smContext.SubPduSessLog.Info("Successfully created PDU session context")
 
 	return smContext.Ref, nil, nil

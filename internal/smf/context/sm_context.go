@@ -203,12 +203,6 @@ func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData
 	smContext.UeTimeZone = createData.UeTimeZone
 }
 
-func (smContext *SMContext) BuildCreatedData() (createdData *models.SmContextCreatedData) {
-	createdData = new(models.SmContextCreatedData)
-	createdData.SNssai = smContext.Snssai
-	return
-}
-
 func (smContext *SMContext) PDUAddressToNAS() (addr [12]byte, addrLen uint8) {
 	copy(addr[:], smContext.PDUAddress)
 	switch smContext.SelectedPDUSessionType {
