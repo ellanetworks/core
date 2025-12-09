@@ -59,13 +59,8 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 			N2InformationClass: models.N2InformationClassSM,
 			SmInfo: &models.N2SmInformation{
 				PduSessionID: smContext.PDUSessionID,
-				N2InfoContent: &models.N2InfoContent{
-					NgapIeType: models.NgapIeTypePduResSetupReq,
-					NgapData: &models.RefToBinaryData{
-						ContentID: "N2SmInformation",
-					},
-				},
-				SNssai: smContext.Snssai,
+				NgapIeType:   models.NgapIeTypePduResSetupReq,
+				SNssai:       smContext.Snssai,
 			},
 		}
 

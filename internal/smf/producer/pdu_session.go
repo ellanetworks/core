@@ -176,15 +176,24 @@ func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmCo
 
 	// Initiate PFCP Release
 	if pfcpAction.sendPfcpDelete {
-		if err = SendPfcpSessionReleaseReq(ctx, smContext); err != nil {
-			return nil, fmt.Errorf("pfcp session release error: %v ", err.Error())
+		err := releaseTunnel(ctx, smContext)
+		if err != nil {
+			return nil, fmt.Errorf("failed to release tunnel: %v", err)
 		}
 	} else if pfcpAction.sendPfcpModify {
-		// Initiate PFCP Modify
-		err := SendPfcpSessionModifyReq(ctx, smContext, pfcpParam)
-		if err != nil {
-			return nil, fmt.Errorf("pfcp session modify error: %v ", err.Error())
+		dataPath := smContext.Tunnel.DataPath
+		ANUPF := dataPath.DPNode
+
+		sessionContext, exist := smContext.PFCPContext[ANUPF.UPF.NodeID.String()]
+		if !exist {
+			return nil, fmt.Errorf("pfcp session context not found for upf: %s", ANUPF.UPF.NodeID.String())
 		}
+
+		err := pfcp.SendPfcpSessionModificationRequest(ctx, sessionContext.LocalSEID, sessionContext.RemoteSEID, pfcpParam.pdrList, pfcpParam.farList, pfcpParam.barList, pfcpParam.qerList)
+		if err != nil {
+			return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
+		}
+
 		smContext.SubPduSessLog.Info("Sent PFCP session modification request")
 	}
 
@@ -240,20 +249,9 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 		N2InformationClass: models.N2InformationClassSM,
 		SmInfo: &models.N2SmInformation{
 			PduSessionID: smContext.PDUSessionID,
-			N2InfoContent: &models.N2InfoContent{
-				NgapIeType: models.NgapIeTypePduResSetupReq,
-				NgapData: &models.RefToBinaryData{
-					ContentID: "N2SmInformation",
-				},
-			},
-			SNssai: smContext.Snssai,
+			NgapIeType:   models.NgapIeTypePduResSetupReq,
+			SNssai:       smContext.Snssai,
 		},
-	}
-
-	// N1 Container Info
-	n1MsgContainer := models.N1MessageContainer{
-		N1MessageClass:   "SM",
-		N1MessageContent: &models.RefToBinaryData{ContentID: "GSM_NAS"},
 	}
 
 	// N1N2 Json Data
@@ -264,7 +262,7 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 			logger.SmfLog.Error("Build GSM PDUSessionEstablishmentAccept failed", zap.Error(err))
 		} else {
 			n1n2Request.BinaryDataN1Message = smNasBuf
-			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
+			n1n2Request.JSONData.N1MessageClass = models.N1MessageClassSM
 		}
 
 		if n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext); err != nil {
@@ -279,7 +277,7 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 			logger.SmfLog.Error("Build GSM PDUSessionEstablishmentReject failed", zap.Error(err))
 		} else {
 			n1n2Request.BinaryDataN1Message = smNasBuf
-			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
+			n1n2Request.JSONData.N1MessageClass = models.N1MessageClassSM
 		}
 	}
 	rspData, err := amf_producer.CreateN1N2MessageTransfer(ctx, smContext.Supi, n1n2Request)

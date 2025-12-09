@@ -47,9 +47,6 @@ func HandleUpdateN1Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 				response.BinaryDataN1SmMessage = buf
 			}
 
-			response.JSONData.N1SmMsg = &models.RefToBinaryData{ContentID: "PDUSessionReleaseCommand"}
-
-			response.JSONData.N2SmInfo = &models.RefToBinaryData{ContentID: "PDUResourceReleaseCommand"}
 			response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResRelCmd
 
 			if buf, err := context.BuildPDUSessionResourceReleaseCommandTransfer(smContext); err != nil {
@@ -81,7 +78,6 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 
 	switch smContextUpdateData.UpCnxState {
 	case models.UpCnxStateActivating:
-		response.JSONData.N2SmInfo = &models.RefToBinaryData{ContentID: "PDUSessionResourceSetupRequestTransfer"}
 		response.JSONData.UpCnxState = models.UpCnxStateActivating
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResSetupReq
 
@@ -141,9 +137,6 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 			response.BinaryDataN2SmInformation = n2Buf
 		}
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResSetupReq
-		response.JSONData.N2SmInfo = &models.RefToBinaryData{
-			ContentID: "PDU_RES_SETUP_REQ",
-		}
 		response.JSONData.HoState = models.HoStatePreparing
 	case models.HoStatePrepared:
 		smContext.SubPduSessLog.Info("Ho state received", zap.Any("HoState", smContextUpdateData.HoState))
@@ -160,9 +153,6 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 		}
 
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypeHandoverCmd
-		response.JSONData.N2SmInfo = &models.RefToBinaryData{
-			ContentID: "HANDOVER_CMD",
-		}
 		response.JSONData.HoState = models.HoStatePreparing
 	case models.HoStateCompleted:
 		smContext.SubPduSessLog.Info("Ho state received", zap.Any("HoState", smContextUpdateData.HoState))
@@ -180,7 +170,6 @@ func HandleUpdateCause(body models.UpdateSmContextRequest, smContext *context.SM
 		smContext.SubPduSessLog.Info("update cause received", zap.Any("Cause", smContextUpdateData.Cause))
 		//* release PDU Session Here
 
-		response.JSONData.N2SmInfo = &models.RefToBinaryData{ContentID: "PDUResourceReleaseCommand"}
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResRelCmd
 		smContext.PDUSessionReleaseDueToDupPduID = true
 
@@ -261,9 +250,6 @@ func HandleUpdateN2Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 		}
 
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePathSwitchReqAck
-		response.JSONData.N2SmInfo = &models.RefToBinaryData{
-			ContentID: "PATH_SWITCH_REQ_ACK",
-		}
 
 		pdrList := []*context.PDR{}
 		farList := []*context.FAR{}
@@ -283,7 +269,6 @@ func HandleUpdateN2Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 			smContext.SubPduSessLog.Error("handle PathSwitchRequestSetupFailedTransfer failed", zap.Error(err))
 		}
 	case models.N2SmInfoTypeHandoverRequired:
-		response.JSONData.N2SmInfo = &models.RefToBinaryData{ContentID: "Handover"}
 	}
 
 	return nil

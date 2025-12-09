@@ -68,13 +68,13 @@ func SendPFCPRules(ctx ctxt.Context, smContext *context.SMContext) error {
 	for ip, pfcpState := range pfcpPool {
 		sessionContext, exist := smContext.PFCPContext[ip]
 		if !exist || sessionContext.RemoteSEID == 0 {
-			err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList, pfcpState.urrList)
+			err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, sessionContext.LocalSEID, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList, pfcpState.urrList)
 			if err != nil {
 				return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 			}
 			logger.SmfLog.Info("Sent PFCP session establishment request to upf", zap.String("nodeID", pfcpState.nodeID.String()))
 		} else {
-			err := pfcp.SendPfcpSessionModificationRequest(ctx, pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
+			err := pfcp.SendPfcpSessionModificationRequest(ctx, sessionContext.LocalSEID, sessionContext.RemoteSEID, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
 			if err != nil {
 				logger.SmfLog.Error("send pfcp session modification request failed", zap.Error(err), zap.String("nodeID", pfcpState.nodeID.String()))
 				return fmt.Errorf("failed to send PFCP session modification request: %v", err)

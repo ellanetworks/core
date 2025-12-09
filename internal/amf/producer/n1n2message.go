@@ -81,22 +81,20 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 		return nil, fmt.Errorf("ue context not found")
 	}
 
-	if requestData.N1MessageContainer != nil {
-		switch requestData.N1MessageContainer.N1MessageClass {
-		case models.N1MessageClassSM:
-			n1MsgType = nasMessage.PayloadContainerTypeN1SMInfo
-			smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
-			if !ok {
-				return nil, fmt.Errorf("sm context not found")
-			}
-		case models.N1MessageClassSMS:
-			n1MsgType = nasMessage.PayloadContainerTypeSMS
-		case models.N1MessageClassLPP:
-			n1MsgType = nasMessage.PayloadContainerTypeLPP
-		case models.N1MessageClassUPDP:
-			n1MsgType = nasMessage.PayloadContainerTypeUEPolicy
-		default:
+	switch requestData.N1MessageClass {
+	case models.N1MessageClassSM:
+		n1MsgType = nasMessage.PayloadContainerTypeN1SMInfo
+		smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
+		if !ok {
+			return nil, fmt.Errorf("sm context not found")
 		}
+	case models.N1MessageClassSMS:
+		n1MsgType = nasMessage.PayloadContainerTypeSMS
+	case models.N1MessageClassLPP:
+		n1MsgType = nasMessage.PayloadContainerTypeLPP
+	case models.N1MessageClassUPDP:
+		n1MsgType = nasMessage.PayloadContainerTypeUEPolicy
+	default:
 	}
 
 	if requestData.N2InfoContainer != nil {
@@ -156,7 +154,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 
 		if n2Info != nil {
 			smInfo := requestData.N2InfoContainer.SmInfo
-			switch smInfo.N2InfoContent.NgapIeType {
+			switch smInfo.NgapIeType {
 			case models.NgapIeTypePduResSetupReq:
 				ue.ProducerLog.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 				omecSnssai := models.Snssai{
@@ -216,7 +214,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 				// context.StoreContextInDB(ue)
 				return n1n2MessageTransferRspData, nil
 			default:
-				return nil, fmt.Errorf("ngap ie type [%s] is not supported for SmInfo", smInfo.N2InfoContent.NgapIeType)
+				return nil, fmt.Errorf("ngap ie type [%s] is not supported for SmInfo", smInfo.NgapIeType)
 			}
 		}
 	}
@@ -224,7 +222,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 	// UE is CM-IDLE
 
 	// 409: transfer a N2 PDU Session Resource Release Command to a 5G-AN and if the UE is in CM-IDLE
-	if n2Info != nil && requestData.N2InfoContainer.SmInfo.N2InfoContent.NgapIeType == models.NgapIeTypePduResRelCmd {
+	if n2Info != nil && requestData.N2InfoContainer.SmInfo.NgapIeType == models.NgapIeTypePduResRelCmd {
 		return nil, fmt.Errorf("ue in cm idle state")
 	}
 	// 504: the UE in MICO mode or the UE is only registered over Non-3GPP access and its state is CM-IDLE

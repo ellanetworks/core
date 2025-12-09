@@ -15,8 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 )
 
-const N2SMInfoID = "N2SmInfo"
-
 func SelectSmf(
 	anType models.AccessType,
 	pduSessionID int32,
@@ -122,8 +120,6 @@ func SendUpdateSmContextN2Info(
 ) {
 	updateData := models.SmContextUpdateData{}
 	updateData.N2SmInfoType = n2SmType
-	updateData.N2SmInfo = new(models.RefToBinaryData)
-	updateData.N2SmInfo.ContentID = N2SMInfoID
 	updateData.UeLocation = &ue.Location
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, N2SmInfo)
 }
@@ -136,8 +132,6 @@ func SendUpdateSmContextXnHandover(
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
-		updateData.N2SmInfo = new(models.RefToBinaryData)
-		updateData.N2SmInfo.ContentID = N2SMInfoID
 	}
 	updateData.ToBeSwitched = true
 	updateData.UeLocation = &ue.Location
@@ -149,8 +143,6 @@ func SendUpdateSmContextXnHandoverFailed(ctx ctxt.Context, ue *context.AmfUe, sm
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
-		updateData.N2SmInfo = new(models.RefToBinaryData)
-		updateData.N2SmInfo.ContentID = N2SMInfoID
 	}
 	updateData.FailedToBeSwitched = true
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, N2SmInfo)
@@ -160,8 +152,6 @@ func SendUpdateSmContextN2HandoverPreparing(ctx ctxt.Context, ue *context.AmfUe,
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
-		updateData.N2SmInfo = new(models.RefToBinaryData)
-		updateData.N2SmInfo.ContentID = N2SMInfoID
 	}
 	updateData.HoState = models.HoStatePreparing
 	updateData.TargetID = &models.NgRanTargetID{
@@ -194,8 +184,6 @@ func SendUpdateSmContextN2HandoverPrepared(ctx ctxt.Context, ue *context.AmfUe, 
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
-		updateData.N2SmInfo = new(models.RefToBinaryData)
-		updateData.N2SmInfo.ContentID = N2SMInfoID
 	}
 	updateData.HoState = models.HoStatePrepared
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, N2SmInfo)

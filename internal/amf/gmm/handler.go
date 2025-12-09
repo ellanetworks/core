@@ -264,11 +264,7 @@ func forward5GSMMessageToSMF(
 	smContext *context.SmContext,
 	smMessage []byte,
 ) error {
-	smContextUpdateData := models.SmContextUpdateData{
-		N1SmMsg: &models.RefToBinaryData{
-			ContentID: "N1SmMsg",
-		},
-	}
+	smContextUpdateData := models.SmContextUpdateData{}
 	smContextUpdateData.Pei = ue.Pei
 	smContextUpdateData.Gpsi = ue.Gpsi
 	if !context.CompareUserLocation(ue.Location, smContext.UserLocation()) {
@@ -764,7 +760,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 					}
 					ue.GmmLog.Info("Sent GMM registration accept")
 				}
-				switch requestData.N1MessageContainer.N1MessageClass {
+				switch requestData.N1MessageClass {
 				case models.N1MessageClassSM:
 					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 					if err != nil {
@@ -822,7 +818,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 				} else {
 					ue.GmmLog.Warn("UE was reachable but did not accept to re-activate the PDU Session", zap.Int32("pduSessionID", requestData.PduSessionID))
 				}
-			} else if smInfo.N2InfoContent.NgapIeType == models.NgapIeTypePduResSetupReq {
+			} else if smInfo.NgapIeType == models.NgapIeTypePduResSetupReq {
 				var nasPdu []byte
 				var err error
 				if n1Msg != nil {
@@ -1383,7 +1379,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				if err != nil {
 					return err
 				}
-				switch requestData.N1MessageContainer.N1MessageClass {
+				switch requestData.N1MessageClass {
 				case models.N1MessageClassSM:
 					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 					if err != nil {
@@ -1451,7 +1447,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 							ue.GmmLog.Warn("UE was reachable but did not accept to re-activate the PDU Session", zap.Int32("pduSessionID", requestData.PduSessionID))
 						}
 					}
-				} else if smInfo.N2InfoContent.NgapIeType == models.NgapIeTypePduResSetupReq {
+				} else if smInfo.NgapIeType == models.NgapIeTypePduResSetupReq {
 					var nasPdu []byte
 					var err error
 					if n1Msg != nil {

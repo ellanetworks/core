@@ -34,7 +34,6 @@ type ProtocolConfigurationOptions struct {
 }
 
 type PFCPSessionContext struct {
-	// PDRs       map[uint16]*PDR
 	LocalSEID  uint64
 	RemoteSEID uint64
 }

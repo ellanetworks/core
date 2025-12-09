@@ -15,8 +15,6 @@ type SmContextUpdateData struct {
 	HoState            HoState
 	ToBeSwitched       bool
 	FailedToBeSwitched bool
-	N1SmMsg            *RefToBinaryData
-	N2SmInfo           *RefToBinaryData
 	N2SmInfoType       N2SmInfoType
 	TargetID           *NgRanTargetID
 	TargetServingNfID  string
