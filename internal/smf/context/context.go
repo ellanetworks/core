@@ -119,8 +119,13 @@ func GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
 	return snssaiInfo, nil
 }
 
-func GetDnnConfig(ctx context.Context, ueID string) (*models.DnnConfiguration, error) {
-	ctx, span := tracer.Start(ctx, "SMF GetDnnConfig")
+type SubscriberConfig struct {
+	DnnConfig *models.DnnConfiguration
+	SmPolicy  *models.SmPolicyDecision
+}
+
+func GetSubscriberConfig(ctx context.Context, ueID string) (*SubscriberConfig, error) {
+	ctx, span := tracer.Start(ctx, "SMF GetSubscriberConfig")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", ueID),
@@ -162,49 +167,6 @@ func GetDnnConfig(ctx context.Context, ueID string) (*models.DnnConfiguration, e
 		dnnConfig.SscModes.AllowedSscModes = append(dnnConfig.SscModes.AllowedSscModes, models.SscMode(sscMode))
 	}
 
-	return dnnConfig, nil
-}
-
-func GetSubscriberPolicy(ctx context.Context, imsi string, sst int32, sd string, dnn string) (*models.SmPolicyDecision, error) {
-	ctx, span := tracer.Start(ctx, "SMF GetSubscriberPolicy")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.imsi", imsi),
-		attribute.Int64("slice.sst", int64(sst)),
-		attribute.String("slice.sd", sd),
-		attribute.String("dnn", dnn),
-	)
-
-	self := SMFSelf()
-
-	subscriber, err := self.DBInstance.GetSubscriber(ctx, imsi)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get subscriber %s: %w", imsi, err)
-	}
-
-	policy, err := self.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get policy %d: %w", subscriber.PolicyID, err)
-	}
-
-	dataNetwork, err := self.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get data network %d: %w", policy.DataNetworkID, err)
-	}
-
-	if dataNetwork.Name != dnn {
-		return nil, fmt.Errorf("subscriber %s has no policy for dnn %s", imsi, dnn)
-	}
-
-	operator, err := self.DBInstance.GetOperator(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get operator: %w", err)
-	}
-
-	if operator.Sst != sst || operator.GetHexSd() != sd {
-		return nil, fmt.Errorf("subscriber %s has no policy for slice sst: %d sd: %s", imsi, sst, sd)
-	}
-
 	subscriberPolicy := &models.SmPolicyDecision{
 		SessRule: &models.SessionRule{
 			AuthDefQos: &models.AuthorizedDefaultQos{
@@ -223,5 +185,10 @@ func GetSubscriberPolicy(ctx context.Context, imsi string, sst int32, sd string,
 		},
 	}
 
-	return subscriberPolicy, nil
+	subConfig := &SubscriberConfig{
+		DnnConfig: dnnConfig,
+		SmPolicy:  subscriberPolicy,
+	}
+
+	return subConfig, nil
 }

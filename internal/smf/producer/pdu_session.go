@@ -63,17 +63,20 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
+	subscriberConfig, err := context.GetSubscriberConfig(ctx, smContext.Supi)
+	if err != nil {
+		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
+		return "", response, fmt.Errorf("failed to find subscriber data: %v", err)
+	}
+
 	dnnInfo, err := context.RetrieveDnnInformation(ctx, *createData.SNssai, createData.Dnn)
 	if err != nil {
 		logger.SmfLog.Warn("error retrieving DNN information", zap.String("SST", fmt.Sprintf("%d", createData.SNssai.Sst)), zap.String("SD", createData.SNssai.Sd), zap.String("DNN", createData.Dnn), zap.Error(err))
-	}
-
-	smContext.DNNInfo = dnnInfo
-
-	if smContext.DNNInfo == nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
 		return "", response, nil
 	}
+
+	smContext.DNNInfo = dnnInfo
 
 	// IP Allocation
 	smfSelf := context.SMFSelf()
@@ -87,33 +90,13 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 
 	smContext.PDUAddress = ip
 
-	dnnConfig, err := context.GetDnnConfig(ctx, smContext.Supi)
-	if err != nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("failed to get SM context from UDM: %v", err)
-	}
-
-	if dnnConfig == nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("SM context not found in UDM")
-	}
-
-	smContext.DnnConfiguration = dnnConfig
+	smContext.DnnConfiguration = subscriberConfig.DnnConfig
 
 	// Decode UE content(PCO)
 	establishmentRequest := m.PDUSessionEstablishmentRequest
 	smContext.HandlePDUSessionEstablishmentRequest(establishmentRequest)
 
-	// PCF Policy Association
-	subscriberPolicy, err := context.GetSubscriberPolicy(ctx, smContext.Supi, smContext.Snssai.Sst, smContext.Snssai.Sd, smContext.Dnn)
-	if err != nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("can't find subscriber policy for subscriber %s: %s", smContext.Supi, err)
-	}
-
-	smContext.SubPduSessLog.Info("Retrieved subscriber policy", zap.String("supi", smContext.Supi))
-
-	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, subscriberPolicy)
+	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, subscriberConfig.SmPolicy)
 	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
 
 	defaultPath := context.GenerateDataPath(smfSelf.UPF, smContext)
