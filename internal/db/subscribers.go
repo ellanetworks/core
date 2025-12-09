@@ -25,7 +25,7 @@ const QueryCreateSubscribersTable = `
 
 		imsi TEXT NOT NULL UNIQUE,
 
-		ipAddress TEXT,
+		ipAddress TEXT UNIQUE,
 
 		sequenceNumber TEXT NOT NULL,
 		permanentKey TEXT NOT NULL,
@@ -349,7 +349,10 @@ func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (boo
 	return false, nil
 }
 
-func (db *Database) allocateIP(ctx context.Context, imsi string) (net.IP, error) {
+func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error) {
+	ctx, span := tracer.Start(ctx, "AllocateIP", trace.WithSpanKind(trace.SpanKindInternal))
+	defer span.End()
+
 	subscriber, err := db.GetSubscriber(ctx, imsi)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscriber: %v", err)
@@ -370,52 +373,44 @@ func (db *Database) allocateIP(ctx context.Context, imsi string) (net.IP, error)
 		return nil, fmt.Errorf("invalid IP pool in policy %s: %v", policy.Name, err)
 	}
 
+	ctx, ipAllocSpan := tracer.Start(ctx, "IP Allocation Loop")
+	defer ipAllocSpan.End()
+
 	baseIP := ipNet.IP
 	maskBits, totalBits := ipNet.Mask.Size()
 	totalIPs := 1 << (totalBits - maskBits)
+
+	checkStmt, err := sqlair.Prepare(fmt.Sprintf(checkIPStmt, SubscribersTableName), Subscriber{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare IP check statement: %v", err)
+	}
 
 	for i := 1; i < totalIPs-1; i++ { // Skip network and broadcast addresses
 		ip := addOffsetToIP(baseIP, i)
 		ipStr := ip.String()
 
-		stmt, err := sqlair.Prepare(fmt.Sprintf(checkIPStmt, SubscribersTableName), Subscriber{})
-		if err != nil {
-			return nil, fmt.Errorf("failed to prepare IP check statement: %v", err)
-		}
 		var existing Subscriber
-		err = db.conn.Query(ctx, stmt, Subscriber{IPAddress: ipStr}).Get(&existing)
+		err = db.conn.Query(ctx, checkStmt, Subscriber{IPAddress: ipStr}).Get(&existing)
 		if err == sql.ErrNoRows {
 			// IP is not allocated, assign it to the subscriber
 			subscriber.IPAddress = ipStr
+
 			stmt, err := sqlair.Prepare(fmt.Sprintf(allocateIPStmt, SubscribersTableName), Subscriber{})
 			if err != nil {
 				return nil, fmt.Errorf("failed to prepare IP allocation statement: %v", err)
 			}
+
 			err = db.conn.Query(ctx, stmt, subscriber).Run()
 			if err != nil {
 				return nil, fmt.Errorf("failed to allocate IP: %v", err)
 			}
+
 			return ip, nil
 		} else if err != nil {
 			return nil, fmt.Errorf("failed to check IP availability: %v", err)
 		}
 	}
 	return nil, fmt.Errorf("no available IP addresses")
-}
-
-func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error) {
-	ctx, span := tracer.Start(ctx, "AllocateIP", trace.WithSpanKind(trace.SpanKindInternal))
-	defer span.End()
-
-	ip, err := db.allocateIP(ctx, imsi)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "allocation failed")
-		return nil, err
-	}
-
-	span.SetStatus(codes.Ok, "")
-	return ip, nil
 }
 
 func (db *Database) releaseIP(ctx context.Context, imsi string) error {
