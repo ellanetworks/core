@@ -86,7 +86,6 @@ type AmfUe struct {
 	/* context about udm */
 	SubscriptionDataValid             bool
 	Dnn                               string
-	TraceData                         *models.TraceData
 	SubscribedNssai                   *models.Snssai
 	Ambr                              *models.Ambr
 	RoutingIndicator                  string

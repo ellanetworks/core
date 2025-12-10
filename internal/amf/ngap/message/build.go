@@ -971,21 +971,6 @@ func BuildInitialContextSetupRequest(
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
-	// Trace Activation (optional)
-	if amfUe.TraceData != nil {
-		ie = ngapType.InitialContextSetupRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDTraceActivation
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentTraceActivation
-		ie.Value.TraceActivation = new(ngapType.TraceActivation)
-		traceActivation, err := util.TraceDataToNgap(*amfUe.TraceData, ranUe.Trsr)
-		if err != nil {
-			return nil, fmt.Errorf("error converting trace data to ngap: %s", err)
-		}
-		ie.Value.TraceActivation = &traceActivation
-		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
-	}
-
 	// Mobility Restriction List (optional)
 	ie = ngapType.InitialContextSetupRequestIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDMobilityRestrictionList
