@@ -171,7 +171,7 @@ func TestLoginEndToEnd(t *testing.T) {
 		if refreshResponse.Result.Token == "" {
 			t.Fatalf("expected token, got empty string")
 		}
-		token, err := jwt.Parse(refreshResponse.Result.Token, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(refreshResponse.Result.Token, func(token *jwt.Token) (any, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 			}

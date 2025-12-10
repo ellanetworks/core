@@ -471,7 +471,7 @@ func (ue *AmfUe) ClearRegistrationData() {
 	ue.SubscribedNssai = nil
 	ue.SubscriptionDataValid = false
 	// Clearing SMContextList locally
-	ue.SmContextList.Range(func(key, _ interface{}) bool {
+	ue.SmContextList.Range(func(key, _ any) bool {
 		ue.SmContextList.Delete(key)
 		return true
 	})

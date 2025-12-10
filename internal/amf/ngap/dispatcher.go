@@ -442,7 +442,7 @@ func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification)
 	}
 
 	// Removing Stale Connections in AmfRanPool
-	amfSelf.AmfRanPool.Range(func(key, value interface{}) bool {
+	amfSelf.AmfRanPool.Range(func(key, value any) bool {
 		amfRan := value.(*context.AmfRan)
 
 		errorConn := sctp.NewSCTPConn(-1, nil)

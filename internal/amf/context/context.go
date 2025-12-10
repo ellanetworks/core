@@ -179,7 +179,7 @@ func (context *AMFContext) AmfUeFindBySupi(supi string) (ue *AmfUe, ok bool) {
 }
 
 func (context *AMFContext) AmfUeFindBySuci(suci string) (ue *AmfUe, ok bool) {
-	context.UePool.Range(func(key, value interface{}) bool {
+	context.UePool.Range(func(key, value any) bool {
 		candidate := value.(*AmfUe)
 		if ok = (candidate.Suci == suci); ok {
 			ue = candidate
@@ -253,7 +253,7 @@ func (context *AMFContext) AmfRanFindByRanID(ranNodeID models.GlobalRanNodeID) (
 
 func (context *AMFContext) ListAmfRan() []AmfRan {
 	ranList := make([]AmfRan, 0)
-	context.AmfRanPool.Range(func(key, value interface{}) bool {
+	context.AmfRanPool.Range(func(key, value any) bool {
 		ran := value.(*AmfRan)
 		ranList = append(ranList, *ran)
 		return true
@@ -291,7 +291,7 @@ func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (*AmfUe, bool) {
 }
 
 func (context *AMFContext) AmfUeFindBySupiLocal(supi string) (ue *AmfUe, ok bool) {
-	context.UePool.Range(func(key, value interface{}) bool {
+	context.UePool.Range(func(key, value any) bool {
 		candidate := value.(*AmfUe)
 		if ok = (candidate.Supi == supi); ok {
 			ue = candidate

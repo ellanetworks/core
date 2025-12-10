@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"math"
 	"net"
-	"sync"
 
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 )
@@ -24,9 +23,6 @@ type UPF struct {
 	qerIDGenerator *idgenerator.IDGenerator
 
 	NodeID net.IP
-
-	// lock
-	UpfLock sync.RWMutex
 }
 
 func NewUPF(nodeID net.IP) *UPF {
@@ -57,17 +53,6 @@ func (upf *UPF) farID() (uint32, error) {
 	}
 
 	return uint32(tmpID), nil
-}
-
-func (upf *UPF) barID() (uint8, error) {
-	var barID uint8
-	if tmpID, err := upf.barIDGenerator.Allocate(); err != nil {
-		return 0, err
-	} else {
-		barID = uint8(tmpID)
-	}
-
-	return barID, nil
 }
 
 func (upf *UPF) qerID() (uint32, error) {
@@ -109,18 +94,6 @@ func (upf *UPF) AddFAR() (*FAR, error) {
 	far.FARID = farID
 
 	return far, nil
-}
-
-func (upf *UPF) AddBAR() (*BAR, error) {
-	BARID, err := upf.barID()
-	if err != nil {
-		return nil, err
-	}
-
-	bar := new(BAR)
-	bar.BARID = BARID
-
-	return bar, nil
 }
 
 func (upf *UPF) AddQER() (*QER, error) {

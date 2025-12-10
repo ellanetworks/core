@@ -1061,7 +1061,7 @@ func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe
 		SetDeregisteredState(ue)
 	}
 
-	ue.SmContextList.Range(func(key, value interface{}) bool {
+	ue.SmContextList.Range(func(key, value any) bool {
 		smContext := value.(*context.SmContext)
 
 		ue.GmmLog.Info("Sending SmContext Release Request to SMF", zap.Any("slice", smContext.Snssai()), zap.String("dnn", smContext.Dnn()))
@@ -1704,7 +1704,7 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, deregistra
 	logger.AmfLog.Debug("Handle Deregistration Request", zap.String("supi", ue.Supi))
 
 	targetDeregistrationAccessType := deregistrationRequest.GetAccessType()
-	ue.SmContextList.Range(func(key, value interface{}) bool {
+	ue.SmContextList.Range(func(key, value any) bool {
 		smContext := value.(*context.SmContext)
 
 		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
