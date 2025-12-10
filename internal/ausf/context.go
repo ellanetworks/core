@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/models"
 )
 
 type AUSFContext struct {
@@ -20,15 +19,11 @@ type AUSFContext struct {
 }
 
 type AusfUeContext struct {
-	Supi               string
-	Kausf              string
-	Kseaf              string
-	ServingNetworkName string
-	AuthStatus         models.AuthResult
+	Supi  string
+	Kseaf string
 
 	// for 5G AKA
 	XresStar string
-	XRES     string
 	Rand     string
 }
 
@@ -41,9 +36,9 @@ var ausfContext AUSFContext
 
 var servingNetworkRegex = regexp.MustCompile(`^5G:mnc[0-9]{3}\.mcc[0-9]{3}\.3gppnetwork\.org$`)
 
-func NewAusfUeContext(identifier string) (ausfUeContext *AusfUeContext) {
+func NewAusfUeContext(supi string) (ausfUeContext *AusfUeContext) {
 	ausfUeContext = new(AusfUeContext)
-	ausfUeContext.Supi = identifier
+	ausfUeContext.Supi = supi
 	return ausfUeContext
 }
 

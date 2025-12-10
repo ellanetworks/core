@@ -37,7 +37,6 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 		return nil, fmt.Errorf("serving network not authorized: %s", snName)
 	}
 
-	responseBody.ServingNetworkName = snName
 	authInfoReq.ServingNetworkName = snName
 	if updateAuthenticationInfo.ResynchronizationInfo != nil {
 		supi := GetSupiFromSuciSupiMap(suci)
@@ -53,8 +52,7 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 
 	supi := authInfoResult.Supi
 	ausfUeContext := NewAusfUeContext(supi)
-	ausfUeContext.ServingNetworkName = snName
-	ausfUeContext.AuthStatus = models.AuthResultOngoing
+
 	AddAusfUeContextToPool(ausfUeContext)
 
 	AddSuciSupiPairToMap(suci, supi)
@@ -86,7 +84,6 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 	}
 
 	ausfUeContext.XresStar = authInfoResult.AuthenticationVector.XresStar
-	ausfUeContext.Kausf = Kausf
 	ausfUeContext.Kseaf = hex.EncodeToString(Kseaf)
 	ausfUeContext.Rand = authInfoResult.AuthenticationVector.Rand
 
@@ -107,6 +104,7 @@ func Auth5gAkaComfirmRequestProcedure(ctx context.Context, resStar string, suci 
 		attribute.String("ue.suci", suci),
 		attribute.String("auth.Method", "5G AKA"),
 	)
+
 	var responseBody models.ConfirmationDataResponse
 	responseBody.AuthResult = models.AuthResultFailure
 
@@ -123,11 +121,9 @@ func Auth5gAkaComfirmRequestProcedure(ctx context.Context, resStar string, suci 
 
 	// Compare the received RES* with the stored XRES*
 	if strings.Compare(resStar, ausfCurrentContext.XresStar) == 0 {
-		ausfCurrentContext.AuthStatus = models.AuthResultSuccess
 		responseBody.AuthResult = models.AuthResultSuccess
 		responseBody.Kseaf = ausfCurrentContext.Kseaf
 	} else {
-		ausfCurrentContext.AuthStatus = models.AuthResultFailure
 		responseBody.AuthResult = models.AuthResultFailure
 	}
 

@@ -21,21 +21,15 @@ func SendUEAuthenticationAuthenticateRequest(ctx ctxt.Context, ue *context.AmfUe
 		return nil, fmt.Errorf("tai is not available in UE context")
 	}
 
-	plmnID := ue.Tai.PlmnID
-
-	var authInfo models.AuthenticationInfo
-
-	authInfo.Suci = ue.Suci
-
-	mnc, err := strconv.Atoi(plmnID.Mnc)
+	mnc, err := strconv.Atoi(ue.Tai.PlmnID.Mnc)
 	if err != nil {
 		return nil, fmt.Errorf("could not convert mnc to int: %v", err)
 	}
 
-	authInfo.ServingNetworkName = fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, plmnID.Mcc)
-
-	if resynchronizationInfo != nil {
-		authInfo.ResynchronizationInfo = resynchronizationInfo
+	authInfo := models.AuthenticationInfo{
+		Suci:                  ue.Suci,
+		ServingNetworkName:    fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, ue.Tai.PlmnID.Mcc),
+		ResynchronizationInfo: resynchronizationInfo,
 	}
 
 	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(ctx, authInfo)
@@ -51,5 +45,6 @@ func SendAuth5gAkaConfirmRequest(ctx ctxt.Context, ue *context.AmfUe, resStar st
 	if err != nil {
 		return nil, fmt.Errorf("ausf 5G-AKA Confirm Request failed: %s", err.Error())
 	}
+
 	return confirmResult, nil
 }
