@@ -1,7 +1,7 @@
 package models
 
 type AuthenticationInfoResult struct {
-	AuthType             AuthType
+	// AuthType             AuthType
 	AuthenticationVector *AuthenticationVector
 	Supi                 string
 }

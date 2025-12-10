@@ -38,20 +38,23 @@ func KDFLen(input []byte) []byte {
 func GetKDFValue(key []byte, FC string, param ...[]byte) ([]byte, error) {
 	kdf := hmac.New(sha256.New, key)
 
-	var S []byte
-	if STmp, err := hex.DecodeString(FC); err != nil {
-		return nil, fmt.Errorf("GetKDFValue FC decode failed: %+v", err)
-	} else {
-		S = STmp
+	sTmp, err := hex.DecodeString(FC)
+	if err != nil {
+		return nil, fmt.Errorf("could not decode string: %+v", err)
 	}
+
+	S := sTmp
 
 	for _, p := range param {
 		S = append(S, p...)
 	}
 
-	if _, err := kdf.Write(S); err != nil {
-		return nil, fmt.Errorf("GetKDFValue KDF write failed: %+v", err)
+	_, err = kdf.Write(S)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write KDF: %+v", err)
 	}
+
 	sum := kdf.Sum(nil)
+
 	return sum, nil
 }

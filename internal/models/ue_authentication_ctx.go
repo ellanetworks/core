@@ -1,7 +1,6 @@
 package models
 
 type UeAuthenticationCtx struct {
-	AuthType           AuthType
-	Var5gAuthData      any
+	Var5gAuthData      Av5gAka
 	ServingNetworkName string
 }

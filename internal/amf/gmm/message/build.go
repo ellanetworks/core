@@ -113,40 +113,26 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 	authenticationRequest.ABBA.SetLen(uint8(len(ue.ABBA)))
 	authenticationRequest.ABBA.SetABBAContents(ue.ABBA)
 
-	switch ue.AuthenticationCtx.AuthType {
-	case models.AuthType5GAka:
-		var tmpArray [16]byte
-		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(models.Av5gAka)
-		if !ok {
-			return nil, fmt.Errorf("Var5gAuthData type assertion failed: got %T", ue.AuthenticationCtx.Var5gAuthData)
-		}
+	var tmpArray [16]byte
 
-		rand, err := hex.DecodeString(av5gAka.Rand)
-		if err != nil {
-			return nil, err
-		}
-		authenticationRequest.AuthenticationParameterRAND = nasType.NewAuthenticationParameterRAND(nasMessage.AuthenticationRequestAuthenticationParameterRANDType)
-		copy(tmpArray[:], rand[0:16])
-		authenticationRequest.AuthenticationParameterRAND.SetRANDValue(tmpArray)
-
-		autn, err := hex.DecodeString(av5gAka.Autn)
-		if err != nil {
-			return nil, err
-		}
-		authenticationRequest.AuthenticationParameterAUTN = nasType.NewAuthenticationParameterAUTN(nasMessage.AuthenticationRequestAuthenticationParameterAUTNType)
-		authenticationRequest.AuthenticationParameterAUTN.SetLen(uint8(len(autn)))
-		copy(tmpArray[:], autn[0:16])
-		authenticationRequest.AuthenticationParameterAUTN.SetAUTN(tmpArray)
-	case models.AuthTypeEAPAkaPrime:
-		eapMsg := ue.AuthenticationCtx.Var5gAuthData.(string)
-		rawEapMsg, err := base64.StdEncoding.DecodeString(eapMsg)
-		if err != nil {
-			return nil, err
-		}
-		authenticationRequest.EAPMessage = nasType.NewEAPMessage(nasMessage.AuthenticationRequestEAPMessageType)
-		authenticationRequest.EAPMessage.SetLen(uint16(len(rawEapMsg)))
-		authenticationRequest.EAPMessage.SetEAPMessage(rawEapMsg)
+	rand, err := hex.DecodeString(ue.AuthenticationCtx.Var5gAuthData.Rand)
+	if err != nil {
+		return nil, err
 	}
+
+	authenticationRequest.AuthenticationParameterRAND = nasType.NewAuthenticationParameterRAND(nasMessage.AuthenticationRequestAuthenticationParameterRANDType)
+	copy(tmpArray[:], rand[0:16])
+	authenticationRequest.AuthenticationParameterRAND.SetRANDValue(tmpArray)
+
+	autn, err := hex.DecodeString(ue.AuthenticationCtx.Var5gAuthData.Autn)
+	if err != nil {
+		return nil, err
+	}
+
+	authenticationRequest.AuthenticationParameterAUTN = nasType.NewAuthenticationParameterAUTN(nasMessage.AuthenticationRequestAuthenticationParameterAUTNType)
+	authenticationRequest.AuthenticationParameterAUTN.SetLen(uint8(len(autn)))
+	copy(tmpArray[:], autn[0:16])
+	authenticationRequest.AuthenticationParameterAUTN.SetAUTN(tmpArray)
 
 	m.GmmMessage.AuthenticationRequest = authenticationRequest
 
@@ -216,35 +202,6 @@ func BuildAuthenticationReject(ue *context.AmfUe, eapMsg string) ([]byte, error)
 	}
 
 	m.GmmMessage.AuthenticationReject = authenticationReject
-
-	return m.PlainNasEncode()
-}
-
-func BuildAuthenticationResult(ue *context.AmfUe, eapSuccess bool, eapMsg string) ([]byte, error) {
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeAuthenticationResult)
-
-	authenticationResult := nasMessage.NewAuthenticationResult(0)
-	authenticationResult.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	authenticationResult.SpareHalfOctetAndSecurityHeaderType.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	authenticationResult.SpareHalfOctetAndSecurityHeaderType.SetSpareHalfOctet(0)
-	authenticationResult.AuthenticationResultMessageIdentity.SetMessageType(nas.MsgTypeAuthenticationResult)
-	authenticationResult.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.NgKsi)
-	rawEapMsg, err := base64.StdEncoding.DecodeString(eapMsg)
-	if err != nil {
-		return nil, err
-	}
-	authenticationResult.EAPMessage.SetLen(uint16(len(rawEapMsg)))
-	authenticationResult.EAPMessage.SetEAPMessage(rawEapMsg)
-
-	if eapSuccess {
-		authenticationResult.ABBA = nasType.NewABBA(nasMessage.AuthenticationResultABBAType)
-		authenticationResult.ABBA.SetLen(uint8(len(ue.ABBA)))
-		authenticationResult.ABBA.SetABBAContents(ue.ABBA)
-	}
-
-	m.GmmMessage.AuthenticationResult = authenticationResult
 
 	return m.PlainNasEncode()
 }

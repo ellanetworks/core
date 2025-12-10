@@ -8,47 +8,39 @@ package consumer
 
 import (
 	ctxt "context"
-	"encoding/base64"
 	"fmt"
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/ausf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasType"
-	"go.uber.org/zap"
 )
 
 func SendUEAuthenticationAuthenticateRequest(ctx ctxt.Context, ue *context.AmfUe, resynchronizationInfo *models.ResynchronizationInfo) (*models.UeAuthenticationCtx, error) {
-	operatorInfo, err := context.GetOperatorInfo(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("could not get operator info: %v", err)
+	if ue.Tai.PlmnID == nil {
+		return nil, fmt.Errorf("tai is not available in UE context")
 	}
 
-	var plmnID *models.PlmnID
-	if ue.Tai.PlmnID != nil {
-		plmnID = ue.Tai.PlmnID
-	} else {
-		ue.GmmLog.Warn("Tai is not received from Serving Network", zap.String("mcc", operatorInfo.Guami.PlmnID.Mcc), zap.String("mnc", operatorInfo.Guami.PlmnID.Mnc))
-		plmnID = operatorInfo.Guami.PlmnID
-	}
+	plmnID := ue.Tai.PlmnID
 
 	var authInfo models.AuthenticationInfo
+
 	authInfo.Suci = ue.Suci
-	if mnc, err := strconv.Atoi(plmnID.Mnc); err != nil {
-		return nil, err
-	} else {
-		authInfo.ServingNetworkName = fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, plmnID.Mcc)
+
+	mnc, err := strconv.Atoi(plmnID.Mnc)
+	if err != nil {
+		return nil, fmt.Errorf("could not convert mnc to int: %v", err)
 	}
+
+	authInfo.ServingNetworkName = fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, plmnID.Mcc)
+
 	if resynchronizationInfo != nil {
 		authInfo.ResynchronizationInfo = resynchronizationInfo
 	}
 
 	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(ctx, authInfo)
 	if err != nil {
-		logger.AmfLog.Warn("UE Authentication Authenticate Request failed", zap.Error(err))
-		return nil, err
+		return nil, fmt.Errorf("ausf UE Authentication Authenticate Request failed: %s", err.Error())
 	}
 
 	return ueAuthenticationCtx, nil
@@ -60,13 +52,4 @@ func SendAuth5gAkaConfirmRequest(ctx ctxt.Context, ue *context.AmfUe, resStar st
 		return nil, fmt.Errorf("ausf 5G-AKA Confirm Request failed: %s", err.Error())
 	}
 	return confirmResult, nil
-}
-
-func SendEapAuthConfirmRequest(ctx ctxt.Context, suci string, eapMsg nasType.EAPMessage) (*models.EapSession, error) {
-	eapPayload := base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage())
-	response, err := ausf.EapAuthComfirmRequestProcedure(ctx, eapPayload, suci)
-	if err != nil {
-		return nil, fmt.Errorf("ausf EAP Confirm Request failed: %s", err.Error())
-	}
-	return response, nil
 }

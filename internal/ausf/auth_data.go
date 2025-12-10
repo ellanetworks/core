@@ -71,7 +71,6 @@ func strictHex(s string, n int) string {
 func convertDBAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
 	authSubsData := &models.AuthenticationSubscription{}
 	authSubsData.AuthenticationManagementField = AuthenticationManagementField
-	authSubsData.AuthenticationMethod = models.AuthMethod5GAka
 	authSubsData.Milenage = &models.Milenage{
 		Op: &models.Op{
 			EncryptionAlgorithm: EncryptionAlgorithm,
@@ -296,63 +295,34 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	AUTN := append(append(SQNxorAK, AMF...), macA...)
 	response := &models.AuthenticationInfoResult{}
 	var av models.AuthenticationVector
-	if authSubs.AuthenticationMethod == models.AuthMethod5GAka {
-		response.AuthType = models.AuthType5GAka
 
-		// derive XRES*
-		key := append(CK, IK...)
-		FC := ueauth.FCForResStarXresStarDerivation
-		P0 := []byte(authInfoRequest.ServingNetworkName)
-		P1 := RAND
-		P2 := RES
+	// derive XRES*
+	key := append(CK, IK...)
+	FC := ueauth.FCForResStarXresStarDerivation
+	P0 := []byte(authInfoRequest.ServingNetworkName)
+	P1 := RAND
+	P2 := RES
 
-		kdfValForXresStar, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1), P2, ueauth.KDFLen(P2))
-		if err != nil {
-			return nil, fmt.Errorf("failed to get KDF value: %w", err)
-		}
-		xresStar := kdfValForXresStar[len(kdfValForXresStar)/2:]
-
-		// derive Kausf
-		FC = ueauth.FCForKausfDerivation
-		P0 = []byte(authInfoRequest.ServingNetworkName)
-		P1 = SQNxorAK
-		kdfValForKausf, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
-		if err != nil {
-			return nil, fmt.Errorf("failed to get KDF value: %w", err)
-		}
-
-		// Fill in rand, xresStar, autn, kausf
-		av.Rand = hex.EncodeToString(RAND)
-		av.XresStar = hex.EncodeToString(xresStar)
-		av.Autn = hex.EncodeToString(AUTN)
-		av.Kausf = hex.EncodeToString(kdfValForKausf)
-	} else { // EAP-AKA'
-		response.AuthType = models.AuthTypeEAPAkaPrime
-
-		// derive CK' and IK'
-		key := append(CK, IK...)
-		FC := ueauth.FCForCkPrimeIkPrimeDerivation
-		P0 := []byte(authInfoRequest.ServingNetworkName)
-		P1 := SQNxorAK
-		kdfVal, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
-		if err != nil {
-			return nil, fmt.Errorf("failed to get KDF value: %w", err)
-		}
-
-		// For TS 35.208 test set 19 & RFC 5448 test vector 1
-		// CK': 0093 962d 0dd8 4aa5 684b 045c 9edf fa04
-		// IK': ccfc 230c a74f cc96 c0a5 d611 64f5 a76
-
-		ckPrime := kdfVal[:len(kdfVal)/2]
-		ikPrime := kdfVal[len(kdfVal)/2:]
-
-		// Fill in rand, xres, autn, ckPrime, ikPrime
-		av.Rand = hex.EncodeToString(RAND)
-		av.Xres = hex.EncodeToString(RES)
-		av.Autn = hex.EncodeToString(AUTN)
-		av.CkPrime = hex.EncodeToString(ckPrime)
-		av.IkPrime = hex.EncodeToString(ikPrime)
+	kdfValForXresStar, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1), P2, ueauth.KDFLen(P2))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get KDF value: %w", err)
 	}
+	xresStar := kdfValForXresStar[len(kdfValForXresStar)/2:]
+
+	// derive Kausf
+	FC = ueauth.FCForKausfDerivation
+	P0 = []byte(authInfoRequest.ServingNetworkName)
+	P1 = SQNxorAK
+	kdfValForKausf, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get KDF value: %w", err)
+	}
+
+	// Fill in rand, xresStar, autn, kausf
+	av.Rand = hex.EncodeToString(RAND)
+	av.XresStar = hex.EncodeToString(xresStar)
+	av.Autn = hex.EncodeToString(AUTN)
+	av.Kausf = hex.EncodeToString(kdfValForKausf)
 
 	response.AuthenticationVector = &av
 	response.Supi = supi

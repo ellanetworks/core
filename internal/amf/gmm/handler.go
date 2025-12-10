@@ -1107,7 +1107,9 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe, accessType mod
 	if err != nil {
 		return false, fmt.Errorf("Authentication procedure failed: %s", err)
 	}
+
 	ue.AuthenticationCtx = response
+
 	ue.ABBA = []uint8{0x00, 0x00} // set ABBA value as described at TS 33.501 Annex A.7.1
 
 	err = gmm_message.SendAuthenticationRequest(ctx, ue.RanUe[accessType])
@@ -1560,130 +1562,76 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessTyp
 		return fmt.Errorf("ue Authentication Context is nil")
 	}
 
-	switch ue.AuthenticationCtx.AuthType {
-	case models.AuthType5GAka:
-		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(models.Av5gAka)
-		if !ok {
-			return fmt.Errorf("Var5gAuthData type assertion failed: got %T", ue.AuthenticationCtx.Var5gAuthData)
-		}
-		resStar := authenticationResponse.AuthenticationResponseParameter.GetRES()
+	resStar := authenticationResponse.AuthenticationResponseParameter.GetRES()
 
-		// Calculate HRES* (TS 33.501 Annex A.5)
-		p0, err := hex.DecodeString(av5gAka.Rand)
-		if err != nil {
-			return err
-		}
-		p1 := resStar[:]
-		concat := append(p0, p1...)
-		hResStarBytes := sha256.Sum256(concat)
-		hResStar := hex.EncodeToString(hResStarBytes[16:])
+	// Calculate HRES* (TS 33.501 Annex A.5)
+	p0, err := hex.DecodeString(ue.AuthenticationCtx.Var5gAuthData.Rand)
+	if err != nil {
+		return err
+	}
 
-		if hResStar != av5gAka.HxresStar {
-			ue.GmmLog.Error("HRES* Validation Failure", zap.String("received", hResStar), zap.String("expected", av5gAka.HxresStar))
+	p1 := resStar[:]
+	concat := append(p0, p1...)
+	hResStarBytes := sha256.Sum256(concat)
+	hResStar := hex.EncodeToString(hResStarBytes[16:])
 
-			if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
-				err := gmm_message.SendIdentityRequest(ctx, ue.RanUe[accessType], nasMessage.MobileIdentity5GSTypeSuci)
-				if err != nil {
-					return fmt.Errorf("send identity request error: %s", err)
-				}
-				ue.GmmLog.Info("sent identity request")
-				return nil
-			} else {
-				err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[accessType], "")
-				if err != nil {
-					return fmt.Errorf("error sending GMM authentication reject: %v", err)
-				}
+	if hResStar != ue.AuthenticationCtx.Var5gAuthData.HxresStar {
+		ue.GmmLog.Error("HRES* Validation Failure", zap.String("received", hResStar), zap.String("expected", ue.AuthenticationCtx.Var5gAuthData.HxresStar))
 
-				return GmmFSM.SendEvent(ctx, ue.State[accessType], AuthFailEvent, fsm.ArgsType{
-					ArgAmfUe:      ue,
-					ArgAccessType: accessType,
-				})
-			}
-		}
-
-		response, err := consumer.SendAuth5gAkaConfirmRequest(ctx, ue, hex.EncodeToString(resStar[:]))
-		if err != nil {
-			return fmt.Errorf("Authentication procedure failed: %s", err)
-		}
-		switch response.AuthResult {
-		case models.AuthResultSuccess:
-			ue.Kseaf = response.Kseaf
-			ue.Supi = response.Supi
-			ue.DerivateKamf()
-			return GmmFSM.SendEvent(ctx, ue.State[accessType], AuthSuccessEvent, fsm.ArgsType{
-				ArgAmfUe:      ue,
-				ArgAccessType: accessType,
-				ArgEAPSuccess: false,
-				ArgEAPMessage: "",
-			})
-		case models.AuthResultFailure:
-			if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
-				err := gmm_message.SendIdentityRequest(ctx, ue.RanUe[accessType], nasMessage.MobileIdentity5GSTypeSuci)
-				if err != nil {
-					return fmt.Errorf("send identity request error: %s", err)
-				}
-				ue.GmmLog.Info("sent identity request")
-				return nil
-			} else {
-				err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[accessType], "")
-				if err != nil {
-					return fmt.Errorf("error sending GMM authentication reject: %v", err)
-				}
-
-				return GmmFSM.SendEvent(ctx, ue.State[accessType], AuthFailEvent, fsm.ArgsType{
-					ArgAmfUe:      ue,
-					ArgAccessType: accessType,
-				})
-			}
-		}
-	case models.AuthTypeEAPAkaPrime:
-		response, err := consumer.SendEapAuthConfirmRequest(ctx, ue.Suci, *authenticationResponse.EAPMessage)
-		if err != nil {
-			return err
-		}
-
-		switch response.AuthResult {
-		case models.AuthResultSuccess:
-			ue.Kseaf = response.KSeaf
-			ue.Supi = response.Supi
-			ue.DerivateKamf()
-			return GmmFSM.SendEvent(ctx, ue.State[accessType], SecurityModeSuccessEvent, fsm.ArgsType{
-				ArgAmfUe:      ue,
-				ArgAccessType: accessType,
-				ArgEAPSuccess: true,
-				ArgEAPMessage: response.EapPayload,
-			})
-		case models.AuthResultFailure:
-			if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
-				err := gmm_message.SendAuthenticationResult(ctx, ue.RanUe[accessType], false, response.EapPayload)
-				if err != nil {
-					return fmt.Errorf("send authentication result error: %s", err)
-				}
-				ue.GmmLog.Info("sent authentication result")
-				err = gmm_message.SendIdentityRequest(ctx, ue.RanUe[accessType], nasMessage.MobileIdentity5GSTypeSuci)
-				if err != nil {
-					return fmt.Errorf("send identity request error: %s", err)
-				}
-				ue.GmmLog.Info("sent identity request")
-				return nil
-			} else {
-				err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[accessType], response.EapPayload)
-				if err != nil {
-					return fmt.Errorf("error sending GMM authentication reject: %v", err)
-				}
-
-				return GmmFSM.SendEvent(ctx, ue.State[accessType], AuthFailEvent, fsm.ArgsType{
-					ArgAmfUe:      ue,
-					ArgAccessType: accessType,
-				})
-			}
-		case models.AuthResultOngoing:
-			ue.AuthenticationCtx.Var5gAuthData = response.EapPayload
-			err := gmm_message.SendAuthenticationRequest(ctx, ue.RanUe[accessType])
+		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
+			err := gmm_message.SendIdentityRequest(ctx, ue.RanUe[accessType], nasMessage.MobileIdentity5GSTypeSuci)
 			if err != nil {
-				return fmt.Errorf("send authentication request error: %s", err)
+				return fmt.Errorf("send identity request error: %s", err)
 			}
-			ue.GmmLog.Info("Sent authentication request")
+			ue.GmmLog.Info("sent identity request")
+			return nil
+		} else {
+			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[accessType], "")
+			if err != nil {
+				return fmt.Errorf("error sending GMM authentication reject: %v", err)
+			}
+
+			return GmmFSM.SendEvent(ctx, ue.State[accessType], AuthFailEvent, fsm.ArgsType{
+				ArgAmfUe:      ue,
+				ArgAccessType: accessType,
+			})
+		}
+	}
+
+	response, err := consumer.SendAuth5gAkaConfirmRequest(ctx, ue, hex.EncodeToString(resStar[:]))
+	if err != nil {
+		return fmt.Errorf("Authentication procedure failed: %s", err)
+	}
+
+	switch response.AuthResult {
+	case models.AuthResultSuccess:
+		ue.Kseaf = response.Kseaf
+		ue.Supi = response.Supi
+		ue.DerivateKamf()
+		return GmmFSM.SendEvent(ctx, ue.State[accessType], AuthSuccessEvent, fsm.ArgsType{
+			ArgAmfUe:      ue,
+			ArgAccessType: accessType,
+			ArgEAPSuccess: false,
+			ArgEAPMessage: "",
+		})
+	case models.AuthResultFailure:
+		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
+			err := gmm_message.SendIdentityRequest(ctx, ue.RanUe[accessType], nasMessage.MobileIdentity5GSTypeSuci)
+			if err != nil {
+				return fmt.Errorf("send identity request error: %s", err)
+			}
+			ue.GmmLog.Info("sent identity request")
+			return nil
+		} else {
+			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[accessType], "")
+			if err != nil {
+				return fmt.Errorf("error sending GMM authentication reject: %v", err)
+			}
+
+			return GmmFSM.SendEvent(ctx, ue.State[accessType], AuthFailEvent, fsm.ArgsType{
+				ArgAmfUe:      ue,
+				ArgAccessType: accessType,
+			})
 		}
 	}
 
@@ -1700,86 +1648,73 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 
 	cause5GMM := authenticationFailure.Cause5GMM.GetCauseValue()
 
-	if ue.AuthenticationCtx.AuthType == models.AuthType5GAka {
-		switch cause5GMM {
-		case nasMessage.Cause5GMMMACFailure:
-			ue.GmmLog.Warn("Authentication Failure Cause: Mac Failure")
+	switch cause5GMM {
+	case nasMessage.Cause5GMMMACFailure:
+		ue.GmmLog.Warn("Authentication Failure Cause: Mac Failure")
+		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[anType], "")
+		if err != nil {
+			return fmt.Errorf("error sending GMM authentication reject: %v", err)
+		}
+
+		return GmmFSM.SendEvent(ctx, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
+	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
+		ue.GmmLog.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
+		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[anType], "")
+		if err != nil {
+			return fmt.Errorf("error sending GMM authentication reject: %v", err)
+		}
+
+		return GmmFSM.SendEvent(ctx, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
+	case nasMessage.Cause5GMMngKSIAlreadyInUse:
+		ue.GmmLog.Warn("Authentication Failure Cause: NgKSI Already In Use")
+		ue.AuthFailureCauseSynchFailureTimes = 0
+		ue.GmmLog.Warn("Select new NgKsi")
+		// select new ngksi
+		if ue.NgKsi.Ksi < 6 { // ksi is range from 0 to 6
+			ue.NgKsi.Ksi += 1
+		} else {
+			ue.NgKsi.Ksi = 0
+		}
+
+		err := gmm_message.SendAuthenticationRequest(ctx, ue.RanUe[anType])
+		if err != nil {
+			return fmt.Errorf("send authentication request error: %s", err)
+		}
+
+		ue.GmmLog.Info("Sent authentication request")
+	case nasMessage.Cause5GMMSynchFailure: // TS 24.501 5.4.1.3.7 case f
+		ue.GmmLog.Warn("Authentication Failure 5GMM Cause: Synch Failure")
+
+		ue.AuthFailureCauseSynchFailureTimes++
+		if ue.AuthFailureCauseSynchFailureTimes >= 2 {
+			ue.GmmLog.Warn("2 consecutive Synch Failure, terminate authentication procedure")
 			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[anType], "")
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
 
 			return GmmFSM.SendEvent(ctx, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
-		case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
-			ue.GmmLog.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
-			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[anType], "")
-			if err != nil {
-				return fmt.Errorf("error sending GMM authentication reject: %v", err)
-			}
-
-			return GmmFSM.SendEvent(ctx, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
-		case nasMessage.Cause5GMMngKSIAlreadyInUse:
-			ue.GmmLog.Warn("Authentication Failure Cause: NgKSI Already In Use")
-			ue.AuthFailureCauseSynchFailureTimes = 0
-			ue.GmmLog.Warn("Select new NgKsi")
-			// select new ngksi
-			if ue.NgKsi.Ksi < 6 { // ksi is range from 0 to 6
-				ue.NgKsi.Ksi += 1
-			} else {
-				ue.NgKsi.Ksi = 0
-			}
-			err := gmm_message.SendAuthenticationRequest(ctx, ue.RanUe[anType])
-			if err != nil {
-				return fmt.Errorf("send authentication request error: %s", err)
-			}
-			ue.GmmLog.Info("Sent authentication request")
-		case nasMessage.Cause5GMMSynchFailure: // TS 24.501 5.4.1.3.7 case f
-			ue.GmmLog.Warn("Authentication Failure 5GMM Cause: Synch Failure")
-
-			ue.AuthFailureCauseSynchFailureTimes++
-			if ue.AuthFailureCauseSynchFailureTimes >= 2 {
-				ue.GmmLog.Warn("2 consecutive Synch Failure, terminate authentication procedure")
-				err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[anType], "")
-				if err != nil {
-					return fmt.Errorf("error sending GMM authentication reject: %v", err)
-				}
-
-				return GmmFSM.SendEvent(ctx, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
-			}
-
-			auts := authenticationFailure.AuthenticationFailureParameter.GetAuthenticationFailureParameter()
-			resynchronizationInfo := &models.ResynchronizationInfo{
-				Auts: hex.EncodeToString(auts[:]),
-			}
-
-			response, err := consumer.SendUEAuthenticationAuthenticateRequest(ctx, ue, resynchronizationInfo)
-			if err != nil {
-				return fmt.Errorf("send UE Authentication Authenticate Request Error: %s", err.Error())
-			}
-			ue.AuthenticationCtx = response
-			ue.ABBA = []uint8{0x00, 0x00}
-
-			err = gmm_message.SendAuthenticationRequest(ctx, ue.RanUe[anType])
-			if err != nil {
-				return fmt.Errorf("send authentication request error: %s", err)
-			}
-			ue.GmmLog.Info("Sent authentication request")
 		}
-	} else if ue.AuthenticationCtx.AuthType == models.AuthTypeEAPAkaPrime {
-		switch cause5GMM {
-		case nasMessage.Cause5GMMngKSIAlreadyInUse:
-			ue.GmmLog.Warn("Authentication Failure 5GMM Cause: NgKSI Already In Use")
-			if ue.NgKsi.Ksi < 6 { // ksi is range from 0 to 6
-				ue.NgKsi.Ksi += 1
-			} else {
-				ue.NgKsi.Ksi = 0
-			}
-			err := gmm_message.SendAuthenticationRequest(ctx, ue.RanUe[anType])
-			if err != nil {
-				return fmt.Errorf("send authentication request error: %s", err)
-			}
-			ue.GmmLog.Info("Sent authentication request")
+
+		auts := authenticationFailure.AuthenticationFailureParameter.GetAuthenticationFailureParameter()
+		resynchronizationInfo := &models.ResynchronizationInfo{
+			Auts: hex.EncodeToString(auts[:]),
 		}
+
+		response, err := consumer.SendUEAuthenticationAuthenticateRequest(ctx, ue, resynchronizationInfo)
+		if err != nil {
+			return fmt.Errorf("send UE Authentication Authenticate Request Error: %s", err.Error())
+		}
+
+		ue.AuthenticationCtx = response
+		ue.ABBA = []uint8{0x00, 0x00}
+
+		err = gmm_message.SendAuthenticationRequest(ctx, ue.RanUe[anType])
+		if err != nil {
+			return fmt.Errorf("send authentication request error: %s", err)
+		}
+
+		ue.GmmLog.Info("Sent authentication request")
 	}
 
 	return nil

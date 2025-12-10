@@ -218,32 +218,6 @@ func SendAuthenticationReject(ctx ctxt.Context, ue *context.RanUe, eapMsg string
 	return nil
 }
 
-func SendAuthenticationResult(ctx ctxt.Context, ue *context.RanUe, eapSuccess bool, eapMsg string) error {
-	if ue == nil || ue.AmfUe == nil {
-		return fmt.Errorf("ue or amf ue is nil")
-	}
-
-	_, span := tracer.Start(ctx, "Send Authentication Result",
-		trace.WithAttributes(
-			attribute.String("supi", ue.AmfUe.Supi),
-		),
-		trace.WithSpanKind(trace.SpanKindServer),
-	)
-	defer span.End()
-
-	nasMsg, err := BuildAuthenticationResult(ue.AmfUe, eapSuccess, eapMsg)
-	if err != nil {
-		return fmt.Errorf("error building authentication result: %s", err.Error())
-	}
-
-	err = ngap_message.SendDownlinkNasTransport(ctx, ue, nasMsg, nil)
-	if err != nil {
-		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
-	}
-
-	return nil
-}
-
 func SendServiceReject(ctx ctxt.Context, ue *context.RanUe, pDUSessionStatus *[16]bool, cause uint8) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
