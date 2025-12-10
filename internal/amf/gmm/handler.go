@@ -147,7 +147,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 				}
 				ue.GmmLog.Info("sent downlink nas transport to UE")
 			} else {
-				smContext.SetUserLocation(ue.Location)
 				responseData := response.JSONData
 				n2Info := response.BinaryDataN2SmInformation
 				if n2Info != nil {
@@ -235,7 +234,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 			}
 
 			newSmContext.SetSmContextRef(smContextRef)
-			newSmContext.SetUserLocation(ue.Location)
 
 			ue.StoreSmContext(pduSessionID, newSmContext)
 			ue.GmmLog.Debug("Created sm context for pdu session", zap.Int32("pduSessionID", pduSessionID))
@@ -269,7 +267,6 @@ func forward5GSMMessageToSMF(
 		return nil
 	} else if response != nil {
 		// update SmContext in AMF
-		smContext.SetUserLocation(ue.Location)
 
 		responseData := response.JSONData
 		var n1Msg []byte
