@@ -36,7 +36,6 @@ const (
 const (
 	ArgAmfUe               string = "AMF Ue"
 	ArgNASMessage          string = "NAS Message"
-	ArgProcedureCode       string = "Procedure Code"
 	ArgEAPSuccess          string = "EAP Success"
 	ArgEAPMessage          string = "EAP Message"
 	Arg3GPPDeregistered    string = "3GPP Deregistered"

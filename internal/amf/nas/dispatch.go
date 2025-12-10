@@ -54,9 +54,8 @@ func Dispatch(ctx ctxt.Context, ue *context.AmfUe, procedureCode int64, msg *nas
 	)
 
 	return gmm.GmmFSM.SendEvent(ctx, ue.State, gmm.GmmMessageEvent, fsm.ArgsType{
-		gmm.ArgAmfUe:         ue,
-		gmm.ArgNASMessage:    msg.GmmMessage,
-		gmm.ArgProcedureCode: procedureCode,
+		gmm.ArgAmfUe:      ue,
+		gmm.ArgNASMessage: msg.GmmMessage,
 	})
 }
 

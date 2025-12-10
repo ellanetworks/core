@@ -331,7 +331,7 @@ func getRegistrationType5GSName(regType5Gs uint8) string {
 }
 
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
-func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, procedureCode int64, registrationRequest *nasMessage.RegistrationRequest) error {
+func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registrationRequest *nasMessage.RegistrationRequest) error {
 	ctx, span := tracer.Start(ctx, "AMF HandleRegistrationRequest")
 	defer span.End()
 
@@ -367,7 +367,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, procedureCod
 	ue.RegistrationRequest = registrationRequest
 	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
 	regName := getRegistrationType5GSName(ue.RegistrationType5GS)
-	ue.GmmLog.Debug("Received Registration Request", zap.String("registrationType", regName), zap.Int64("procedureCode", procedureCode))
+	ue.GmmLog.Debug("Received Registration Request", zap.String("registrationType", regName))
 
 	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSReserved {
 		ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
@@ -1627,7 +1627,7 @@ func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, registratio
 }
 
 // TS 33.501 6.7.2
-func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, procedureCode int64, securityModeComplete *nasMessage.SecurityModeComplete) error {
+func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, securityModeComplete *nasMessage.SecurityModeComplete) error {
 	logger.AmfLog.Debug("Handle Security Mode Complete", zap.String("supi", ue.Supi))
 
 	if ue.MacFailed {
@@ -1662,16 +1662,14 @@ func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, procedureCo
 			return errors.New("nas message container Iei type error")
 		} else {
 			return GmmFSM.SendEvent(ctx, ue.State, SecurityModeSuccessEvent, fsm.ArgsType{
-				ArgAmfUe:         ue,
-				ArgProcedureCode: procedureCode,
-				ArgNASMessage:    m.GmmMessage.RegistrationRequest,
+				ArgAmfUe:      ue,
+				ArgNASMessage: m.GmmMessage.RegistrationRequest,
 			})
 		}
 	}
 	return GmmFSM.SendEvent(ctx, ue.State, SecurityModeSuccessEvent, fsm.ArgsType{
-		ArgAmfUe:         ue,
-		ArgProcedureCode: procedureCode,
-		ArgNASMessage:    ue.RegistrationRequest,
+		ArgAmfUe:      ue,
+		ArgNASMessage: ue.RegistrationRequest,
 	})
 }
 
