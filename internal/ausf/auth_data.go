@@ -25,14 +25,11 @@ const (
 	opcStrLen int   = 32
 )
 
-const (
-	AuthenticationManagementField = "8000"
-)
-
 func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
 	AK, SQNms := make([]byte, 6), make([]byte, 6)
 	macS := make([]byte, 8)
 	ConcSQNms := auts[:6]
+
 	AMF, err := hex.DecodeString("0000")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to decode AMF: %w", err)
@@ -43,7 +40,7 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
 		return nil, nil, fmt.Errorf("failed to generate AK: %w", err)
 	}
 
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		SQNms[i] = AK[i] ^ ConcSQNms[i]
 	}
 
@@ -57,27 +54,12 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
 
 func strictHex(s string, n int) string {
 	l := len(s)
+
 	if l < n {
 		return strings.Repeat("0", n-l) + s
-	} else {
-		return s[l-n : l]
-	}
-}
-
-func GetAuthSubsData(ctx context.Context, ueID string) (*models.AuthenticationSubscription, error) {
-	subscriber, err := ausfContext.DBInstance.GetSubscriber(ctx, ueID)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 
-	authSubsData := &models.AuthenticationSubscription{
-		AuthenticationManagementField: AuthenticationManagementField,
-		Opc:                           subscriber.Opc,
-		PermanentKey:                  subscriber.PermanentKey,
-		SequenceNumber:                subscriber.SequenceNumber,
-	}
-
-	return authSubsData, nil
+	return s[l-n : l]
 }
 
 func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationInfoRequest, suc string) (*models.AuthenticationInfoResult, error) {
@@ -101,9 +83,9 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}
 
-	authSubs, err := GetAuthSubsData(ctx, supi)
+	subscriber, err := ausfContext.DBInstance.GetSubscriber(ctx, supi)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get authentication subscriber data: %w", err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", supi, err)
 	}
 
 	/*
@@ -119,11 +101,11 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	var k []byte
 	opc := make([]byte, 16)
 
-	if authSubs.PermanentKey == "" {
+	if subscriber.PermanentKey == "" {
 		return nil, fmt.Errorf("permanent key is nil")
 	}
 
-	kStr = authSubs.PermanentKey
+	kStr = subscriber.PermanentKey
 	if len(kStr) != keyStrLen {
 		return nil, fmt.Errorf("kStr length is %d", len(kStr))
 	}
@@ -133,8 +115,8 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 		return nil, fmt.Errorf("failed to decode k: %w", err)
 	}
 
-	if authSubs.Opc != "" {
-		opcStr = authSubs.Opc
+	if subscriber.Opc != "" {
+		opcStr = subscriber.Opc
 		if len(opcStr) == opcStrLen {
 			opc, err = hex.DecodeString(opcStr)
 			if err != nil {
@@ -152,18 +134,13 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 		return nil, fmt.Errorf("unable to derive OP")
 	}
 
-	sqnStr := strictHex(authSubs.SequenceNumber, 12)
+	sqnStr := strictHex(subscriber.SequenceNumber, 12)
 
 	RAND := make([]byte, 16)
 
 	_, err = rand.Read(RAND)
 	if err != nil {
 		return nil, fmt.Errorf("rand read error: %w", err)
-	}
-
-	AMF, err := hex.DecodeString("8000")
-	if err != nil {
-		return nil, fmt.Errorf("AMF decode error: %w", err)
 	}
 
 	// re-synchroniztion
@@ -208,6 +185,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 
 	// increment sqn
 	bigSQN := big.NewInt(0)
+
 	sqn, err := hex.DecodeString(sqnStr)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding sqn: %w", err)
@@ -232,8 +210,13 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	RES := make([]byte, 8)
 	AK, AKstar := make([]byte, 6), make([]byte, 6)
 
+	amf, err := hex.DecodeString("8000")
+	if err != nil {
+		return nil, fmt.Errorf("amf decode error: %w", err)
+	}
+
 	// Generate macA, macS
-	err = milenage.F1(opc, k, RAND, sqn, AMF, macA, macS)
+	err = milenage.F1(opc, k, RAND, sqn, amf, macA, macS)
 	if err != nil {
 		return nil, fmt.Errorf("milenage F1 err: %w", err)
 	}
@@ -247,10 +230,12 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 
 	// Generate AUTN
 	SQNxorAK := make([]byte, 6)
-	for i := 0; i < len(sqn); i++ {
+
+	for i := range sqn {
 		SQNxorAK[i] = sqn[i] ^ AK[i]
 	}
-	AUTN := append(append(SQNxorAK, AMF...), macA...)
+
+	AUTN := append(append(SQNxorAK, amf...), macA...)
 	response := &models.AuthenticationInfoResult{}
 	var av models.AuthenticationVector
 
@@ -271,6 +256,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	FC = ueauth.FCForKausfDerivation
 	P0 = []byte(authInfoRequest.ServingNetworkName)
 	P1 = SQNxorAK
+
 	kdfValForKausf, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get KDF value: %w", err)

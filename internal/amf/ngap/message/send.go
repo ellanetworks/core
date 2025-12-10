@@ -155,12 +155,12 @@ func SendToRanUe(ctx ctxt.Context, ue *context.RanUe, packet []byte, ngapMsgType
 	return nil
 }
 
-func NasSendToRan(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, packet []byte, msgType NGAPProcedure) error {
+func NasSendToRan(ctx ctxt.Context, ue *context.AmfUe, packet []byte, msgType NGAPProcedure) error {
 	if ue == nil {
 		return fmt.Errorf("amf ue is nil")
 	}
 
-	ranUe := ue.RanUe[accessType]
+	ranUe := ue.RanUe
 	if ranUe == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
@@ -275,7 +275,7 @@ func SendUEContextReleaseCommand(ctx ctxt.Context, ue *context.RanUe, action con
 
 	ue.ReleaseAction = action
 	if ue.AmfUe != nil && ue.Ran != nil {
-		ue.AmfUe.ReleaseCause[ue.Ran.AnType] = &context.CauseAll{
+		ue.AmfUe.ReleaseCause = &context.CauseAll{
 			NgapCause: &models.NgApCause{
 				Group: int32(causePresent),
 				Value: int32(cause),
@@ -410,7 +410,6 @@ func SendPDUSessionResourceModifyRequest(ctx ctxt.Context, ue *context.RanUe, pd
 func SendInitialContextSetupRequest(
 	ctx ctxt.Context,
 	amfUe *context.AmfUe,
-	anType models.AccessType,
 	nasPdu []byte,
 	pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq,
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
@@ -428,15 +427,14 @@ func SendInitialContextSetupRequest(
 		}
 	}
 
-	pkt, err := BuildInitialContextSetupRequest(ctx, amfUe, anType, nasPdu, pduSessionResourceSetupRequestList,
-		rrcInactiveTransitionReportRequest, coreNetworkAssistanceInfo, emergencyFallbackIndicator, supportedGUAMI)
+	pkt, err := BuildInitialContextSetupRequest(ctx, amfUe, nasPdu, pduSessionResourceSetupRequestList, rrcInactiveTransitionReportRequest, coreNetworkAssistanceInfo, emergencyFallbackIndicator, supportedGUAMI)
 	if err != nil {
 		return fmt.Errorf("error building initial context setup request: %s", err)
 	}
 
-	amfUe.RanUe[anType].SentInitialContextSetupRequest = true
+	amfUe.RanUe.SentInitialContextSetupRequest = true
 
-	err = NasSendToRan(ctx, amfUe, anType, pkt, NGAPProcedureInitialContextSetupRequest)
+	err = NasSendToRan(ctx, amfUe, pkt, NGAPProcedureInitialContextSetupRequest)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -497,7 +495,7 @@ func SendHandoverPreparationFailure(ctx ctxt.Context, sourceUe *context.RanUe, c
 		return fmt.Errorf("amf ue is nil")
 	}
 
-	amfUe.SetOnGoing(sourceUe.Ran.AnType, &context.OnGoingProcedureWithPrio{
+	amfUe.SetOnGoing(&context.OnGoingProcedureWithPrio{
 		Procedure: context.OnGoingProcedureNothing,
 	})
 
@@ -670,7 +668,7 @@ func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
 		return fmt.Errorf("amf ue is nil")
 	}
 
-	taiList := ue.RegistrationArea[models.AccessType3GPPAccess]
+	taiList := ue.RegistrationArea
 	context.AMFSelf().AmfRanPool.Range(func(key, value interface{}) bool {
 		ran := value.(*context.AmfRan)
 		for _, item := range ran.SupportedTAList {

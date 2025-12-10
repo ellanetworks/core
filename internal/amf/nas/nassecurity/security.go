@@ -15,14 +15,11 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/security"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -192,12 +189,8 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*contex
 payload either a security protected 5GS NAS message or a plain 5GS NAS message which
 format is followed TS 24.501 9.1.1
 */
-func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, payload []byte) (*nas.Message, error) {
-	_, span := tracer.Start(ctx, "AMF NAS Decode",
-		trace.WithAttributes(
-			attribute.String("nas.accessType", string(accessType)),
-		),
-	)
+func Decode(ctx ctxt.Context, ue *context.AmfUe, payload []byte) (*nas.Message, error) {
+	_, span := tracer.Start(ctx, "AMF NAS Decode")
 	defer span.End()
 	if ue == nil {
 		return nil, fmt.Errorf("amf ue is nil")
@@ -215,7 +208,7 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, p
 	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
 		// RRCEstablishmentCause 0 is for emergency service
-		if ue.SecurityContextAvailable && ue.RanUe[accessType].RRCEstablishmentCause != "0" {
+		if ue.SecurityContextAvailable && ue.RanUe.RRCEstablishmentCause != "0" {
 			ue.NASLog.Warn("Received Plain NAS message")
 			ue.MacFailed = false
 			ue.SecurityContextAvailable = false

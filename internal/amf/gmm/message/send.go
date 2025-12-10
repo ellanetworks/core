@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -51,40 +50,6 @@ func SendDLNASTransport(ctx ctxt.Context, ue *context.RanUe, payloadContainerTyp
 	err = ngap_message.SendDownlinkNasTransport(ctx, ue, nasMsg, nil)
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
-	}
-
-	return nil
-}
-
-func SendNotification(ctx ctxt.Context, ue *context.RanUe, nasMsg []byte) error {
-	if ue == nil || ue.AmfUe == nil {
-		return fmt.Errorf("ue or amf ue is nil")
-	}
-
-	_, span := tracer.Start(ctx, "Send Notification",
-		trace.WithAttributes(
-			attribute.String("supi", ue.AmfUe.Supi),
-		),
-		trace.WithSpanKind(trace.SpanKindServer),
-	)
-	defer span.End()
-
-	amfUe := ue.AmfUe
-
-	if context.AMFSelf().T3565Cfg.Enable {
-		cfg := context.AMFSelf().T3565Cfg
-		amfUe.T3565 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			amfUe.GmmLog.Warn("T3565 expires, retransmit Notification", zap.Any("expireTimes", expireTimes))
-			err := ngap_message.SendDownlinkNasTransport(ctx, ue, nasMsg, nil)
-			if err != nil {
-				amfUe.GmmLog.Error("could not send notification", zap.Error(err))
-				return
-			}
-			amfUe.GmmLog.Info("sent notification")
-		}, func() {
-			amfUe.GmmLog.Warn("abort notification procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
-			amfUe.T3565 = nil // clear the timer
-		})
 	}
 
 	return nil
@@ -319,7 +284,7 @@ func SendSecurityModeCommand(ctx ctxt.Context, ue *context.RanUe, eapSuccess boo
 	return nil
 }
 
-func SendDeregistrationRequest(ctx ctxt.Context, ue *context.RanUe, accessType uint8, reRegistrationRequired bool, cause5GMM uint8) error {
+func SendDeregistrationRequest(ctx ctxt.Context, ue *context.RanUe, reRegistrationRequired bool, cause5GMM uint8) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -327,16 +292,13 @@ func SendDeregistrationRequest(ctx ctxt.Context, ue *context.RanUe, accessType u
 	_, span := tracer.Start(ctx, "Send Deregistration Request",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
-			attribute.Int("accessType", int(accessType)),
 			attribute.Int("cause", int(cause5GMM)),
 		),
 		trace.WithSpanKind(trace.SpanKindServer),
 	)
 	defer span.End()
 
-	ue.AmfUe.DeregistrationTargetAccessType = accessType
-
-	nasMsg, err := BuildDeregistrationRequest(ue, accessType, reRegistrationRequired, cause5GMM)
+	nasMsg, err := BuildDeregistrationRequest(ue, reRegistrationRequired, cause5GMM)
 	if err != nil {
 		return fmt.Errorf("error building deregistration request: %s", err.Error())
 	}
@@ -361,21 +323,9 @@ func SendDeregistrationRequest(ctx ctxt.Context, ue *context.RanUe, accessType u
 		}, func() {
 			amfUe.GmmLog.Warn("T3522 Expires, abort deregistration procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
 			amfUe.T3522 = nil // clear the timer
-			if accessType == nasMessage.AccessType3GPP {
-				amfUe.GmmLog.Warn("UE accessType[3GPP] transfer to Deregistered state")
-				amfUe.State[models.AccessType3GPPAccess].Set(context.Deregistered)
-				amfUe.Remove()
-			} else if accessType == nasMessage.AccessTypeNon3GPP {
-				amfUe.GmmLog.Warn("UE accessType[Non3GPP] transfer to Deregistered state")
-				amfUe.State[models.AccessTypeNon3GPPAccess].Set(context.Deregistered)
-				amfUe.Remove()
-			} else {
-				amfUe.GmmLog.Warn("UE accessType[3GPP] transfer to Deregistered state")
-				amfUe.State[models.AccessType3GPPAccess].Set(context.Deregistered)
-				amfUe.GmmLog.Warn("UE accessType[Non3GPP] transfer to Deregistered state")
-				amfUe.State[models.AccessTypeNon3GPPAccess].Set(context.Deregistered)
-				amfUe.Remove()
-			}
+			amfUe.State.Set(context.Deregistered)
+			amfUe.Remove()
+			amfUe.GmmLog.Debug("UE accessType transfer to Deregistered state")
 		})
 	}
 
@@ -412,7 +362,6 @@ func SendDeregistrationAccept(ctx ctxt.Context, ue *context.RanUe) error {
 func SendRegistrationAccept(
 	ctx ctxt.Context,
 	ue *context.AmfUe,
-	anType models.AccessType,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
@@ -427,25 +376,24 @@ func SendRegistrationAccept(
 	ctx, span := tracer.Start(ctx, "Send Registration Accept",
 		trace.WithAttributes(
 			attribute.String("supi", ue.Supi),
-			attribute.String("accessType", string(anType)),
 		),
 		trace.WithSpanKind(trace.SpanKindServer),
 	)
 	defer span.End()
 
-	nasMsg, err := BuildRegistrationAccept(ctx, ue, anType, pDUSessionStatus, reactivationResult, errPduSessionID, errCause, supportedPLMN)
+	nasMsg, err := BuildRegistrationAccept(ctx, ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause, supportedPLMN)
 	if err != nil {
 		return fmt.Errorf("error building registration accept: %s", err.Error())
 	}
 
-	if ue.RanUe[anType].UeContextRequest {
-		err = ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasMsg, pduSessionResourceSetupList, nil, nil, nil, supportedGUAMI)
+	if ue.RanUe.UeContextRequest {
+		err = ngap_message.SendInitialContextSetupRequest(ctx, ue, nasMsg, pduSessionResourceSetupList, nil, nil, nil, supportedGUAMI)
 		if err != nil {
 			return fmt.Errorf("error sending initial context setup request: %s", err.Error())
 		}
 		ue.GmmLog.Info("Sent NGAP initial context setup request")
 	} else {
-		err = ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe[models.AccessType3GPPAccess], nasMsg, nil)
+		err = ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe, nasMsg, nil)
 		if err != nil {
 			return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 		}
@@ -455,19 +403,19 @@ func SendRegistrationAccept(
 	if context.AMFSelf().T3550Cfg.Enable {
 		cfg := context.AMFSelf().T3550Cfg
 		ue.T3550 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			if ue.RanUe[anType] == nil {
+			if ue.RanUe == nil {
 				ue.GmmLog.Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
 				ue.T3550 = nil
 			} else {
-				if ue.RanUe[anType].UeContextRequest && !ue.RanUe[anType].RecvdInitialContextSetupResponse {
-					err = ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasMsg, pduSessionResourceSetupList, nil, nil, nil, supportedGUAMI)
+				if ue.RanUe.UeContextRequest && !ue.RanUe.RecvdInitialContextSetupResponse {
+					err = ngap_message.SendInitialContextSetupRequest(ctx, ue, nasMsg, pduSessionResourceSetupList, nil, nil, nil, supportedGUAMI)
 					if err != nil {
 						ue.GmmLog.Error("could not send initial context setup request", zap.Error(err))
 					}
 					ue.GmmLog.Info("Sent NGAP initial context setup request")
 				} else {
 					ue.GmmLog.Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
-					err = ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe[anType], nasMsg, nil)
+					err = ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe, nasMsg, nil)
 					if err != nil {
 						ue.GmmLog.Error("could not send downlink NAS transport message", zap.Error(err))
 					}
@@ -478,15 +426,15 @@ func SendRegistrationAccept(
 			ue.GmmLog.Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
 			ue.T3550 = nil // clear the timer
 			// TS 24.501 5.5.1.2.8 case c, 5.5.1.3.8 case c
-			ue.State[anType].Set(context.Registered)
-			ue.ClearRegistrationRequestData(anType)
+			ue.State.Set(context.Registered)
+			ue.ClearRegistrationRequestData()
 		})
 	}
 
 	return nil
 }
 
-func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe, accessType models.AccessType) {
+func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe) {
 	if amfUe == nil {
 		return
 	}
@@ -494,7 +442,6 @@ func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe, acce
 	_, span := tracer.Start(ctx, "Send Configuration Update Command",
 		trace.WithAttributes(
 			attribute.String("supi", amfUe.Supi),
-			attribute.String("accessType", string(accessType)),
 		),
 		trace.WithSpanKind(trace.SpanKindServer),
 	)
@@ -502,12 +449,12 @@ func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe, acce
 
 	flags := amfUe.ConfigurationUpdateCommandFlags
 
-	if amfUe.RanUe[accessType] == nil {
+	if amfUe.RanUe == nil {
 		amfUe.GmmLog.Error("cannot SendConfigurationUpdateCommand: RanUe is nil")
 		return
 	}
 
-	nasMsg, err, startT3555 := BuildConfigurationUpdateCommand(amfUe, accessType, flags)
+	nasMsg, err, startT3555 := BuildConfigurationUpdateCommand(amfUe, flags)
 	if err != nil {
 		amfUe.GmmLog.Error("error building ConfigurationUpdateCommand", zap.Error(err))
 		return
@@ -520,7 +467,7 @@ func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe, acce
 		return
 	}
 
-	err = ngap_message.SendDownlinkNasTransport(ctx, amfUe.RanUe[accessType], nasMsg, mobilityRestrictionList)
+	err = ngap_message.SendDownlinkNasTransport(ctx, amfUe.RanUe, nasMsg, mobilityRestrictionList)
 	if err != nil {
 		amfUe.GmmLog.Error("could not send configuration update command", zap.Error(err))
 		return
@@ -532,7 +479,7 @@ func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe, acce
 		amfUe.T3555 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.GmmLog.Warn("timer T3555 expired, retransmit Configuration Update Command",
 				zap.Int32("retry", expireTimes))
-			err = ngap_message.SendDownlinkNasTransport(ctx, amfUe.RanUe[accessType], nasMsg, mobilityRestrictionList)
+			err = ngap_message.SendDownlinkNasTransport(ctx, amfUe.RanUe, nasMsg, mobilityRestrictionList)
 			if err != nil {
 				amfUe.GmmLog.Error("could not send configuration update command", zap.Error(err))
 			}

@@ -39,7 +39,7 @@ func PlmnIDStringToModels(plmnIDStr string) models.PlmnID {
 	return plmnID
 }
 
-func HandleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, ulNasTransport *nasMessage.ULNASTransport) error {
+func HandleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *nasMessage.ULNASTransport) error {
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
@@ -47,7 +47,7 @@ func HandleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	switch ulNasTransport.GetPayloadContainerType() {
 	// TS 24.501 5.4.5.2.3 case a)
 	case nasMessage.PayloadContainerTypeN1SMInfo:
-		return transport5GSMMessage(ctx, ue, anType, ulNasTransport)
+		return transport5GSMMessage(ctx, ue, ulNasTransport)
 	case nasMessage.PayloadContainerTypeSMS:
 		return fmt.Errorf("PayloadContainerTypeSMS has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeLPP:
@@ -69,7 +69,7 @@ func HandleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	return nil
 }
 
-func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, ulNasTransport *nasMessage.ULNASTransport) error {
+func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *nasMessage.ULNASTransport) error {
 	var pduSessionID int32
 	smMessage := ulNasTransport.PayloadContainer.GetPayloadContainerContents()
 
@@ -93,7 +93,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			fallthrough
 		case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
 			ue.GmmLog.Warn("Emergency PDU Session is not supported")
-			err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+			err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %s", err)
 			}
@@ -124,7 +124,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	if smContextExist {
 		// case i) Request type IE is either not included
 		if requestType == nil {
-			return forward5GSMMessageToSMF(ctx, ue, anType, pduSessionID, smContext, smMessage)
+			return forward5GSMMessageToSMF(ctx, ue, pduSessionID, smContext, smMessage)
 		}
 
 		switch requestType.GetRequestTypeValue() {
@@ -141,7 +141,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			}
 			if response == nil {
 				ue.GmmLog.Error("PDU Session can't be released in DUPLICATE_SESSION_ID case", zap.Int32("pduSessionID", pduSessionID))
-				err = gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+				err = gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
 				}
@@ -156,7 +156,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 						ue.GmmLog.Debug("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 						list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 						ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2Info)
-						err := ngap_message.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe[anType], nil, list)
+						err := ngap_message.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe, nil, list)
 						if err != nil {
 							return fmt.Errorf("error sending pdu session resource release command: %s", err)
 						}
@@ -167,11 +167,11 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 		// case ii) AMF has a PDU session routing context, and Request type is "existing PDU session"
 		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
-			if ue.InAllowedNssai(smContext.Snssai(), anType) {
-				return forward5GSMMessageToSMF(ctx, ue, anType, pduSessionID, smContext, smMessage)
+			if ue.InAllowedNssai(smContext.Snssai()) {
+				return forward5GSMMessageToSMF(ctx, ue, pduSessionID, smContext, smMessage)
 			} else {
-				ue.GmmLog.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai()), zap.Any("accessType", anType), zap.Int32("pduSessionID", pduSessionID))
-				err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+				ue.GmmLog.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai()), zap.Int32("pduSessionID", pduSessionID))
+				err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
 				}
@@ -180,7 +180,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		// other requestType: AMF forward the 5GSM message, and the PDU session ID IE towards the SMF identified
 		// by the SMF ID of the PDU session routing context
 		default:
-			return forward5GSMMessageToSMF(ctx, ue, anType, pduSessionID, smContext, smMessage)
+			return forward5GSMMessageToSMF(ctx, ue, pduSessionID, smContext, smMessage)
 		}
 	} else { // AMF does not have a PDU session routing context for the PDU session ID and the UE
 		switch requestType.GetRequestTypeValue() {
@@ -198,11 +198,10 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			if ulNasTransport.SNSSAI != nil {
 				snssai = util.SnssaiToModels(ulNasTransport.SNSSAI)
 			} else {
-				if allowedNssai, ok := ue.AllowedNssai[anType]; ok {
-					snssai = *allowedNssai
-				} else {
-					return fmt.Errorf("allowed nssai is not found for access type: %s in UE context", anType)
+				if ue.AllowedNssai == nil {
+					return fmt.Errorf("allowed nssai is nil in UE context")
 				}
+				snssai = *ue.AllowedNssai
 			}
 
 			if ulNasTransport.DNN != nil && ulNasTransport.DNN.GetLen() > 0 {
@@ -219,7 +218,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				dnn = dnnResp
 			}
 
-			newSmContext := consumer.SelectSmf(anType, pduSessionID, snssai, dnn)
+			newSmContext := consumer.SelectSmf(pduSessionID, snssai, dnn)
 
 			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ctx, ue, newSmContext, smMessage)
 			if err != nil {
@@ -227,7 +226,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			}
 
 			if errResponse != nil {
-				err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, errResponse.BinaryDataN1SmMessage, pduSessionID, 0)
+				err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse.BinaryDataN1SmMessage, pduSessionID, 0)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
 				}
@@ -244,7 +243,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:
 			fallthrough
 		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
-			err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+			err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %s", err)
 			}
@@ -258,7 +257,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 func forward5GSMMessageToSMF(
 	ctx ctxt.Context,
 	ue *context.AmfUe,
-	accessType models.AccessType,
 	pduSessionID int32,
 	smContext *context.SmContext,
 	smMessage []byte,
@@ -271,7 +269,6 @@ func forward5GSMMessageToSMF(
 		return nil
 	} else if response != nil {
 		// update SmContext in AMF
-		smContext.SetAccessType(accessType)
 		smContext.SetUserLocation(ue.Location)
 
 		responseData := response.JSONData
@@ -291,7 +288,7 @@ func forward5GSMMessageToSMF(
 			case models.N2SmInfoTypePduResModReq:
 				list := ngapType.PDUSessionResourceModifyListModReq{}
 				ngap_message.AppendPDUSessionResourceModifyListModReq(&list, pduSessionID, n1Msg, n2SmInfo)
-				err := ngap_message.SendPDUSessionResourceModifyRequest(ctx, ue.RanUe[accessType], list)
+				err := ngap_message.SendPDUSessionResourceModifyRequest(ctx, ue.RanUe, list)
 				if err != nil {
 					return fmt.Errorf("error sending pdu session resource modify request: %s", err)
 				}
@@ -299,7 +296,7 @@ func forward5GSMMessageToSMF(
 			case models.N2SmInfoTypePduResRelCmd:
 				list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 				ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2SmInfo)
-				err := ngap_message.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe[accessType], n1Msg, list)
+				err := ngap_message.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe, n1Msg, list)
 				if err != nil {
 					return fmt.Errorf("error sending pdu session resource release command: %s", err)
 				}
@@ -309,7 +306,7 @@ func forward5GSMMessageToSMF(
 			}
 		} else if n1Msg != nil {
 			ue.GmmLog.Debug("AMF forward Only N1 SM Message to UE")
-			err := ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe[accessType], n1Msg, nil)
+			err := ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe, n1Msg, nil)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %s", err)
 			}
@@ -337,7 +334,7 @@ func getRegistrationType5GSName(regType5Gs uint8) string {
 }
 
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
-func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, procedureCode int64, registrationRequest *nasMessage.RegistrationRequest) error {
+func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, procedureCode int64, registrationRequest *nasMessage.RegistrationRequest) error {
 	ctx, span := tracer.Start(ctx, "AMF HandleRegistrationRequest")
 	defer span.End()
 
@@ -347,7 +344,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		return fmt.Errorf("AmfUe is nil")
 	}
 
-	if ue.RanUe[anType] == nil {
+	if ue.RanUe == nil {
 		return fmt.Errorf("RanUe is nil")
 	}
 
@@ -357,7 +354,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.SecurityContextAvailable = false
 	}
 
-	ue.SetOnGoing(anType, &context.OnGoingProcedureWithPrio{
+	ue.SetOnGoing(&context.OnGoingProcedureWithPrio{
 		Procedure: context.OnGoingProcedureRegistration,
 	})
 
@@ -435,8 +432,8 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	}
 
 	// Copy UserLocation from ranUe
-	ue.Location = ue.RanUe[anType].Location
-	ue.Tai = ue.RanUe[anType].Tai
+	ue.Location = ue.RanUe.Location
+	ue.Tai = ue.RanUe.Tai
 
 	// Check TAI
 	taiList := make([]models.Tai, len(operatorInfo.Tais))
@@ -450,7 +447,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		taiList[i].Tac = tac
 	}
 	if !context.InTaiList(ue.Tai, taiList) {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMTrackingAreaNotAllowed, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMTrackingAreaNotAllowed, "")
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
@@ -459,7 +456,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 	}
 
 	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSInitialRegistration && registrationRequest.UESecurityCapability == nil {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMProtocolErrorUnspecified, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified, "")
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
@@ -482,13 +479,13 @@ func IdentityVerification(ue *context.AmfUe) bool {
 	return ue.Supi != "" || len(ue.Suci) != 0
 }
 
-func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType) error {
+func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 	amfSelf := context.AMFSelf()
 
 	ue.ClearRegistrationData()
 
 	// update Kgnb/Kn3iwf
-	ue.UpdateSecurityContext(anType)
+	ue.UpdateSecurityContext()
 
 	operatorInfo, err := context.GetOperatorInfo(ctx)
 	if err != nil {
@@ -500,7 +497,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.SubscribedNssai = &operatorInfo.SupportedPLMN.SNssai
 	}
 
-	if err := handleRequestedNssai(ctx, ue, anType, operatorInfo.SupportedPLMN); err != nil {
+	if err := handleRequestedNssai(ctx, ue, operatorInfo.SupportedPLMN); err != nil {
 		return err
 	}
 
@@ -508,12 +505,12 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.Capability5GMM = *ue.RegistrationRequest.Capability5GMM
 	}
 
-	if ue.AllowedNssai[anType] == nil {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMM5GSServicesNotAllowed, "")
+	if ue.AllowedNssai == nil {
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed, "")
 		if err != nil {
 			ue.GmmLog.Error("error sending registration reject", zap.Error(err))
 		}
-		err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[anType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			ue.GmmLog.Error("error sending ue context release command", zap.Error(err))
 		}
@@ -529,7 +526,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 
 	negotiateDRXParameters(ue, ue.RegistrationRequest.RequestedDRXParameters)
 
-	if ue.ServingAmfChanged || ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) ||
+	if ue.ServingAmfChanged ||
 		!ue.SubscriptionDataValid {
 		if err := getAndSetSubscriberData(ctx, ue); err != nil {
 			return err
@@ -538,7 +535,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 
 	if !context.SubscriberExists(ctx, ue.Supi) {
 		ue.GmmLog.Error("Subscriber does not exist", zap.Error(err))
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMM5GSServicesNotAllowed, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed, "")
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
@@ -546,49 +543,29 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 		return fmt.Errorf("ue not found in database: %s", ue.Supi)
 	}
 
-	amfSelf.AllocateRegistrationArea(ctx, ue, anType, operatorInfo.Tais)
+	amfSelf.AllocateRegistrationArea(ctx, ue, operatorInfo.Tais)
 	ue.GmmLog.Debug("use original GUTI", zap.String("guti", ue.Guti))
 
 	amfSelf.AddAmfUeToUePool(ue, ue.Supi)
 	ue.T3502Value = amfSelf.T3502Value
-	if anType == models.AccessType3GPPAccess {
-		ue.T3512Value = amfSelf.T3512Value
-	} else {
-		ue.Non3gppDeregistrationTimerValue = amfSelf.Non3gppDeregistrationTimerValue
-	}
+	ue.T3512Value = amfSelf.T3512Value
 
 	amfSelf.ReAllocateGutiToUe(ctx, ue, operatorInfo.Guami)
 	// check in specs if we need to wait for confirmation before freeing old GUTI
 	amfSelf.FreeOldGuti(ue)
 
-	if anType == models.AccessType3GPPAccess {
-		err := gmm_message.SendRegistrationAccept(ctx, ue, anType, nil, nil, nil, nil, nil, operatorInfo.SupportedPLMN, operatorInfo.Guami)
-		if err != nil {
-			return fmt.Errorf("error sending GMM registration accept: %v", err)
-		}
-		ue.GmmLog.Info("Sent GMM registration accept to UE")
-	} else {
-		// TS 23.502 4.12.2.2 10a ~ 13: if non-3gpp, AMF should send initial context setup request to N3IWF first,
-		// and send registration accept after receiving initial context setup response
-		err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nil, nil, nil, nil, nil, operatorInfo.Guami)
-		if err != nil {
-			return fmt.Errorf("error sending initial context setup request: %v", err)
-		}
-		ue.GmmLog.Info("Sent NGAP initial context setup request to N3IWF")
-		registrationAccept, err := gmm_message.BuildRegistrationAccept(ctx, ue, anType, nil, nil, nil, nil, operatorInfo.SupportedPLMN)
-		if err != nil {
-			ue.GmmLog.Error("Build Registration Accept", zap.Error(err))
-			return nil
-		}
-		ue.RegistrationAcceptForNon3GPPAccess = registrationAccept
+	err = gmm_message.SendRegistrationAccept(ctx, ue, nil, nil, nil, nil, nil, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+	if err != nil {
+		return fmt.Errorf("error sending GMM registration accept: %v", err)
 	}
+
 	return nil
 }
 
-func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType) error {
+func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context.AmfUe) error {
 	ue.GmmLog.Debug("Handle MobilityAndPeriodicRegistrationUpdating")
 
-	ue.DerivateAnKey(anType)
+	ue.DerivateAnKey()
 
 	amfSelf := context.AMFSelf()
 
@@ -609,7 +586,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		ue.SubscribedNssai = &operatorInfo.SupportedPLMN.SNssai
 	}
 
-	if err := handleRequestedNssai(ctx, ue, anType, operatorInfo.SupportedPLMN); err != nil {
+	if err := handleRequestedNssai(ctx, ue, operatorInfo.SupportedPLMN); err != nil {
 		return err
 	}
 
@@ -617,7 +594,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		ue.Capability5GMM = *ue.RegistrationRequest.Capability5GMM
 	} else {
 		if ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
-			err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMProtocolErrorUnspecified, "")
+			err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified, "")
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
 			}
@@ -635,7 +612,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 
 	if len(ue.Pei) == 0 {
 		ue.GmmLog.Debug("The UE did not provide PEI")
-		err := gmm_message.SendIdentityRequest(ctx, ue.RanUe[anType], nasMessage.MobileIdentity5GSTypeImei)
+		err := gmm_message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeImei)
 		if err != nil {
 			return fmt.Errorf("error sending identity request: %v", err)
 		}
@@ -643,7 +620,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		return nil
 	}
 
-	if ue.ServingAmfChanged || ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) ||
+	if ue.ServingAmfChanged ||
 		!ue.SubscriptionDataValid {
 		if err := getAndSetSubscriberData(ctx, ue); err != nil {
 			return err
@@ -672,8 +649,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 				pduSessionID := int32(idx)
 				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 					// uplink data are pending for the corresponding PDU session identity
-					if hasUplinkData && smContext.AccessType() == models.AccessType3GPPAccess {
-						response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext, anType)
+					if hasUplinkData {
+						response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext)
 						if response == nil {
 							reactivationResult[pduSessionID] = true
 							errPduSessionID = append(errPduSessionID, uint8(pduSessionID))
@@ -684,7 +661,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 								ue.GmmLog.Error("Update SmContext Error", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
 							}
 						} else {
-							if ue.RanUe[anType].UeContextRequest {
+							if ue.RanUe.UeContextRequest {
 								ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID,
 									smContext.Snssai(), response.BinaryDataN1SmMessage, response.BinaryDataN2SmInformation)
 							} else {
@@ -705,7 +682,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		for psi := 1; psi <= 15; psi++ {
 			pduSessionID := int32(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
-				if !psiArray[psi] && smContext.AccessType() == anType {
+				if !psiArray[psi] {
 					err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
@@ -724,7 +701,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 	amfSelf.FreeOldGuti(ue)
 
 	if ue.RegistrationRequest.AllowedPDUSessionStatus != nil {
-		allowedPsis := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.AllowedPDUSessionStatus.Buffer)
 		if ue.N1N2Message != nil {
 			requestData := ue.N1N2Message.Request.JSONData
 			n1Msg := ue.N1N2Message.Request.BinaryDataN1Message
@@ -733,18 +709,18 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 			// downlink signalling
 			if n2Info == nil {
 				if len(suList.List) != 0 {
-					nasPdu, err := gmm_message.BuildRegistrationAccept(ctx, ue, anType, pduSessionStatus,
+					nasPdu, err := gmm_message.BuildRegistrationAccept(ctx, ue, pduSessionStatus,
 						reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
 					if err != nil {
 						return err
 					}
-					err = ngap_message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe[anType], nasPdu, suList)
+					err = ngap_message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe, nasPdu, suList)
 					if err != nil {
 						return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 					}
 					ue.GmmLog.Info("Sent NGAP pdu session resource setup request")
 				} else {
-					err := gmm_message.SendRegistrationAccept(ctx, ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+					err := gmm_message.SendRegistrationAccept(ctx, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 					if err != nil {
 						return fmt.Errorf("error sending GMM registration accept: %v", err)
 					}
@@ -752,22 +728,22 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 				}
 				switch requestData.N1MessageClass {
 				case models.N1MessageClassSM:
-					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
+					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
 				case models.N1MessageClassLPP:
-					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0)
+					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
 				case models.N1MessageClassSMS:
-					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0)
+					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
 				case models.N1MessageClassUPDP:
-					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0)
+					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
@@ -777,38 +753,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 			}
 
 			smInfo := requestData.N2InfoContainer.SmInfo
-			smContext, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
+			_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 			if !exist {
 				ue.N1N2Message = nil
 				return fmt.Errorf("pdu Session Id does not Exists")
 			}
 
-			if smContext.AccessType() == models.AccessTypeNon3GPPAccess {
-				if reactivationResult == nil {
-					reactivationResult = new([16]bool)
-				}
-				if allowedPsis[requestData.PduSessionID] {
-					response, err := consumer.SendUpdateSmContextChangeAccessType(ctx, ue, smContext)
-					if err != nil {
-						return err
-					} else if response == nil {
-						reactivationResult[requestData.PduSessionID] = true
-						errPduSessionID = append(errPduSessionID, uint8(requestData.PduSessionID))
-						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
-						errCause = append(errCause, cause)
-					} else {
-						smContext.SetUserLocation(ue.Location)
-						smContext.SetAccessType(models.AccessType3GPPAccess)
-						if response.BinaryDataN2SmInformation != nil &&
-							response.JSONData.N2SmInfoType == models.N2SmInfoTypePduResSetupReq {
-							ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID,
-								smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
-						}
-					}
-				} else {
-					ue.GmmLog.Warn("UE was reachable but did not accept to re-activate the PDU Session", zap.Int32("pduSessionID", requestData.PduSessionID))
-				}
-			} else if smInfo.NgapIeType == models.NgapIeTypePduResSetupReq {
+			if smInfo.NgapIeType == models.NgapIeTypePduResSetupReq {
 				var nasPdu []byte
 				var err error
 				if n1Msg != nil {
@@ -828,43 +779,28 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		}
 	}
 
-	amfSelf.AllocateRegistrationArea(ctx, ue, anType, operatorInfo.Tais)
+	amfSelf.AllocateRegistrationArea(ctx, ue, operatorInfo.Tais)
 
-	if ue.RanUe[anType].UeContextRequest {
-		if anType == models.AccessType3GPPAccess {
-			err := gmm_message.SendRegistrationAccept(ctx, ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
-			if err != nil {
-				return fmt.Errorf("error sending GMM registration accept: %v", err)
-			}
-			ue.GmmLog.Info("Sent GMM registration accept")
-		} else {
-			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nil, &ctxList, nil, nil, nil, operatorInfo.Guami)
-			if err != nil {
-				return fmt.Errorf("error sending initial context setup request: %v", err)
-			}
-			ue.GmmLog.Info("Sent NGAP initial context setup request")
-			registrationAccept, err := gmm_message.BuildRegistrationAccept(ctx, ue, anType,
-				pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
-			if err != nil {
-				ue.GmmLog.Error("Build Registration Accept", zap.Error(err))
-				return nil
-			}
-			ue.RegistrationAcceptForNon3GPPAccess = registrationAccept
+	if ue.RanUe.UeContextRequest {
+		err := gmm_message.SendRegistrationAccept(ctx, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+		if err != nil {
+			return fmt.Errorf("error sending GMM registration accept: %v", err)
 		}
+		ue.GmmLog.Info("Sent GMM registration accept")
 		return nil
 	} else {
-		nasPdu, err := gmm_message.BuildRegistrationAccept(ctx, ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
+		nasPdu, err := gmm_message.BuildRegistrationAccept(ctx, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
 		if err != nil {
 			return fmt.Errorf("error building registration accept: %v", err)
 		}
 		if len(suList.List) != 0 {
-			err := ngap_message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe[anType], nasPdu, suList)
+			err := ngap_message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe, nasPdu, suList)
 			if err != nil {
 				return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 			}
 			ue.GmmLog.Info("Sent NGAP pdu session resource setup request")
 		} else {
-			err := ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe[anType], nasPdu, nil)
+			err := ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe, nasPdu, nil)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %v", err)
 			}
@@ -928,7 +864,7 @@ func getAndSetSubscriberData(ctx ctxt.Context, ue *context.AmfUe) error {
 }
 
 // TS 23.502 4.2.2.2.3 Registration with AMF Re-allocation
-func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, supportedPLMN *context.PlmnSupportItem) error {
+func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, supportedPLMN *context.PlmnSupportItem) error {
 	amfSelf := context.AMFSelf()
 
 	if ue.RegistrationRequest.RequestedNSSAI != nil {
@@ -952,18 +888,11 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			}
 		}
 
-		ue.AllowedNssai[anType] = newAllowed
+		ue.AllowedNssai = newAllowed
 
 		if needSliceSelection {
 			// Step 4
-			ue.AllowedNssai[models.AccessType3GPPAccess] = ue.SubscribedNssai
-
-			// Guillaume: I'm not sure if what we have here is the right thing to do
-			// As we removed the NRF, we don't search for other AMF's anymore and we hardcode the
-			// target AMF to the AMF's own address.
-			// It's possible we need to change this whole block to the following:
-			//  allowedNssaiNgap := ngapConvert.AllowedNssaiToNgap(ue.AllowedNssai[anType])
-			//	ngap_message.SendRerouteNasRequest(ue, anType, nil, ue.RanUe[anType].InitialUEMessage, &allowedNssaiNgap)
+			ue.AllowedNssai = ue.SubscribedNssai
 
 			var n1Message bytes.Buffer
 			err = ue.RegistrationRequest.EncodeRegistrationRequest(&n1Message)
@@ -976,12 +905,12 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 	// if registration request has no requested nssai, or non of snssai in requested nssai is permitted by nssf
 	// then use ue subscribed snssai which is marked as default as allowed nssai
-	if ue.AllowedNssai[anType] == nil {
+	if ue.AllowedNssai == nil {
 		var newAllowed *models.Snssai
 		if amfSelf.InPlmnSupport(ctx, *ue.SubscribedNssai, supportedPLMN) {
 			newAllowed = ue.SubscribedNssai
 		}
-		ue.AllowedNssai[anType] = newAllowed
+		ue.AllowedNssai = newAllowed
 	}
 	return nil
 }
@@ -1079,7 +1008,7 @@ func HandleConfigurationUpdateComplete(ue *context.AmfUe, configurationUpdateCom
 	return nil
 }
 
-func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType) (bool, error) {
+func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe) (bool, error) {
 	ctx, span := tracer.Start(ctx, "AuthenticationProcedure")
 	defer span.End()
 
@@ -1095,7 +1024,7 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe, accessType mod
 	} else {
 		// Request UE's SUCI by sending identity request
 		ue.GmmLog.Debug("UE has no SUCI / SUPI - send identity request to UE")
-		err := gmm_message.SendIdentityRequest(ctx, ue.RanUe[accessType], nasMessage.MobileIdentity5GSTypeSuci)
+		err := gmm_message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
 		if err != nil {
 			return false, fmt.Errorf("error sending identity request: %v", err)
 		}
@@ -1112,7 +1041,7 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe, accessType mod
 
 	ue.ABBA = []uint8{0x00, 0x00} // set ABBA value as described at TS 33.501 Annex A.7.1
 
-	err = gmm_message.SendAuthenticationRequest(ctx, ue.RanUe[accessType])
+	err = gmm_message.SendAuthenticationRequest(ctx, ue.RanUe)
 	if err != nil {
 		return false, fmt.Errorf("error sending authentication request: %v", err)
 	}
@@ -1120,36 +1049,33 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe, accessType mod
 	return false, nil
 }
 
-func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType) (err error) {
-	anType := AnTypeToNas(accessType)
-	if ue.CmConnect(accessType) && ue.State[accessType].Is(context.Registered) {
+func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe) (err error) {
+	if ue.CmConnect() && ue.State.Is(context.Registered) {
 		// setting reregistration required flag to true
-		err := gmm_message.SendDeregistrationRequest(ctx, ue.RanUe[accessType], anType, true, 0)
+		err := gmm_message.SendDeregistrationRequest(ctx, ue.RanUe, true, 0)
 		if err != nil {
 			return fmt.Errorf("error sending deregistration request: %v", err)
 		}
 		ue.GmmLog.Info("sent deregistration request")
 	} else {
-		SetDeregisteredState(ue, anType)
+		SetDeregisteredState(ue)
 	}
 
 	ue.SmContextList.Range(func(key, value interface{}) bool {
 		smContext := value.(*context.SmContext)
 
-		if smContext.AccessType() == accessType {
-			ue.GmmLog.Info("Sending SmContext Release Request to SMF", zap.Any("slice", smContext.Snssai()), zap.String("dnn", smContext.Dnn()))
-			err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
-			if err != nil {
-				ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
-			}
+		ue.GmmLog.Info("Sending SmContext Release Request to SMF", zap.Any("slice", smContext.Snssai()), zap.String("dnn", smContext.Dnn()))
+		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
+		if err != nil {
+			ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
 		}
 		return true
 	})
 
 	// if ue is not connected mode, removing UE Context
-	if !ue.State[accessType].Is(context.Registered) {
-		if ue.CmConnect(accessType) {
-			err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[models.AccessType3GPPAccess], context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
+	if !ue.State.Is(context.Registered) {
+		if ue.CmConnect() {
+			err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 			if err != nil {
 				return fmt.Errorf("error sending ue context release command: %v", err)
 			}
@@ -1181,7 +1107,7 @@ func serviceTypeToString(serviceType uint8) string {
 }
 
 // TS 24501 5.6.1
-func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, serviceRequest *nasMessage.ServiceRequest) error {
+func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, serviceRequest *nasMessage.ServiceRequest) error {
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
 	}
@@ -1196,8 +1122,8 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	}
 
 	// Set No ongoing
-	if procedure := ue.GetOnGoing(anType).Procedure; procedure == context.OnGoingProcedurePaging {
-		ue.SetOnGoing(anType, &context.OnGoingProcedureWithPrio{
+	if procedure := ue.GetOnGoing().Procedure; procedure == context.OnGoingProcedurePaging {
+		ue.SetOnGoing(&context.OnGoingProcedureWithPrio{
 			Procedure: context.OnGoingProcedureNothing,
 		})
 	} else if procedure != context.OnGoingProcedureNothing {
@@ -1206,14 +1132,14 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 	// Send Authtication / Security Procedure not support
 	// Rejecting ServiceRequest if it is received in Deregistered State
-	if !ue.SecurityContextIsValid() || ue.State[anType].Current() == context.Deregistered {
+	if !ue.SecurityContextIsValid() || ue.State.Current() == context.Deregistered {
 		ue.GmmLog.Warn("No security context", zap.String("supi", ue.Supi))
-		err := gmm_message.SendServiceReject(ctx, ue.RanUe[anType], nil, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		err := gmm_message.SendServiceReject(ctx, ue.RanUe, nil, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
 		ue.GmmLog.Info("sent service reject")
-		err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[anType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
@@ -1271,12 +1197,12 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	if ue.MacFailed {
 		ue.SecurityContextAvailable = false
 		ue.GmmLog.Warn("Security Context Exist, But Integrity Check Failed with existing Context", zap.String("supi", ue.Supi))
-		err := gmm_message.SendServiceReject(ctx, ue.RanUe[anType], nil, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		err := gmm_message.SendServiceReject(ctx, ue.RanUe, nil, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
 		ue.GmmLog.Info("sent service reject")
-		err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[anType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
@@ -1289,7 +1215,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	}
 
 	if serviceType == nasMessage.ServiceTypeSignalling {
-		err := sendServiceAccept(ctx, ue, anType, ctxList, suList, nil, nil, nil, nil, operatorInfo.Guami)
+		err := sendServiceAccept(ctx, ue, ctxList, suList, nil, nil, nil, nil, operatorInfo.Guami)
 		return err
 	}
 	if ue.N1N2Message != nil {
@@ -1312,9 +1238,8 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			smContext := value.(*context.SmContext)
 
 			if pduSessionID != targetPduSessionID {
-				if uplinkDataPsi[pduSessionID] && smContext.AccessType() == models.AccessType3GPPAccess {
-					response, err := consumer.SendUpdateSmContextActivateUpCnxState(
-						ctx, ue, smContext, models.AccessType3GPPAccess)
+				if uplinkDataPsi[pduSessionID] {
+					response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext)
 					if err != nil {
 						ue.GmmLog.Error("SendUpdateSmContextActivateUpCnxState Error", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
 					} else if response == nil {
@@ -1322,7 +1247,7 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 						errPduSessionID = append(errPduSessionID, uint8(pduSessionID))
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
-					} else if ue.RanUe[anType].UeContextRequest {
+					} else if ue.RanUe.UeContextRequest {
 						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
 							pduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
 					} else {
@@ -1340,15 +1265,13 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		ue.SmContextList.Range(func(key, value any) bool {
 			pduSessionID := key.(int32)
 			smContext := value.(*context.SmContext)
-			if smContext.AccessType() == anType {
-				if !psiArray[pduSessionID] {
-					err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
-					if err != nil {
-						ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
-					}
-				} else {
-					acceptPduSessionPsi[pduSessionID] = true
+			if !psiArray[pduSessionID] {
+				err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
+				if err != nil {
+					ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
 				}
+			} else {
+				acceptPduSessionPsi[pduSessionID] = true
 			}
 			return true
 		})
@@ -1366,32 +1289,31 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 
 			// Paging was triggered for downlink signaling only
 			if n2Info == nil && n1Msg != nil {
-				err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi,
-					reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
+				err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 				if err != nil {
 					return err
 				}
 				switch requestData.N1MessageClass {
 				case models.N1MessageClassSM:
-					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
+					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
 					ue.GmmLog.Info("sent downlink nas transport message")
 				case models.N1MessageClassLPP:
-					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0)
+					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
 					ue.GmmLog.Info("sent downlink nas transport message")
 				case models.N1MessageClassSMS:
-					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0)
+					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
 					ue.GmmLog.Info("sent downlink nas transport message")
 				case models.N1MessageClassUPDP:
-					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[anType], nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0)
+					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
@@ -1400,46 +1322,14 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				ue.N1N2Message = nil
 			} else {
 				smInfo := requestData.N2InfoContainer.SmInfo
-				smContext, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
+
+				_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 				if !exist {
 					ue.N1N2Message = nil
 					return fmt.Errorf("service Request triggered by Network for pduSessionID that does not exist")
 				}
 
-				if smContext.AccessType() == models.AccessTypeNon3GPPAccess {
-					if serviceRequest.AllowedPDUSessionStatus != nil {
-						allowPduSessionPsi := nasConvert.PSIToBooleanArray(serviceRequest.AllowedPDUSessionStatus.Buffer)
-						if reactivationResult == nil {
-							reactivationResult = new([16]bool)
-						}
-						if allowPduSessionPsi[requestData.PduSessionID] {
-							response, err := consumer.SendUpdateSmContextChangeAccessType(ctx, ue, smContext)
-							if err != nil {
-								return err
-							} else if response == nil {
-								reactivationResult[requestData.PduSessionID] = true
-								errPduSessionID = append(errPduSessionID, uint8(requestData.PduSessionID))
-								cause := nasMessage.Cause5GMMProtocolErrorUnspecified
-								errCause = append(errCause, cause)
-							} else {
-								smContext.SetUserLocation(ue.Location)
-								smContext.SetAccessType(models.AccessType3GPPAccess)
-								if response.BinaryDataN2SmInformation != nil &&
-									response.JSONData.N2SmInfoType == models.N2SmInfoTypePduResSetupReq {
-									if ue.RanUe[anType].UeContextRequest {
-										ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
-											requestData.PduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
-									} else {
-										ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList,
-											requestData.PduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
-									}
-								}
-							}
-						} else {
-							ue.GmmLog.Warn("UE was reachable but did not accept to re-activate the PDU Session", zap.Int32("pduSessionID", requestData.PduSessionID))
-						}
-					}
-				} else if smInfo.NgapIeType == models.NgapIeTypePduResSetupReq {
+				if smInfo.NgapIeType == models.NgapIeTypePduResSetupReq {
 					var nasPdu []byte
 					var err error
 					if n1Msg != nil {
@@ -1453,20 +1343,20 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 						Sst: smInfo.SNssai.Sst,
 						Sd:  smInfo.SNssai.Sd,
 					}
-					if ue.RanUe[anType].UeContextRequest {
+					if ue.RanUe.UeContextRequest {
 						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
 					} else {
 						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
 					}
 				}
 				ue.GmmLog.Debug("sending service accept")
-				err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
+				err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 				if err != nil {
 					return err
 				}
 			}
 		} else {
-			err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
+			err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 			if err != nil {
 				return err
 			}
@@ -1476,21 +1366,13 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			amfSelf := context.AMFSelf()
 			amfSelf.ReAllocateGutiToUe(ctx, ue, operatorInfo.Guami)
 
-			gmm_message.SendConfigurationUpdateCommand(ctx, ue, anType)
+			gmm_message.SendConfigurationUpdateCommand(ctx, ue)
 			ue.ConfigurationUpdateCommandFlags = nil
 		}
 	case nasMessage.ServiceTypeData:
-		if anType == models.AccessType3GPPAccess {
-			err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
-			if err != nil {
-				return err
-			}
-		} else {
-			err := sendServiceAccept(ctx, ue, anType, ctxList, suList, acceptPduSessionPsi,
-				reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
-			if err != nil {
-				return err
-			}
+		err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
+		if err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("service type is not supported: %d", serviceType)
@@ -1502,13 +1384,13 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 	return nil
 }
 
-func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, ctxList ngapType.PDUSessionResourceSetupListCxtReq,
+func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, ctxList ngapType.PDUSessionResourceSetupListCxtReq,
 	suList ngapType.PDUSessionResourceSetupListSUReq, pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool, errPduSessionID, errCause []uint8, supportedGUAMI *models.Guami,
 ) error {
-	if ue.RanUe[anType].UeContextRequest {
+	if ue.RanUe.UeContextRequest {
 		// update Kgnb/Kn3iwf
-		ue.UpdateSecurityContext(anType)
+		ue.UpdateSecurityContext()
 
 		nasPdu, err := gmm_message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult,
 			errPduSessionID, errCause)
@@ -1516,13 +1398,13 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.Access
 			return err
 		}
 		if len(ctxList.List) != 0 {
-			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasPdu, &ctxList, nil, nil, nil, supportedGUAMI)
+			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, nasPdu, &ctxList, nil, nil, nil, supportedGUAMI)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
 			ue.GmmLog.Info("sent service accept with context list", zap.Int("len", len(ctxList.List)))
 		} else {
-			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasPdu, nil, nil, nil, nil, supportedGUAMI)
+			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, nasPdu, nil, nil, nil, nil, supportedGUAMI)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
@@ -1534,13 +1416,13 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.Access
 		if err != nil {
 			return err
 		}
-		err = ngap_message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe[anType], nasPdu, suList)
+		err = ngap_message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe, nasPdu, suList)
 		if err != nil {
 			return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 		}
 		ue.GmmLog.Info("sent service accept")
 	} else {
-		err := gmm_message.SendServiceAccept(ctx, ue.RanUe[anType], pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
+		err := gmm_message.SendServiceAccept(ctx, ue.RanUe, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
 			return fmt.Errorf("error sending service accept: %v", err)
 		}
@@ -1550,7 +1432,7 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.Access
 }
 
 // TS 24.501 5.4.1
-func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, authenticationResponse *nasMessage.AuthenticationResponse) error {
+func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authenticationResponse *nasMessage.AuthenticationResponse) error {
 	logger.AmfLog.Debug("Handle Authentication Response", zap.String("supi", ue.Supi))
 
 	if ue.T3560 != nil {
@@ -1579,21 +1461,20 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessTyp
 		ue.GmmLog.Error("HRES* Validation Failure", zap.String("received", hResStar), zap.String("expected", ue.AuthenticationCtx.Var5gAuthData.HxresStar))
 
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
-			err := gmm_message.SendIdentityRequest(ctx, ue.RanUe[accessType], nasMessage.MobileIdentity5GSTypeSuci)
+			err := gmm_message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
 			if err != nil {
 				return fmt.Errorf("send identity request error: %s", err)
 			}
 			ue.GmmLog.Info("sent identity request")
 			return nil
 		} else {
-			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[accessType], "")
+			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
 
-			return GmmFSM.SendEvent(ctx, ue.State[accessType], AuthFailEvent, fsm.ArgsType{
-				ArgAmfUe:      ue,
-				ArgAccessType: accessType,
+			return GmmFSM.SendEvent(ctx, ue.State, AuthFailEvent, fsm.ArgsType{
+				ArgAmfUe: ue,
 			})
 		}
 	}
@@ -1608,29 +1489,27 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessTyp
 		ue.Kseaf = response.Kseaf
 		ue.Supi = response.Supi
 		ue.DerivateKamf()
-		return GmmFSM.SendEvent(ctx, ue.State[accessType], AuthSuccessEvent, fsm.ArgsType{
+		return GmmFSM.SendEvent(ctx, ue.State, AuthSuccessEvent, fsm.ArgsType{
 			ArgAmfUe:      ue,
-			ArgAccessType: accessType,
 			ArgEAPSuccess: false,
 			ArgEAPMessage: "",
 		})
 	case models.AuthResultFailure:
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
-			err := gmm_message.SendIdentityRequest(ctx, ue.RanUe[accessType], nasMessage.MobileIdentity5GSTypeSuci)
+			err := gmm_message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
 			if err != nil {
 				return fmt.Errorf("send identity request error: %s", err)
 			}
 			ue.GmmLog.Info("sent identity request")
 			return nil
 		} else {
-			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[accessType], "")
+			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
 
-			return GmmFSM.SendEvent(ctx, ue.State[accessType], AuthFailEvent, fsm.ArgsType{
-				ArgAmfUe:      ue,
-				ArgAccessType: accessType,
+			return GmmFSM.SendEvent(ctx, ue.State, AuthFailEvent, fsm.ArgsType{
+				ArgAmfUe: ue,
 			})
 		}
 	}
@@ -1638,7 +1517,7 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessTyp
 	return nil
 }
 
-func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, authenticationFailure *nasMessage.AuthenticationFailure) error {
+func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, authenticationFailure *nasMessage.AuthenticationFailure) error {
 	logger.AmfLog.Debug("Handle Authentication Failure", zap.String("supi", ue.Supi))
 
 	if ue.T3560 != nil {
@@ -1651,20 +1530,20 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 	switch cause5GMM {
 	case nasMessage.Cause5GMMMACFailure:
 		ue.GmmLog.Warn("Authentication Failure Cause: Mac Failure")
-		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[anType], "")
+		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
 		}
 
-		return GmmFSM.SendEvent(ctx, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
+		return GmmFSM.SendEvent(ctx, ue.State, AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue})
 	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
 		ue.GmmLog.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
-		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[anType], "")
+		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
 		}
 
-		return GmmFSM.SendEvent(ctx, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
+		return GmmFSM.SendEvent(ctx, ue.State, AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue})
 	case nasMessage.Cause5GMMngKSIAlreadyInUse:
 		ue.GmmLog.Warn("Authentication Failure Cause: NgKSI Already In Use")
 		ue.AuthFailureCauseSynchFailureTimes = 0
@@ -1676,7 +1555,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 			ue.NgKsi.Ksi = 0
 		}
 
-		err := gmm_message.SendAuthenticationRequest(ctx, ue.RanUe[anType])
+		err := gmm_message.SendAuthenticationRequest(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("send authentication request error: %s", err)
 		}
@@ -1688,12 +1567,12 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 		ue.AuthFailureCauseSynchFailureTimes++
 		if ue.AuthFailureCauseSynchFailureTimes >= 2 {
 			ue.GmmLog.Warn("2 consecutive Synch Failure, terminate authentication procedure")
-			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe[anType], "")
+			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
 
-			return GmmFSM.SendEvent(ctx, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
+			return GmmFSM.SendEvent(ctx, ue.State, AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue})
 		}
 
 		auts := authenticationFailure.AuthenticationFailureParameter.GetAuthenticationFailureParameter()
@@ -1709,7 +1588,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 		ue.AuthenticationCtx = response
 		ue.ABBA = []uint8{0x00, 0x00}
 
-		err = gmm_message.SendAuthenticationRequest(ctx, ue.RanUe[anType])
+		err = gmm_message.SendAuthenticationRequest(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("send authentication request error: %s", err)
 		}
@@ -1720,7 +1599,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 	return nil
 }
 
-func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, registrationComplete *nasMessage.RegistrationComplete) error {
+func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, registrationComplete *nasMessage.RegistrationComplete) error {
 	logger.AmfLog.Debug("Handle Registration Complete", zap.String("supi", ue.Supi))
 
 	if ue.T3550 != nil {
@@ -1739,20 +1618,19 @@ func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType 
 	shouldRelease := !(forPending || udsHasPending || hasActiveSessions)
 
 	if shouldRelease {
-		err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[accessType], context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
 	}
 
-	return GmmFSM.SendEvent(ctx, ue.State[accessType], ContextSetupSuccessEvent, fsm.ArgsType{
-		ArgAmfUe:      ue,
-		ArgAccessType: accessType,
+	return GmmFSM.SendEvent(ctx, ue.State, ContextSetupSuccessEvent, fsm.ArgsType{
+		ArgAmfUe: ue,
 	})
 }
 
 // TS 33.501 6.7.2
-func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, procedureCode int64, securityModeComplete *nasMessage.SecurityModeComplete) error {
+func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, procedureCode int64, securityModeComplete *nasMessage.SecurityModeComplete) error {
 	logger.AmfLog.Debug("Handle Security Mode Complete", zap.String("supi", ue.Supi))
 
 	if ue.MacFailed {
@@ -1766,7 +1644,7 @@ func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, anType mode
 
 	if ue.SecurityContextIsValid() {
 		// update Kgnb/Kn3iwf
-		ue.UpdateSecurityContext(anType)
+		ue.UpdateSecurityContext()
 	}
 
 	if securityModeComplete.IMEISV != nil {
@@ -1786,23 +1664,21 @@ func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, anType mode
 			ue.GmmLog.Error("nas message container Iei type error")
 			return errors.New("nas message container Iei type error")
 		} else {
-			return GmmFSM.SendEvent(ctx, ue.State[anType], SecurityModeSuccessEvent, fsm.ArgsType{
+			return GmmFSM.SendEvent(ctx, ue.State, SecurityModeSuccessEvent, fsm.ArgsType{
 				ArgAmfUe:         ue,
-				ArgAccessType:    anType,
 				ArgProcedureCode: procedureCode,
 				ArgNASMessage:    m.GmmMessage.RegistrationRequest,
 			})
 		}
 	}
-	return GmmFSM.SendEvent(ctx, ue.State[anType], SecurityModeSuccessEvent, fsm.ArgsType{
+	return GmmFSM.SendEvent(ctx, ue.State, SecurityModeSuccessEvent, fsm.ArgsType{
 		ArgAmfUe:         ue,
-		ArgAccessType:    anType,
 		ArgProcedureCode: procedureCode,
 		ArgNASMessage:    ue.RegistrationRequest,
 	})
 }
 
-func HandleSecurityModeReject(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, securityModeReject *nasMessage.SecurityModeReject) error {
+func HandleSecurityModeReject(ctx ctxt.Context, ue *context.AmfUe, securityModeReject *nasMessage.SecurityModeReject) error {
 	logger.AmfLog.Debug("Handle Security Mode Reject", zap.String("supi", ue.Supi))
 
 	if ue.T3560 != nil {
@@ -1816,7 +1692,7 @@ func HandleSecurityModeReject(ctx ctxt.Context, ue *context.AmfUe, anType models
 
 	ue.SecurityContextAvailable = false
 
-	err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[anType], context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+	err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {
 		return fmt.Errorf("error sending ue context release command: %v", err)
 	}
@@ -1824,26 +1700,24 @@ func HandleSecurityModeReject(ctx ctxt.Context, ue *context.AmfUe, anType models
 }
 
 // TS 23.502 4.2.2.3
-func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, deregistrationRequest *nasMessage.DeregistrationRequestUEOriginatingDeregistration) error {
+func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, deregistrationRequest *nasMessage.DeregistrationRequestUEOriginatingDeregistration) error {
 	logger.AmfLog.Debug("Handle Deregistration Request", zap.String("supi", ue.Supi))
 
 	targetDeregistrationAccessType := deregistrationRequest.GetAccessType()
 	ue.SmContextList.Range(func(key, value interface{}) bool {
 		smContext := value.(*context.SmContext)
 
-		if smContext.AccessType() == anType ||
-			targetDeregistrationAccessType == nasMessage.AccessTypeBoth {
-			err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
-			if err != nil {
-				ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
-			}
+		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
+		if err != nil {
+			ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
 		}
+
 		return true
 	})
 
 	// if Deregistration type is not switch-off, send Deregistration Accept
-	if deregistrationRequest.GetSwitchOff() == 0 && ue.RanUe[anType] != nil {
-		err := gmm_message.SendDeregistrationAccept(ctx, ue.RanUe[anType])
+	if deregistrationRequest.GetSwitchOff() == 0 && ue.RanUe != nil {
+		err := gmm_message.SendDeregistrationAccept(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending deregistration accept: %v", err)
 		}
@@ -1851,61 +1725,24 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType mod
 	}
 
 	// TS 23.502 4.2.6, 4.12.3
-	switch targetDeregistrationAccessType {
-	case nasMessage.AccessType3GPP:
-		if ue.RanUe[models.AccessType3GPPAccess] != nil {
-			err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[models.AccessType3GPPAccess], context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
-			if err != nil {
-				return fmt.Errorf("error sending ue context release command: %v", err)
-			}
-		}
-		return GmmFSM.SendEvent(ctx, ue.State[models.AccessType3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
-			ArgAmfUe:      ue,
-			ArgAccessType: anType,
-		})
-	case nasMessage.AccessTypeNon3GPP:
-		if ue.RanUe[models.AccessTypeNon3GPPAccess] != nil {
-			err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[models.AccessTypeNon3GPPAccess], context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
-			if err != nil {
-				return fmt.Errorf("error sending ue context release command: %v", err)
-			}
-		}
-		return GmmFSM.SendEvent(ctx, ue.State[models.AccessTypeNon3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
-			ArgAmfUe:      ue,
-			ArgAccessType: anType,
-		})
-	case nasMessage.AccessTypeBoth:
-		if ue.RanUe[models.AccessType3GPPAccess] != nil {
-			err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[models.AccessType3GPPAccess], context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
-			if err != nil {
-				return fmt.Errorf("error sending ue context release command: %v", err)
-			}
-		}
-		if ue.RanUe[models.AccessTypeNon3GPPAccess] != nil {
-			err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[models.AccessTypeNon3GPPAccess], context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
-			if err != nil {
-				return fmt.Errorf("error sending ue context release command: %v", err)
-			}
-		}
-
-		err := GmmFSM.SendEvent(ctx, ue.State[models.AccessType3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
-			ArgAmfUe:      ue,
-			ArgAccessType: anType,
-		})
-		if err != nil {
-			ue.GmmLog.Error("Send Deregistration Accept Event Error", zap.Error(err))
-		}
-		return GmmFSM.SendEvent(ctx, ue.State[models.AccessTypeNon3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
-			ArgAmfUe:      ue,
-			ArgAccessType: anType,
-		})
+	if targetDeregistrationAccessType != nasMessage.AccessType3GPP {
+		return fmt.Errorf("only 3gpp access type is supported")
 	}
 
-	return nil
+	if ue.RanUe != nil {
+		err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
+		if err != nil {
+			return fmt.Errorf("error sending ue context release command: %v", err)
+		}
+	}
+
+	return GmmFSM.SendEvent(ctx, ue.State, DeregistrationAcceptEvent, fsm.ArgsType{
+		ArgAmfUe: ue,
+	})
 }
 
 // TS 23.502 4.2.2.3
-func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, deregistrationAccept *nasMessage.DeregistrationAcceptUETerminatedDeregistration) error {
+func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, deregistrationAccept *nasMessage.DeregistrationAcceptUETerminatedDeregistration) error {
 	logger.AmfLog.Debug("Handle Deregistration Accept", zap.String("supi", ue.Supi))
 
 	if ue.T3522 != nil {
@@ -1913,48 +1750,19 @@ func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType mode
 		ue.T3522 = nil // clear the timer
 	}
 
-	switch ue.DeregistrationTargetAccessType {
-	case nasMessage.AccessType3GPP:
-		if ue.RanUe[models.AccessType3GPPAccess] != nil {
-			err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[models.AccessType3GPPAccess], context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
-			if err != nil {
-				return fmt.Errorf("error sending ue context release command: %v", err)
-			}
-		}
-	case nasMessage.AccessTypeNon3GPP:
-		if ue.RanUe[models.AccessTypeNon3GPPAccess] != nil {
-			err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[models.AccessTypeNon3GPPAccess],
-				context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
-			if err != nil {
-				return fmt.Errorf("error sending ue context release command: %v", err)
-			}
-		}
-	case nasMessage.AccessTypeBoth:
-		if ue.RanUe[models.AccessType3GPPAccess] != nil {
-			err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[models.AccessType3GPPAccess],
-				context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
-			if err != nil {
-				return fmt.Errorf("error sending ue context release command: %v", err)
-			}
-		}
-		if ue.RanUe[models.AccessTypeNon3GPPAccess] != nil {
-			err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe[models.AccessTypeNon3GPPAccess],
-				context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
-			if err != nil {
-				return fmt.Errorf("error sending ue context release command: %v", err)
-			}
+	if ue.RanUe != nil {
+		err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
+		if err != nil {
+			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
 	}
 
-	ue.DeregistrationTargetAccessType = 0
-
-	return GmmFSM.SendEvent(ctx, ue.State[models.AccessType3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
-		ArgAmfUe:      ue,
-		ArgAccessType: anType,
+	return GmmFSM.SendEvent(ctx, ue.State, DeregistrationAcceptEvent, fsm.ArgsType{
+		ArgAmfUe: ue,
 	})
 }
 
-func HandleStatus5GMM(ue *context.AmfUe, anType models.AccessType, status5GMM *nasMessage.Status5GMM) error {
+func HandleStatus5GMM(ue *context.AmfUe, status5GMM *nasMessage.Status5GMM) error {
 	logger.AmfLog.Debug("Handle 5GMM Status", zap.String("supi", ue.Supi))
 
 	if ue.MacFailed {
@@ -1966,11 +1774,11 @@ func HandleStatus5GMM(ue *context.AmfUe, anType models.AccessType, status5GMM *n
 	return nil
 }
 
-func HandleAuthenticationError(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType) error {
+func HandleAuthenticationError(ctx ctxt.Context, ue *context.AmfUe) error {
 	logger.AmfLog.Debug("Handle Authentication Error", zap.String("supi", ue.Supi))
 
 	if ue.RegistrationRequest != nil {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}

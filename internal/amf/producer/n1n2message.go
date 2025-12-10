@@ -74,7 +74,6 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 		ok          bool
 		smContext   *context.SmContext
 		n1MsgType   uint8
-		anType      = models.AccessType3GPPAccess
 	)
 
 	amfSelf := context.AMFSelf()
@@ -104,18 +103,17 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 		case models.N2InformationClassSM:
 			ue.ProducerLog.Debug("Receive N2 SM Message", zap.Int32("PDUSessionID", requestData.PduSessionID))
 			if smContext == nil {
-				smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
+				_, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 				if !ok {
 					return "", fmt.Errorf("sm context not found")
 				}
-				anType = smContext.AccessType()
 			}
 		default:
 			return "", fmt.Errorf("n2 information type [%s] is not supported", requestData.N2InfoContainer.N2InformationClass)
 		}
 	}
 
-	onGoing := ue.GetOnGoing(anType)
+	onGoing := ue.GetOnGoing()
 	// 4xx response cases
 	switch onGoing.Procedure {
 	case context.OnGoingProcedurePaging:
@@ -131,7 +129,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 
 	// var n1n2MessageTransferRspData *models.N1N2MessageTransferRspData
 	// UE is CM-Connected
-	if ue.CmConnect(anType) {
+	if ue.CmConnect() {
 		var (
 			nasPdu []byte
 			err    error
@@ -143,7 +141,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 			}
 			if n2Info == nil {
 				ue.ProducerLog.Debug("Forward N1 Message to UE")
-				err := ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe[anType], nasPdu, nil)
+				err := ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe, nasPdu, nil)
 				if err != nil {
 					return "", fmt.Errorf("send downlink nas transport error: %v", err)
 				}
@@ -161,10 +159,10 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 					Sst: smInfo.SNssai.Sst,
 					Sd:  smInfo.SNssai.Sd,
 				}
-				if ue.RanUe[anType].SentInitialContextSetupRequest {
+				if ue.RanUe.SentInitialContextSetupRequest {
 					list := ngapType.PDUSessionResourceSetupListSUReq{}
 					ngap_message.AppendPDUSessionResourceSetupListSUReq(&list, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
-					err := ngap_message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe[anType], nil, list)
+					err := ngap_message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe, nil, list)
 					if err != nil {
 						return "", fmt.Errorf("send pdu session resource setup request error: %v", err)
 					}
@@ -176,12 +174,12 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 					}
 					list := ngapType.PDUSessionResourceSetupListCxtReq{}
 					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&list, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
-					err = ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nil, &list, nil, nil, nil, operatorInfo.Guami)
+					err = ngap_message.SendInitialContextSetupRequest(ctx, ue, nil, &list, nil, nil, nil, operatorInfo.Guami)
 					if err != nil {
 						return "", fmt.Errorf("send initial context setup request error: %v", err)
 					}
 					ue.ProducerLog.Info("Sent NGAP initial context setup request to UE")
-					ue.RanUe[anType].SentInitialContextSetupRequest = true
+					ue.RanUe.SentInitialContextSetupRequest = true
 				}
 				// context.StoreContextInDB(ue)
 				return models.N1N2MessageTransferCauseN1N2TransferInitiated, nil
@@ -189,7 +187,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 				ue.ProducerLog.Debug("AMF Transfer NGAP PDU Session Resource Modify Request from SMF")
 				list := ngapType.PDUSessionResourceModifyListModReq{}
 				ngap_message.AppendPDUSessionResourceModifyListModReq(&list, smInfo.PduSessionID, nasPdu, n2Info)
-				err := ngap_message.SendPDUSessionResourceModifyRequest(ctx, ue.RanUe[anType], list)
+				err := ngap_message.SendPDUSessionResourceModifyRequest(ctx, ue.RanUe, list)
 				if err != nil {
 					return "", fmt.Errorf("send pdu session resource modify request error: %v", err)
 				}
@@ -200,7 +198,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 				ue.ProducerLog.Debug("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 				list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 				ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, smInfo.PduSessionID, n2Info)
-				err := ngap_message.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe[anType], nasPdu, list)
+				err := ngap_message.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe, nasPdu, list)
 				if err != nil {
 					return "", fmt.Errorf("send pdu session resource release command error: %v", err)
 				}
@@ -220,7 +218,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 		return "", fmt.Errorf("ue in cm idle state")
 	}
 	// 504: the UE in MICO mode or the UE is only registered over Non-3GPP access and its state is CM-IDLE
-	if !ue.State[models.AccessType3GPPAccess].Is(context.Registered) {
+	if !ue.State.Is(context.Registered) {
 		return "", fmt.Errorf("ue not reachable")
 	}
 
@@ -231,86 +229,28 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 
 	// Case A (UE is CM-IDLE in 3GPP access and the associated access type is 3GPP access)
 	// in subclause 5.2.2.3.1.2 of TS29518
-	if anType == models.AccessType3GPPAccess {
-		cause = models.N1N2MessageTransferCauseAttemptingToReachUE
-		message := context.N1N2Message{
-			Request: n1n2MessageTransferRequest,
-			Status:  cause,
-		}
-		ue.N1N2Message = &message
-		ue.SetOnGoing(anType, &context.OnGoingProcedureWithPrio{
-			Procedure: context.OnGoingProcedurePaging,
-			Ppi:       requestData.Ppi,
-		})
-
-		if onGoing.Ppi != 0 {
-			pagingPriority = new(ngapType.PagingPriority)
-			pagingPriority.Value = aper.Enumerated(onGoing.Ppi)
-		}
-		pkg, err := ngap_message.BuildPaging(ue, pagingPriority, false)
-		if err != nil {
-			return cause, fmt.Errorf("build paging error: %v", err)
-		}
-		err = ngap_message.SendPaging(ctx, ue, pkg)
-		if err != nil {
-			return cause, fmt.Errorf("send paging error: %v", err)
-		}
-		return cause, nil
-	} else {
-		// Case B (UE is CM-IDLE in Non-3GPP access but CM-CONNECTED in 3GPP access and the associated
-		// access type is Non-3GPP access)in subclause 5.2.2.3.1.2 of TS29518
-		if ue.CmConnect(models.AccessType3GPPAccess) {
-			if n2Info == nil {
-				cause = models.N1N2MessageTransferCauseN1N2TransferInitiated
-				err := gmm_message.SendDLNASTransport(ctx, ue.RanUe[models.AccessType3GPPAccess], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
-				if err != nil {
-					return cause, fmt.Errorf("error sending downlink nas transport: %v", err)
-				}
-			} else {
-				cause = models.N1N2MessageTransferCauseAttemptingToReachUE
-				message := context.N1N2Message{
-					Request: n1n2MessageTransferRequest,
-					Status:  cause,
-				}
-				ue.N1N2Message = &message
-				nasMsg, err := gmm_message.BuildNotification(ue, models.AccessTypeNon3GPPAccess)
-				if err != nil {
-					return cause, fmt.Errorf("build notification error: %v", err)
-				}
-				err = gmm_message.SendNotification(ctx, ue.RanUe[models.AccessType3GPPAccess], nasMsg)
-				if err != nil {
-					return cause, fmt.Errorf("send notification error: %v", err)
-				}
-				ue.GmmLog.Info("sent notification message to UE")
-			}
-			return cause, nil
-		} else {
-			// Case C ( UE is CM-IDLE in both Non-3GPP access and 3GPP access and the associated access ype is Non-3GPP access)
-			// in subclause 5.2.2.3.1.2 of TS29518
-			cause = models.N1N2MessageTransferCauseAttemptingToReachUE
-			message := context.N1N2Message{
-				Request: n1n2MessageTransferRequest,
-				Status:  cause,
-			}
-			ue.N1N2Message = &message
-
-			ue.SetOnGoing(anType, &context.OnGoingProcedureWithPrio{
-				Procedure: context.OnGoingProcedurePaging,
-				Ppi:       requestData.Ppi,
-			})
-			if onGoing.Ppi != 0 {
-				pagingPriority = new(ngapType.PagingPriority)
-				pagingPriority.Value = aper.Enumerated(onGoing.Ppi)
-			}
-			pkg, err := ngap_message.BuildPaging(ue, pagingPriority, true)
-			if err != nil {
-				return cause, fmt.Errorf("build paging error: %v", err)
-			}
-			err = ngap_message.SendPaging(ctx, ue, pkg)
-			if err != nil {
-				return cause, fmt.Errorf("send paging error: %v", err)
-			}
-			return cause, nil
-		}
+	cause = models.N1N2MessageTransferCauseAttemptingToReachUE
+	message := context.N1N2Message{
+		Request: n1n2MessageTransferRequest,
+		Status:  cause,
 	}
+	ue.N1N2Message = &message
+	ue.SetOnGoing(&context.OnGoingProcedureWithPrio{
+		Procedure: context.OnGoingProcedurePaging,
+		Ppi:       requestData.Ppi,
+	})
+
+	if onGoing.Ppi != 0 {
+		pagingPriority = new(ngapType.PagingPriority)
+		pagingPriority.Value = aper.Enumerated(onGoing.Ppi)
+	}
+	pkg, err := ngap_message.BuildPaging(ue, pagingPriority, false)
+	if err != nil {
+		return cause, fmt.Errorf("build paging error: %v", err)
+	}
+	err = ngap_message.SendPaging(ctx, ue, pkg)
+	if err != nil {
+		return cause, fmt.Errorf("send paging error: %v", err)
+	}
+	return cause, nil
 }

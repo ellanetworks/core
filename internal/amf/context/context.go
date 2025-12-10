@@ -121,10 +121,10 @@ func (context *AMFContext) FreeOldGuti(ue *AmfUe) {
 	ue.OldGuti = ""
 }
 
-func (context *AMFContext) AllocateRegistrationArea(ctx ctxt.Context, ue *AmfUe, anType models.AccessType, supportedTais []models.Tai) {
+func (context *AMFContext) AllocateRegistrationArea(ctx ctxt.Context, ue *AmfUe, supportedTais []models.Tai) {
 	// clear the previous registration area if need
-	if len(ue.RegistrationArea[anType]) > 0 {
-		ue.RegistrationArea[anType] = nil
+	if len(ue.RegistrationArea) > 0 {
+		ue.RegistrationArea = nil
 	}
 
 	taiList := make([]models.Tai, len(supportedTais))
@@ -138,7 +138,7 @@ func (context *AMFContext) AllocateRegistrationArea(ctx ctxt.Context, ue *AmfUe,
 	}
 	for _, supportTai := range taiList {
 		if reflect.DeepEqual(supportTai, ue.Tai) {
-			ue.RegistrationArea[anType] = append(ue.RegistrationArea[anType], supportTai)
+			ue.RegistrationArea = append(ue.RegistrationArea, supportTai)
 			break
 		}
 	}

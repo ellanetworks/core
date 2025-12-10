@@ -16,7 +16,6 @@ import (
 )
 
 func SelectSmf(
-	anType models.AccessType,
 	pduSessionID int32,
 	snssai models.Snssai,
 	dnn string,
@@ -25,7 +24,6 @@ func SelectSmf(
 
 	smContext.SetSnssai(snssai)
 	smContext.SetDnn(dnn)
-	smContext.SetAccessType(anType)
 
 	return smContext
 }
@@ -68,7 +66,7 @@ func SendCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *
 
 func SendUpdateSmContextActivateUpCnxState(
 	ctx ctxt.Context,
-	ue *context.AmfUe, smContext *context.SmContext, accessType models.AccessType) (
+	ue *context.AmfUe, smContext *context.SmContext) (
 	*models.UpdateSmContextResponse, error,
 ) {
 	updateData := models.SmContextUpdateData{}
@@ -86,12 +84,6 @@ func SendUpdateSmContextDeactivateUpCnxState(ctx ctxt.Context, ue *context.AmfUe
 	if cause.Cause != nil {
 		updateData.Cause = *cause.Cause
 	}
-
-	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
-}
-
-func SendUpdateSmContextChangeAccessType(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext) (*models.UpdateSmContextResponse, error) {
-	updateData := models.SmContextUpdateData{}
 
 	return SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
 }
