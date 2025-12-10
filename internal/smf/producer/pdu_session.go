@@ -151,7 +151,6 @@ func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmCo
 	pfcpParam := &pfcpParam{
 		pdrList: []*context.PDR{},
 		farList: []*context.FAR{},
-		barList: []*context.BAR{},
 		qerList: []*context.QER{},
 	}
 
@@ -190,7 +189,7 @@ func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmCo
 			return nil, fmt.Errorf("pfcp session context not found for upf: %s", ANUPF.UPF.NodeID.String())
 		}
 
-		err := pfcp.SendPfcpSessionModificationRequest(ctx, sessionContext.LocalSEID, sessionContext.RemoteSEID, pfcpParam.pdrList, pfcpParam.farList, pfcpParam.barList, pfcpParam.qerList)
+		err := pfcp.SendPfcpSessionModificationRequest(ctx, sessionContext.LocalSEID, sessionContext.RemoteSEID, pfcpParam.pdrList, pfcpParam.farList, pfcpParam.qerList)
 		if err != nil {
 			return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 		}

@@ -22,7 +22,6 @@ type pfcpAction struct {
 type pfcpParam struct {
 	pdrList []*context.PDR
 	farList []*context.FAR
-	barList []*context.BAR
 	qerList []*context.QER
 }
 

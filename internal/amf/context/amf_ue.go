@@ -178,13 +178,6 @@ type RecommendedCell struct {
 	TimeStayedInCell *int64
 }
 
-// TS 38.413 9.3.1.101
-type RecommendRanNode struct {
-	Present         int32
-	GlobalRanNodeID *models.GlobalRanNodeID
-	Tai             *models.Tai
-}
-
 type NGRANCGI struct {
 	Present  int32
 	NRCGI    *models.Ncgi

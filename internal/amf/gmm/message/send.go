@@ -242,7 +242,7 @@ func SendSecurityModeCommand(ctx ctxt.Context, ue *context.RanUe) error {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	_, span := tracer.Start(ctx, "Send Security Mode Command",
+	ctx, span := tracer.Start(ctx, "Send Security Mode Command",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 		),

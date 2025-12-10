@@ -32,7 +32,6 @@ func SendPfcpSessionEstablishmentRequest(
 	localSEID uint64,
 	pdrList []*context.PDR,
 	farList []*context.FAR,
-	barList []*context.BAR,
 	qerList []*context.QER,
 	urrList []*context.URR,
 ) error {
@@ -167,7 +166,6 @@ func SendPfcpSessionModificationRequest(
 	remoteSEID uint64,
 	pdrList []*context.PDR,
 	farList []*context.FAR,
-	barList []*context.BAR,
 	qerList []*context.QER,
 ) error {
 	seqNum := getSeqNumber()

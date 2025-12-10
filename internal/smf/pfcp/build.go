@@ -128,9 +128,7 @@ func farToCreateFAR(far *context.FAR) *ie.IE {
 	applyActionflag.setBit(4, far.ApplyAction.Nocp)
 	applyActionflag.setBit(5, far.ApplyAction.Dupl)
 	createFARies = append(createFARies, ie.NewApplyAction(uint8(*applyActionflag)))
-	if far.BAR != nil {
-		createFARies = append(createFARies, ie.NewBARID(far.BAR.BARID))
-	}
+
 	if far.ForwardingParameters != nil {
 		forwardingParametersIEs := make([]*ie.IE, 0)
 		forwardingParametersIEs = append(forwardingParametersIEs, ie.NewDestinationInterface(far.ForwardingParameters.DestinationInterface.InterfaceValue))
@@ -272,10 +270,6 @@ func pdrToUpdatePDR(pdr *context.PDR) *ie.IE {
 func farToUpdateFAR(far *context.FAR) *ie.IE {
 	updateFARies := make([]*ie.IE, 0)
 	updateFARies = append(updateFARies, ie.NewFARID(far.FARID))
-
-	if far.BAR != nil {
-		updateFARies = append(updateFARies, ie.NewBARID(far.BAR.BARID))
-	}
 
 	applyActionflag := new(Flag)
 	applyActionflag.setBit(1, far.ApplyAction.Drop)

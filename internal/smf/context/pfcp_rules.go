@@ -130,7 +130,6 @@ type ApplyAction struct {
 type FAR struct {
 	ForwardingParameters *ForwardingParameters
 
-	BAR   *BAR
 	State RuleState
 	FARID uint32
 
@@ -150,24 +149,6 @@ type ForwardingParameters struct {
 	ForwardingPolicyID   string
 	NetworkInstance      string
 	DestinationInterface DestinationInterface
-}
-
-type SuggestedBufferingPacketsCount struct {
-	PacketCountValue uint8
-}
-
-type DownlinkDataNotificationDelay struct {
-	DelayValue time.Duration
-}
-
-// Buffering Action Rule 7.5.2.6-1
-type BAR struct {
-	BARID uint8
-
-	DownlinkDataNotificationDelay  DownlinkDataNotificationDelay
-	SuggestedBufferingPacketsCount SuggestedBufferingPacketsCount
-
-	State RuleState
 }
 
 type GBR struct {
