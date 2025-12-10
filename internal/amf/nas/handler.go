@@ -12,12 +12,10 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
-	"github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
 
 type NasMsg struct {
-	AnType        models.AccessType
 	NasMsg        []byte
 	ProcedureCode int64
 }
@@ -52,7 +50,6 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 		eeCtx.AttachRanUe(ue)
 
 		nasMsg := NasMsg{
-			AnType:        ue.Ran.AnType,
 			NasMsg:        nasPdu,
 			ProcedureCode: procedureCode,
 		}
@@ -64,12 +61,12 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 	}
 
 	// Decode and dispatch for existing UE
-	msg, err := nassecurity.Decode(ctx, ue.AmfUe, ue.Ran.AnType, nasPdu)
+	msg, err := nassecurity.Decode(ctx, ue.AmfUe, nasPdu)
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
-	if err := Dispatch(ctx, ue.AmfUe, ue.Ran.AnType, procedureCode, msg); err != nil {
+	if err := Dispatch(ctx, ue.AmfUe, procedureCode, msg); err != nil {
 		eeCtx := ue.AmfUe
 		eeCtx.NASLog.Error("Handle NAS Error", zap.Error(err))
 		return fmt.Errorf("error handling NAS message: %v", err)
@@ -80,12 +77,12 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 
 // DispatchMsg decodes and dispatches a NAS message for initially attached UEs.
 func DispatchMsg(ctx ctxt.Context, amfUe *context.AmfUe, transInfo NasMsg) error {
-	msg, err := nassecurity.Decode(ctx, amfUe, transInfo.AnType, transInfo.NasMsg)
+	msg, err := nassecurity.Decode(ctx, amfUe, transInfo.NasMsg)
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
-	err = Dispatch(ctx, amfUe, transInfo.AnType, transInfo.ProcedureCode, msg)
+	err = Dispatch(ctx, amfUe, transInfo.ProcedureCode, msg)
 	if err != nil {
 		return fmt.Errorf("error handling NAS message: %v", err)
 	}

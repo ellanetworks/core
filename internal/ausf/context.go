@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/models"
 )
 
 type AUSFContext struct {
@@ -20,19 +19,12 @@ type AUSFContext struct {
 }
 
 type AusfUeContext struct {
-	Supi               string
-	Kausf              string
-	Kseaf              string
-	ServingNetworkName string
-	AuthStatus         models.AuthResult
+	Supi  string
+	Kseaf string
 
 	// for 5G AKA
 	XresStar string
-
-	// for EAP-AKA'
-	kAut string
-	XRES string
-	Rand string
+	Rand     string
 }
 
 type SuciSupiMap struct {
@@ -40,29 +32,13 @@ type SuciSupiMap struct {
 	Supi string
 }
 
-const (
-	EapAkaPrimeTypeNum = 50
-)
-
-// Attribute Types for EAP-AKA'
-const (
-	AtRandAttribute         = 1
-	AtAutnAttribute         = 2
-	AtResAttribute          = 3
-	AtMacAttribute          = 11
-	AtNotificationAttribute = 12
-	AtIdentityAttribute     = 14
-	AtKdfInputAttribute     = 23
-	AtKdfAttribute          = 24
-)
-
 var ausfContext AUSFContext
 
 var servingNetworkRegex = regexp.MustCompile(`^5G:mnc[0-9]{3}\.mcc[0-9]{3}\.3gppnetwork\.org$`)
 
-func NewAusfUeContext(identifier string) (ausfUeContext *AusfUeContext) {
+func NewAusfUeContext(supi string) (ausfUeContext *AusfUeContext) {
 	ausfUeContext = new(AusfUeContext)
-	ausfUeContext.Supi = identifier
+	ausfUeContext.Supi = supi
 	return ausfUeContext
 }
 

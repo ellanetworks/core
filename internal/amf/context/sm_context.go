@@ -20,7 +20,6 @@ type SmContext struct {
 	SmContextRefVal       string
 	SnssaiVal             models.Snssai
 	DnnVal                string
-	AccessTypeVal         models.AccessType
 	UserLocationVal       models.UserLocation
 	PduSessionInactiveVal bool
 }
@@ -57,18 +56,6 @@ func (c *SmContext) SetSmContextRef(ref string) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.SmContextRefVal = ref
-}
-
-func (c *SmContext) AccessType() models.AccessType {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
-	return c.AccessTypeVal
-}
-
-func (c *SmContext) SetAccessType(accessType models.AccessType) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.AccessTypeVal = accessType
 }
 
 func (c *SmContext) Snssai() models.Snssai {

@@ -1,7 +1,5 @@
 package context
 
-import "github.com/ellanetworks/core/internal/models"
-
 func IsSubscriberRegistered(imsi string) bool {
 	amfCtx := AMFSelf()
 
@@ -15,12 +13,11 @@ func IsSubscriberRegistered(imsi string) bool {
 		return false
 	}
 
-	state, ok := amfUe.State[models.AccessType3GPPAccess]
-	if !ok {
+	if amfUe.State == nil {
 		return false
 	}
 
-	currentState := state.Current()
+	currentState := amfUe.State.Current()
 
 	return currentState == "Registered"
 }

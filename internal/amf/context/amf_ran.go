@@ -28,7 +28,6 @@ type AmfRan struct {
 	RanPresent      int
 	RanID           *models.GlobalRanNodeID
 	Name            string
-	AnType          models.AccessType
 	GnbIP           string
 	GnbID           string // RanID in string format, i.e.,mcc:mnc:gnbid
 	Conn            *sctp.SCTPConn
@@ -100,15 +99,11 @@ func (ran *AmfRan) SetRanID(ranNodeID *ngapType.GlobalRANNodeID) {
 	ranID := util.RanIDToModels(*ranNodeID)
 	ran.RanPresent = ranNodeID.Present
 	ran.RanID = &ranID
-	if ranNodeID.Present == ngapType.GlobalRANNodeIDPresentGlobalN3IWFID {
-		ran.AnType = models.AccessTypeNon3GPPAccess
-	} else {
-		ran.AnType = models.AccessType3GPPAccess
-	}
 
 	if ranID.PlmnID != nil {
 		ran.GnbID = ranID.PlmnID.Mcc + ":" + ranID.PlmnID.Mnc + ":"
 	}
+
 	if ranID.GNbID != nil {
 		ran.GnbID += ranID.GNbID.GNBValue
 	}

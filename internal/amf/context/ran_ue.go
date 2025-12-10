@@ -62,12 +62,14 @@ func (ranUe *RanUe) Remove() error {
 	if ranUe == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
+
 	ran := ranUe.Ran
 	if ran == nil {
 		return fmt.Errorf("ran not found in ranUe not found")
 	}
+
 	if ranUe.AmfUe != nil {
-		ranUe.AmfUe.DetachRanUe(ran.AnType)
+		ranUe.AmfUe.DetachRanUe()
 		ranUe.DetachAmfUe()
 	}
 

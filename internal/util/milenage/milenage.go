@@ -237,20 +237,3 @@ func F1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
 func F2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
 	return milenageF2345(opc, k, _rand, res, ck, ik, ak, akstar)
 }
-
-func GenerateOPC(k, op []uint8) ([]uint8, error) {
-	block, err := aes.NewCipher(k)
-	if err != nil {
-		return nil, err
-	}
-
-	opc := make([]byte, block.BlockSize())
-
-	block.Encrypt(opc, op)
-
-	for i := 0; i < 16; i++ {
-		opc[i] ^= op[i]
-	}
-
-	return opc, nil
-}

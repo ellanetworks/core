@@ -57,31 +57,25 @@ const (
 
 type AmfUe struct {
 	Mutex sync.Mutex
-	/* the AMF which serving this AmfUe now */
-	ServingAMF *AMFContext // never nil
 
 	/* Gmm State */
-	State map[models.AccessType]*fsm.State
+	State *fsm.State
 	/* Registration procedure related context */
-	RegistrationType5GS                uint8
-	IdentityTypeUsedForRegistration    uint8
-	RegistrationRequest                *nasMessage.RegistrationRequest
-	ServingAmfChanged                  bool
-	DeregistrationTargetAccessType     uint8 // only used when deregistration procedure is initialized by the network
-	RegistrationAcceptForNon3GPPAccess []byte
-	RetransmissionOfInitialNASMsg      bool
+	RegistrationType5GS             uint8
+	IdentityTypeUsedForRegistration uint8
+	RegistrationRequest             *nasMessage.RegistrationRequest
+	ServingAmfChanged               bool
+	RetransmissionOfInitialNASMsg   bool
 	/* Used for AMF relocation */
 	/* Ue Identity*/
 	PlmnID  models.PlmnID
 	Suci    string
 	Supi    string
-	Gpsi    string
 	Pei     string
 	Tmsi    int32
 	OldTmsi int32
 	Guti    string
 	OldGuti string
-	EBI     int32
 	/* Ue Identity*/
 	/* User Location*/
 	RatType                  models.RatType
@@ -106,9 +100,9 @@ type AmfUe struct {
 	/* Pdu Sesseion context */
 	SmContextList sync.Map // map[int32]*SmContext, pdu session id as key
 	/* Related Context*/
-	RanUe map[models.AccessType]*RanUe
+	RanUe *RanUe
 	/* other */
-	OnGoing                         map[models.AccessType]*OnGoingProcedureWithPrio
+	OnGoing                         *OnGoingProcedureWithPrio
 	UeRadioCapability               string // OCTET string
 	Capability5GMM                  nasType.Capability5GMM
 	ConfigurationUpdateIndication   nasType.ConfigurationUpdateIndication
@@ -125,7 +119,6 @@ type AmfUe struct {
 	KnasInt                  [16]uint8 // 16 byte
 	KnasEnc                  [16]uint8 // 16 byte
 	Kgnb                     []uint8   // 32 byte
-	Kn3iwf                   []uint8   // 32 byte
 	NH                       []uint8   // 32 byte
 	NCC                      uint8     // 0..7
 	ULCount                  security.Count
@@ -133,9 +126,9 @@ type AmfUe struct {
 	CipheringAlg             uint8
 	IntegrityAlg             uint8
 	/* Registration Area */
-	RegistrationArea map[models.AccessType][]models.Tai
+	RegistrationArea []models.Tai
 	/* Network Slicing related context and Nssf */
-	AllowedNssai map[models.AccessType]*models.Snssai
+	AllowedNssai *models.Snssai
 	/* T3513(Paging) */
 	T3513 *Timer // for paging
 	/* T3565(Notification) */
@@ -149,11 +142,10 @@ type AmfUe struct {
 	/* T3522 (for deregistration request) */
 	T3522 *Timer
 	/* Ue Context Release Cause */
-	ReleaseCause map[models.AccessType]*CauseAll
+	ReleaseCause *CauseAll
 	/* T3502 (Assigned by AMF, and used by UE to initialize registration procedure) */
-	T3502Value                      int // Second
-	T3512Value                      int // default 54 min
-	Non3gppDeregistrationTimerValue int // default 54 min
+	T3502Value int // Second
+	T3512Value int // default 54 min
 
 	NASLog      *zap.Logger
 	GmmLog      *zap.Logger
@@ -218,36 +210,25 @@ type ConfigurationUpdateCommandFlags struct {
 }
 
 func (ue *AmfUe) init() {
-	ue.ServingAMF = AMFSelf()
-	ue.State = make(map[models.AccessType]*fsm.State)
-	ue.State[models.AccessType3GPPAccess] = fsm.NewState(Deregistered)
-	ue.State[models.AccessTypeNon3GPPAccess] = fsm.NewState(Deregistered)
-	ue.RanUe = make(map[models.AccessType]*RanUe)
-	ue.RegistrationArea = make(map[models.AccessType][]models.Tai)
-	ue.AllowedNssai = make(map[models.AccessType]*models.Snssai)
-	ue.OnGoing = make(map[models.AccessType]*OnGoingProcedureWithPrio)
-	ue.OnGoing[models.AccessTypeNon3GPPAccess] = new(OnGoingProcedureWithPrio)
-	ue.OnGoing[models.AccessTypeNon3GPPAccess].Procedure = OnGoingProcedureNothing
-	ue.OnGoing[models.AccessType3GPPAccess] = new(OnGoingProcedureWithPrio)
-	ue.OnGoing[models.AccessType3GPPAccess].Procedure = OnGoingProcedureNothing
-	ue.ReleaseCause = make(map[models.AccessType]*CauseAll)
+	ue.State = fsm.NewState(Deregistered)
+	ue.RegistrationArea = make([]models.Tai, 0)
+	ue.OnGoing = new(OnGoingProcedureWithPrio)
+	ue.OnGoing.Procedure = OnGoingProcedureNothing
 }
 
-func (ue *AmfUe) CmConnect(anType models.AccessType) bool {
-	if _, ok := ue.RanUe[anType]; !ok {
-		return false
-	}
-	return true
+func (ue *AmfUe) CmConnect() bool {
+	return ue.RanUe != nil
 }
 
-func (ue *AmfUe) CmIdle(anType models.AccessType) bool {
-	return !ue.CmConnect(anType)
+func (ue *AmfUe) CmIdle() bool {
+	return !ue.CmConnect()
 }
 
 func (ue *AmfUe) Remove() {
-	for _, ranUe := range ue.RanUe {
-		if err := ranUe.Remove(); err != nil {
-			logger.AmfLog.Error("Remove RanUe error", zap.Error(err))
+	if ue.RanUe != nil {
+		err := ue.RanUe.Remove()
+		if err != nil {
+			logger.AmfLog.Error("failed to remove RAN UE", zap.Error(err))
 		}
 	}
 
@@ -258,8 +239,8 @@ func (ue *AmfUe) Remove() {
 	}
 }
 
-func (ue *AmfUe) DetachRanUe(anType models.AccessType) {
-	delete(ue.RanUe, anType)
+func (ue *AmfUe) DetachRanUe() {
+	ue.RanUe = nil
 }
 
 func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
@@ -267,11 +248,10 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 		return
 	}
 
-	anType := ranUe.Ran.AnType
+	oldRanUe := ue.RanUe
 
-	oldRanUe := ue.RanUe[anType]
+	ue.RanUe = ranUe
 
-	ue.RanUe[anType] = ranUe
 	ranUe.AmfUe = ue
 
 	if oldRanUe != nil && oldRanUe != ranUe {
@@ -287,26 +267,17 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	ue.TxLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
 }
 
-func (ue *AmfUe) GetAnType() models.AccessType {
-	if ue.CmConnect(models.AccessType3GPPAccess) {
-		return models.AccessType3GPPAccess
-	} else if ue.CmConnect(models.AccessTypeNon3GPPAccess) {
-		return models.AccessTypeNon3GPPAccess
-	}
-	return ""
-}
-
-func (ue *AmfUe) InAllowedNssai(targetSNssai models.Snssai, anType models.AccessType) bool {
-	return reflect.DeepEqual(*ue.AllowedNssai[anType], targetSNssai)
+func (ue *AmfUe) InAllowedNssai(targetSNssai models.Snssai) bool {
+	return reflect.DeepEqual(*ue.AllowedNssai, targetSNssai)
 }
 
 func (ue *AmfUe) InSubscribedNssai(targetSNssai *models.Snssai) bool {
 	return ue.SubscribedNssai.Sst == targetSNssai.Sst && ue.SubscribedNssai.Sd == targetSNssai.Sd
 }
 
-func (ue *AmfUe) TaiListInRegistrationArea(taiList []models.Tai, accessType models.AccessType) bool {
+func (ue *AmfUe) TaiListInRegistrationArea(taiList []models.Tai) bool {
 	for _, tai := range taiList {
-		if !InTaiList(tai, ue.RegistrationArea[accessType]) {
+		if !InTaiList(tai, ue.RegistrationArea) {
 			return false
 		}
 	}
@@ -383,15 +354,11 @@ func (ue *AmfUe) DerivateAlgKey() {
 }
 
 // Access Network key Derivation function defined in TS 33.501 Annex A.9
-func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
-	accessType := security.AccessType3GPP // Defalut 3gpp
+func (ue *AmfUe) DerivateAnKey() {
 	P0 := make([]byte, 4)
 	binary.BigEndian.PutUint32(P0, ue.ULCount.Get())
 	L0 := ueauth.KDFLen(P0)
-	if anType == models.AccessTypeNon3GPPAccess {
-		accessType = security.AccessTypeNon3GPP
-	}
-	P1 := []byte{accessType}
+	P1 := []byte{security.AccessType3GPP}
 	L1 := ueauth.KDFLen(P1)
 
 	KamfBytes, err := hex.DecodeString(ue.Kamf)
@@ -399,17 +366,14 @@ func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
 		logger.AmfLog.Error("decode kamf error", zap.Error(err))
 		return
 	}
+
 	key, err := ueauth.GetKDFValue(KamfBytes, ueauth.FCForKgnbKn3iwfDerivation, P0, L0, P1, L1)
 	if err != nil {
 		logger.AmfLog.Error("get kdf value error", zap.Error(err))
 		return
 	}
-	switch accessType {
-	case security.AccessType3GPP:
-		ue.Kgnb = key
-	case security.AccessTypeNon3GPP:
-		ue.Kn3iwf = key
-	}
+
+	ue.Kgnb = key
 }
 
 // NH Derivation function defined in TS 33.501 Annex A.10
@@ -429,14 +393,9 @@ func (ue *AmfUe) DerivateNH(syncInput []byte) {
 	}
 }
 
-func (ue *AmfUe) UpdateSecurityContext(anType models.AccessType) {
-	ue.DerivateAnKey(anType)
-	switch anType {
-	case models.AccessType3GPPAccess:
-		ue.DerivateNH(ue.Kgnb)
-	case models.AccessTypeNon3GPPAccess:
-		ue.DerivateNH(ue.Kn3iwf)
-	}
+func (ue *AmfUe) UpdateSecurityContext() {
+	ue.DerivateAnKey()
+	ue.DerivateNH(ue.Kgnb)
 	ue.NCC = 1
 }
 
@@ -492,26 +451,24 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) {
 }
 
 // this is clearing the transient data of registration request, this is called entrypoint of Deregistration and Registration state
-func (ue *AmfUe) ClearRegistrationRequestData(accessType models.AccessType) {
+func (ue *AmfUe) ClearRegistrationRequestData() {
 	ue.RegistrationRequest = nil
 	ue.RegistrationType5GS = 0
 	ue.IdentityTypeUsedForRegistration = 0
 	ue.AuthFailureCauseSynchFailureTimes = 0
 	ue.ServingAmfChanged = false
-	ue.RegistrationAcceptForNon3GPPAccess = nil
-	if ue.RanUe != nil && ue.RanUe[accessType] != nil {
-		ue.RanUe[accessType].UeContextRequest = false
-		ue.RanUe[accessType].RecvdInitialContextSetupResponse = false
+	if ue.RanUe != nil {
+		ue.RanUe.UeContextRequest = false
+		ue.RanUe.RecvdInitialContextSetupResponse = false
 	}
 	ue.RetransmissionOfInitialNASMsg = false
-	ue.OnGoing[accessType].Procedure = OnGoingProcedureNothing
+	ue.OnGoing.Procedure = OnGoingProcedureNothing
 }
 
 // this method called when we are reusing the same uecontext during the registration procedure
 func (ue *AmfUe) ClearRegistrationData() {
 	// Allowed Nssai should be cleared first as it is a new Registration
 	ue.SubscribedNssai = nil
-	ue.AllowedNssai = make(map[models.AccessType]*models.Snssai)
 	ue.SubscriptionDataValid = false
 	// Clearing SMContextList locally
 	ue.SmContextList.Range(func(key, _ interface{}) bool {
@@ -520,14 +477,14 @@ func (ue *AmfUe) ClearRegistrationData() {
 	})
 }
 
-func (ue *AmfUe) SetOnGoing(anType models.AccessType, onGoing *OnGoingProcedureWithPrio) {
-	prevOnGoing := ue.OnGoing[anType]
-	ue.OnGoing[anType] = onGoing
+func (ue *AmfUe) SetOnGoing(onGoing *OnGoingProcedureWithPrio) {
+	prevOnGoing := ue.OnGoing
+	ue.OnGoing = onGoing
 	ue.GmmLog.Debug("set ongoing procedure", zap.Any("ongoingProcedure", onGoing.Procedure), zap.Any("previousOnGoingProcedure", prevOnGoing.Procedure), zap.Any("OnGoingPPi", onGoing.Ppi), zap.Any("PreviousOnGoingPPi", prevOnGoing.Ppi))
 }
 
-func (ue *AmfUe) GetOnGoing(anType models.AccessType) OnGoingProcedureWithPrio {
-	return *ue.OnGoing[anType]
+func (ue *AmfUe) GetOnGoing() OnGoingProcedureWithPrio {
+	return *ue.OnGoing
 }
 
 // SM Context realted function

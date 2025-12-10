@@ -42,7 +42,6 @@ const (
 	typeIMSI       = "0"
 	nullScheme     = "0"
 	profileAScheme = "1"
-	profileBScheme = "2"
 )
 
 func hmacSha256(input, macKey []byte, macLen int) ([]byte, error) {

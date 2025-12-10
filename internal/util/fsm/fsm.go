@@ -11,7 +11,7 @@ import (
 
 type (
 	EventType string
-	ArgsType  map[string]interface{}
+	ArgsType  map[string]any
 )
 
 type (

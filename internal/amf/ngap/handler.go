@@ -1017,12 +1017,11 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 
 	// for each pduSessionID invoke Nsmf_PDUSession_UpdateSMContext Request
 	var cause context.CauseAll
-	if tmp, exist := amfUe.ReleaseCause[ran.AnType]; exist {
-		if tmp != nil {
-			cause = *tmp
-		}
+	if amfUe.ReleaseCause != nil {
+		cause = *amfUe.ReleaseCause
 	}
-	if amfUe.State[ran.AnType].Is(context.Registered) {
+
+	if amfUe.State.Is(context.Registered) {
 		ranUe.Log.Info("Rel Ue Context in GMM-Registered")
 		if pDUSessionResourceList != nil {
 			for _, pduSessionReourceItem := range pDUSessionResourceList.List {
@@ -1054,11 +1053,10 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 	}
 
 	// Remove UE N2 Connection
-	amfUe.ReleaseCause[ran.AnType] = nil
+	amfUe.ReleaseCause = nil
 	switch ranUe.ReleaseAction {
 	case context.UeContextN2NormalRelease:
 		ran.Log.Info("Release UE Context: N2 Connection Release", zap.String("supi", amfUe.Supi))
-		// amfUe.DetachRanUe(ran.AnType)
 		err := ranUe.Remove()
 		if err != nil {
 			ran.Log.Error(err.Error())
@@ -1460,9 +1458,9 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 				ranUe.Log.Debug("find AmfUe", zap.String("GUTI", guti))
 				/* checking the guti-ue belongs to this amf instance */
 
-				if amfUe.CmConnect(ran.AnType) {
+				if amfUe.CmConnect() {
 					ranUe.Log.Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
-					amfUe.DetachRanUe(ran.AnType)
+					amfUe.DetachRanUe()
 				}
 				ranUe.Log.Debug("AmfUe Attach RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 				amfUe.AttachRanUe(ranUe)
@@ -2191,18 +2189,10 @@ func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, me
 		}
 	}
 
-	if ranUe.Ran.AnType == models.AccessTypeNon3GPPAccess {
-		err := ngap_message.SendDownlinkNasTransport(ctx, ranUe, amfUe.RegistrationAcceptForNon3GPPAccess, nil)
-		if err != nil {
-			ranUe.Log.Error("error sending downlink nas transport", zap.Error(err))
-			return
-		}
-		ranUe.Log.Info("sent downlink nas transport")
-	}
-
 	if criticalityDiagnostics != nil {
 		printCriticalityDiagnostics(ran, criticalityDiagnostics)
 	}
+
 	ranUe.RecvdInitialContextSetupResponse = true
 }
 
@@ -2282,8 +2272,8 @@ func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, mes
 	if amfUe.T3550 != nil {
 		amfUe.T3550.Stop()
 		amfUe.T3550 = nil
-		amfUe.State[ran.AnType].Set(context.Deregistered)
-		amfUe.ClearRegistrationRequestData(ran.AnType)
+		amfUe.State.Set(context.Deregistered)
+		amfUe.ClearRegistrationRequestData()
 	}
 	if pDUSessionResourceFailedToSetupList != nil {
 		ranUe.Log.Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
@@ -2399,7 +2389,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 				Value: int32(causeValue),
 			},
 		}
-		if amfUe.State[ran.AnType].Is(context.Registered) {
+		if amfUe.State.Is(context.Registered) {
 			ranUe.Log.Info("Ue Context in GMM-Registered")
 			if pDUSessionResourceList != nil {
 				for _, pduSessionReourceItem := range pDUSessionResourceList.List {
@@ -3406,7 +3396,7 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 		ran.Log.Error("targetID type is not supported", zap.Int("targetID", targetID.Present))
 		return
 	}
-	amfUe.SetOnGoing(sourceUe.Ran.AnType, &context.OnGoingProcedureWithPrio{
+	amfUe.SetOnGoing(&context.OnGoingProcedureWithPrio{
 		Procedure: context.OnGoingProcedureN2Handover,
 	})
 	if !amfUe.SecurityContextIsValid() {

@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
 	"github.com/ellanetworks/core/internal/amf/util"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -57,31 +56,6 @@ func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu [
 	return nassecurity.Encode(ue, m)
 }
 
-func BuildNotification(ue *context.AmfUe, accessType models.AccessType) ([]byte, error) {
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeNotification)
-
-	m.SecurityHeader = nas.SecurityHeader{
-		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
-		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
-	}
-
-	notification := nasMessage.NewNotification(0)
-	notification.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	notification.ExtendedProtocolDiscriminator.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	notification.SetMessageType(nas.MsgTypeNotification)
-	if accessType == models.AccessType3GPPAccess {
-		notification.SetAccessType(nasMessage.AccessType3GPP)
-	} else {
-		notification.SetAccessType(nasMessage.AccessTypeNon3GPP)
-	}
-
-	m.GmmMessage.Notification = notification
-
-	return nassecurity.Encode(ue, m)
-}
-
 func BuildIdentityRequest(typeOfIdentity uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -113,40 +87,26 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 	authenticationRequest.ABBA.SetLen(uint8(len(ue.ABBA)))
 	authenticationRequest.ABBA.SetABBAContents(ue.ABBA)
 
-	switch ue.AuthenticationCtx.AuthType {
-	case models.AuthType5GAka:
-		var tmpArray [16]byte
-		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(models.Av5gAka)
-		if !ok {
-			return nil, fmt.Errorf("Var5gAuthData type assertion failed: got %T", ue.AuthenticationCtx.Var5gAuthData)
-		}
+	var tmpArray [16]byte
 
-		rand, err := hex.DecodeString(av5gAka.Rand)
-		if err != nil {
-			return nil, err
-		}
-		authenticationRequest.AuthenticationParameterRAND = nasType.NewAuthenticationParameterRAND(nasMessage.AuthenticationRequestAuthenticationParameterRANDType)
-		copy(tmpArray[:], rand[0:16])
-		authenticationRequest.AuthenticationParameterRAND.SetRANDValue(tmpArray)
-
-		autn, err := hex.DecodeString(av5gAka.Autn)
-		if err != nil {
-			return nil, err
-		}
-		authenticationRequest.AuthenticationParameterAUTN = nasType.NewAuthenticationParameterAUTN(nasMessage.AuthenticationRequestAuthenticationParameterAUTNType)
-		authenticationRequest.AuthenticationParameterAUTN.SetLen(uint8(len(autn)))
-		copy(tmpArray[:], autn[0:16])
-		authenticationRequest.AuthenticationParameterAUTN.SetAUTN(tmpArray)
-	case models.AuthTypeEAPAkaPrime:
-		eapMsg := ue.AuthenticationCtx.Var5gAuthData.(string)
-		rawEapMsg, err := base64.StdEncoding.DecodeString(eapMsg)
-		if err != nil {
-			return nil, err
-		}
-		authenticationRequest.EAPMessage = nasType.NewEAPMessage(nasMessage.AuthenticationRequestEAPMessageType)
-		authenticationRequest.EAPMessage.SetLen(uint16(len(rawEapMsg)))
-		authenticationRequest.EAPMessage.SetEAPMessage(rawEapMsg)
+	rand, err := hex.DecodeString(ue.AuthenticationCtx.Var5gAuthData.Rand)
+	if err != nil {
+		return nil, err
 	}
+
+	authenticationRequest.AuthenticationParameterRAND = nasType.NewAuthenticationParameterRAND(nasMessage.AuthenticationRequestAuthenticationParameterRANDType)
+	copy(tmpArray[:], rand[0:16])
+	authenticationRequest.AuthenticationParameterRAND.SetRANDValue(tmpArray)
+
+	autn, err := hex.DecodeString(ue.AuthenticationCtx.Var5gAuthData.Autn)
+	if err != nil {
+		return nil, err
+	}
+
+	authenticationRequest.AuthenticationParameterAUTN = nasType.NewAuthenticationParameterAUTN(nasMessage.AuthenticationRequestAuthenticationParameterAUTNType)
+	authenticationRequest.AuthenticationParameterAUTN.SetLen(uint8(len(autn)))
+	copy(tmpArray[:], autn[0:16])
+	authenticationRequest.AuthenticationParameterAUTN.SetAUTN(tmpArray)
 
 	m.GmmMessage.AuthenticationRequest = authenticationRequest
 
@@ -216,35 +176,6 @@ func BuildAuthenticationReject(ue *context.AmfUe, eapMsg string) ([]byte, error)
 	}
 
 	m.GmmMessage.AuthenticationReject = authenticationReject
-
-	return m.PlainNasEncode()
-}
-
-func BuildAuthenticationResult(ue *context.AmfUe, eapSuccess bool, eapMsg string) ([]byte, error) {
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeAuthenticationResult)
-
-	authenticationResult := nasMessage.NewAuthenticationResult(0)
-	authenticationResult.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	authenticationResult.SpareHalfOctetAndSecurityHeaderType.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	authenticationResult.SpareHalfOctetAndSecurityHeaderType.SetSpareHalfOctet(0)
-	authenticationResult.AuthenticationResultMessageIdentity.SetMessageType(nas.MsgTypeAuthenticationResult)
-	authenticationResult.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.NgKsi)
-	rawEapMsg, err := base64.StdEncoding.DecodeString(eapMsg)
-	if err != nil {
-		return nil, err
-	}
-	authenticationResult.EAPMessage.SetLen(uint16(len(rawEapMsg)))
-	authenticationResult.EAPMessage.SetEAPMessage(rawEapMsg)
-
-	if eapSuccess {
-		authenticationResult.ABBA = nasType.NewABBA(nasMessage.AuthenticationResultABBAType)
-		authenticationResult.ABBA.SetLen(uint8(len(ue.ABBA)))
-		authenticationResult.ABBA.SetABBAContents(ue.ABBA)
-	}
-
-	m.GmmMessage.AuthenticationResult = authenticationResult
 
 	return m.PlainNasEncode()
 }
@@ -383,9 +314,7 @@ func BuildSecurityModeCommand(ue *context.AmfUe, eapSuccess bool, eapMessage str
 }
 
 // T3346 timer are not supported
-func BuildDeregistrationRequest(ue *context.RanUe, accessType uint8, reRegistrationRequired bool,
-	cause5GMM uint8,
-) ([]byte, error) {
+func BuildDeregistrationRequest(ue *context.RanUe, reRegistrationRequired bool, cause5GMM uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeDeregistrationRequestUETerminatedDeregistration)
@@ -396,7 +325,7 @@ func BuildDeregistrationRequest(ue *context.RanUe, accessType uint8, reRegistrat
 	deregistrationRequest.SpareHalfOctetAndSecurityHeaderType.SetSpareHalfOctet(0)
 	deregistrationRequest.SetMessageType(nas.MsgTypeDeregistrationRequestUETerminatedDeregistration)
 
-	deregistrationRequest.SetAccessType(accessType)
+	deregistrationRequest.SetAccessType(nasMessage.AccessType3GPP)
 	deregistrationRequest.SetSwitchOff(0)
 	if reRegistrationRequired {
 		deregistrationRequest.SetReRegistrationRequired(nasMessage.ReRegistrationRequired)
@@ -440,7 +369,6 @@ func BuildDeregistrationAccept() ([]byte, error) {
 func BuildRegistrationAccept(
 	ctx ctxt.Context,
 	ue *context.AmfUe,
-	anType models.AccessType,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
@@ -463,17 +391,7 @@ func BuildRegistrationAccept(
 
 	registrationAccept.RegistrationResult5GS.SetLen(1)
 	registrationResult := uint8(0)
-	if anType == models.AccessType3GPPAccess {
-		registrationResult |= nasMessage.AccessType3GPP
-		if ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) {
-			registrationResult |= nasMessage.AccessTypeNon3GPP
-		}
-	} else {
-		registrationResult |= nasMessage.AccessTypeNon3GPP
-		if ue.State[models.AccessType3GPPAccess].Is(context.Registered) {
-			registrationResult |= nasMessage.AccessType3GPP
-		}
-	}
+	registrationResult |= nasMessage.AccessType3GPP
 	registrationAccept.RegistrationResult5GS.SetRegistrationResultValue5GS(registrationResult)
 
 	if ue.Guti != "" {
@@ -492,9 +410,9 @@ func BuildRegistrationAccept(
 	registrationAccept.EquivalentPlmns.SetLen(uint8(len(buf)))
 	copy(registrationAccept.EquivalentPlmns.Octet[:], buf)
 
-	if len(ue.RegistrationArea[anType]) > 0 {
+	if len(ue.RegistrationArea) > 0 {
 		registrationAccept.TAIList = nasType.NewTAIList(nasMessage.RegistrationAcceptTAIListType)
-		taiListNas, err := util.TaiListToNas(ue.RegistrationArea[anType])
+		taiListNas, err := util.TaiListToNas(ue.RegistrationArea)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert TAI list to NAS: %s", err)
 		}
@@ -502,10 +420,10 @@ func BuildRegistrationAccept(
 		registrationAccept.TAIList.SetPartialTrackingAreaIdentityList(taiListNas)
 	}
 
-	if ue.AllowedNssai[anType] != nil {
+	if ue.AllowedNssai != nil {
 		registrationAccept.AllowedNSSAI = nasType.NewAllowedNSSAI(nasMessage.RegistrationAcceptAllowedNSSAIType)
 
-		snssai, err := util.SnssaiToNas(*ue.AllowedNssai[anType])
+		snssai, err := util.SnssaiToNas(*ue.AllowedNssai)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert SNSSAI to NAS: %s", err)
 		}
@@ -522,11 +440,7 @@ func BuildRegistrationAccept(
 	if amfSelf.Get5gsNwFeatSuppEnable() {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
-		if anType == models.AccessType3GPPAccess {
-			registrationAccept.SetIMSVoPS3GPP(amfSelf.Get5gsNwFeatSuppImsVoPS())
-		} else {
-			registrationAccept.SetIMSVoPSN3GPP(amfSelf.Get5gsNwFeatSuppImsVoPS())
-		}
+		registrationAccept.SetIMSVoPS3GPP(amfSelf.Get5gsNwFeatSuppImsVoPS())
 		registrationAccept.SetEMC(amfSelf.Get5gsNwFeatSuppEmc())
 		registrationAccept.SetEMF(amfSelf.Get5gsNwFeatSuppEmf())
 		registrationAccept.SetIWKN26(amfSelf.Get5gsNwFeatSuppIwkN26())
@@ -555,19 +469,10 @@ func BuildRegistrationAccept(
 		registrationAccept.PDUSessionReactivationResultErrorCause.Buffer = buf
 	}
 
-	if anType == models.AccessType3GPPAccess && ue.T3512Value != 0 {
-		registrationAccept.T3512Value = nasType.NewT3512Value(nasMessage.RegistrationAcceptT3512ValueType)
-		registrationAccept.T3512Value.SetLen(1)
-		t3512 := nasConvert.GPRSTimer3ToNas(ue.T3512Value)
-		registrationAccept.T3512Value.Octet = t3512
-	}
-
-	if anType == models.AccessTypeNon3GPPAccess {
-		registrationAccept.Non3GppDeregistrationTimerValue = nasType.NewNon3GppDeregistrationTimerValue(nasMessage.RegistrationAcceptNon3GppDeregistrationTimerValueType)
-		registrationAccept.Non3GppDeregistrationTimerValue.SetLen(1)
-		timerValue := nasConvert.GPRSTimer2ToNas(ue.Non3gppDeregistrationTimerValue)
-		registrationAccept.Non3GppDeregistrationTimerValue.SetGPRSTimer2Value(timerValue)
-	}
+	registrationAccept.T3512Value = nasType.NewT3512Value(nasMessage.RegistrationAcceptT3512ValueType)
+	registrationAccept.T3512Value.SetLen(1)
+	t3512 := nasConvert.GPRSTimer3ToNas(ue.T3512Value)
+	registrationAccept.T3512Value.Octet = t3512
 
 	// Temporary: commented this timer because UESIM is not supporting
 	/*if ue.T3502Value != 0 {
@@ -589,9 +494,7 @@ func BuildRegistrationAccept(
 }
 
 // TS 24.501 - 5.4.4 Generic UE configuration update procedure - 5.4.4.1 General
-func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType,
-	flags *context.ConfigurationUpdateCommandFlags,
-) ([]byte, error, bool) {
+func BuildConfigurationUpdateCommand(ue *context.AmfUe, flags *context.ConfigurationUpdateCommandFlags) ([]byte, error, bool) {
 	needTimer := false
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -623,12 +526,12 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 	}
 
 	if flags.NeedAllowedNSSAI {
-		if ue.AllowedNssai[anType] != nil {
+		if ue.AllowedNssai != nil {
 			configurationUpdateCommand.AllowedNSSAI = nasType.NewAllowedNSSAI(nasMessage.ConfigurationUpdateCommandAllowedNSSAIType)
 
 			var buf []uint8
 
-			allowedSnssaiNas, err := util.SnssaiToNas(*ue.AllowedNssai[anType])
+			allowedSnssaiNas, err := util.SnssaiToNas(*ue.AllowedNssai)
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert allowed SNSSAI to NAS: %v", err), false
 			}
@@ -668,10 +571,10 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 		ue.GmmLog.Warn("Require Rejected NSSAI, but got nothing.")
 	}
 
-	if flags.NeedTaiList && anType == models.AccessType3GPPAccess {
-		if len(ue.RegistrationArea[anType]) > 0 {
+	if flags.NeedTaiList {
+		if len(ue.RegistrationArea) > 0 {
 			configurationUpdateCommand.TAIList = nasType.NewTAIList(nasMessage.ConfigurationUpdateCommandTAIListType)
-			taiListNas, err := util.TaiListToNas(ue.RegistrationArea[anType])
+			taiListNas, err := util.TaiListToNas(ue.RegistrationArea)
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert TAI list to NAS: %v", err), false
 			}
@@ -682,11 +585,11 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 		}
 	}
 
-	if flags.NeedServiceAreaList && anType == models.AccessType3GPPAccess {
+	if flags.NeedServiceAreaList {
 		ue.GmmLog.Warn("Require Service Area List, but got nothing.")
 	}
 
-	if flags.NeedLadnInformation && anType == models.AccessType3GPPAccess {
+	if flags.NeedLadnInformation {
 		ue.GmmLog.Warn("Require LADN Information, but got nothing.")
 	}
 

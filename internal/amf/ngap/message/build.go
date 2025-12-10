@@ -314,7 +314,7 @@ func BuildDownlinkNasTransport(ue *context.RanUe, nasPdu []byte,
 
 	// RAN Paging Priority (optional)
 	// Mobility Restriction List (optional)
-	if ue.Ran.AnType == models.AccessType3GPPAccess && mobilityRestrictionList != nil {
+	if mobilityRestrictionList != nil {
 		amfUe := ue.AmfUe
 		if amfUe == nil {
 			return nil, fmt.Errorf("amfUe is nil")
@@ -760,7 +760,6 @@ func BuildPDUSessionResourceModifyRequest(ue *context.RanUe,
 func BuildInitialContextSetupRequest(
 	ctx ctxt.Context,
 	amfUe *context.AmfUe,
-	anType models.AccessType,
 	nasPdu []byte,
 	pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq,
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
@@ -791,11 +790,13 @@ func BuildInitialContextSetupRequest(
 		return nil, fmt.Errorf("amfUe is nil")
 	}
 
-	var pdu ngapType.NGAPPDU
-	ranUe, ok := amfUe.RanUe[anType]
-	if !ok {
-		return nil, fmt.Errorf("ranUe for %s is nil", anType)
+	ranUe := amfUe.RanUe
+
+	if ranUe == nil {
+		return nil, fmt.Errorf("ranUe is nil")
 	}
+
+	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
 	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
@@ -903,7 +904,7 @@ func BuildInitialContextSetupRequest(
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 
-	snssaiNgap, err := util.SNssaiToNgap(*amfUe.AllowedNssai[anType])
+	snssaiNgap, err := util.SNssaiToNgap(*amfUe.AllowedNssai)
 	if err != nil {
 		return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
 	}
@@ -966,12 +967,7 @@ func BuildInitialContextSetupRequest(
 	ie.Value.SecurityKey = new(ngapType.SecurityKey)
 
 	securityKey := ie.Value.SecurityKey
-	switch ranUe.Ran.AnType {
-	case models.AccessType3GPPAccess:
-		securityKey.Value = ngapConvert.ByteToBitString(amfUe.Kgnb, 256)
-	case models.AccessTypeNon3GPPAccess:
-		securityKey.Value = ngapConvert.ByteToBitString(amfUe.Kn3iwf, 256)
-	}
+	securityKey.Value = ngapConvert.ByteToBitString(amfUe.Kgnb, 256)
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
@@ -991,22 +987,20 @@ func BuildInitialContextSetupRequest(
 	}
 
 	// Mobility Restriction List (optional)
-	if anType == models.AccessType3GPPAccess {
-		ie = ngapType.InitialContextSetupRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDMobilityRestrictionList
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentMobilityRestrictionList
-		ie.Value.MobilityRestrictionList = new(ngapType.MobilityRestrictionList)
+	ie = ngapType.InitialContextSetupRequestIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDMobilityRestrictionList
+	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+	ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentMobilityRestrictionList
+	ie.Value.MobilityRestrictionList = new(ngapType.MobilityRestrictionList)
 
-		mobilityRestrictionList, err := BuildIEMobilityRestrictionList(amfUe)
-		if err != nil {
-			return nil, fmt.Errorf("error building Mobility Restriction List IE: %s", err)
-		}
-
-		ie.Value.MobilityRestrictionList = mobilityRestrictionList
-
-		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
+	mobilityRestrictionList, err := BuildIEMobilityRestrictionList(amfUe)
+	if err != nil {
+		return nil, fmt.Errorf("error building Mobility Restriction List IE: %s", err)
 	}
+
+	ie.Value.MobilityRestrictionList = mobilityRestrictionList
+
+	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
 	// UE Radio Capability (optional)
 	if amfUe.UeRadioCapability != "" {
@@ -1814,11 +1808,11 @@ func BuildPaging(
 	ie.Value.TAIListForPaging = new(ngapType.TAIListForPaging)
 
 	taiListForPaging := ie.Value.TAIListForPaging
-	if ue.RegistrationArea[models.AccessType3GPPAccess] == nil {
+	if ue.RegistrationArea == nil {
 		err = fmt.Errorf("registration area is empty for ue: %s", ue.Supi)
 		return nil, err
 	} else {
-		for _, tai := range ue.RegistrationArea[models.AccessType3GPPAccess] {
+		for _, tai := range ue.RegistrationArea {
 			var tac []byte
 			taiListforPagingItem := ngapType.TAIListForPagingItem{}
 			plmnID, err := util.PlmnIDToNgap(*tai.PlmnID)

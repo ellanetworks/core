@@ -5,6 +5,7 @@
 package milenage_test
 
 import (
+	"crypto/aes"
 	"encoding/hex"
 	"reflect"
 	"strings"
@@ -41,6 +42,23 @@ type f4f5StarTest struct {
 	ExpectedOPc    string
 	ExpectedIK     string
 	ExpectedAKStar string
+}
+
+func generateOPC(k, op []uint8) ([]uint8, error) {
+	block, err := aes.NewCipher(k)
+	if err != nil {
+		return nil, err
+	}
+
+	opc := make([]byte, block.BlockSize())
+
+	block.Encrypt(opc, op)
+
+	for i := 0; i < 16; i++ {
+		opc[i] ^= op[i]
+	}
+
+	return opc, nil
 }
 
 func TestF1Test35207(t *testing.T) {
@@ -141,7 +159,7 @@ func TestF1Test35207(t *testing.T) {
 			t.Errorf("err: %+v\n", err)
 		}
 
-		OPC, err := milenage.GenerateOPC(K, OP)
+		OPC, err := generateOPC(K, OP)
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
@@ -243,7 +261,7 @@ func TestF2F5F3Test35207(t *testing.T) {
 			t.Errorf("err: %+v\n", err)
 		}
 
-		OPC, err := milenage.GenerateOPC(K, OP)
+		OPC, err := generateOPC(K, OP)
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
@@ -349,7 +367,7 @@ func TestF4F5StarTest35207(t *testing.T) {
 			t.Errorf("err: %+v\n", err)
 		}
 
-		OPC, err := milenage.GenerateOPC(K, OP)
+		OPC, err := generateOPC(K, OP)
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
@@ -388,7 +406,7 @@ func TestGenerateOPC(t *testing.T) {
 		t.Errorf("err: %+v\n", err)
 	}
 
-	_, err = milenage.GenerateOPC(K, OP)
+	_, err = generateOPC(K, OP)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
@@ -418,7 +436,7 @@ func TestRAND(t *testing.T) {
 		t.Errorf("err: %+v\n", err)
 	}
 
-	OPC, err := milenage.GenerateOPC(K, OP)
+	OPC, err := generateOPC(K, OP)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}

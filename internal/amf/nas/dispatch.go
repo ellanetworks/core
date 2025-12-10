@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/gmm"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/free5gc/nas"
 	"go.opentelemetry.io/otel"
@@ -24,7 +23,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/nas")
 
-func Dispatch(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, procedureCode int64, msg *nas.Message) error {
+func Dispatch(ctx ctxt.Context, ue *context.AmfUe, procedureCode int64, msg *nas.Message) error {
 	if msg.GmmMessage == nil {
 		return errors.New("gmm message is nil")
 	}
@@ -33,8 +32,8 @@ func Dispatch(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType,
 		return errors.New("gsm message is not nil")
 	}
 
-	if ue.State[accessType] == nil {
-		return fmt.Errorf("ue state is empty for access type: %v", accessType)
+	if ue.State == nil {
+		return fmt.Errorf("ue state is empty")
 	}
 
 	msgTypeName := MessageName(msg.GmmMessage.GmmHeader.GetMessageType())
@@ -42,7 +41,6 @@ func Dispatch(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType,
 
 	ctx, span := tracer.Start(ctx, spanName,
 		trace.WithAttributes(
-			attribute.String("nas.accessType", string(accessType)),
 			attribute.Int64("nas.procedureCode", procedureCode),
 			attribute.String("nas.messageType", msgTypeName),
 		),
@@ -55,9 +53,8 @@ func Dispatch(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType,
 		zap.String("SUPI", ue.Supi),
 	)
 
-	return gmm.GmmFSM.SendEvent(ctx, ue.State[accessType], gmm.GmmMessageEvent, fsm.ArgsType{
+	return gmm.GmmFSM.SendEvent(ctx, ue.State, gmm.GmmMessageEvent, fsm.ArgsType{
 		gmm.ArgAmfUe:         ue,
-		gmm.ArgAccessType:    accessType,
 		gmm.ArgNASMessage:    msg.GmmMessage,
 		gmm.ArgProcedureCode: procedureCode,
 	})
