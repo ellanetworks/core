@@ -34,7 +34,7 @@ func CreateN1N2MessageTransfer(ctx ctxt.Context, ueContextID string, n1n2Message
 	)
 
 	amfSelf := context.AMFSelf()
-	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
+	if _, ok := amfSelf.AmfUeFindBySupi(ueContextID); !ok {
 		return "", fmt.Errorf("ue context not found")
 	}
 
@@ -78,7 +78,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 
 	amfSelf := context.AMFSelf()
 
-	if ue, ok = amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
+	if ue, ok = amfSelf.AmfUeFindBySupi(ueContextID); !ok {
 		return "", fmt.Errorf("ue context not found")
 	}
 

@@ -441,17 +441,16 @@ func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification)
 		return
 	}
 
-	// Removing Stale Connections in AmfRanPool
-	amfSelf.AmfRanPool.Range(func(key, value interface{}) bool {
-		amfRan := value.(*context.AmfRan)
+	errorConn := sctp.NewSCTPConn(-1, nil)
 
-		errorConn := sctp.NewSCTPConn(-1, nil)
+	amfSelf.Mutex.Lock()
+	for _, amfRan := range amfSelf.AmfRanPool {
 		if reflect.DeepEqual(amfRan.Conn, errorConn) {
 			amfRan.Remove()
 			ran.Log.Info("removed stale entry in AmfRan pool")
 		}
-		return true
-	})
+	}
+	amfSelf.Mutex.Unlock()
 
 	switch notification.Type() {
 	case sctp.SCTPAssocChange:

@@ -20,13 +20,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// We should likely combine these three maps into a single sync.Map and unify the key ID
-var (
-	smContextPool    sync.Map // key: smContext.Ref, value: *SMContext
-	canonicalRef     sync.Map // key: canonicalName(identifier, pduSessID), value: smContext.Ref
-	seidSMContextMap sync.Map // key: PFCP SEID, value: *SMContext
-)
-
 type ProtocolConfigurationOptions struct {
 	DNSIPv4Request     bool
 	DNSIPv6Request     bool
@@ -78,20 +71,27 @@ func canonicalName(identifier string, pduSessID int32) string {
 }
 
 func ResolveRef(identifier string, pduSessID int32) (string, error) {
-	value, ok := canonicalRef.Load(canonicalName(identifier, pduSessID))
+	smfContext.Mu.Lock()
+	defer smfContext.Mu.Unlock()
+
+	value, ok := smfContext.CanonicalRef[canonicalName(identifier, pduSessID)]
 	if ok {
-		return value.(string), nil
+		return value, nil
 	}
 
 	return "", fmt.Errorf("UE '%s' - PDUSessionID '%d' not found in SMContext", identifier, pduSessID)
 }
 
 func NewSMContext(identifier string, pduSessID int32) *SMContext {
+	smfContext.Mu.Lock()
+	defer smfContext.Mu.Unlock()
+
 	smContext := new(SMContext)
 	// Create Ref and identifier
 	smContext.Ref = uuid.New().URN()
-	smContextPool.Store(smContext.Ref, smContext)
-	canonicalRef.Store(canonicalName(identifier, pduSessID), smContext.Ref)
+
+	smfContext.SmContextPool[smContext.Ref] = smContext
+	smfContext.CanonicalRef[canonicalName(identifier, pduSessID)] = smContext.Ref
 
 	smContext.Identifier = identifier
 	smContext.PDUSessionID = pduSessID
@@ -119,30 +119,36 @@ func (smContext *SMContext) initLogTags() {
 }
 
 func GetSMContext(ref string) *SMContext {
-	if value, ok := smContextPool.Load(ref); ok {
-		return value.(*SMContext)
+	smfContext.Mu.Lock()
+	defer smfContext.Mu.Unlock()
+
+	value, ok := smfContext.SmContextPool[ref]
+	if ok {
+		return value
 	}
 
 	return nil
 }
 
 func GetPDUSessionCount() int {
-	count := 0
-	smContextPool.Range(func(_ any, _ any) bool {
-		count++
-		return true
-	})
-	return count
+	smfContext.Mu.Lock()
+	defer smfContext.Mu.Unlock()
+
+	return len(smfContext.SmContextPool)
 }
 
 func RemoveSMContext(ctx context.Context, ref string) {
-	var smContext *SMContext
-	if value, ok := smContextPool.Load(ref); ok {
-		smContext = value.(*SMContext)
+	smfContext.Mu.Lock()
+	defer smfContext.Mu.Unlock()
+
+	smContext := smfContext.SmContextPool[ref]
+	if smContext == nil {
+		logger.SmfLog.Warn("SM Context not found", zap.String("ref", ref))
+		return
 	}
 
 	for _, pfcpSessionContext := range smContext.PFCPContext {
-		seidSMContextMap.Delete(pfcpSessionContext.LocalSEID)
+		delete(smfContext.SeidSMContextMap, pfcpSessionContext.LocalSEID)
 	}
 
 	// Release UE IP-Address
@@ -151,19 +157,23 @@ func RemoveSMContext(ctx context.Context, ref string) {
 		smContext.SubCtxLog.Error("release UE IP-Address failed", zap.Error(err))
 	}
 
-	smContextPool.Delete(ref)
+	delete(smfContext.SmContextPool, ref)
 
-	canonicalRef.Delete(canonicalName(smContext.Supi, smContext.PDUSessionID))
+	delete(smfContext.CanonicalRef, canonicalName(smContext.Identifier, smContext.PDUSessionID))
 
 	smContext.SubCtxLog.Info("SM Context removed", zap.String("ref", ref))
 }
 
 func GetSMContextBySEID(SEID uint64) *SMContext {
-	if value, ok := seidSMContextMap.Load(SEID); ok {
-		return value.(*SMContext)
+	smfContext.Mu.Lock()
+	defer smfContext.Mu.Unlock()
+
+	value, ok := smfContext.SeidSMContextMap[SEID]
+	if !ok {
+		return nil
 	}
 
-	return nil
+	return value
 }
 
 func (smContext *SMContext) ReleaseUeIPAddr(ctx context.Context) error {
@@ -221,7 +231,10 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) err
 		LocalSEID: allocatedSEID,
 	}
 
-	seidSMContextMap.Store(allocatedSEID, smContext)
+	smfContext.Mu.Lock()
+	defer smfContext.Mu.Unlock()
+
+	smfContext.SeidSMContextMap[allocatedSEID] = smContext
 
 	return nil
 }
@@ -337,17 +350,14 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 func PDUSessionsByIMSI(imsi string) []*SMContext {
 	var out []*SMContext
 
-	smContextPool.Range(func(_ any, v any) bool {
-		sc, ok := v.(*SMContext)
-		if !ok {
-			return true
-		}
+	smfContext.Mu.Lock()
+	defer smfContext.Mu.Unlock()
 
-		if sc.Supi == imsi {
-			out = append(out, sc)
+	for k, smContext := range smfContext.SmContextPool {
+		if smContext.Supi == imsi {
+			out = append(out, smfContext.SmContextPool[k])
 		}
-		return true
-	})
+	}
 
 	return out
 }
@@ -355,17 +365,14 @@ func PDUSessionsByIMSI(imsi string) []*SMContext {
 func PDUSessionsByDNN(dnn string) []*SMContext {
 	var out []*SMContext
 
-	smContextPool.Range(func(_ any, v any) bool {
-		sc, ok := v.(*SMContext)
-		if !ok {
-			return true
-		}
+	smfContext.Mu.Lock()
+	defer smfContext.Mu.Unlock()
 
-		if sc.Dnn == dnn {
-			out = append(out, sc)
+	for k, smContext := range smfContext.SmContextPool {
+		if smContext.Dnn == dnn {
+			out = append(out, smfContext.SmContextPool[k])
 		}
-		return true
-	})
+	}
 
 	return out
 }

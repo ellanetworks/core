@@ -18,16 +18,17 @@ func DeregisterSubscriber(ctx ctxt.Context, supi string) error {
 		return nil
 	}
 
-	ue.SmContextList.Range(func(key, value any) bool {
-		smContext := value.(*context.SmContext)
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	for _, smContext := range ue.SmContextList {
 		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 		if err != nil {
 			ue.GmmLog.Debug("Error releasing SM context", zap.Error(err))
 		} else {
 			ue.GmmLog.Debug("Released SM context", zap.String("smContextRef", smContext.SmContextRef()))
 		}
-		return true
-	})
+	}
 
 	ue.Remove()
 

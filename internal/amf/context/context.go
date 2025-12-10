@@ -28,12 +28,14 @@ var (
 	amfContext                                    = AMFContext{}
 	tmsiGenerator        *idgenerator.IDGenerator = nil
 	amfUeNGAPIDGenerator *idgenerator.IDGenerator = nil
-	mutex                sync.Mutex
 )
 
 func init() {
 	tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
 	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID)
+	amfContext.UePool = make(map[string]*AmfUe)
+	amfContext.RanUePool = make(map[int64]*RanUe)
+	amfContext.AmfRanPool = make(map[*sctp.SCTPConn]*AmfRan)
 }
 
 type NetworkFeatureSupport5GS struct {
@@ -64,10 +66,12 @@ type TimerValue struct {
 }
 
 type AMFContext struct {
+	Mutex sync.Mutex
+
 	DBInstance               *db.Database
-	UePool                   sync.Map // map[supi]*AmfUe
-	RanUePool                sync.Map // map[AmfUeNgapID]*RanUe
-	AmfRanPool               sync.Map // map[net.Conn]*AmfRan
+	UePool                   map[string]*AmfUe // Key: supi
+	RanUePool                map[int64]*RanUe  // Key: AmfUeNgapID
+	AmfRanPool               map[*sctp.SCTPConn]*AmfRan
 	RelativeCapacity         int64
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
@@ -147,12 +151,12 @@ func (context *AMFContext) AddAmfUeToUePool(ue *AmfUe, supi string) {
 		logger.AmfLog.Error("Supi is nil")
 	}
 	ue.Supi = supi
-	context.UePool.Store(ue.Supi, ue)
+	context.Mutex.Lock()
+	context.UePool[ue.Supi] = ue
+	context.Mutex.Unlock()
 }
 
 func (context *AMFContext) NewAmfUe(ctx ctxt.Context, supi string) *AmfUe {
-	mutex.Lock()
-	defer mutex.Unlock()
 	ue := AmfUe{}
 	ue.init()
 
@@ -163,29 +167,28 @@ func (context *AMFContext) NewAmfUe(ctx ctxt.Context, supi string) *AmfUe {
 	return &ue
 }
 
-func (context *AMFContext) AmfUeFindByUeContextID(ueContextID string) (*AmfUe, bool) {
-	return context.AmfUeFindBySupi(ueContextID)
-}
+func (context *AMFContext) AmfUeFindBySupi(supi string) (*AmfUe, bool) {
+	context.Mutex.Lock()
+	defer context.Mutex.Unlock()
 
-func (context *AMFContext) AmfUeFindBySupi(supi string) (ue *AmfUe, ok bool) {
-	if value, loadOk := context.UePool.Load(supi); loadOk {
-		ue = value.(*AmfUe)
-		ok = loadOk
+	value, ok := context.UePool[supi]
+	if !ok {
+		return nil, false
 	}
 
-	return
+	return value, true
 }
 
-func (context *AMFContext) AmfUeFindBySuci(suci string) (ue *AmfUe, ok bool) {
-	context.UePool.Range(func(key, value interface{}) bool {
-		candidate := value.(*AmfUe)
-		if ok = (candidate.Suci == suci); ok {
-			ue = candidate
-			return false
+func (context *AMFContext) AmfUeFindBySuci(suci string) *AmfUe {
+	context.Mutex.Lock()
+	defer context.Mutex.Unlock()
+
+	for _, ue := range context.UePool {
+		if ue.Suci == suci {
+			return ue
 		}
-		return true
-	})
-	return
+	}
+	return nil
 }
 
 func (context *AMFContext) NewAmfRan(conn *sctp.SCTPConn) *AmfRan {
@@ -206,61 +209,68 @@ func (context *AMFContext) NewAmfRan(conn *sctp.SCTPConn) *AmfRan {
 	ran.Conn = conn
 	ran.GnbIP = remoteAddr.String()
 	ran.Log = logger.AmfLog.With(zap.String("ran_addr", remoteAddr.String()))
-	context.AmfRanPool.Store(conn, &ran)
+	context.Mutex.Lock()
+	context.AmfRanPool[conn] = &ran
+	context.Mutex.Unlock()
 	return &ran
 }
 
 // use net.Conn to find RAN context, return *AmfRan and ok bit
 func (context *AMFContext) AmfRanFindByConn(conn *sctp.SCTPConn) (*AmfRan, bool) {
-	if value, ok := context.AmfRanPool.Load(conn); ok {
-		return value.(*AmfRan), ok
+	context.Mutex.Lock()
+	defer context.Mutex.Unlock()
+
+	value, ok := context.AmfRanPool[conn]
+	if !ok {
+		return nil, false
 	}
-	return nil, false
+
+	return value, true
 }
 
 // use ranNodeID to find RAN context, return *AmfRan and ok bit
 func (context *AMFContext) AmfRanFindByRanID(ranNodeID models.GlobalRanNodeID) (*AmfRan, bool) {
-	var ran *AmfRan
-	var ok bool
-	context.AmfRanPool.Range(func(key, value any) bool {
-		amfRan := value.(*AmfRan)
+	context.Mutex.Lock()
+	defer context.Mutex.Unlock()
+
+	for _, amfRan := range context.AmfRanPool {
 		switch amfRan.RanPresent {
 		case RanPresentGNbID:
 			if amfRan.RanID.GNbID.GNBValue == ranNodeID.GNbID.GNBValue {
-				ran = amfRan
-				ok = true
-				return false
+				return amfRan, true
 			}
 		case RanPresentNgeNbID:
 			if amfRan.RanID.NgeNbID == ranNodeID.NgeNbID {
-				ran = amfRan
-				ok = true
-				return false
+				return amfRan, true
 			}
 		case RanPresentN3IwfID:
 			if amfRan.RanID.N3IwfID == ranNodeID.N3IwfID {
-				ran = amfRan
-				ok = true
-				return false
+				return amfRan, true
 			}
 		}
-		return true
-	})
-	return ran, ok
+	}
+
+	return nil, false
 }
 
 func (context *AMFContext) ListAmfRan() []AmfRan {
 	ranList := make([]AmfRan, 0)
-	context.AmfRanPool.Range(func(key, value interface{}) bool {
-		ran := value.(*AmfRan)
-		ranList = append(ranList, *ran)
-		return true
-	})
+
+	context.Mutex.Lock()
+	defer context.Mutex.Unlock()
+
+	for _, value := range context.AmfRanPool {
+		ranList = append(ranList, *value)
+	}
+
 	return ranList
 }
 
 func (context *AMFContext) DeleteAmfRan(conn *sctp.SCTPConn) {
-	context.AmfRanPool.Delete(conn)
+	context.Mutex.Lock()
+	defer context.Mutex.Unlock()
+
+	delete(context.AmfRanPool, conn)
 }
 
 func (context *AMFContext) InPlmnSupport(ctx ctxt.Context, snssai models.Snssai, supportedPLMN *PlmnSupportItem) bool {
@@ -272,20 +282,14 @@ func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (*AmfUe, bool) {
 	if guti == "" {
 		return nil, false
 	}
-	var (
-		ue *AmfUe
-		ok bool
-	)
-	context.UePool.Range(func(key, value any) bool {
-		candidate := value.(*AmfUe)
-		if ok = (candidate.Guti == guti || candidate.OldGuti == guti); ok {
-			ue = candidate
-			return false
-		}
-		return true
-	})
 
-	return ue, ok
+	for _, v := range context.UePool {
+		if v.Guti == guti || v.OldGuti == guti {
+			return v, true
+		}
+	}
+
+	return nil, false
 }
 
 func (context *AMFContext) AmfUeFindByGuti(guti string) (ue *AmfUe, ok bool) {
@@ -299,11 +303,15 @@ func (context *AMFContext) AmfUeFindByGuti(guti string) (ue *AmfUe, ok bool) {
 }
 
 func (context *AMFContext) RanUeFindByAmfUeNgapIDLocal(amfUeNgapID int64) *RanUe {
-	if value, ok := context.RanUePool.Load(amfUeNgapID); ok {
-		return value.(*RanUe)
-	} else {
+	context.Mutex.Lock()
+	defer context.Mutex.Unlock()
+
+	value, ok := context.RanUePool[amfUeNgapID]
+	if !ok {
 		return nil
 	}
+
+	return value
 }
 
 func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {

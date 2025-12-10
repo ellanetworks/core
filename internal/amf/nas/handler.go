@@ -44,6 +44,7 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 		}
 
 		eeCtx := ue.AmfUe
+
 		eeCtx.Mutex.Lock()
 		defer eeCtx.Mutex.Unlock()
 

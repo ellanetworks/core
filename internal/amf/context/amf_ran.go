@@ -67,7 +67,9 @@ func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {
 	ranUe.Ran = ran
 	ranUe.Log = ran.Log.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("%d", ranUe.AmfUeNgapID)))
 	ran.RanUeList = append(ran.RanUeList, &ranUe)
-	self.RanUePool.Store(ranUe.AmfUeNgapID, &ranUe)
+	self.Mutex.Lock()
+	self.RanUePool[ranUe.AmfUeNgapID] = &ranUe
+	self.Mutex.Unlock()
 	return &ranUe, nil
 }
 

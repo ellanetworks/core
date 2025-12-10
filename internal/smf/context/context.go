@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -25,10 +26,17 @@ var tracer = otel.Tracer("ella-core/smf")
 var AllowedSessionType = models.PduSessionTypeIPv4
 
 type SMFContext struct {
+	Mu sync.Mutex
+
 	DBInstance     *db.Database
 	UPF            *UPF
 	CPNodeID       net.IP
 	LocalSEIDCount uint64
+
+	// We should likely combine these three maps into a single Map and unify the key ID
+	SmContextPool    map[string]*SMContext // key: smContext.Ref
+	CanonicalRef     map[string]string     // key: canonicalName(identifier, pduSessID), value: smContext.Ref
+	SeidSMContextMap map[uint64]*SMContext // key: PFCP SEID
 }
 
 // SnssaiSmfDnnInfo records the SMF per S-NSSAI DNN information

@@ -105,7 +105,9 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 	if smContextExist && requestType != nil {
 		/* AMF releases context locally as this is duplicate pdu session */
 		if requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest {
-			ue.SmContextList.Delete(pduSessionID)
+			ue.Mutex.Lock()
+			delete(ue.SmContextList, pduSessionID)
+			ue.Mutex.Unlock()
 			smContextExist = false
 		}
 	}
@@ -1030,16 +1032,15 @@ func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe
 		SetDeregisteredState(ue)
 	}
 
-	ue.SmContextList.Range(func(key, value interface{}) bool {
-		smContext := value.(*context.SmContext)
-
+	ue.Mutex.Lock()
+	for _, smContext := range ue.SmContextList {
 		ue.GmmLog.Info("Sending SmContext Release Request to SMF", zap.Any("slice", smContext.Snssai()), zap.String("dnn", smContext.Dnn()))
 		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 		if err != nil {
 			ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
 		}
-		return true
-	})
+	}
+	ue.Mutex.Unlock()
 
 	// if ue is not connected mode, removing UE Context
 	if !ue.State.Is(context.Registered) {
@@ -1199,13 +1200,11 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, serviceRequest *n
 		}
 	}
 
+	ue.Mutex.Lock()
 	if serviceRequest.UplinkDataStatus != nil {
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(serviceRequest.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
-		ue.SmContextList.Range(func(key, value any) bool {
-			pduSessionID := key.(int32)
-			smContext := value.(*context.SmContext)
-
+		for pduSessionID, smContext := range ue.SmContextList {
 			if pduSessionID != targetPduSessionID {
 				if uplinkDataPsi[pduSessionID] {
 					response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext)
@@ -1225,15 +1224,12 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, serviceRequest *n
 					}
 				}
 			}
-			return true
-		})
+		}
 	}
 	if serviceRequest.PDUSessionStatus != nil {
 		acceptPduSessionPsi = new([16]bool)
 		psiArray := nasConvert.PSIToBooleanArray(serviceRequest.PDUSessionStatus.Buffer)
-		ue.SmContextList.Range(func(key, value any) bool {
-			pduSessionID := key.(int32)
-			smContext := value.(*context.SmContext)
+		for pduSessionID, smContext := range ue.SmContextList {
 			if !psiArray[pduSessionID] {
 				err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 				if err != nil {
@@ -1242,9 +1238,10 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, serviceRequest *n
 			} else {
 				acceptPduSessionPsi[pduSessionID] = true
 			}
-			return true
-		})
+		}
 	}
+	defer ue.Mutex.Unlock()
+
 	switch serviceType {
 	case nasMessage.ServiceTypeMobileTerminatedServices: // Triggered by Network
 		// TS 24.501 5.4.4.1 - We need to assign a new GUTI after a successful Service Request
@@ -1670,19 +1667,19 @@ func HandleSecurityModeReject(ctx ctxt.Context, ue *context.AmfUe, securityModeR
 
 // TS 23.502 4.2.2.3
 func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, deregistrationRequest *nasMessage.DeregistrationRequestUEOriginatingDeregistration) error {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
 	logger.AmfLog.Debug("Handle Deregistration Request", zap.String("supi", ue.Supi))
 
 	targetDeregistrationAccessType := deregistrationRequest.GetAccessType()
-	ue.SmContextList.Range(func(key, value interface{}) bool {
-		smContext := value.(*context.SmContext)
 
+	for _, smContext := range ue.SmContextList {
 		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 		if err != nil {
 			ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
 		}
-
-		return true
-	})
+	}
 
 	// if Deregistration type is not switch-off, send Deregistration Accept
 	if deregistrationRequest.GetSwitchOff() == 0 && ue.RanUe != nil {

@@ -145,7 +145,7 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*contex
 			/* UeContext found based on SUCI which means context is exist in Network(AMF) but not
 			   present in UE. Hence, AMF clear the existing context
 			*/
-			ue, _ = context.AMFSelf().AmfUeFindBySuci(suci)
+			ue = context.AMFSelf().AmfUeFindBySuci(suci)
 			if ue != nil {
 				ue.NASLog.Info("UE Context derived from Suci", zap.String("suci", suci))
 				ue.SecurityContextAvailable = false

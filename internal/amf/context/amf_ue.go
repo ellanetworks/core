@@ -95,7 +95,7 @@ type AmfUe struct {
 	/* N1N2Message */
 	N1N2Message *models.N1N2MessageTransferRequest
 	/* Pdu Sesseion context */
-	SmContextList sync.Map // map[int32]*SmContext, pdu session id as key
+	SmContextList map[int32]*SmContext // Key: pdu session id
 	/* Related Context*/
 	RanUe *RanUe
 	/* other */
@@ -198,6 +198,7 @@ func (ue *AmfUe) init() {
 	ue.RegistrationArea = make([]models.Tai, 0)
 	ue.OnGoing = new(OnGoingProcedureWithPrio)
 	ue.OnGoing.Procedure = OnGoingProcedureNothing
+	ue.SmContextList = make(map[int32]*SmContext)
 }
 
 func (ue *AmfUe) CmConnect() bool {
@@ -219,7 +220,9 @@ func (ue *AmfUe) Remove() {
 	tmsiGenerator.FreeID(int64(ue.Tmsi))
 
 	if len(ue.Supi) > 0 {
-		AMFSelf().UePool.Delete(ue.Supi)
+		AMFSelf().Mutex.Lock()
+		delete(AMFSelf().UePool, ue.Supi)
+		AMFSelf().Mutex.Unlock()
 	}
 }
 
@@ -451,14 +454,12 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 
 // this method called when we are reusing the same uecontext during the registration procedure
 func (ue *AmfUe) ClearRegistrationData() {
-	// Allowed Nssai should be cleared first as it is a new Registration
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
 	ue.SubscribedNssai = nil
 	ue.SubscriptionDataValid = false
-	// Clearing SMContextList locally
-	ue.SmContextList.Range(func(key, _ interface{}) bool {
-		ue.SmContextList.Delete(key)
-		return true
-	})
+	ue.SmContextList = make(map[int32]*SmContext)
 }
 
 func (ue *AmfUe) SetOnGoing(onGoing *OnGoingProcedureWithPrio) {
@@ -472,26 +473,33 @@ func (ue *AmfUe) GetOnGoing() OnGoingProcedureWithPrio {
 }
 
 func (ue *AmfUe) StoreSmContext(pduSessionID int32, smContext *SmContext) {
-	ue.SmContextList.Store(pduSessionID, smContext)
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	ue.SmContextList[pduSessionID] = smContext
 }
 
 func (ue *AmfUe) SmContextFindByPDUSessionID(pduSessionID int32) (*SmContext, bool) {
-	if value, ok := ue.SmContextList.Load(pduSessionID); ok {
-		return value.(*SmContext), true
-	} else {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	value, ok := ue.SmContextList[pduSessionID]
+	if !ok {
 		return nil, false
 	}
+
+	return value, true
 }
 
 func (ue *AmfUe) HasActivePduSessions() bool {
-	hasActive := false
-	ue.SmContextList.Range(func(key, value any) bool {
-		smContext := value.(*SmContext)
-		if smContext.IsPduSessionActive() {
-			hasActive = true
-			return false
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	for _, v := range ue.SmContextList {
+		if v.IsPduSessionActive() {
+			return true
 		}
-		return true
-	})
-	return hasActive
+	}
+
+	return false
 }

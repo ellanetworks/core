@@ -55,17 +55,6 @@ func (upf *UPF) farID() (uint32, error) {
 	return uint32(tmpID), nil
 }
 
-func (upf *UPF) barID() (uint8, error) {
-	var barID uint8
-	if tmpID, err := upf.barIDGenerator.Allocate(); err != nil {
-		return 0, err
-	} else {
-		barID = uint8(tmpID)
-	}
-
-	return barID, nil
-}
-
 func (upf *UPF) qerID() (uint32, error) {
 	tmpID, err := upf.qerIDGenerator.Allocate()
 	if err != nil {
@@ -105,18 +94,6 @@ func (upf *UPF) AddFAR() (*FAR, error) {
 	far.FARID = farID
 
 	return far, nil
-}
-
-func (upf *UPF) AddBAR() (*BAR, error) {
-	BARID, err := upf.barID()
-	if err != nil {
-		return nil, err
-	}
-
-	bar := new(BAR)
-	bar.BARID = BARID
-
-	return bar, nil
 }
 
 func (upf *UPF) AddQER() (*QER, error) {
