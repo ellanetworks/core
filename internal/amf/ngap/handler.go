@@ -996,23 +996,6 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 
 			*recommendedCells = append(*recommendedCells, recommendedCell)
 		}
-
-		recommendedRanNodes := &amfUe.InfoOnRecommendedCellsAndRanNodesForPaging.RecommendedRanNodes
-		ranNodeList := infoOnRecommendedCellsAndRANNodesForPaging.RecommendRANNodesForPaging.RecommendedRANNodeList.List
-		for _, item := range ranNodeList {
-			recommendedRanNode := context.RecommendRanNode{}
-
-			switch item.AMFPagingTarget.Present {
-			case ngapType.AMFPagingTargetPresentGlobalRANNodeID:
-				recommendedRanNode.Present = context.RecommendRanNodePresentRanNode
-				recommendedRanNode.GlobalRanNodeID = new(models.GlobalRanNodeID)
-			case ngapType.AMFPagingTargetPresentTAI:
-				recommendedRanNode.Present = context.RecommendRanNodePresentTAI
-				tai := util.TaiToModels(*item.AMFPagingTarget.TAI)
-				recommendedRanNode.Tai = &tai
-			}
-			*recommendedRanNodes = append(*recommendedRanNodes, recommendedRanNode)
-		}
 	}
 
 	// for each pduSessionID invoke Nsmf_PDUSession_UpdateSMContext Request

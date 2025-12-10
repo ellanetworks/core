@@ -169,8 +169,7 @@ type UERadioCapabilityForPaging struct {
 
 // TS 38.413 9.3.1.100
 type InfoOnRecommendedCellsAndRanNodesForPaging struct {
-	RecommendedCells    []RecommendedCell  // RecommendedCellsForPaging
-	RecommendedRanNodes []RecommendRanNode // RecommendedRanNodesForPaging
+	RecommendedCells []RecommendedCell // RecommendedCellsForPaging
 }
 
 // TS 38.413 9.3.1.71
