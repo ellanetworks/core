@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"math"
 	"net"
-	"sync"
 
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 )
@@ -24,9 +23,6 @@ type UPF struct {
 	qerIDGenerator *idgenerator.IDGenerator
 
 	NodeID net.IP
-
-	// lock
-	UpfLock sync.RWMutex
 }
 
 func NewUPF(nodeID net.IP) *UPF {

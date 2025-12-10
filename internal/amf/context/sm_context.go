@@ -14,7 +14,7 @@ import (
 )
 
 type SmContext struct {
-	Mu *sync.RWMutex // protect the following fields
+	Mu sync.Mutex // protect the following fields
 
 	PduSessionIDVal       int32
 	SmContextRefVal       string
@@ -27,7 +27,6 @@ type SmContext struct {
 func NewSmContext(pduSessionID int32) *SmContext {
 	c := &SmContext{
 		PduSessionIDVal: pduSessionID,
-		Mu:              new(sync.RWMutex),
 	}
 	return c
 }
@@ -41,14 +40,14 @@ func (c *SmContext) SetPduSessionInActive(s bool) {
 }
 
 func (c *SmContext) PduSessionID() int32 {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
 	return c.PduSessionIDVal
 }
 
 func (c *SmContext) SmContextRef() string {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
 	return c.SmContextRefVal
 }
 
@@ -59,8 +58,8 @@ func (c *SmContext) SetSmContextRef(ref string) {
 }
 
 func (c *SmContext) Snssai() models.Snssai {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
 	return c.SnssaiVal
 }
 
@@ -71,8 +70,8 @@ func (c *SmContext) SetSnssai(snssai models.Snssai) {
 }
 
 func (c *SmContext) Dnn() string {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
 	return c.DnnVal
 }
 
@@ -83,8 +82,8 @@ func (c *SmContext) SetDnn(dnn string) {
 }
 
 func (c *SmContext) UserLocation() models.UserLocation {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
 	return c.UserLocationVal
 }
 

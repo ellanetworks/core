@@ -78,15 +78,12 @@ type AmfUe struct {
 	OldGuti string
 	/* Ue Identity*/
 	/* User Location*/
-	RatType                  models.RatType
-	Location                 models.UserLocation
-	Tai                      models.Tai
-	LastVisitedRegisteredTai models.Tai
-	TimeZone                 string
+	Location models.UserLocation
+	Tai      models.Tai
+	TimeZone string
 	/* context about udm */
 	SubscriptionDataValid             bool
 	Dnn                               string
-	TraceData                         *models.TraceData
 	SubscribedNssai                   *models.Snssai
 	Ambr                              *models.Ambr
 	RoutingIndicator                  string
@@ -96,7 +93,7 @@ type AmfUe struct {
 	Kseaf                             string
 	Kamf                              string
 	/* N1N2Message */
-	N1N2Message *N1N2Message
+	N1N2Message *models.N1N2MessageTransferRequest
 	/* Pdu Sesseion context */
 	SmContextList sync.Map // map[int32]*SmContext, pdu session id as key
 	/* Related Context*/
@@ -104,13 +101,11 @@ type AmfUe struct {
 	/* other */
 	OnGoing                         *OnGoingProcedureWithPrio
 	UeRadioCapability               string // OCTET string
-	Capability5GMM                  nasType.Capability5GMM
-	ConfigurationUpdateIndication   nasType.ConfigurationUpdateIndication
 	ConfigurationUpdateCommandFlags *ConfigurationUpdateCommandFlags
 	/* context related to Paging */
-	UeRadioCapabilityForPaging                 *UERadioCapabilityForPaging
-	InfoOnRecommendedCellsAndRanNodesForPaging *InfoOnRecommendedCellsAndRanNodesForPaging
-	UESpecificDRX                              uint8
+	UeRadioCapabilityForPaging *UERadioCapabilityForPaging
+	RecommendedCellsForPaging  []RecommendedCell // TS 38.413 9.3.1.100
+	UESpecificDRX              uint8
 	/* Security Context */
 	SecurityContextAvailable bool
 	UESecurityCapability     *nasType.UESecurityCapability // for security command
@@ -153,11 +148,6 @@ type AmfUe struct {
 	ProducerLog *zap.Logger
 }
 
-type N1N2Message struct {
-	Request models.N1N2MessageTransferRequest
-	Status  models.N1N2MessageTransferCause
-}
-
 type OnGoingProcedureWithPrio struct {
 	Procedure OnGoingProcedure
 	Ppi       int32 // Paging priority
@@ -166,12 +156,6 @@ type OnGoingProcedureWithPrio struct {
 type UERadioCapabilityForPaging struct {
 	NR    string // OCTET string
 	EUTRA string // OCTET string
-}
-
-// TS 38.413 9.3.1.100
-type InfoOnRecommendedCellsAndRanNodesForPaging struct {
-	RecommendedCells    []RecommendedCell  // RecommendedCellsForPaging
-	RecommendedRanNodes []RecommendRanNode // RecommendedRanNodesForPaging
 }
 
 // TS 38.413 9.3.1.71
@@ -486,8 +470,6 @@ func (ue *AmfUe) SetOnGoing(onGoing *OnGoingProcedureWithPrio) {
 func (ue *AmfUe) GetOnGoing() OnGoingProcedureWithPrio {
 	return *ue.OnGoing
 }
-
-// SM Context realted function
 
 func (ue *AmfUe) StoreSmContext(pduSessionID int32, smContext *SmContext) {
 	ue.SmContextList.Store(pduSessionID, smContext)

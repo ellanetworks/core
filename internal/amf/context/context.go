@@ -64,25 +64,23 @@ type TimerValue struct {
 }
 
 type AMFContext struct {
-	DBInstance                      *db.Database
-	UePool                          sync.Map // map[supi]*AmfUe
-	RanUePool                       sync.Map // map[AmfUeNgapID]*RanUe
-	AmfRanPool                      sync.Map // map[net.Conn]*AmfRan
-	RelativeCapacity                int64
-	Name                            string
-	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
-	SecurityAlgorithm               SecurityAlgorithm
-	NetworkName                     NetworkName
-	T3502Value                      int    // unit is second
-	T3512Value                      int    // unit is second
-	Non3gppDeregistrationTimerValue int    // unit is second
-	TimeZone                        string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 - 5.2.2 Simple Data Types
-	T3513Cfg                        TimerValue
-	T3522Cfg                        TimerValue
-	T3550Cfg                        TimerValue
-	T3555Cfg                        TimerValue
-	T3560Cfg                        TimerValue
-	T3565Cfg                        TimerValue
+	DBInstance               *db.Database
+	UePool                   sync.Map // map[supi]*AmfUe
+	RanUePool                sync.Map // map[AmfUeNgapID]*RanUe
+	AmfRanPool               sync.Map // map[net.Conn]*AmfRan
+	RelativeCapacity         int64
+	Name                     string
+	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
+	SecurityAlgorithm        SecurityAlgorithm
+	NetworkName              NetworkName
+	T3502Value               int    // unit is second
+	T3512Value               int    // unit is second
+	TimeZone                 string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 - 5.2.2 Simple Data Types
+	T3513Cfg                 TimerValue
+	T3522Cfg                 TimerValue
+	T3550Cfg                 TimerValue
+	T3555Cfg                 TimerValue
+	T3560Cfg                 TimerValue
 }
 
 type SecurityAlgorithm struct {
@@ -288,19 +286,6 @@ func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (*AmfUe, bool) {
 	})
 
 	return ue, ok
-}
-
-func (context *AMFContext) AmfUeFindBySupiLocal(supi string) (ue *AmfUe, ok bool) {
-	context.UePool.Range(func(key, value interface{}) bool {
-		candidate := value.(*AmfUe)
-		if ok = (candidate.Supi == supi); ok {
-			ue = candidate
-			return false
-		}
-		return true
-	})
-
-	return
 }
 
 func (context *AMFContext) AmfUeFindByGuti(guti string) (ue *AmfUe, ok bool) {

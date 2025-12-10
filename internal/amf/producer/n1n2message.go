@@ -230,11 +230,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 	// Case A (UE is CM-IDLE in 3GPP access and the associated access type is 3GPP access)
 	// in subclause 5.2.2.3.1.2 of TS29518
 	cause = models.N1N2MessageTransferCauseAttemptingToReachUE
-	message := context.N1N2Message{
-		Request: n1n2MessageTransferRequest,
-		Status:  cause,
-	}
-	ue.N1N2Message = &message
+	ue.N1N2Message = &n1n2MessageTransferRequest
 	ue.SetOnGoing(&context.OnGoingProcedureWithPrio{
 		Procedure: context.OnGoingProcedurePaging,
 		Ppi:       requestData.Ppi,

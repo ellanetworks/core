@@ -501,10 +501,6 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 		return err
 	}
 
-	if ue.RegistrationRequest.Capability5GMM != nil {
-		ue.Capability5GMM = *ue.RegistrationRequest.Capability5GMM
-	}
-
 	if ue.AllowedNssai == nil {
 		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed, "")
 		if err != nil {
@@ -517,8 +513,6 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 		ue.Remove()
 		return fmt.Errorf("no allowed nssai")
 	}
-
-	storeLastVisitedRegisteredTAI(ue, ue.RegistrationRequest.LastVisitedRegisteredTAI)
 
 	if ue.RegistrationRequest.MICOIndication != nil {
 		ue.GmmLog.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.MICOIndication.GetRAAI()))
@@ -590,9 +584,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		return err
 	}
 
-	if ue.RegistrationRequest.Capability5GMM != nil {
-		ue.Capability5GMM = *ue.RegistrationRequest.Capability5GMM
-	} else {
+	if ue.RegistrationRequest.Capability5GMM == nil {
 		if ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
 			err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified, "")
 			if err != nil {
@@ -601,8 +593,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 			return fmt.Errorf("Capability5GMM is nil")
 		}
 	}
-
-	storeLastVisitedRegisteredTAI(ue, ue.RegistrationRequest.LastVisitedRegisteredTAI)
 
 	if ue.RegistrationRequest.MICOIndication != nil {
 		ue.GmmLog.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.MICOIndication.GetRAAI()))
@@ -702,9 +692,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 
 	if ue.RegistrationRequest.AllowedPDUSessionStatus != nil {
 		if ue.N1N2Message != nil {
-			requestData := ue.N1N2Message.Request.JSONData
-			n1Msg := ue.N1N2Message.Request.BinaryDataN1Message
-			n2Info := ue.N1N2Message.Request.BinaryDataN2Information
+			requestData := ue.N1N2Message.JSONData
+			n1Msg := ue.N1N2Message.BinaryDataN1Message
+			n2Info := ue.N1N2Message.BinaryDataN2Information
 
 			// downlink signalling
 			if n2Info == nil {
@@ -807,27 +797,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 			ue.GmmLog.Info("sent downlink nas transport message")
 		}
 		return nil
-	}
-}
-
-// TS 23.502 4.2.2.2.2 step 1
-// If available, the last visited TAI shall be included in order to help the AMF produce Registration Area for the UE
-func storeLastVisitedRegisteredTAI(ue *context.AmfUe, lastVisitedRegisteredTAI *nasType.LastVisitedRegisteredTAI) {
-	if lastVisitedRegisteredTAI != nil {
-		plmnID := nasConvert.PlmnIDToString(lastVisitedRegisteredTAI.Octet[1:4])
-		nasTac := lastVisitedRegisteredTAI.GetTAC()
-		tac := hex.EncodeToString(nasTac[:])
-
-		tai := models.Tai{
-			PlmnID: &models.PlmnID{
-				Mcc: plmnID[:3],
-				Mnc: plmnID[3:],
-			},
-			Tac: tac,
-		}
-
-		ue.LastVisitedRegisteredTai = tai
-		ue.GmmLog.Debug("Ue Last Visited Registered Tai", zap.String("plmnID", plmnID), zap.String("tac", tac))
 	}
 }
 
@@ -1219,8 +1188,8 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, serviceRequest *n
 		return err
 	}
 	if ue.N1N2Message != nil {
-		requestData := ue.N1N2Message.Request.JSONData
-		if ue.N1N2Message.Request.BinaryDataN2Information != nil {
+		requestData := ue.N1N2Message.JSONData
+		if ue.N1N2Message.BinaryDataN2Information != nil {
 			if requestData.N2InfoContainer.N2InformationClass == models.N2InformationClassSM {
 				targetPduSessionID = requestData.N2InfoContainer.SmInfo.PduSessionID
 			} else {
@@ -1283,9 +1252,9 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, serviceRequest *n
 		ue.ConfigurationUpdateCommandFlags = &context.ConfigurationUpdateCommandFlags{NeedGUTI: true}
 
 		if ue.N1N2Message != nil {
-			requestData := ue.N1N2Message.Request.JSONData
-			n1Msg := ue.N1N2Message.Request.BinaryDataN1Message
-			n2Info := ue.N1N2Message.Request.BinaryDataN2Information
+			requestData := ue.N1N2Message.JSONData
+			n1Msg := ue.N1N2Message.BinaryDataN1Message
+			n2Info := ue.N1N2Message.BinaryDataN2Information
 
 			// Paging was triggered for downlink signaling only
 			if n2Info == nil && n1Msg != nil {

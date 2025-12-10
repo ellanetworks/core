@@ -64,11 +64,7 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 		ExpireTime:    6 * time.Second,
 		MaxRetryTimes: 4,
 	}
-	self.T3565Cfg = context.TimerValue{
-		Enable:        true,
-		ExpireTime:    6 * time.Second,
-		MaxRetryTimes: 4,
-	}
+
 	self.DBInstance = dbInstance
 	self.Name = "amf"
 	self.RelativeCapacity = 0xff

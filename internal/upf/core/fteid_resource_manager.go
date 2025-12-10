@@ -9,7 +9,7 @@ import (
 type FteIDResourceManager struct {
 	freeTEIDs []uint32
 	busyTEIDs map[uint64]map[uint32]uint32 // map[seID]map[pdrID]teid
-	sync.RWMutex
+	sync.Mutex
 }
 
 func NewFteIDResourceManager(teidRange uint32) (*FteIDResourceManager, error) {

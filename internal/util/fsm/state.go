@@ -14,7 +14,7 @@ type State struct {
 	// current state of the State object
 	current StateType
 	// stateMutex ensures that all operations to current is thread-safe
-	stateMutex sync.RWMutex
+	stateMutex sync.Mutex
 }
 
 // NewState create a State object with current state set to initState
@@ -25,15 +25,15 @@ func NewState(initState StateType) *State {
 
 // Current get the current state
 func (state *State) Current() StateType {
-	state.stateMutex.RLock()
-	defer state.stateMutex.RUnlock()
+	state.stateMutex.Lock()
+	defer state.stateMutex.Unlock()
 	return state.current
 }
 
 // Is return true if the current state is equal to target
 func (state *State) Is(target StateType) bool {
-	state.stateMutex.RLock()
-	defer state.stateMutex.RUnlock()
+	state.stateMutex.Lock()
+	defer state.stateMutex.Unlock()
 	return state.current == target
 }
 

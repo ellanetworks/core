@@ -24,7 +24,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/nas/nasMessage"
-	libngap "github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -967,9 +966,8 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 		return
 	}
 	if infoOnRecommendedCellsAndRANNodesForPaging != nil {
-		amfUe.InfoOnRecommendedCellsAndRanNodesForPaging = new(context.InfoOnRecommendedCellsAndRanNodesForPaging)
+		amfUe.RecommendedCellsForPaging = make([]context.RecommendedCell, 0)
 
-		recommendedCells := &amfUe.InfoOnRecommendedCellsAndRanNodesForPaging.RecommendedCells
 		for _, item := range infoOnRecommendedCellsAndRANNodesForPaging.RecommendedCellsForPaging.RecommendedCellList.List {
 			recommendedCell := context.RecommendedCell{}
 
@@ -994,24 +992,7 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 				*recommendedCell.TimeStayedInCell = *item.TimeStayedInCell
 			}
 
-			*recommendedCells = append(*recommendedCells, recommendedCell)
-		}
-
-		recommendedRanNodes := &amfUe.InfoOnRecommendedCellsAndRanNodesForPaging.RecommendedRanNodes
-		ranNodeList := infoOnRecommendedCellsAndRANNodesForPaging.RecommendRANNodesForPaging.RecommendedRANNodeList.List
-		for _, item := range ranNodeList {
-			recommendedRanNode := context.RecommendRanNode{}
-
-			switch item.AMFPagingTarget.Present {
-			case ngapType.AMFPagingTargetPresentGlobalRANNodeID:
-				recommendedRanNode.Present = context.RecommendRanNodePresentRanNode
-				recommendedRanNode.GlobalRanNodeID = new(models.GlobalRanNodeID)
-			case ngapType.AMFPagingTargetPresentTAI:
-				recommendedRanNode.Present = context.RecommendRanNodePresentTAI
-				tai := util.TaiToModels(*item.AMFPagingTarget.TAI)
-				recommendedRanNode.Tai = &tai
-			}
-			*recommendedRanNodes = append(*recommendedRanNodes, recommendedRanNode)
+			amfUe.RecommendedCellsForPaging = append(amfUe.RecommendedCellsForPaging, recommendedCell)
 		}
 	}
 
@@ -1487,12 +1468,7 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 		ranUe.UeContextRequest = false
 	}
 
-	pdu, err := libngap.Encoder(*message)
-	if err != nil {
-		ran.Log.Error("libngap Encoder Error", zap.Error(err))
-	}
-	ranUe.InitialUEMessage = pdu
-	err = nas.HandleNAS(ctx, ranUe, ngapType.ProcedureCodeInitialUEMessage, nASPDU.Value)
+	err := nas.HandleNAS(ctx, ranUe, ngapType.ProcedureCodeInitialUEMessage, nASPDU.Value)
 	if err != nil {
 		ran.Log.Error("error handling NAS", zap.Error(err))
 	}
@@ -3983,8 +3959,6 @@ func HandleUplinkUEAssociatedNRPPATransport(ran *context.AmfRan, message *ngapTy
 	}
 
 	ran.Log.Debug("Handle Uplink UE Associated NRPPA Transport", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
-
-	ranUe.RoutingID = hex.EncodeToString(routingID.Value)
 }
 
 func HandleUplinkNonUEAssociatedNRPPATransport(ran *context.AmfRan, message *ngapType.NGAPPDU) {
@@ -4379,7 +4353,6 @@ func HandleErrorIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 func HandleCellTrafficTrace(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var aMFUENGAPID *ngapType.AMFUENGAPID
 	var rANUENGAPID *ngapType.RANUENGAPID
-	var nGRANTraceID *ngapType.NGRANTraceID
 	var nGRANCGI *ngapType.NGRANCGI
 	var traceCollectionEntityIPAddress *ngapType.TransportLayerAddress
 
@@ -4415,7 +4388,7 @@ func HandleCellTrafficTrace(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 			rANUENGAPID = ie.Value.RANUENGAPID
 
 		case ngapType.ProtocolIEIDNGRANTraceID: // ignore
-			nGRANTraceID = ie.Value.NGRANTraceID
+
 		case ngapType.ProtocolIEIDNGRANCGI: // ignore
 			nGRANCGI = ie.Value.NGRANCGI
 		case ngapType.ProtocolIEIDTraceCollectionEntityIPAddress: // ignore
@@ -4469,12 +4442,6 @@ func HandleCellTrafficTrace(ctx ctxt.Context, ran *context.AmfRan, message *ngap
 	}
 
 	ranUe.Ran = ran
-	ranUe.Log.Debug("Handle Cell Traffic Trace", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
-
-	ranUe.Trsr = hex.EncodeToString(nGRANTraceID.Value[6:])
-
-	// ranUe.Log.Debugf("TRSR[%s]", ranUe.Trsr)
-	ranUe.Log.Debug("Cell Traffic Trace", zap.String("TRSR", ranUe.Trsr))
 
 	switch nGRANCGI.Present {
 	case ngapType.NGRANCGIPresentNRCGI:
