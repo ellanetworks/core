@@ -57,8 +57,6 @@ const (
 
 type AmfUe struct {
 	Mutex sync.Mutex
-	/* the AMF which serving this AmfUe now */
-	ServingAMF *AMFContext // never nil
 
 	/* Gmm State */
 	State *fsm.State
@@ -73,13 +71,11 @@ type AmfUe struct {
 	PlmnID  models.PlmnID
 	Suci    string
 	Supi    string
-	Gpsi    string
 	Pei     string
 	Tmsi    int32
 	OldTmsi int32
 	Guti    string
 	OldGuti string
-	EBI     int32
 	/* Ue Identity*/
 	/* User Location*/
 	RatType                  models.RatType
@@ -148,9 +144,8 @@ type AmfUe struct {
 	/* Ue Context Release Cause */
 	ReleaseCause *CauseAll
 	/* T3502 (Assigned by AMF, and used by UE to initialize registration procedure) */
-	T3502Value                      int // Second
-	T3512Value                      int // default 54 min
-	Non3gppDeregistrationTimerValue int // default 54 min
+	T3502Value int // Second
+	T3512Value int // default 54 min
 
 	NASLog      *zap.Logger
 	GmmLog      *zap.Logger
@@ -215,7 +210,6 @@ type ConfigurationUpdateCommandFlags struct {
 }
 
 func (ue *AmfUe) init() {
-	ue.ServingAMF = AMFSelf()
 	ue.State = fsm.NewState(Deregistered)
 	ue.RegistrationArea = make([]models.Tai, 0)
 	ue.OnGoing = new(OnGoingProcedureWithPrio)
