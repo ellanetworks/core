@@ -9,8 +9,8 @@ import (
 )
 
 // TS 24.501 9.11.3.37
-func RequestedNssaiToModels(nasNssai *nasType.RequestedNSSAI) ([]models.MappingOfSnssai, error) {
-	var requestNssai []models.MappingOfSnssai
+func RequestedNssaiToModels(nasNssai *nasType.RequestedNSSAI) ([]*models.Snssai, error) {
+	var requestNssai []*models.Snssai
 
 	buf := nasNssai.GetSNSSAIValue()
 	lengthOfBuf := int(nasNssai.GetLen())
@@ -30,49 +30,34 @@ func RequestedNssaiToModels(nasNssai *nasType.RequestedNSSAI) ([]models.MappingO
 }
 
 // TS 24.501 9.11.2.8, Length & value part of S-NSSAI IE
-func snssaiToModels(lengthOfSnssaiContents uint8, buf []byte) (models.MappingOfSnssai, error) {
-	snssai := models.MappingOfSnssai{}
-
+func snssaiToModels(lengthOfSnssaiContents uint8, buf []byte) (*models.Snssai, error) {
 	switch lengthOfSnssaiContents {
 	case 0x01: // SST
-		snssai.ServingSnssai = &models.Snssai{
+		return &models.Snssai{
 			Sst: int32(buf[1]),
-		}
-		return snssai, nil
+		}, nil
 	case 0x02: // SST and mapped HPLMN SST
-		snssai.ServingSnssai = &models.Snssai{
+		return &models.Snssai{
 			Sst: int32(buf[1]),
-		}
-		snssai.HomeSnssai = &models.Snssai{
-			Sst: int32(buf[2]),
-		}
-		return snssai, nil
+		}, nil
 	case 0x04: // SST and SD
-		snssai.ServingSnssai = &models.Snssai{
+
+		return &models.Snssai{
 			Sst: int32(buf[1]),
 			Sd:  hex.EncodeToString(buf[2:5]),
-		}
-		return snssai, nil
+		}, nil
 	case 0x05: // SST, SD and mapped HPLMN SST
-		snssai.ServingSnssai = &models.Snssai{
+		return &models.Snssai{
 			Sst: int32(buf[1]),
 			Sd:  hex.EncodeToString(buf[2:5]),
-		}
-		snssai.HomeSnssai = &models.Snssai{
-			Sst: int32(buf[5]),
-		}
-		return snssai, nil
+		}, nil
 	case 0x08: // SST, SD, mapped HPLMN SST and mapped HPLMN SD
-		snssai.ServingSnssai = &models.Snssai{
+
+		return &models.Snssai{
 			Sst: int32(buf[1]),
 			Sd:  hex.EncodeToString(buf[2:5]),
-		}
-		snssai.HomeSnssai = &models.Snssai{
-			Sst: int32(buf[5]),
-			Sd:  hex.EncodeToString(buf[6:9]),
-		}
-		return snssai, nil
+		}, nil
 	default:
-		return snssai, fmt.Errorf("invalid length of S-NSSAI contents: %d", lengthOfSnssaiContents)
+		return nil, fmt.Errorf("invalid length of S-NSSAI contents: %d", lengthOfSnssaiContents)
 	}
 }

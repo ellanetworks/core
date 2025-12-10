@@ -877,10 +877,10 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, supportedPLMN *co
 		var newAllowed *models.Snssai
 
 		for _, requestedSnssai := range requestedNssai {
-			if ue.InSubscribedNssai(requestedSnssai.ServingSnssai) {
+			if ue.InSubscribedNssai(requestedSnssai) {
 				newAllowed = &models.Snssai{
-					Sst: requestedSnssai.ServingSnssai.Sst,
-					Sd:  requestedSnssai.ServingSnssai.Sd,
+					Sst: requestedSnssai.Sst,
+					Sd:  requestedSnssai.Sd,
 				}
 			} else {
 				needSliceSelection = true
