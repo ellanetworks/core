@@ -12,7 +12,6 @@ require (
 	github.com/free5gc/nas v1.2.1
 	github.com/free5gc/ngap v1.1.1
 	github.com/golang-jwt/jwt/v5 v5.3.0
-	github.com/google/gopacket v1.1.19
 	github.com/google/nftables v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.32

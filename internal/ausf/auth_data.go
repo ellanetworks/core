@@ -22,15 +22,11 @@ const (
 	SqnMAx    int64 = 0x7FFFFFFFFFF
 	ind       int64 = 32
 	keyStrLen int   = 32
-	opStrLen  int   = 32
 	opcStrLen int   = 32
 )
 
 const (
 	AuthenticationManagementField = "8000"
-	EncryptionAlgorithm           = 0
-	EncryptionKey                 = 0
-	OpValue                       = ""
 )
 
 func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
@@ -68,37 +64,19 @@ func strictHex(s string, n int) string {
 	}
 }
 
-func convertDBAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
-	authSubsData := &models.AuthenticationSubscription{}
-	authSubsData.AuthenticationManagementField = AuthenticationManagementField
-	authSubsData.Milenage = &models.Milenage{
-		Op: &models.Op{
-			EncryptionAlgorithm: EncryptionAlgorithm,
-			EncryptionKey:       EncryptionKey,
-			OpValue:             OpValue,
-		},
-	}
-	authSubsData.Opc = &models.Opc{
-		EncryptionAlgorithm: EncryptionAlgorithm,
-		EncryptionKey:       EncryptionKey,
-		OpcValue:            opc,
-	}
-	authSubsData.PermanentKey = &models.PermanentKey{
-		EncryptionAlgorithm: EncryptionAlgorithm,
-		EncryptionKey:       EncryptionKey,
-		PermanentKeyValue:   key,
-	}
-	authSubsData.SequenceNumber = sequenceNumber
-
-	return authSubsData
-}
-
 func GetAuthSubsData(ctx context.Context, ueID string) (*models.AuthenticationSubscription, error) {
 	subscriber, err := ausfContext.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	authSubsData := convertDBAuthSubsDataToModel(subscriber.Opc, subscriber.PermanentKey, subscriber.SequenceNumber)
+
+	authSubsData := &models.AuthenticationSubscription{
+		AuthenticationManagementField: AuthenticationManagementField,
+		Opc:                           subscriber.Opc,
+		PermanentKey:                  subscriber.PermanentKey,
+		SequenceNumber:                subscriber.SequenceNumber,
+	}
+
 	return authSubsData, nil
 }
 
@@ -134,19 +112,18 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 		AMF: 16 bits (2 bytes) (hex len = 4) TS33.102 - Annex H
 	*/
 
-	hasOP, hasOPC := false, false
+	hasOPC := false
 
-	var kStr, opStr, opcStr string
+	var kStr, opcStr string
 
 	var k []byte
-	op := make([]byte, 16)
 	opc := make([]byte, 16)
 
-	if authSubs.PermanentKey == nil {
+	if authSubs.PermanentKey == "" {
 		return nil, fmt.Errorf("permanent key is nil")
 	}
 
-	kStr = authSubs.PermanentKey.PermanentKeyValue
+	kStr = authSubs.PermanentKey
 	if len(kStr) != keyStrLen {
 		return nil, fmt.Errorf("kStr length is %d", len(kStr))
 	}
@@ -156,23 +133,8 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 		return nil, fmt.Errorf("failed to decode k: %w", err)
 	}
 
-	if authSubs.Milenage == nil {
-		return nil, fmt.Errorf("milenage is nil")
-	}
-
-	if authSubs.Milenage.Op != nil {
-		opStr = authSubs.Milenage.Op.OpValue
-		if len(opStr) == opStrLen {
-			op, err = hex.DecodeString(opStr)
-			if err != nil {
-				return nil, fmt.Errorf("failed to decode op: %w", err)
-			}
-			hasOP = true
-		}
-	}
-
-	if authSubs.Opc != nil && authSubs.Opc.OpcValue != "" {
-		opcStr = authSubs.Opc.OpcValue
+	if authSubs.Opc != "" {
+		opcStr = authSubs.Opc
 		if len(opcStr) == opcStrLen {
 			opc, err = hex.DecodeString(opcStr)
 			if err != nil {
@@ -186,20 +148,14 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 		logger.UdmLog.Info("nil Opc")
 	}
 
-	if !hasOPC && !hasOP {
+	if !hasOPC {
 		return nil, fmt.Errorf("unable to derive OP")
-	}
-
-	if hasOP && !hasOPC {
-		opc, err = milenage.GenerateOPC(k, op)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate OPC: %w", err)
-		}
 	}
 
 	sqnStr := strictHex(authSubs.SequenceNumber, 12)
 
 	RAND := make([]byte, 16)
+
 	_, err = rand.Read(RAND)
 	if err != nil {
 		return nil, fmt.Errorf("rand read error: %w", err)
@@ -226,9 +182,11 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 		if err != nil {
 			return nil, fmt.Errorf("failed to re-sync SQN with supi %s: %w", supi, err)
 		}
+
 		if !reflect.DeepEqual(macS, Auts[6:]) {
 			return nil, fmt.Errorf("failed to re-sync MAC with supi %s, macS %x, auts[6:] %x, sqn %x", supi, macS, Auts[6:], SQNms)
 		}
+
 		_, err = rand.Read(RAND)
 		if err != nil {
 			return nil, fmt.Errorf("rand read error: %w", err)
