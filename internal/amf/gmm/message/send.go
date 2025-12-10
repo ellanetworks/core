@@ -157,7 +157,7 @@ func SendServiceAccept(ctx ctxt.Context, ue *context.RanUe, pDUSessionStatus *[1
 	return nil
 }
 
-func SendAuthenticationReject(ctx ctxt.Context, ue *context.RanUe, eapMsg string) error {
+func SendAuthenticationReject(ctx ctxt.Context, ue *context.RanUe) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -170,7 +170,7 @@ func SendAuthenticationReject(ctx ctxt.Context, ue *context.RanUe, eapMsg string
 	)
 	defer span.End()
 
-	nasMsg, err := BuildAuthenticationReject(ue.AmfUe, eapMsg)
+	nasMsg, err := BuildAuthenticationReject(ue.AmfUe)
 	if err != nil {
 		return fmt.Errorf("error building authentication reject: %s", err.Error())
 	}
@@ -211,8 +211,7 @@ func SendServiceReject(ctx ctxt.Context, ue *context.RanUe, pDUSessionStatus *[1
 }
 
 // T3502: This IE may be included to indicate a value for timer T3502 during the initial registration
-// eapMessage: if the REGISTRATION REJECT message is used to convey EAP-failure message
-func SendRegistrationReject(ctx ctxt.Context, ue *context.RanUe, cause5GMM uint8, eapMessage string) error {
+func SendRegistrationReject(ctx ctxt.Context, ue *context.RanUe, cause5GMM uint8) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -226,7 +225,7 @@ func SendRegistrationReject(ctx ctxt.Context, ue *context.RanUe, cause5GMM uint8
 	)
 	defer span.End()
 
-	nasMsg, err := BuildRegistrationReject(ue.AmfUe, cause5GMM, eapMessage)
+	nasMsg, err := BuildRegistrationReject(ue.AmfUe, cause5GMM)
 	if err != nil {
 		return fmt.Errorf("error building registration reject: %s", err.Error())
 	}
@@ -238,9 +237,7 @@ func SendRegistrationReject(ctx ctxt.Context, ue *context.RanUe, cause5GMM uint8
 	return nil
 }
 
-// eapSuccess: only used when authType is EAP-AKA', set the value to false if authType is not EAP-AKA'
-// eapMessage: only used when authType is EAP-AKA', set the value to "" if authType is not EAP-AKA'
-func SendSecurityModeCommand(ctx ctxt.Context, ue *context.RanUe, eapSuccess bool, eapMessage string) error {
+func SendSecurityModeCommand(ctx ctxt.Context, ue *context.RanUe) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -253,7 +250,7 @@ func SendSecurityModeCommand(ctx ctxt.Context, ue *context.RanUe, eapSuccess boo
 	)
 	defer span.End()
 
-	nasMsg, err := BuildSecurityModeCommand(ue.AmfUe, eapSuccess, eapMessage)
+	nasMsg, err := BuildSecurityModeCommand(ue.AmfUe)
 	if err != nil {
 		return fmt.Errorf("error building security mode command: %s", err.Error())
 	}

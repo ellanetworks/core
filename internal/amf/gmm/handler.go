@@ -444,7 +444,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		taiList[i].Tac = tac
 	}
 	if !context.InTaiList(ue.Tai, taiList) {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMTrackingAreaNotAllowed, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMTrackingAreaNotAllowed)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
@@ -453,7 +453,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 	}
 
 	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSInitialRegistration && registrationRequest.UESecurityCapability == nil {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
@@ -503,7 +503,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 	}
 
 	if ue.AllowedNssai == nil {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 		if err != nil {
 			ue.GmmLog.Error("error sending registration reject", zap.Error(err))
 		}
@@ -532,7 +532,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 
 	if !context.SubscriberExists(ctx, ue.Supi) {
 		ue.GmmLog.Error("Subscriber does not exist", zap.Error(err))
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
@@ -591,7 +591,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		ue.Capability5GMM = *ue.RegistrationRequest.Capability5GMM
 	} else {
 		if ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
-			err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified, "")
+			err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
 			}
@@ -1465,7 +1465,7 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authentic
 			ue.GmmLog.Info("sent identity request")
 			return nil
 		} else {
-			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
+			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
@@ -1487,9 +1487,7 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authentic
 		ue.Supi = response.Supi
 		ue.DerivateKamf()
 		return GmmFSM.SendEvent(ctx, ue.State, AuthSuccessEvent, fsm.ArgsType{
-			ArgAmfUe:      ue,
-			ArgEAPSuccess: false,
-			ArgEAPMessage: "",
+			ArgAmfUe: ue,
 		})
 	case models.AuthResultFailure:
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
@@ -1500,7 +1498,7 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authentic
 			ue.GmmLog.Info("sent identity request")
 			return nil
 		} else {
-			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
+			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
@@ -1527,7 +1525,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, authentica
 	switch cause5GMM {
 	case nasMessage.Cause5GMMMACFailure:
 		ue.GmmLog.Warn("Authentication Failure Cause: Mac Failure")
-		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
+		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
 		}
@@ -1535,7 +1533,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, authentica
 		return GmmFSM.SendEvent(ctx, ue.State, AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue})
 	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
 		ue.GmmLog.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
-		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
+		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
 		}
@@ -1564,7 +1562,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, authentica
 		ue.AuthFailureCauseSynchFailureTimes++
 		if ue.AuthFailureCauseSynchFailureTimes >= 2 {
 			ue.GmmLog.Warn("2 consecutive Synch Failure, terminate authentication procedure")
-			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
+			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
@@ -1773,7 +1771,7 @@ func HandleAuthenticationError(ctx ctxt.Context, ue *context.AmfUe) error {
 	logger.AmfLog.Debug("Handle Authentication Error", zap.String("supi", ue.Supi))
 
 	if ue.RegistrationRequest != nil {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}

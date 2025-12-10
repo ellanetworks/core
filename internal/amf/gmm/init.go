@@ -34,13 +34,8 @@ const (
 )
 
 const (
-	ArgAmfUe               string = "AMF Ue"
-	ArgNASMessage          string = "NAS Message"
-	ArgEAPSuccess          string = "EAP Success"
-	ArgEAPMessage          string = "EAP Message"
-	Arg3GPPDeregistered    string = "3GPP Deregistered"
-	ArgNon3GPPDeregistered string = "Non3GPP Deregistered"
-	ArgNssai               string = "Nssai"
+	ArgAmfUe      string = "AMF Ue"
+	ArgNASMessage string = "NAS Message"
 )
 
 var transitions = fsm.Transitions{

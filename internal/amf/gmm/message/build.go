@@ -8,7 +8,6 @@ package message
 
 import (
 	ctxt "context"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"time"
@@ -154,7 +153,7 @@ func BuildServiceAccept(ue *context.AmfUe, pDUSessionStatus *[16]bool,
 	return nassecurity.Encode(ue, m)
 }
 
-func BuildAuthenticationReject(ue *context.AmfUe, eapMsg string) ([]byte, error) {
+func BuildAuthenticationReject(ue *context.AmfUe) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeAuthenticationReject)
@@ -164,16 +163,6 @@ func BuildAuthenticationReject(ue *context.AmfUe, eapMsg string) ([]byte, error)
 	authenticationReject.SpareHalfOctetAndSecurityHeaderType.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
 	authenticationReject.SpareHalfOctetAndSecurityHeaderType.SetSpareHalfOctet(0)
 	authenticationReject.AuthenticationRejectMessageIdentity.SetMessageType(nas.MsgTypeAuthenticationReject)
-
-	if eapMsg != "" {
-		rawEapMsg, err := base64.StdEncoding.DecodeString(eapMsg)
-		if err != nil {
-			return nil, err
-		}
-		authenticationReject.EAPMessage = nasType.NewEAPMessage(nasMessage.AuthenticationRejectEAPMessageType)
-		authenticationReject.EAPMessage.SetLen(uint16(len(rawEapMsg)))
-		authenticationReject.EAPMessage.SetEAPMessage(rawEapMsg)
-	}
 
 	m.GmmMessage.AuthenticationReject = authenticationReject
 
@@ -204,7 +193,7 @@ func BuildServiceReject(pDUSessionStatus *[16]bool, cause uint8) ([]byte, error)
 }
 
 // T3346 timer are not supported
-func BuildRegistrationReject(ue *context.AmfUe, cause5GMM uint8, eapMessage string) ([]byte, error) {
+func BuildRegistrationReject(ue *context.AmfUe, cause5GMM uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeRegistrationReject)
@@ -223,23 +212,13 @@ func BuildRegistrationReject(ue *context.AmfUe, cause5GMM uint8, eapMessage stri
 		registrationReject.T3502Value.SetGPRSTimer2Value(t3502)
 	}
 
-	if eapMessage != "" {
-		registrationReject.EAPMessage = nasType.NewEAPMessage(nasMessage.RegistrationRejectEAPMessageType)
-		rawEapMsg, err := base64.StdEncoding.DecodeString(eapMessage)
-		if err != nil {
-			return nil, err
-		}
-		registrationReject.EAPMessage.SetLen(uint16(len(rawEapMsg)))
-		registrationReject.EAPMessage.SetEAPMessage(rawEapMsg)
-	}
-
 	m.GmmMessage.RegistrationReject = registrationReject
 
 	return m.PlainNasEncode()
 }
 
 // TS 24.501 8.2.25
-func BuildSecurityModeCommand(ue *context.AmfUe, eapSuccess bool, eapMessage string) ([]byte, error) {
+func BuildSecurityModeCommand(ue *context.AmfUe) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeSecurityModeCommand)
@@ -284,22 +263,6 @@ func BuildSecurityModeCommand(ue *context.AmfUe, eapSuccess bool, eapMessage str
 		securityModeCommand.Additional5GSecurityInformation.SetHDP(1)
 	} else {
 		securityModeCommand.Additional5GSecurityInformation.SetHDP(0)
-	}
-
-	if eapMessage != "" {
-		securityModeCommand.EAPMessage = nasType.NewEAPMessage(nasMessage.SecurityModeCommandEAPMessageType)
-		rawEapMsg, err := base64.StdEncoding.DecodeString(eapMessage)
-		if err != nil {
-			return nil, err
-		}
-		securityModeCommand.EAPMessage.SetLen(uint16(len(rawEapMsg)))
-		securityModeCommand.EAPMessage.SetEAPMessage(rawEapMsg)
-
-		if eapSuccess {
-			securityModeCommand.ABBA = nasType.NewABBA(nasMessage.SecurityModeCommandABBAType)
-			securityModeCommand.ABBA.SetLen(uint8(len(ue.ABBA)))
-			securityModeCommand.ABBA.SetABBAContents(ue.ABBA)
-		}
 	}
 
 	ue.SecurityContextAvailable = true

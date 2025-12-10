@@ -247,8 +247,6 @@ func SecurityMode(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 				logger.AmfLog.Error("Error sending event", zap.Error(err))
 			}
 		} else {
-			eapSuccess := args[ArgEAPSuccess].(bool)
-			eapMessage := args[ArgEAPMessage].(string)
 			// Select enc/int algorithm based on ue security capability & amf's policy,
 			amfSelf := context.AMFSelf()
 			amfUe.SelectSecurityAlg(amfSelf.SecurityAlgorithm.IntegrityOrder, amfSelf.SecurityAlgorithm.CipheringOrder)
@@ -263,7 +261,7 @@ func SecurityMode(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 					logger.AmfLog.Error("Error sending event", zap.Error(err))
 				}
 			} else {
-				err := gmm_message.SendSecurityModeCommand(ctx, amfUe.RanUe, eapSuccess, eapMessage)
+				err := gmm_message.SendSecurityModeCommand(ctx, amfUe.RanUe)
 				if err != nil {
 					logger.AmfLog.Error("error sending security mode command", zap.Error(err))
 				}
