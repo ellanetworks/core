@@ -20,7 +20,6 @@ type SmContext struct {
 	SmContextRefVal       string
 	SnssaiVal             models.Snssai
 	DnnVal                string
-	UserLocationVal       models.UserLocation
 	PduSessionInactiveVal bool
 }
 
@@ -80,16 +79,4 @@ func (c *SmContext) SetDnn(dnn string) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.DnnVal = dnn
-}
-
-func (c *SmContext) UserLocation() models.UserLocation {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
-	return c.UserLocationVal
-}
-
-func (c *SmContext) SetUserLocation(userLocation models.UserLocation) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.UserLocationVal = userLocation
 }

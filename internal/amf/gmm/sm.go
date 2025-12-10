@@ -29,17 +29,15 @@ func DeRegistered(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 		amfUe.GmmLog.Debug("EntryEvent at GMM State[DeRegistered]")
 	case GmmMessageEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
-		procedureCode := args[ArgProcedureCode].(int64)
 		gmmMessage := args[ArgNASMessage].(*nas.GmmMessage)
 		amfUe.GmmLog.Debug("GmmMessageEvent at GMM State[DeRegistered]")
 		switch gmmMessage.GetMessageType() {
 		case nas.MsgTypeRegistrationRequest:
-			if err := HandleRegistrationRequest(ctx, amfUe, procedureCode, gmmMessage.RegistrationRequest); err != nil {
+			if err := HandleRegistrationRequest(ctx, amfUe, gmmMessage.RegistrationRequest); err != nil {
 				logger.AmfLog.Error("Error handling registration request", zap.Error(err))
 			} else {
 				if err := GmmFSM.SendEvent(ctx, state, StartAuthEvent, fsm.ArgsType{
-					ArgAmfUe:         amfUe,
-					ArgProcedureCode: procedureCode,
+					ArgAmfUe: amfUe,
 				}); err != nil {
 					logger.AmfLog.Error("Error sending event", zap.Error(err))
 				}
@@ -75,18 +73,16 @@ func Registered(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args fs
 		// store context in DB. Registration procedure is complete.
 	case GmmMessageEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
-		procedureCode := args[ArgProcedureCode].(int64)
 		gmmMessage := args[ArgNASMessage].(*nas.GmmMessage)
 		amfUe.GmmLog.Debug("GmmMessageEvent at GMM State[Registered]")
 		switch gmmMessage.GetMessageType() {
 		// Mobility Registration update / Periodic Registration update
 		case nas.MsgTypeRegistrationRequest:
-			if err := HandleRegistrationRequest(ctx, amfUe, procedureCode, gmmMessage.RegistrationRequest); err != nil {
+			if err := HandleRegistrationRequest(ctx, amfUe, gmmMessage.RegistrationRequest); err != nil {
 				logger.AmfLog.Error("Error handling registration request", zap.Error(err))
 			} else {
 				if err := GmmFSM.SendEvent(ctx, state, StartAuthEvent, fsm.ArgsType{
-					ArgAmfUe:         amfUe,
-					ArgProcedureCode: procedureCode,
+					ArgAmfUe: amfUe,
 				}); err != nil {
 					logger.AmfLog.Error("Error sending event", zap.Error(err))
 				}
@@ -251,8 +247,6 @@ func SecurityMode(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 				logger.AmfLog.Error("Error sending event", zap.Error(err))
 			}
 		} else {
-			eapSuccess := args[ArgEAPSuccess].(bool)
-			eapMessage := args[ArgEAPMessage].(string)
 			// Select enc/int algorithm based on ue security capability & amf's policy,
 			amfSelf := context.AMFSelf()
 			amfUe.SelectSecurityAlg(amfSelf.SecurityAlgorithm.IntegrityOrder, amfSelf.SecurityAlgorithm.CipheringOrder)
@@ -267,7 +261,7 @@ func SecurityMode(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 					logger.AmfLog.Error("Error sending event", zap.Error(err))
 				}
 			} else {
-				err := gmm_message.SendSecurityModeCommand(ctx, amfUe.RanUe, eapSuccess, eapMessage)
+				err := gmm_message.SendSecurityModeCommand(ctx, amfUe.RanUe)
 				if err != nil {
 					logger.AmfLog.Error("error sending security mode command", zap.Error(err))
 				}
@@ -275,12 +269,11 @@ func SecurityMode(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 		}
 	case GmmMessageEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
-		procedureCode := args[ArgProcedureCode].(int64)
 		gmmMessage := args[ArgNASMessage].(*nas.GmmMessage)
 		amfUe.GmmLog.Debug("GmmMessageEvent to GMM State[SecurityMode]")
 		switch gmmMessage.GetMessageType() {
 		case nas.MsgTypeSecurityModeComplete:
-			if err := HandleSecurityModeComplete(ctx, amfUe, procedureCode, gmmMessage.SecurityModeComplete); err != nil {
+			if err := HandleSecurityModeComplete(ctx, amfUe, gmmMessage.SecurityModeComplete); err != nil {
 				logger.AmfLog.Error("Error handling security mode complete", zap.Error(err))
 			}
 		case nas.MsgTypeSecurityModeReject:
@@ -303,9 +296,8 @@ func SecurityMode(ctx ctxt.Context, state *fsm.State, event fsm.EventType, args 
 			}
 
 			err = GmmFSM.SendEvent(ctx, state, GmmMessageEvent, fsm.ArgsType{
-				ArgAmfUe:         amfUe,
-				ArgNASMessage:    gmmMessage,
-				ArgProcedureCode: procedureCode,
+				ArgAmfUe:      amfUe,
+				ArgNASMessage: gmmMessage,
 			})
 			if err != nil {
 				logger.AmfLog.Error("Error sending event", zap.Error(err))

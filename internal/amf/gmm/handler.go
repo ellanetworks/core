@@ -147,7 +147,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 				}
 				ue.GmmLog.Info("sent downlink nas transport to UE")
 			} else {
-				smContext.SetUserLocation(ue.Location)
 				responseData := response.JSONData
 				n2Info := response.BinaryDataN2SmInformation
 				if n2Info != nil {
@@ -235,7 +234,6 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 			}
 
 			newSmContext.SetSmContextRef(smContextRef)
-			newSmContext.SetUserLocation(ue.Location)
 
 			ue.StoreSmContext(pduSessionID, newSmContext)
 			ue.GmmLog.Debug("Created sm context for pdu session", zap.Int32("pduSessionID", pduSessionID))
@@ -269,7 +267,6 @@ func forward5GSMMessageToSMF(
 		return nil
 	} else if response != nil {
 		// update SmContext in AMF
-		smContext.SetUserLocation(ue.Location)
 
 		responseData := response.JSONData
 		var n1Msg []byte
@@ -334,7 +331,7 @@ func getRegistrationType5GSName(regType5Gs uint8) string {
 }
 
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
-func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, procedureCode int64, registrationRequest *nasMessage.RegistrationRequest) error {
+func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registrationRequest *nasMessage.RegistrationRequest) error {
 	ctx, span := tracer.Start(ctx, "AMF HandleRegistrationRequest")
 	defer span.End()
 
@@ -370,7 +367,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, procedureCod
 	ue.RegistrationRequest = registrationRequest
 	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
 	regName := getRegistrationType5GSName(ue.RegistrationType5GS)
-	ue.GmmLog.Debug("Received Registration Request", zap.String("registrationType", regName), zap.Int64("procedureCode", procedureCode))
+	ue.GmmLog.Debug("Received Registration Request", zap.String("registrationType", regName))
 
 	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSReserved {
 		ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
@@ -447,7 +444,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, procedureCod
 		taiList[i].Tac = tac
 	}
 	if !context.InTaiList(ue.Tai, taiList) {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMTrackingAreaNotAllowed, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMTrackingAreaNotAllowed)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
@@ -456,7 +453,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, procedureCod
 	}
 
 	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSInitialRegistration && registrationRequest.UESecurityCapability == nil {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
@@ -506,7 +503,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 	}
 
 	if ue.AllowedNssai == nil {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 		if err != nil {
 			ue.GmmLog.Error("error sending registration reject", zap.Error(err))
 		}
@@ -535,7 +532,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 
 	if !context.SubscriberExists(ctx, ue.Supi) {
 		ue.GmmLog.Error("Subscriber does not exist", zap.Error(err))
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
@@ -594,7 +591,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		ue.Capability5GMM = *ue.RegistrationRequest.Capability5GMM
 	} else {
 		if ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
-			err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified, "")
+			err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
 			}
@@ -1061,7 +1058,7 @@ func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe
 		SetDeregisteredState(ue)
 	}
 
-	ue.SmContextList.Range(func(key, value interface{}) bool {
+	ue.SmContextList.Range(func(key, value any) bool {
 		smContext := value.(*context.SmContext)
 
 		ue.GmmLog.Info("Sending SmContext Release Request to SMF", zap.Any("slice", smContext.Snssai()), zap.String("dnn", smContext.Dnn()))
@@ -1468,7 +1465,7 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authentic
 			ue.GmmLog.Info("sent identity request")
 			return nil
 		} else {
-			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
+			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
@@ -1490,9 +1487,7 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authentic
 		ue.Supi = response.Supi
 		ue.DerivateKamf()
 		return GmmFSM.SendEvent(ctx, ue.State, AuthSuccessEvent, fsm.ArgsType{
-			ArgAmfUe:      ue,
-			ArgEAPSuccess: false,
-			ArgEAPMessage: "",
+			ArgAmfUe: ue,
 		})
 	case models.AuthResultFailure:
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
@@ -1503,7 +1498,7 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authentic
 			ue.GmmLog.Info("sent identity request")
 			return nil
 		} else {
-			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
+			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
@@ -1530,7 +1525,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, authentica
 	switch cause5GMM {
 	case nasMessage.Cause5GMMMACFailure:
 		ue.GmmLog.Warn("Authentication Failure Cause: Mac Failure")
-		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
+		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
 		}
@@ -1538,7 +1533,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, authentica
 		return GmmFSM.SendEvent(ctx, ue.State, AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue})
 	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
 		ue.GmmLog.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
-		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
+		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
 		}
@@ -1567,7 +1562,7 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, authentica
 		ue.AuthFailureCauseSynchFailureTimes++
 		if ue.AuthFailureCauseSynchFailureTimes >= 2 {
 			ue.GmmLog.Warn("2 consecutive Synch Failure, terminate authentication procedure")
-			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe, "")
+			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
@@ -1630,7 +1625,7 @@ func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, registratio
 }
 
 // TS 33.501 6.7.2
-func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, procedureCode int64, securityModeComplete *nasMessage.SecurityModeComplete) error {
+func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, securityModeComplete *nasMessage.SecurityModeComplete) error {
 	logger.AmfLog.Debug("Handle Security Mode Complete", zap.String("supi", ue.Supi))
 
 	if ue.MacFailed {
@@ -1665,16 +1660,14 @@ func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, procedureCo
 			return errors.New("nas message container Iei type error")
 		} else {
 			return GmmFSM.SendEvent(ctx, ue.State, SecurityModeSuccessEvent, fsm.ArgsType{
-				ArgAmfUe:         ue,
-				ArgProcedureCode: procedureCode,
-				ArgNASMessage:    m.GmmMessage.RegistrationRequest,
+				ArgAmfUe:      ue,
+				ArgNASMessage: m.GmmMessage.RegistrationRequest,
 			})
 		}
 	}
 	return GmmFSM.SendEvent(ctx, ue.State, SecurityModeSuccessEvent, fsm.ArgsType{
-		ArgAmfUe:         ue,
-		ArgProcedureCode: procedureCode,
-		ArgNASMessage:    ue.RegistrationRequest,
+		ArgAmfUe:      ue,
+		ArgNASMessage: ue.RegistrationRequest,
 	})
 }
 
@@ -1704,7 +1697,7 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, deregistra
 	logger.AmfLog.Debug("Handle Deregistration Request", zap.String("supi", ue.Supi))
 
 	targetDeregistrationAccessType := deregistrationRequest.GetAccessType()
-	ue.SmContextList.Range(func(key, value interface{}) bool {
+	ue.SmContextList.Range(func(key, value any) bool {
 		smContext := value.(*context.SmContext)
 
 		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
@@ -1778,7 +1771,7 @@ func HandleAuthenticationError(ctx ctxt.Context, ue *context.AmfUe) error {
 	logger.AmfLog.Debug("Handle Authentication Error", zap.String("supi", ue.Supi))
 
 	if ue.RegistrationRequest != nil {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
+		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}

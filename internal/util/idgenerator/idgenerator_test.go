@@ -65,7 +65,7 @@ func TestConcurrency(t *testing.T) {
 					usedMap.Store(id, routineID)
 				}
 			}
-			usedMap.Range(func(key, value interface{}) bool {
+			usedMap.Range(func(key, value any) bool {
 				id := key.(int64)
 				idGenerator.FreeID(id)
 				return true

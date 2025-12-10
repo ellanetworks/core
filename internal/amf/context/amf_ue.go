@@ -86,7 +86,6 @@ type AmfUe struct {
 	/* context about udm */
 	SubscriptionDataValid             bool
 	Dnn                               string
-	TraceData                         *models.TraceData
 	SubscribedNssai                   *models.Snssai
 	Ambr                              *models.Ambr
 	RoutingIndicator                  string
@@ -170,8 +169,7 @@ type UERadioCapabilityForPaging struct {
 
 // TS 38.413 9.3.1.100
 type InfoOnRecommendedCellsAndRanNodesForPaging struct {
-	RecommendedCells    []RecommendedCell  // RecommendedCellsForPaging
-	RecommendedRanNodes []RecommendRanNode // RecommendedRanNodesForPaging
+	RecommendedCells []RecommendedCell // RecommendedCellsForPaging
 }
 
 // TS 38.413 9.3.1.71
@@ -471,7 +469,7 @@ func (ue *AmfUe) ClearRegistrationData() {
 	ue.SubscribedNssai = nil
 	ue.SubscriptionDataValid = false
 	// Clearing SMContextList locally
-	ue.SmContextList.Range(func(key, _ interface{}) bool {
+	ue.SmContextList.Range(func(key, _ any) bool {
 		ue.SmContextList.Delete(key)
 		return true
 	})

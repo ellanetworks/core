@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"reflect"
-	"sync"
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
@@ -22,8 +21,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
-
-var mutex sync.Mutex
 
 var tracer = otel.Tracer("ella-core/amf/nas/security")
 
@@ -69,8 +66,6 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 		// add sequece number
 		payload = append([]byte{ue.DLCount.SQN()}, payload[:]...)
 
-		mutex.Lock()
-		defer mutex.Unlock()
 		mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ue.DLCount.Get(), security.Bearer3GPP,
 			security.DirectionDownlink, payload)
 		if err != nil {
@@ -277,8 +272,6 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, payload []byte) (*nas.Message, 
 		}
 		ue.ULCount.SetSQN(sequenceNumber)
 
-		mutex.Lock()
-		defer mutex.Unlock()
 		mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ue.ULCount.Get(), security.Bearer3GPP,
 			security.DirectionUplink, payload)
 		if err != nil {

@@ -126,7 +126,7 @@ func Authenticate(jwtSecret []byte, store *db.Database, next http.Handler) http.
 
 func getClaimsFromJWT(bearerToken string, jwtSecret []byte) (*claims, error) {
 	claims := claims{}
-	token, err := jwt.ParseWithClaims(bearerToken, &claims, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(bearerToken, &claims, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
