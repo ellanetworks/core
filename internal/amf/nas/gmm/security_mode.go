@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
+	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/free5gc/nas/security"
 	"go.uber.org/zap"
 )
@@ -37,7 +37,7 @@ func securityMode(ctx ctxt.Context, ue *context.AmfUe) error {
 		return nil
 	}
 
-	err := gmm_message.SendSecurityModeCommand(ctx, ue.RanUe)
+	err := message.SendSecurityModeCommand(ctx, ue.RanUe)
 	if err != nil {
 		return fmt.Errorf("error sending security mode command: %v", err)
 	}

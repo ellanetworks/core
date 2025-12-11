@@ -15,11 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type NasMsg struct {
-	NasMsg        []byte
-	ProcedureCode int64
-}
-
 // HandleNAS processes an uplink NAS PDU and emits a span around the entire operation.
 func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu []byte) error {
 	if ue == nil {
@@ -49,13 +44,14 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 
 		eeCtx.AttachRanUe(ue)
 
-		nasMsg := NasMsg{
-			NasMsg:        nasPdu,
-			ProcedureCode: procedureCode,
-		}
-		err = DispatchMsg(ctx, eeCtx, nasMsg)
+		msg, err := nassecurity.Decode(ctx, amfUe, nasPdu)
 		if err != nil {
-			return fmt.Errorf("error dispatching NAS message: %v", err)
+			return fmt.Errorf("error decoding NAS message: %v", err)
+		}
+
+		err = Dispatch(ctx, amfUe, msg)
+		if err != nil {
+			return fmt.Errorf("error handling NAS message: %v", err)
 		}
 		return nil
 	}
@@ -66,24 +62,9 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
-	if err := Dispatch(ctx, ue.AmfUe, procedureCode, msg); err != nil {
+	if err := Dispatch(ctx, ue.AmfUe, msg); err != nil {
 		eeCtx := ue.AmfUe
 		eeCtx.NASLog.Error("Handle NAS Error", zap.Error(err))
-		return fmt.Errorf("error handling NAS message: %v", err)
-	}
-
-	return nil
-}
-
-// DispatchMsg decodes and dispatches a NAS message for initially attached UEs.
-func DispatchMsg(ctx ctxt.Context, amfUe *context.AmfUe, transInfo NasMsg) error {
-	msg, err := nassecurity.Decode(ctx, amfUe, transInfo.NasMsg)
-	if err != nil {
-		return fmt.Errorf("error decoding NAS message: %v", err)
-	}
-
-	err = Dispatch(ctx, amfUe, transInfo.ProcedureCode, msg)
-	if err != nil {
 		return fmt.Errorf("error handling NAS message: %v", err)
 	}
 

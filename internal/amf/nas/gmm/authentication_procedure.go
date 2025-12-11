@@ -6,7 +6,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
-	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
+	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/free5gc/nas/nasMessage"
 )
 
@@ -22,7 +22,7 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe) (bool, error) 
 		// Request UE's SUCI by sending identity request
 		ue.GmmLog.Debug("UE has no SUCI / SUPI - send identity request to UE")
 
-		err := gmm_message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
+		err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
 		if err != nil {
 			return false, fmt.Errorf("error sending identity request: %v", err)
 		}
@@ -50,7 +50,7 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe) (bool, error) 
 
 	ue.ABBA = []uint8{0x00, 0x00} // set ABBA value as described at TS 33.501 Annex A.7.1
 
-	err = gmm_message.SendAuthenticationRequest(ctx, ue.RanUe)
+	err = message.SendAuthenticationRequest(ctx, ue.RanUe)
 	if err != nil {
 		return false, fmt.Errorf("error sending authentication request: %v", err)
 	}

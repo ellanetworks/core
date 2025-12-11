@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
+	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
@@ -39,7 +39,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 	}
 
 	if ue.AllowedNssai == nil {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
+		err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 		if err != nil {
 			ue.GmmLog.Error("error sending registration reject", zap.Error(err))
 		}
@@ -68,7 +68,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 
 	if !context.SubscriberExists(ctx, ue.Supi) {
 		ue.GmmLog.Error("Subscriber does not exist", zap.Error(err))
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
+		err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
@@ -87,7 +87,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 	// check in specs if we need to wait for confirmation before freeing old GUTI
 	amfSelf.FreeOldGuti(ue)
 
-	err = gmm_message.SendRegistrationAccept(ctx, ue, nil, nil, nil, nil, nil, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+	err = message.SendRegistrationAccept(ctx, ue, nil, nil, nil, nil, nil, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 	if err != nil {
 		return fmt.Errorf("error sending GMM registration accept: %v", err)
 	}

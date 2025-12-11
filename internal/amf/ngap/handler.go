@@ -15,8 +15,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
-	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/nas"
+	gmm_message "github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"

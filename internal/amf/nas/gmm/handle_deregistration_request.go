@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
+	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
@@ -49,7 +49,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue
 
 	// if Deregistration type is not switch-off, send Deregistration Accept
 	if msg.DeregistrationRequestUEOriginatingDeregistration.GetSwitchOff() == 0 && ue.RanUe != nil {
-		err := gmm_message.SendDeregistrationAccept(ctx, ue.RanUe)
+		err := message.SendDeregistrationAccept(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending deregistration accept: %v", err)
 		}
