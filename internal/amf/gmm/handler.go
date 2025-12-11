@@ -1046,44 +1046,6 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe) (bool, error) 
 	return false, nil
 }
 
-func NetworkInitiatedDeregistrationProcedure(ctx ctxt.Context, ue *context.AmfUe) (err error) {
-	if ue.CmConnect() && ue.State.Is(context.Registered) {
-		// setting reregistration required flag to true
-		err := gmm_message.SendDeregistrationRequest(ctx, ue.RanUe, true, 0)
-		if err != nil {
-			return fmt.Errorf("error sending deregistration request: %v", err)
-		}
-		ue.GmmLog.Info("sent deregistration request")
-	} else {
-		SetDeregisteredState(ue)
-	}
-
-	ue.SmContextList.Range(func(key, value any) bool {
-		smContext := value.(*context.SmContext)
-
-		ue.GmmLog.Info("Sending SmContext Release Request to SMF", zap.Any("slice", smContext.Snssai()), zap.String("dnn", smContext.Dnn()))
-		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
-		if err != nil {
-			ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
-		}
-		return true
-	})
-
-	// if ue is not connected mode, removing UE Context
-	if !ue.State.Is(context.Registered) {
-		if ue.CmConnect() {
-			err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
-			if err != nil {
-				return fmt.Errorf("error sending ue context release command: %v", err)
-			}
-		} else {
-			ue.Remove()
-			ue.GmmLog.Info("removed ue context")
-		}
-	}
-	return err
-}
-
 func serviceTypeToString(serviceType uint8) string {
 	switch serviceType {
 	case nasMessage.ServiceTypeSignalling:
@@ -1626,9 +1588,13 @@ func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, registratio
 		}
 	}
 
-	return GmmFSM.SendEvent(ctx, ue.State, ContextSetupSuccessEvent, fsm.ArgsType{
-		ArgAmfUe: ue,
-	})
+	ue.State.Set(context.Registered)
+	ue.ClearRegistrationRequestData()
+
+	// return GmmFSM.SendEvent(ctx, ue.State, ContextSetupSuccessEvent, fsm.ArgsType{
+	// 	ArgAmfUe: ue,
+	// })
+	return nil
 }
 
 // TS 33.501 6.7.2
@@ -1668,17 +1634,11 @@ func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, securityMod
 		} else {
 			ue.State.Set(context.ContextSetup)
 			return contextSetup(ctx, ue, m.GmmMessage.RegistrationRequest)
-			// return GmmFSM.SendEvent(ctx, ue.State, SecurityModeSuccessEvent, fsm.ArgsType{
-			// 	ArgAmfUe:      ue,
-			// 	ArgNASMessage: m.GmmMessage.RegistrationRequest,
-			// })
+
 		}
 	}
 	ue.State.Set(context.ContextSetup)
-	// return GmmFSM.SendEvent(ctx, ue.State, SecurityModeSuccessEvent, fsm.ArgsType{
-	// 	ArgAmfUe:      ue,
-	// 	ArgNASMessage: ue.RegistrationRequest,
-	// })
+
 	return contextSetup(ctx, ue, ue.RegistrationRequest)
 }
 

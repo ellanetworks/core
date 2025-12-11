@@ -31,11 +31,7 @@ func handleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Gmm
 		if pass {
 			ue.State.Set(context.SecurityMode)
 			return securityMode(ctx, ue)
-			// if err := GmmFSM.SendEvent(ctx, ue.State, AuthSuccessEvent, fsm.ArgsType{
-			// 	ArgAmfUe: ue,
-			// }); err != nil {
-			// 	logger.AmfLog.Error("Error sending event", zap.Error(err))
-			// }
+
 		}
 
 		ue.State.Set(context.Authentication)
