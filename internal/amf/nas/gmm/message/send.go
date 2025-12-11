@@ -27,7 +27,7 @@ func SendDLNASTransport(ctx ctxt.Context, ue *context.RanUe, payloadContainerTyp
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	_, span := tracer.Start(ctx, "Send Downlink NAS Transport",
+	ctx, span := tracer.Start(ctx, "Send Downlink NAS Transport",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 			attribute.Int("pduSessionID", int(pduSessionID)),
@@ -60,7 +60,7 @@ func SendIdentityRequest(ctx ctxt.Context, ue *context.RanUe, typeOfIdentity uin
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	_, span := tracer.Start(ctx, "Send Identity Request",
+	ctx, span := tracer.Start(ctx, "Send Identity Request",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 			attribute.Int("typeOfIdentity", int(typeOfIdentity)),
@@ -134,7 +134,7 @@ func SendServiceAccept(ctx ctxt.Context, ue *context.RanUe, pDUSessionStatus *[1
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	_, span := tracer.Start(ctx, "Send Authentication Result",
+	ctx, span := tracer.Start(ctx, "Send Authentication Result",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 			attribute.Int("pduSessionIDErrorCount", len(errPduSessionID)),
@@ -162,7 +162,7 @@ func SendAuthenticationReject(ctx ctxt.Context, ue *context.RanUe) error {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	_, span := tracer.Start(ctx, "Send Authentication Reject",
+	ctx, span := tracer.Start(ctx, "Send Authentication Reject",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 		),
@@ -188,7 +188,7 @@ func SendServiceReject(ctx ctxt.Context, ue *context.RanUe, pDUSessionStatus *[1
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	_, span := tracer.Start(ctx, "Send Registration Reject",
+	ctx, span := tracer.Start(ctx, "Send Registration Reject",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 			attribute.Int("cause", int(cause)),
@@ -216,7 +216,7 @@ func SendRegistrationReject(ctx ctxt.Context, ue *context.RanUe, cause5GMM uint8
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	_, span := tracer.Start(ctx, "Send Registration Reject",
+	ctx, span := tracer.Start(ctx, "Send Registration Reject",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 			attribute.Int("cause", int(cause5GMM)),
@@ -242,7 +242,7 @@ func SendSecurityModeCommand(ctx ctxt.Context, ue *context.RanUe) error {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	_, span := tracer.Start(ctx, "Send Security Mode Command",
+	ctx, span := tracer.Start(ctx, "Send Security Mode Command",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 		),
@@ -281,60 +281,12 @@ func SendSecurityModeCommand(ctx ctxt.Context, ue *context.RanUe) error {
 	return nil
 }
 
-func SendDeregistrationRequest(ctx ctxt.Context, ue *context.RanUe, reRegistrationRequired bool, cause5GMM uint8) error {
-	if ue == nil || ue.AmfUe == nil {
-		return fmt.Errorf("ue or amf ue is nil")
-	}
-
-	_, span := tracer.Start(ctx, "Send Deregistration Request",
-		trace.WithAttributes(
-			attribute.String("supi", ue.AmfUe.Supi),
-			attribute.Int("cause", int(cause5GMM)),
-		),
-		trace.WithSpanKind(trace.SpanKindServer),
-	)
-	defer span.End()
-
-	nasMsg, err := BuildDeregistrationRequest(ue, reRegistrationRequired, cause5GMM)
-	if err != nil {
-		return fmt.Errorf("error building deregistration request: %s", err.Error())
-	}
-	err = ngap_message.SendDownlinkNasTransport(ctx, ue, nasMsg, nil)
-	if err != nil {
-		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
-	}
-	ue.AmfUe.GmmLog.Info("sent deregistration request")
-
-	amfUe := ue.AmfUe
-
-	if context.AMFSelf().T3522Cfg.Enable {
-		cfg := context.AMFSelf().T3522Cfg
-		amfUe.T3522 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			amfUe.GmmLog.Warn("T3522 expires, retransmit Deregistration Request", zap.Any("expireTimes", expireTimes))
-			err = ngap_message.SendDownlinkNasTransport(ctx, ue, nasMsg, nil)
-			if err != nil {
-				amfUe.GmmLog.Error("could not send downlink NAS transport message", zap.Error(err))
-				return
-			}
-			amfUe.GmmLog.Info("sent deregistration request")
-		}, func() {
-			amfUe.GmmLog.Warn("T3522 Expires, abort deregistration procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
-			amfUe.T3522 = nil // clear the timer
-			amfUe.State.Set(context.Deregistered)
-			amfUe.Remove()
-			amfUe.GmmLog.Debug("UE accessType transfer to Deregistered state")
-		})
-	}
-
-	return nil
-}
-
 func SendDeregistrationAccept(ctx ctxt.Context, ue *context.RanUe) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	_, span := tracer.Start(ctx, "Send Deregistration Accept",
+	ctx, span := tracer.Start(ctx, "Send Deregistration Accept",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 		),
@@ -436,7 +388,7 @@ func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe) {
 		return
 	}
 
-	_, span := tracer.Start(ctx, "Send Configuration Update Command",
+	ctx, span := tracer.Start(ctx, "Send Configuration Update Command",
 		trace.WithAttributes(
 			attribute.String("supi", amfUe.Supi),
 		),

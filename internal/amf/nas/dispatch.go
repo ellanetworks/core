@@ -11,9 +11,8 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/gmm"
+	"github.com/ellanetworks/core/internal/amf/nas/gmm"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/free5gc/nas"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -23,7 +22,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/nas")
 
-func Dispatch(ctx ctxt.Context, ue *context.AmfUe, procedureCode int64, msg *nas.Message) error {
+func Dispatch(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Message) error {
 	if msg.GmmMessage == nil {
 		return errors.New("gmm message is nil")
 	}
@@ -41,7 +40,6 @@ func Dispatch(ctx ctxt.Context, ue *context.AmfUe, procedureCode int64, msg *nas
 
 	ctx, span := tracer.Start(ctx, spanName,
 		trace.WithAttributes(
-			attribute.Int64("nas.procedureCode", procedureCode),
 			attribute.String("nas.messageType", msgTypeName),
 		),
 	)
@@ -53,10 +51,7 @@ func Dispatch(ctx ctxt.Context, ue *context.AmfUe, procedureCode int64, msg *nas
 		zap.String("SUPI", ue.Supi),
 	)
 
-	return gmm.GmmFSM.SendEvent(ctx, ue.State, gmm.GmmMessageEvent, fsm.ArgsType{
-		gmm.ArgAmfUe:      ue,
-		gmm.ArgNASMessage: msg.GmmMessage,
-	})
+	return gmm.HandleGmmMessage(ctx, ue, msg.GmmMessage)
 }
 
 func MessageName(code uint8) string {

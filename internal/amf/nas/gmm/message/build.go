@@ -276,43 +276,6 @@ func BuildSecurityModeCommand(ue *context.AmfUe) ([]byte, error) {
 	}
 }
 
-// T3346 timer are not supported
-func BuildDeregistrationRequest(ue *context.RanUe, reRegistrationRequired bool, cause5GMM uint8) ([]byte, error) {
-	m := nas.NewMessage()
-	m.GmmMessage = nas.NewGmmMessage()
-	m.GmmHeader.SetMessageType(nas.MsgTypeDeregistrationRequestUETerminatedDeregistration)
-
-	deregistrationRequest := nasMessage.NewDeregistrationRequestUETerminatedDeregistration(0)
-	deregistrationRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
-	deregistrationRequest.SpareHalfOctetAndSecurityHeaderType.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
-	deregistrationRequest.SpareHalfOctetAndSecurityHeaderType.SetSpareHalfOctet(0)
-	deregistrationRequest.SetMessageType(nas.MsgTypeDeregistrationRequestUETerminatedDeregistration)
-
-	deregistrationRequest.SetAccessType(nasMessage.AccessType3GPP)
-	deregistrationRequest.SetSwitchOff(0)
-	if reRegistrationRequired {
-		deregistrationRequest.SetReRegistrationRequired(nasMessage.ReRegistrationRequired)
-	} else {
-		deregistrationRequest.SetReRegistrationRequired(nasMessage.ReRegistrationNotRequired)
-	}
-
-	if cause5GMM != 0 {
-		deregistrationRequest.Cause5GMM = nasType.NewCause5GMM(
-			nasMessage.DeregistrationRequestUETerminatedDeregistrationCause5GMMType)
-		deregistrationRequest.Cause5GMM.SetCauseValue(cause5GMM)
-	}
-	m.GmmMessage.DeregistrationRequestUETerminatedDeregistration = deregistrationRequest
-
-	if ue != nil && ue.AmfUe != nil {
-		m.SecurityHeader = nas.SecurityHeader{
-			ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
-			SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
-		}
-		return nassecurity.Encode(ue.AmfUe, m)
-	}
-	return m.PlainNasEncode()
-}
-
 func BuildDeregistrationAccept() ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()

@@ -52,7 +52,7 @@ func parseAPIToken(presented string) (tokenID, secret string, ok bool) {
 // authenticateRequest validates the Authorization header (JWT or API token),
 // and returns (userID, email, roleID) for authorization.
 func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) (int, string, RoleID, error) {
-	_, span := tracer.Start(r.Context(), "Authenticate",
+	ctx, span := tracer.Start(r.Context(), "Authenticate",
 		trace.WithAttributes(),
 	)
 	defer span.End()
@@ -88,7 +88,7 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 		if err := bcrypt.CompareHashAndPassword([]byte(tok.TokenHash), []byte(token)); err != nil {
 			return 0, "", 0, errors.New("invalid API token")
 		}
-		u, err := store.GetUserByID(r.Context(), tok.UserID)
+		u, err := store.GetUserByID(ctx, tok.UserID)
 		if err != nil || u == nil {
 			return 0, "", 0, errors.New("user not found")
 		}

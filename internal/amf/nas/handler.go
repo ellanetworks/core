@@ -12,16 +12,10 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
-	"go.uber.org/zap"
 )
 
-type NasMsg struct {
-	NasMsg        []byte
-	ProcedureCode int64
-}
-
 // HandleNAS processes an uplink NAS PDU and emits a span around the entire operation.
-func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu []byte) error {
+func HandleNAS(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte) error {
 	if ue == nil {
 		return fmt.Errorf("ue is nil")
 	}
@@ -38,6 +32,7 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 		if err != nil {
 			return fmt.Errorf("error fetching UE context: %v", err)
 		}
+
 		ue.AmfUe = amfUe
 		if ue.AmfUe == nil {
 			ue.AmfUe = amfSelf.NewAmfUe(ctx, "")
@@ -48,42 +43,23 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 		defer eeCtx.Mutex.Unlock()
 
 		eeCtx.AttachRanUe(ue)
-
-		nasMsg := NasMsg{
-			NasMsg:        nasPdu,
-			ProcedureCode: procedureCode,
-		}
-		err = DispatchMsg(ctx, eeCtx, nasMsg)
-		if err != nil {
-			return fmt.Errorf("error dispatching NAS message: %v", err)
-		}
-		return nil
 	}
 
-	// Decode and dispatch for existing UE
-	msg, err := nassecurity.Decode(ctx, ue.AmfUe, nasPdu)
+	err := decodeAndDispatch(ctx, ue.AmfUe, nasPdu)
 	if err != nil {
-		return fmt.Errorf("error decoding NAS message: %v", err)
-	}
-
-	if err := Dispatch(ctx, ue.AmfUe, procedureCode, msg); err != nil {
-		eeCtx := ue.AmfUe
-		eeCtx.NASLog.Error("Handle NAS Error", zap.Error(err))
 		return fmt.Errorf("error handling NAS message: %v", err)
 	}
 
 	return nil
 }
 
-// DispatchMsg decodes and dispatches a NAS message for initially attached UEs.
-func DispatchMsg(ctx ctxt.Context, amfUe *context.AmfUe, transInfo NasMsg) error {
-	msg, err := nassecurity.Decode(ctx, amfUe, transInfo.NasMsg)
+func decodeAndDispatch(ctx ctxt.Context, ue *context.AmfUe, nasPdu []byte) error {
+	msg, err := nassecurity.Decode(ctx, ue, nasPdu)
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
-	err = Dispatch(ctx, amfUe, transInfo.ProcedureCode, msg)
-	if err != nil {
+	if err := Dispatch(ctx, ue, msg); err != nil {
 		return fmt.Errorf("error handling NAS message: %v", err)
 	}
 
