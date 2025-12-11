@@ -35,20 +35,6 @@ func getRegistrationType5GSName(regType5Gs uint8) string {
 	}
 }
 
-func HandleAuthenticationError(ctx ctxt.Context, ue *context.AmfUe) error {
-	logger.AmfLog.Debug("Handle Authentication Error", zap.String("supi", ue.Supi))
-
-	if ue.RegistrationRequest != nil {
-		err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
-		if err != nil {
-			return fmt.Errorf("error sending registration reject: %v", err)
-		}
-
-		ue.GmmLog.Info("sent registration reject")
-	}
-	return nil
-}
-
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
 func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registrationRequest *nasMessage.RegistrationRequest) error {
 	var guamiFromUeGuti models.Guami
@@ -107,7 +93,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		ue.GmmLog.Debug("UE used SUCI identity for registration")
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
-		ue.PlmnID = PlmnIDStringToModels(plmnID)
+		ue.PlmnID = plmnIDStringToModels(plmnID)
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		guamiFromUeGutiTmp, guti := util.GutiToString(mobileIdentity5GSContents)
 		guamiFromUeGuti = guamiFromUeGutiTmp
@@ -164,8 +150,8 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
-		ue.GmmLog.Info("sent registration reject to UE")
-		return fmt.Errorf("registration Reject[Tracking area not allowed]")
+
+		return fmt.Errorf("registration Reject [Tracking area not allowed]")
 	}
 
 	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSInitialRegistration && registrationRequest.UESecurityCapability == nil {
@@ -173,7 +159,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
-		ue.GmmLog.Info("sent registration reject to UE")
+
 		return fmt.Errorf("registration request does not contain UE security capability for initial registration")
 	}
 
@@ -191,7 +177,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 func handleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Registration Request", zap.String("supi", ue.Supi))
 
-	ctx, span := tracer.Start(ctx, "AMF HandleRegistrationRequest")
+	ctx, span := tracer.Start(ctx, "AMF NAS HandleRegistrationRequest")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State.Current())),
@@ -207,8 +193,9 @@ func handleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Gmm
 		pass, err := AuthenticationProcedure(ctx, ue)
 		if err != nil {
 			ue.State.Set(context.Deregistered)
-			if err := HandleAuthenticationError(ctx, ue); err != nil {
-				return fmt.Errorf("error handling authentication error: %v", err)
+			err := gmm_message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			if err != nil {
+				return fmt.Errorf("error sending registration reject: %v", err)
 			}
 			return nil
 		}

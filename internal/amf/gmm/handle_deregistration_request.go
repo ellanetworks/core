@@ -20,7 +20,7 @@ import (
 func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Deregistration Request", zap.String("supi", ue.Supi))
 
-	ctx, span := tracer.Start(ctx, "AMF HandleDeregistrationRequestUEOriginatingDeregistration")
+	ctx, span := tracer.Start(ctx, "AMF NAS HandleDeregistrationRequestUEOriginatingDeregistration")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State.Current())),
@@ -68,8 +68,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue
 		}
 	}
 
-	SetDeregisteredState(ue)
-
+	ue.SubscriptionDataValid = false
 	ue.State.Set(context.DeregistrationInitiated)
 
 	return nil

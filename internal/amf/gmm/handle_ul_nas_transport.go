@@ -9,6 +9,7 @@ import (
 	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
@@ -261,7 +262,9 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 }
 
 func handleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
-	ctx, span := tracer.Start(ctx, "AMF HandleULNASTransport")
+	logger.AmfLog.Debug("Handle UL NAS Transport", zap.String("supi", ue.Supi))
+
+	ctx, span := tracer.Start(ctx, "AMF NAS HandleULNASTransport")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State.Current())),

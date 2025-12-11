@@ -5,11 +5,15 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"go.opentelemetry.io/otel/attribute"
+	"go.uber.org/zap"
 )
 
 func handleConfigurationUpdateComplete(ctx ctxt.Context, ue *context.AmfUe) error {
-	_, span := tracer.Start(ctx, "AMF HandleConfigurationUpdateComplete")
+	logger.AmfLog.Debug("Handle Configuration Update Complete", zap.String("supi", ue.Supi))
+
+	_, span := tracer.Start(ctx, "AMF NAS HandleConfigurationUpdateComplete")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State.Current())),

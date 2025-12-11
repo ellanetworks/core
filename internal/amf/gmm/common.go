@@ -88,17 +88,11 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, supportedPLMN *co
 	return nil
 }
 
-func PlmnIDStringToModels(plmnIDStr string) models.PlmnID {
+func plmnIDStringToModels(plmnIDStr string) models.PlmnID {
 	var plmnID models.PlmnID
 	plmnID.Mcc = plmnIDStr[:3]
 	plmnID.Mnc = plmnIDStr[3:]
 	return plmnID
-}
-
-func SetDeregisteredState(amfUe *context.AmfUe) {
-	amfUe.SubscriptionDataValid = false
-	amfUe.State.Set(context.Deregistered)
-	amfUe.GmmLog.Debug("UE accessType[3GPP] transfer to Deregistered state")
 }
 
 func negotiateDRXParameters(ue *context.AmfUe, requestedDRXParameters *nasType.RequestedDRXParameters) {

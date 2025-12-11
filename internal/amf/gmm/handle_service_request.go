@@ -88,7 +88,9 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, ctxList ngapType.PDU
 
 // TS 24501 5.6.1
 func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
-	ctx, span := tracer.Start(ctx, "AMF HandleServiceRequest")
+	logger.AmfLog.Debug("Handle Service Request", zap.String("supi", ue.Supi))
+
+	ctx, span := tracer.Start(ctx, "AMF NAS HandleServiceRequest")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State.Current())),
@@ -282,32 +284,37 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 			if n2Info == nil && n1Msg != nil {
 				err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 				if err != nil {
-					return err
+					return fmt.Errorf("error sending service accept: %v", err)
 				}
+
 				switch requestData.N1MessageClass {
 				case models.N1MessageClassSM:
 					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
+
 					ue.GmmLog.Info("sent downlink nas transport message")
 				case models.N1MessageClassLPP:
 					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
+
 					ue.GmmLog.Info("sent downlink nas transport message")
 				case models.N1MessageClassSMS:
 					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
+
 					ue.GmmLog.Info("sent downlink nas transport message")
 				case models.N1MessageClassUPDP:
 					err := gmm_message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
+
 					ue.GmmLog.Info("sent downlink nas transport message")
 				}
 				ue.N1N2Message = nil
@@ -322,34 +329,33 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 
 				if smInfo.NgapIeType == models.NgapIeTypePduResSetupReq {
 					var nasPdu []byte
-					var err error
 					if n1Msg != nil {
 						pduSessionID := uint8(smInfo.PduSessionID)
 						nasPdu, err = gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
 						if err != nil {
-							return err
+							return fmt.Errorf("error building DL NAS transport message: %v", err)
 						}
 					}
-					omecSnssai := models.Snssai{
+					snssai := models.Snssai{
 						Sst: smInfo.SNssai.Sst,
 						Sd:  smInfo.SNssai.Sd,
 					}
 					if ue.RanUe.UeContextRequest {
-						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
+						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, smInfo.PduSessionID, snssai, nasPdu, n2Info)
 					} else {
-						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
+						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID, snssai, nasPdu, n2Info)
 					}
 				}
 				ue.GmmLog.Debug("sending service accept")
 				err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 				if err != nil {
-					return err
+					return fmt.Errorf("error sending service accept: %v", err)
 				}
 			}
 		} else {
 			err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 			if err != nil {
-				return err
+				return fmt.Errorf("error sending service accept: %v", err)
 			}
 		}
 		if ue.ConfigurationUpdateCommandFlags != nil {
@@ -363,23 +369,16 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 	case nasMessage.ServiceTypeData:
 		err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 		if err != nil {
-			return err
+			return fmt.Errorf("error sending service accept: %v", err)
 		}
 	default:
 		return fmt.Errorf("service type is not supported: %d", serviceType)
 	}
+
 	if len(errPduSessionID) != 0 {
 		ue.GmmLog.Info("", zap.Any("errPduSessionID", errPduSessionID), zap.Any("errCause", errCause))
 	}
 	ue.N1N2Message = nil
+
 	return nil
-
-	// switch ue.State.Current() {
-	// case context.Deregistered, context.Registered:
-	// 	if err := HandleServiceRequest(ctx, ue, msg.ServiceRequest); err != nil {
-	// 		return fmt.Errorf("error handling service request: %v", err)
-	// 	}
-	// }
-
-	// return nil
 }

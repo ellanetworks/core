@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -14,12 +15,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.IdentityResponse) error {
+func updateUEIdentity(ue *context.AmfUe, mobileIdentityContents []uint8) error {
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
 	}
 
-	mobileIdentityContents := identityResponse.MobileIdentity.GetMobileIdentityContents()
 	if len(mobileIdentityContents) == 0 {
 		return fmt.Errorf("mobile identity is empty")
 	}
@@ -28,45 +28,43 @@ func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.Iden
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentityContents)
-		ue.PlmnID = PlmnIDStringToModels(plmnID)
+		ue.PlmnID = plmnIDStringToModels(plmnID)
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 		_, guti := nasConvert.GutiToString(mobileIdentityContents)
 		ue.Guti = guti
-		ue.GmmLog.Debug("get GUTI", zap.String("guti", guti))
 	case nasMessage.MobileIdentity5GSType5gSTmsi:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 		sTmsi := hex.EncodeToString(mobileIdentityContents[1:])
-		if tmp, err := strconv.ParseInt(sTmsi[4:], 10, 32); err != nil {
-			return err
-		} else {
-			ue.Tmsi = int32(tmp)
+		tmp, err := strconv.ParseInt(sTmsi[4:], 10, 32)
+		if err != nil {
+			return fmt.Errorf("could not parse 5G-S-TMSI: %v", err)
 		}
-		ue.GmmLog.Debug("get 5G-S-TMSI", zap.String("5G-S-TMSI", sTmsi))
+		ue.Tmsi = int32(tmp)
 	case nasMessage.MobileIdentity5GSTypeImei:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 		imei := nasConvert.PeiToString(mobileIdentityContents)
 		ue.Pei = imei
-		ue.GmmLog.Debug("get PEI", zap.String("PEI", imei))
 	case nasMessage.MobileIdentity5GSTypeImeisv:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 		imeisv := nasConvert.PeiToString(mobileIdentityContents)
 		ue.Pei = imeisv
-		ue.GmmLog.Debug("get PEI", zap.String("PEI", imeisv))
 	}
 	return nil
 }
 
 func handleIdentityResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
-	ctx, span := tracer.Start(ctx, "AMF HandleIdentityResponse")
+	logger.AmfLog.Debug("Handle Identity Response", zap.String("supi", ue.Supi))
+
+	ctx, span := tracer.Start(ctx, "AMF NAS HandleIdentityResponse")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State.Current())),
@@ -75,7 +73,9 @@ func handleIdentityResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMes
 
 	switch ue.State.Current() {
 	case context.Authentication:
-		if err := HandleIdentityResponse(ue, msg.IdentityResponse); err != nil {
+		mobileIdentityContents := msg.IdentityResponse.MobileIdentity.GetMobileIdentityContents()
+
+		if err := updateUEIdentity(ue, mobileIdentityContents); err != nil {
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 
@@ -92,7 +92,9 @@ func handleIdentityResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMes
 		return nil
 
 	case context.ContextSetup:
-		if err := HandleIdentityResponse(ue, msg.IdentityResponse); err != nil {
+		mobileIdentityContents := msg.IdentityResponse.MobileIdentity.GetMobileIdentityContents()
+
+		if err := updateUEIdentity(ue, mobileIdentityContents); err != nil {
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 		switch ue.RegistrationType5GS {

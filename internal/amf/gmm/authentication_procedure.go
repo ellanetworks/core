@@ -18,25 +18,28 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe) (bool, error) 
 	ctx, span := tracer.Start(ctx, "AuthenticationProcedure")
 	defer span.End()
 
-	// Check whether UE has SUCI and SUPI
-	if identityVerification(ue) {
-		ue.GmmLog.Debug("UE has SUCI / SUPI")
-		if ue.SecurityContextIsValid() {
-			ue.GmmLog.Debug("UE has a valid security context - skip the authentication procedure")
-			return true, nil
-		} else {
-			ue.GmmLog.Debug("UE has no valid security context - continue with the authentication procedure")
-		}
-	} else {
+	if !identityVerification(ue) {
 		// Request UE's SUCI by sending identity request
 		ue.GmmLog.Debug("UE has no SUCI / SUPI - send identity request to UE")
+
 		err := gmm_message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
 		if err != nil {
 			return false, fmt.Errorf("error sending identity request: %v", err)
 		}
+
 		ue.GmmLog.Info("sent identity request")
 		return false, nil
 	}
+
+	// Check whether UE has SUCI and SUPI
+	ue.GmmLog.Debug("UE has SUCI / SUPI")
+
+	if ue.SecurityContextIsValid() {
+		ue.GmmLog.Debug("UE has a valid security context - skip the authentication procedure")
+		return true, nil
+	}
+
+	ue.GmmLog.Debug("UE has no valid security context - continue with the authentication procedure")
 
 	response, err := consumer.SendUEAuthenticationAuthenticateRequest(ctx, ue, nil)
 	if err != nil {

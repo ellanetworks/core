@@ -18,8 +18,19 @@ import (
 )
 
 // TS 24.501 5.4.1
-func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authenticationResponse *nasMessage.AuthenticationResponse) error {
+func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Authentication Response", zap.String("supi", ue.Supi))
+
+	ctx, span := tracer.Start(ctx, "AMF NAS HandleAuthenticationResponse")
+	span.SetAttributes(
+		attribute.String("ue", ue.Supi),
+		attribute.String("state", string(ue.State.Current())),
+	)
+	defer span.End()
+
+	if ue.State.Current() != context.Authentication {
+		return fmt.Errorf("state mismatch: receive Authentication Response message in state %s", ue.State.Current())
+	}
 
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
@@ -30,12 +41,12 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authentic
 		return fmt.Errorf("ue Authentication Context is nil")
 	}
 
-	resStar := authenticationResponse.AuthenticationResponseParameter.GetRES()
+	resStar := msg.AuthenticationResponse.AuthenticationResponseParameter.GetRES()
 
 	// Calculate HRES* (TS 33.501 Annex A.5)
 	p0, err := hex.DecodeString(ue.AuthenticationCtx.Var5gAuthData.Rand)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to decode RAND: %s", err)
 	}
 
 	p1 := resStar[:]
@@ -53,15 +64,15 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authentic
 			}
 			ue.GmmLog.Info("sent identity request")
 			return nil
-		} else {
-			ue.State.Set(context.Deregistered)
-			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
-			if err != nil {
-				return fmt.Errorf("error sending GMM authentication reject: %v", err)
-			}
-
-			return nil
 		}
+
+		ue.State.Set(context.Deregistered)
+		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
+		if err != nil {
+			return fmt.Errorf("error sending GMM authentication reject: %v", err)
+		}
+
+		return nil
 	}
 
 	response, err := consumer.SendAuth5gAkaConfirmRequest(ctx, ue, hex.EncodeToString(resStar[:]))
@@ -86,38 +97,15 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authentic
 			}
 			ue.GmmLog.Info("sent identity request")
 			return nil
-		} else {
-			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
-			if err != nil {
-				// return fmt.Errorf("error sending GMM authentication reject: %v", err)
-				logger.AmfLog.Error("error sending GMM authentication reject", zap.Error(err))
-			}
-
-			ue.State.Set(context.Deregistered)
-
-			return nil
 		}
-	}
 
-	return nil
-}
-
-func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
-	ctx, span := tracer.Start(ctx, "AMF HandleAuthenticationResponse")
-	span.SetAttributes(
-		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State.Current())),
-	)
-	defer span.End()
-
-	switch ue.State.Current() {
-	case context.Authentication:
-		err := HandleAuthenticationResponse(ctx, ue, msg.AuthenticationResponse)
+		ue.State.Set(context.Deregistered)
+		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
-			return fmt.Errorf("error handling authentication response: %v", err)
+			return fmt.Errorf("error sending GMM authentication reject: %v", err)
 		}
-	default:
-		return fmt.Errorf("state mismatch: receive Authentication Response message in state %s", ue.State.Current())
+
+		return nil
 	}
 	return nil
 }

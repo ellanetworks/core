@@ -2,10 +2,10 @@ package gmm
 
 import (
 	ctxt "context"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/security"
 	"go.uber.org/zap"
 )
@@ -31,13 +31,15 @@ func securityMode(ctx ctxt.Context, ue *context.AmfUe) error {
 	ue.SelectSecurityAlg(amfSelf.SecurityAlgorithm.IntegrityOrder, amfSelf.SecurityAlgorithm.CipheringOrder)
 	// Generate KnasEnc, KnasInt
 	ue.DerivateAlgKey()
+
 	if ue.CipheringAlg == security.AlgCiphering128NEA0 && ue.IntegrityAlg == security.AlgIntegrity128NIA0 {
 		ue.State.Set(context.ContextSetup)
-	} else {
-		err := gmm_message.SendSecurityModeCommand(ctx, ue.RanUe)
-		if err != nil {
-			logger.AmfLog.Error("error sending security mode command", zap.Error(err))
-		}
+		return nil
+	}
+
+	err := gmm_message.SendSecurityModeCommand(ctx, ue.RanUe)
+	if err != nil {
+		return fmt.Errorf("error sending security mode command: %v", err)
 	}
 
 	return nil

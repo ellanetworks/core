@@ -15,7 +15,7 @@ import (
 func handleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe) error {
 	logger.AmfLog.Debug("Handle Registration Complete", zap.String("supi", ue.Supi))
 
-	ctx, span := tracer.Start(ctx, "AMF HandleRegistrationComplete")
+	ctx, span := tracer.Start(ctx, "AMF NAS HandleRegistrationComplete")
 	defer span.End()
 
 	if ue.State.Current() != context.ContextSetup {

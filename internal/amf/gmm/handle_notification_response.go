@@ -5,15 +5,19 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"go.opentelemetry.io/otel/attribute"
+	"go.uber.org/zap"
 )
 
 // TS 24501 5.6.3.2
 func handleNotificationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
-	_, span := tracer.Start(ctx, "AMF HandleNotificationResponse")
+	logger.AmfLog.Debug("Handle Notification Response", zap.String("supi", ue.Supi))
+
+	_, span := tracer.Start(ctx, "AMF NAS HandleNotificationResponse")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State.Current())),

@@ -15,7 +15,7 @@ import (
 func handleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe) error {
 	logger.AmfLog.Debug("Handle Deregistration Accept", zap.String("supi", ue.Supi))
 
-	ctx, span := tracer.Start(ctx, "AMF HandleDeregistrationAccept")
+	ctx, span := tracer.Start(ctx, "AMF NAS HandleDeregistrationAccept")
 	defer span.End()
 
 	if ue.State.Current() != context.DeregistrationInitiated {
@@ -34,7 +34,7 @@ func handleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe) error {
 		}
 	}
 
-	SetDeregisteredState(ue)
+	ue.SubscriptionDataValid = false
 	ue.State.Set(context.Deregistered)
 
 	return nil
