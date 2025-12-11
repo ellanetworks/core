@@ -3,12 +3,38 @@ package gmm
 import (
 	ctxt "context"
 	"fmt"
+	"strconv"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
+	"github.com/ellanetworks/core/internal/ausf"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasMessage"
 )
+
+func sendUEAuthenticationAuthenticateRequest(ctx ctxt.Context, ue *context.AmfUe, resynchronizationInfo *models.ResynchronizationInfo) (*models.UeAuthenticationCtx, error) {
+	if ue.Tai.PlmnID == nil {
+		return nil, fmt.Errorf("tai is not available in UE context")
+	}
+
+	mnc, err := strconv.Atoi(ue.Tai.PlmnID.Mnc)
+	if err != nil {
+		return nil, fmt.Errorf("could not convert mnc to int: %v", err)
+	}
+
+	authInfo := models.AuthenticationInfo{
+		Suci:                  ue.Suci,
+		ServingNetworkName:    fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, ue.Tai.PlmnID.Mcc),
+		ResynchronizationInfo: resynchronizationInfo,
+	}
+
+	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(ctx, authInfo)
+	if err != nil {
+		return nil, fmt.Errorf("ausf UE Authentication Authenticate Request failed: %s", err.Error())
+	}
+
+	return ueAuthenticationCtx, nil
+}
 
 func identityVerification(ue *context.AmfUe) bool {
 	return ue.Supi != "" || len(ue.Suci) != 0
@@ -41,7 +67,7 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe) (bool, error) 
 
 	ue.GmmLog.Debug("UE has no valid security context - continue with the authentication procedure")
 
-	response, err := consumer.SendUEAuthenticationAuthenticateRequest(ctx, ue, nil)
+	response, err := sendUEAuthenticationAuthenticateRequest(ctx, ue, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to send ue authentication request: %s", err)
 	}

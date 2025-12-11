@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -18,6 +19,34 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
+
+func sendCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (string, *models.PostSmContextsErrorResponse, error) {
+	snssai := smContext.Snssai()
+
+	postSmContextsRequest := models.PostSmContextsRequest{
+		JSONData: &models.SmContextCreateData{
+			Supi:         ue.Supi,
+			PduSessionID: smContext.PduSessionID(),
+			SNssai: &models.Snssai{
+				Sst: snssai.Sst,
+				Sd:  snssai.Sd,
+			},
+			Dnn: smContext.Dnn(),
+		},
+		BinaryDataN1SmMessage: nasPdu,
+	}
+
+	return pdusession.CreateSmContext(ctx, postSmContextsRequest)
+}
+
+func createSmContext(pduSessionID int32, snssai models.Snssai, dnn string) *context.SmContext {
+	smContext := context.NewSmContext(pduSessionID)
+
+	smContext.SetSnssai(snssai)
+	smContext.SetDnn(dnn)
+
+	return smContext
+}
 
 func forward5GSMMessageToSMF(
 	ctx ctxt.Context,
@@ -177,14 +206,14 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
 			if ue.InAllowedNssai(smContext.Snssai()) {
 				return forward5GSMMessageToSMF(ctx, ue, pduSessionID, smContext, smMessage)
-			} else {
-				ue.GmmLog.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai()), zap.Int32("pduSessionID", pduSessionID))
-				err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
-				if err != nil {
-					return fmt.Errorf("error sending downlink nas transport: %s", err)
-				}
-				ue.GmmLog.Info("sent downlink nas transport to UE")
 			}
+
+			ue.GmmLog.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai()), zap.Int32("pduSessionID", pduSessionID))
+			err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+			if err != nil {
+				return fmt.Errorf("error sending downlink nas transport: %s", err)
+			}
+			ue.GmmLog.Info("sent downlink nas transport to UE")
 		// other requestType: AMF forward the 5GSM message, and the PDU session ID IE towards the SMF identified
 		// by the SMF ID of the PDU session routing context
 		default:
@@ -226,9 +255,9 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 				dnn = dnnResp
 			}
 
-			newSmContext := consumer.SelectSmf(pduSessionID, snssai, dnn)
+			newSmContext := createSmContext(pduSessionID, snssai, dnn)
 
-			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ctx, ue, newSmContext, smMessage)
+			smContextRef, errResponse, err := sendCreateSmContextRequest(ctx, ue, newSmContext, smMessage)
 			if err != nil {
 				ue.GmmLog.Error("couldn't send create sm context request", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
 			}

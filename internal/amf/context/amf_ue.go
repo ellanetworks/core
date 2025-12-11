@@ -484,8 +484,6 @@ func (ue *AmfUe) GetOnGoing() OnGoingProcedureWithPrio {
 	return *ue.OnGoing
 }
 
-// SM Context realted function
-
 func (ue *AmfUe) StoreSmContext(pduSessionID int32, smContext *SmContext) {
 	ue.SmContextList.Store(pduSessionID, smContext)
 }

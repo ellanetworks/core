@@ -12,11 +12,10 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
-	"go.uber.org/zap"
 )
 
 // HandleNAS processes an uplink NAS PDU and emits a span around the entire operation.
-func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu []byte) error {
+func HandleNAS(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte) error {
 	if ue == nil {
 		return fmt.Errorf("ue is nil")
 	}
@@ -33,6 +32,7 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 		if err != nil {
 			return fmt.Errorf("error fetching UE context: %v", err)
 		}
+
 		ue.AmfUe = amfUe
 		if ue.AmfUe == nil {
 			ue.AmfUe = amfSelf.NewAmfUe(ctx, "")
@@ -43,28 +43,23 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, procedureCode int64, nasPdu 
 		defer eeCtx.Mutex.Unlock()
 
 		eeCtx.AttachRanUe(ue)
-
-		msg, err := nassecurity.Decode(ctx, amfUe, nasPdu)
-		if err != nil {
-			return fmt.Errorf("error decoding NAS message: %v", err)
-		}
-
-		err = Dispatch(ctx, amfUe, msg)
-		if err != nil {
-			return fmt.Errorf("error handling NAS message: %v", err)
-		}
-		return nil
 	}
 
-	// Decode and dispatch for existing UE
-	msg, err := nassecurity.Decode(ctx, ue.AmfUe, nasPdu)
+	err := decodeAndDispatch(ctx, ue.AmfUe, nasPdu)
+	if err != nil {
+		return fmt.Errorf("error handling NAS message: %v", err)
+	}
+
+	return nil
+}
+
+func decodeAndDispatch(ctx ctxt.Context, ue *context.AmfUe, nasPdu []byte) error {
+	msg, err := nassecurity.Decode(ctx, ue, nasPdu)
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
-	if err := Dispatch(ctx, ue.AmfUe, msg); err != nil {
-		eeCtx := ue.AmfUe
-		eeCtx.NASLog.Error("Handle NAS Error", zap.Error(err))
+	if err := Dispatch(ctx, ue, msg); err != nil {
 		return fmt.Errorf("error handling NAS message: %v", err)
 	}
 

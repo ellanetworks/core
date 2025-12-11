@@ -6,9 +6,9 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -75,9 +75,9 @@ func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.
 		return nil
 	}
 
-	response, err := consumer.SendAuth5gAkaConfirmRequest(ctx, ue, hex.EncodeToString(resStar[:]))
+	response, err := ausf.Auth5gAkaComfirmRequestProcedure(ctx, hex.EncodeToString(resStar[:]), ue.Suci)
 	if err != nil {
-		return fmt.Errorf("authentication procedure failed: %s", err)
+		return fmt.Errorf("ausf 5G-AKA Confirm Request failed: %s", err.Error())
 	}
 
 	switch response.AuthResult {

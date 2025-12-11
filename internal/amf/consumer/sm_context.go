@@ -15,38 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 )
 
-func SelectSmf(
-	pduSessionID int32,
-	snssai models.Snssai,
-	dnn string,
-) *context.SmContext {
-	smContext := context.NewSmContext(pduSessionID)
-
-	smContext.SetSnssai(snssai)
-	smContext.SetDnn(dnn)
-
-	return smContext
-}
-
-func SendCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (string, *models.PostSmContextsErrorResponse, error) {
-	snssai := smContext.Snssai()
-
-	postSmContextsRequest := models.PostSmContextsRequest{
-		JSONData: &models.SmContextCreateData{
-			Supi:         ue.Supi,
-			PduSessionID: smContext.PduSessionID(),
-			SNssai: &models.Snssai{
-				Sst: snssai.Sst,
-				Sd:  snssai.Sd,
-			},
-			Dnn: smContext.Dnn(),
-		},
-		BinaryDataN1SmMessage: nasPdu,
-	}
-
-	return pdusession.CreateSmContext(ctx, postSmContextsRequest)
-}
-
 // Upadate SmContext Request
 // servingNfID, smContextStatusUri, guami, servingNetwork -> amf change
 // anType -> anType change

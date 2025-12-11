@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/logger"
@@ -93,7 +92,7 @@ func handleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, msg *nas.G
 			Auts: hex.EncodeToString(auts[:]),
 		}
 
-		response, err := consumer.SendUEAuthenticationAuthenticateRequest(ctx, ue, resynchronizationInfo)
+		response, err := sendUEAuthenticationAuthenticateRequest(ctx, ue, resynchronizationInfo)
 		if err != nil {
 			return fmt.Errorf("send UE Authentication Authenticate Request Error: %s", err.Error())
 		}
