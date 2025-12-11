@@ -190,6 +190,7 @@ func handleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Gmm
 			return fmt.Errorf("failed handling registration request")
 		}
 
+		ue.State.Set(context.Authentication)
 		pass, err := AuthenticationProcedure(ctx, ue)
 		if err != nil {
 			ue.State.Set(context.Deregistered)
@@ -203,8 +204,6 @@ func handleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Gmm
 			ue.State.Set(context.SecurityMode)
 			return securityMode(ctx, ue)
 		}
-
-		ue.State.Set(context.Authentication)
 
 	case context.SecurityMode:
 		ue.SecurityContextAvailable = false

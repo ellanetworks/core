@@ -79,6 +79,7 @@ func handleIdentityResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMes
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 
+		ue.State.Set(context.Authentication)
 		pass, err := AuthenticationProcedure(ctx, ue)
 		if err != nil {
 			ue.State.Set(context.Deregistered)
@@ -88,7 +89,7 @@ func handleIdentityResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMes
 			ue.State.Set(context.SecurityMode)
 			return securityMode(ctx, ue)
 		}
-		ue.State.Set(context.Authentication)
+
 		return nil
 
 	case context.ContextSetup:
