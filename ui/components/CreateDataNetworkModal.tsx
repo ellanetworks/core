@@ -62,7 +62,7 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
     name: "",
     ipPool: "10.45.0.0/22",
     dns: "8.8.8.8",
-    mtu: 1500,
+    mtu: 1456,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
