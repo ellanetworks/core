@@ -14,13 +14,13 @@ import (
 )
 
 const (
-	GmmMessageEvent                fsm.EventType = "Gmm Message"
-	StartAuthEvent                 fsm.EventType = "Start Authentication"
-	AuthSuccessEvent               fsm.EventType = "Authentication Success"
-	AuthRestartEvent               fsm.EventType = "Authentication Restart"
-	AuthFailEvent                  fsm.EventType = "Authentication Fail"
-	AuthErrorEvent                 fsm.EventType = "Authentication Error"
-	SecurityModeSuccessEvent       fsm.EventType = "SecurityMode Success"
+	// GmmMessageEvent                fsm.EventType = "Gmm Message"
+	// StartAuthEvent                 fsm.EventType = "Start Authentication"
+	// AuthSuccessEvent               fsm.EventType = "Authentication Success"
+	// AuthRestartEvent               fsm.EventType = "Authentication Restart"
+	AuthFailEvent  fsm.EventType = "Authentication Fail"
+	AuthErrorEvent fsm.EventType = "Authentication Error"
+	// SecurityModeSuccessEvent       fsm.EventType = "SecurityMode Success"
 	SecurityModeFailEvent          fsm.EventType = "SecurityMode Fail"
 	SecuritySkipEvent              fsm.EventType = "Security Skip"
 	SecurityModeAbortEvent         fsm.EventType = "SecurityMode Abort"
@@ -39,19 +39,19 @@ const (
 )
 
 var transitions = fsm.Transitions{
-	{Event: GmmMessageEvent, From: context.Deregistered, To: context.Deregistered},
-	{Event: GmmMessageEvent, From: context.Authentication, To: context.Authentication},
-	{Event: GmmMessageEvent, From: context.SecurityMode, To: context.SecurityMode},
-	{Event: GmmMessageEvent, From: context.ContextSetup, To: context.ContextSetup},
-	{Event: GmmMessageEvent, From: context.Registered, To: context.Registered},
-	{Event: GmmMessageEvent, From: context.DeregistrationInitiated, To: context.DeregistrationInitiated},
-	{Event: StartAuthEvent, From: context.Deregistered, To: context.Authentication},
-	{Event: StartAuthEvent, From: context.Registered, To: context.Authentication},
-	{Event: AuthRestartEvent, From: context.Authentication, To: context.Authentication},
-	{Event: AuthSuccessEvent, From: context.Authentication, To: context.SecurityMode},
+	// {Event: GmmMessageEvent, From: context.Deregistered, To: context.Deregistered},
+	// {Event: GmmMessageEvent, From: context.Authentication, To: context.Authentication},
+	// {Event: GmmMessageEvent, From: context.SecurityMode, To: context.SecurityMode},
+	// {Event: GmmMessageEvent, From: context.ContextSetup, To: context.ContextSetup},
+	// {Event: GmmMessageEvent, From: context.Registered, To: context.Registered},
+	// {Event: GmmMessageEvent, From: context.DeregistrationInitiated, To: context.DeregistrationInitiated},
+	// {Event: StartAuthEvent, From: context.Deregistered, To: context.Authentication},
+	// {Event: StartAuthEvent, From: context.Registered, To: context.Authentication},
+	// {Event: AuthRestartEvent, From: context.Authentication, To: context.Authentication},
+	// {Event: AuthSuccessEvent, From: context.Authentication, To: context.SecurityMode},
 	{Event: AuthFailEvent, From: context.Authentication, To: context.Deregistered},
 	{Event: AuthErrorEvent, From: context.Authentication, To: context.Deregistered},
-	{Event: SecurityModeSuccessEvent, From: context.SecurityMode, To: context.ContextSetup},
+	// {Event: SecurityModeSuccessEvent, From: context.SecurityMode, To: context.ContextSetup},
 	{Event: SecuritySkipEvent, From: context.SecurityMode, To: context.ContextSetup},
 	{Event: SecurityModeFailEvent, From: context.SecurityMode, To: context.Deregistered},
 	{Event: SecurityModeAbortEvent, From: context.SecurityMode, To: context.Deregistered},

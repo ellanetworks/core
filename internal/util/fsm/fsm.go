@@ -7,7 +7,13 @@ package fsm
 import (
 	"context"
 	"fmt"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("ella-core/fsm")
 
 type (
 	EventType string
@@ -87,6 +93,14 @@ func NewFSM(transitions Transitions, callbacks Callbacks) (*FSM, error) {
 //   - event callback: call when user trigger a user-defined event
 //   - on entry callback: call when fsm enter one state, with EntryEvent event
 func (fsm *FSM) SendEvent(ctx context.Context, state *State, event EventType, args ArgsType) error {
+	ctx, span := tracer.Start(ctx, "FSM SendEvent",
+		trace.WithAttributes(
+			attribute.String("fsm.event", string(event)),
+			attribute.String("fsm.state.current", string(state.Current())),
+		),
+	)
+	defer span.End()
+
 	key := eventKey{
 		From:  state.Current(),
 		Event: event,
@@ -94,17 +108,47 @@ func (fsm *FSM) SendEvent(ctx context.Context, state *State, event EventType, ar
 
 	if trans, ok := fsm.transitions[key]; ok {
 		// event callback
+		ctx, span := tracer.Start(ctx, "FSM Event",
+			trace.WithAttributes(
+				attribute.String("fsm.event", string(event)),
+				attribute.String("fsm.state_type.from", string(trans.From)),
+				attribute.String("fsm.state_type.to", string(trans.To)),
+				attribute.String("fsm.state.current", string(state.Current())),
+			),
+		)
 		fsm.callbacks[trans.From](ctx, state, event, args)
+		span.End()
 
 		// exit callback
 		if trans.From != trans.To {
-			fsm.callbacks[trans.From](ctx, state, ExitEvent, args)
+			ctx, span := tracer.Start(ctx, "FSM Exit Event",
+				trace.WithAttributes(
+					attribute.String("fsm.event", string(ExitEvent)),
+					attribute.String("fsm.state_type.from", string(trans.From)),
+					attribute.String("fsm.state_type.to", string(trans.To)),
+					attribute.String("fsm.state.current", string(state.Current())),
+				),
+			)
+			defer fsm.callbacks[trans.From](ctx, state, ExitEvent, args)
+			span.End()
 		}
 
 		// entry callback
 		if trans.From != trans.To {
+			ctx, span := tracer.Start(ctx, "FSM Entry Event",
+				trace.WithAttributes(
+					attribute.String("fsm.event", string(EntryEvent)),
+					attribute.String("fsm.state_type.from", string(trans.From)),
+					attribute.String("fsm.state_type.to", string(trans.To)),
+					attribute.String("fsm.state.initial_state", string(state.Current())),
+				),
+			)
 			state.Set(trans.To)
+			span.SetAttributes(
+				attribute.String("fsm.state.current", string(state.Current())),
+			)
 			fsm.callbacks[trans.To](ctx, state, EntryEvent, args)
+			span.End()
 		}
 		return nil
 	} else {

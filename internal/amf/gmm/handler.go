@@ -1432,6 +1432,9 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, ctxList ngapType.PDU
 func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authenticationResponse *nasMessage.AuthenticationResponse) error {
 	logger.AmfLog.Debug("Handle Authentication Response", zap.String("supi", ue.Supi))
 
+	ctx, span := tracer.Start(ctx, "HandleAuthenticationResponse")
+	defer span.End()
+
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
 		ue.T3560 = nil // clear the timer
@@ -1486,9 +1489,13 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authentic
 		ue.Kseaf = response.Kseaf
 		ue.Supi = response.Supi
 		ue.DerivateKamf()
-		return GmmFSM.SendEvent(ctx, ue.State, AuthSuccessEvent, fsm.ArgsType{
-			ArgAmfUe: ue,
-		})
+		ue.State.Set(context.SecurityMode)
+
+		return securityMode(ctx, ue)
+
+		// return GmmFSM.SendEvent(ctx, ue.State, AuthSuccessEvent, fsm.ArgsType{
+		// 	ArgAmfUe: ue,
+		// })
 	case models.AuthResultFailure:
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 			err := gmm_message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
@@ -1659,16 +1666,20 @@ func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, securityMod
 			ue.GmmLog.Error("nas message container Iei type error")
 			return errors.New("nas message container Iei type error")
 		} else {
-			return GmmFSM.SendEvent(ctx, ue.State, SecurityModeSuccessEvent, fsm.ArgsType{
-				ArgAmfUe:      ue,
-				ArgNASMessage: m.GmmMessage.RegistrationRequest,
-			})
+			ue.State.Set(context.ContextSetup)
+			return contextSetup(ctx, ue, m.GmmMessage.RegistrationRequest)
+			// return GmmFSM.SendEvent(ctx, ue.State, SecurityModeSuccessEvent, fsm.ArgsType{
+			// 	ArgAmfUe:      ue,
+			// 	ArgNASMessage: m.GmmMessage.RegistrationRequest,
+			// })
 		}
 	}
-	return GmmFSM.SendEvent(ctx, ue.State, SecurityModeSuccessEvent, fsm.ArgsType{
-		ArgAmfUe:      ue,
-		ArgNASMessage: ue.RegistrationRequest,
-	})
+	ue.State.Set(context.ContextSetup)
+	// return GmmFSM.SendEvent(ctx, ue.State, SecurityModeSuccessEvent, fsm.ArgsType{
+	// 	ArgAmfUe:      ue,
+	// 	ArgNASMessage: ue.RegistrationRequest,
+	// })
+	return contextSetup(ctx, ue, ue.RegistrationRequest)
 }
 
 func HandleSecurityModeReject(ctx ctxt.Context, ue *context.AmfUe, securityModeReject *nasMessage.SecurityModeReject) error {
@@ -1778,5 +1789,70 @@ func HandleAuthenticationError(ctx ctxt.Context, ue *context.AmfUe) error {
 
 		ue.GmmLog.Info("sent registration reject")
 	}
+	return nil
+}
+
+func securityMode(ctx ctxt.Context, ue *context.AmfUe) error {
+	ctx, span := tracer.Start(ctx, "securityMode")
+	defer span.End()
+
+	ue.NASLog = ue.NASLog.With(zap.String("supi", ue.Supi))
+	ue.TxLog = ue.NASLog.With(zap.String("supi", ue.Supi))
+	ue.GmmLog = ue.GmmLog.With(zap.String("supi", ue.Supi))
+	ue.ProducerLog = ue.GmmLog.With(zap.String("supi", ue.Supi))
+	ue.GmmLog.Debug("EntryEvent at GMM State[SecurityMode]")
+
+	if ue.SecurityContextIsValid() {
+		ue.GmmLog.Debug("UE has a valid security context - skip security mode control procedure")
+		ue.State.Set(context.ContextSetup)
+		return contextSetup(ctx, ue, ue.RegistrationRequest)
+	} else {
+		// Select enc/int algorithm based on ue security capability & amf's policy,
+		amfSelf := context.AMFSelf()
+		ue.SelectSecurityAlg(amfSelf.SecurityAlgorithm.IntegrityOrder, amfSelf.SecurityAlgorithm.CipheringOrder)
+		// Generate KnasEnc, KnasInt
+		ue.DerivateAlgKey()
+		if ue.CipheringAlg == security.AlgCiphering128NEA0 && ue.IntegrityAlg == security.AlgIntegrity128NIA0 {
+			err := GmmFSM.SendEvent(ctx, ue.State, SecuritySkipEvent, fsm.ArgsType{
+				ArgAmfUe:      ue,
+				ArgNASMessage: ue.RegistrationRequest,
+			})
+			if err != nil {
+				logger.AmfLog.Error("Error sending event", zap.Error(err))
+			}
+		} else {
+			err := gmm_message.SendSecurityModeCommand(ctx, ue.RanUe)
+			if err != nil {
+				logger.AmfLog.Error("error sending security mode command", zap.Error(err))
+			}
+		}
+	}
+
+	return nil
+}
+
+func contextSetup(ctx ctxt.Context, ue *context.AmfUe, msg *nasMessage.RegistrationRequest) error {
+	ctx, span := tracer.Start(ctx, "contextSetup")
+	defer span.End()
+
+	ue.RegistrationRequest = msg
+
+	switch ue.RegistrationType5GS {
+	case nasMessage.RegistrationType5GSInitialRegistration:
+		gmmMessage := &nas.GmmMessage{RegistrationRequest: msg}
+		gmmMessage.GmmHeader.SetMessageType(nas.MsgTypeRegistrationRequest)
+		if err := HandleInitialRegistration(ctx, ue); err != nil {
+			logger.AmfLog.Error("Error handling initial registration", zap.Error(err))
+		}
+	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
+		fallthrough
+	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
+		nasMessage := &nas.GmmMessage{RegistrationRequest: msg}
+		nasMessage.GmmHeader.SetMessageType(nas.MsgTypeRegistrationRequest)
+		if err := HandleMobilityAndPeriodicRegistrationUpdating(ctx, ue); err != nil {
+			logger.AmfLog.Error("Error handling mobility and periodic registration updating", zap.Error(err))
+		}
+	}
+
 	return nil
 }

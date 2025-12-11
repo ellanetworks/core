@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/gmm"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/free5gc/nas"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -53,10 +52,12 @@ func Dispatch(ctx ctxt.Context, ue *context.AmfUe, procedureCode int64, msg *nas
 		zap.String("SUPI", ue.Supi),
 	)
 
-	return gmm.GmmFSM.SendEvent(ctx, ue.State, gmm.GmmMessageEvent, fsm.ArgsType{
-		gmm.ArgAmfUe:      ue,
-		gmm.ArgNASMessage: msg.GmmMessage,
-	})
+	return gmm.HandleGmmMessage(ctx, ue, msg.GmmMessage)
+
+	// return gmm.GmmFSM.SendEvent(ctx, ue.State, gmm.GmmMessageEvent, fsm.ArgsType{
+	// 	gmm.ArgAmfUe:      ue,
+	// 	gmm.ArgNASMessage: msg.GmmMessage,
+	// })
 }
 
 func MessageName(code uint8) string {
