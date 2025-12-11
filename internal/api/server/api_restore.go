@@ -53,7 +53,7 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 			return
 		}
 
-		if err := dbInstance.Restore(tempFile); err != nil {
+		if err := dbInstance.Restore(r.Context(), tempFile); err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to restore database", err, logger.APILog)
 			return
 		}

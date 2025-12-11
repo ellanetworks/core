@@ -3,6 +3,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -10,10 +11,14 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
-func (db *Database) Restore(backupFile *os.File) error {
+func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
+	_, span := tracer.Start(ctx, "DB Restore", trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
 	if db.conn == nil {
 		return fmt.Errorf("database connection is not initialized")
 	}

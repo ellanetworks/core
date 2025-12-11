@@ -40,7 +40,7 @@ func TestDatabaseBackup(t *testing.T) {
 		os.Remove(tmpFile.Name()) // Ensure cleanup
 	}()
 
-	err = database.Backup(tmpFile)
+	err = database.Backup(context.Background(), tmpFile)
 	if err != nil {
 		t.Fatalf("Couldn't create backup: %s", err)
 	}
