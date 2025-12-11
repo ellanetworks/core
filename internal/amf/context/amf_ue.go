@@ -17,7 +17,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
@@ -47,19 +46,19 @@ const (
 
 // GMM state for UE
 const (
-	Deregistered            fsm.StateType = "Deregistered"
-	DeregistrationInitiated fsm.StateType = "DeregistrationInitiated"
-	Authentication          fsm.StateType = "Authentication"
-	SecurityMode            fsm.StateType = "SecurityMode"
-	ContextSetup            fsm.StateType = "ContextSetup"
-	Registered              fsm.StateType = "Registered"
+	Deregistered            StateType = "Deregistered"
+	DeregistrationInitiated StateType = "DeregistrationInitiated"
+	Authentication          StateType = "Authentication"
+	SecurityMode            StateType = "SecurityMode"
+	ContextSetup            StateType = "ContextSetup"
+	Registered              StateType = "Registered"
 )
 
 type AmfUe struct {
 	Mutex sync.Mutex
 
 	/* Gmm State */
-	State *fsm.State
+	State *State
 	/* Registration procedure related context */
 	RegistrationType5GS             uint8
 	IdentityTypeUsedForRegistration uint8
@@ -208,7 +207,7 @@ type ConfigurationUpdateCommandFlags struct {
 }
 
 func (ue *AmfUe) init() {
-	ue.State = fsm.NewState(Deregistered)
+	ue.State = NewState(Deregistered)
 	ue.RegistrationArea = make([]models.Tai, 0)
 	ue.OnGoing = new(OnGoingProcedureWithPrio)
 	ue.OnGoing.Procedure = OnGoingProcedureNothing

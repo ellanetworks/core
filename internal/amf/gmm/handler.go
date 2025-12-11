@@ -19,7 +19,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
-	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -1394,9 +1393,6 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, ctxList ngapType.PDU
 func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authenticationResponse *nasMessage.AuthenticationResponse) error {
 	logger.AmfLog.Debug("Handle Authentication Response", zap.String("supi", ue.Supi))
 
-	ctx, span := tracer.Start(ctx, "HandleAuthenticationResponse")
-	defer span.End()
-
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
 		ue.T3560 = nil // clear the timer
@@ -1430,14 +1426,13 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authentic
 			ue.GmmLog.Info("sent identity request")
 			return nil
 		} else {
+			ue.State.Set(context.Deregistered)
 			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
 
-			return GmmFSM.SendEvent(ctx, ue.State, AuthFailEvent, fsm.ArgsType{
-				ArgAmfUe: ue,
-			})
+			return nil
 		}
 	}
 
@@ -1455,9 +1450,6 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authentic
 
 		return securityMode(ctx, ue)
 
-		// return GmmFSM.SendEvent(ctx, ue.State, AuthSuccessEvent, fsm.ArgsType{
-		// 	ArgAmfUe: ue,
-		// })
 	case models.AuthResultFailure:
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 			err := gmm_message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
@@ -1469,12 +1461,13 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, authentic
 		} else {
 			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 			if err != nil {
-				return fmt.Errorf("error sending GMM authentication reject: %v", err)
+				// return fmt.Errorf("error sending GMM authentication reject: %v", err)
+				logger.AmfLog.Error("error sending GMM authentication reject", zap.Error(err))
 			}
 
-			return GmmFSM.SendEvent(ctx, ue.State, AuthFailEvent, fsm.ArgsType{
-				ArgAmfUe: ue,
-			})
+			ue.State.Set(context.Deregistered)
+
+			return nil
 		}
 	}
 
@@ -1494,20 +1487,22 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, authentica
 	switch cause5GMM {
 	case nasMessage.Cause5GMMMACFailure:
 		ue.GmmLog.Warn("Authentication Failure Cause: Mac Failure")
+		ue.State.Set(context.Deregistered)
 		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
 		}
 
-		return GmmFSM.SendEvent(ctx, ue.State, AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue})
+		return nil
 	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
 		ue.GmmLog.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
+		ue.State.Set(context.Deregistered)
 		err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
 		}
 
-		return GmmFSM.SendEvent(ctx, ue.State, AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue})
+		return nil
 	case nasMessage.Cause5GMMngKSIAlreadyInUse:
 		ue.GmmLog.Warn("Authentication Failure Cause: NgKSI Already In Use")
 		ue.AuthFailureCauseSynchFailureTimes = 0
@@ -1531,12 +1526,13 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, authentica
 		ue.AuthFailureCauseSynchFailureTimes++
 		if ue.AuthFailureCauseSynchFailureTimes >= 2 {
 			ue.GmmLog.Warn("2 consecutive Synch Failure, terminate authentication procedure")
+			ue.State.Set(context.Deregistered)
 			err := gmm_message.SendAuthenticationReject(ctx, ue.RanUe)
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
 
-			return GmmFSM.SendEvent(ctx, ue.State, AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue})
+			return nil
 		}
 
 		auts := authenticationFailure.AuthenticationFailureParameter.GetAuthenticationFailureParameter()
@@ -1591,9 +1587,6 @@ func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, registratio
 	ue.State.Set(context.Registered)
 	ue.ClearRegistrationRequestData()
 
-	// return GmmFSM.SendEvent(ctx, ue.State, ContextSetupSuccessEvent, fsm.ArgsType{
-	// 	ArgAmfUe: ue,
-	// })
 	return nil
 }
 
@@ -1611,7 +1604,6 @@ func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, securityMod
 	}
 
 	if ue.SecurityContextIsValid() {
-		// update Kgnb/Kn3iwf
 		ue.UpdateSecurityContext()
 	}
 
@@ -1634,7 +1626,6 @@ func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, securityMod
 		} else {
 			ue.State.Set(context.ContextSetup)
 			return contextSetup(ctx, ue, m.GmmMessage.RegistrationRequest)
-
 		}
 	}
 	ue.State.Set(context.ContextSetup)
@@ -1700,9 +1691,11 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, deregistra
 		}
 	}
 
-	return GmmFSM.SendEvent(ctx, ue.State, DeregistrationAcceptEvent, fsm.ArgsType{
-		ArgAmfUe: ue,
-	})
+	SetDeregisteredState(ue)
+	logger.AmfLog.Debug("DeregistrationAcceptEvent")
+	ue.State.Set(context.Deregistered)
+
+	return nil
 }
 
 // TS 23.502 4.2.2.3
@@ -1721,20 +1714,11 @@ func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, deregistrat
 		}
 	}
 
-	return GmmFSM.SendEvent(ctx, ue.State, DeregistrationAcceptEvent, fsm.ArgsType{
-		ArgAmfUe: ue,
-	})
-}
+	// amfUe := args[ArgAmfUe].(*context.AmfUe)
+	SetDeregisteredState(ue)
+	logger.AmfLog.Debug("DeregistrationAcceptEvent")
+	ue.State.Set(context.Deregistered)
 
-func HandleStatus5GMM(ue *context.AmfUe, status5GMM *nasMessage.Status5GMM) error {
-	logger.AmfLog.Debug("Handle 5GMM Status", zap.String("supi", ue.Supi))
-
-	if ue.MacFailed {
-		return fmt.Errorf("NAS message integrity check failed")
-	}
-
-	cause := status5GMM.Cause5GMM.GetCauseValue()
-	ue.GmmLog.Error("Error condition", zap.String("Cause", nasMessage.Cause5GMMToString(cause)))
 	return nil
 }
 
@@ -1773,13 +1757,7 @@ func securityMode(ctx ctxt.Context, ue *context.AmfUe) error {
 		// Generate KnasEnc, KnasInt
 		ue.DerivateAlgKey()
 		if ue.CipheringAlg == security.AlgCiphering128NEA0 && ue.IntegrityAlg == security.AlgIntegrity128NIA0 {
-			err := GmmFSM.SendEvent(ctx, ue.State, SecuritySkipEvent, fsm.ArgsType{
-				ArgAmfUe:      ue,
-				ArgNASMessage: ue.RegistrationRequest,
-			})
-			if err != nil {
-				logger.AmfLog.Error("Error sending event", zap.Error(err))
-			}
+			ue.State.Set(context.ContextSetup)
 		} else {
 			err := gmm_message.SendSecurityModeCommand(ctx, ue.RanUe)
 			if err != nil {
@@ -1799,20 +1777,22 @@ func contextSetup(ctx ctxt.Context, ue *context.AmfUe, msg *nasMessage.Registrat
 
 	switch ue.RegistrationType5GS {
 	case nasMessage.RegistrationType5GSInitialRegistration:
-		gmmMessage := &nas.GmmMessage{RegistrationRequest: msg}
-		gmmMessage.GmmHeader.SetMessageType(nas.MsgTypeRegistrationRequest)
 		if err := HandleInitialRegistration(ctx, ue); err != nil {
 			logger.AmfLog.Error("Error handling initial registration", zap.Error(err))
 		}
 	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
 		fallthrough
 	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-		nasMessage := &nas.GmmMessage{RegistrationRequest: msg}
-		nasMessage.GmmHeader.SetMessageType(nas.MsgTypeRegistrationRequest)
 		if err := HandleMobilityAndPeriodicRegistrationUpdating(ctx, ue); err != nil {
 			logger.AmfLog.Error("Error handling mobility and periodic registration updating", zap.Error(err))
 		}
 	}
 
 	return nil
+}
+
+func SetDeregisteredState(amfUe *context.AmfUe) {
+	amfUe.SubscriptionDataValid = false
+	amfUe.State.Set(context.Deregistered)
+	amfUe.GmmLog.Debug("UE accessType[3GPP] transfer to Deregistered state")
 }
