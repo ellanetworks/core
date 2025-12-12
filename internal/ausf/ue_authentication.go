@@ -105,18 +105,13 @@ func Auth5gAkaComfirmRequestProcedure(ctx context.Context, resStar string, suci 
 		attribute.String("auth.Method", "5G AKA"),
 	)
 
-	var responseBody models.ConfirmationDataResponse
-	responseBody.AuthResult = models.AuthResultFailure
-
-	// currentSupi := GetSupiFromSuciSupiMap(suci)
-	// if currentSupi == "" {
-	// 	return nil, fmt.Errorf("supi not found for suci: %s", suci)
-	// }
-
 	ausfCurrentContext := GetAusfUeContext(suci)
 	if ausfCurrentContext == nil {
 		return nil, fmt.Errorf("ausf ue context is nil for suci: %s", suci)
 	}
+
+	var responseBody models.ConfirmationDataResponse
+	responseBody.AuthResult = models.AuthResultFailure
 
 	// Compare the received RES* with the stored XRES*
 	if strings.Compare(resStar, ausfCurrentContext.XresStar) == 0 {
