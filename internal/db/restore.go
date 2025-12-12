@@ -35,6 +35,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	if err != nil {
 		return fmt.Errorf("failed to open destination database file: %v", err)
 	}
+
 	defer func() {
 		if err := destinationFile.Close(); err != nil {
 			logger.DBLog.Error("Failed to close destination database file", zap.Error(err))
@@ -50,6 +51,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	if err != nil {
 		return fmt.Errorf("failed to reopen database connection: %v", err)
 	}
+
 	db.conn = sqlair.NewDB(sqlConnection)
 
 	return nil
