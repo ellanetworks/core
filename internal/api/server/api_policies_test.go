@@ -513,7 +513,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 		{
 			testName:        "Invalid Uplink Bitrate - Too large value",
 			name:            PolicyName,
-			bitrateUplink:   "1001 Mbps",
+			bitrateUplink:   "1000001 Mbps",
 			bitrateDownlink: BitrateDownlink,
 			var5qi:          Var5qi,
 			arp:             Arp,
@@ -564,7 +564,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			testName:        "Invalid Downlink Bitrate - Too large value",
 			name:            PolicyName,
 			bitrateUplink:   BitrateUplink,
-			bitrateDownlink: "1001 Mbps",
+			bitrateDownlink: "1000001 Mbps",
 			var5qi:          Var5qi,
 			arp:             Arp,
 			DataNetworkName: "internet",
