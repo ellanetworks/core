@@ -13,9 +13,10 @@ import (
 )
 
 type AUSFContext struct {
-	suciSupiMap sync.Map
-	UePool      sync.Map
-	DBInstance  *db.Database
+	Mutex sync.Mutex
+
+	UePool     map[string]*AusfUeContext // Key: suci
+	DBInstance *db.Database
 }
 
 type AusfUeContext struct {
@@ -27,14 +28,15 @@ type AusfUeContext struct {
 	Rand     string
 }
 
-type SuciSupiMap struct {
-	Suci string
-	Supi string
-}
-
 var ausfContext AUSFContext
 
 var servingNetworkRegex = regexp.MustCompile(`^5G:mnc[0-9]{3}\.mcc[0-9]{3}\.3gppnetwork\.org$`)
+
+func init() {
+	ausfContext = AUSFContext{
+		UePool: make(map[string]*AusfUeContext),
+	}
+}
 
 func NewAusfUeContext(supi string) (ausfUeContext *AusfUeContext) {
 	ausfUeContext = new(AusfUeContext)
@@ -42,41 +44,23 @@ func NewAusfUeContext(supi string) (ausfUeContext *AusfUeContext) {
 	return ausfUeContext
 }
 
-func AddAusfUeContextToPool(ausfUeContext *AusfUeContext) {
-	ausfContext.UePool.Store(ausfUeContext.Supi, ausfUeContext)
+func AddAusfUeContextToPool(suci string, ausfUeContext *AusfUeContext) {
+	ausfContext.Mutex.Lock()
+	defer ausfContext.Mutex.Unlock()
+
+	ausfContext.UePool[suci] = ausfUeContext
 }
 
-func CheckIfAusfUeContextExists(ref string) bool {
-	_, ok := ausfContext.UePool.Load(ref)
-	return ok
-}
+func GetAusfUeContext(suci string) *AusfUeContext {
+	ausfContext.Mutex.Lock()
+	defer ausfContext.Mutex.Unlock()
 
-func GetAusfUeContext(ref string) *AusfUeContext {
-	context, ok := ausfContext.UePool.Load(ref)
+	ausfUeContext, ok := ausfContext.UePool[suci]
 	if !ok {
 		return nil
 	}
-	ausfUeContext := context.(*AusfUeContext)
+
 	return ausfUeContext
-}
-
-func AddSuciSupiPairToMap(suci string, supi string) {
-	newPair := new(SuciSupiMap)
-	newPair.Suci = suci
-	newPair.Supi = supi
-	ausfContext.suciSupiMap.Store(suci, newPair)
-}
-
-func CheckIfSuciSupiPairExists(ref string) bool {
-	_, ok := ausfContext.suciSupiMap.Load(ref)
-	return ok
-}
-
-func GetSupiFromSuciSupiMap(ref string) string {
-	val, _ := ausfContext.suciSupiMap.Load(ref)
-	suciSupiMap := val.(*SuciSupiMap)
-	supi := suciSupiMap.Supi
-	return supi
 }
 
 func IsServingNetworkAuthorized(lookup string) bool {

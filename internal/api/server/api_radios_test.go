@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -119,7 +120,9 @@ func TestListRadios(t *testing.T) {
 	}
 	ran1.GnbIP = "1.2.3.4"
 	ran1.GnbID = "mcc:001:mnc:01:gnb-001"
-	amf.AmfRanPool.Store("id1", &ran1)
+	// amf.AmfRanPool.Store("id1", &ran1)
+	conn1 := sctp.NewSCTPConn(1, nil)
+	amf.AmfRanPool[conn1] = &ran1
 	ran2 := amfContext.AmfRan{}
 	ran2.Name = "gnb-002"
 	ran2.SupportedTAList = []amfContext.SupportedTAI{
@@ -141,7 +144,8 @@ func TestListRadios(t *testing.T) {
 	}
 	ran2.GnbIP = "2.3.4.5"
 	ran2.GnbID = "mcc:001:mnc:01:gnb-002"
-	amf.AmfRanPool.Store("id2", &ran2)
+	conn2 := sctp.NewSCTPConn(1, nil)
+	amf.AmfRanPool[conn2] = &ran2
 
 	// Set up the Gin router
 	statusCode, response, err := listRadios(ts.URL, client, token, 1, 10)

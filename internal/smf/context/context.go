@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -25,10 +26,22 @@ var tracer = otel.Tracer("ella-core/smf")
 var AllowedSessionType = models.PduSessionTypeIPv4
 
 type SMFContext struct {
+	Mutex sync.Mutex
+
 	DBInstance     *db.Database
 	UPF            *UPF
 	CPNodeID       net.IP
 	LocalSEIDCount uint64
+
+	smContextPool    map[string]*SMContext // key: canonicalName(identifier, pduSessID)
+	seidSMContextMap map[uint64]*SMContext // key: PFCP SEID
+}
+
+func init() {
+	smfContext = SMFContext{
+		smContextPool:    make(map[string]*SMContext),
+		seidSMContextMap: make(map[uint64]*SMContext),
+	}
 }
 
 // SnssaiSmfDnnInfo records the SMF per S-NSSAI DNN information
@@ -61,9 +74,9 @@ func RetrieveDnnInformation(ctx context.Context, ueSnssai models.Snssai, dnn str
 	return supportedSnssai.DnnInfos, nil
 }
 
-func AllocateLocalSEID() (uint64, error) {
+func AllocateLocalSEID() uint64 {
 	atomic.AddUint64(&smfContext.LocalSEIDCount, 1)
-	return smfContext.LocalSEIDCount, nil
+	return smfContext.LocalSEIDCount
 }
 
 func SMFSelf() *SMFContext {

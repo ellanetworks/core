@@ -212,8 +212,8 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 		return err
 	}
 	if ue.N1N2Message != nil {
-		requestData := ue.N1N2Message.Request.JSONData
-		if ue.N1N2Message.Request.BinaryDataN2Information != nil {
+		requestData := ue.N1N2Message.JSONData
+		if ue.N1N2Message.BinaryDataN2Information != nil {
 			if requestData.N2InfoContainer.N2InformationClass == models.N2InformationClassSM {
 				targetPduSessionID = requestData.N2InfoContainer.SmInfo.PduSessionID
 			} else {
@@ -226,10 +226,8 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 	if msg.ServiceRequest.UplinkDataStatus != nil {
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(msg.ServiceRequest.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
-		ue.SmContextList.Range(func(key, value any) bool {
-			pduSessionID := key.(int32)
-			smContext := value.(*context.SmContext)
 
+		for pduSessionID, smContext := range ue.SmContextList {
 			if pduSessionID != targetPduSessionID {
 				if uplinkDataPsi[pduSessionID] {
 					response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext)
@@ -241,23 +239,19 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
 					} else if ue.RanUe.UeContextRequest {
-						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
-							pduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
+						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
 					} else {
-						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList,
-							pduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
+						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
 					}
 				}
 			}
-			return true
-		})
+		}
 	}
+
 	if msg.ServiceRequest.PDUSessionStatus != nil {
 		acceptPduSessionPsi = new([16]bool)
 		psiArray := nasConvert.PSIToBooleanArray(msg.ServiceRequest.PDUSessionStatus.Buffer)
-		ue.SmContextList.Range(func(key, value any) bool {
-			pduSessionID := key.(int32)
-			smContext := value.(*context.SmContext)
+		for pduSessionID, smContext := range ue.SmContextList {
 			if !psiArray[pduSessionID] {
 				err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 				if err != nil {
@@ -266,8 +260,7 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 			} else {
 				acceptPduSessionPsi[pduSessionID] = true
 			}
-			return true
-		})
+		}
 	}
 	switch serviceType {
 	case nasMessage.ServiceTypeMobileTerminatedServices: // Triggered by Network
@@ -276,9 +269,9 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 		ue.ConfigurationUpdateCommandFlags = &context.ConfigurationUpdateCommandFlags{NeedGUTI: true}
 
 		if ue.N1N2Message != nil {
-			requestData := ue.N1N2Message.Request.JSONData
-			n1Msg := ue.N1N2Message.Request.BinaryDataN1Message
-			n2Info := ue.N1N2Message.Request.BinaryDataN2Information
+			requestData := ue.N1N2Message.JSONData
+			n1Msg := ue.N1N2Message.BinaryDataN1Message
+			n2Info := ue.N1N2Message.BinaryDataN2Information
 
 			// Paging was triggered for downlink signaling only
 			if n2Info == nil && n1Msg != nil {
@@ -336,14 +329,10 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 							return fmt.Errorf("error building DL NAS transport message: %v", err)
 						}
 					}
-					snssai := models.Snssai{
-						Sst: smInfo.SNssai.Sst,
-						Sd:  smInfo.SNssai.Sd,
-					}
 					if ue.RanUe.UeContextRequest {
-						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, smInfo.PduSessionID, snssai, nasPdu, n2Info)
+						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, smInfo.PduSessionID, smInfo.SNssai, nasPdu, n2Info)
 					} else {
-						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID, snssai, nasPdu, n2Info)
+						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID, smInfo.SNssai, nasPdu, n2Info)
 					}
 				}
 				ue.GmmLog.Debug("sending service accept")

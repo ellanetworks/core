@@ -21,17 +21,12 @@ import (
 )
 
 func sendCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (string, *models.PostSmContextsErrorResponse, error) {
-	snssai := smContext.Snssai()
-
 	postSmContextsRequest := models.PostSmContextsRequest{
 		JSONData: &models.SmContextCreateData{
 			Supi:         ue.Supi,
 			PduSessionID: smContext.PduSessionID(),
-			SNssai: &models.Snssai{
-				Sst: snssai.Sst,
-				Sd:  snssai.Sd,
-			},
-			Dnn: smContext.Dnn(),
+			SNssai:       smContext.Snssai(),
+			Dnn:          smContext.Dnn(),
 		},
 		BinaryDataN1SmMessage: nasPdu,
 	}
@@ -143,7 +138,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 	if smContextExist && requestType != nil {
 		/* AMF releases context locally as this is duplicate pdu session */
 		if requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest {
-			ue.SmContextList.Delete(pduSessionID)
+			delete(ue.SmContextList, pduSessionID)
 			smContextExist = false
 		}
 	}

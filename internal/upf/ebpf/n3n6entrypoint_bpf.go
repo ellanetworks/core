@@ -102,10 +102,9 @@ type N3N6EntrypointQerInfo struct {
 	UlGateStatus     uint8
 	DlGateStatus     uint8
 	Qfi              uint8
-	_                [1]byte
-	UlMaximumBitrate uint32
-	DlMaximumBitrate uint32
-	_                [4]byte
+	_                [5]byte
+	UlMaximumBitrate uint64
+	DlMaximumBitrate uint64
 	UlStart          uint64
 	DlStart          uint64
 }

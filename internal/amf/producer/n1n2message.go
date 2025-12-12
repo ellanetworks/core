@@ -155,13 +155,9 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 			switch smInfo.NgapIeType {
 			case models.NgapIeTypePduResSetupReq:
 				ue.ProducerLog.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
-				omecSnssai := models.Snssai{
-					Sst: smInfo.SNssai.Sst,
-					Sd:  smInfo.SNssai.Sd,
-				}
 				if ue.RanUe.SentInitialContextSetupRequest {
 					list := ngapType.PDUSessionResourceSetupListSUReq{}
-					ngap_message.AppendPDUSessionResourceSetupListSUReq(&list, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
+					ngap_message.AppendPDUSessionResourceSetupListSUReq(&list, smInfo.PduSessionID, smInfo.SNssai, nasPdu, n2Info)
 					err := ngap_message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe, nil, list)
 					if err != nil {
 						return "", fmt.Errorf("send pdu session resource setup request error: %v", err)
@@ -173,7 +169,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 						return "", fmt.Errorf("error getting operator info: %v", err)
 					}
 					list := ngapType.PDUSessionResourceSetupListCxtReq{}
-					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&list, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
+					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&list, smInfo.PduSessionID, smInfo.SNssai, nasPdu, n2Info)
 					err = ngap_message.SendInitialContextSetupRequest(ctx, ue, nil, &list, nil, nil, nil, operatorInfo.Guami)
 					if err != nil {
 						return "", fmt.Errorf("send initial context setup request error: %v", err)
@@ -230,11 +226,8 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 	// Case A (UE is CM-IDLE in 3GPP access and the associated access type is 3GPP access)
 	// in subclause 5.2.2.3.1.2 of TS29518
 	cause = models.N1N2MessageTransferCauseAttemptingToReachUE
-	message := context.N1N2Message{
-		Request: n1n2MessageTransferRequest,
-		Status:  cause,
-	}
-	ue.N1N2Message = &message
+
+	ue.N1N2Message = &n1n2MessageTransferRequest
 	ue.SetOnGoing(&context.OnGoingProcedureWithPrio{
 		Procedure: context.OnGoingProcedurePaging,
 		Ppi:       requestData.Ppi,

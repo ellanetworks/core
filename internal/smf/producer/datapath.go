@@ -56,7 +56,7 @@ func SendPFCPRules(ctx ctxt.Context, smContext *context.SMContext) error {
 
 	sessionContext, exist := smContext.PFCPContext[curDataPathNode.GetNodeIP()]
 	if !exist || sessionContext.RemoteSEID == 0 {
-		err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, sessionContext.LocalSEID, pdrList, farList, nil, qerList, urrList)
+		err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, sessionContext.LocalSEID, pdrList, farList, qerList, urrList)
 		if err != nil {
 			return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 		}
@@ -66,7 +66,7 @@ func SendPFCPRules(ctx ctxt.Context, smContext *context.SMContext) error {
 		return nil
 	}
 
-	err := pfcp.SendPfcpSessionModificationRequest(ctx, sessionContext.LocalSEID, sessionContext.RemoteSEID, pdrList, farList, nil, qerList)
+	err := pfcp.SendPfcpSessionModificationRequest(ctx, sessionContext.LocalSEID, sessionContext.RemoteSEID, pdrList, farList, qerList)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}

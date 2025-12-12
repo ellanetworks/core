@@ -77,7 +77,7 @@ func GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 				Mcc: operator.Mcc,
 				Mnc: operator.Mnc,
 			},
-			SNssai: models.Snssai{
+			SNssai: &models.Snssai{
 				Sst: operator.Sst,
 				Sd:  operator.GetHexSd(),
 			},

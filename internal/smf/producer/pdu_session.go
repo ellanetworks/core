@@ -25,24 +25,19 @@ import (
 
 var tracer = otel.Tracer("ella-core/smf/pdu")
 
-func HandlePduSessionContextReplacement(ctx ctxt.Context, smCtxtRef string) error {
-	smCtxt := context.GetSMContext(smCtxtRef)
-	if smCtxt == nil {
-		return nil
-	}
+func HandlePduSessionContextReplacement(ctx ctxt.Context, smCtxt *context.SMContext) error {
+	smCtxt.Mutex.Lock()
+	defer smCtxt.Mutex.Unlock()
 
-	smCtxt.SMLock.Lock()
-	context.RemoveSMContext(ctx, smCtxt.Ref)
+	context.RemoveSMContext(ctx, context.CanonicalName(smCtxt.Supi, smCtxt.PDUSessionID))
 
 	// Check if UPF session set, send release
 	if smCtxt.Tunnel != nil {
 		err := releaseTunnel(ctx, smCtxt)
 		if err != nil {
-			smCtxt.SubPduSessLog.Error("release tunnel failed", zap.Error(err))
+			logger.SmfLog.Error("release tunnel failed", zap.Error(err), zap.String("supi", smCtxt.Supi), zap.Int32("pduSessionID", smCtxt.PDUSessionID))
 		}
 	}
-
-	smCtxt.SMLock.Unlock()
 
 	return nil
 }
@@ -51,7 +46,8 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	ctx, span := tracer.Start(ctx, "SMF Handle PDU Session SM Context Create")
 	defer span.End()
 	span.SetAttributes(
-		attribute.String("smf.smContextRef", smContext.Ref),
+		attribute.String("supi", smContext.Supi),
+		attribute.Int("pduSessionID", int(smContext.PDUSessionID)),
 	)
 
 	m := nas.NewMessage()
@@ -72,8 +68,8 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	// Create SM context
 	smContext.SetCreateData(createData)
 
-	smContext.SMLock.Lock()
-	defer smContext.SMLock.Unlock()
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
 
 	subscriberPolicy, err := context.GetSubscriberPolicy(ctx, smContext.Supi)
 	if err != nil {
@@ -98,7 +94,7 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 		return "", response, nil
 	}
 
-	smContext.SubPduSessLog.Info("Successfully allocated IP address", zap.String("IP", ip.String()))
+	logger.SmfLog.Info("Successfully allocated IP address", zap.String("IP", ip.String()), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 
 	smContext.PDUAddress = ip
 
@@ -130,14 +126,14 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 		return "", response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
 
-	smContext.SubPduSessLog.Info("Successfully created PDU session context")
+	logger.SmfLog.Info("Successfully created PDU session context", zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 
-	return smContext.Ref, nil, nil
+	return context.CanonicalName(smContext.Supi, smContext.PDUSessionID), nil, nil
 }
 
 func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmContextRequest, smContext *context.SMContext) (*models.UpdateSmContextResponse, error) {
-	smContext.SMLock.Lock()
-	defer smContext.SMLock.Unlock()
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
 
 	pfcpAction := &pfcpAction{}
 	var response models.UpdateSmContextResponse
@@ -151,7 +147,6 @@ func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmCo
 	pfcpParam := &pfcpParam{
 		pdrList: []*context.PDR{},
 		farList: []*context.FAR{},
-		barList: []*context.BAR{},
 		qerList: []*context.QER{},
 	}
 
@@ -190,34 +185,35 @@ func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmCo
 			return nil, fmt.Errorf("pfcp session context not found for upf: %s", ANUPF.UPF.NodeID.String())
 		}
 
-		err := pfcp.SendPfcpSessionModificationRequest(ctx, sessionContext.LocalSEID, sessionContext.RemoteSEID, pfcpParam.pdrList, pfcpParam.farList, pfcpParam.barList, pfcpParam.qerList)
+		err := pfcp.SendPfcpSessionModificationRequest(ctx, sessionContext.LocalSEID, sessionContext.RemoteSEID, pfcpParam.pdrList, pfcpParam.farList, pfcpParam.qerList)
 		if err != nil {
 			return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 		}
 
-		smContext.SubPduSessLog.Info("Sent PFCP session modification request")
+		logger.SmfLog.Info("Sent PFCP session modification request", zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 	}
 
 	return &response, nil
 }
 
 func HandlePDUSessionSMContextRelease(ctx ctxt.Context, smContext *context.SMContext) error {
-	smContext.SMLock.Lock()
-	defer smContext.SMLock.Unlock()
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
 
 	// Release UE IP-Address
 	err := smContext.ReleaseUeIPAddr(ctx)
 	if err != nil {
-		smContext.SubPduSessLog.Error("release UE IP address failed", zap.Error(err))
+		logger.SmfLog.Error("release UE IP address failed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 	}
 
 	// Release User-plane
 	err = releaseTunnel(ctx, smContext)
 	if err != nil {
-		context.RemoveSMContext(ctx, smContext.Ref)
+		context.RemoveSMContext(ctx, context.CanonicalName(smContext.Supi, smContext.PDUSessionID))
 		return fmt.Errorf("release tunnel failed: %v", err)
 	}
-	context.RemoveSMContext(ctx, smContext.Ref)
+
+	context.RemoveSMContext(ctx, context.CanonicalName(smContext.Supi, smContext.PDUSessionID))
 	return nil
 }
 
@@ -225,19 +221,16 @@ func releaseTunnel(ctx ctxt.Context, smContext *context.SMContext) error {
 	if smContext.Tunnel == nil {
 		return fmt.Errorf("tunnel not found")
 	}
-	deletedPFCPNode := make(map[string]bool)
-	dataPath := smContext.Tunnel.DataPath
+
 	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR(smContext)
-	curDataPathNode := dataPath.DPNode
-	curUPFID := curDataPathNode.UPF.NodeID.String()
-	if _, exist := deletedPFCPNode[curUPFID]; !exist {
-		err := pfcp.SendPfcpSessionDeletionRequest(ctx, curDataPathNode.UPF.NodeID, smContext)
-		if err != nil {
-			return fmt.Errorf("send PFCP session deletion request failed: %v", err)
-		}
-		deletedPFCPNode[curUPFID] = true
+
+	err := pfcp.SendPfcpSessionDeletionRequest(ctx, smContext.Tunnel.DataPath.DPNode.UPF.NodeID, smContext)
+	if err != nil {
+		return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 	}
+
 	smContext.Tunnel = nil
+
 	return nil
 }
 
@@ -290,7 +283,7 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
 	}
 
-	smContext.SubPduSessLog.Debug("Sent n1 n2 transfer request")
+	logger.SmfLog.Debug("Sent n1 n2 transfer request", zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 	if cause == models.N1N2MessageTransferCauseN1MsgNotTransferred {
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {
@@ -303,5 +296,6 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 	if err != nil {
 		return fmt.Errorf("failed to commit sm policy decision: %v", err)
 	}
+
 	return nil
 }

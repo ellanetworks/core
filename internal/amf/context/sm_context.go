@@ -57,10 +57,10 @@ func (c *SmContext) SetSmContextRef(ref string) {
 	c.SmContextRefVal = ref
 }
 
-func (c *SmContext) Snssai() models.Snssai {
+func (c *SmContext) Snssai() *models.Snssai {
 	c.Mu.RLock()
 	defer c.Mu.RUnlock()
-	return c.SnssaiVal
+	return &c.SnssaiVal
 }
 
 func (c *SmContext) SetSnssai(snssai models.Snssai) {

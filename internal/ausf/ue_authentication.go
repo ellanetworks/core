@@ -39,8 +39,10 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 
 	authInfoReq.ServingNetworkName = snName
 	if updateAuthenticationInfo.ResynchronizationInfo != nil {
-		supi := GetSupiFromSuciSupiMap(suci)
-		ausfCurrentContext := GetAusfUeContext(supi)
+		ausfCurrentContext := GetAusfUeContext(suci)
+		if ausfCurrentContext == nil {
+			return nil, fmt.Errorf("ue context not found for suci: %v", suci)
+		}
 		updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 	}
@@ -53,9 +55,7 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 	supi := authInfoResult.Supi
 	ausfUeContext := NewAusfUeContext(supi)
 
-	AddAusfUeContextToPool(ausfUeContext)
-
-	AddSuciSupiPairToMap(suci, supi)
+	AddAusfUeContextToPool(suci, ausfUeContext)
 
 	// Derive HXRES* from XRES*
 	concat := authInfoResult.AuthenticationVector.Rand + authInfoResult.AuthenticationVector.XresStar
@@ -108,16 +108,15 @@ func Auth5gAkaComfirmRequestProcedure(ctx context.Context, resStar string, suci 
 	var responseBody models.ConfirmationDataResponse
 	responseBody.AuthResult = models.AuthResultFailure
 
-	if !CheckIfSuciSupiPairExists(suci) {
-		return nil, fmt.Errorf("supi does not exist for suci: %s", suci)
-	}
+	// currentSupi := GetSupiFromSuciSupiMap(suci)
+	// if currentSupi == "" {
+	// 	return nil, fmt.Errorf("supi not found for suci: %s", suci)
+	// }
 
-	currentSupi := GetSupiFromSuciSupiMap(suci)
-	if !CheckIfAusfUeContextExists(currentSupi) {
-		return nil, fmt.Errorf("ausf ue context does not exist for suci: %s", currentSupi)
+	ausfCurrentContext := GetAusfUeContext(suci)
+	if ausfCurrentContext == nil {
+		return nil, fmt.Errorf("ausf ue context is nil for suci: %s", suci)
 	}
-
-	ausfCurrentContext := GetAusfUeContext(currentSupi)
 
 	// Compare the received RES* with the stored XRES*
 	if strings.Compare(resStar, ausfCurrentContext.XresStar) == 0 {
@@ -127,6 +126,6 @@ func Auth5gAkaComfirmRequestProcedure(ctx context.Context, resStar string, suci 
 		responseBody.AuthResult = models.AuthResultFailure
 	}
 
-	responseBody.Supi = currentSupi
+	responseBody.Supi = ausfCurrentContext.Supi
 	return &responseBody, nil
 }

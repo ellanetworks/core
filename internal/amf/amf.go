@@ -106,14 +106,13 @@ func Close() {
 	}
 
 	unavailableGuamiList := message.BuildUnavailableGUAMIList(operatorInfo.Guami)
-	amfSelf.AmfRanPool.Range(func(key, value any) bool {
-		ran := value.(*context.AmfRan)
+
+	for _, ran := range amfSelf.AmfRanPool {
 		err := message.SendAMFStatusIndication(ctx, ran, unavailableGuamiList)
 		if err != nil {
 			logger.AmfLog.Error("failed to send AMF Status Indication to RAN", zap.Error(err))
 		}
-		return true
-	})
+	}
 
 	service.Stop()
 

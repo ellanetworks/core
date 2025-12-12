@@ -24,7 +24,7 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 	if req.PDUSessionType != nil {
 		requestedPDUSessionType := req.PDUSessionType.GetPDUSessionTypeValue()
 		if err := smContext.isAllowedPDUSessionType(requestedPDUSessionType); err != nil {
-			smContext.SubCtxLog.Error("Requested PDUSessionType is not allowed", zap.Error(err))
+			logger.SmfLog.Error("Requested PDUSessionType is not allowed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 			return
 		}
 	} else {
@@ -36,7 +36,7 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 		protocolConfigurationOptions := nasConvert.NewProtocolConfigurationOptions()
 		unmarshalErr := protocolConfigurationOptions.UnMarshal(EPCOContents)
 		if unmarshalErr != nil {
-			smContext.SubGsmLog.Error("Parsing PCO failed", zap.Error(unmarshalErr))
+			logger.SmfLog.Error("Parsing PCO failed", zap.Error(unmarshalErr), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 		}
 
 		// Send MTU to UE always even if UE does not request it.
@@ -81,7 +81,7 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 			case nasMessage.ChallengeHandshakeAuthenticationProtocolUL:
 			case nasMessage.InternetProtocolControlProtocolUL:
 			default:
-				smContext.SubGsmLog.Info("Unknown Container ID", zap.Uint16("ContainerID", container.ProtocolOrContainerID))
+				logger.SmfLog.Info("Unknown Container ID", zap.Uint16("ContainerID", container.ProtocolOrContainerID), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 			}
 		}
 	}
@@ -91,7 +91,7 @@ func (smContext *SMContext) HandlePDUSessionReleaseRequest(ctx context.Context, 
 	smContext.Pti = req.GetPTI()
 	err := smContext.ReleaseUeIPAddr(ctx)
 	if err != nil {
-		smContext.SubGsmLog.Error("Releasing UE IP Addr", zap.Error(err))
+		logger.SmfLog.Error("Releasing UE IP Addr", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 		return
 	}
 	logger.SmfLog.Info("Successfully completed PDU Session Release Request", zap.Int32("PDUSessionID", smContext.PDUSessionID))

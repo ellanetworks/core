@@ -14,17 +14,20 @@ import (
 	"github.com/ellanetworks/core/internal/smf/producer"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/smf")
 
 func CreateSmContext(ctx ctxt.Context, request models.PostSmContextsRequest) (string, *models.PostSmContextsErrorResponse, error) {
-	ctx, span := tracer.Start(ctx, "SMF Create SmContext")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.supi", request.JSONData.Supi),
+	ctx, span := tracer.Start(ctx, "SMF Create SmContext",
+		trace.WithAttributes(
+			attribute.String("supi", request.JSONData.Supi),
+			attribute.Int("pduSessionID", int(request.JSONData.PduSessionID)),
+		),
 	)
+	defer span.End()
 
 	if request.JSONData == nil {
 		errResponse := &models.PostSmContextsErrorResponse{}
@@ -32,15 +35,15 @@ func CreateSmContext(ctx ctxt.Context, request models.PostSmContextsRequest) (st
 	}
 
 	createData := request.JSONData
-	smCtxtRef, err := context.ResolveRef(createData.Supi, createData.PduSessionID)
-	if err == nil {
-		err := producer.HandlePduSessionContextReplacement(ctx, smCtxtRef)
+	smContext := context.GetSMContext(context.CanonicalName(createData.Supi, createData.PduSessionID))
+	if smContext != nil {
+		err := producer.HandlePduSessionContextReplacement(ctx, smContext)
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to replace existing context")
 		}
 	}
 
-	smContext := context.NewSMContext(createData.Supi, createData.PduSessionID)
+	smContext = context.NewSMContext(createData.Supi, createData.PduSessionID)
 
 	location, errRsp, err := producer.HandlePDUSessionSMContextCreate(ctx, request, smContext)
 	if err != nil {

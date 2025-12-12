@@ -144,7 +144,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	if (qer->dl_gate_status != GATE_STATUS_OPEN)
 		return XDP_DROP;
 
-	const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+	const __u64 packet_size = ctx->data_end - (void *)ctx->ip4;
 	if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start,
 						  qer->dl_maximum_bitrate))
 		return XDP_DROP;
@@ -232,7 +232,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	if (qer->dl_gate_status != GATE_STATUS_OPEN)
 		return XDP_DROP;
 
-	const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+	const __u64 packet_size = ctx->data_end - (void *)ctx->ip6;
 	if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start,
 						  qer->dl_maximum_bitrate))
 		return XDP_DROP;

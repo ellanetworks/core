@@ -140,7 +140,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 		if smContext.ProtocolConfigurationOptions.DNSIPv4Request {
 			err := protocolConfigurationOptions.AddDNSServerIPv4Address(smContext.DNNInfo.DNS)
 			if err != nil {
-				smContext.SubGsmLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err))
+				logger.SmfLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 			}
 		}
 
@@ -153,7 +153,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 		if smContext.ProtocolConfigurationOptions.IPv4LinkMTURequest {
 			err := protocolConfigurationOptions.AddIPv4LinkMTU(smContext.DNNInfo.MTU)
 			if err != nil {
-				smContext.SubGsmLog.Warn("Error while adding MTU", zap.Error(err))
+				logger.SmfLog.Warn("Error while adding MTU", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 			}
 		}
 

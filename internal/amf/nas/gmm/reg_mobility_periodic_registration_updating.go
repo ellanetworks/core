@@ -37,7 +37,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
 	if ue.SubscribedNssai == nil {
-		ue.SubscribedNssai = &operatorInfo.SupportedPLMN.SNssai
+		ue.SubscribedNssai = operatorInfo.SupportedPLMN.SNssai
 	}
 
 	if err := handleRequestedNssai(ctx, ue, operatorInfo.SupportedPLMN); err != nil {
@@ -156,9 +156,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 
 	if ue.RegistrationRequest.AllowedPDUSessionStatus != nil {
 		if ue.N1N2Message != nil {
-			requestData := ue.N1N2Message.Request.JSONData
-			n1Msg := ue.N1N2Message.Request.BinaryDataN1Message
-			n2Info := ue.N1N2Message.Request.BinaryDataN2Information
+			requestData := ue.N1N2Message.JSONData
+			n1Msg := ue.N1N2Message.BinaryDataN1Message
+			n2Info := ue.N1N2Message.BinaryDataN2Information
 
 			// downlink signalling
 			if n2Info == nil {
@@ -223,12 +223,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 						return err
 					}
 				}
-				omecSnssai := models.Snssai{
-					Sst: smInfo.SNssai.Sst,
-					Sd:  smInfo.SNssai.Sd,
-				}
-				ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID,
-					omecSnssai, nasPdu, n2Info)
+				ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID, smInfo.SNssai, nasPdu, n2Info)
 			}
 		}
 	}

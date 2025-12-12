@@ -159,7 +159,7 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	}
 }
 
-func BuildPDUSessionResourceReleaseCommandTransfer(ctx *SMContext) (buf []byte, err error) {
+func BuildPDUSessionResourceReleaseCommandTransfer(ctx *SMContext) ([]byte, error) {
 	resourceReleaseCommandTransfer := ngapType.PDUSessionResourceReleaseCommandTransfer{
 		Cause: ngapType.Cause{
 			Present: ngapType.CausePresentNas,
@@ -168,11 +168,13 @@ func BuildPDUSessionResourceReleaseCommandTransfer(ctx *SMContext) (buf []byte, 
 			},
 		},
 	}
-	buf, err = aper.MarshalWithParams(resourceReleaseCommandTransfer, "valueExt")
+
+	buf, err := aper.MarshalWithParams(resourceReleaseCommandTransfer, "valueExt")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not encode pdu session resource release command transfer: %s", err)
 	}
-	return
+
+	return buf, nil
 }
 
 // TS 38.413 9.3.4.9
@@ -238,9 +240,11 @@ func BuildHandoverCommandTransfer(ctx *SMContext) ([]byte, error) {
 		Bytes:     UpNode.N3Interface,
 		BitLength: uint64(len(UpNode.N3Interface) * 8),
 	}
+
 	buf, err := aper.MarshalWithParams(handoverCommandTransfer, "valueExt")
 	if err != nil {
 		return nil, fmt.Errorf("could not encode handover command transfer: %s", err)
 	}
+
 	return buf, nil
 }

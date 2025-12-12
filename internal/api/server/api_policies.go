@@ -66,7 +66,8 @@ func isValidBitrate(bitrate string) bool {
 	if err != nil {
 		return false
 	}
-	return valueInt > 0 && valueInt <= 1000
+
+	return valueInt > 0 && valueInt <= 1000000
 }
 
 var valid5Qi = []int32{5, 6, 7, 8, 9, 69, 70, 79, 80} // only non-gbr 5Qi are supported for now

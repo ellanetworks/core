@@ -80,7 +80,7 @@ func handleRequestedNssai(ctx ctxt.Context, ue *context.AmfUe, supportedPLMN *co
 	// then use ue subscribed snssai which is marked as default as allowed nssai
 	if ue.AllowedNssai == nil {
 		var newAllowed *models.Snssai
-		if amfSelf.InPlmnSupport(ctx, *ue.SubscribedNssai, supportedPLMN) {
+		if amfSelf.InPlmnSupport(ctx, ue.SubscribedNssai, supportedPLMN) {
 			newAllowed = ue.SubscribedNssai
 		}
 		ue.AllowedNssai = newAllowed

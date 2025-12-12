@@ -2,22 +2,19 @@ package context
 
 func IsSubscriberRegistered(imsi string) bool {
 	amfCtx := AMFSelf()
+	amfCtx.Mutex.Lock()
+	defer amfCtx.Mutex.Unlock()
 
-	ueInfo, ok := amfCtx.UePool.Load(imsi)
+	amfUE, ok := amfCtx.UePool[imsi]
 	if !ok {
 		return false
 	}
 
-	amfUe := ueInfo.(*AmfUe)
-	if amfUe == nil {
+	if amfUE.State == nil {
 		return false
 	}
 
-	if amfUe.State == nil {
-		return false
-	}
+	currentState := amfUE.State.Current()
 
-	currentState := amfUe.State.Current()
-
-	return currentState == "Registered"
+	return currentState == Registered
 }
