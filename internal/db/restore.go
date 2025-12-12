@@ -3,6 +3,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -10,10 +11,14 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
-func (db *Database) Restore(backupFile *os.File) error {
+func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
+	_, span := tracer.Start(ctx, "DB Restore", trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
 	if db.conn == nil {
 		return fmt.Errorf("database connection is not initialized")
 	}
@@ -30,6 +35,7 @@ func (db *Database) Restore(backupFile *os.File) error {
 	if err != nil {
 		return fmt.Errorf("failed to open destination database file: %v", err)
 	}
+
 	defer func() {
 		if err := destinationFile.Close(); err != nil {
 			logger.DBLog.Error("Failed to close destination database file", zap.Error(err))
@@ -41,10 +47,22 @@ func (db *Database) Restore(backupFile *os.File) error {
 		return fmt.Errorf("failed to restore database file: %v", err)
 	}
 
+	walFile := db.filepath + "-wal"
+	shmFile := db.filepath + "-shm"
+
+	if err := os.Remove(walFile); err != nil && !os.IsNotExist(err) {
+		logger.DBLog.Warn("Failed to remove old WAL file", zap.String("file", walFile), zap.Error(err))
+	}
+
+	if err := os.Remove(shmFile); err != nil && !os.IsNotExist(err) {
+		logger.DBLog.Warn("Failed to remove old SHM file", zap.String("file", shmFile), zap.Error(err))
+	}
+
 	sqlConnection, err := sql.Open("sqlite3", db.filepath)
 	if err != nil {
 		return fmt.Errorf("failed to reopen database connection: %v", err)
 	}
+
 	db.conn = sqlair.NewDB(sqlConnection)
 
 	return nil

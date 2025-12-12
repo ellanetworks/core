@@ -3,34 +3,20 @@
 package db
 
 import (
+	"context"
 	"fmt"
-	"io"
 	"os"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
-func (db *Database) Backup(destinationFile *os.File) error {
-	if db.conn == nil {
-		return fmt.Errorf("database connection is not initialized")
-	}
+func (db *Database) Backup(ctx context.Context, destinationFile *os.File) error {
+	ctx, span := tracer.Start(ctx, "VACUUM", trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
 
-	if _, err := os.Stat(db.filepath); err != nil {
-		return fmt.Errorf("database file not found: %v", err)
-	}
-
-	sourceFile, err := os.Open(db.filepath)
+	_, err := db.conn.PlainDB().ExecContext(ctx, "VACUUM INTO ?", destinationFile.Name())
 	if err != nil {
-		return fmt.Errorf("failed to open database file: %v", err)
-	}
-	defer sourceFile.Close()
-
-	_, err = io.Copy(destinationFile, sourceFile)
-	if err != nil {
-		return fmt.Errorf("failed to copy database file: %v", err)
-	}
-
-	// Ensure all writes are flushed before passing it to the API
-	if err := destinationFile.Sync(); err != nil {
-		return fmt.Errorf("failed to sync backup file: %v", err)
+		return fmt.Errorf("failed to VACUUM INTO: %w", err)
 	}
 
 	return nil

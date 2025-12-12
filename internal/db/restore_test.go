@@ -3,6 +3,7 @@
 package db_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -48,7 +49,7 @@ func TestRestore(t *testing.T) {
 		t.Fatalf("failed to reset backup file pointer: %v", err)
 	}
 
-	err = database.Restore(backupFile)
+	err = database.Restore(context.Background(), backupFile)
 	if err != nil {
 		t.Fatalf("Restore failed: %v", err)
 	}

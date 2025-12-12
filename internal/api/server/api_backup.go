@@ -30,7 +30,7 @@ func Backup(dbInstance *db.Database) http.HandlerFunc {
 			_ = os.Remove(tempFile.Name())
 		}()
 
-		if err := dbInstance.Backup(tempFile); err != nil {
+		if err := dbInstance.Backup(r.Context(), tempFile); err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to backup database", err, logger.APILog)
 			return
 		}
