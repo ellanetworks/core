@@ -52,7 +52,7 @@ type SMContext struct {
 	ProtocolConfigurationOptions   *ProtocolConfigurationOptions
 	SmPolicyUpdates                []*qos.PolicyUpdate
 	SmPolicyData                   qos.SmCtxtPolicyData
-	PFCPContext                    map[string]*PFCPSessionContext //key: UPD NodeID
+	PFCPContext                    map[string]*PFCPSessionContext // key: UPD NodeID
 	PDUSessionID                   int32
 	SelectedPDUSessionType         uint8
 	PDUSessionReleaseDueToDupPduID bool
