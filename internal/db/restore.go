@@ -47,6 +47,17 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("failed to restore database file: %v", err)
 	}
 
+	walFile := db.filepath + "-wal"
+	shmFile := db.filepath + "-shm"
+
+	if err := os.Remove(walFile); err != nil && !os.IsNotExist(err) {
+		logger.DBLog.Warn("Failed to remove old WAL file", zap.String("file", walFile), zap.Error(err))
+	}
+
+	if err := os.Remove(shmFile); err != nil && !os.IsNotExist(err) {
+		logger.DBLog.Warn("Failed to remove old SHM file", zap.String("file", shmFile), zap.Error(err))
+	}
+
 	sqlConnection, err := sql.Open("sqlite3", db.filepath)
 	if err != nil {
 		return fmt.Errorf("failed to reopen database connection: %v", err)
