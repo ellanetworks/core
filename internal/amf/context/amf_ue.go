@@ -77,7 +77,6 @@ type AmfUe struct {
 	OldGuti string
 	/* Ue Identity*/
 	/* User Location*/
-	RatType                  models.RatType
 	Location                 models.UserLocation
 	Tai                      models.Tai
 	LastVisitedRegisteredTai models.Tai
@@ -88,7 +87,7 @@ type AmfUe struct {
 	SubscribedNssai                   *models.Snssai
 	Ambr                              *models.Ambr
 	RoutingIndicator                  string
-	AuthenticationCtx                 *models.UeAuthenticationCtx
+	AuthenticationCtx                 *models.Av5gAka
 	AuthFailureCauseSynchFailureTimes int
 	ABBA                              []uint8
 	Kseaf                             string

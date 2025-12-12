@@ -88,7 +88,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 
 	var tmpArray [16]byte
 
-	rand, err := hex.DecodeString(ue.AuthenticationCtx.Var5gAuthData.Rand)
+	rand, err := hex.DecodeString(ue.AuthenticationCtx.Rand)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 	copy(tmpArray[:], rand[0:16])
 	authenticationRequest.AuthenticationParameterRAND.SetRANDValue(tmpArray)
 
-	autn, err := hex.DecodeString(ue.AuthenticationCtx.Var5gAuthData.Autn)
+	autn, err := hex.DecodeString(ue.AuthenticationCtx.Autn)
 	if err != nil {
 		return nil, err
 	}
