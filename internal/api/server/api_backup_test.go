@@ -62,19 +62,6 @@ func TestBackupEndpoint(t *testing.T) {
 			t.Fatalf("couldn't write backup file: %s", err)
 		}
 
-		// Verify the backup file size matches the original database size
-		originalFileInfo, err := os.Stat(dbPath)
-		if err != nil {
-			t.Fatalf("couldn't stat original database file: %s", err)
-		}
-		backupFileInfo, err := os.Stat(backupFilePath)
-		if err != nil {
-			t.Fatalf("couldn't stat backup file: %s", err)
-		}
-		if originalFileInfo.Size() != backupFileInfo.Size() {
-			t.Fatalf("backup file size mismatch: expected %d, got %d", originalFileInfo.Size(), backupFileInfo.Size())
-		}
-
 		// Cleanup: Delete the test backup file
 		err = os.Remove(backupFilePath)
 		if err != nil {

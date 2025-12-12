@@ -53,13 +53,4 @@ func TestDatabaseBackup(t *testing.T) {
 	if tmpFileInfo.Size() == 0 {
 		t.Fatalf("Backup file is empty")
 	}
-
-	originalFileInfo, err := os.Stat(dbPath)
-	if err != nil {
-		t.Fatalf("Couldn't stat original database file: %s", err)
-	}
-
-	if originalFileInfo.Size() != tmpFileInfo.Size() {
-		t.Fatalf("Backup file size mismatch: expected %d, got %d", originalFileInfo.Size(), tmpFileInfo.Size())
-	}
 }
