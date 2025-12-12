@@ -9,6 +9,8 @@ import {
   Card,
   CardHeader,
   CardContent,
+  Backdrop,
+  CircularProgress,
 } from "@mui/material";
 import { backup, restore } from "@/queries/backup";
 import Grid from "@mui/material/Grid";
@@ -31,6 +33,9 @@ const BackupRestore = () => {
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
 
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+
   const pageDescription =
     "Create and download a full backup of Ella Core, or restore from a .backup file. Take regular backups to ensure you can recover your data in case of a hardware failure or data loss.";
 
@@ -42,7 +47,17 @@ const BackupRestore = () => {
       });
       return;
     }
+
+    if (isRestoring) {
+      setAlert({
+        message: "Cannot create a backup while a restore is in progress.",
+        severity: "error",
+      });
+      return;
+    }
+
     try {
+      setIsBackingUp(true);
       const backupBlob = await backup(accessToken);
 
       const date = new Date();
@@ -71,6 +86,8 @@ const BackupRestore = () => {
         message: `Failed to create backup: ${errorMessage}`,
         severity: "error",
       });
+    } finally {
+      setIsBackingUp(false);
     }
   };
 
@@ -82,12 +99,25 @@ const BackupRestore = () => {
       });
       return;
     }
+
     const file = event.target.files?.[0];
     if (!file) return;
+
+    event.target.value = "";
+
     try {
-      await restore(accessToken, file);
+      setIsRestoring(true);
       setAlert({
-        message: "Restore completed successfully!",
+        message:
+          "Restore is in progress. This may take a few minutes. Please do not close this page or navigate away.",
+        severity: "success",
+      });
+
+      await restore(accessToken, file);
+
+      setAlert({
+        message:
+          "Restore completed successfully! You may need to refresh the page.",
         severity: "success",
       });
     } catch (error) {
@@ -97,133 +127,164 @@ const BackupRestore = () => {
         message: `Failed to restore backup: ${errorMessage}`,
         severity: "error",
       });
+    } finally {
+      setIsRestoring(false);
     }
   };
 
-  return (
-    <Box
-      sx={{
-        pt: 6,
-        pb: 4,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-      }}
-    >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
-        <Collapse in={!!alert.severity}>
-          <Alert
-            severity={alert.severity || "success"}
-            onClose={() => setAlert({ message: "", severity: null })}
-            sx={{ mb: 2 }}
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-      </Box>
+  const actionsDisabled = isRestoring;
 
-      <Box
+  return (
+    <>
+      <Backdrop
+        open={isRestoring}
         sx={{
-          width: "100%",
-          maxWidth: MAX_WIDTH,
-          px: { xs: 2, sm: 4 },
-          mb: 3,
-          display: "flex",
+          zIndex: (theme) => theme.zIndex.modal + 1,
+          color: "#fff",
           flexDirection: "column",
           gap: 2,
         }}
       >
-        <Typography variant="h4">Backup & Restore</Typography>
-        <Typography variant="body1" color="text.secondary">
-          {pageDescription}
+        <CircularProgress />
+        <Typography variant="h6">Restoring backup…</Typography>
+        <Typography variant="body2">
+          This can take a few minutes. Please do not close this tab or make
+          changes.
         </Typography>
-      </Box>
+      </Backdrop>
 
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
-        <Grid container spacing={4} justifyContent="flex-start">
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Card
-              sx={{
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-                borderRadius: 3, // 12px
-                boxShadow: 2,
-              }}
+      <Box
+        sx={{
+          pt: 6,
+          pb: 4,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          opacity: isRestoring ? 0.6 : 1,
+          pointerEvents: isRestoring ? "none" : "auto",
+        }}
+      >
+        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+          <Collapse in={!!alert.severity}>
+            <Alert
+              severity={alert.severity || "success"}
+              onClose={() => setAlert({ message: "", severity: null })}
+              sx={{ mb: 2 }}
             >
-              <CardHeader title="Create a Backup" sx={headerStyles} />
-              <CardContent
+              {alert.message}
+            </Alert>
+          </Collapse>
+        </Box>
+
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: MAX_WIDTH,
+            px: { xs: 2, sm: 4 },
+            mb: 3,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+        >
+          <Typography variant="h4">Backup & Restore</Typography>
+          <Typography variant="body1" color="text.secondary">
+            {pageDescription}
+          </Typography>
+        </Box>
+
+        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+          <Grid container spacing={4} justifyContent="flex-start">
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <Card
                 sx={{
+                  height: "100%",
                   display: "flex",
                   flexDirection: "column",
-                  gap: 1.5,
-                  flexGrow: 1,
+                  borderRadius: 3,
+                  boxShadow: 2,
                 }}
               >
-                <Typography variant="body2" color="text.secondary">
-                  Generate and download a snapshot of your Ella Core
-                  configuration and data. You can then use this file to restore
-                  your system if needed.
-                </Typography>
+                <CardHeader title="Create a Backup" sx={headerStyles} />
+                <CardContent
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 1.5,
+                    flexGrow: 1,
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    Generate and download a snapshot of your Ella Core
+                    configuration and data. You can then use this file to
+                    restore your system if needed.
+                  </Typography>
 
-                <Box sx={{ flexGrow: 1 }} />
-                <Box sx={{ display: "flex", justifyContent: "center" }}>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={handleCreate}
-                  >
-                    Create Backup
-                  </Button>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+                  <Box sx={{ flexGrow: 1 }} />
+                  <Box sx={{ display: "flex", justifyContent: "center" }}>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={handleCreate}
+                      disabled={actionsDisabled || isBackingUp}
+                    >
+                      {isBackingUp ? "Creating Backup…" : "Create Backup"}
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Card
-              sx={{
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-                borderRadius: 3,
-                boxShadow: 2,
-              }}
-            >
-              <CardHeader title="Restore a Backup" sx={headerStyles} />
-              <CardContent
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <Card
                 sx={{
+                  height: "100%",
                   display: "flex",
                   flexDirection: "column",
-                  gap: 1.5,
-                  flexGrow: 1,
+                  borderRadius: 3,
+                  boxShadow: 2,
                 }}
               >
-                <Typography variant="body2" color="text.secondary">
-                  Upload a previously created backup file to restore Ella Core
-                  to a previous state. Be aware that this action will overwrite
-                  your current configuration and data.
-                </Typography>
+                <CardHeader title="Restore a Backup" sx={headerStyles} />
+                <CardContent
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 1.5,
+                    flexGrow: 1,
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    Upload a previously created backup file to restore Ella Core
+                    to a previous state. This will overwrite your current
+                    configuration and data.
+                  </Typography>
 
-                <Box sx={{ flexGrow: 1 }} />
+                  <Box sx={{ flexGrow: 1 }} />
 
-                <Box sx={{ display: "flex", justifyContent: "center" }}>
-                  <Button variant="contained" component="label" color="primary">
-                    Upload File
-                    <input
-                      type="file"
-                      hidden
-                      accept=".backup"
-                      onChange={handleRestore}
-                    />
-                  </Button>
-                </Box>
-              </CardContent>
-            </Card>
+                  <Box sx={{ display: "flex", justifyContent: "center" }}>
+                    <Button
+                      variant="contained"
+                      component="label"
+                      color="primary"
+                      disabled={actionsDisabled}
+                    >
+                      {isRestoring ? "Restoring…" : "Upload File"}
+                      <input
+                        type="file"
+                        hidden
+                        accept=".backup"
+                        onChange={handleRestore}
+                      />
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
           </Grid>
-        </Grid>
+        </Box>
       </Box>
-    </Box>
+    </>
   );
 };
 
