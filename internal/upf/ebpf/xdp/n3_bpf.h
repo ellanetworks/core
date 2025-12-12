@@ -161,7 +161,7 @@ handle_gtp_packet(struct packet_context *ctx)
 	if (qer->ul_gate_status != GATE_STATUS_OPEN)
 		return XDP_DROP;
 
-	const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+	const __u64 packet_size = ctx->data_end - ctx->data;
 	if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->ul_start,
 						  qer->ul_maximum_bitrate))
 		return XDP_DROP;

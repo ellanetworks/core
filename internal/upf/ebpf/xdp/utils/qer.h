@@ -31,10 +31,10 @@ struct qer_info {
 	__u8 ul_gate_status;
 	__u8 dl_gate_status;
 	__u8 qfi;
-	__u32 ul_maximum_bitrate;
-	__u32 dl_maximum_bitrate;
-	__u64 ul_start;
-	__u64 dl_start;
+	__u64 ul_maximum_bitrate;
+	__u64 dl_maximum_bitrate;
+	volatile __u64 ul_start;
+	volatile __u64 dl_start;
 };
 
 #define QER_MAP_SIZE MAX_PDU_SESSIONS
@@ -48,27 +48,7 @@ struct {
 } qer_map SEC(".maps");
 
 static __always_inline enum xdp_action
-limit_rate_simple(struct xdp_md *ctx, __u64 *end, const __u64 rate)
-{
-	static const __u64 NSEC_PER_SEC = 1000000000ULL;
-
-	/* Currently 0 rate means that traffic rate is not limited */
-	if (rate == 0)
-		return XDP_PASS;
-
-	__u64 now = bpf_ktime_get_ns();
-	if (now > *end) {
-		__u64 tx_time =
-			(ctx->data_end - ctx->data) * 8 * NSEC_PER_SEC / rate;
-		*end = now + tx_time;
-		return XDP_PASS;
-	}
-
-	return XDP_DROP;
-}
-
-static __always_inline enum xdp_action
-limit_rate_sliding_window(const __u64 packet_size, __u64 *windows_start,
+limit_rate_sliding_window(const __u64 packet_size, volatile __u64 *windows_start,
 			  const __u64 rate)
 {
 	static const __u64 NSEC_PER_SEC = 1000000000ULL;
@@ -86,11 +66,11 @@ limit_rate_sliding_window(const __u64 packet_size, __u64 *windows_start,
 		return XDP_DROP;
 
 	if (start + window_size < now) {
-		*(volatile __u64 *)&windows_start = now - window_size + tx_time;
+		*(volatile __u64 *)windows_start = now - window_size + tx_time;
 		return XDP_PASS;
 	}
 
-	*(volatile __u64 *)&windows_start = start + tx_time;
+	*(volatile __u64 *)windows_start = start + tx_time;
 	//__sync_fetch_and_add(&window->start, tx_time);
 	return XDP_PASS;
 }
