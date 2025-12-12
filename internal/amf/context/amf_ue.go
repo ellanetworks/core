@@ -244,6 +244,8 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	if ranUe == nil || ranUe.Ran == nil {
 		return
 	}
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
 
 	oldRanUe := ue.RanUe
 

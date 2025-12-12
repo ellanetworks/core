@@ -38,12 +38,11 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte) error {
 			ue.AmfUe = amfSelf.NewAmfUe(ctx, "")
 		}
 
-		eeCtx := ue.AmfUe
-		eeCtx.Mutex.Lock()
-		defer eeCtx.Mutex.Unlock()
-
-		eeCtx.AttachRanUe(ue)
+		ue.AmfUe.AttachRanUe(ue)
 	}
+
+	ue.AmfUe.Mutex.Lock()
+	defer ue.AmfUe.Mutex.Unlock()
 
 	err := decodeAndDispatch(ctx, ue.AmfUe, nasPdu)
 	if err != nil {
