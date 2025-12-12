@@ -19,14 +19,13 @@ import (
 
 var tracer = otel.Tracer("ella-core/ausf")
 
-func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo models.AuthenticationInfo) (*models.UeAuthenticationCtx, error) {
+func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo models.AuthenticationInfo) (*models.Av5gAka, error) {
 	ctx, span := tracer.Start(ctx, "AUSF UEAuthentication PostRequest")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.suci", updateAuthenticationInfo.Suci),
 	)
 
-	var responseBody models.UeAuthenticationCtx
 	var authInfoReq models.AuthenticationInfoRequest
 
 	suci := updateAuthenticationInfo.Suci
@@ -92,9 +91,7 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 	av5gAka.Autn = authInfoResult.AuthenticationVector.Autn
 	av5gAka.HxresStar = hxresStar
 
-	responseBody.Var5gAuthData = av5gAka
-
-	return &responseBody, nil
+	return &av5gAka, nil
 }
 
 func Auth5gAkaComfirmRequestProcedure(ctx context.Context, resStar string, suci string) (*models.ConfirmationDataResponse, error) {

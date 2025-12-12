@@ -44,7 +44,7 @@ func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.
 	resStar := msg.AuthenticationResponse.AuthenticationResponseParameter.GetRES()
 
 	// Calculate HRES* (TS 33.501 Annex A.5)
-	p0, err := hex.DecodeString(ue.AuthenticationCtx.Var5gAuthData.Rand)
+	p0, err := hex.DecodeString(ue.AuthenticationCtx.Rand)
 	if err != nil {
 		return fmt.Errorf("failed to decode RAND: %s", err)
 	}
@@ -54,8 +54,8 @@ func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.
 	hResStarBytes := sha256.Sum256(concat)
 	hResStar := hex.EncodeToString(hResStarBytes[16:])
 
-	if hResStar != ue.AuthenticationCtx.Var5gAuthData.HxresStar {
-		ue.GmmLog.Error("HRES* Validation Failure", zap.String("received", hResStar), zap.String("expected", ue.AuthenticationCtx.Var5gAuthData.HxresStar))
+	if hResStar != ue.AuthenticationCtx.HxresStar {
+		ue.GmmLog.Error("HRES* Validation Failure", zap.String("received", hResStar), zap.String("expected", ue.AuthenticationCtx.HxresStar))
 
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 			err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
