@@ -16,15 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/free5gc/nas/nasMessage"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
-)
-
-// We should likely combine these three maps into a single sync.Map and unify the key ID
-var (
-	smContextPool    sync.Map // key: smContext.Ref, value: *SMContext
-	canonicalRef     sync.Map // key: canonicalName(identifier, pduSessID), value: smContext.Ref
-	seidSMContextMap sync.Map // key: PFCP SEID, value: *SMContext
 )
 
 type ProtocolConfigurationOptions struct {
@@ -47,9 +39,9 @@ type UPTunnel struct {
 }
 
 type SMContext struct {
-	Ref                            string
+	Mutex sync.Mutex
+
 	Supi                           string
-	Identifier                     string
 	Dnn                            string
 	UpCnxState                     models.UpCnxState
 	AllowedSessionType             models.PduSessionType
@@ -58,14 +50,9 @@ type SMContext struct {
 	Tunnel                         *UPTunnel
 	DNNInfo                        *SnssaiSmfDnnInfo
 	ProtocolConfigurationOptions   *ProtocolConfigurationOptions
-	SubGsmLog                      *zap.Logger
-	SubPfcpLog                     *zap.Logger
-	SubPduSessLog                  *zap.Logger
-	SubCtxLog                      *zap.Logger
 	SmPolicyUpdates                []*qos.PolicyUpdate
 	SmPolicyData                   qos.SmCtxtPolicyData
-	PFCPContext                    map[string]*PFCPSessionContext
-	SMLock                         sync.Mutex
+	PFCPContext                    map[string]*PFCPSessionContext // key: UPD NodeID
 	PDUSessionID                   int32
 	SelectedPDUSessionType         uint8
 	PDUSessionReleaseDueToDupPduID bool
@@ -73,97 +60,83 @@ type SMContext struct {
 	EstAcceptCause5gSMValue        uint8
 }
 
-func canonicalName(identifier string, pduSessID int32) string {
+func CanonicalName(identifier string, pduSessID int32) string {
 	return fmt.Sprintf("%s-%d", identifier, pduSessID)
 }
 
-func ResolveRef(identifier string, pduSessID int32) (string, error) {
-	value, ok := canonicalRef.Load(canonicalName(identifier, pduSessID))
-	if ok {
-		return value.(string), nil
-	}
+func NewSMContext(supi string, pduSessID int32) *SMContext {
+	smfContext.Mutex.Lock()
+	defer smfContext.Mutex.Unlock()
 
-	return "", fmt.Errorf("UE '%s' - PDUSessionID '%d' not found in SMContext", identifier, pduSessID)
-}
-
-func NewSMContext(identifier string, pduSessID int32) *SMContext {
 	smContext := new(SMContext)
-	// Create Ref and identifier
-	smContext.Ref = uuid.New().URN()
-	smContextPool.Store(smContext.Ref, smContext)
-	canonicalRef.Store(canonicalName(identifier, pduSessID), smContext.Ref)
 
-	smContext.Identifier = identifier
+	ref := CanonicalName(supi, pduSessID)
+	smfContext.smContextPool[ref] = smContext
 	smContext.PDUSessionID = pduSessID
 	smContext.PFCPContext = make(map[string]*PFCPSessionContext)
-
-	// initialize SM Policy Data
 	smContext.SmPolicyUpdates = make([]*qos.PolicyUpdate, 0)
-
 	smContext.ProtocolConfigurationOptions = &ProtocolConfigurationOptions{
 		DNSIPv4Request: false,
 		DNSIPv6Request: false,
 	}
 
-	// initialise log tags
-	smContext.initLogTags()
-
 	return smContext
 }
 
-func (smContext *SMContext) initLogTags() {
-	smContext.SubPfcpLog = logger.SmfLog.With(zap.String("uuid", smContext.Ref), zap.String("id", smContext.Identifier), zap.Int32("pduid", smContext.PDUSessionID))
-	smContext.SubCtxLog = logger.SmfLog.With(zap.String("uuid", smContext.Ref), zap.String("id", smContext.Identifier), zap.Int32("pduid", smContext.PDUSessionID))
-	smContext.SubPduSessLog = logger.SmfLog.With(zap.String("uuid", smContext.Ref), zap.String("id", smContext.Identifier), zap.Int32("pduid", smContext.PDUSessionID))
-	smContext.SubGsmLog = logger.SmfLog.With(zap.String("uuid", smContext.Ref), zap.String("id", smContext.Identifier), zap.Int32("pduid", smContext.PDUSessionID))
-}
-
 func GetSMContext(ref string) *SMContext {
-	if value, ok := smContextPool.Load(ref); ok {
-		return value.(*SMContext)
+	smfContext.Mutex.Lock()
+	defer smfContext.Mutex.Unlock()
+
+	value, ok := smfContext.smContextPool[ref]
+	if !ok {
+		return nil
 	}
 
-	return nil
+	return value
 }
 
 func GetPDUSessionCount() int {
-	count := 0
-	smContextPool.Range(func(_ any, _ any) bool {
-		count++
-		return true
-	})
-	return count
+	smfContext.Mutex.Lock()
+	defer smfContext.Mutex.Unlock()
+
+	return len(smfContext.smContextPool)
 }
 
 func RemoveSMContext(ctx context.Context, ref string) {
-	var smContext *SMContext
-	if value, ok := smContextPool.Load(ref); ok {
-		smContext = value.(*SMContext)
+	smfContext.Mutex.Lock()
+	defer smfContext.Mutex.Unlock()
+
+	smContext, ok := smfContext.smContextPool[ref]
+	if !ok {
+		return
 	}
 
 	for _, pfcpSessionContext := range smContext.PFCPContext {
-		seidSMContextMap.Delete(pfcpSessionContext.LocalSEID)
+		delete(smfContext.seidSMContextMap, pfcpSessionContext.LocalSEID)
 	}
 
 	// Release UE IP-Address
 	err := smContext.ReleaseUeIPAddr(ctx)
 	if err != nil {
-		smContext.SubCtxLog.Error("release UE IP-Address failed", zap.Error(err))
+		logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
 	}
 
-	smContextPool.Delete(ref)
+	delete(smfContext.smContextPool, ref)
+	// delete(smfContext.canonicalRef, canonicalName(smContext.Identifier, smContext.PDUSessionID))
 
-	canonicalRef.Delete(canonicalName(smContext.Supi, smContext.PDUSessionID))
-
-	smContext.SubCtxLog.Info("SM Context removed", zap.String("ref", ref))
+	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
 }
 
 func GetSMContextBySEID(SEID uint64) *SMContext {
-	if value, ok := seidSMContextMap.Load(SEID); ok {
-		return value.(*SMContext)
+	smfContext.Mutex.Lock()
+	defer smfContext.Mutex.Unlock()
+
+	value, ok := smfContext.seidSMContextMap[SEID]
+	if !ok {
+		return nil
 	}
 
-	return nil
+	return value
 }
 
 func (smContext *SMContext) ReleaseUeIPAddr(ctx context.Context) error {
@@ -176,7 +149,7 @@ func (smContext *SMContext) ReleaseUeIPAddr(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}
-		smContext.SubPduSessLog.Info("Released IP Address", zap.String("IP", smContext.PDUAddress.String()))
+		logger.SmfLog.Info("Released IP Address", zap.String("IP", smContext.PDUAddress.String()), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 		smContext.PDUAddress = net.IPv4(0, 0, 0, 0)
 	}
 	return nil
@@ -212,16 +185,15 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) err
 		return nil
 	}
 
-	allocatedSEID, err := AllocateLocalSEID()
-	if err != nil {
-		return fmt.Errorf("failed allocating SEID, %v", err)
-	}
+	allocatedSEID := AllocateLocalSEID()
 
 	smContext.PFCPContext[NodeIDtoIP] = &PFCPSessionContext{
 		LocalSEID: allocatedSEID,
 	}
 
-	seidSMContextMap.Store(allocatedSEID, smContext)
+	smfContext.Mutex.Lock()
+	defer smfContext.Mutex.Unlock()
+	smfContext.seidSMContextMap[allocatedSEID] = smContext
 
 	return nil
 }
@@ -229,7 +201,7 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) err
 func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint8) error {
 	allowedPDUSessionType := smContext.AllowedSessionType
 	if allowedPDUSessionType == "" {
-		return fmt.Errorf("this SMContext[%s] has no subscription pdu session type info", smContext.Ref)
+		return fmt.Errorf("this SMContext [%s-%d] has no subscription pdu session type info", smContext.Supi, smContext.PDUSessionID)
 	}
 
 	allowIPv4 := false
@@ -316,8 +288,8 @@ func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(cause uint8) *
 
 func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 	// Lock SM context
-	smContext.SMLock.Lock()
-	defer smContext.SMLock.Unlock()
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
 
 	if status {
 		err := qos.CommitSmPolicyDecision(&smContext.SmPolicyData, smContext.SmPolicyUpdates[0])
@@ -335,37 +307,31 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 }
 
 func PDUSessionsByIMSI(imsi string) []*SMContext {
+	smfContext.Mutex.Lock()
+	defer smfContext.Mutex.Unlock()
+
 	var out []*SMContext
 
-	smContextPool.Range(func(_ any, v any) bool {
-		sc, ok := v.(*SMContext)
-		if !ok {
-			return true
+	for _, smContext := range smfContext.smContextPool {
+		if smContext.Supi == imsi {
+			out = append(out, smContext)
 		}
-
-		if sc.Supi == imsi {
-			out = append(out, sc)
-		}
-		return true
-	})
+	}
 
 	return out
 }
 
 func PDUSessionsByDNN(dnn string) []*SMContext {
+	smfContext.Mutex.Lock()
+	defer smfContext.Mutex.Unlock()
+
 	var out []*SMContext
 
-	smContextPool.Range(func(_ any, v any) bool {
-		sc, ok := v.(*SMContext)
-		if !ok {
-			return true
+	for _, smContext := range smfContext.smContextPool {
+		if smContext.Dnn == dnn {
+			out = append(out, smContext)
 		}
-
-		if sc.Dnn == dnn {
-			out = append(out, sc)
-		}
-		return true
-	})
+	}
 
 	return out
 }

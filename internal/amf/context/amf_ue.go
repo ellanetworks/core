@@ -94,9 +94,9 @@ type AmfUe struct {
 	Kseaf                             string
 	Kamf                              string
 	/* N1N2Message */
-	N1N2Message *N1N2Message
+	N1N2Message *models.N1N2MessageTransferRequest
 	/* Pdu Sesseion context */
-	SmContextList sync.Map // map[int32]*SmContext, pdu session id as key
+	SmContextList map[int32]*SmContext // Key: pdu session id
 	/* Related Context*/
 	RanUe *RanUe
 	/* other */
@@ -151,11 +151,6 @@ type AmfUe struct {
 	ProducerLog *zap.Logger
 }
 
-type N1N2Message struct {
-	Request models.N1N2MessageTransferRequest
-	Status  models.N1N2MessageTransferCause
-}
-
 type OnGoingProcedureWithPrio struct {
 	Procedure OnGoingProcedure
 	Ppi       int32 // Paging priority
@@ -175,13 +170,6 @@ type InfoOnRecommendedCellsAndRanNodesForPaging struct {
 type RecommendedCell struct {
 	NgRanCGI         NGRANCGI
 	TimeStayedInCell *int64
-}
-
-// TS 38.413 9.3.1.101
-type RecommendRanNode struct {
-	Present         int32
-	GlobalRanNodeID *models.GlobalRanNodeID
-	Tai             *models.Tai
 }
 
 type NGRANCGI struct {
@@ -211,14 +199,11 @@ func (ue *AmfUe) init() {
 	ue.RegistrationArea = make([]models.Tai, 0)
 	ue.OnGoing = new(OnGoingProcedureWithPrio)
 	ue.OnGoing.Procedure = OnGoingProcedureNothing
+	ue.SmContextList = make(map[int32]*SmContext)
 }
 
 func (ue *AmfUe) CmConnect() bool {
 	return ue.RanUe != nil
-}
-
-func (ue *AmfUe) CmIdle() bool {
-	return !ue.CmConnect()
 }
 
 func (ue *AmfUe) Remove() {
@@ -232,7 +217,10 @@ func (ue *AmfUe) Remove() {
 	tmsiGenerator.FreeID(int64(ue.Tmsi))
 
 	if len(ue.Supi) > 0 {
-		AMFSelf().UePool.Delete(ue.Supi)
+		amfCtxt := AMFSelf()
+		amfCtxt.Mutex.Lock()
+		delete(amfCtxt.UePool, ue.Supi)
+		amfCtxt.Mutex.Unlock()
 	}
 }
 
@@ -266,21 +254,12 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	ue.TxLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
 }
 
-func (ue *AmfUe) InAllowedNssai(targetSNssai models.Snssai) bool {
-	return reflect.DeepEqual(*ue.AllowedNssai, targetSNssai)
+func (ue *AmfUe) InAllowedNssai(targetSNssai *models.Snssai) bool {
+	return reflect.DeepEqual(*ue.AllowedNssai, *targetSNssai)
 }
 
 func (ue *AmfUe) InSubscribedNssai(targetSNssai *models.Snssai) bool {
 	return ue.SubscribedNssai.Sst == targetSNssai.Sst && ue.SubscribedNssai.Sd == targetSNssai.Sd
-}
-
-func (ue *AmfUe) TaiListInRegistrationArea(taiList []models.Tai) bool {
-	for _, tai := range taiList {
-		if !InTaiList(tai, ue.RegistrationArea) {
-			return false
-		}
-	}
-	return true
 }
 
 func (ue *AmfUe) SecurityContextIsValid() bool {
@@ -469,11 +448,8 @@ func (ue *AmfUe) ClearRegistrationData() {
 	// Allowed Nssai should be cleared first as it is a new Registration
 	ue.SubscribedNssai = nil
 	ue.SubscriptionDataValid = false
-	// Clearing SMContextList locally
-	ue.SmContextList.Range(func(key, _ any) bool {
-		ue.SmContextList.Delete(key)
-		return true
-	})
+
+	ue.SmContextList = make(map[int32]*SmContext)
 }
 
 func (ue *AmfUe) SetOnGoing(onGoing *OnGoingProcedureWithPrio) {
@@ -487,26 +463,20 @@ func (ue *AmfUe) GetOnGoing() OnGoingProcedureWithPrio {
 }
 
 func (ue *AmfUe) StoreSmContext(pduSessionID int32, smContext *SmContext) {
-	ue.SmContextList.Store(pduSessionID, smContext)
+	ue.SmContextList[pduSessionID] = smContext
 }
 
 func (ue *AmfUe) SmContextFindByPDUSessionID(pduSessionID int32) (*SmContext, bool) {
-	if value, ok := ue.SmContextList.Load(pduSessionID); ok {
-		return value.(*SmContext), true
-	} else {
-		return nil, false
-	}
+	smContext, ok := ue.SmContextList[pduSessionID]
+	return smContext, ok
 }
 
 func (ue *AmfUe) HasActivePduSessions() bool {
-	hasActive := false
-	ue.SmContextList.Range(func(key, value any) bool {
-		smContext := value.(*SmContext)
+	for _, smContext := range ue.SmContextList {
 		if smContext.IsPduSessionActive() {
-			hasActive = true
-			return false
+			return true
 		}
-		return true
-	})
-	return hasActive
+	}
+
+	return false
 }

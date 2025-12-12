@@ -18,7 +18,7 @@ import (
 )
 
 func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetupListSUReq,
-	pduSessionID int32, snssai models.Snssai, nasPDU []byte, transfer []byte,
+	pduSessionID int32, snssai *models.Snssai, nasPDU []byte, transfer []byte,
 ) {
 	var item ngapType.PDUSessionResourceSetupItemSUReq
 	item.PDUSessionID.Value = int64(pduSessionID)
@@ -36,9 +36,7 @@ func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSet
 	list.List = append(list.List, item)
 }
 
-func AppendPDUSessionResourceSetupListHOReq(list *ngapType.PDUSessionResourceSetupListHOReq,
-	pduSessionID int32, snssai models.Snssai, transfer []byte,
-) {
+func AppendPDUSessionResourceSetupListHOReq(list *ngapType.PDUSessionResourceSetupListHOReq, pduSessionID int32, snssai *models.Snssai, transfer []byte) {
 	var item ngapType.PDUSessionResourceSetupItemHOReq
 	item.PDUSessionID.Value = int64(pduSessionID)
 	snssaiNgap, err := util.SNssaiToNgap(snssai)
@@ -51,7 +49,7 @@ func AppendPDUSessionResourceSetupListHOReq(list *ngapType.PDUSessionResourceSet
 	list.List = append(list.List, item)
 }
 
-func AppendPDUSessionResourceSetupListCxtReq(list *ngapType.PDUSessionResourceSetupListCxtReq, pduSessionID int32, snssai models.Snssai, nasPDU []byte, transfer []byte) {
+func AppendPDUSessionResourceSetupListCxtReq(list *ngapType.PDUSessionResourceSetupListCxtReq, pduSessionID int32, snssai *models.Snssai, nasPDU []byte, transfer []byte) {
 	var item ngapType.PDUSessionResourceSetupItemCxtReq
 	item.PDUSessionID.Value = int64(pduSessionID)
 	snssaiNgap, err := util.SNssaiToNgap(snssai)

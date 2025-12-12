@@ -1022,16 +1022,16 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, messa
 			}
 		} else {
 			ranUe.Log.Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
-			amfUe.SmContextList.Range(func(key, value any) bool {
-				smContext := value.(*context.SmContext)
+			amfUe.Mutex.Lock()
+			for _, smContext := range amfUe.SmContextList {
 				response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext, cause)
 				if err != nil {
 					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 				} else if response == nil {
 					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error")
 				}
-				return true
-			})
+			}
+			amfUe.Mutex.Unlock()
 		}
 	}
 
@@ -2391,11 +2391,12 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 				}
 			} else {
 				ranUe.Log.Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
-				amfUe.SmContextList.Range(func(key, value any) bool {
-					smContext := value.(*context.SmContext)
+
+				amfUe.Mutex.Lock()
+				for _, smContext := range amfUe.SmContextList {
 					if !smContext.IsPduSessionActive() {
 						ranUe.Log.Info("Pdu Session is inactive so not sending deactivate to SMF")
-						return false
+						break
 					}
 					response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext, causeAll)
 					if err != nil {
@@ -2403,19 +2404,19 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, messag
 					} else if response == nil {
 						ranUe.Log.Error("Send Update SmContextDeactivate UpCnxState Error")
 					}
-					return true
-				})
+				}
+				amfUe.Mutex.Unlock()
 			}
 		} else {
 			ranUe.Log.Info("Ue Context in Non GMM-Registered")
-			amfUe.SmContextList.Range(func(key, value any) bool {
-				smContext := value.(*context.SmContext)
+			amfUe.Mutex.Lock()
+			for _, smContext := range amfUe.SmContextList {
 				err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 				if err != nil {
 					ranUe.Log.Error("error sending release sm context request", zap.Error(err))
 				}
-				return true
-			})
+			}
+			amfUe.Mutex.Unlock()
 			err := ngap_message.SendUEContextReleaseCommand(ctx, ranUe, context.UeContextReleaseUeContext, causeGroup, causeValue)
 			if err != nil {
 				ranUe.Log.Error("error sending ue context release command", zap.Error(err))
@@ -3223,9 +3224,8 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 	} else {
 		amfUe := targetUe.AmfUe
 		if amfUe != nil {
-			amfUe.SmContextList.Range(func(key, value any) bool {
-				pduSessionID := key.(int32)
-				smContext := value.(*context.SmContext)
+			amfUe.Mutex.Lock()
+			for pduSessionID, smContext := range amfUe.SmContextList {
 				causeAll := context.CauseAll{
 					NgapCause: &models.NgApCause{
 						Group: int32(causePresent),
@@ -3236,8 +3236,8 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 				if err != nil {
 					ran.Log.Error("Send UpdateSmContextN2HandoverCanceled Error", zap.Error(err), zap.Int32("PduSessionID", pduSessionID))
 				}
-				return true
-			})
+			}
+			amfUe.Mutex.Unlock()
 		}
 		err := ngap_message.SendHandoverPreparationFailure(ctx, sourceUe, *cause, criticalityDiagnostics)
 		if err != nil {
@@ -3549,9 +3549,8 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 			zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID))
 		amfUe := sourceUe.AmfUe
 		if amfUe != nil {
-			amfUe.SmContextList.Range(func(key, value any) bool {
-				pduSessionID := key.(int32)
-				smContext := value.(*context.SmContext)
+			amfUe.Mutex.Lock()
+			for pduSessionID, smContext := range amfUe.SmContextList {
 				causeAll := context.CauseAll{
 					NgapCause: &models.NgApCause{
 						Group: int32(causePresent),
@@ -3562,8 +3561,8 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 				if err != nil {
 					sourceUe.Log.Error("Send UpdateSmContextN2HandoverCanceled Error", zap.Error(err), zap.Int32("PduSessionID", pduSessionID))
 				}
-				return true
-			})
+			}
+			amfUe.Mutex.Unlock()
 		}
 		err := ngap_message.SendUEContextReleaseCommand(ctx, targetUe, context.UeContextReleaseHandover, causePresent, causeValue)
 		if err != nil {

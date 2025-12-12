@@ -60,16 +60,10 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 		return
 	}
 
-	// Remove of UPF
 	node.UPF.RemovePDR(node.UpLinkTunnel.PDR)
 
 	if far := node.UpLinkTunnel.PDR.FAR; far != nil {
 		node.UPF.RemoveFAR(far)
-
-		bar := far.BAR
-		if bar != nil {
-			node.UPF.RemoveBAR(bar)
-		}
 	}
 
 	qer := node.UpLinkTunnel.PDR.QER
@@ -95,11 +89,6 @@ func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 
 	if far := node.DownLinkTunnel.PDR.FAR; far != nil {
 		node.UPF.RemoveFAR(far)
-
-		bar := far.BAR
-		if bar != nil {
-			node.UPF.RemoveBAR(bar)
-		}
 	}
 
 	qer := node.DownLinkTunnel.PDR.QER

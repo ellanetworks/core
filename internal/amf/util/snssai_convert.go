@@ -17,7 +17,7 @@ func SNssaiToModels(ngapSnssai ngapType.SNSSAI) models.Snssai {
 	return modelsSnssai
 }
 
-func SNssaiToNgap(modelsSnssai models.Snssai) (ngapType.SNSSAI, error) {
+func SNssaiToNgap(modelsSnssai *models.Snssai) (ngapType.SNSSAI, error) {
 	var ngapSnssai ngapType.SNSSAI
 
 	ngapSnssai.SST.Value = []byte{byte(modelsSnssai.Sst)}

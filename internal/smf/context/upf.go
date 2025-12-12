@@ -19,7 +19,6 @@ type UPF struct {
 
 	pdrIDGenerator *idgenerator.IDGenerator
 	farIDGenerator *idgenerator.IDGenerator
-	barIDGenerator *idgenerator.IDGenerator
 	qerIDGenerator *idgenerator.IDGenerator
 
 	NodeID net.IP
@@ -30,7 +29,6 @@ func NewUPF(nodeID net.IP) *UPF {
 	upf.NodeID = nodeID
 	upf.pdrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint16)
 	upf.farIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
-	upf.barIDGenerator = idgenerator.NewGenerator(1, math.MaxUint8)
 	upf.qerIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 	upf.N3Interface = nil
 
@@ -114,10 +112,6 @@ func (upf *UPF) RemovePDR(pdr *PDR) {
 
 func (upf *UPF) RemoveFAR(far *FAR) {
 	upf.farIDGenerator.FreeID(int64(far.FARID))
-}
-
-func (upf *UPF) RemoveBAR(bar *BAR) {
-	upf.barIDGenerator.FreeID(int64(bar.BARID))
 }
 
 func (upf *UPF) RemoveQER(qer *QER) {

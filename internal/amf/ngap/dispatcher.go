@@ -25,11 +25,6 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/ngap")
 
-type NgapMsg struct {
-	NgapMsg *ngapType.NGAPPDU
-	Ran     *context.AmfRan
-}
-
 func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 	var ran *context.AmfRan
 	amfSelf := context.AMFSelf()
@@ -79,12 +74,8 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 	/* uecontext is found, submit the message to transaction queue*/
 	if ranUe != nil && ranUe.AmfUe != nil {
 		ranUe.AmfUe.TxLog.Debug("Uecontext found, dispatching NGAP message")
-		ngapMsg := NgapMsg{
-			Ran:     ran,
-			NgapMsg: pdu,
-		}
 		ranUe.Ran.Conn = conn
-		NgapMsgHandler(conn, ranUe.AmfUe, ngapMsg)
+		DispatchNgapMsg(conn, ran, pdu)
 	} else {
 		go DispatchNgapMsg(conn, ran, pdu)
 	}
@@ -296,10 +287,6 @@ func getUnsuccessfulOutcomeMessageType(present int) string {
 	}
 }
 
-func NgapMsgHandler(conn *sctp.SCTPConn, ue *context.AmfUe, msg NgapMsg) {
-	DispatchNgapMsg(conn, msg.Ran, msg.NgapMsg)
-}
-
 func DispatchNgapMsg(conn *sctp.SCTPConn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 	messageType := getMessageType(pdu)
 
@@ -441,17 +428,15 @@ func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification)
 		return
 	}
 
-	// Removing Stale Connections in AmfRanPool
-	amfSelf.AmfRanPool.Range(func(key, value any) bool {
-		amfRan := value.(*context.AmfRan)
-
+	amfSelf.Mutex.Lock()
+	for _, amfRan := range amfSelf.AmfRanPool {
 		errorConn := sctp.NewSCTPConn(-1, nil)
 		if reflect.DeepEqual(amfRan.Conn, errorConn) {
 			amfRan.Remove()
 			ran.Log.Info("removed stale entry in AmfRan pool")
 		}
-		return true
-	})
+	}
+	amfSelf.Mutex.Unlock()
 
 	switch notification.Type() {
 	case sctp.SCTPAssocChange:

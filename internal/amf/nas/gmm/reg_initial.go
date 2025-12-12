@@ -27,7 +27,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
 	if ue.SubscribedNssai == nil {
-		ue.SubscribedNssai = &operatorInfo.SupportedPLMN.SNssai
+		ue.SubscribedNssai = operatorInfo.SupportedPLMN.SNssai
 	}
 
 	if err := handleRequestedNssai(ctx, ue, operatorInfo.SupportedPLMN); err != nil {

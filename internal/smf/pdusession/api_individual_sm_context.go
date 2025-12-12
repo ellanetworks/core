@@ -20,14 +20,17 @@ func ReleaseSmContext(ctx ctxt.Context, smContextRef string) error {
 	span.SetAttributes(
 		attribute.String("smf.smContextRef", smContextRef),
 	)
+
 	ctxt := context.GetSMContext(smContextRef)
 	if ctxt == nil {
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
+
 	err := producer.HandlePDUSessionSMContextRelease(ctx, ctxt)
 	if err != nil {
 		return fmt.Errorf("error releasing pdu session: %v ", err.Error())
 	}
+
 	return nil
 }
 
@@ -37,6 +40,7 @@ func UpdateSmContext(ctx ctxt.Context, smContextRef string, updateSmContextReque
 	span.SetAttributes(
 		attribute.String("smf.smContextRef", smContextRef),
 	)
+
 	if smContextRef == "" {
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}

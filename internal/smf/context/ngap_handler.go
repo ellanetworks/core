@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
@@ -61,17 +62,17 @@ func HandlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte, ctx *SMContext)
 
 	switch resourceSetupUnsuccessfulTransfer.Cause.Present {
 	case ngapType.CausePresentRadioNetwork:
-		ctx.SubPduSessLog.Warn("PDU Session Resource Setup Unsuccessful by RadioNetwork", zap.String("Cause", radioNetworkCauseString(resourceSetupUnsuccessfulTransfer.Cause.RadioNetwork.Value)))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by RadioNetwork", zap.String("Cause", radioNetworkCauseString(resourceSetupUnsuccessfulTransfer.Cause.RadioNetwork.Value)), zap.String("supi", ctx.Supi), zap.Int32("pduSessionID", ctx.PDUSessionID))
 	case ngapType.CausePresentTransport:
-		ctx.SubPduSessLog.Warn("PDU Session Resource Setup Unsuccessful by Transport", zap.String("Cause", transportCauseString(resourceSetupUnsuccessfulTransfer.Cause.Transport.Value)))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Transport", zap.String("Cause", transportCauseString(resourceSetupUnsuccessfulTransfer.Cause.Transport.Value)), zap.String("supi", ctx.Supi), zap.Int32("pduSessionID", ctx.PDUSessionID))
 	case ngapType.CausePresentNas:
-		ctx.SubPduSessLog.Warn("PDU Session Resource Setup Unsuccessful by NAS", zap.String("Cause", nasCauseString(resourceSetupUnsuccessfulTransfer.Cause.Nas.Value)))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by NAS", zap.String("Cause", nasCauseString(resourceSetupUnsuccessfulTransfer.Cause.Nas.Value)), zap.String("supi", ctx.Supi), zap.Int32("pduSessionID", ctx.PDUSessionID))
 	case ngapType.CausePresentProtocol:
-		ctx.SubPduSessLog.Warn("PDU Session Resource Setup Unsuccessful by Protocol", zap.String("Cause", protocolCauseString(resourceSetupUnsuccessfulTransfer.Cause.Protocol.Value)))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Protocol", zap.String("Cause", protocolCauseString(resourceSetupUnsuccessfulTransfer.Cause.Protocol.Value)), zap.String("supi", ctx.Supi), zap.Int32("pduSessionID", ctx.PDUSessionID))
 	case ngapType.CausePresentMisc:
-		ctx.SubPduSessLog.Warn("PDU Session Resource Setup Unsuccessful by Misc", zap.String("Cause", miscCauseString(resourceSetupUnsuccessfulTransfer.Cause.Misc.Value)))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Misc", zap.String("Cause", miscCauseString(resourceSetupUnsuccessfulTransfer.Cause.Misc.Value)), zap.String("supi", ctx.Supi), zap.Int32("pduSessionID", ctx.PDUSessionID))
 	case ngapType.CausePresentChoiceExtensions:
-		ctx.SubPduSessLog.Warn("PDU Session Resource Setup Unsuccessful by ChoiceExtensions", zap.Any("Cause", resourceSetupUnsuccessfulTransfer.Cause.ChoiceExtensions))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by ChoiceExtensions", zap.Any("Cause", resourceSetupUnsuccessfulTransfer.Cause.ChoiceExtensions), zap.String("supi", ctx.Supi), zap.Int32("pduSessionID", ctx.PDUSessionID))
 	}
 
 	return nil

@@ -36,16 +36,13 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue
 	}
 
 	targetDeregistrationAccessType := msg.DeregistrationRequestUEOriginatingDeregistration.GetAccessType()
-	ue.SmContextList.Range(func(key, value any) bool {
-		smContext := value.(*context.SmContext)
 
+	for _, smContext := range ue.SmContextList {
 		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 		if err != nil {
 			ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
 		}
-
-		return true
-	})
+	}
 
 	// if Deregistration type is not switch-off, send Deregistration Accept
 	if msg.DeregistrationRequestUEOriginatingDeregistration.GetSwitchOff() == 0 && ue.RanUe != nil {

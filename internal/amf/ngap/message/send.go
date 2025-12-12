@@ -668,9 +668,14 @@ func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
 		return fmt.Errorf("amf ue is nil")
 	}
 
+	amfSelf := context.AMFSelf()
+
+	amfSelf.Mutex.Lock()
+	defer amfSelf.Mutex.Unlock()
+
 	taiList := ue.RegistrationArea
-	context.AMFSelf().AmfRanPool.Range(func(key, value any) bool {
-		ran := value.(*context.AmfRan)
+
+	for _, ran := range amfSelf.AmfRanPool {
 		for _, item := range ran.SupportedTAList {
 			if context.InTaiList(item.Tai, taiList) {
 				err := SendToRan(ctx, ran, ngapBuf, NGAPProcedurePaging)
@@ -682,15 +687,13 @@ func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
 				break
 			}
 		}
-		return true
-	})
+	}
 
-	if context.AMFSelf().T3513Cfg.Enable {
-		cfg := context.AMFSelf().T3513Cfg
+	if amfSelf.T3513Cfg.Enable {
+		cfg := amfSelf.T3513Cfg
 		ue.T3513 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			ue.GmmLog.Warn("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
-			context.AMFSelf().AmfRanPool.Range(func(key, value any) bool {
-				ran := value.(*context.AmfRan)
+			for _, ran := range amfSelf.AmfRanPool {
 				for _, item := range ran.SupportedTAList {
 					if context.InTaiList(item.Tai, taiList) {
 						err := SendToRan(ctx, ran, ngapBuf, NGAPProcedurePaging)
@@ -702,8 +705,7 @@ func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
 						break
 					}
 				}
-				return true
-			})
+			}
 		}, func() {
 			ue.GmmLog.Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
 			ue.T3513 = nil // clear the timer
