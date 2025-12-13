@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"time"
 
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 )
@@ -20,6 +21,7 @@ type UPF struct {
 	pdrIDGenerator *idgenerator.IDGenerator
 	farIDGenerator *idgenerator.IDGenerator
 	qerIDGenerator *idgenerator.IDGenerator
+	urrIDGenerator *idgenerator.IDGenerator
 
 	NodeID net.IP
 }
@@ -30,6 +32,7 @@ func NewUPF(nodeID net.IP) *UPF {
 	upf.pdrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint16)
 	upf.farIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 	upf.qerIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
+	upf.urrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 	upf.N3Interface = nil
 
 	return upf
@@ -55,6 +58,15 @@ func (upf *UPF) farID() (uint32, error) {
 
 func (upf *UPF) qerID() (uint32, error) {
 	tmpID, err := upf.qerIDGenerator.Allocate()
+	if err != nil {
+		return 0, err
+	}
+
+	return uint32(tmpID), nil
+}
+
+func (upf *UPF) urrID() (uint32, error) {
+	tmpID, err := upf.urrIDGenerator.Allocate()
 	if err != nil {
 		return 0, err
 	}
@@ -106,6 +118,26 @@ func (upf *UPF) AddQER() (*QER, error) {
 	return qer, nil
 }
 
+func (upf *UPF) AddURR() (*URR, error) {
+	urrID, err := upf.urrID()
+	if err != nil {
+		return nil, err
+	}
+
+	urr := &URR{
+		URRID: urrID,
+		MeasurementMethods: MeasurementMethods{
+			Volume: true,
+		},
+		ReportingTriggers: ReportingTriggers{
+			PeriodicReporting: true,
+		},
+		MeasurementPeriod: 60 * time.Second,
+	}
+
+	return urr, nil
+}
+
 func (upf *UPF) RemovePDR(pdr *PDR) {
 	upf.pdrIDGenerator.FreeID(int64(pdr.PDRID))
 }
@@ -116,4 +148,8 @@ func (upf *UPF) RemoveFAR(far *FAR) {
 
 func (upf *UPF) RemoveQER(qer *QER) {
 	upf.qerIDGenerator.FreeID(int64(qer.QERID))
+}
+
+func (upf *UPF) RemoveURR(urr *URR) {
+	upf.urrIDGenerator.FreeID(int64(urr.URRID))
 }
