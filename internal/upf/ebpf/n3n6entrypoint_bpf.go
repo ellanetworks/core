@@ -56,45 +56,7 @@ type N3N6EntrypointPdrInfo struct {
 	QerId              uint32
 	UrrId              uint32
 	OuterHeaderRemoval uint8
-	SdfMode            uint8
-	_                  [6]byte
-	SdfRules           struct {
-		_         structs.HostLayout
-		SdfFilter struct {
-			_       structs.HostLayout
-			SrcAddr struct {
-				_    structs.HostLayout
-				Type uint8
-				_    [15]byte
-				Ip   [16]byte /* uint128 */
-				Mask [16]byte /* uint128 */
-			}
-			DstAddr struct {
-				_    structs.HostLayout
-				Type uint8
-				_    [15]byte
-				Ip   [16]byte /* uint128 */
-				Mask [16]byte /* uint128 */
-			}
-			SrcPort struct {
-				_          structs.HostLayout
-				LowerBound uint16
-				UpperBound uint16
-			}
-			DstPort struct {
-				_          structs.HostLayout
-				LowerBound uint16
-				UpperBound uint16
-			}
-			Protocol uint8
-			_        [7]byte
-		}
-		OuterHeaderRemoval uint8
-		_                  [3]byte
-		FarId              uint32
-		QerId              uint32
-		UrrId              uint32
-	}
+	_                  [7]byte
 }
 
 type N3N6EntrypointQerInfo struct {

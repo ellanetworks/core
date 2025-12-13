@@ -41,19 +41,6 @@ enum outer_header_removal_values {
 	OHR_S_TAG_C_TAG = 8,
 };
 
-// Possible optimizations:
-// 0. Store SDFs in a separate map. PDR will have only id of corresponding SDF.
-// 1. Combine SrcAddress.Type and DstAddress.Type into one __u8 field. Then to retrieve and put data will be used operators & and | .
-// 2. Put all fields into one big structure. Sort in specific order to reduce paddings inside structure.
-
-struct sdf_rules {
-	struct sdf_filter sdf_filter;
-	__u8 outer_header_removal;
-	__u32 far_id;
-	__u32 qer_id;
-	__u32 urr_id;
-};
-
 struct pdr_info {
 	__u64 local_seid;
 	__u32 pdr_id;
@@ -61,8 +48,6 @@ struct pdr_info {
 	__u32 qer_id;
 	__u32 urr_id;
 	__u8 outer_header_removal;
-	__u8 sdf_mode; // 0 - no sdf, 1 - sdf only, 2 - sdf + default
-	struct sdf_rules sdf_rules;
 };
 
 enum far_action_mask {

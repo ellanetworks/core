@@ -92,19 +92,6 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	__u32 far_id = pdr->far_id;
 	__u32 qer_id = pdr->qer_id;
 	__u32 urr_id = pdr->urr_id;
-	if (pdr->sdf_mode) {
-		struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
-		if (match_sdf_filter_ipv4(ctx, sdf)) {
-			upf_printk(
-				"Packet with source ip:%pI4 and destination ip:%pI4 matches SDF filter",
-				&ip4->saddr, &ip4->daddr);
-			far_id = pdr->sdf_rules.far_id;
-			qer_id = pdr->sdf_rules.qer_id;
-			urr_id = pdr->sdf_rules.urr_id;
-		} else if (pdr->sdf_mode & 1) {
-			return DEFAULT_XDP_ACTION;
-		}
-	}
 
 	struct far_info *far = bpf_map_lookup_elem(&far_map, &far_id);
 	if (!far) {
@@ -184,18 +171,6 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 
 	__u32 far_id = pdr->far_id;
 	__u32 qer_id = pdr->qer_id;
-	if (pdr->sdf_mode) {
-		struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
-		if (match_sdf_filter_ipv6(ctx, sdf)) {
-			upf_printk(
-				"Packet with source ip:%pI6c and destination ip:%pI6c matches SDF filter",
-				&ip6->saddr, &ip6->daddr);
-			far_id = pdr->sdf_rules.far_id;
-			qer_id = pdr->sdf_rules.qer_id;
-		} else if (pdr->sdf_mode & 1) {
-			return DEFAULT_XDP_ACTION;
-		}
-	}
 
 	struct far_info *far = bpf_map_lookup_elem(&far_map, &far_id);
 	if (!far) {
