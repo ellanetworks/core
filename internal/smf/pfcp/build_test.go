@@ -67,8 +67,6 @@ func TestBuildPfcpSessionEstablishmentRequest(t *testing.T) {
 			PDI: context.PDI{
 				LocalFTeID:      &context.FTEID{},
 				UEIPAddress:     &context.UEIPAddress{},
-				SDFFilter:       &context.SDFFilter{},
-				ApplicationID:   "app",
 				NetworkInstance: "internet",
 				SourceInterface: context.SourceInterface{
 					InterfaceValue: 0x11,
@@ -133,8 +131,6 @@ func TestBuildPfcpSessionModificationRequest(t *testing.T) {
 			PDI: context.PDI{
 				LocalFTeID:      &context.FTEID{},
 				UEIPAddress:     &context.UEIPAddress{},
-				SDFFilter:       &context.SDFFilter{},
-				ApplicationID:   "app",
 				NetworkInstance: "internet",
 				SourceInterface: context.SourceInterface{
 					InterfaceValue: 0x11,
@@ -205,8 +201,6 @@ func TestBuildPfcpSessionModificationRequestNoOuterHeader(t *testing.T) {
 			PDI: context.PDI{
 				LocalFTeID:      &context.FTEID{},
 				UEIPAddress:     &context.UEIPAddress{},
-				SDFFilter:       &context.SDFFilter{},
-				ApplicationID:   "app",
 				NetworkInstance: "internet",
 				SourceInterface: context.SourceInterface{
 					InterfaceValue: 0x11,

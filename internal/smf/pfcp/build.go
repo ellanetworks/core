@@ -75,21 +75,6 @@ func createPDIIE(pdi *context.PDI) *ie.IE {
 		)
 	}
 
-	if pdi.ApplicationID != "" {
-		createPDIIes = append(createPDIIes, ie.NewApplicationID(pdi.ApplicationID))
-	}
-
-	if pdi.SDFFilter != nil {
-		createPDIIes = append(createPDIIes, ie.NewSDFFilter(
-			string(pdi.SDFFilter.FlowDescription),
-			string(pdi.SDFFilter.TosTrafficClass),
-			string(pdi.SDFFilter.SecurityParameterIndex),
-			string(pdi.SDFFilter.FlowLabel),
-			0,
-		),
-		)
-	}
-
 	return ie.NewPDI(createPDIIes...)
 }
 

@@ -30,28 +30,18 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 		spdrInfo.PdrInfo.OuterHeaderRemoval = outerHeaderRemoval
 	}
 	if farid, err := pdr.FARID(); err == nil {
-		spdrInfo.PdrInfo.FarID = pdrContext.getFARID(farid)
+		spdrInfo.PdrInfo.FarID = farid
 	}
 	if qerid, err := pdr.QERID(); err == nil {
-		spdrInfo.PdrInfo.QerID = pdrContext.getQERID(qerid)
+		spdrInfo.PdrInfo.QerID = qerid
 	}
 	if urrid, err := pdr.URRID(); err == nil {
-		spdrInfo.PdrInfo.UrrID = pdrContext.getURRID(urrid)
+		spdrInfo.PdrInfo.UrrID = urrid
 	}
 
 	pdi, err := pdr.PDI()
 	if err != nil {
 		return fmt.Errorf("PDI IE is missing: %s", err)
-	}
-
-	if sdfFilter, err := pdr.SDFFilter(); err == nil {
-		if sdfFilter.FlowDescription == "" {
-			logger.UpfLog.Warn("SDFFilter is empty")
-		} else if sdfFilterParsed, err := ParseSdfFilter(sdfFilter.FlowDescription); err == nil {
-			spdrInfo.PdrInfo.SdfFilter = &sdfFilterParsed
-		} else {
-			return fmt.Errorf("can't parse SDFFilter: %s", err)
-		}
 	}
 
 	if teidPdiID := findIEindex(pdi, 21); teidPdiID != -1 { // IE Type F-TEID
@@ -68,7 +58,7 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 					}
 				}
 				if allocate {
-					allocatedTeID, err := pdrContext.getFTEID(pdrContext.Session.RemoteSEID, spdrInfo.PdrID)
+					allocatedTeID, err := pdrContext.getFTEID(pdrContext.Session.SEID, spdrInfo.PdrID)
 					if err != nil {
 						return fmt.Errorf("can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
 					}
@@ -120,21 +110,9 @@ func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *e
 		}
 	}
 	if spdrInfo.TeID != 0 {
-		pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.RemoteSEID)
+		pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.SEID)
 	}
 	return nil
-}
-
-func (pdrContext *PDRCreationContext) getFARID(farid uint32) uint32 {
-	return pdrContext.Session.GetFar(farid).GlobalID
-}
-
-func (pdrContext *PDRCreationContext) getQERID(qerid uint32) uint32 {
-	return pdrContext.Session.GetQer(qerid).GlobalID
-}
-
-func (pdrContext *PDRCreationContext) getURRID(urrid uint32) uint32 {
-	return pdrContext.Session.GetUrr(urrid)
 }
 
 func (pdrContext *PDRCreationContext) getFTEID(seID uint64, pdrID uint32) (uint32, error) {

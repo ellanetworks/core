@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/RoaringBitmap/roaring"
 	"github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -34,9 +33,6 @@ type DataNotification struct {
 type BpfObjects struct {
 	N3N6EntrypointObjects
 
-	FarIDTracker     *IDTracker
-	QerIDTracker     *IDTracker
-	UrrIDTracker     *IDTracker
 	Masquerade       bool
 	N3InterfaceIndex uint32
 	N6InterfaceIndex uint32
@@ -88,10 +84,6 @@ func (bpfObjects *BpfObjects) Load() error {
 		}
 		return err
 	}
-
-	bpfObjects.FarIDTracker = NewIDTracker(bpfObjects.N3N6EntrypointMaps.FarMap.MaxEntries())
-	bpfObjects.QerIDTracker = NewIDTracker(bpfObjects.N3N6EntrypointMaps.QerMap.MaxEntries())
-	bpfObjects.UrrIDTracker = NewIDTracker(bpfObjects.N3N6EntrypointMaps.UrrMap.MaxEntries())
 
 	return nil
 }
@@ -169,38 +161,4 @@ func CloseAllObjects(closers ...io.Closer) error {
 		}
 	}
 	return nil
-}
-
-type IDTracker struct {
-	bitmap  *roaring.Bitmap
-	maxSize uint32
-}
-
-func NewIDTracker(size uint32) *IDTracker {
-	newBitmap := roaring.NewBitmap()
-	newBitmap.Flip(0, uint64(size))
-
-	return &IDTracker{
-		bitmap:  newBitmap,
-		maxSize: size,
-	}
-}
-
-func (t *IDTracker) GetNext() (next uint32, err error) {
-	i := t.bitmap.Iterator()
-	if i.HasNext() {
-		next := i.Next()
-		t.bitmap.Remove(next)
-		return next, nil
-	}
-
-	return 0, errors.New("pool is empty")
-}
-
-func (t *IDTracker) Release(id uint32) {
-	if id >= t.maxSize {
-		return
-	}
-
-	t.bitmap.Add(id)
 }

@@ -8,7 +8,6 @@ package context
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/util"
@@ -71,6 +70,11 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 		node.UPF.RemoveQER(qer)
 	}
 
+	urr := node.UpLinkTunnel.PDR.URR
+	if urr != nil {
+		node.UPF.RemoveURR(urr)
+	}
+
 	logger.SmfLog.Info("deactivated UpLinkTunnel PDR ")
 
 	node.DownLinkTunnel = &GTPTunnel{}
@@ -84,7 +88,6 @@ func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 
 	logger.SmfLog.Info("deactivated DownLinkTunnel PDR", zap.Uint16("pdrId", node.DownLinkTunnel.PDR.PDRID))
 
-	// Remove from UPF
 	node.UPF.RemovePDR(node.DownLinkTunnel.PDR)
 
 	if far := node.DownLinkTunnel.PDR.FAR; far != nil {
@@ -94,6 +97,11 @@ func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 	qer := node.DownLinkTunnel.PDR.QER
 	if qer != nil {
 		node.UPF.RemoveQER(qer)
+	}
+
+	urr := node.DownLinkTunnel.PDR.URR
+	if urr != nil {
+		node.UPF.RemoveURR(urr)
 	}
 
 	node.DownLinkTunnel = &GTPTunnel{}
@@ -146,6 +154,10 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) 
 	flowQER := newQER
 
 	return flowQER, nil
+}
+
+func (node *DataPathNode) CreateSessRuleURR(smContext *SMContext) (*URR, error) {
+	return node.UPF.AddURR()
 }
 
 func (node *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER, defURR *URR, defPrecedence uint32) error {
@@ -238,33 +250,19 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence 
 		return fmt.Errorf("could not activate UL/DL Tunnel: %s", err)
 	}
 
-	// Activate PDR
-	// Add flow QER
 	defQER, err := dataPath.DPNode.CreateSessRuleQer(smContext)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create default QER: %v", err)
 	}
 
-	defULURR := &URR{
-		URRID: 1,
-		MeasurementMethods: MeasurementMethods{
-			Volume: true,
-		},
-		ReportingTriggers: ReportingTriggers{
-			PeriodicReporting: true,
-		},
-		MeasurementPeriod: 60 * time.Second,
+	defULURR, err := dataPath.DPNode.CreateSessRuleURR(smContext)
+	if err != nil {
+		return fmt.Errorf("failed to create uplink URR: %v", err)
 	}
 
-	defDLURR := &URR{
-		URRID: 2,
-		MeasurementMethods: MeasurementMethods{
-			Volume: true,
-		},
-		ReportingTriggers: ReportingTriggers{
-			PeriodicReporting: true,
-		},
-		MeasurementPeriod: 60 * time.Second,
+	defDLURR, err := dataPath.DPNode.CreateSessRuleURR(smContext)
+	if err != nil {
+		return fmt.Errorf("failed to create uplink URR: %v", err)
 	}
 
 	// Setup UpLink PDR

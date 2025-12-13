@@ -38,20 +38,23 @@ func (fteidm *FteIDResourceManager) AllocateTEID(seID uint64, pdrID uint32) (uin
 	fteidm.Lock()
 	defer fteidm.Unlock()
 
-	if len(fteidm.freeTEIDs) > 0 {
-		teid := fteidm.freeTEIDs[0]
-		fteidm.freeTEIDs = fteidm.freeTEIDs[1:]
-		if _, ok := fteidm.busyTEIDs[seID]; !ok {
-			pdr := make(map[uint32]uint32)
-			pdr[pdrID] = teid
-			fteidm.busyTEIDs[seID] = pdr
-		} else {
-			fteidm.busyTEIDs[seID][pdrID] = teid
-		}
-		return teid, nil
-	} else {
+	if len(fteidm.freeTEIDs) == 0 {
 		return 0, errors.New("no free TEID available")
 	}
+
+	teid := fteidm.freeTEIDs[0]
+
+	fteidm.freeTEIDs = fteidm.freeTEIDs[1:]
+
+	if _, ok := fteidm.busyTEIDs[seID]; !ok {
+		pdr := make(map[uint32]uint32)
+		pdr[pdrID] = teid
+		fteidm.busyTEIDs[seID] = pdr
+	} else {
+		fteidm.busyTEIDs[seID][pdrID] = teid
+	}
+
+	return teid, nil
 }
 
 func (fteidm *FteIDResourceManager) ReleaseTEID(seID uint64) {

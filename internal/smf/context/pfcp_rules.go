@@ -50,20 +50,6 @@ type PDR struct {
 	Precedence uint32
 }
 
-type SDFFilter struct {
-	FlowDescription         []byte
-	TosTrafficClass         []byte
-	SecurityParameterIndex  []byte
-	FlowLabel               []byte
-	SdfFilterID             uint32
-	LengthOfFlowDescription uint16
-	Bid                     bool
-	Fl                      bool
-	Spi                     bool
-	Ttc                     bool
-	Fd                      bool
-}
-
 type FTEID struct {
 	IPv4Address net.IP
 	IPv6Address net.IP
@@ -112,8 +98,6 @@ type DestinationInterface struct {
 type PDI struct {
 	LocalFTeID      *FTEID
 	UEIPAddress     *UEIPAddress
-	SDFFilter       *SDFFilter
-	ApplicationID   string
 	NetworkInstance string
 	SourceInterface SourceInterface
 }

@@ -5,6 +5,8 @@
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 #include "xdp/utils/pdr.h"
+#include "xdp/utils/trace.h"
+#include "xdp/utils/packet_context.h"
 
 #define URR_MAP_SIZE MAX_PDU_SESSIONS
 
