@@ -30,13 +30,13 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 		spdrInfo.PdrInfo.OuterHeaderRemoval = outerHeaderRemoval
 	}
 	if farid, err := pdr.FARID(); err == nil {
-		spdrInfo.PdrInfo.FarID = pdrContext.getFARID(farid)
+		spdrInfo.PdrInfo.FarID = farid
 	}
 	if qerid, err := pdr.QERID(); err == nil {
-		spdrInfo.PdrInfo.QerID = pdrContext.getQERID(qerid)
+		spdrInfo.PdrInfo.QerID = qerid
 	}
 	if urrid, err := pdr.URRID(); err == nil {
-		spdrInfo.PdrInfo.UrrID = pdrContext.getURRID(urrid)
+		spdrInfo.PdrInfo.UrrID = urrid
 	}
 
 	pdi, err := pdr.PDI()
@@ -123,18 +123,6 @@ func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *e
 		pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.RemoteSEID)
 	}
 	return nil
-}
-
-func (pdrContext *PDRCreationContext) getFARID(farid uint32) uint32 {
-	return pdrContext.Session.GetFar(farid).GlobalID
-}
-
-func (pdrContext *PDRCreationContext) getQERID(qerid uint32) uint32 {
-	return pdrContext.Session.GetQer(qerid).GlobalID
-}
-
-func (pdrContext *PDRCreationContext) getURRID(urrid uint32) uint32 {
-	return pdrContext.Session.GetUrr(urrid)
 }
 
 func (pdrContext *PDRCreationContext) getFTEID(seID uint64, pdrID uint32) (uint32, error) {

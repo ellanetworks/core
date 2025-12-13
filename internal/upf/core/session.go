@@ -11,9 +11,8 @@ type Session struct {
 	LocalSEID  uint64
 	RemoteSEID uint64
 	PDRs       map[uint32]SPDRInfo
-	FARs       map[uint32]SFarInfo
-	QERs       map[uint32]SQerInfo
-	URRs       map[uint32]uint32
+	FARs       map[uint32]ebpf.FarInfo
+	QERs       map[uint32]ebpf.QerInfo
 }
 
 func NewSession(localSEID uint64, remoteSEID uint64) *Session {
@@ -21,9 +20,8 @@ func NewSession(localSEID uint64, remoteSEID uint64) *Session {
 		LocalSEID:  localSEID,
 		RemoteSEID: remoteSEID,
 		PDRs:       map[uint32]SPDRInfo{},
-		FARs:       map[uint32]SFarInfo{},
-		QERs:       map[uint32]SQerInfo{},
-		URRs:       map[uint32]uint32{},
+		FARs:       map[uint32]ebpf.FarInfo{},
+		QERs:       map[uint32]ebpf.QerInfo{},
 	}
 }
 
@@ -36,68 +34,36 @@ type SPDRInfo struct {
 	Allocated bool
 }
 
-type SFarInfo struct {
-	FarInfo  ebpf.FarInfo
-	GlobalID uint32
-}
-
-type SQerInfo struct {
-	QerInfo  ebpf.QerInfo
-	GlobalID uint32
-}
-
-func (s *Session) NewFar(id uint32, internalID uint32, farInfo ebpf.FarInfo) {
-	s.FARs[id] = SFarInfo{
-		FarInfo:  farInfo,
-		GlobalID: internalID,
-	}
+func (s *Session) NewFar(id uint32, farInfo ebpf.FarInfo) {
+	s.FARs[id] = farInfo
 }
 
 func (s *Session) UpdateFar(id uint32, farInfo ebpf.FarInfo) {
-	sFarInfo := s.FARs[id]
-	sFarInfo.FarInfo = farInfo
-	s.FARs[id] = sFarInfo
+	s.FARs[id] = farInfo
 }
 
-func (s *Session) GetFar(id uint32) SFarInfo {
+func (s *Session) GetFar(id uint32) ebpf.FarInfo {
 	return s.FARs[id]
 }
 
-func (s *Session) RemoveFar(id uint32) SFarInfo {
-	sFarInfo := s.FARs[id]
+func (s *Session) RemoveFar(id uint32) {
 	delete(s.FARs, id)
-	return sFarInfo
 }
 
-func (s *Session) NewQer(id uint32, internalID uint32, qerInfo ebpf.QerInfo) {
-	s.QERs[id] = SQerInfo{
-		QerInfo:  qerInfo,
-		GlobalID: internalID,
-	}
+func (s *Session) NewQer(id uint32, qerInfo ebpf.QerInfo) {
+	s.QERs[id] = qerInfo
 }
 
 func (s *Session) UpdateQer(id uint32, qerInfo ebpf.QerInfo) {
-	sQerInfo := s.QERs[id]
-	sQerInfo.QerInfo = qerInfo
-	s.QERs[id] = sQerInfo
+	s.QERs[id] = qerInfo
 }
 
-func (s *Session) GetQer(id uint32) SQerInfo {
+func (s *Session) GetQer(id uint32) ebpf.QerInfo {
 	return s.QERs[id]
 }
 
-func (s *Session) RemoveQer(id uint32) SQerInfo {
-	sQerInfo := s.QERs[id]
+func (s *Session) RemoveQer(id uint32) {
 	delete(s.QERs, id)
-	return sQerInfo
-}
-
-func (s *Session) NewUrr(id uint32, internalID uint32) {
-	s.URRs[id] = internalID
-}
-
-func (s *Session) GetUrr(id uint32) uint32 {
-	return s.URRs[id]
 }
 
 func (s *Session) PutPDR(id uint32, info SPDRInfo) {
