@@ -147,7 +147,12 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 			}
 
 			session.PutPDR(spdrInfo.PdrID, spdrInfo)
-			applyPDR(spdrInfo, bpfObjects)
+
+			err = applyPDR(spdrInfo, bpfObjects)
+			if err != nil {
+				return fmt.Errorf("couldn't apply PDR: %s", err.Error())
+			}
+
 			logger.UpfLog.Info("Applied packet detection rule", zap.Uint32("pdrID", spdrInfo.PdrID))
 			createdPDRs = append(createdPDRs, spdrInfo)
 			bpfObjects.ClearNotified(seid, pdrID, session.GetQer(spdrInfo.PdrInfo.QerID).Qfi)
@@ -421,7 +426,12 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			}
 
 			session.PutPDR(spdrInfo.PdrID, spdrInfo)
-			applyPDR(spdrInfo, bpfObjects)
+
+			err = applyPDR(spdrInfo, bpfObjects)
+			if err != nil {
+				return fmt.Errorf("couldn't apply PDR: %s", err.Error())
+			}
+
 			createdPDRs = append(createdPDRs, spdrInfo)
 			bpfObjects.ClearNotified(msg.SEID(), pdrID, session.GetQer(spdrInfo.PdrInfo.QerID).Qfi)
 		}
@@ -440,7 +450,12 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			}
 
 			session.PutPDR(uint32(pdrID), spdrInfo)
-			applyPDR(spdrInfo, bpfObjects)
+
+			err = applyPDR(spdrInfo, bpfObjects)
+			if err != nil {
+				return fmt.Errorf("couldn't apply PDR: %s", err.Error())
+			}
+
 			bpfObjects.ClearNotified(msg.SEID(), pdrID, session.GetQer(spdrInfo.PdrInfo.QerID).Qfi)
 		}
 

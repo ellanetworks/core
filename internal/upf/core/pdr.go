@@ -2,30 +2,35 @@
 package core
 
 import (
+	"fmt"
 	"net"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/wmnsk/go-pfcp/ie"
-	"go.uber.org/zap"
 )
 
 const flagPresentIPv4 = 2
 
-func applyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) {
+func applyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
 	if spdrInfo.Ipv4 != nil {
 		if err := bpfObjects.PutPdrDownlink(spdrInfo.Ipv4, spdrInfo.PdrInfo); err != nil {
-			logger.UpfLog.Info("Can't apply IPv4 PDR", zap.Error(err))
+			return fmt.Errorf("can't apply IPv4 PDR: %w", err)
 		}
-	} else if spdrInfo.Ipv6 != nil {
-		if err := bpfObjects.PutDownlinkPdrIP6(spdrInfo.Ipv6, spdrInfo.PdrInfo); err != nil {
-			logger.UpfLog.Info("Can't apply IPv6 PDR", zap.Error(err))
-		}
-	} else {
-		if err := bpfObjects.PutPdrUplink(spdrInfo.TeID, spdrInfo.PdrInfo); err != nil {
-			logger.UpfLog.Info("Can't apply GTP PDR", zap.Error(err))
-		}
+		return nil
 	}
+
+	if spdrInfo.Ipv6 != nil {
+		if err := bpfObjects.PutDownlinkPdrIP6(spdrInfo.Ipv6, spdrInfo.PdrInfo); err != nil {
+			return fmt.Errorf("can't apply IPv6 PDR: %w", err)
+		}
+		return nil
+	}
+
+	if err := bpfObjects.PutPdrUplink(spdrInfo.TeID, spdrInfo.PdrInfo); err != nil {
+		return fmt.Errorf("can't apply GTP PDR: %w", err)
+	}
+
+	return nil
 }
 
 func processCreatedPDRs(createdPDRs []SPDRInfo, n3Address net.IP) []*ie.IE {

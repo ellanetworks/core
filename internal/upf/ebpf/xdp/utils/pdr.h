@@ -20,8 +20,6 @@
 #include <bpf/bpf_helpers.h>
 #include <linux/ipv6.h>
 
-#include "xdp/utils/sdf_filter.h"
-
 #define MAX_UES 1000
 #define MAX_PDU_SESSIONS (15 * MAX_UES)
 #define PDR_MAP_UPLINK_SIZE MAX_PDU_SESSIONS
