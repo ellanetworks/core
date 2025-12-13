@@ -11,8 +11,7 @@ import (
 var connection *PfcpConnection
 
 type PfcpConnection struct {
-	SmfNodeAssociation   *NodeAssociation
-	SmfAddress           string
+	Sessions             map[uint64]*Session
 	nodeID               string
 	nodeAddrV4           net.IP
 	n3Address            net.IP
@@ -33,7 +32,7 @@ func (pc *PfcpConnection) SetAdvertisedN3Address(newN3Addr net.IP) {
 	pc.advertisedN3Address = newN3Addr
 }
 
-func CreatePfcpConnection(addr string, nodeID string, n3Ip string, advertisedN3Ip string, smfAddress string, bpfObjects *ebpf.BpfObjects, resourceManager *FteIDResourceManager) (*PfcpConnection, error) {
+func CreatePfcpConnection(addr string, nodeID string, n3Ip string, advertisedN3Ip string, bpfObjects *ebpf.BpfObjects, resourceManager *FteIDResourceManager) (*PfcpConnection, error) {
 	addrV4 := net.ParseIP(addr)
 	if addrV4 == nil {
 		return nil, fmt.Errorf("failed to parse IP address ID: %s", addr)
@@ -50,13 +49,13 @@ func CreatePfcpConnection(addr string, nodeID string, n3Ip string, advertisedN3I
 	}
 
 	connection = &PfcpConnection{
+		Sessions:             make(map[uint64]*Session),
 		nodeID:               nodeID,
 		nodeAddrV4:           addrV4,
 		n3Address:            n3Addr,
 		advertisedN3Address:  advertisedN3Addr,
 		bpfObjects:           bpfObjects,
 		FteIDResourceManager: resourceManager,
-		SmfAddress:           smfAddress,
 	}
 
 	return connection, nil

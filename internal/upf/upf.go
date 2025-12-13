@@ -29,8 +29,6 @@ import (
 
 const (
 	PfcpAddress      = "0.0.0.0"
-	SmfAddress       = "0.0.0.0"
-	SmfNodeID        = "0.0.0.0"
 	PfcpNodeID       = "0.0.0.0"
 	FTEIDPool        = 65535
 	ConnTrackTimeout = 10 * time.Minute
@@ -117,13 +115,10 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 		return nil, fmt.Errorf("failed to create Resource Manager: %w", err)
 	}
 
-	pfcpConn, err := core.CreatePfcpConnection(PfcpAddress, PfcpNodeID, n3Address, advertisedN3Address, SmfAddress, bpfObjects, resourceManager)
+	pfcpConn, err := core.CreatePfcpConnection(PfcpAddress, PfcpNodeID, n3Address, advertisedN3Address, bpfObjects, resourceManager)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PFCP connection: %w", err)
 	}
-
-	remoteNode := core.NewNodeAssociation(SmfNodeID, SmfAddress)
-	pfcpConn.SmfNodeAssociation = remoteNode
 
 	ForwardPlaneStats := &ebpf.UpfXdpActionStatistic{
 		BpfObjects: bpfObjects,
@@ -364,17 +359,11 @@ func (u *UPF) pollUsageAndResetCounters() error {
 		return fmt.Errorf("PFCP connection is nil")
 	}
 
-	if u.pfcpConn.SmfNodeAssociation == nil {
-		return fmt.Errorf("SMF node association is nil")
-	}
-
-	if u.pfcpConn.SmfNodeAssociation.Sessions == nil {
+	if u.pfcpConn.Sessions == nil {
 		return fmt.Errorf("SMF node association sessions is nil")
 	}
 
-	sessions := u.pfcpConn.SmfNodeAssociation.Sessions
-
-	for localSeid, session := range sessions {
+	for localSeid, session := range u.pfcpConn.Sessions {
 		for _, pdr := range session.PDRs {
 			urrID := pdr.PdrInfo.UrrID
 			if urrID == 0 {

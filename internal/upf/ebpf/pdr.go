@@ -17,7 +17,7 @@ import (
 // The BPF_ARRAY map type has no delete operation. The only way to delete an element is to replace it with a new one.
 
 type PdrInfo struct {
-	LocalSEID          uint64
+	SEID               uint64
 	OuterHeaderRemoval uint8
 	PdrID              uint32
 	FarID              uint32
@@ -235,7 +235,7 @@ func CombineN3N6PdrWithSdf(defaultPdr *N3N6EntrypointPdrInfo, sdfPdr PdrInfo) N3
 
 func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 	var pdrToStore N3N6EntrypointPdrInfo
-	pdrToStore.LocalSeid = defaultPdr.LocalSEID
+	pdrToStore.LocalSeid = defaultPdr.SEID
 	pdrToStore.OuterHeaderRemoval = defaultPdr.OuterHeaderRemoval
 	pdrToStore.PdrId = defaultPdr.PdrID
 	pdrToStore.FarId = defaultPdr.FarID

@@ -68,7 +68,7 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 					}
 				}
 				if allocate {
-					allocatedTeID, err := pdrContext.getFTEID(pdrContext.Session.RemoteSEID, spdrInfo.PdrID)
+					allocatedTeID, err := pdrContext.getFTEID(pdrContext.Session.SEID, spdrInfo.PdrID)
 					if err != nil {
 						return fmt.Errorf("can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
 					}
@@ -120,7 +120,7 @@ func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *e
 		}
 	}
 	if spdrInfo.TeID != 0 {
-		pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.RemoteSEID)
+		pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.SEID)
 	}
 	return nil
 }

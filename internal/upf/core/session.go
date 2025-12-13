@@ -8,20 +8,18 @@ import (
 )
 
 type Session struct {
-	LocalSEID  uint64
-	RemoteSEID uint64
-	PDRs       map[uint32]SPDRInfo
-	FARs       map[uint32]ebpf.FarInfo
-	QERs       map[uint32]ebpf.QerInfo
+	SEID uint64
+	PDRs map[uint32]SPDRInfo
+	FARs map[uint32]ebpf.FarInfo
+	QERs map[uint32]ebpf.QerInfo
 }
 
-func NewSession(localSEID uint64, remoteSEID uint64) *Session {
+func NewSession(seid uint64) *Session {
 	return &Session{
-		LocalSEID:  localSEID,
-		RemoteSEID: remoteSEID,
-		PDRs:       map[uint32]SPDRInfo{},
-		FARs:       map[uint32]ebpf.FarInfo{},
-		QERs:       map[uint32]ebpf.QerInfo{},
+		SEID: seid,
+		PDRs: map[uint32]SPDRInfo{},
+		FARs: map[uint32]ebpf.FarInfo{},
+		QERs: map[uint32]ebpf.QerInfo{},
 	}
 }
 

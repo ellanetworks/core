@@ -30,11 +30,13 @@ func getUsageReportSeqNumber() uint32 {
 
 func SendPfcpSessionReportRequestForDownlinkData(ctx context.Context, localSeid uint64, pdrid uint16, qfi uint8) error {
 	conn := GetConnection()
-	session, ok := conn.SmfNodeAssociation.Sessions[localSeid]
+
+	session, ok := conn.Sessions[localSeid]
 	if !ok {
 		return fmt.Errorf("failed to find session with localSeid: %d", localSeid)
 	}
-	pfcpMsg, err := BuildPfcpSessionReportRequestForDownlinkData(session.RemoteSEID, getSeqNumber(), pdrid, qfi)
+
+	pfcpMsg, err := BuildPfcpSessionReportRequestForDownlinkData(session.SEID, getSeqNumber(), pdrid, qfi)
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Report Request: %v", err)
 	}
@@ -51,11 +53,13 @@ func SendPfcpSessionReportRequestForDownlinkData(ctx context.Context, localSeid 
 
 func SendPfcpSessionReportRequestForUsage(ctx context.Context, localSeid uint64, urrid uint32, uvol uint64, dvol uint64) error {
 	conn := GetConnection()
-	session, ok := conn.SmfNodeAssociation.Sessions[localSeid]
+
+	session, ok := conn.Sessions[localSeid]
 	if !ok {
 		return fmt.Errorf("failed to find session with localSeid: %d", localSeid)
 	}
-	pfcpMsg, err := BuildPfcpSessionReportRequestForUsage(session.RemoteSEID, getSeqNumber(), urrid, getUsageReportSeqNumber(), uvol, dvol)
+
+	pfcpMsg, err := BuildPfcpSessionReportRequestForUsage(session.SEID, getSeqNumber(), urrid, getUsageReportSeqNumber(), uvol, dvol)
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Report Request: %v", err)
 	}
