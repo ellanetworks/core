@@ -62,7 +62,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 
 	err = func() error {
-		bpfObjects := conn.bpfObjects
+		bpfObjects := conn.BpfObjects
 		for _, far := range msg.CreateFAR {
 			farInfo, err := composeFarInfo(far, conn.n3Address.To4(), ebpf.FarInfo{})
 			if err != nil {
@@ -192,7 +192,7 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 		return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseSessionContextNotFound)), nil
 	}
 
-	bpfObjects := conn.bpfObjects
+	bpfObjects := conn.BpfObjects
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 	for _, pdrInfo := range session.PDRs {
 		if err := pdrContext.deletePDR(pdrInfo, bpfObjects); err != nil {
@@ -249,7 +249,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 
 	err := func() error {
-		bpfObjects := conn.bpfObjects
+		bpfObjects := conn.BpfObjects
 
 		for _, far := range msg.CreateFAR {
 			farInfo, err := composeFarInfo(far, conn.n3Address.To4(), ebpf.FarInfo{})

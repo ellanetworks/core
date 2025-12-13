@@ -35,7 +35,6 @@ const (
 )
 
 type UPF struct {
-	bpfObjects         *ebpf.BpfObjects
 	n3Link             link.Link
 	n6Link             *link.Link
 	pfcpConn           *core.PfcpConnection
@@ -137,7 +136,6 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 	}
 
 	upf := &UPF{
-		bpfObjects:         bpfObjects,
 		n3Link:             n3Link,
 		n6Link:             n6Link,
 		pfcpConn:           pfcpConn,
@@ -171,7 +169,7 @@ func (u *UPF) Close() {
 	if err := u.n3Link.Close(); err != nil {
 		logger.UpfLog.Warn("Failed to detach eBPF from n3", zap.Error(err))
 	}
-	if err := u.bpfObjects.Close(); err != nil {
+	if err := u.pfcpConn.BpfObjects.Close(); err != nil {
 		logger.UpfLog.Warn("Failed to close BPF objects", zap.Error(err))
 	}
 	if err := u.notificationReader.Close(); err != nil {
@@ -188,19 +186,19 @@ func (u *UPF) UpdateAdvertisedN3Address(newN3Addr net.IP) {
 }
 
 func (u *UPF) Reload(masquerade bool) error {
-	u.bpfObjects.Masquerade = masquerade
+	u.pfcpConn.BpfObjects.Masquerade = masquerade
 
-	err := u.bpfObjects.Load()
+	err := u.pfcpConn.BpfObjects.Load()
 	if err != nil {
 		return fmt.Errorf("couldn't load BPF objects: %w", err)
 	}
 
-	if err := u.n3Link.Update(u.bpfObjects.UpfN3N6EntrypointFunc); err != nil {
+	if err := u.n3Link.Update(u.pfcpConn.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
 		return err
 	}
 
 	if u.n6Link != nil {
-		if err := (*u.n6Link).Update(u.bpfObjects.UpfN3N6EntrypointFunc); err != nil {
+		if err := (*u.n6Link).Update(u.pfcpConn.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
 			return err
 		}
 	}
@@ -269,7 +267,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
 		expiryThreshold := nsSinceBoot - ConnTrackTimeout.Nanoseconds()
 
-		ct_entries := u.bpfObjects.N3N6EntrypointMaps.NatCt.Iterate()
+		ct_entries := u.pfcpConn.BpfObjects.N3N6EntrypointMaps.NatCt.Iterate()
 		for ct_entries.Next(&key, &value) {
 			if value.RefreshTs < uint64(expiryThreshold) {
 				expiredKeys = append(expiredKeys, key)
@@ -279,7 +277,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 			logger.UpfLog.Debug("Error while iterating over conntrack entries", zap.Error(err))
 		}
 
-		count, err := u.bpfObjects.N3N6EntrypointMaps.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
+		count, err := u.pfcpConn.BpfObjects.N3N6EntrypointMaps.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
 		if err != nil {
 			logger.UpfLog.Warn("Failed to delete expired conntrack entries", zap.Error(err))
 		}
@@ -301,13 +299,13 @@ func (u *UPF) listenForTrafficNotifications() {
 			continue
 		}
 		logger.UpfLog.Debug("Received notification for", zap.Uint64("SEID", event.LocalSEID), zap.Uint16("PDRID", event.PdrID), zap.Uint8("QFI", event.QFI))
-		if !u.bpfObjects.IsAlreadyNotified(event) {
+		if !u.pfcpConn.BpfObjects.IsAlreadyNotified(event) {
 			logger.UpfLog.Debug("Notifying SMF of downlink data", zap.Uint64("SEID", event.LocalSEID), zap.Uint16("PDRID", event.PdrID), zap.Uint8("QFI", event.QFI))
 			err = core.SendPfcpSessionReportRequestForDownlinkData(context.TODO(), event.LocalSEID, event.PdrID, event.QFI)
 			if err != nil {
 				logger.UpfLog.Warn("Failed to send downlink data notification", zap.Error(err))
 			} else {
-				u.bpfObjects.MarkNotified(event)
+				u.pfcpConn.BpfObjects.MarkNotified(event)
 			}
 		}
 	}
@@ -337,12 +335,12 @@ func (u *UPF) getAndResetUsageForURR(urrID uint32) (uint64, error) {
 	ncpu := runtime.NumCPU()
 	zeroes := make([]uint64, ncpu)
 
-	err := u.bpfObjects.N3N6EntrypointMaps.UrrMap.Lookup(&urrID, &perCPU)
+	err := u.pfcpConn.BpfObjects.N3N6EntrypointMaps.UrrMap.Lookup(&urrID, &perCPU)
 	if err != nil {
 		return 0, fmt.Errorf("failed to lookup URR: %w", err)
 	}
 
-	err = u.bpfObjects.N3N6EntrypointMaps.UrrMap.Update(&urrID, zeroes, bpf.UpdateAny)
+	err = u.pfcpConn.BpfObjects.N3N6EntrypointMaps.UrrMap.Update(&urrID, zeroes, bpf.UpdateAny)
 	if err != nil {
 		return 0, fmt.Errorf("failed to reset URR: %w", err)
 	}

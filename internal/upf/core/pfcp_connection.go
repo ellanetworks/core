@@ -16,12 +16,12 @@ type PfcpConnection struct {
 	nodeAddrV4           net.IP
 	n3Address            net.IP
 	advertisedN3Address  net.IP
-	bpfObjects           *ebpf.BpfObjects
+	BpfObjects           *ebpf.BpfObjects
 	FteIDResourceManager *FteIDResourceManager
 }
 
 func (pc *PfcpConnection) SetBPFObjects(bpfObjects *ebpf.BpfObjects) {
-	pc.bpfObjects = bpfObjects
+	pc.BpfObjects = bpfObjects
 }
 
 func (pc *PfcpConnection) GetAdvertisedN3Address() net.IP {
@@ -54,7 +54,7 @@ func CreatePfcpConnection(addr string, nodeID string, n3Ip string, advertisedN3I
 		nodeAddrV4:           addrV4,
 		n3Address:            n3Addr,
 		advertisedN3Address:  advertisedN3Addr,
-		bpfObjects:           bpfObjects,
+		BpfObjects:           bpfObjects,
 		FteIDResourceManager: resourceManager,
 	}
 
