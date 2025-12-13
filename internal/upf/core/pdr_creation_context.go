@@ -44,16 +44,6 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 		return fmt.Errorf("PDI IE is missing: %s", err)
 	}
 
-	if sdfFilter, err := pdr.SDFFilter(); err == nil {
-		if sdfFilter.FlowDescription == "" {
-			logger.UpfLog.Warn("SDFFilter is empty")
-		} else if sdfFilterParsed, err := ParseSdfFilter(sdfFilter.FlowDescription); err == nil {
-			spdrInfo.PdrInfo.SdfFilter = &sdfFilterParsed
-		} else {
-			return fmt.Errorf("can't parse SDFFilter: %s", err)
-		}
-	}
-
 	if teidPdiID := findIEindex(pdi, 21); teidPdiID != -1 { // IE Type F-TEID
 		if fteid, err := pdi[teidPdiID].FTEID(); err == nil {
 			teid := fteid.TEID

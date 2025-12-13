@@ -29,7 +29,6 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 			fields: fields{
 				Session:              nil,
 				FteIDResourceManager: nil,
-				// TEEIDCache: nil,
 			},
 			args: args{
 				pdr: ie.NewCreatePDR(
@@ -37,7 +36,6 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 					ie.NewPDI(
 						ie.NewSourceInterface(ie.SrcInterfaceCore),
 						ie.NewUEIPAddress(2, "192.168.0.1", "", 0, 0),
-						ie.NewSDFFilter("", "ttc", "", "", 0),
 					),
 				),
 				spdrInfo: &core.SPDRInfo{},
@@ -49,7 +47,6 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 			fields: fields{
 				Session:              nil,
 				FteIDResourceManager: nil,
-				// TEEIDCache: nil,
 			},
 			args: args{
 				pdr: ie.NewCreatePDR(
@@ -57,7 +54,6 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 					ie.NewPDI(
 						ie.NewSourceInterface(ie.SrcInterfaceCore),
 						ie.NewUEIPAddress(2, "192.168.0.1", "", 0, 0),
-						ie.NewSDFFilter("", "", "", "", 4096),
 					),
 				),
 				spdrInfo: &core.SPDRInfo{},
@@ -65,31 +61,10 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "invalidFlowDescription",
-			fields: fields{
-				Session:              nil,
-				FteIDResourceManager: nil,
-				// TEEIDCache: nil,
-			},
-			args: args{
-				pdr: ie.NewCreatePDR(
-					ie.NewPDRID(2),
-					ie.NewPDI(
-						ie.NewSourceInterface(ie.SrcInterfaceCore),
-						ie.NewUEIPAddress(2, "192.168.0.1", "", 0, 0),
-						ie.NewSDFFilter("123", "", "", "", 4096),
-					),
-				),
-				spdrInfo: &core.SPDRInfo{},
-			},
-			wantErr: true,
-		},
-		{
 			name: "validFlowDescription",
 			fields: fields{
 				Session:              nil,
 				FteIDResourceManager: nil,
-				// TEEIDCache: nil,
 			},
 			args: args{
 				pdr: ie.NewCreatePDR(
@@ -97,7 +72,6 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 					ie.NewPDI(
 						ie.NewSourceInterface(ie.SrcInterfaceCore),
 						ie.NewUEIPAddress(2, "192.168.0.1", "", 0, 0),
-						ie.NewSDFFilter("permit out ip from 10.62.0.1 to 8.8.8.8/32", "", "", "", 0),
 					),
 				),
 				spdrInfo: &core.SPDRInfo{},
