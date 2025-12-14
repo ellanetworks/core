@@ -320,7 +320,7 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 					return fmt.Errorf("service Request triggered by Network for pduSessionID that does not exist")
 				}
 
-				if smInfo.NgapIeType == models.NgapIeTypePduResSetupReq {
+				if smInfo.NgapIeType == models.N2SmInfoTypePduResSetupReq {
 					var nasPdu []byte
 					if n1Msg != nil {
 						pduSessionID := uint8(smInfo.PduSessionID)

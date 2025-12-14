@@ -213,7 +213,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 				return fmt.Errorf("pdu Session Id does not Exists")
 			}
 
-			if smInfo.NgapIeType == models.NgapIeTypePduResSetupReq {
+			if smInfo.NgapIeType == models.N2SmInfoTypePduResSetupReq {
 				var nasPdu []byte
 				var err error
 				if n1Msg != nil {

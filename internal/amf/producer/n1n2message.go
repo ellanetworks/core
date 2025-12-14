@@ -119,7 +119,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, supi string, n1n2MessageTran
 		if n2Info != nil {
 			smInfo := requestData.N2InfoContainer.SmInfo
 			switch smInfo.NgapIeType {
-			case models.NgapIeTypePduResSetupReq:
+			case models.N2SmInfoTypePduResSetupReq:
 				ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 				if ue.RanUe.SentInitialContextSetupRequest {
 					list := ngapType.PDUSessionResourceSetupListSUReq{}
@@ -145,7 +145,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, supi string, n1n2MessageTran
 				}
 				// context.StoreContextInDB(ue)
 				return nil
-			case models.NgapIeTypePduResModReq:
+			case models.N2SmInfoTypePduResModReq:
 				ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Modify Request from SMF")
 				list := ngapType.PDUSessionResourceModifyListModReq{}
 				ngap_message.AppendPDUSessionResourceModifyListModReq(&list, smInfo.PduSessionID, nasPdu, n2Info)
@@ -156,7 +156,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, supi string, n1n2MessageTran
 				ue.Log.Info("sent pdu session resource modify request to UE")
 				// context.StoreContextInDB(ue)
 				return nil
-			case models.NgapIeTypePduResRelCmd:
+			case models.N2SmInfoTypePduResRelCmd:
 				ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 				list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 				ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, smInfo.PduSessionID, n2Info)
@@ -176,7 +176,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, supi string, n1n2MessageTran
 	// UE is CM-IDLE
 
 	// 409: transfer a N2 PDU Session Resource Release Command to a 5G-AN and if the UE is in CM-IDLE
-	if n2Info != nil && requestData.N2InfoContainer.SmInfo.NgapIeType == models.NgapIeTypePduResRelCmd {
+	if n2Info != nil && requestData.N2InfoContainer.SmInfo.NgapIeType == models.N2SmInfoTypePduResRelCmd {
 		return fmt.Errorf("ue in cm idle state")
 	}
 	// 504: the UE in MICO mode or the UE is only registered over Non-3GPP access and its state is CM-IDLE

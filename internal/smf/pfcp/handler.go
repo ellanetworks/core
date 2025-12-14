@@ -59,7 +59,7 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 			N2InformationClass: models.N2InformationClassSM,
 			SmInfo: &models.N2SmInformation{
 				PduSessionID: smContext.PDUSessionID,
-				NgapIeType:   models.NgapIeTypePduResSetupReq,
+				NgapIeType:   models.N2SmInfoTypePduResSetupReq,
 				SNssai:       smContext.Snssai,
 			},
 		}

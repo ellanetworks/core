@@ -105,8 +105,7 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 			transfer := item.HandoverRequestAcknowledgeTransfer
 			pduSessionIDInt32 := int32(pduSessionID)
 			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDInt32); exist {
-				response, err := consumer.SendUpdateSmContextN2HandoverPrepared(ctx, amfUe,
-					smContext, models.N2SmInfoTypeHandoverReqAck, transfer)
+				response, err := consumer.SendUpdateSmContextN2HandoverPrepared(ctx, amfUe, smContext, models.N2SmInfoTypeHandoverReqAck, transfer)
 				if err != nil {
 					targetUe.Log.Error("Send HandoverRequestAcknowledgeTransfer error", zap.Error(err))
 				}
@@ -127,8 +126,7 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 			transfer := item.HandoverResourceAllocationUnsuccessfulTransfer
 			pduSessionIDInt32 := int32(pduSessionID)
 			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDInt32); exist {
-				_, err := consumer.SendUpdateSmContextN2HandoverPrepared(ctx, amfUe, smContext,
-					models.N2SmInfoTypeHandoverResAllocFail, transfer)
+				_, err := consumer.SendUpdateSmContextN2HandoverPrepared(ctx, amfUe, smContext, models.N2SmInfoTypeHandoverResAllocFail, transfer)
 				if err != nil {
 					targetUe.Log.Error("Send HandoverResourceAllocationUnsuccessfulTransfer error", zap.Error(err))
 				}
