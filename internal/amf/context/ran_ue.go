@@ -44,10 +44,8 @@ type RanUe struct {
 	TargetUe                         *RanUe
 	Tai                              models.Tai
 	Location                         models.UserLocation
-	SupportedFeatures                string
 	AmfUe                            *AmfUe
 	Ran                              *AmfRan
-	Trsr                             string /* Trace Recording Session Reference */
 	ReleaseAction                    RelAction
 	RRCEstablishmentCause            string // Received from initial ue message; pattern: ^[0-9a-fA-F]+$
 	UeContextRequest                 bool

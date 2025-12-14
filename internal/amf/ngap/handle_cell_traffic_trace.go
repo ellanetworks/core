@@ -109,10 +109,10 @@ func HandleCellTrafficTrace(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 	ranUe.Ran = ran
 	ranUe.Log.Debug("Handle Cell Traffic Trace", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
 
-	ranUe.Trsr = hex.EncodeToString(nGRANTraceID.Value[6:])
+	trsr := hex.EncodeToString(nGRANTraceID.Value[6:])
 
 	// ranUe.Log.Debugf("TRSR[%s]", ranUe.Trsr)
-	ranUe.Log.Debug("Cell Traffic Trace", zap.String("TRSR", ranUe.Trsr))
+	ranUe.Log.Debug("Cell Traffic Trace", zap.String("TRSR", trsr))
 
 	switch nGRANCGI.Present {
 	case ngapType.NGRANCGIPresentNRCGI:
