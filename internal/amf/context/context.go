@@ -173,10 +173,6 @@ func (context *AMFContext) NewAmfUe(ctx context.Context, supi string) *AmfUe {
 	return &ue
 }
 
-func (context *AMFContext) AmfUeFindByUeContextID(ueContextID string) (*AmfUe, bool) {
-	return context.AmfUeFindBySupi(ueContextID)
-}
-
 func (context *AMFContext) AmfUeFindBySupi(supi string) (*AmfUe, bool) {
 	context.Mutex.Lock()
 	defer context.Mutex.Unlock()

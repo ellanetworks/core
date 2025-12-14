@@ -77,8 +77,8 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 			n1n2Request.JSONData.N2InfoContainer = &n2InfoContainer
 		}
 
-		cause, err := amf_producer.CreateN1N2MessageTransfer(ctx, smContext.Supi, n1n2Request)
-		if err != nil || cause == models.N1N2MessageTransferCauseN1MsgNotTransferred {
+		err := amf_producer.N1N2MessageTransferProcedure(ctx, smContext.Supi, n1n2Request)
+		if err != nil {
 			return message.NewSessionReportResponse(
 				1,
 				0,
