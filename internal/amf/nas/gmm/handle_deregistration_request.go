@@ -40,7 +40,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue
 	for _, smContext := range ue.SmContextList {
 		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 		if err != nil {
-			ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
+			ue.Log.Error("Release SmContext Error", zap.Error(err))
 		}
 	}
 
@@ -50,7 +50,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue
 		if err != nil {
 			return fmt.Errorf("error sending deregistration accept: %v", err)
 		}
-		ue.GmmLog.Info("sent deregistration accept")
+		ue.Log.Info("sent deregistration accept")
 	}
 
 	// TS 23.502 4.2.6, 4.12.3

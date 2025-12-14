@@ -101,7 +101,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 	if requestData.N2InfoContainer != nil {
 		switch requestData.N2InfoContainer.N2InformationClass {
 		case models.N2InformationClassSM:
-			ue.ProducerLog.Debug("Receive N2 SM Message", zap.Int32("PDUSessionID", requestData.PduSessionID))
+			ue.Log.Debug("Receive N2 SM Message", zap.Int32("PDUSessionID", requestData.PduSessionID))
 			if smContext == nil {
 				_, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 				if !ok {
@@ -140,12 +140,12 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 				return "", fmt.Errorf("build DL NAS Transport error: %v", err)
 			}
 			if n2Info == nil {
-				ue.ProducerLog.Debug("Forward N1 Message to UE")
+				ue.Log.Debug("Forward N1 Message to UE")
 				err := ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe, nasPdu, nil)
 				if err != nil {
 					return "", fmt.Errorf("send downlink nas transport error: %v", err)
 				}
-				ue.ProducerLog.Info("sent downlink nas transport to UE")
+				ue.Log.Info("sent downlink nas transport to UE")
 				return models.N1N2MessageTransferCauseN1N2TransferInitiated, nil
 			}
 		}
@@ -154,7 +154,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 			smInfo := requestData.N2InfoContainer.SmInfo
 			switch smInfo.NgapIeType {
 			case models.NgapIeTypePduResSetupReq:
-				ue.ProducerLog.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
+				ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 				if ue.RanUe.SentInitialContextSetupRequest {
 					list := ngapType.PDUSessionResourceSetupListSUReq{}
 					ngap_message.AppendPDUSessionResourceSetupListSUReq(&list, smInfo.PduSessionID, smInfo.SNssai, nasPdu, n2Info)
@@ -162,7 +162,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 					if err != nil {
 						return "", fmt.Errorf("send pdu session resource setup request error: %v", err)
 					}
-					ue.ProducerLog.Info("Sent NGAP pdu session resource setup request to UE")
+					ue.Log.Info("Sent NGAP pdu session resource setup request to UE")
 				} else {
 					operatorInfo, err := context.GetOperatorInfo(ctx)
 					if err != nil {
@@ -174,31 +174,31 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, n1n2Mess
 					if err != nil {
 						return "", fmt.Errorf("send initial context setup request error: %v", err)
 					}
-					ue.ProducerLog.Info("Sent NGAP initial context setup request to UE")
+					ue.Log.Info("Sent NGAP initial context setup request to UE")
 					ue.RanUe.SentInitialContextSetupRequest = true
 				}
 				// context.StoreContextInDB(ue)
 				return models.N1N2MessageTransferCauseN1N2TransferInitiated, nil
 			case models.NgapIeTypePduResModReq:
-				ue.ProducerLog.Debug("AMF Transfer NGAP PDU Session Resource Modify Request from SMF")
+				ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Modify Request from SMF")
 				list := ngapType.PDUSessionResourceModifyListModReq{}
 				ngap_message.AppendPDUSessionResourceModifyListModReq(&list, smInfo.PduSessionID, nasPdu, n2Info)
 				err := ngap_message.SendPDUSessionResourceModifyRequest(ctx, ue.RanUe, list)
 				if err != nil {
 					return "", fmt.Errorf("send pdu session resource modify request error: %v", err)
 				}
-				ue.ProducerLog.Info("sent pdu session resource modify request to UE")
+				ue.Log.Info("sent pdu session resource modify request to UE")
 				// context.StoreContextInDB(ue)
 				return models.N1N2MessageTransferCauseN1N2TransferInitiated, nil
 			case models.NgapIeTypePduResRelCmd:
-				ue.ProducerLog.Debug("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
+				ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 				list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 				ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, smInfo.PduSessionID, n2Info)
 				err := ngap_message.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe, nasPdu, list)
 				if err != nil {
 					return "", fmt.Errorf("send pdu session resource release command error: %v", err)
 				}
-				ue.ProducerLog.Info("sent pdu session resource release command to UE")
+				ue.Log.Info("sent pdu session resource release command to UE")
 				// context.StoreContextInDB(ue)
 				return models.N1N2MessageTransferCauseN1N2TransferInitiated, nil
 			default:

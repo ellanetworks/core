@@ -55,14 +55,14 @@ func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.
 	hResStar := hex.EncodeToString(hResStarBytes[16:])
 
 	if hResStar != ue.AuthenticationCtx.HxresStar {
-		ue.GmmLog.Error("HRES* Validation Failure", zap.String("received", hResStar), zap.String("expected", ue.AuthenticationCtx.HxresStar))
+		ue.Log.Error("HRES* Validation Failure", zap.String("received", hResStar), zap.String("expected", ue.AuthenticationCtx.HxresStar))
 
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 			err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
 			if err != nil {
 				return fmt.Errorf("send identity request error: %s", err)
 			}
-			ue.GmmLog.Info("sent identity request")
+			ue.Log.Info("sent identity request")
 			return nil
 		}
 
@@ -95,7 +95,7 @@ func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.
 			if err != nil {
 				return fmt.Errorf("send identity request error: %s", err)
 			}
-			ue.GmmLog.Info("sent identity request")
+			ue.Log.Info("sent identity request")
 			return nil
 		}
 

@@ -47,10 +47,8 @@ type RanUe struct {
 	SupportedFeatures                string
 	AmfUe                            *AmfUe
 	Ran                              *AmfRan
-	RoutingID                        string
 	Trsr                             string /* Trace Recording Session Reference */
 	ReleaseAction                    RelAction
-	InitialUEMessage                 []byte
 	RRCEstablishmentCause            string // Received from initial ue message; pattern: ^[0-9a-fA-F]+$
 	UeContextRequest                 bool
 	SentInitialContextSetupRequest   bool

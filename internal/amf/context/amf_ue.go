@@ -144,10 +144,7 @@ type AmfUe struct {
 	T3502Value int // Second
 	T3512Value int // default 54 min
 
-	NASLog      *zap.Logger
-	GmmLog      *zap.Logger
-	TxLog       *zap.Logger
-	ProducerLog *zap.Logger
+	Log *zap.Logger
 }
 
 type OnGoingProcedureWithPrio struct {
@@ -247,10 +244,7 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 		}
 	}
 
-	// set log information
-	ue.NASLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
-	ue.GmmLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
-	ue.TxLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
+	ue.Log = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
 }
 
 func (ue *AmfUe) InAllowedNssai(targetSNssai *models.Snssai) bool {
@@ -454,7 +448,7 @@ func (ue *AmfUe) ClearRegistrationData() {
 func (ue *AmfUe) SetOnGoing(onGoing *OnGoingProcedureWithPrio) {
 	prevOnGoing := ue.OnGoing
 	ue.OnGoing = onGoing
-	ue.GmmLog.Debug("set ongoing procedure", zap.Any("ongoingProcedure", onGoing.Procedure), zap.Any("previousOnGoingProcedure", prevOnGoing.Procedure), zap.Any("OnGoingPPi", onGoing.Ppi), zap.Any("PreviousOnGoingPPi", prevOnGoing.Ppi))
+	ue.Log.Debug("set ongoing procedure", zap.Any("ongoingProcedure", onGoing.Procedure), zap.Any("previousOnGoingProcedure", prevOnGoing.Procedure), zap.Any("OnGoingPPi", onGoing.Ppi), zap.Any("PreviousOnGoingPPi", prevOnGoing.Ppi))
 }
 
 func (ue *AmfUe) GetOnGoing() OnGoingProcedureWithPrio {

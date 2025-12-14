@@ -17,7 +17,7 @@ import (
 )
 
 func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context.AmfUe) error {
-	ue.GmmLog.Debug("Handle MobilityAndPeriodicRegistrationUpdating")
+	ue.Log.Debug("Handle MobilityAndPeriodicRegistrationUpdating")
 
 	ue.DerivateAnKey()
 
@@ -59,18 +59,18 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 	storeLastVisitedRegisteredTAI(ue, ue.RegistrationRequest.LastVisitedRegisteredTAI)
 
 	if ue.RegistrationRequest.MICOIndication != nil {
-		ue.GmmLog.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.MICOIndication.GetRAAI()))
+		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.MICOIndication.GetRAAI()))
 	}
 
 	negotiateDRXParameters(ue, ue.RegistrationRequest.RequestedDRXParameters)
 
 	if len(ue.Pei) == 0 {
-		ue.GmmLog.Debug("The UE did not provide PEI")
+		ue.Log.Debug("The UE did not provide PEI")
 		err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeImei)
 		if err != nil {
 			return fmt.Errorf("error sending identity request: %v", err)
 		}
-		ue.GmmLog.Info("sent identity request to UE")
+		ue.Log.Info("sent identity request to UE")
 		return nil
 	}
 
@@ -112,7 +112,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 							errCause = append(errCause, cause)
 
 							if err != nil {
-								ue.GmmLog.Error("Update SmContext Error", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
+								ue.Log.Error("Update SmContext Error", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
 							}
 						} else {
 							if ue.RanUe.UeContextRequest {
@@ -172,13 +172,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 					if err != nil {
 						return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 					}
-					ue.GmmLog.Info("Sent NGAP pdu session resource setup request")
+					ue.Log.Info("Sent NGAP pdu session resource setup request")
 				} else {
 					err := message.SendRegistrationAccept(ctx, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 					if err != nil {
 						return fmt.Errorf("error sending GMM registration accept: %v", err)
 					}
-					ue.GmmLog.Info("Sent GMM registration accept")
+					ue.Log.Info("Sent GMM registration accept")
 				}
 				switch requestData.N1MessageClass {
 				case models.N1MessageClassSM:
@@ -235,7 +235,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		if err != nil {
 			return fmt.Errorf("error sending GMM registration accept: %v", err)
 		}
-		ue.GmmLog.Info("Sent GMM registration accept")
+		ue.Log.Info("Sent GMM registration accept")
 		return nil
 	} else {
 		nasPdu, err := message.BuildRegistrationAccept(ctx, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
@@ -247,13 +247,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 			if err != nil {
 				return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 			}
-			ue.GmmLog.Info("Sent NGAP pdu session resource setup request")
+			ue.Log.Info("Sent NGAP pdu session resource setup request")
 		} else {
 			err := ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe, nasPdu, nil)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %v", err)
 			}
-			ue.GmmLog.Info("sent downlink nas transport message")
+			ue.Log.Info("sent downlink nas transport message")
 		}
 		return nil
 	}

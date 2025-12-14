@@ -41,11 +41,11 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 	if ue.AllowedNssai == nil {
 		err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 		if err != nil {
-			ue.GmmLog.Error("error sending registration reject", zap.Error(err))
+			ue.Log.Error("error sending registration reject", zap.Error(err))
 		}
 		err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
-			ue.GmmLog.Error("error sending ue context release command", zap.Error(err))
+			ue.Log.Error("error sending ue context release command", zap.Error(err))
 		}
 		ue.Remove()
 		return fmt.Errorf("no allowed nssai")
@@ -54,7 +54,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 	storeLastVisitedRegisteredTAI(ue, ue.RegistrationRequest.LastVisitedRegisteredTAI)
 
 	if ue.RegistrationRequest.MICOIndication != nil {
-		ue.GmmLog.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.MICOIndication.GetRAAI()))
+		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.MICOIndication.GetRAAI()))
 	}
 
 	negotiateDRXParameters(ue, ue.RegistrationRequest.RequestedDRXParameters)
@@ -67,17 +67,17 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 	}
 
 	if !context.SubscriberExists(ctx, ue.Supi) {
-		ue.GmmLog.Error("Subscriber does not exist", zap.Error(err))
+		ue.Log.Error("Subscriber does not exist", zap.Error(err))
 		err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
-		ue.GmmLog.Info("sent registration reject to UE")
+		ue.Log.Info("sent registration reject to UE")
 		return fmt.Errorf("ue not found in database: %s", ue.Supi)
 	}
 
 	amfSelf.AllocateRegistrationArea(ctx, ue, operatorInfo.Tais)
-	ue.GmmLog.Debug("use original GUTI", zap.String("guti", ue.Guti))
+	ue.Log.Debug("use original GUTI", zap.String("guti", ue.Guti))
 
 	amfSelf.AddAmfUeToUePool(ue, ue.Supi)
 	ue.T3502Value = amfSelf.T3502Value
