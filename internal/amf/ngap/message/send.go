@@ -274,14 +274,6 @@ func SendUEContextReleaseCommand(ctx ctxt.Context, ue *context.RanUe, action con
 	}
 
 	ue.ReleaseAction = action
-	if ue.AmfUe != nil && ue.Ran != nil {
-		ue.AmfUe.ReleaseCause = &context.CauseAll{
-			NgapCause: &models.NgApCause{
-				Group: int32(causePresent),
-				Value: int32(cause),
-			},
-		}
-	}
 
 	err = SendToRanUe(ctx, ue, pkt, NGAPProcedureUEContextReleaseCommand)
 	if err != nil {

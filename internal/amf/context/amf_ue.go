@@ -137,8 +137,6 @@ type AmfUe struct {
 	T3555 *Timer
 	/* T3522 (for deregistration request) */
 	T3522 *Timer
-	/* Ue Context Release Cause */
-	ReleaseCause *CauseAll
 	/* T3502 (Assigned by AMF, and used by UE to initialize registration procedure) */
 	T3502Value int // Second
 	T3512Value int // default 54 min

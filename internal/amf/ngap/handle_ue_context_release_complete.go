@@ -132,12 +132,6 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 		}
 	}
 
-	// for each pduSessionID invoke Nsmf_PDUSession_UpdateSMContext Request
-	var cause context.CauseAll
-	if amfUe.ReleaseCause != nil {
-		cause = *amfUe.ReleaseCause
-	}
-
 	if amfUe.State.Is(context.Registered) {
 		ranUe.Log.Info("Rel Ue Context in GMM-Registered")
 		if pDUSessionResourceList != nil {
@@ -147,7 +141,7 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 				if !ok {
 					ranUe.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionID))
 				}
-				response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext, cause)
+				response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext)
 				if err != nil {
 					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 				} else if response == nil {
@@ -158,7 +152,7 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 			ranUe.Log.Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
 			amfUe.Mutex.Lock()
 			for _, smContext := range amfUe.SmContextList {
-				response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext, cause)
+				response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext)
 				if err != nil {
 					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 				} else if response == nil {
@@ -169,8 +163,6 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 		}
 	}
 
-	// Remove UE N2 Connection
-	amfUe.ReleaseCause = nil
 	switch ranUe.ReleaseAction {
 	case context.UeContextN2NormalRelease:
 		ran.Log.Info("Release UE Context: N2 Connection Release", zap.String("supi", amfUe.Supi))

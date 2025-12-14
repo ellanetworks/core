@@ -50,13 +50,13 @@ func forward5GSMMessageToSMF(
 	smContext *context.SmContext,
 	smMessage []byte,
 ) error {
-	smContextUpdateData := models.SmContextUpdateData{}
-
-	response, err := consumer.SendUpdateSmContextRequest(ctx, smContext, smContextUpdateData, smMessage, nil)
+	response, err := consumer.SendUpdateSmContextRequest(ctx, smContext, nil, smMessage, nil)
 	if err != nil {
 		ue.Log.Error("couldn't send update sm context request", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
 		return nil
-	} else if response != nil {
+	}
+
+	if response != nil {
 		responseData := response.JSONData
 		var n1Msg []byte
 		n2SmInfo := response.BinaryDataN2SmInformation
@@ -164,7 +164,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 		case nasMessage.ULNASTransportRequestTypeInitialRequest:
 			//  perform a local release of the PDU session identified by the PDU session ID and shall request
 			// the SMF to perform a local release of the PDU session
-			updateData := models.SmContextUpdateData{
+			updateData := &models.SmContextUpdateData{
 				Cause: models.CauseRelDueToDuplicateSessionID,
 			}
 			ue.Log.Warn("Duplicated PDU session ID", zap.Int32("pduSessionID", pduSessionID))

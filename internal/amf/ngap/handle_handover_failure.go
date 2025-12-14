@@ -7,7 +7,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -91,13 +90,7 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 		if amfUe != nil {
 			amfUe.Mutex.Lock()
 			for pduSessionID, smContext := range amfUe.SmContextList {
-				causeAll := context.CauseAll{
-					NgapCause: &models.NgApCause{
-						Group: int32(causePresent),
-						Value: int32(causeValue),
-					},
-				}
-				_, err := consumer.SendUpdateSmContextN2HandoverCanceled(ctx, amfUe, smContext, causeAll)
+				_, err := consumer.SendUpdateSmContextN2HandoverCanceled(ctx, amfUe, smContext)
 				if err != nil {
 					ran.Log.Error("Send UpdateSmContextN2HandoverCanceled Error", zap.Error(err), zap.Int32("PduSessionID", pduSessionID))
 				}

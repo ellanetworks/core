@@ -7,7 +7,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -102,12 +101,6 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *n
 
 	amfUe := ranUe.AmfUe
 	if amfUe != nil {
-		causeAll := context.CauseAll{
-			NgapCause: &models.NgApCause{
-				Group: int32(causeGroup),
-				Value: int32(causeValue),
-			},
-		}
 		if amfUe.State.Is(context.Registered) {
 			ranUe.Log.Info("Ue Context in GMM-Registered")
 			if pDUSessionResourceList != nil {
@@ -118,7 +111,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *n
 						ranUe.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionID))
 						continue
 					}
-					response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext, causeAll)
+					response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext)
 					if err != nil {
 						ranUe.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 					} else if response == nil {
@@ -134,7 +127,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *n
 						ranUe.Log.Info("Pdu Session is inactive so not sending deactivate to SMF")
 						break
 					}
-					response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext, causeAll)
+					response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext)
 					if err != nil {
 						ranUe.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 					} else if response == nil {
