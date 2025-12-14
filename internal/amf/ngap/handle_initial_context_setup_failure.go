@@ -16,7 +16,6 @@ func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, mes
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListCxtFail
 	var cause *ngapType.Cause
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
@@ -60,24 +59,17 @@ func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, mes
 			if cause == nil {
 				ran.Log.Warn("Cause is nil")
 			}
-		case ngapType.ProtocolIEIDCriticalityDiagnostics:
-			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			if criticalityDiagnostics == nil {
-				ran.Log.Warn("CriticalityDiagnostics is nil")
-			}
 		}
 	}
 
 	ran.Log.Warn("Initial Context Setup Failure received", zap.String("Cause", causeToString(*cause)))
 
-	if criticalityDiagnostics != nil {
-		printCriticalityDiagnostics(ran, criticalityDiagnostics)
-	}
 	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		return
 	}
+
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
 		ran.Log.Error("amfUe is nil")

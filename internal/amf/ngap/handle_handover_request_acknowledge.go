@@ -18,7 +18,6 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 	var pDUSessionResourceAdmittedList *ngapType.PDUSessionResourceAdmittedList
 	var pDUSessionResourceFailedToSetupListHOAck *ngapType.PDUSessionResourceFailedToSetupListHOAck
 	var targetToSourceTransparentContainer *ngapType.TargetToSourceTransparentContainer
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
@@ -55,8 +54,6 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 			pDUSessionResourceFailedToSetupListHOAck = ie.Value.PDUSessionResourceFailedToSetupListHOAck
 		case ngapType.ProtocolIEIDTargetToSourceTransparentContainer: // reject
 			targetToSourceTransparentContainer = ie.Value.TargetToSourceTransparentContainer
-		case ngapType.ProtocolIEIDCriticalityDiagnostics: // ignore
-			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
 		}
 	}
 	if targetToSourceTransparentContainer == nil {
@@ -70,18 +67,13 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 		procedureCode := ngapType.ProcedureCodeHandoverResourceAllocation
 		triggeringMessage := ngapType.TriggeringMessagePresentSuccessfulOutcome
 		procedureCriticality := ngapType.CriticalityPresentReject
-		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage,
-			&procedureCriticality, &iesCriticalityDiagnostics)
+		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage, &procedureCriticality, &iesCriticalityDiagnostics)
 		err := message.SendErrorIndication(ctx, ran, nil, nil, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
 		ran.Log.Info("sent error indication")
-	}
-
-	if criticalityDiagnostics != nil {
-		printCriticalityDiagnostics(ran, criticalityDiagnostics)
 	}
 
 	targetUe := context.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)

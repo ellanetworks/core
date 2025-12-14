@@ -17,7 +17,6 @@ func HandlePDUSessionResourceModifyResponse(ctx ctxt.Context, ran *context.AmfRa
 	var pduSessionResourceModifyResponseList *ngapType.PDUSessionResourceModifyListModRes
 	var pduSessionResourceFailedToModifyList *ngapType.PDUSessionResourceFailedToModifyListModRes
 	var userLocationInformation *ngapType.UserLocationInformation
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	var ranUe *context.RanUe
 
@@ -53,8 +52,6 @@ func HandlePDUSessionResourceModifyResponse(ctx ctxt.Context, ran *context.AmfRa
 			pduSessionResourceFailedToModifyList = ie.Value.PDUSessionResourceFailedToModifyListModRes
 		case ngapType.ProtocolIEIDUserLocationInformation: // optional, ignore
 			userLocationInformation = ie.Value.UserLocationInformation
-		case ngapType.ProtocolIEIDCriticalityDiagnostics: // optional, ignore
-			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
 		}
 	}
 
@@ -121,9 +118,5 @@ func HandlePDUSessionResourceModifyResponse(ctx ctxt.Context, ran *context.AmfRa
 		if userLocationInformation != nil {
 			ranUe.UpdateLocation(ctx, userLocationInformation)
 		}
-	}
-
-	if criticalityDiagnostics != nil {
-		printCriticalityDiagnostics(ran, criticalityDiagnostics)
 	}
 }

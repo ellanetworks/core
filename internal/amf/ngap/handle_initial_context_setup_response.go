@@ -133,9 +133,5 @@ func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, me
 		}
 	}
 
-	if criticalityDiagnostics != nil {
-		printCriticalityDiagnostics(ran, criticalityDiagnostics)
-	}
-
 	ranUe.RecvdInitialContextSetupResponse = true
 }

@@ -20,7 +20,6 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 	var userLocationInformation *ngapType.UserLocationInformation
 	var infoOnRecommendedCellsAndRANNodesForPaging *ngapType.InfoOnRecommendedCellsAndRANNodesForPaging
 	var pDUSessionResourceList *ngapType.PDUSessionResourceListCxtRelCpl
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
@@ -66,8 +65,6 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 			}
 		case ngapType.ProtocolIEIDPDUSessionResourceListCxtRelCpl:
 			pDUSessionResourceList = ie.Value.PDUSessionResourceListCxtRelCpl
-		case ngapType.ProtocolIEIDCriticalityDiagnostics:
-			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
 		}
 	}
 
@@ -91,9 +88,6 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 
 	if userLocationInformation != nil {
 		ranUe.UpdateLocation(ctx, userLocationInformation)
-	}
-	if criticalityDiagnostics != nil {
-		printCriticalityDiagnostics(ran, criticalityDiagnostics)
 	}
 
 	ranUe.Ran = ran

@@ -827,16 +827,10 @@ func DispatchNgapMsg(conn *sctp.SCTPConn, ran *context.AmfRan, pdu *ngapType.NGA
 		}
 
 		switch successfulOutcome.ProcedureCode.Value {
-		case ngapType.ProcedureCodeNGReset:
-			HandleNGResetAcknowledge(ran, pdu)
 		case ngapType.ProcedureCodeUEContextRelease:
 			HandleUEContextReleaseComplete(ctx, ran, pdu)
 		case ngapType.ProcedureCodePDUSessionResourceRelease:
 			HandlePDUSessionResourceReleaseResponse(ctx, ran, pdu)
-		case ngapType.ProcedureCodeUERadioCapabilityCheck:
-			HandleUERadioCapabilityCheckResponse(ran, pdu)
-		case ngapType.ProcedureCodeAMFConfigurationUpdate:
-			HandleAMFconfigurationUpdateAcknowledge(ran, pdu)
 		case ngapType.ProcedureCodeInitialContextSetup:
 			HandleInitialContextSetupResponse(ctx, ran, pdu)
 		case ngapType.ProcedureCodeUEContextModification:
@@ -848,7 +842,7 @@ func DispatchNgapMsg(conn *sctp.SCTPConn, ran *context.AmfRan, pdu *ngapType.NGA
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
 			HandleHandoverRequestAcknowledge(ctx, ran, pdu)
 		default:
-			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", successfulOutcome.ProcedureCode.Value))
+			ran.Log.Warn("NGAP Message handler not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", successfulOutcome.ProcedureCode.Value))
 		}
 	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
 		unsuccessfulOutcome := pdu.UnsuccessfulOutcome
@@ -858,8 +852,6 @@ func DispatchNgapMsg(conn *sctp.SCTPConn, ran *context.AmfRan, pdu *ngapType.NGA
 		}
 
 		switch unsuccessfulOutcome.ProcedureCode.Value {
-		case ngapType.ProcedureCodeAMFConfigurationUpdate:
-			HandleAMFconfigurationUpdateFailure(ran, pdu)
 		case ngapType.ProcedureCodeInitialContextSetup:
 			HandleInitialContextSetupFailure(ctx, ran, pdu)
 		case ngapType.ProcedureCodeUEContextModification:

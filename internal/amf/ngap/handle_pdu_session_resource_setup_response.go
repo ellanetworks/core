@@ -16,7 +16,6 @@ func HandlePDUSessionResourceSetupResponse(ctx ctxt.Context, ran *context.AmfRan
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var pDUSessionResourceSetupResponseList *ngapType.PDUSessionResourceSetupListSURes
 	var pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListSURes
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	var ranUe *context.RanUe
 
@@ -51,8 +50,6 @@ func HandlePDUSessionResourceSetupResponse(ctx ctxt.Context, ran *context.AmfRan
 			pDUSessionResourceSetupResponseList = ie.Value.PDUSessionResourceSetupListSURes
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListSURes: // ignore
 			pDUSessionResourceFailedToSetupList = ie.Value.PDUSessionResourceFailedToSetupListSURes
-		case ngapType.ProtocolIEIDCriticalityDiagnostics: // optional, ignore
-			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
 		}
 	}
 
@@ -120,11 +117,5 @@ func HandlePDUSessionResourceSetupResponse(ctx ctxt.Context, ran *context.AmfRan
 				}
 			}
 		}
-
-		// store context in DB. PDU Establishment is complete.
-	}
-
-	if criticalityDiagnostics != nil {
-		printCriticalityDiagnostics(ran, criticalityDiagnostics)
 	}
 }

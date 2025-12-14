@@ -60,8 +60,4 @@ func HandleErrorIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	if cause != nil {
 		logger.AmfLog.Debug("Error Indication Cause", zap.String("Cause", causeToString(*cause)))
 	}
-
-	if criticalityDiagnostics != nil {
-		printCriticalityDiagnostics(ran, criticalityDiagnostics)
-	}
 }

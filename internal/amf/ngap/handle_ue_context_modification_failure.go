@@ -11,7 +11,6 @@ func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.N
 	var aMFUENGAPID *ngapType.AMFUENGAPID
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var cause *ngapType.Cause
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	var ranUe *context.RanUe
 
@@ -52,8 +51,6 @@ func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.N
 			if cause == nil {
 				ran.Log.Warn("Cause is nil")
 			}
-		case ngapType.ProtocolIEIDCriticalityDiagnostics: // optional, ignore
-			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
 		}
 	}
 
@@ -78,9 +75,5 @@ func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.N
 
 	if cause != nil {
 		logger.AmfLog.Debug("UE Context Modification Failure Cause", zap.String("Cause", causeToString(*cause)))
-	}
-
-	if criticalityDiagnostics != nil {
-		printCriticalityDiagnostics(ran, criticalityDiagnostics)
 	}
 }

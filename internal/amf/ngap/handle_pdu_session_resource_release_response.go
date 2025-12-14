@@ -16,7 +16,6 @@ func HandlePDUSessionResourceReleaseResponse(ctx ctxt.Context, ran *context.AmfR
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var pDUSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListRelRes
 	var userLocationInformation *ngapType.UserLocationInformation
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
@@ -62,8 +61,6 @@ func HandlePDUSessionResourceReleaseResponse(ctx ctxt.Context, ran *context.AmfR
 			}
 		case ngapType.ProtocolIEIDUserLocationInformation:
 			userLocationInformation = ie.Value.UserLocationInformation
-		case ngapType.ProtocolIEIDCriticalityDiagnostics:
-			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
 		}
 	}
 
@@ -75,10 +72,6 @@ func HandlePDUSessionResourceReleaseResponse(ctx ctxt.Context, ran *context.AmfR
 
 	if userLocationInformation != nil {
 		ranUe.UpdateLocation(ctx, userLocationInformation)
-	}
-
-	if criticalityDiagnostics != nil {
-		printCriticalityDiagnostics(ran, criticalityDiagnostics)
 	}
 
 	amfUe := ranUe.AmfUe

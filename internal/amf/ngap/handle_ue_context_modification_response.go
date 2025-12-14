@@ -14,7 +14,6 @@ func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, 
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var rRCState *ngapType.RRCState
 	var userLocationInformation *ngapType.UserLocationInformation
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	var ranUe *context.RanUe
 
@@ -54,8 +53,6 @@ func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, 
 			rRCState = ie.Value.RRCState
 		case ngapType.ProtocolIEIDUserLocationInformation: // optional, ignore
 			userLocationInformation = ie.Value.UserLocationInformation
-		case ngapType.ProtocolIEIDCriticalityDiagnostics: // optional, ignore
-			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
 		}
 	}
 
@@ -90,9 +87,5 @@ func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, 
 		if userLocationInformation != nil {
 			ranUe.UpdateLocation(ctx, userLocationInformation)
 		}
-	}
-
-	if criticalityDiagnostics != nil {
-		printCriticalityDiagnostics(ran, criticalityDiagnostics)
 	}
 }

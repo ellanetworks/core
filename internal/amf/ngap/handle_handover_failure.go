@@ -63,10 +63,6 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 		}
 	}
 
-	if criticalityDiagnostics != nil {
-		printCriticalityDiagnostics(ran, criticalityDiagnostics)
-	}
-
 	targetUe = context.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
 
 	if targetUe == nil {
