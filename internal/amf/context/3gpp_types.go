@@ -7,8 +7,6 @@ package context
 
 import (
 	"time"
-
-	"github.com/ellanetworks/core/internal/models"
 )
 
 const (
@@ -25,14 +23,3 @@ const (
 const (
 	TimeT3513 time.Duration = 6 * time.Second
 )
-
-// type LADN struct {
-// 	Dnn      string
-// 	TaiLists []models.Tai
-// }
-
-type CauseAll struct {
-	Cause        *models.Cause
-	NgapCause    *models.NgApCause
-	Var5GmmCause *int32
-}

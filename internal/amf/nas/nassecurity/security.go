@@ -142,7 +142,7 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*contex
 			*/
 			ue, _ = context.AMFSelf().AmfUeFindBySuci(suci)
 			if ue != nil {
-				ue.NASLog.Info("UE Context derived from Suci", zap.String("suci", suci))
+				ue.Log.Info("UE Context derived from Suci", zap.String("suci", suci))
 				ue.SecurityContextAvailable = false
 			}
 			return ue, nil
@@ -167,10 +167,10 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*contex
 		ue, _ = context.AMFSelf().AmfUeFindByGuti(guti)
 		if ue != nil {
 			if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
-				ue.NASLog.Info("UE Context derived from Guti but received in plain nas", zap.String("guti", guti))
+				ue.Log.Info("UE Context derived from Guti but received in plain nas", zap.String("guti", guti))
 				return nil, fmt.Errorf("UE Context derived from Guti but received in plain nas")
 			}
-			ue.NASLog.Info("UE Context derived from Guti", zap.String("guti", guti))
+			ue.Log.Info("UE Context derived from Guti", zap.String("guti", guti))
 			return ue, nil
 		} else {
 			logger.AmfLog.Warn("UE Context not found", zap.String("guti", guti))
@@ -204,7 +204,7 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, payload []byte) (*nas.Message, 
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
 		// RRCEstablishmentCause 0 is for emergency service
 		if ue.SecurityContextAvailable && ue.RanUe.RRCEstablishmentCause != "0" {
-			ue.NASLog.Warn("Received Plain NAS message")
+			ue.Log.Warn("Received Plain NAS message")
 			ue.MacFailed = false
 			ue.SecurityContextAvailable = false
 			if err := msg.PlainNasDecode(&payload); err != nil {
@@ -267,7 +267,7 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, payload []byte) (*nas.Message, 
 		}
 
 		if ue.ULCount.SQN() > sequenceNumber {
-			ue.NASLog.Debug("set ULCount overflow")
+			ue.Log.Debug("set ULCount overflow")
 			ue.ULCount.SetOverflow(ue.ULCount.Overflow() + 1)
 		}
 		ue.ULCount.SetSQN(sequenceNumber)
@@ -279,14 +279,14 @@ func Decode(ctx ctxt.Context, ue *context.AmfUe, payload []byte) (*nas.Message, 
 		}
 
 		if !reflect.DeepEqual(mac32, receivedMac32) {
-			ue.NASLog.Warn("MAC verification failed", zap.String("received", hex.EncodeToString(receivedMac32)), zap.String("expected", hex.EncodeToString(mac32)))
+			ue.Log.Warn("MAC verification failed", zap.String("received", hex.EncodeToString(receivedMac32)), zap.String("expected", hex.EncodeToString(mac32)))
 			ue.MacFailed = true
 		} else {
 			ue.MacFailed = false
 		}
 
 		if ciphered {
-			ue.NASLog.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.CipheringAlg), zap.Uint32("ULCount", ue.ULCount.Get()))
+			ue.Log.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.CipheringAlg), zap.Uint32("ULCount", ue.ULCount.Get()))
 			// decrypt payload without sequence number (payload[1])
 			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
 				security.DirectionUplink, payload[1:]); err != nil {

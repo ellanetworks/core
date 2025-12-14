@@ -32,8 +32,8 @@ func handleSecurityModeReject(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmM
 
 	cause := msg.SecurityModeReject.Cause5GMM.GetCauseValue()
 
-	ue.GmmLog.Warn("Reject", zap.String("Cause", nasMessage.Cause5GMMToString(cause)))
-	ue.GmmLog.Error("UE reject the security mode command, abort the ongoing procedure")
+	ue.Log.Warn("Reject", zap.String("Cause", nasMessage.Cause5GMMToString(cause)))
+	ue.Log.Error("UE reject the security mode command, abort the ongoing procedure")
 
 	ue.SecurityContextAvailable = false
 

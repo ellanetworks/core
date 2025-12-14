@@ -38,7 +38,7 @@ func handleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, msg *nas.G
 
 	switch cause5GMM {
 	case nasMessage.Cause5GMMMACFailure:
-		ue.GmmLog.Warn("Authentication Failure Cause: Mac Failure")
+		ue.Log.Warn("Authentication Failure Cause: Mac Failure")
 		ue.State.Set(context.Deregistered)
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
@@ -47,7 +47,7 @@ func handleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, msg *nas.G
 
 		return nil
 	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
-		ue.GmmLog.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
+		ue.Log.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
 		ue.State.Set(context.Deregistered)
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
@@ -56,9 +56,9 @@ func handleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, msg *nas.G
 
 		return nil
 	case nasMessage.Cause5GMMngKSIAlreadyInUse:
-		ue.GmmLog.Warn("Authentication Failure Cause: NgKSI Already In Use")
+		ue.Log.Warn("Authentication Failure Cause: NgKSI Already In Use")
 		ue.AuthFailureCauseSynchFailureTimes = 0
-		ue.GmmLog.Warn("Select new NgKsi")
+		ue.Log.Warn("Select new NgKsi")
 		// select new ngksi
 		if ue.NgKsi.Ksi < 6 { // ksi is range from 0 to 6
 			ue.NgKsi.Ksi += 1
@@ -71,13 +71,13 @@ func handleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, msg *nas.G
 			return fmt.Errorf("send authentication request error: %s", err)
 		}
 
-		ue.GmmLog.Info("Sent authentication request")
+		ue.Log.Info("Sent authentication request")
 	case nasMessage.Cause5GMMSynchFailure: // TS 24.501 5.4.1.3.7 case f
-		ue.GmmLog.Warn("Authentication Failure 5GMM Cause: Synch Failure")
+		ue.Log.Warn("Authentication Failure 5GMM Cause: Synch Failure")
 
 		ue.AuthFailureCauseSynchFailureTimes++
 		if ue.AuthFailureCauseSynchFailureTimes >= 2 {
-			ue.GmmLog.Warn("2 consecutive Synch Failure, terminate authentication procedure")
+			ue.Log.Warn("2 consecutive Synch Failure, terminate authentication procedure")
 			ue.State.Set(context.Deregistered)
 			err := message.SendAuthenticationReject(ctx, ue.RanUe)
 			if err != nil {
@@ -105,7 +105,7 @@ func handleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, msg *nas.G
 			return fmt.Errorf("send authentication request error: %s", err)
 		}
 
-		ue.GmmLog.Info("Sent authentication request")
+		ue.Log.Info("Sent authentication request")
 	}
 
 	return nil

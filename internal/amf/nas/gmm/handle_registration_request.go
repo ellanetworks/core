@@ -69,7 +69,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 	ue.RegistrationRequest = registrationRequest
 	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
 	regName := getRegistrationType5GSName(ue.RegistrationType5GS)
-	ue.GmmLog.Debug("Received Registration Request", zap.String("registrationType", regName))
+	ue.Log.Debug("Received Registration Request", zap.String("registrationType", regName))
 
 	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSReserved {
 		ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
@@ -88,9 +88,9 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 	ue.IdentityTypeUsedForRegistration = nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0])
 	switch ue.IdentityTypeUsedForRegistration { // get type of identity
 	case nasMessage.MobileIdentity5GSTypeNoIdentity:
-		ue.GmmLog.Debug("No Identity used for registration")
+		ue.Log.Debug("No Identity used for registration")
 	case nasMessage.MobileIdentity5GSTypeSuci:
-		ue.GmmLog.Debug("UE used SUCI identity for registration")
+		ue.Log.Debug("UE used SUCI identity for registration")
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
 		ue.PlmnID = plmnIDStringToModels(plmnID)
@@ -98,22 +98,22 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		guamiFromUeGutiTmp, guti := util.GutiToString(mobileIdentity5GSContents)
 		guamiFromUeGuti = guamiFromUeGutiTmp
 		ue.Guti = guti
-		ue.GmmLog.Debug("UE used GUTI identity for registration", zap.String("guti", guti))
+		ue.Log.Debug("UE used GUTI identity for registration", zap.String("guti", guti))
 
 		if reflect.DeepEqual(guamiFromUeGuti, operatorInfo.Guami) {
 			ue.ServingAmfChanged = false
 		} else {
-			ue.GmmLog.Debug("Serving AMF has changed but 5G-Core is not supporting for now")
+			ue.Log.Debug("Serving AMF has changed but 5G-Core is not supporting for now")
 			ue.ServingAmfChanged = false
 		}
 	case nasMessage.MobileIdentity5GSTypeImei:
 		imei := nasConvert.PeiToString(mobileIdentity5GSContents)
 		ue.Pei = imei
-		ue.GmmLog.Debug("UE used IMEI identity for registration", zap.String("imei", imei))
+		ue.Log.Debug("UE used IMEI identity for registration", zap.String("imei", imei))
 	case nasMessage.MobileIdentity5GSTypeImeisv:
 		imeisv := nasConvert.PeiToString(mobileIdentity5GSContents)
 		ue.Pei = imeisv
-		ue.GmmLog.Debug("UE used IMEISV identity for registration", zap.String("imeisv", imeisv))
+		ue.Log.Debug("UE used IMEISV identity for registration", zap.String("imeisv", imeisv))
 	}
 
 	// NgKsi: TS 24.501 9.11.3.32
@@ -214,7 +214,7 @@ func handleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Gmm
 		return HandleGmmMessage(ctx, ue, msg)
 	case context.ContextSetup:
 		ue.State.Set(context.Deregistered)
-		ue.GmmLog.Info("state reset to Deregistered")
+		ue.Log.Info("state reset to Deregistered")
 		return nil
 	}
 

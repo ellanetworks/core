@@ -92,22 +92,20 @@ type AmfUe struct {
 	ABBA                              []uint8
 	Kseaf                             string
 	Kamf                              string
-	/* N1N2Message */
-	N1N2Message *models.N1N2MessageTransferRequest
-	/* Pdu Sesseion context */
-	SmContextList map[int32]*SmContext // Key: pdu session id
-	/* Related Context*/
-	RanUe *RanUe
-	/* other */
-	OnGoing                         *OnGoingProcedureWithPrio
-	UeRadioCapability               string // OCTET string
-	Capability5GMM                  nasType.Capability5GMM
-	ConfigurationUpdateIndication   nasType.ConfigurationUpdateIndication
-	ConfigurationUpdateCommandFlags *ConfigurationUpdateCommandFlags
+	N1N2Message                       *models.N1N2MessageTransferRequest
+	SmContextList                     map[int32]*SmContext // Key: pdu session id
+	RanUe                             *RanUe
+	OnGoing                           *OnGoingProcedureWithPrio
+	UeRadioCapability                 string // OCTET string
+	Capability5GMM                    nasType.Capability5GMM
+	ConfigurationUpdateIndication     nasType.ConfigurationUpdateIndication
+	ConfigurationUpdateCommandFlags   *ConfigurationUpdateCommandFlags
+
 	/* context related to Paging */
 	UeRadioCapabilityForPaging                 *UERadioCapabilityForPaging
 	InfoOnRecommendedCellsAndRanNodesForPaging *InfoOnRecommendedCellsAndRanNodesForPaging
 	UESpecificDRX                              uint8
+
 	/* Security Context */
 	SecurityContextAvailable bool
 	UESecurityCapability     *nasType.UESecurityCapability // for security command
@@ -122,10 +120,11 @@ type AmfUe struct {
 	DLCount                  security.Count
 	CipheringAlg             uint8
 	IntegrityAlg             uint8
-	/* Registration Area */
+
 	RegistrationArea []models.Tai
-	/* Network Slicing related context and Nssf */
+
 	AllowedNssai *models.Snssai
+
 	/* T3513(Paging) */
 	T3513 *Timer // for paging
 	/* T3565(Notification) */
@@ -138,21 +137,15 @@ type AmfUe struct {
 	T3555 *Timer
 	/* T3522 (for deregistration request) */
 	T3522 *Timer
-	/* Ue Context Release Cause */
-	ReleaseCause *CauseAll
 	/* T3502 (Assigned by AMF, and used by UE to initialize registration procedure) */
 	T3502Value int // Second
 	T3512Value int // default 54 min
 
-	NASLog      *zap.Logger
-	GmmLog      *zap.Logger
-	TxLog       *zap.Logger
-	ProducerLog *zap.Logger
+	Log *zap.Logger
 }
 
 type OnGoingProcedureWithPrio struct {
 	Procedure OnGoingProcedure
-	Ppi       int32 // Paging priority
 }
 
 type UERadioCapabilityForPaging struct {
@@ -247,10 +240,7 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 		}
 	}
 
-	// set log information
-	ue.NASLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
-	ue.GmmLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
-	ue.TxLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
+	ue.Log = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
 }
 
 func (ue *AmfUe) InAllowedNssai(targetSNssai *models.Snssai) bool {
@@ -454,7 +444,7 @@ func (ue *AmfUe) ClearRegistrationData() {
 func (ue *AmfUe) SetOnGoing(onGoing *OnGoingProcedureWithPrio) {
 	prevOnGoing := ue.OnGoing
 	ue.OnGoing = onGoing
-	ue.GmmLog.Debug("set ongoing procedure", zap.Any("ongoingProcedure", onGoing.Procedure), zap.Any("previousOnGoingProcedure", prevOnGoing.Procedure), zap.Any("OnGoingPPi", onGoing.Ppi), zap.Any("PreviousOnGoingPPi", prevOnGoing.Ppi))
+	ue.Log.Debug("set ongoing procedure", zap.Any("ongoingProcedure", onGoing.Procedure), zap.Any("previousOnGoingProcedure", prevOnGoing.Procedure))
 }
 
 func (ue *AmfUe) GetOnGoing() OnGoingProcedureWithPrio {

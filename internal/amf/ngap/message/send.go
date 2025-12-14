@@ -187,11 +187,7 @@ func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan, guami *models.Gu
 	return nil
 }
 
-func SendNGSetupFailure(ctx ctxt.Context, ran *context.AmfRan, cause ngapType.Cause) error {
-	if cause.Present == ngapType.CausePresentNothing {
-		return fmt.Errorf("cause present is nil")
-	}
-
+func SendNGSetupFailure(ctx ctxt.Context, ran *context.AmfRan, cause *ngapType.Cause) error {
 	pkt, err := BuildNGSetupFailure(cause)
 	if err != nil {
 		return fmt.Errorf("error building NG Setup Failure: %s", err.Error())
@@ -274,14 +270,6 @@ func SendUEContextReleaseCommand(ctx ctxt.Context, ue *context.RanUe, action con
 	}
 
 	ue.ReleaseAction = action
-	if ue.AmfUe != nil && ue.Ran != nil {
-		ue.AmfUe.ReleaseCause = &context.CauseAll{
-			NgapCause: &models.NgApCause{
-				Group: int32(causePresent),
-				Value: int32(cause),
-			},
-		}
-	}
 
 	err = SendToRanUe(ctx, ue, pkt, NGAPProcedureUEContextReleaseCommand)
 	if err != nil {
@@ -680,10 +668,10 @@ func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
 			if context.InTaiList(item.Tai, taiList) {
 				err := SendToRan(ctx, ran, ngapBuf, NGAPProcedurePaging)
 				if err != nil {
-					ue.GmmLog.Error("failed to send paging", zap.Error(err))
+					ue.Log.Error("failed to send paging", zap.Error(err))
 					continue
 				}
-				ue.GmmLog.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
+				ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
 				break
 			}
 		}
@@ -692,22 +680,22 @@ func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
 	if amfSelf.T3513Cfg.Enable {
 		cfg := amfSelf.T3513Cfg
 		ue.T3513 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			ue.GmmLog.Warn("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
+			ue.Log.Warn("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
 			for _, ran := range amfSelf.AmfRanPool {
 				for _, item := range ran.SupportedTAList {
 					if context.InTaiList(item.Tai, taiList) {
 						err := SendToRan(ctx, ran, ngapBuf, NGAPProcedurePaging)
 						if err != nil {
-							ue.GmmLog.Error("failed to send paging", zap.Error(err))
+							ue.Log.Error("failed to send paging", zap.Error(err))
 							continue
 						}
-						ue.GmmLog.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
+						ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
 						break
 					}
 				}
 			}
 		}, func() {
-			ue.GmmLog.Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
+			ue.Log.Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
 			ue.T3513 = nil // clear the timer
 		})
 	}

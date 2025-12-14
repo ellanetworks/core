@@ -447,7 +447,7 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, flags *context.Configura
 			configurationUpdateCommand.GUTI5G = &gutiNas
 			configurationUpdateCommand.GUTI5G.SetIei(nasMessage.ConfigurationUpdateCommandGUTI5GType)
 		} else {
-			ue.GmmLog.Warn("Require 5G-GUTI, but got nothing.")
+			ue.Log.Warn("Require 5G-GUTI, but got nothing.")
 		}
 	}
 
@@ -466,7 +466,7 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, flags *context.Configura
 			configurationUpdateCommand.AllowedNSSAI.SetLen(uint8(len(buf)))
 			configurationUpdateCommand.AllowedNSSAI.SetSNSSAIValue(buf)
 		} else {
-			ue.GmmLog.Warn("Require Allowed NSSAI, but got nothing.")
+			ue.Log.Warn("Require Allowed NSSAI, but got nothing.")
 		}
 	}
 
@@ -489,12 +489,12 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, flags *context.Configura
 	// 		configurationUpdateCommand.ConfiguredNSSAI.SetLen(uint8(len(buf)))
 	// 		configurationUpdateCommand.ConfiguredNSSAI.SetSNSSAIValue(buf)
 	// 	} else {
-	// 		ue.GmmLog.Warn("Require Configured NSSAI, but got nothing.")
+	// 		ue.Log.Warn("Require Configured NSSAI, but got nothing.")
 	// 	}
 	// }
 
 	if flags.NeedRejectNSSAI {
-		ue.GmmLog.Warn("Require Rejected NSSAI, but got nothing.")
+		ue.Log.Warn("Require Rejected NSSAI, but got nothing.")
 	}
 
 	if flags.NeedTaiList {
@@ -507,16 +507,16 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, flags *context.Configura
 			configurationUpdateCommand.TAIList.SetLen(uint8(len(taiListNas)))
 			configurationUpdateCommand.TAIList.SetPartialTrackingAreaIdentityList(taiListNas)
 		} else {
-			ue.GmmLog.Warn("Require TAI List, but got nothing.")
+			ue.Log.Warn("Require TAI List, but got nothing.")
 		}
 	}
 
 	if flags.NeedServiceAreaList {
-		ue.GmmLog.Warn("Require Service Area List, but got nothing.")
+		ue.Log.Warn("Require Service Area List, but got nothing.")
 	}
 
 	if flags.NeedLadnInformation {
-		ue.GmmLog.Warn("Require LADN Information, but got nothing.")
+		ue.Log.Warn("Require LADN Information, but got nothing.")
 	}
 
 	amfSelf := context.AMFSelf()
@@ -528,7 +528,7 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, flags *context.Configura
 			configurationUpdateCommand.FullNameForNetwork = &fullNetworkName
 			configurationUpdateCommand.FullNameForNetwork.SetIei(nasMessage.ConfigurationUpdateCommandFullNameForNetworkType)
 		} else {
-			ue.GmmLog.Warn("Require Full Network Name, but got nothing.")
+			ue.Log.Warn("Require Full Network Name, but got nothing.")
 		}
 		// Short network name
 		if amfSelf.NetworkName.Short != "" {
@@ -536,7 +536,7 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, flags *context.Configura
 			configurationUpdateCommand.ShortNameForNetwork = &shortNetworkName
 			configurationUpdateCommand.ShortNameForNetwork.SetIei(nasMessage.ConfigurationUpdateCommandShortNameForNetworkType)
 		} else {
-			ue.GmmLog.Warn("Require Short Network Name, but got nothing.")
+			ue.Log.Warn("Require Short Network Name, but got nothing.")
 		}
 		// Universal Time and Local Time Zone
 		now := time.Now()

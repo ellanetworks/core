@@ -54,31 +54,22 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 	// Downlink Data Report
 	if msg.ReportType.HasDLDR() {
 		n1n2Request := models.N1N2MessageTransferRequest{}
-		// N2 Container Info
-		n2InfoContainer := models.N2InfoContainer{
-			N2InformationClass: models.N2InformationClassSM,
-			SmInfo: &models.N2SmInformation{
-				PduSessionID: smContext.PDUSessionID,
-				NgapIeType:   models.NgapIeTypePduResSetupReq,
-				SNssai:       smContext.Snssai,
-			},
-		}
 
 		// N1N2 Json Data
 		n1n2Request.JSONData = &models.N1N2MessageTransferReqData{
-			PduSessionID:    smContext.PDUSessionID,
-			N2InfoContainer: &n2InfoContainer,
+			PduSessionID: smContext.PDUSessionID,
+			NgapIeType:   models.N2SmInfoTypePduResSetupReq,
+			SNssai:       smContext.Snssai,
 		}
 
 		if n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext); err != nil {
 			logger.SmfLog.Error("Build PDUSessionResourceSetupRequestTransfer failed", zap.Error(err))
 		} else {
 			n1n2Request.BinaryDataN2Information = n2Pdu
-			n1n2Request.JSONData.N2InfoContainer = &n2InfoContainer
 		}
 
-		cause, err := amf_producer.CreateN1N2MessageTransfer(ctx, smContext.Supi, n1n2Request)
-		if err != nil || cause == models.N1N2MessageTransferCauseN1MsgNotTransferred {
+		err := amf_producer.N1N2MessageTransferProcedure(ctx, smContext.Supi, n1n2Request)
+		if err != nil {
 			return message.NewSessionReportResponse(
 				1,
 				0,

@@ -14,14 +14,11 @@ func securityMode(ctx ctxt.Context, ue *context.AmfUe) error {
 	ctx, span := tracer.Start(ctx, "securityMode")
 	defer span.End()
 
-	ue.NASLog = ue.NASLog.With(zap.String("supi", ue.Supi))
-	ue.TxLog = ue.NASLog.With(zap.String("supi", ue.Supi))
-	ue.GmmLog = ue.GmmLog.With(zap.String("supi", ue.Supi))
-	ue.ProducerLog = ue.GmmLog.With(zap.String("supi", ue.Supi))
-	ue.GmmLog.Debug("EntryEvent at GMM State[SecurityMode]")
+	ue.Log = ue.Log.With(zap.String("supi", ue.Supi))
+	ue.Log.Debug("EntryEvent at GMM State[SecurityMode]")
 
 	if ue.SecurityContextIsValid() {
-		ue.GmmLog.Debug("UE has a valid security context - skip security mode control procedure")
+		ue.Log.Debug("UE has a valid security context - skip security mode control procedure")
 		ue.State.Set(context.ContextSetup)
 		return contextSetup(ctx, ue, ue.RegistrationRequest)
 	}

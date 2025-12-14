@@ -32,7 +32,7 @@ func storeLastVisitedRegisteredTAI(ue *context.AmfUe, lastVisitedRegisteredTAI *
 		}
 
 		ue.LastVisitedRegisteredTai = tai
-		ue.GmmLog.Debug("Ue Last Visited Registered Tai", zap.String("plmnID", plmnID), zap.String("tac", tac))
+		ue.Log.Debug("Ue Last Visited Registered Tai", zap.String("plmnID", plmnID), zap.String("tac", tac))
 	}
 }
 
