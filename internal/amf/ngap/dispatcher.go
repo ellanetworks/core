@@ -9,7 +9,6 @@ package ngap
 
 import (
 	ctxt "context"
-	"encoding/hex"
 	"fmt"
 	"reflect"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap"
-	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -61,100 +59,7 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 		return
 	}
 
-	err = attachRanUE(ctx, ran, pdu)
-	if err != nil {
-		ran.Log.Error("attachRanUE error", zap.Error(err))
-		return
-	}
-
 	DispatchNgapMsg(conn, ran, pdu)
-}
-
-func attachRanUE(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) error {
-	amfSelf := context.AMFSelf()
-
-	if ran == nil {
-		return fmt.Errorf("ran is nil")
-	}
-
-	if message == nil {
-		return fmt.Errorf("NGAP Message is nil")
-	}
-
-	switch message.Present {
-	case ngapType.NGAPPDUPresentInitiatingMessage:
-		var rANUENGAPID *ngapType.RANUENGAPID
-		var fiveGSTMSI *ngapType.FiveGSTMSI
-
-		initiatingMessage := message.InitiatingMessage
-		if initiatingMessage == nil {
-			return fmt.Errorf("initiatingMessage is nil")
-		}
-
-		switch initiatingMessage.ProcedureCode.Value {
-		case ngapType.ProcedureCodeNGSetup:
-		case ngapType.ProcedureCodeInitialUEMessage:
-			ngapMsg := initiatingMessage.Value.InitialUEMessage
-			if ngapMsg == nil {
-				return fmt.Errorf("InitialUEMessage is nil")
-			}
-
-			for i := 0; i < len(ngapMsg.ProtocolIEs.List); i++ {
-				ie := ngapMsg.ProtocolIEs.List[i]
-				switch ie.Id.Value {
-				case ngapType.ProtocolIEIDRANUENGAPID:
-					rANUENGAPID = ie.Value.RANUENGAPID
-					if rANUENGAPID == nil {
-						return fmt.Errorf("RanUeNgapID is nil")
-					}
-				case ngapType.ProtocolIEIDFiveGSTMSI: // optional, reject
-					fiveGSTMSI = ie.Value.FiveGSTMSI
-				}
-			}
-
-			ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
-			if ranUe != nil {
-				ran.Log.Debug("Known UE")
-				return nil
-			}
-
-			if fiveGSTMSI == nil {
-				ran.Log.Debug("FiveGSTMSI is nil")
-				return nil
-			}
-
-			operatorInfo, err := context.GetOperatorInfo(ctx)
-			if err != nil {
-				return fmt.Errorf("could not get operator info: %w", err)
-			}
-
-			// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
-			// GUAMI := <MCC><MNC><AMF Region ID><AMF Set ID><AMF Pointer>
-			// 5G-GUTI := <GUAMI><5G-TMSI>
-			tmpReginID, _, _ := ngapConvert.AmfIdToNgap(operatorInfo.Guami.AmfID)
-			amfID := ngapConvert.AmfIdToModels(tmpReginID, fiveGSTMSI.AMFSetID.Value, fiveGSTMSI.AMFPointer.Value)
-
-			tmsi := hex.EncodeToString(fiveGSTMSI.FiveGTMSI.Value)
-
-			guti := operatorInfo.Guami.PlmnID.Mcc + operatorInfo.Guami.PlmnID.Mnc + amfID + tmsi
-
-			amfUe, ok := amfSelf.AmfUeFindByGuti(guti)
-			if !ok {
-				logger.AmfLog.Warn("unknown UE GUIT", zap.String("guti", guti))
-				return nil
-			}
-
-			ranUe, err = ran.NewRanUe(rANUENGAPID.Value)
-			if err != nil {
-				return fmt.Errorf("could not create new RanUe: %w", err)
-			}
-
-			amfUe.AttachRanUe(ranUe)
-
-			ran.Log.Debug("Attached RanUe to AmfUe", zap.String("guti", guti))
-		}
-	}
-	return nil
 }
 
 func DispatchNgapMsg(conn *sctp.SCTPConn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
