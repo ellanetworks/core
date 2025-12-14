@@ -180,50 +180,33 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 					}
 					ue.Log.Info("Sent GMM registration accept")
 				}
-				switch requestData.N1MessageClass {
-				case models.N1MessageClassSM:
-					err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
-					if err != nil {
-						return fmt.Errorf("error sending downlink nas transport message: %v", err)
-					}
-				case models.N1MessageClassLPP:
-					err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0)
-					if err != nil {
-						return fmt.Errorf("error sending downlink nas transport message: %v", err)
-					}
-				case models.N1MessageClassSMS:
-					err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0)
-					if err != nil {
-						return fmt.Errorf("error sending downlink nas transport message: %v", err)
-					}
-				case models.N1MessageClassUPDP:
-					err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0)
-					if err != nil {
-						return fmt.Errorf("error sending downlink nas transport message: %v", err)
-					}
+
+				err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
+				if err != nil {
+					return fmt.Errorf("error sending downlink nas transport message: %v", err)
 				}
+
 				ue.N1N2Message = nil
 				return nil
 			}
 
-			smInfo := requestData.N2InfoContainer.SmInfo
 			_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 			if !exist {
 				ue.N1N2Message = nil
 				return fmt.Errorf("pdu Session Id does not Exists")
 			}
 
-			if smInfo.NgapIeType == models.N2SmInfoTypePduResSetupReq {
+			if requestData.NgapIeType == models.N2SmInfoTypePduResSetupReq {
 				var nasPdu []byte
 				var err error
 				if n1Msg != nil {
-					pduSessionID := uint8(smInfo.PduSessionID)
+					pduSessionID := uint8(requestData.PduSessionID)
 					nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
 					if err != nil {
 						return err
 					}
 				}
-				ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID, smInfo.SNssai, nasPdu, n2Info)
+				ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 			}
 		}
 	}

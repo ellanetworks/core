@@ -214,12 +214,7 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 	if ue.N1N2Message != nil {
 		requestData := ue.N1N2Message.JSONData
 		if ue.N1N2Message.BinaryDataN2Information != nil {
-			if requestData.N2InfoContainer.N2InformationClass == models.N2InformationClassSM {
-				targetPduSessionID = requestData.N2InfoContainer.SmInfo.PduSessionID
-			} else {
-				ue.N1N2Message = nil
-				return fmt.Errorf("n2 information class not supported: %v", requestData.N2InfoContainer.N2InformationClass)
-			}
+			targetPduSessionID = requestData.PduSessionID
 		}
 	}
 
@@ -280,59 +275,34 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 					return fmt.Errorf("error sending service accept: %v", err)
 				}
 
-				switch requestData.N1MessageClass {
-				case models.N1MessageClassSM:
-					err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
-					if err != nil {
-						return fmt.Errorf("error sending downlink nas transport message: %v", err)
-					}
-
-					ue.Log.Info("sent downlink nas transport message")
-				case models.N1MessageClassLPP:
-					err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0)
-					if err != nil {
-						return fmt.Errorf("error sending downlink nas transport message: %v", err)
-					}
-
-					ue.Log.Info("sent downlink nas transport message")
-				case models.N1MessageClassSMS:
-					err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0)
-					if err != nil {
-						return fmt.Errorf("error sending downlink nas transport message: %v", err)
-					}
-
-					ue.Log.Info("sent downlink nas transport message")
-				case models.N1MessageClassUPDP:
-					err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0)
-					if err != nil {
-						return fmt.Errorf("error sending downlink nas transport message: %v", err)
-					}
-
-					ue.Log.Info("sent downlink nas transport message")
+				err = message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
+				if err != nil {
+					return fmt.Errorf("error sending downlink nas transport message: %v", err)
 				}
+
+				ue.Log.Info("sent downlink nas transport message")
+
 				ue.N1N2Message = nil
 			} else {
-				smInfo := requestData.N2InfoContainer.SmInfo
-
 				_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 				if !exist {
 					ue.N1N2Message = nil
 					return fmt.Errorf("service Request triggered by Network for pduSessionID that does not exist")
 				}
 
-				if smInfo.NgapIeType == models.N2SmInfoTypePduResSetupReq {
+				if requestData.NgapIeType == models.N2SmInfoTypePduResSetupReq {
 					var nasPdu []byte
 					if n1Msg != nil {
-						pduSessionID := uint8(smInfo.PduSessionID)
+						pduSessionID := uint8(requestData.PduSessionID)
 						nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
 						if err != nil {
 							return fmt.Errorf("error building DL NAS transport message: %v", err)
 						}
 					}
 					if ue.RanUe.UeContextRequest {
-						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, smInfo.PduSessionID, smInfo.SNssai, nasPdu, n2Info)
+						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 					} else {
-						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID, smInfo.SNssai, nasPdu, n2Info)
+						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 					}
 				}
 				ue.Log.Debug("sending service accept")

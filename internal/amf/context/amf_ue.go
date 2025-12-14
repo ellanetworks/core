@@ -92,22 +92,20 @@ type AmfUe struct {
 	ABBA                              []uint8
 	Kseaf                             string
 	Kamf                              string
-	/* N1N2Message */
-	N1N2Message *models.N1N2MessageTransferRequest
-	/* Pdu Sesseion context */
-	SmContextList map[int32]*SmContext // Key: pdu session id
-	/* Related Context*/
-	RanUe *RanUe
-	/* other */
-	OnGoing                         *OnGoingProcedureWithPrio
-	UeRadioCapability               string // OCTET string
-	Capability5GMM                  nasType.Capability5GMM
-	ConfigurationUpdateIndication   nasType.ConfigurationUpdateIndication
-	ConfigurationUpdateCommandFlags *ConfigurationUpdateCommandFlags
+	N1N2Message                       *models.N1N2MessageTransferRequest
+	SmContextList                     map[int32]*SmContext // Key: pdu session id
+	RanUe                             *RanUe
+	OnGoing                           *OnGoingProcedureWithPrio
+	UeRadioCapability                 string // OCTET string
+	Capability5GMM                    nasType.Capability5GMM
+	ConfigurationUpdateIndication     nasType.ConfigurationUpdateIndication
+	ConfigurationUpdateCommandFlags   *ConfigurationUpdateCommandFlags
+
 	/* context related to Paging */
 	UeRadioCapabilityForPaging                 *UERadioCapabilityForPaging
 	InfoOnRecommendedCellsAndRanNodesForPaging *InfoOnRecommendedCellsAndRanNodesForPaging
 	UESpecificDRX                              uint8
+
 	/* Security Context */
 	SecurityContextAvailable bool
 	UESecurityCapability     *nasType.UESecurityCapability // for security command
@@ -122,10 +120,11 @@ type AmfUe struct {
 	DLCount                  security.Count
 	CipheringAlg             uint8
 	IntegrityAlg             uint8
-	/* Registration Area */
+
 	RegistrationArea []models.Tai
-	/* Network Slicing related context and Nssf */
+
 	AllowedNssai *models.Snssai
+
 	/* T3513(Paging) */
 	T3513 *Timer // for paging
 	/* T3565(Notification) */
@@ -149,7 +148,6 @@ type AmfUe struct {
 
 type OnGoingProcedureWithPrio struct {
 	Procedure OnGoingProcedure
-	Ppi       int32 // Paging priority
 }
 
 type UERadioCapabilityForPaging struct {
@@ -448,7 +446,7 @@ func (ue *AmfUe) ClearRegistrationData() {
 func (ue *AmfUe) SetOnGoing(onGoing *OnGoingProcedureWithPrio) {
 	prevOnGoing := ue.OnGoing
 	ue.OnGoing = onGoing
-	ue.Log.Debug("set ongoing procedure", zap.Any("ongoingProcedure", onGoing.Procedure), zap.Any("previousOnGoingProcedure", prevOnGoing.Procedure), zap.Any("OnGoingPPi", onGoing.Ppi), zap.Any("PreviousOnGoingPPi", prevOnGoing.Ppi))
+	ue.Log.Debug("set ongoing procedure", zap.Any("ongoingProcedure", onGoing.Procedure), zap.Any("previousOnGoingProcedure", prevOnGoing.Procedure))
 }
 
 func (ue *AmfUe) GetOnGoing() OnGoingProcedureWithPrio {

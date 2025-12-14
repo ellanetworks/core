@@ -1,8 +1,7 @@
 package models
 
 type N1N2MessageTransferReqData struct {
-	N1MessageClass  N1MessageClass
-	N2InfoContainer *N2InfoContainer
-	PduSessionID    int32
-	Ppi             int32
+	PduSessionID int32
+	NgapIeType   N2SmInfoType
+	SNssai       *Snssai
 }
