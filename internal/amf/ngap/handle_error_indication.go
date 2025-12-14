@@ -27,6 +27,7 @@ func HandleErrorIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		ran.Log.Error("InitiatingMessage is nil")
 		return
 	}
+
 	errorIndication := initiatingMessage.Value.ErrorIndication
 	if errorIndication == nil {
 		ran.Log.Error("ErrorIndication is nil")

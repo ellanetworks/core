@@ -12,11 +12,6 @@ import (
 )
 
 func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListCxtFail
-	var cause *ngapType.Cause
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -26,16 +21,23 @@ func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, mes
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
+
 	unsuccessfulOutcome := message.UnsuccessfulOutcome
 	if unsuccessfulOutcome == nil {
 		ran.Log.Error("UnsuccessfulOutcome is nil")
 		return
 	}
+
 	initialContextSetupFailure := unsuccessfulOutcome.Value.InitialContextSetupFailure
 	if initialContextSetupFailure == nil {
 		ran.Log.Error("InitialContextSetupFailure is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListCxtFail
+	var cause *ngapType.Cause
 
 	for _, ie := range initialContextSetupFailure.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -82,6 +84,7 @@ func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, mes
 		amfUe.State.Set(context.Deregistered)
 		amfUe.ClearRegistrationRequestData()
 	}
+
 	if pDUSessionResourceFailedToSetupList != nil {
 		ranUe.Log.Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
 

@@ -13,11 +13,6 @@ import (
 )
 
 func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pDUSessionResourceList *ngapType.PDUSessionResourceListCxtRelReq
-	var cause *ngapType.Cause
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -33,11 +28,17 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *n
 		ran.Log.Error("InitiatingMessage is nil")
 		return
 	}
+
 	uEContextReleaseRequest := initiatingMessage.Value.UEContextReleaseRequest
 	if uEContextReleaseRequest == nil {
 		ran.Log.Error("UEContextReleaseRequest is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var pDUSessionResourceList *ngapType.PDUSessionResourceListCxtRelReq
+	var cause *ngapType.Cause
 
 	for _, ie := range uEContextReleaseRequest.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -67,6 +68,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *n
 	if ranUe == nil {
 		ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 	}
+
 	if ranUe == nil {
 		ran.Log.Error("No RanUe Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		cause = &ngapType.Cause{
@@ -90,9 +92,9 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *n
 	causeGroup := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentUnspecified
 	var err error
+
 	if cause != nil {
 		ranUe.Log.Info("UE Context Release Cause", zap.String("Cause", causeToString(*cause)))
-
 		causeGroup, causeValue, err = getCause(cause)
 		if err != nil {
 			ranUe.Log.Error("could not get cause group and value", zap.Error(err))

@@ -14,17 +14,6 @@ import (
 )
 
 func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	amfSelf := context.AMFSelf()
-
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var nASPDU *ngapType.NASPDU
-	var userLocationInformation *ngapType.UserLocationInformation
-	var rRCEstablishmentCause *ngapType.RRCEstablishmentCause
-	var fiveGSTMSI *ngapType.FiveGSTMSI
-	var uEContextRequest *ngapType.UEContextRequest
-
-	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
-
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -63,6 +52,14 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 		ran.Log.Info("sent error indication")
 		return
 	}
+
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var nASPDU *ngapType.NASPDU
+	var userLocationInformation *ngapType.UserLocationInformation
+	var rRCEstablishmentCause *ngapType.RRCEstablishmentCause
+	var fiveGSTMSI *ngapType.FiveGSTMSI
+	var uEContextRequest *ngapType.UEContextRequest
+	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
 	for _, ie := range initialUEMessage.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -149,7 +146,7 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 			tmsi := hex.EncodeToString(fiveGSTMSI.FiveGTMSI.Value)
 
 			guti := operatorInfo.Guami.PlmnID.Mcc + operatorInfo.Guami.PlmnID.Mnc + amfID + tmsi
-
+			amfSelf := context.AMFSelf()
 			if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); !ok {
 				ranUe.Log.Warn("Unknown UE", zap.String("GUTI", guti))
 			} else {

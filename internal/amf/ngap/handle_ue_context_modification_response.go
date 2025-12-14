@@ -10,13 +10,6 @@ import (
 )
 
 func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var rRCState *ngapType.RRCState
-	var userLocationInformation *ngapType.UserLocationInformation
-
-	var ranUe *context.RanUe
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -26,16 +19,23 @@ func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, 
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
+
 	successfulOutcome := message.SuccessfulOutcome
 	if successfulOutcome == nil {
 		ran.Log.Error("SuccessfulOutcome is nil")
 		return
 	}
+
 	uEContextModificationResponse := successfulOutcome.Value.UEContextModificationResponse
 	if uEContextModificationResponse == nil {
 		ran.Log.Error("UEContextModificationResponse is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var rRCState *ngapType.RRCState
+	var userLocationInformation *ngapType.UserLocationInformation
 
 	for _, ie := range uEContextModificationResponse.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -56,6 +56,7 @@ func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, 
 		}
 	}
 
+	var ranUe *context.RanUe
 	if rANUENGAPID != nil {
 		ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 		if ranUe == nil {

@@ -13,14 +13,6 @@ import (
 )
 
 func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pduSessionResourceModifyIndicationList *ngapType.PDUSessionResourceModifyListModInd
-
-	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
-
-	var ranUe *context.RanUe
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -66,6 +58,11 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 
 	ran.Log.Info("handle PDU Session Resource Modify Indication")
 
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var pduSessionResourceModifyIndicationList *ngapType.PDUSessionResourceModifyListModInd
+	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
+
 	for _, ie := range pDUSessionResourceModifyIndication.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // reject
@@ -108,7 +105,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 		return
 	}
 
-	ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		cause := ngapType.Cause{

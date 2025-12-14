@@ -13,14 +13,6 @@ import (
 )
 
 func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pDUSessionResourceAdmittedList *ngapType.PDUSessionResourceAdmittedList
-	var pDUSessionResourceFailedToSetupListHOAck *ngapType.PDUSessionResourceFailedToSetupListHOAck
-	var targetToSourceTransparentContainer *ngapType.TargetToSourceTransparentContainer
-
-	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -36,11 +28,19 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 		ran.Log.Error("SuccessfulOutcome is nil")
 		return
 	}
+
 	handoverRequestAcknowledge := successfulOutcome.Value.HandoverRequestAcknowledge // reject
 	if handoverRequestAcknowledge == nil {
 		ran.Log.Error("HandoverRequestAcknowledge is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var pDUSessionResourceAdmittedList *ngapType.PDUSessionResourceAdmittedList
+	var pDUSessionResourceFailedToSetupListHOAck *ngapType.PDUSessionResourceFailedToSetupListHOAck
+	var targetToSourceTransparentContainer *ngapType.TargetToSourceTransparentContainer
+	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
 	for _, ie := range handoverRequestAcknowledge.ProtocolIEs.List {
 		switch ie.Id.Value {

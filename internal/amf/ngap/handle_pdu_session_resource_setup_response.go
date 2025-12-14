@@ -12,13 +12,6 @@ import (
 )
 
 func HandlePDUSessionResourceSetupResponse(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pDUSessionResourceSetupResponseList *ngapType.PDUSessionResourceSetupListSURes
-	var pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListSURes
-
-	var ranUe *context.RanUe
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -34,11 +27,17 @@ func HandlePDUSessionResourceSetupResponse(ctx ctxt.Context, ran *context.AmfRan
 		ran.Log.Error("SuccessfulOutcome is nil")
 		return
 	}
+
 	pDUSessionResourceSetupResponse := successfulOutcome.Value.PDUSessionResourceSetupResponse
 	if pDUSessionResourceSetupResponse == nil {
 		ran.Log.Error("PDUSessionResourceSetupResponse is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var pDUSessionResourceSetupResponseList *ngapType.PDUSessionResourceSetupListSURes
+	var pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListSURes
 
 	for _, ie := range pDUSessionResourceSetupResponse.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -52,6 +51,8 @@ func HandlePDUSessionResourceSetupResponse(ctx ctxt.Context, ran *context.AmfRan
 			pDUSessionResourceFailedToSetupList = ie.Value.PDUSessionResourceFailedToSetupListSURes
 		}
 	}
+
+	var ranUe *context.RanUe
 
 	if rANUENGAPID != nil {
 		ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)

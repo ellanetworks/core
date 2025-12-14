@@ -15,12 +15,6 @@ import (
 )
 
 func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var userLocationInformation *ngapType.UserLocationInformation
-	var infoOnRecommendedCellsAndRANNodesForPaging *ngapType.InfoOnRecommendedCellsAndRANNodesForPaging
-	var pDUSessionResourceList *ngapType.PDUSessionResourceListCxtRelCpl
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -36,11 +30,18 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 		ran.Log.Error("SuccessfulOutcome is nil")
 		return
 	}
+
 	uEContextReleaseComplete := successfulOutcome.Value.UEContextReleaseComplete
 	if uEContextReleaseComplete == nil {
 		ran.Log.Error("NGResetAcknowledge is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var userLocationInformation *ngapType.UserLocationInformation
+	var infoOnRecommendedCellsAndRANNodesForPaging *ngapType.InfoOnRecommendedCellsAndRANNodesForPaging
+	var pDUSessionResourceList *ngapType.PDUSessionResourceListCxtRelCpl
 
 	for _, ie := range uEContextReleaseComplete.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -100,6 +101,7 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 		}
 		return
 	}
+
 	if infoOnRecommendedCellsAndRANNodesForPaging != nil {
 		amfUe.InfoOnRecommendedCellsAndRanNodesForPaging = new(context.InfoOnRecommendedCellsAndRanNodesForPaging)
 

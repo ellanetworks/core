@@ -11,12 +11,6 @@ import (
 )
 
 func HandleLocationReport(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var userLocationInformation *ngapType.UserLocationInformation
-	var uEPresenceInAreaOfInterestList *ngapType.UEPresenceInAreaOfInterestList
-	var locationReportingRequestType *ngapType.LocationReportingRequestType
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -38,6 +32,12 @@ func HandleLocationReport(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		ran.Log.Error("LocationReport is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var userLocationInformation *ngapType.UserLocationInformation
+	var uEPresenceInAreaOfInterestList *ngapType.UEPresenceInAreaOfInterestList
+	var locationReportingRequestType *ngapType.LocationReportingRequestType
 
 	for _, ie := range locationReport.ProtocolIEs.List {
 		switch ie.Id.Value {

@@ -12,8 +12,6 @@ import (
 )
 
 func HandleUplinkRanConfigurationTransfer(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	var sONConfigurationTransferUL *ngapType.SONConfigurationTransfer
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -36,6 +34,8 @@ func HandleUplinkRanConfigurationTransfer(ctx ctxt.Context, ran *context.AmfRan,
 		return
 	}
 
+	var sONConfigurationTransferUL *ngapType.SONConfigurationTransfer
+
 	for _, ie := range uplinkRANConfigurationTransfer.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDSONConfigurationTransferUL: // optional, ignore
@@ -46,25 +46,29 @@ func HandleUplinkRanConfigurationTransfer(ctx ctxt.Context, ran *context.AmfRan,
 		}
 	}
 
-	if sONConfigurationTransferUL != nil {
-		targetRanNodeID := util.RanIDToModels(sONConfigurationTransferUL.TargetRANNodeID.GlobalRANNodeID)
-
-		if targetRanNodeID.GNbID.GNBValue != "" {
-			ran.Log.Debug("targetRanID", zap.String("targetRanID", targetRanNodeID.GNbID.GNBValue))
-		}
-
-		aMFSelf := context.AMFSelf()
-
-		targetRan, ok := aMFSelf.AmfRanFindByRanID(targetRanNodeID)
-		if !ok {
-			ran.Log.Warn("targetRan is nil")
-			return
-		}
-
-		err := message.SendDownlinkRanConfigurationTransfer(ctx, targetRan, sONConfigurationTransferUL)
-		if err != nil {
-			ran.Log.Error("error sending downlink ran configuration transfer", zap.Error(err))
-		}
-		ran.Log.Info("sent downlink ran configuration transfer to target ran", zap.Any("RAN ID", targetRan.RanID))
+	if sONConfigurationTransferUL == nil {
+		ran.Log.Warn("sONConfigurationTransferUL is nil")
+		return
 	}
+
+	targetRanNodeID := util.RanIDToModels(sONConfigurationTransferUL.TargetRANNodeID.GlobalRANNodeID)
+
+	if targetRanNodeID.GNbID.GNBValue != "" {
+		ran.Log.Debug("targetRanID", zap.String("targetRanID", targetRanNodeID.GNbID.GNBValue))
+	}
+
+	amfSelf := context.AMFSelf()
+
+	targetRan, ok := amfSelf.AmfRanFindByRanID(targetRanNodeID)
+	if !ok {
+		ran.Log.Warn("targetRan is nil")
+		return
+	}
+
+	err := message.SendDownlinkRanConfigurationTransfer(ctx, targetRan, sONConfigurationTransferUL)
+	if err != nil {
+		ran.Log.Error("error sending downlink ran configuration transfer", zap.Error(err))
+	}
+
+	ran.Log.Info("sent downlink ran configuration transfer to target ran", zap.Any("RAN ID", targetRan.RanID))
 }

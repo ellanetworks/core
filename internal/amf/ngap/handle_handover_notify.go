@@ -12,10 +12,6 @@ import (
 )
 
 func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var userLocationInformation *ngapType.UserLocationInformation
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -31,14 +27,19 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		ran.Log.Error("Initiating Message is nil")
 		return
 	}
-	HandoverNotify := initiatingMessage.Value.HandoverNotify
-	if HandoverNotify == nil {
+
+	handoverNotify := initiatingMessage.Value.HandoverNotify
+	if handoverNotify == nil {
 		ran.Log.Error("HandoverNotify is nil")
 		return
 	}
 
-	for i := 0; i < len(HandoverNotify.ProtocolIEs.List); i++ {
-		ie := HandoverNotify.ProtocolIEs.List[i]
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var userLocationInformation *ngapType.UserLocationInformation
+
+	for i := 0; i < len(handoverNotify.ProtocolIEs.List); i++ {
+		ie := handoverNotify.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
@@ -83,32 +84,35 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 	if userLocationInformation != nil {
 		targetUe.UpdateLocation(ctx, userLocationInformation)
 	}
+
 	amfUe := targetUe.AmfUe
 	if amfUe == nil {
 		ran.Log.Error("AmfUe is nil")
 		return
 	}
+
 	sourceUe := targetUe.SourceUe
 	if sourceUe == nil {
 		ran.Log.Error("N2 Handover between AMF has not been implemented yet")
-	} else {
-		ran.Log.Info("Handle Handover notification Finshed ")
-		for _, pduSessionid := range targetUe.SuccessPduSessionID {
-			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionid)
-			if !ok {
-				ran.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionid))
-			}
-			_, err := consumer.SendUpdateSmContextN2HandoverComplete(ctx, amfUe, smContext)
-			if err != nil {
-				ran.Log.Error("Send UpdateSmContextN2HandoverComplete Error", zap.Error(err))
-			}
+		return
+	}
+
+	ran.Log.Info("Handle Handover notification Finshed ")
+	for _, pduSessionid := range targetUe.SuccessPduSessionID {
+		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionid)
+		if !ok {
+			ran.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionid))
 		}
-		amfUe.AttachRanUe(targetUe)
-		err := ngap_message.SendUEContextReleaseCommand(ctx, sourceUe, context.UeContextReleaseHandover, ngapType.CausePresentNas,
-			ngapType.CauseNasPresentNormalRelease)
+		_, err := consumer.SendUpdateSmContextN2HandoverComplete(ctx, amfUe, smContext)
 		if err != nil {
-			ran.Log.Error("error sending ue context release command", zap.Error(err))
-			return
+			ran.Log.Error("Send UpdateSmContextN2HandoverComplete Error", zap.Error(err))
 		}
+	}
+	amfUe.AttachRanUe(targetUe)
+	err := ngap_message.SendUEContextReleaseCommand(ctx, sourceUe, context.UeContextReleaseHandover, ngapType.CausePresentNas,
+		ngapType.CauseNasPresentNormalRelease)
+	if err != nil {
+		ran.Log.Error("error sending ue context release command", zap.Error(err))
+		return
 	}
 }

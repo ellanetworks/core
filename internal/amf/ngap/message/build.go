@@ -181,7 +181,7 @@ func BuildNGSetupResponse(ctx ctxt.Context, guami *models.Guami, plmnSupported *
 	return ngap.Encoder(pdu)
 }
 
-func BuildNGSetupFailure(cause ngapType.Cause) ([]byte, error) {
+func BuildNGSetupFailure(cause *ngapType.Cause) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentUnsuccessfulOutcome
 	pdu.UnsuccessfulOutcome = new(ngapType.UnsuccessfulOutcome)
@@ -200,7 +200,7 @@ func BuildNGSetupFailure(cause ngapType.Cause) ([]byte, error) {
 	ie.Id.Value = ngapType.ProtocolIEIDCause
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
 	ie.Value.Present = ngapType.NGSetupFailureIEsPresentCause
-	ie.Value.Cause = &cause
+	ie.Value.Cause = cause
 
 	nGSetupFailureIEs.List = append(nGSetupFailureIEs.List, ie)
 

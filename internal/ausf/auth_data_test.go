@@ -23,7 +23,7 @@ func TestCreateAuthDataBadSuci(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
-	ausf.SetDBInstance(testdb)
+	_ = ausf.Start(testdb)
 	authInfoRequest := models.AuthenticationInfoRequest{}
 	ueSuci := "123"
 	authInfoResult, err := ausf.CreateAuthData(context.Background(), authInfoRequest, ueSuci)

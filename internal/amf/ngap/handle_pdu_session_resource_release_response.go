@@ -12,11 +12,6 @@ import (
 )
 
 func HandlePDUSessionResourceReleaseResponse(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pDUSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListRelRes
-	var userLocationInformation *ngapType.UserLocationInformation
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -38,6 +33,11 @@ func HandlePDUSessionResourceReleaseResponse(ctx ctxt.Context, ran *context.AmfR
 		ran.Log.Error("PDUSessionResourceReleaseResponse is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var pDUSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListRelRes
+	var userLocationInformation *ngapType.UserLocationInformation
 
 	for _, ie := range pDUSessionResourceReleaseResponse.ProtocolIEs.List {
 		switch ie.Id.Value {

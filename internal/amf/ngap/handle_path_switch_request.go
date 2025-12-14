@@ -14,15 +14,6 @@ import (
 
 // TS 23.502 4.9.1
 func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var sourceAMFUENGAPID *ngapType.AMFUENGAPID
-	var userLocationInformation *ngapType.UserLocationInformation
-	var uESecurityCapabilities *ngapType.UESecurityCapabilities
-	var pduSessionResourceToBeSwitchedInDLList *ngapType.PDUSessionResourceToBeSwitchedDLList
-	var pduSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListPSReq
-
-	var ranUe *context.RanUe
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -44,6 +35,13 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 		ran.Log.Error("PathSwitchRequest is nil")
 		return
 	}
+
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var sourceAMFUENGAPID *ngapType.AMFUENGAPID
+	var userLocationInformation *ngapType.UserLocationInformation
+	var uESecurityCapabilities *ngapType.UESecurityCapabilities
+	var pduSessionResourceToBeSwitchedInDLList *ngapType.PDUSessionResourceToBeSwitchedDLList
+	var pduSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListPSReq
 
 	for _, ie := range pathSwitchRequest.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -78,7 +76,8 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 		ran.Log.Error("SourceAmfUeNgapID is nil")
 		return
 	}
-	ranUe = context.AMFSelf().RanUeFindByAmfUeNgapID(sourceAMFUENGAPID.Value)
+
+	ranUe := context.AMFSelf().RanUeFindByAmfUeNgapID(sourceAMFUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", sourceAMFUENGAPID.Value))
 		err := message.SendPathSwitchRequestFailure(ctx, ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
@@ -101,7 +100,7 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 			ranUe.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
 		}
-		ranUe.Log.Info("sent path switch request failure", zap.String("supi", amfUe.Supi))
+		ranUe.Log.Info("sent path switch request failure")
 		return
 	}
 

@@ -14,13 +14,6 @@ import (
 )
 
 func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	var globalRANNodeID *ngapType.GlobalRANNodeID
-	var rANNodeName *ngapType.RANNodeName
-	var supportedTAList *ngapType.SupportedTAList
-	var pagingDRX *ngapType.PagingDRX
-
-	var cause ngapType.Cause
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -30,16 +23,23 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
+
 	initiatingMessage := msg.InitiatingMessage
 	if initiatingMessage == nil {
 		ran.Log.Error("Initiating Message is nil")
 		return
 	}
+
 	nGSetupRequest := initiatingMessage.Value.NGSetupRequest
 	if nGSetupRequest == nil {
 		ran.Log.Error("NGSetupRequest is nil")
 		return
 	}
+
+	var globalRANNodeID *ngapType.GlobalRANNodeID
+	var rANNodeName *ngapType.RANNodeName
+	var supportedTAList *ngapType.SupportedTAList
+	var pagingDRX *ngapType.PagingDRX
 
 	for i := 0; i < len(nGSetupRequest.ProtocolIEs.List); i++ {
 		ie := nGSetupRequest.ProtocolIEs.List[i]
@@ -118,52 +118,59 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 	}
 
 	if len(ran.SupportedTAList) == 0 {
-		ran.Log.Warn("NG Setup failure: No supported TA exist in NG Setup request")
-		cause.Present = ngapType.CausePresentMisc
-		cause.Misc = &ngapType.CauseMisc{
-			Value: ngapType.CauseMiscPresentUnspecified,
-		}
-	} else {
-		var found bool
-
-		taiList := make([]models.Tai, len(operatorInfo.Tais))
-		copy(taiList, operatorInfo.Tais)
-		for i := range taiList {
-			tac, err := util.TACConfigToModels(taiList[i].Tac)
-			if err != nil {
-				ran.Log.Warn("tac is invalid", zap.String("tac", taiList[i].Tac))
-				continue
-			}
-			taiList[i].Tac = tac
-		}
-
-		for i, tai := range ran.SupportedTAList {
-			if context.InTaiList(tai.Tai, taiList) {
-				ran.Log.Debug("Found served TAI in Core", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
-				found = true
-				break
-			}
-		}
-		if !found {
-			ran.Log.Warn("Could not find Served TAI in Core", zap.Any("gnb_tai_list", ran.SupportedTAList), zap.Any("core_tai_list", taiList))
-			cause.Present = ngapType.CausePresentMisc
-			cause.Misc = &ngapType.CauseMisc{
-				Value: ngapType.CauseMiscPresentUnknownPLMN,
-			}
-		}
-	}
-
-	if cause.Present == ngapType.CausePresentNothing {
-		err := message.SendNGSetupResponse(ctx, ran, operatorInfo.Guami, operatorInfo.SupportedPLMN)
-		if err != nil {
-			ran.Log.Error("error sending NG Setup Response", zap.Error(err))
-			return
-		}
-	} else {
-		err := message.SendNGSetupFailure(ctx, ran, cause)
+		err := message.SendNGSetupFailure(ctx, ran, &ngapType.Cause{
+			Present: ngapType.CausePresentMisc,
+			Misc: &ngapType.CauseMisc{
+				Value: ngapType.CauseMiscPresentUnspecified,
+			},
+		})
 		if err != nil {
 			ran.Log.Error("error sending NG Setup Failure", zap.Error(err))
 			return
 		}
+		ran.Log.Warn("NG Setup failure: No supported TA exist in NG Setup request")
+		return
+	}
+
+	taiList := make([]models.Tai, len(operatorInfo.Tais))
+	copy(taiList, operatorInfo.Tais)
+	for i := range taiList {
+		tac, err := util.TACConfigToModels(taiList[i].Tac)
+		if err != nil {
+			ran.Log.Warn("tac is invalid", zap.String("tac", taiList[i].Tac))
+			continue
+		}
+		taiList[i].Tac = tac
+	}
+
+	var found bool
+
+	for i, tai := range ran.SupportedTAList {
+		if context.InTaiList(tai.Tai, taiList) {
+			ran.Log.Debug("Found served TAI in Core", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		err := message.SendNGSetupFailure(ctx, ran, &ngapType.Cause{
+			Present: ngapType.CausePresentMisc,
+			Misc: &ngapType.CauseMisc{
+				Value: ngapType.CauseMiscPresentUnknownPLMN,
+			},
+		})
+		if err != nil {
+			ran.Log.Error("error sending NG Setup Failure", zap.Error(err))
+			return
+		}
+		ran.Log.Warn("Could not find Served TAI in Core", zap.Any("gnb_tai_list", ran.SupportedTAList), zap.Any("core_tai_list", taiList))
+		return
+	}
+
+	err = message.SendNGSetupResponse(ctx, ran, operatorInfo.Guami, operatorInfo.SupportedPLMN)
+	if err != nil {
+		ran.Log.Error("error sending NG Setup Response", zap.Error(err))
+		return
 	}
 }

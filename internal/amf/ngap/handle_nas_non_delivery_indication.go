@@ -11,11 +11,6 @@ import (
 )
 
 func HandleNasNonDeliveryIndication(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var nASPDU *ngapType.NASPDU
-	var cause *ngapType.Cause
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -25,16 +20,23 @@ func HandleNasNonDeliveryIndication(ctx ctxt.Context, ran *context.AmfRan, messa
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
+
 	initiatingMessage := message.InitiatingMessage
 	if initiatingMessage == nil {
 		ran.Log.Error("InitiatingMessage is nil")
 		return
 	}
+
 	nASNonDeliveryIndication := initiatingMessage.Value.NASNonDeliveryIndication
 	if nASNonDeliveryIndication == nil {
 		ran.Log.Error("NASNonDeliveryIndication is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var nASPDU *ngapType.NASPDU
+	var cause *ngapType.Cause
 
 	for _, ie := range nASNonDeliveryIndication.ProtocolIEs.List {
 		switch ie.Id.Value {

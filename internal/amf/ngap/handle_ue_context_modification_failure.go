@@ -8,12 +8,6 @@ import (
 )
 
 func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var cause *ngapType.Cause
-
-	var ranUe *context.RanUe
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -34,6 +28,10 @@ func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.N
 		return
 	}
 
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var cause *ngapType.Cause
+
 	for _, ie := range uEContextModificationFailure.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
@@ -53,6 +51,8 @@ func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.N
 			}
 		}
 	}
+
+	var ranUe *context.RanUe
 
 	if rANUENGAPID != nil {
 		ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)

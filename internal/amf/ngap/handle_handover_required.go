@@ -14,15 +14,6 @@ import (
 )
 
 func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var handoverType *ngapType.HandoverType
-	var cause *ngapType.Cause
-	var targetID *ngapType.TargetID
-	var pDUSessionResourceListHORqd *ngapType.PDUSessionResourceListHORqd
-	var sourceToTargetTransparentContainer *ngapType.SourceToTargetTransparentContainer
-	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -44,6 +35,15 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 		ran.Log.Error("HandoverRequired is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var handoverType *ngapType.HandoverType
+	var cause *ngapType.Cause
+	var targetID *ngapType.TargetID
+	var pDUSessionResourceListHORqd *ngapType.PDUSessionResourceListHORqd
+	var sourceToTargetTransparentContainer *ngapType.SourceToTargetTransparentContainer
+	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
 	for i := 0; i < len(HandoverRequired.ProtocolIEs.List); i++ {
 		ie := HandoverRequired.ProtocolIEs.List[i]

@@ -200,8 +200,6 @@ func DispatchNgapMsg(conn *sctp.SCTPConn, ran *context.AmfRan, pdu *ngapType.NGA
 			HandleUEContextReleaseRequest(ctx, ran, pdu)
 		case ngapType.ProcedureCodeNASNonDeliveryIndication:
 			HandleNasNonDeliveryIndication(ctx, ran, pdu)
-		case ngapType.ProcedureCodeLocationReportingFailureIndication:
-			HandleLocationReportingFailureIndication(ran, pdu)
 		case ngapType.ProcedureCodeErrorIndication:
 			HandleErrorIndication(ran, pdu)
 		case ngapType.ProcedureCodeUERadioCapabilityInfoIndication:
@@ -212,26 +210,16 @@ func DispatchNgapMsg(conn *sctp.SCTPConn, ran *context.AmfRan, pdu *ngapType.NGA
 			HandleHandoverRequired(ctx, ran, pdu)
 		case ngapType.ProcedureCodeRANConfigurationUpdate:
 			HandleRanConfigurationUpdate(ctx, ran, pdu)
-		case ngapType.ProcedureCodeRRCInactiveTransitionReport:
-			HandleRRCInactiveTransitionReport(ctx, ran, pdu)
 		case ngapType.ProcedureCodePDUSessionResourceNotify:
 			HandlePDUSessionResourceNotify(ctx, ran, pdu)
 		case ngapType.ProcedureCodePathSwitchRequest:
 			HandlePathSwitchRequest(ctx, ran, pdu)
 		case ngapType.ProcedureCodeLocationReport:
 			HandleLocationReport(ctx, ran, pdu)
-		case ngapType.ProcedureCodeUplinkUEAssociatedNRPPaTransport:
-			HandleUplinkUEAssociatedNRPPATransport(ran, pdu)
 		case ngapType.ProcedureCodeUplinkRANConfigurationTransfer:
 			HandleUplinkRanConfigurationTransfer(ctx, ran, pdu)
 		case ngapType.ProcedureCodePDUSessionResourceModifyIndication:
 			HandlePDUSessionResourceModifyIndication(ctx, ran, pdu)
-		case ngapType.ProcedureCodeCellTrafficTrace:
-			HandleCellTrafficTrace(ctx, ran, pdu)
-		case ngapType.ProcedureCodeUplinkRANStatusTransfer:
-			HandleUplinkRanStatusTransfer(ran, pdu)
-		case ngapType.ProcedureCodeUplinkNonUEAssociatedNRPPaTransport:
-			HandleUplinkNonUEAssociatedNRPPATransport(ran, pdu)
 		default:
 			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
 		}

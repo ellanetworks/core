@@ -12,11 +12,6 @@ import (
 )
 
 func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var cause *ngapType.Cause
-	var targetUe *context.RanUe
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -38,6 +33,11 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 		ran.Log.Error("HandoverFailure is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var cause *ngapType.Cause
+	var targetUe *context.RanUe
+	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	for _, ie := range handoverFailure.ProtocolIEs.List {
 		switch ie.Id.Value {

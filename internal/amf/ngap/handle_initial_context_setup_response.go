@@ -12,12 +12,6 @@ import (
 )
 
 func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pDUSessionResourceSetupResponseList *ngapType.PDUSessionResourceSetupListCxtRes
-	var pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListCxtRes
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -27,16 +21,24 @@ func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, me
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
+
 	successfulOutcome := message.SuccessfulOutcome
 	if successfulOutcome == nil {
 		ran.Log.Error("SuccessfulOutcome is nil")
 		return
 	}
+
 	initialContextSetupResponse := successfulOutcome.Value.InitialContextSetupResponse
 	if initialContextSetupResponse == nil {
 		ran.Log.Error("InitialContextSetupResponse is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var pDUSessionResourceSetupResponseList *ngapType.PDUSessionResourceSetupListCxtRes
+	var pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListCxtRes
+	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	for _, ie := range initialContextSetupResponse.ProtocolIEs.List {
 		switch ie.Id.Value {

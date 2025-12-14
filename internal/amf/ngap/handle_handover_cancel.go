@@ -82,10 +82,12 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 	if sourceUe.AmfUeNgapID != aMFUENGAPID.Value {
 		ran.Log.Warn("Conflict AMF_UE_NGAP_ID", zap.Int64("sourceUe.AmfUeNgapID", sourceUe.AmfUeNgapID), zap.Int64("aMFUENGAPID.Value", aMFUENGAPID.Value))
 	}
+
 	ran.Log.Debug("Handle Handover Cancel", zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID))
 	causePresent := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem
 	var err error
+
 	if cause != nil {
 		ran.Log.Debug("Handover Cancel Cause", zap.String("Cause", causeToString(*cause)))
 		causePresent, causeValue, err = getCause(cause)
@@ -94,33 +96,37 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 			return
 		}
 	}
+
 	targetUe := sourceUe.TargetUe
 	if targetUe == nil {
 		ran.Log.Error("N2 Handover between AMF has not been implemented yet")
-	} else {
-		ran.Log.Debug("handle handover cancel", zap.Int64("targetRanUeNgapID", targetUe.RanUeNgapID), zap.Int64("targetAmfUeNgapID", targetUe.AmfUeNgapID),
-			zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID))
-		amfUe := sourceUe.AmfUe
-		if amfUe != nil {
-			amfUe.Mutex.Lock()
-			for pduSessionID, smContext := range amfUe.SmContextList {
-				_, err := consumer.SendUpdateSmContextN2HandoverCanceled(ctx, amfUe, smContext)
-				if err != nil {
-					sourceUe.Log.Error("Send UpdateSmContextN2HandoverCanceled Error", zap.Error(err), zap.Int32("PduSessionID", pduSessionID))
-				}
-			}
-			amfUe.Mutex.Unlock()
-		}
-		err := message.SendUEContextReleaseCommand(ctx, targetUe, context.UeContextReleaseHandover, causePresent, causeValue)
-		if err != nil {
-			ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
-			return
-		}
-		err = message.SendHandoverCancelAcknowledge(ctx, sourceUe, nil)
-		if err != nil {
-			ran.Log.Error("error sending handover cancel acknowledge to source UE", zap.Error(err))
-			return
-		}
-		ran.Log.Info("sent handover cancel acknowledge to source UE")
+		return
 	}
+
+	ran.Log.Debug("handle handover cancel", zap.Int64("targetRanUeNgapID", targetUe.RanUeNgapID), zap.Int64("targetAmfUeNgapID", targetUe.AmfUeNgapID), zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID))
+	amfUe := sourceUe.AmfUe
+	if amfUe != nil {
+		amfUe.Mutex.Lock()
+		for pduSessionID, smContext := range amfUe.SmContextList {
+			_, err := consumer.SendUpdateSmContextN2HandoverCanceled(ctx, amfUe, smContext)
+			if err != nil {
+				sourceUe.Log.Error("Send UpdateSmContextN2HandoverCanceled Error", zap.Error(err), zap.Int32("PduSessionID", pduSessionID))
+			}
+		}
+		amfUe.Mutex.Unlock()
+	}
+
+	err = message.SendUEContextReleaseCommand(ctx, targetUe, context.UeContextReleaseHandover, causePresent, causeValue)
+	if err != nil {
+		ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
+		return
+	}
+
+	err = message.SendHandoverCancelAcknowledge(ctx, sourceUe, nil)
+	if err != nil {
+		ran.Log.Error("error sending handover cancel acknowledge to source UE", zap.Error(err))
+		return
+	}
+
+	ran.Log.Info("sent handover cancel acknowledge to source UE")
 }

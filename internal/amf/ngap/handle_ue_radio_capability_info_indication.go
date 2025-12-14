@@ -10,12 +10,6 @@ import (
 )
 
 func HandleUERadioCapabilityInfoIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-
-	var uERadioCapability *ngapType.UERadioCapability
-	var uERadioCapabilityForPaging *ngapType.UERadioCapabilityForPaging
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -35,6 +29,11 @@ func HandleUERadioCapabilityInfoIndication(ran *context.AmfRan, message *ngapTyp
 		ran.Log.Error("UERadioCapabilityInfoIndication is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var uERadioCapability *ngapType.UERadioCapability
+	var uERadioCapabilityForPaging *ngapType.UERadioCapabilityForPaging
 
 	for i := 0; i < len(uERadioCapabilityInfoIndication.ProtocolIEs.List); i++ {
 		ie := uERadioCapabilityInfoIndication.ProtocolIEs.List[i]
@@ -71,6 +70,7 @@ func HandleUERadioCapabilityInfoIndication(ran *context.AmfRan, message *ngapTyp
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		return
 	}
+
 	ran.Log.Debug("Handle UE Radio Capability Info Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
 	amfUe := ranUe.AmfUe
 
@@ -78,9 +78,11 @@ func HandleUERadioCapabilityInfoIndication(ran *context.AmfRan, message *ngapTyp
 		ranUe.Log.Error("amfUe is nil")
 		return
 	}
+
 	if uERadioCapability != nil {
 		amfUe.UeRadioCapability = hex.EncodeToString(uERadioCapability.Value)
 	}
+
 	if uERadioCapabilityForPaging != nil {
 		amfUe.UeRadioCapabilityForPaging = &context.UERadioCapabilityForPaging{}
 		if uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR != nil {

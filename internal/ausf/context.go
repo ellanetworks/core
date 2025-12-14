@@ -67,10 +67,6 @@ func IsServingNetworkAuthorized(lookup string) bool {
 	return servingNetworkRegex.MatchString(lookup)
 }
 
-func SetDBInstance(dbInstance *db.Database) {
-	ausfContext.DBInstance = dbInstance
-}
-
 func Start(dbInstance *db.Database) error {
 	ausfContext.DBInstance = dbInstance
 	return nil

@@ -11,9 +11,6 @@ import (
 )
 
 func HandleNGReset(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	var cause *ngapType.Cause
-	var resetType *ngapType.ResetType
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -35,6 +32,9 @@ func HandleNGReset(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU)
 		ran.Log.Error("NGReset is nil")
 		return
 	}
+
+	var cause *ngapType.Cause
+	var resetType *ngapType.ResetType
 
 	for _, ie := range nGReset.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -105,6 +105,7 @@ func HandleNGReset(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU)
 				ran.Log.Error(err.Error())
 			}
 		}
+
 		err := message.SendNGResetAcknowledge(ctx, ran, partOfNGInterface)
 		if err != nil {
 			ran.Log.Error("error sending NG Reset Acknowledge", zap.Error(err))

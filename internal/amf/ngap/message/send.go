@@ -187,11 +187,7 @@ func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan, guami *models.Gu
 	return nil
 }
 
-func SendNGSetupFailure(ctx ctxt.Context, ran *context.AmfRan, cause ngapType.Cause) error {
-	if cause.Present == ngapType.CausePresentNothing {
-		return fmt.Errorf("cause present is nil")
-	}
-
+func SendNGSetupFailure(ctx ctxt.Context, ran *context.AmfRan, cause *ngapType.Cause) error {
 	pkt, err := BuildNGSetupFailure(cause)
 	if err != nil {
 		return fmt.Errorf("error building NG Setup Failure: %s", err.Error())

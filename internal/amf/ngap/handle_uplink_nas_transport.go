@@ -11,11 +11,6 @@ import (
 )
 
 func HandleUplinkNasTransport(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var nASPDU *ngapType.NASPDU
-	var userLocationInformation *ngapType.UserLocationInformation
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -37,6 +32,11 @@ func HandleUplinkNasTransport(ctx ctxt.Context, ran *context.AmfRan, message *ng
 		ran.Log.Error("UplinkNasTransport is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var nASPDU *ngapType.NASPDU
+	var userLocationInformation *ngapType.UserLocationInformation
 
 	for i := 0; i < len(uplinkNasTransport.ProtocolIEs.List); i++ {
 		ie := uplinkNasTransport.ProtocolIEs.List[i]

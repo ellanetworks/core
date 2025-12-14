@@ -15,14 +15,6 @@ import (
 )
 
 func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pDUSessionResourceNotifyList *ngapType.PDUSessionResourceNotifyList
-	var pDUSessionResourceReleasedListNot *ngapType.PDUSessionResourceReleasedListNot
-	var userLocationInformation *ngapType.UserLocationInformation
-
-	var ranUe *context.RanUe
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -44,6 +36,12 @@ func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, msg *
 		ran.Log.Error("PDUSessionResourceNotify is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var pDUSessionResourceNotifyList *ngapType.PDUSessionResourceNotifyList
+	var pDUSessionResourceReleasedListNot *ngapType.PDUSessionResourceReleasedListNot
+	var userLocationInformation *ngapType.UserLocationInformation
 
 	for _, ie := range PDUSessionResourceNotify.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -68,6 +66,8 @@ func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, msg *
 			}
 		}
 	}
+
+	var ranUe *context.RanUe
 
 	ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {

@@ -14,12 +14,6 @@ import (
 )
 
 func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	var rANNodeName *ngapType.RANNodeName
-	var supportedTAList *ngapType.SupportedTAList
-	var pagingDRX *ngapType.PagingDRX
-
-	var cause ngapType.Cause
-
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -41,6 +35,11 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, msg *ng
 		ran.Log.Error("RAN Configuration is nil")
 		return
 	}
+
+	var rANNodeName *ngapType.RANNodeName
+	var supportedTAList *ngapType.SupportedTAList
+	var pagingDRX *ngapType.PagingDRX
+	var cause ngapType.Cause
 
 	for i := 0; i < len(rANConfigurationUpdate.ProtocolIEs.List); i++ {
 		ie := rANConfigurationUpdate.ProtocolIEs.List[i]
