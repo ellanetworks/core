@@ -68,7 +68,7 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 		msg,
 	)
 
-	go DispatchNgapMsg(ran, pdu)
+	DispatchNgapMsg(ran, pdu)
 }
 
 func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
