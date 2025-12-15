@@ -42,7 +42,6 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, supi string, n1n2MessageTran
 	requestData := n1n2MessageTransferRequest.JSONData
 
 	onGoing := ue.GetOnGoing()
-	// 4xx response cases
 	switch onGoing.Procedure {
 	case context.OnGoingProcedurePaging:
 		return fmt.Errorf("higher priority request ongoing")

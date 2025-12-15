@@ -38,11 +38,10 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 			Sst: 1,
 			Sd:  "010203",
 		},
-		PDUAddress:                   nil,
-		ProtocolConfigurationOptions: &context.ProtocolConfigurationOptions{},
+		PDUAddress: nil,
 	}
 
-	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext)
+	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext, nil)
 	if err != nil {
 		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
 	}
@@ -99,11 +98,10 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
 			Sst: 1,
 			Sd:  "",
 		},
-		PDUAddress:                   nil,
-		ProtocolConfigurationOptions: &context.ProtocolConfigurationOptions{},
+		PDUAddress: nil,
 	}
 
-	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext)
+	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext, nil)
 	if err != nil {
 		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
 	}

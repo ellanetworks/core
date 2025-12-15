@@ -24,7 +24,7 @@ const (
 	DefaultQosRuleID uint8 = 1
 )
 
-func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error) {
+func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolConfigurationOptions) ([]byte, error) {
 	if smContext == nil {
 		return nil, fmt.Errorf("SM Context is nil")
 	}
@@ -130,14 +130,14 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	pDUSessionEstablishmentAccept.DNN = nasType.NewDNN(nasMessage.ULNASTransportDNNType)
 	pDUSessionEstablishmentAccept.DNN.SetDNN(smContext.Dnn)
 
-	if smContext.ProtocolConfigurationOptions.DNSIPv4Request || smContext.ProtocolConfigurationOptions.DNSIPv6Request || smContext.ProtocolConfigurationOptions.IPv4LinkMTURequest {
+	if pco.DNSIPv4Request || pco.DNSIPv6Request || pco.IPv4LinkMTURequest {
 		pDUSessionEstablishmentAccept.ExtendedProtocolConfigurationOptions = nasType.NewExtendedProtocolConfigurationOptions(
 			nasMessage.PDUSessionEstablishmentAcceptExtendedProtocolConfigurationOptionsType,
 		)
 		protocolConfigurationOptions := nasConvert.NewProtocolConfigurationOptions()
 
 		// IPv4 DNS
-		if smContext.ProtocolConfigurationOptions.DNSIPv4Request {
+		if pco.DNSIPv4Request {
 			err := protocolConfigurationOptions.AddDNSServerIPv4Address(smContext.DNNInfo.DNS)
 			if err != nil {
 				logger.SmfLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
@@ -145,12 +145,12 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 		}
 
 		// IPv6 DNS
-		if smContext.ProtocolConfigurationOptions.DNSIPv6Request {
+		if pco.DNSIPv6Request {
 			logger.SmfLog.Warn("IPv6 DNS request is not supported")
 		}
 
 		// MTU
-		if smContext.ProtocolConfigurationOptions.IPv4LinkMTURequest {
+		if pco.IPv4LinkMTURequest {
 			err := protocolConfigurationOptions.AddIPv4LinkMTU(smContext.DNNInfo.MTU)
 			if err != nil {
 				logger.SmfLog.Warn("Error while adding MTU", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))

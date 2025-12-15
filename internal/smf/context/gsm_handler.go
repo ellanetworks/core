@@ -8,6 +8,7 @@ package context
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasConvert"
@@ -15,7 +16,13 @@ import (
 	"go.uber.org/zap"
 )
 
-func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmentRequest) {
+type ProtocolConfigurationOptions struct {
+	DNSIPv4Request     bool
+	DNSIPv6Request     bool
+	IPv4LinkMTURequest bool
+}
+
+func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmentRequest) (*ProtocolConfigurationOptions, error) {
 	smContext.PDUSessionID = int32(req.PDUSessionID.GetPDUSessionID())
 
 	smContext.Pti = req.GetPTI()
@@ -24,12 +31,13 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 	if req.PDUSessionType != nil {
 		requestedPDUSessionType := req.PDUSessionType.GetPDUSessionTypeValue()
 		if err := smContext.isAllowedPDUSessionType(requestedPDUSessionType); err != nil {
-			logger.SmfLog.Error("Requested PDUSessionType is not allowed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
-			return
+			return nil, fmt.Errorf("requested PDUSessionType is not allowed: %v", err)
 		}
 	} else {
 		smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv4
 	}
+
+	pco := &ProtocolConfigurationOptions{}
 
 	if req.ExtendedProtocolConfigurationOptions != nil {
 		EPCOContents := req.ExtendedProtocolConfigurationOptions.GetExtendedProtocolConfigurationOptionsContents()
@@ -41,14 +49,15 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 
 		// Send MTU to UE always even if UE does not request it.
 		// Preconfiguring MTU request flag.
-		smContext.ProtocolConfigurationOptions.IPv4LinkMTURequest = true
+
+		pco.IPv4LinkMTURequest = true
 
 		for _, container := range protocolConfigurationOptions.ProtocolOrContainerList {
 			switch container.ProtocolOrContainerID {
 			case nasMessage.PCSCFIPv6AddressRequestUL:
 			case nasMessage.IMCNSubsystemSignalingFlagUL:
 			case nasMessage.DNSServerIPv6AddressRequestUL:
-				smContext.ProtocolConfigurationOptions.DNSIPv6Request = true
+				pco.DNSIPv6Request = true
 			case nasMessage.NotSupportedUL:
 			case nasMessage.MSSupportOfNetworkRequestedBearerControlIndicatorUL:
 			case nasMessage.DSMIPv6HomeAgentAddressRequestUL:
@@ -58,7 +67,7 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 			case nasMessage.IPv4AddressAllocationViaDHCPv4UL:
 			case nasMessage.PCSCFIPv4AddressRequestUL:
 			case nasMessage.DNSServerIPv4AddressRequestUL:
-				smContext.ProtocolConfigurationOptions.DNSIPv4Request = true
+				pco.DNSIPv4Request = true
 			case nasMessage.MSISDNRequestUL:
 			case nasMessage.IFOMSupportRequestUL:
 			case nasMessage.MSSupportOfLocalAddressInTFTIndicatorUL:
@@ -85,6 +94,8 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 			}
 		}
 	}
+
+	return pco, nil
 }
 
 func (smContext *SMContext) HandlePDUSessionReleaseRequest(ctx context.Context, req *nasMessage.PDUSessionReleaseRequest) {

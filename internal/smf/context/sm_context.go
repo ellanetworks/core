@@ -19,12 +19,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type ProtocolConfigurationOptions struct {
-	DNSIPv4Request     bool
-	DNSIPv6Request     bool
-	IPv4LinkMTURequest bool
-}
-
 type PFCPSessionContext struct {
 	LocalSEID  uint64
 	RemoteSEID uint64
@@ -49,10 +43,9 @@ type SMContext struct {
 	PDUAddress                     net.IP
 	Tunnel                         *UPTunnel
 	DNNInfo                        *SnssaiSmfDnnInfo
-	ProtocolConfigurationOptions   *ProtocolConfigurationOptions
 	SmPolicyUpdates                []*qos.PolicyUpdate
 	SmPolicyData                   qos.SmCtxtPolicyData
-	PFCPContext                    map[string]*PFCPSessionContext // key: UPD NodeID
+	PFCPContext                    map[string]*PFCPSessionContext // key: UPF NodeID
 	PDUSessionID                   int32
 	SelectedPDUSessionType         uint8
 	PDUSessionReleaseDueToDupPduID bool
@@ -75,10 +68,6 @@ func NewSMContext(supi string, pduSessID int32) *SMContext {
 	smContext.PDUSessionID = pduSessID
 	smContext.PFCPContext = make(map[string]*PFCPSessionContext)
 	smContext.SmPolicyUpdates = make([]*qos.PolicyUpdate, 0)
-	smContext.ProtocolConfigurationOptions = &ProtocolConfigurationOptions{
-		DNSIPv4Request: false,
-		DNSIPv6Request: false,
-	}
 
 	return smContext
 }
@@ -260,8 +249,6 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 	return nil
 }
 
-// SM Policy related operation
-
 // SelectedSessionRule - return the SMF selected session rule for this SM Context
 func (smContext *SMContext) SelectedSessionRule() *models.SessionRule {
 	// Policy update in progress
@@ -285,7 +272,6 @@ func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(cause uint8) *
 }
 
 func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
-	// Lock SM context
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
