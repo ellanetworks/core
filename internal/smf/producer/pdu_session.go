@@ -103,7 +103,7 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 
 	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, subscriberPolicy)
 
-	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
+	smContext.SmPolicyUpdates = policyUpdates
 
 	defaultPath := &context.DataPath{
 		DPNode: &context.DataPathNode{

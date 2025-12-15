@@ -40,7 +40,7 @@ type SMContext struct {
 	Snssai                         *models.Snssai
 	PDUAddress                     net.IP
 	Tunnel                         *UPTunnel
-	SmPolicyUpdates                []*qos.PolicyUpdate
+	SmPolicyUpdates                *qos.PolicyUpdate
 	SmPolicyData                   qos.SmCtxtPolicyData
 	PFCPContext                    map[string]*PFCPSessionContext // key: UPF NodeID
 	PDUSessionID                   int32
@@ -62,7 +62,6 @@ func NewSMContext(supi string, pduSessID int32) *SMContext {
 	smfContext.smContextPool[ref] = smContext
 	smContext.PDUSessionID = pduSessID
 	smContext.PFCPContext = make(map[string]*PFCPSessionContext)
-	smContext.SmPolicyUpdates = make([]*qos.PolicyUpdate, 0)
 
 	return smContext
 }
@@ -233,8 +232,8 @@ func isAllowedPDUSessionType(allowedPDUSessionType models.PduSessionType, reques
 // SelectedSessionRule - return the SMF selected session rule for this SM Context
 func (smContext *SMContext) SelectedSessionRule() *models.SessionRule {
 	// Policy update in progress
-	if len(smContext.SmPolicyUpdates) > 0 {
-		return smContext.SmPolicyUpdates[0].SessRuleUpdate.ActiveSessRule
+	if smContext.SmPolicyUpdates != nil {
+		return smContext.SmPolicyUpdates.SessRuleUpdate.ActiveSessRule
 	}
 
 	return smContext.SmPolicyData.SmCtxtSessionRules.ActiveRule
@@ -257,16 +256,13 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 	defer smContext.Mutex.Unlock()
 
 	if status {
-		err := qos.CommitSmPolicyDecision(&smContext.SmPolicyData, smContext.SmPolicyUpdates[0])
+		err := qos.CommitSmPolicyDecision(&smContext.SmPolicyData, smContext.SmPolicyUpdates)
 		if err != nil {
 			logger.SmfLog.Error("failed to commit SM Policy Decision", zap.Error(err))
 		}
 	}
 
-	// Release 0th index update
-	if len(smContext.SmPolicyUpdates) >= 1 {
-		smContext.SmPolicyUpdates = smContext.SmPolicyUpdates[1:]
-	}
+	smContext.SmPolicyUpdates = nil
 
 	return nil
 }

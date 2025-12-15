@@ -128,7 +128,7 @@ func (dataPath *DataPath) ActivateUlDlTunnel(smContext *SMContext) error {
 }
 
 func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) {
-	smPolicyDec := smContext.SmPolicyUpdates[0].SmPolicyDecision
+	smPolicyDec := smContext.SmPolicyUpdates.SmPolicyDecision
 
 	if smPolicyDec.QosDecs == nil {
 		return nil, fmt.Errorf("QOS Data not found in Policy Decision")

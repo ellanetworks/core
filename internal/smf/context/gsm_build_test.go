@@ -13,24 +13,22 @@ import (
 
 func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 	smContext := &context.SMContext{
-		SmPolicyUpdates: []*qos.PolicyUpdate{
-			{
-				SessRuleUpdate: &qos.SessRulesUpdate{
-					ActiveSessRule: &models.SessionRule{
-						AuthSessAmbr: &models.Ambr{
-							Uplink:   "1 Gbps",
-							Downlink: "1 Gbps",
-						},
-						AuthDefQos: &models.AuthorizedDefaultQos{
-							Var5qi: 9,
-						},
+		SmPolicyUpdates: &qos.PolicyUpdate{
+			SessRuleUpdate: &qos.SessRulesUpdate{
+				ActiveSessRule: &models.SessionRule{
+					AuthSessAmbr: &models.Ambr{
+						Uplink:   "1 Gbps",
+						Downlink: "1 Gbps",
 					},
-				},
-				QosFlowUpdate: &qos.QosFlowsUpdate{
-					Add: &models.QosData{
-						QFI:    1,
+					AuthDefQos: &models.AuthorizedDefaultQos{
 						Var5qi: 9,
 					},
+				},
+			},
+			QosFlowUpdate: &qos.QosFlowsUpdate{
+				Add: &models.QosData{
+					QFI:    1,
+					Var5qi: 9,
 				},
 			},
 		},
@@ -74,24 +72,22 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 
 func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
 	smContext := &context.SMContext{
-		SmPolicyUpdates: []*qos.PolicyUpdate{
-			{
-				SessRuleUpdate: &qos.SessRulesUpdate{
-					ActiveSessRule: &models.SessionRule{
-						AuthSessAmbr: &models.Ambr{
-							Uplink:   "1 Gbps",
-							Downlink: "1 Gbps",
-						},
-						AuthDefQos: &models.AuthorizedDefaultQos{
-							Var5qi: 9,
-						},
+		SmPolicyUpdates: &qos.PolicyUpdate{
+			SessRuleUpdate: &qos.SessRulesUpdate{
+				ActiveSessRule: &models.SessionRule{
+					AuthSessAmbr: &models.Ambr{
+						Uplink:   "1 Gbps",
+						Downlink: "1 Gbps",
 					},
-				},
-				QosFlowUpdate: &qos.QosFlowsUpdate{
-					Add: &models.QosData{
-						QFI:    1,
+					AuthDefQos: &models.AuthorizedDefaultQos{
 						Var5qi: 9,
 					},
+				},
+			},
+			QosFlowUpdate: &qos.QosFlowsUpdate{
+				Add: &models.QosData{
+					QFI:    1,
+					Var5qi: 9,
 				},
 			},
 		},

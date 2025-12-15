@@ -29,15 +29,15 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolCo
 		return nil, fmt.Errorf("SM Context is nil")
 	}
 
-	if len(smContext.SmPolicyUpdates) == 0 {
+	if smContext.SmPolicyUpdates == nil {
 		return nil, fmt.Errorf("no SM Policy Update found in SM Context")
 	}
 
-	if smContext.SmPolicyUpdates[0].SessRuleUpdate == nil {
+	if smContext.SmPolicyUpdates.SessRuleUpdate == nil {
 		return nil, fmt.Errorf("no Session Rule Update found in SM Policy Update")
 	}
 
-	if smContext.SmPolicyUpdates[0].QosFlowUpdate == nil {
+	if smContext.SmPolicyUpdates.QosFlowUpdate == nil {
 		return nil, fmt.Errorf("no Qos Flow Update found in SM Policy Update")
 	}
 
@@ -48,7 +48,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolCo
 	m.PDUSessionEstablishmentAccept = nasMessage.NewPDUSessionEstablishmentAccept(0x0)
 	pDUSessionEstablishmentAccept := m.PDUSessionEstablishmentAccept
 
-	sessRule := smContext.SmPolicyUpdates[0].SessRuleUpdate.ActiveSessRule
+	sessRule := smContext.SmPolicyUpdates.SessRuleUpdate.ActiveSessRule
 
 	pDUSessionEstablishmentAccept.SetPDUSessionID(uint8(smContext.PDUSessionID))
 	pDUSessionEstablishmentAccept.SetMessageType(nas.MsgTypePDUSessionEstablishmentAccept)
@@ -70,7 +70,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolCo
 	pDUSessionEstablishmentAccept.SessionAMBR = ambr
 	pDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(pDUSessionEstablishmentAccept.SessionAMBR.Octet)))
 
-	defaultQFI := smContext.SmPolicyUpdates[0].QosFlowUpdate.Add.QFI
+	defaultQFI := smContext.SmPolicyUpdates.QosFlowUpdate.Add.QFI
 
 	defQosRule := qos.BuildDefaultQosRule(DefaultQosRuleID, defaultQFI)
 	qosRules := qos.QoSRules{
@@ -96,7 +96,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolCo
 	}
 
 	// Get Authorized QoS Flow Descriptions
-	authQfd, err := qos.BuildAuthorizedQosFlowDescription(smContext.SmPolicyUpdates[0].QosFlowUpdate.Add)
+	authQfd, err := qos.BuildAuthorizedQosFlowDescription(smContext.SmPolicyUpdates.QosFlowUpdate.Add)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build Authorized QoS Flow Descriptions: %v", err)
 	}
