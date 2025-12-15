@@ -268,9 +268,9 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 
 	err := amf_producer.N1N2MessageTransferProcedure(ctx, smContext.Supi, n1n2Request)
 	if err != nil {
-		err = smContext.CommitSmPolicyDecision(false)
-		if err != nil {
-			return fmt.Errorf("failed to commit sm policy decision: %v", err)
+		err1 := smContext.CommitSmPolicyDecision(false)
+		if err1 != nil {
+			return fmt.Errorf("failed to commit sm policy decision: %v", err1)
 		}
 		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
 	}

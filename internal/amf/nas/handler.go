@@ -44,22 +44,13 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte) error {
 	ue.AmfUe.Mutex.Lock()
 	defer ue.AmfUe.Mutex.Unlock()
 
-	err := decodeAndDispatch(ctx, ue.AmfUe, nasPdu)
-	if err != nil {
-		return fmt.Errorf("error handling NAS message: %v", err)
-	}
-
-	return nil
-}
-
-func decodeAndDispatch(ctx ctxt.Context, ue *context.AmfUe, nasPdu []byte) error {
-	msg, err := nassecurity.Decode(ctx, ue, nasPdu)
+	msg, err := nassecurity.Decode(ctx, ue.AmfUe, nasPdu)
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
-	if err := Dispatch(ctx, ue, msg); err != nil {
-		return fmt.Errorf("error handling NAS message: %v", err)
+	if err := Dispatch(ctx, ue.AmfUe, msg); err != nil {
+		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.AmfUe.Supi, err)
 	}
 
 	return nil
