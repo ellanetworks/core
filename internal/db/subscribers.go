@@ -402,6 +402,10 @@ func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error)
 
 			err = db.conn.Query(ctx, stmt, subscriber).Run()
 			if err != nil {
+				if isUniqueNameError(err) {
+					logger.DBLog.Warn("IP address collision during allocation, retrying", zap.String("ip", ipStr))
+					continue
+				}
 				return nil, fmt.Errorf("failed to allocate IP: %v", err)
 			}
 
