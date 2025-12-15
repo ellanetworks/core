@@ -22,18 +22,20 @@ type ProtocolConfigurationOptions struct {
 	IPv4LinkMTURequest bool
 }
 
-func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmentRequest) (*ProtocolConfigurationOptions, uint8, error) {
+func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmentRequest) (*ProtocolConfigurationOptions, uint8, uint8, error) {
 	smContext.PDUSessionID = int32(req.PDUSessionID.GetPDUSessionID())
 
 	smContext.Pti = req.GetPTI()
 
 	// Handle PDUSessionType
+	var estAcceptCause5gSMValue uint8
 	selectedPDUSessionType := nasMessage.PDUSessionTypeIPv4
 	if req.PDUSessionType != nil {
 		selectedPDUSessionType = req.PDUSessionType.GetPDUSessionTypeValue()
-		err := smContext.isAllowedPDUSessionType(selectedPDUSessionType)
+		var err error
+		estAcceptCause5gSMValue, err = smContext.isAllowedPDUSessionType(selectedPDUSessionType)
 		if err != nil {
-			return nil, 0, fmt.Errorf("requested PDUSessionType is not allowed: %v", err)
+			return nil, 0, 0, fmt.Errorf("requested PDUSessionType is not allowed: %v", err)
 		}
 	}
 
@@ -44,7 +46,7 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 		protocolConfigurationOptions := nasConvert.NewProtocolConfigurationOptions()
 		unmarshalErr := protocolConfigurationOptions.UnMarshal(EPCOContents)
 		if unmarshalErr != nil {
-			logger.SmfLog.Error("Parsing PCO failed", zap.Error(unmarshalErr), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+			return nil, 0, 0, fmt.Errorf("parsing PCO failed: %v", unmarshalErr)
 		}
 
 		// Send MTU to UE always even if UE does not request it.
@@ -64,7 +66,7 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 		}
 	}
 
-	return pco, selectedPDUSessionType, nil
+	return pco, selectedPDUSessionType, estAcceptCause5gSMValue, nil
 }
 
 func (smContext *SMContext) HandlePDUSessionReleaseRequest(ctx context.Context, req *nasMessage.PDUSessionReleaseRequest) {
