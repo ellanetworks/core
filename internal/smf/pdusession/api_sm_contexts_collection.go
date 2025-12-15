@@ -57,21 +57,19 @@ func CreateSmContext(ctx ctxt.Context, request models.PostSmContextsRequest) (st
 	err = producer.SendPFCPRules(ctx, smContext)
 	if err != nil {
 		if smContext != nil {
-			go func() {
-				err := producer.SendPduSessN1N2Transfer(ctx, smContext, false)
-				if err != nil {
-					logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
-				}
-			}()
+			err := producer.SendPduSessN1N2Transfer(ctx, smContext, false)
+			if err != nil {
+				logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
+			}
 		}
 		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
 	}
 
-	go func() {
-		err := producer.SendPduSessN1N2Transfer(ctx, smContext, true)
-		if err != nil {
-			logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
-		}
-	}()
+	err = producer.SendPduSessN1N2Transfer(ctx, smContext, true)
+	if err != nil {
+		logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
+		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
+	}
+
 	return location, nil, nil
 }

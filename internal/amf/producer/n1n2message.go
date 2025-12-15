@@ -41,11 +41,6 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, supi string, n1n2MessageTran
 
 	requestData := n1n2MessageTransferRequest.JSONData
 
-	_, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
-	if !ok {
-		return fmt.Errorf("sm context not found: supi: %s, pduSessionID: %d", supi, requestData.PduSessionID)
-	}
-
 	onGoing := ue.GetOnGoing()
 	// 4xx response cases
 	switch onGoing.Procedure {
