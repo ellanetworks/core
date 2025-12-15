@@ -37,11 +37,9 @@ type SMContext struct {
 
 	Supi                           string
 	Dnn                            string
-	UpCnxState                     models.UpCnxState
 	Snssai                         *models.Snssai
 	PDUAddress                     net.IP
 	Tunnel                         *UPTunnel
-	DNNInfo                        *SnssaiSmfDnnInfo
 	SmPolicyUpdates                []*qos.PolicyUpdate
 	SmPolicyData                   qos.SmCtxtPolicyData
 	PFCPContext                    map[string]*PFCPSessionContext // key: UPF NodeID

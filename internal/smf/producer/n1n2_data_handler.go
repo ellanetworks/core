@@ -85,7 +85,6 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 		if err != nil {
 			logger.SmfLog.Error("build PDUSession Resource Setup Request Transfer Error", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 		}
-		smContext.UpCnxState = models.UpCnxStateActivating
 		response.BinaryDataN2SmInformation = n2Buf
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResSetupReq
 	case models.UpCnxStateDeactivated:
@@ -93,7 +92,6 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 
 		if smContext.Tunnel != nil {
 			response.JSONData.UpCnxState = models.UpCnxStateDeactivated
-			smContext.UpCnxState = body.JSONData.UpCnxState
 			farList := []*context.FAR{}
 			dataPath := smContext.Tunnel.DataPath
 			ANUPF := dataPath.DPNode

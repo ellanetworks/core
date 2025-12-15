@@ -24,7 +24,7 @@ const (
 	DefaultQosRuleID uint8 = 1
 )
 
-func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolConfigurationOptions, pduSessionType uint8, estAcceptCause5gSMValue uint8) ([]byte, error) {
+func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolConfigurationOptions, pduSessionType uint8, estAcceptCause5gSMValue uint8, dNNInfo *SnssaiSmfDnnInfo) ([]byte, error) {
 	if smContext == nil {
 		return nil, fmt.Errorf("SM Context is nil")
 	}
@@ -139,7 +139,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolCo
 
 		// IPv4 DNS
 		if pco.DNSIPv4Request {
-			err := protocolConfigurationOptions.AddDNSServerIPv4Address(smContext.DNNInfo.DNS)
+			err := protocolConfigurationOptions.AddDNSServerIPv4Address(dNNInfo.DNS)
 			if err != nil {
 				logger.SmfLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 			}
@@ -152,7 +152,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolCo
 
 		// MTU
 		if pco.IPv4LinkMTURequest {
-			err := protocolConfigurationOptions.AddIPv4LinkMTU(smContext.DNNInfo.MTU)
+			err := protocolConfigurationOptions.AddIPv4LinkMTU(dNNInfo.MTU)
 			if err != nil {
 				logger.SmfLog.Warn("Error while adding MTU", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 			}

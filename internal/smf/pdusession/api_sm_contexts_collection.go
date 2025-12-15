@@ -45,7 +45,7 @@ func CreateSmContext(ctx ctxt.Context, request models.PostSmContextsRequest) (st
 
 	smContext = context.NewSMContext(createData.Supi, createData.PduSessionID)
 
-	location, pco, pduSessionType, estAcceptCause5gSMValue, errRsp, err := producer.HandlePDUSessionSMContextCreate(ctx, request, smContext)
+	location, pco, pduSessionType, estAcceptCause5gSMValue, dnnInfo, errRsp, err := producer.HandlePDUSessionSMContextCreate(ctx, request, smContext)
 	if err != nil {
 		return "", errRsp, fmt.Errorf("failed to create SM Context: %v", err)
 	}
@@ -57,7 +57,7 @@ func CreateSmContext(ctx ctxt.Context, request models.PostSmContextsRequest) (st
 	err = producer.SendPFCPRules(ctx, smContext)
 	if err != nil {
 		if smContext != nil {
-			err := producer.SendPduSessN1N2Transfer(ctx, smContext, pco, pduSessionType, estAcceptCause5gSMValue, false)
+			err := producer.SendPduSessN1N2Transfer(ctx, smContext, pco, pduSessionType, estAcceptCause5gSMValue, dnnInfo, false)
 			if err != nil {
 				logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
 			}
@@ -65,7 +65,7 @@ func CreateSmContext(ctx ctxt.Context, request models.PostSmContextsRequest) (st
 		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
 	}
 
-	err = producer.SendPduSessN1N2Transfer(ctx, smContext, pco, pduSessionType, estAcceptCause5gSMValue, true)
+	err = producer.SendPduSessN1N2Transfer(ctx, smContext, pco, pduSessionType, estAcceptCause5gSMValue, dnnInfo, true)
 	if err != nil {
 		logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
 		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
