@@ -115,14 +115,12 @@ func RemoveSMContext(ctx context.Context, ref string) {
 		delete(smfContext.seidSMContextMap, pfcpSessionContext.LocalSEID)
 	}
 
-	// Release UE IP-Address
 	err := smContext.ReleaseUeIPAddr(ctx)
 	if err != nil {
 		logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
 	}
 
 	delete(smfContext.smContextPool, ref)
-	// delete(smfContext.canonicalRef, canonicalName(smContext.Identifier, smContext.PDUSessionID))
 
 	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
 }

@@ -296,7 +296,7 @@ func handleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 	defer span.End()
 
 	if ue.State.Current() != context.Registered {
-		return fmt.Errorf("expected UE to be in state %s, instead it was %s", context.Registered, ue.State.Current())
+		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", context.Registered, ue.State.Current())
 	}
 
 	if ue.MacFailed {

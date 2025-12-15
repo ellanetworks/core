@@ -158,7 +158,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, supi string, n1n2MessageTran
 		Procedure: context.OnGoingProcedurePaging,
 	})
 
-	pkg, err := message.BuildPaging(ue, pagingPriority, false)
+	pkg, err := message.BuildPaging(ue, pagingPriority)
 	if err != nil {
 		return fmt.Errorf("build paging error: %v", err)
 	}
