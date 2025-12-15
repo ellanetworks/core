@@ -92,6 +92,7 @@ func SendToRan(ctx ctxt.Context, ran *context.AmfRan, packet []byte, msgType NGA
 	if err != nil {
 		return fmt.Errorf("could not determine SCTP stream ID from NGAP message type (%s): %s", msgType, err.Error())
 	}
+
 	defer func() {
 		err := recover()
 		if err != nil {

@@ -22,6 +22,8 @@ func handleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe) error {
 		return fmt.Errorf("state mismatch: receive Registration Complete message in state %s", ue.State.Current())
 	}
 
+	ue.State.Set(context.Registered)
+
 	if ue.T3550 != nil {
 		ue.T3550.Stop()
 		ue.T3550 = nil // clear the timer
@@ -44,7 +46,6 @@ func handleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe) error {
 		}
 	}
 
-	ue.State.Set(context.Registered)
 	ue.ClearRegistrationRequestData()
 
 	return nil

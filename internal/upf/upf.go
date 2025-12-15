@@ -357,11 +357,7 @@ func (u *UPF) pollUsageAndResetCounters() error {
 		return fmt.Errorf("PFCP connection is nil")
 	}
 
-	if u.pfcpConn.Sessions == nil {
-		return fmt.Errorf("SMF node association sessions is nil")
-	}
-
-	for localSeid, session := range u.pfcpConn.Sessions {
+	for localSeid, session := range u.pfcpConn.ListSessions() {
 		for _, pdr := range session.PDRs {
 			urrID := pdr.PdrInfo.UrrID
 			if urrID == 0 {

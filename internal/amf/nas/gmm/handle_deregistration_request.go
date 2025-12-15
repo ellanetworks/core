@@ -35,6 +35,9 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue
 		return fmt.Errorf("gmm message is nil")
 	}
 
+	ue.SubscriptionDataValid = false
+	ue.State.Set(context.DeregistrationInitiated)
+
 	targetDeregistrationAccessType := msg.DeregistrationRequestUEOriginatingDeregistration.GetAccessType()
 
 	for _, smContext := range ue.SmContextList {
@@ -64,9 +67,6 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
 	}
-
-	ue.SubscriptionDataValid = false
-	ue.State.Set(context.DeregistrationInitiated)
 
 	return nil
 }

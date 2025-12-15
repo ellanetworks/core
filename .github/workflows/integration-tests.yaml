@@ -44,4 +44,4 @@ jobs:
       - name: Check logs on failure
         if: failure()
         run: |
-          docker-compose -p ella-core logs ella-core
+          docker compose -p ella-core logs ella-core

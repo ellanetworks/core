@@ -72,7 +72,7 @@ func TestHandlePfcpSessionDeletionRequestCauseRequestAccepted(t *testing.T) {
 	localSEID := uint64(2)
 	fseidIPv4Address := net.ParseIP("1.2.3.4")
 
-	conn.Sessions[remoteSEID] = &core.Session{}
+	conn.AddSession(remoteSEID, &core.Session{})
 
 	ies := make([]*ie.IE, 0)
 	ies = append(ies, ie.NewFSEID(localSEID, fseidIPv4Address, nil))
@@ -163,7 +163,7 @@ func TestHandlePfcpSessionModificationRequestCauseRequestAccepted(t *testing.T) 
 	localSEID := uint64(2)
 	fseidIPv4Address := net.ParseIP("1.2.3.4")
 
-	conn.Sessions[remoteSEID] = &core.Session{}
+	conn.AddSession(remoteSEID, &core.Session{})
 
 	ies := make([]*ie.IE, 0)
 	ies = append(ies, ie.NewFSEID(localSEID, fseidIPv4Address, nil))

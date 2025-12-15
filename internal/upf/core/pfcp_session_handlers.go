@@ -164,7 +164,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 		return message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), nil
 	}
 
-	conn.Sessions[seid] = session
+	conn.AddSession(seid, session)
 
 	additionalIEs := []*ie.IE{
 		newIeNodeID(conn.nodeID),
@@ -191,8 +191,8 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 
 	printSessionDeleteRequest(msg)
 
-	session, ok := conn.Sessions[msg.SEID()]
-	if !ok {
+	session := conn.GetSession(msg.SEID())
+	if session == nil {
 		logger.UpfLog.Info("Rejecting Session Deletion Request (unknown SEID)")
 		return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseSessionContextNotFound)), nil
 	}
@@ -214,8 +214,10 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
-	logger.UpfLog.Info("Deleting session", zap.Uint64("seid", msg.SEID()))
-	delete(conn.Sessions, msg.SEID())
+
+	conn.DeleteSession(msg.SEID())
+
+	logger.UpfLog.Info("Deleted session", zap.Uint64("seid", msg.SEID()))
 
 	conn.ReleaseResources(msg.SEID())
 
@@ -231,8 +233,8 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 		return nil, fmt.Errorf("no connection")
 	}
 
-	session, ok := conn.Sessions[msg.SEID()]
-	if !ok {
+	session := conn.GetSession(msg.SEID())
+	if session == nil {
 		logger.UpfLog.Info("Rejecting Session Modification Request (unknown SEID)")
 		return message.NewSessionModificationResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseSessionContextNotFound)), nil
 	}
@@ -243,8 +245,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 		remoteSEID, err := msg.CPFSEID.FSEID()
 		if err == nil {
 			session.SEID = remoteSEID.SEID
-
-			conn.Sessions[msg.SEID()] = session
+			conn.AddSession(session.SEID, session)
 		}
 	}
 
@@ -477,7 +478,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 		return message.NewSessionModificationResponse(0, 0, session.SEID, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), nil
 	}
 
-	conn.Sessions[msg.SEID()] = session
+	conn.AddSession(session.SEID, session)
 
 	additionalIEs := []*ie.IE{
 		ie.NewCause(ie.CauseRequestAccepted),
