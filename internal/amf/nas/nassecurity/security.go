@@ -149,6 +149,9 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*contex
 		}
 	} else if msg.GmmHeader.GetMessageType() == nas.MsgTypeServiceRequest {
 		mobileIdentity5GSContents := msg.ServiceRequest.TMSI5GS.Octet
+		if len(mobileIdentity5GSContents) == 0 {
+			return nil, fmt.Errorf("mobile identity 5GS is empty")
+		}
 		if nasMessage.MobileIdentity5GSType5gSTmsi == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
 			guti, err := StmsiToGuti(ctx, mobileIdentity5GSContents)
 			if err != nil {
