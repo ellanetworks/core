@@ -26,25 +26,24 @@ import (
 var tracer = otel.Tracer("ella-core/amf/ngap")
 
 func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
-	var ran *context.AmfRan
-	amfSelf := context.AMFSelf()
-
 	remoteAddress := conn.RemoteAddr()
 	if remoteAddress == nil {
 		logger.AmfLog.Debug("Remote address is nil")
 		return
 	}
 
-	ran, ok := amfSelf.AmfRanFindByConn(conn)
-	if !ok {
-		ran = amfSelf.NewAmfRan(conn)
-		logger.AmfLog.Info("Added a new radio", zap.String("address", remoteAddress.String()))
-	}
-
 	localAddress := conn.LocalAddr()
 	if localAddress == nil {
 		logger.AmfLog.Debug("Local address is nil")
 		return
+	}
+
+	amfSelf := context.AMFSelf()
+
+	ran, ok := amfSelf.AmfRanFindByConn(conn)
+	if !ok {
+		ran = amfSelf.NewAmfRan(conn)
+		logger.AmfLog.Info("Added a new radio", zap.String("address", remoteAddress.String()))
 	}
 
 	if len(msg) == 0 {
@@ -59,22 +58,25 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 		return
 	}
 
-	DispatchNgapMsg(conn, ran, pdu)
+	logger.LogNetworkEvent(
+		ctx,
+		logger.NGAPNetworkProtocol,
+		getMessageType(pdu),
+		logger.DirectionInbound,
+		localAddress.String(),
+		remoteAddress.String(),
+		msg,
+	)
+
+	go DispatchNgapMsg(ran, pdu)
 }
 
-func DispatchNgapMsg(conn *sctp.SCTPConn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
+func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 	messageType := getMessageType(pdu)
-
-	peerAddr := conn.RemoteAddr()
-	if peerAddr == nil {
-		logger.AmfLog.Debug("Remote address is nil")
-		return
-	}
 
 	spanName := fmt.Sprintf("AMF NGAP %s", messageType)
 	ctx, span := tracer.Start(ctxt.Background(), spanName,
 		trace.WithAttributes(
-			attribute.String("net.peer", peerAddr.String()),
 			attribute.String("ngap.pdu_present", fmt.Sprintf("%d", pdu.Present)),
 			attribute.String("ngap.messageType", messageType),
 		),
