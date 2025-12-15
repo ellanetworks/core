@@ -72,10 +72,12 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(allowedSessionT
 
 func (smContext *SMContext) HandlePDUSessionReleaseRequest(ctx context.Context, req *nasMessage.PDUSessionReleaseRequest) {
 	smContext.Pti = req.GetPTI()
-	err := smContext.ReleaseUeIPAddr(ctx)
+
+	err := ReleaseUeIPAddr(ctx, smContext.Supi)
 	if err != nil {
 		logger.SmfLog.Error("Releasing UE IP Addr", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
 		return
 	}
+
 	logger.SmfLog.Info("Successfully completed PDU Session Release Request", zap.Int32("PDUSessionID", smContext.PDUSessionID))
 }

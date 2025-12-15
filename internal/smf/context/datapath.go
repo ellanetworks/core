@@ -8,6 +8,7 @@ package context
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/util"
@@ -160,10 +161,10 @@ func (node *DataPathNode) CreateSessRuleURR(smContext *SMContext) (*URR, error) 
 	return node.UPF.AddURR()
 }
 
-func (node *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER, defURR *URR, defPrecedence uint32) error {
+func (node *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, pduAddress net.IP, defQER *QER, defURR *URR, defPrecedence uint32) error {
 	ueIPAddr := UEIPAddress{}
 	ueIPAddr.V4 = true
-	ueIPAddr.IPv4Address = smContext.PDUAddress.To4()
+	ueIPAddr.IPv4Address = pduAddress.To4()
 
 	curULTunnel := node.UpLinkTunnel
 
@@ -205,13 +206,13 @@ func (node *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER, d
 	return nil
 }
 
-func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER, defURR *URR, defPrecedence uint32, dataPath *DataPath) error {
+func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, pduAddress net.IP, defQER *QER, defURR *URR, defPrecedence uint32, dataPath *DataPath) error {
 	curDLTunnel := node.DownLinkTunnel
 
 	// UPF provided UE ip-addr
 	ueIPAddr := UEIPAddress{}
 	ueIPAddr.V4 = true
-	ueIPAddr.IPv4Address = smContext.PDUAddress.To4()
+	ueIPAddr.IPv4Address = pduAddress.To4()
 
 	curDLTunnel.PDR.QER = defQER
 	curDLTunnel.PDR.URR = defURR
@@ -239,7 +240,7 @@ func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER, d
 	return nil
 }
 
-func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence uint32) error {
+func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, pduAddress net.IP, precedence uint32) error {
 	err := smContext.AllocateLocalSEIDForDataPath(dataPath)
 	if err != nil {
 		return fmt.Errorf("could not allocate local SEID for DataPath: %s", err)
@@ -267,21 +268,21 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence 
 
 	// Setup UpLink PDR
 	if dataPath.DPNode.UpLinkTunnel != nil {
-		if err := dataPath.DPNode.ActivateUpLinkPdr(smContext, defQER, defULURR, precedence); err != nil {
+		if err := dataPath.DPNode.ActivateUpLinkPdr(smContext, pduAddress, defQER, defULURR, precedence); err != nil {
 			return fmt.Errorf("couldn't activate uplink pdr: %v", err)
 		}
 	}
 
 	// Setup DownLink PDR
 	if dataPath.DPNode.DownLinkTunnel != nil {
-		if err := dataPath.DPNode.ActivateDlLinkPdr(smContext, defQER, defDLURR, precedence, dataPath); err != nil {
+		if err := dataPath.DPNode.ActivateDlLinkPdr(smContext, pduAddress, defQER, defDLURR, precedence, dataPath); err != nil {
 			return fmt.Errorf("couldn't activate downlink pdr: %v", err)
 		}
 	}
 
 	ueIPAddr := UEIPAddress{}
 	ueIPAddr.V4 = true
-	ueIPAddr.IPv4Address = smContext.PDUAddress.To4()
+	ueIPAddr.IPv4Address = pduAddress.To4()
 
 	if dataPath.DPNode.DownLinkTunnel != nil {
 		dataPath.DPNode.DownLinkTunnel.PDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceCore}

@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/deregister"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"go.uber.org/zap"
 )
 
@@ -29,13 +28,9 @@ type UpdateSubscriberParams struct {
 	PolicyName string `json:"policyName"`
 }
 
-type SubscriberSession struct {
-	IPAddress string `json:"ipAddress"`
-}
-
 type SubscriberStatus struct {
-	Registered bool                `json:"registered"`
-	Sessions   []SubscriberSession `json:"sessions"`
+	Registered bool   `json:"registered"`
+	IPAddress  string `json:"ipAddress"`
 }
 
 type Subscriber struct {
@@ -147,21 +142,14 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 				return
 			}
 
-			var subscriberSessions []SubscriberSession
-			smfSessions := smfContext.PDUSessionsByIMSI(dbSubscriber.Imsi)
-
-			for _, session := range smfSessions {
-				if session.PDUAddress == nil {
-					continue
-				}
-				subscriberSessions = append(subscriberSessions, SubscriberSession{
-					IPAddress: session.PDUAddress.String(),
-				})
+			ipAddress := ""
+			if dbSubscriber.IPAddress != nil {
+				ipAddress = *dbSubscriber.IPAddress
 			}
 
 			subscriberStatus := SubscriberStatus{
 				Registered: amfContext.IsSubscriberRegistered(dbSubscriber.Imsi),
-				Sessions:   subscriberSessions,
+				IPAddress:  ipAddress,
 			}
 
 			items = append(items, Subscriber{
@@ -205,22 +193,14 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		var subscriberSessions []SubscriberSession
-
-		smfSessions := smfContext.PDUSessionsByIMSI(dbSubscriber.Imsi)
-
-		for _, session := range smfSessions {
-			if session.PDUAddress == nil {
-				continue
-			}
-			subscriberSessions = append(subscriberSessions, SubscriberSession{
-				IPAddress: session.PDUAddress.String(),
-			})
+		ipAddress := ""
+		if dbSubscriber.IPAddress != nil {
+			ipAddress = *dbSubscriber.IPAddress
 		}
 
 		subscriberStatus := SubscriberStatus{
 			Registered: amfContext.IsSubscriberRegistered(dbSubscriber.Imsi),
-			Sessions:   subscriberSessions,
+			IPAddress:  ipAddress,
 		}
 
 		subscriber := Subscriber{

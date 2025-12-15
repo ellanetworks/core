@@ -201,10 +201,11 @@ const SubscriberPage: React.FC = () => {
         headerName: "Session",
         width: 140,
         minWidth: 120,
-        valueGetter: (_v, row) => (row?.status?.sessions?.length ?? 0) > 0,
-        sortComparator: (v1, v2) => Number(v1) - Number(v2),
+        valueGetter: (_v, row: APISubscriber) =>
+          Boolean(row?.status?.ipAddress),
+        sortComparator: (v1, v2) => Number(Boolean(v1)) - Number(Boolean(v2)),
         renderCell: (params: GridRenderCellParams<APISubscriber>) => {
-          const active = (params.row?.status?.sessions?.length ?? 0) > 0;
+          const active = Boolean(params.row?.status?.ipAddress);
           return (
             <Chip
               size="small"
@@ -220,16 +221,9 @@ const SubscriberPage: React.FC = () => {
         headerName: "IP Address",
         width: 140,
         minWidth: 120,
-        valueGetter: (_v, row) =>
-          row?.status?.sessions && row.status.sessions.length > 0
-            ? row.status.sessions[0]?.ipAddress || ""
-            : "",
+        valueGetter: (_v, row: APISubscriber) => row?.status?.ipAddress ?? "",
         renderCell: (params: GridRenderCellParams<APISubscriber>) => {
-          const ip =
-            params.row?.status?.sessions &&
-            params.row.status.sessions.length > 0
-              ? params.row.status.sessions[0]?.ipAddress || ""
-              : "";
+          const ip = params.row?.status?.ipAddress ?? "";
           return (
             <Chip
               size="small"

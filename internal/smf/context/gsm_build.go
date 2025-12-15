@@ -9,6 +9,7 @@ package context
 import (
 	"encoding/hex"
 	"fmt"
+	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/qos"
@@ -24,7 +25,14 @@ const (
 	DefaultQosRuleID uint8 = 1
 )
 
-func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolConfigurationOptions, pduSessionType uint8, estAcceptCause5gSMValue uint8, dNNInfo *SnssaiSmfDnnInfo) ([]byte, error) {
+func BuildGSMPDUSessionEstablishmentAccept(
+	smContext *SMContext,
+	pco *ProtocolConfigurationOptions,
+	pduSessionType uint8,
+	estAcceptCause5gSMValue uint8,
+	dNNInfo *SnssaiSmfDnnInfo,
+	pduAddress net.IP,
+) ([]byte, error) {
 	if smContext == nil {
 		return nil, fmt.Errorf("SM Context is nil")
 	}
@@ -87,8 +95,8 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolCo
 	pDUSessionEstablishmentAccept.AuthorizedQosRules.SetLen(uint16(len(qosRulesBytes)))
 	pDUSessionEstablishmentAccept.AuthorizedQosRules.SetQosRule(qosRulesBytes)
 
-	if smContext.PDUAddress != nil {
-		addr, addrLen := smContext.PDUAddressToNAS(pduSessionType)
+	if pduAddress != nil {
+		addr, addrLen := PDUAddressToNAS(pduAddress, pduSessionType)
 		pDUSessionEstablishmentAccept.PDUAddress = nasType.NewPDUAddress(nasMessage.PDUSessionEstablishmentAcceptPDUAddressType)
 		pDUSessionEstablishmentAccept.PDUAddress.SetLen(addrLen)
 		pDUSessionEstablishmentAccept.PDUAddress.SetPDUSessionTypeValue(pduSessionType)

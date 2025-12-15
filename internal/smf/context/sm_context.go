@@ -38,7 +38,6 @@ type SMContext struct {
 	Supi                           string
 	Dnn                            string
 	Snssai                         *models.Snssai
-	PDUAddress                     net.IP
 	Tunnel                         *UPTunnel
 	SmPolicyUpdates                *qos.PolicyUpdate
 	SmPolicyData                   qos.SmCtxtPolicyData
@@ -98,7 +97,7 @@ func RemoveSMContext(ctx context.Context, ref string) {
 		delete(smfContext.seidSMContextMap, pfcpSessionContext.LocalSEID)
 	}
 
-	err := smContext.ReleaseUeIPAddr(ctx)
+	err := ReleaseUeIPAddr(ctx, smContext.Supi)
 	if err != nil {
 		logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
 	}
@@ -120,19 +119,16 @@ func GetSMContextBySEID(SEID uint64) *SMContext {
 	return value
 }
 
-func (smContext *SMContext) ReleaseUeIPAddr(ctx context.Context) error {
+func ReleaseUeIPAddr(ctx context.Context, supi string) error {
 	smfSelf := SMFSelf()
-	if smContext.PDUAddress == nil {
-		return nil
+
+	err := smfSelf.DBInstance.ReleaseIP(ctx, supi)
+	if err != nil {
+		return fmt.Errorf("failed to release IP Address, %v", err)
 	}
-	if ip := smContext.PDUAddress; ip != nil {
-		err := smfSelf.DBInstance.ReleaseIP(ctx, smContext.Supi)
-		if err != nil {
-			return fmt.Errorf("failed to release IP Address, %v", err)
-		}
-		logger.SmfLog.Info("Released IP Address", zap.String("IP", smContext.PDUAddress.String()), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
-		smContext.PDUAddress = net.IPv4(0, 0, 0, 0)
-	}
+
+	logger.SmfLog.Info("Released IP Address", zap.String("supi", supi))
+
 	return nil
 }
 
@@ -142,10 +138,10 @@ func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData
 	smContext.Snssai = createData.SNssai
 }
 
-func (smContext *SMContext) PDUAddressToNAS(pduSessionType uint8) ([12]byte, uint8) {
+func PDUAddressToNAS(pduAddress net.IP, pduSessionType uint8) ([12]byte, uint8) {
 	var addr [12]byte
 
-	copy(addr[:], smContext.PDUAddress)
+	copy(addr[:], pduAddress)
 
 	switch pduSessionType {
 	case nasMessage.PDUSessionTypeIPv4:
@@ -265,21 +261,6 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 	smContext.SmPolicyUpdates = nil
 
 	return nil
-}
-
-func PDUSessionsByIMSI(imsi string) []*SMContext {
-	smfContext.Mutex.Lock()
-	defer smfContext.Mutex.Unlock()
-
-	var out []*SMContext
-
-	for _, smContext := range smfContext.smContextPool {
-		if smContext.Supi == imsi {
-			out = append(out, smContext)
-		}
-	}
-
-	return out
 }
 
 func PDUSessionsByDNN(dnn string) []*SMContext {

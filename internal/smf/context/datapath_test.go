@@ -13,8 +13,7 @@ import (
 
 func TestActivateUpLinkPdr(t *testing.T) {
 	smContext := &context.SMContext{
-		PDUAddress: net.IPv4(192, 168, 1, 1),
-		Dnn:        "internet",
+		Dnn: "internet",
 	}
 
 	defQER := &context.QER{}
@@ -30,7 +29,9 @@ func TestActivateUpLinkPdr(t *testing.T) {
 		},
 	}
 
-	err := node.ActivateUpLinkPdr(smContext, defQER, defURR, 10)
+	ip := net.IPv4(192, 168, 1, 1)
+
+	err := node.ActivateUpLinkPdr(smContext, ip, defQER, defURR, 10)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -64,8 +65,7 @@ func TestActivateUpLinkPdr(t *testing.T) {
 
 func TestActivateDlLinkPdr(t *testing.T) {
 	smContext := &context.SMContext{
-		PDUAddress: net.IP{192, 168, 1, 1},
-		Dnn:        "internet",
+		Dnn: "internet",
 		Tunnel: &context.UPTunnel{
 			ANInformation: struct {
 				IPAddress net.IP
@@ -95,7 +95,9 @@ func TestActivateDlLinkPdr(t *testing.T) {
 		DPNode: node,
 	}
 
-	err := node.ActivateDlLinkPdr(smContext, defQER, defURR, 10, dataPath)
+	ip := net.IPv4(192, 168, 1, 1)
+
+	err := node.ActivateDlLinkPdr(smContext, ip, defQER, defURR, 10, dataPath)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
