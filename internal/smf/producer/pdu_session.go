@@ -95,9 +95,9 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 
 	smContext.PDUAddress = ip
 
-	smContext.AllowedSessionType = context.GetAllowedSessionType()
+	allowedSessionType := context.GetAllowedSessionType()
 
-	pco, pduSessionType, estAcceptCause5gSMValue, err := smContext.HandlePDUSessionEstablishmentRequest(m.PDUSessionEstablishmentRequest)
+	pco, pduSessionType, estAcceptCause5gSMValue, err := smContext.HandlePDUSessionEstablishmentRequest(allowedSessionType, m.PDUSessionEstablishmentRequest)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", nil, 0, 0, response, err

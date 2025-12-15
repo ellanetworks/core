@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
@@ -22,7 +23,7 @@ type ProtocolConfigurationOptions struct {
 	IPv4LinkMTURequest bool
 }
 
-func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmentRequest) (*ProtocolConfigurationOptions, uint8, uint8, error) {
+func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(allowedSessionType models.PduSessionType, req *nasMessage.PDUSessionEstablishmentRequest) (*ProtocolConfigurationOptions, uint8, uint8, error) {
 	smContext.PDUSessionID = int32(req.PDUSessionID.GetPDUSessionID())
 
 	smContext.Pti = req.GetPTI()
@@ -33,7 +34,7 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 	if req.PDUSessionType != nil {
 		selectedPDUSessionType = req.PDUSessionType.GetPDUSessionTypeValue()
 		var err error
-		estAcceptCause5gSMValue, err = smContext.isAllowedPDUSessionType(selectedPDUSessionType)
+		estAcceptCause5gSMValue, err = isAllowedPDUSessionType(allowedSessionType, selectedPDUSessionType)
 		if err != nil {
 			return nil, 0, 0, fmt.Errorf("requested PDUSessionType is not allowed: %v", err)
 		}
