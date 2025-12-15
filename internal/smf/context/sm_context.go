@@ -47,7 +47,6 @@ type SMContext struct {
 	SmPolicyData                   qos.SmCtxtPolicyData
 	PFCPContext                    map[string]*PFCPSessionContext // key: UPF NodeID
 	PDUSessionID                   int32
-	SelectedPDUSessionType         uint8
 	PDUSessionReleaseDueToDupPduID bool
 	Pti                            uint8
 	EstAcceptCause5gSMValue        uint8
@@ -148,12 +147,12 @@ func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData
 	smContext.Snssai = createData.SNssai
 }
 
-func (smContext *SMContext) PDUAddressToNAS() ([12]byte, uint8) {
+func (smContext *SMContext) PDUAddressToNAS(pduSessionType uint8) ([12]byte, uint8) {
 	var addr [12]byte
 
 	copy(addr[:], smContext.PDUAddress)
 
-	switch smContext.SelectedPDUSessionType {
+	switch pduSessionType {
 	case nasMessage.PDUSessionTypeIPv4:
 		return addr, 4 + 1
 	case nasMessage.PDUSessionTypeIPv4IPv6:
@@ -215,31 +214,31 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 	switch requestedPDUSessionType {
 	case nasMessage.PDUSessionTypeIPv4:
 		if allowIPv4 {
-			smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv4
+			// smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv4
 		} else {
 			return fmt.Errorf("PduSessionTypeIPv4 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
 	case nasMessage.PDUSessionTypeIPv6:
 		if allowIPv6 {
-			smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv6
+			// smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv6
 		} else {
 			return fmt.Errorf("PduSessionTypeIPv6 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
 	case nasMessage.PDUSessionTypeIPv4IPv6:
 		if allowIPv4 && allowIPv6 {
-			smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv4IPv6
+			// smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv4IPv6
 		} else if allowIPv4 {
-			smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv4
+			// smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv4
 			smContext.EstAcceptCause5gSMValue = nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
 		} else if allowIPv6 {
-			smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv6
+			// smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv6
 			smContext.EstAcceptCause5gSMValue = nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
 		} else {
 			return fmt.Errorf("PduSessionTypeIPv4v6 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
 	case nasMessage.PDUSessionTypeEthernet:
 		if allowEthernet {
-			smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeEthernet
+			// smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeEthernet
 		} else {
 			return fmt.Errorf("PduSessionTypeEthernet is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}

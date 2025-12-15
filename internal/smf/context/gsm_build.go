@@ -24,7 +24,7 @@ const (
 	DefaultQosRuleID uint8 = 1
 )
 
-func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolConfigurationOptions) ([]byte, error) {
+func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolConfigurationOptions, pduSessionType uint8) ([]byte, error) {
 	if smContext == nil {
 		return nil, fmt.Errorf("SM Context is nil")
 	}
@@ -59,7 +59,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolCo
 		pDUSessionEstablishmentAccept.Cause5GSM = nasType.NewCause5GSM(nasMessage.PDUSessionEstablishmentAcceptCause5GSMType)
 		pDUSessionEstablishmentAccept.Cause5GSM.SetCauseValue(v)
 	}
-	pDUSessionEstablishmentAccept.SetPDUSessionType(smContext.SelectedPDUSessionType)
+	pDUSessionEstablishmentAccept.SetPDUSessionType(pduSessionType)
 
 	pDUSessionEstablishmentAccept.SetSSCMode(1)
 	ambr, err := util.ModelsToSessionAMBR(sessRule.AuthSessAmbr)
@@ -87,10 +87,10 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext, pco *ProtocolCo
 	pDUSessionEstablishmentAccept.AuthorizedQosRules.SetQosRule(qosRulesBytes)
 
 	if smContext.PDUAddress != nil {
-		addr, addrLen := smContext.PDUAddressToNAS()
+		addr, addrLen := smContext.PDUAddressToNAS(pduSessionType)
 		pDUSessionEstablishmentAccept.PDUAddress = nasType.NewPDUAddress(nasMessage.PDUSessionEstablishmentAcceptPDUAddressType)
 		pDUSessionEstablishmentAccept.PDUAddress.SetLen(addrLen)
-		pDUSessionEstablishmentAccept.PDUAddress.SetPDUSessionTypeValue(smContext.SelectedPDUSessionType)
+		pDUSessionEstablishmentAccept.PDUAddress.SetPDUSessionTypeValue(pduSessionType)
 		pDUSessionEstablishmentAccept.PDUAddress.SetPDUAddressInformation(addr)
 	}
 
