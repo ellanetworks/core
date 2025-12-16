@@ -226,17 +226,16 @@ func isAllowedPDUSessionType(allowedPDUSessionType models.PduSessionType, reques
 }
 
 // SelectedSessionRule - return the SMF selected session rule for this SM Context
-func (smContext *SMContext) SelectedSessionRule() *models.SessionRule {
-	// Policy update in progress
-	if smContext.SmPolicyUpdates != nil {
-		return smContext.SmPolicyUpdates.SessRuleUpdate.ActiveSessRule
+func SelectedSessionRule(smPolicyUpdates *qos.PolicyUpdate, qosPolicyData qos.SmCtxtPolicyData) *models.SessionRule {
+	if smPolicyUpdates != nil {
+		return smPolicyUpdates.SessRuleUpdate.ActiveSessRule
 	}
 
-	return smContext.SmPolicyData.SmCtxtSessionRules.ActiveRule
+	return qosPolicyData.SmCtxtSessionRules.ActiveRule
 }
 
-func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(cause uint8) *models.PostSmContextsErrorResponse {
-	buf, err := BuildGSMPDUSessionEstablishmentReject(smContext, cause)
+func GeneratePDUSessionEstablishmentReject(pduSessionID uint8, pti uint8, cause uint8) *models.PostSmContextsErrorResponse {
+	buf, err := BuildGSMPDUSessionEstablishmentReject(pduSessionID, pti, cause)
 	if err != nil {
 		return &models.PostSmContextsErrorResponse{}
 	}

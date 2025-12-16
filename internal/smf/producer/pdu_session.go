@@ -84,14 +84,14 @@ func HandlePDUSessionSMContextCreate(
 
 	subscriberPolicy, err := context.GetSubscriberPolicy(ctx, smContext.Supi)
 	if err != nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
+		response := context.GeneratePDUSessionEstablishmentReject(smContext.PDUSessionID, smContext.Pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", nil, 0, 0, nil, nil, response, fmt.Errorf("failed to find subscriber policy: %v", err)
 	}
 
 	dnnInfo, err := context.RetrieveDnnInformation(ctx, *request.JSONData.SNssai, request.JSONData.Dnn)
 	if err != nil {
 		logger.SmfLog.Warn("error retrieving DNN information", zap.String("SST", fmt.Sprintf("%d", request.JSONData.SNssai.Sst)), zap.String("SD", request.JSONData.SNssai.Sd), zap.String("DNN", request.JSONData.Dnn), zap.Error(err))
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
+		response := context.GeneratePDUSessionEstablishmentReject(smContext.PDUSessionID, smContext.Pti, nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
 		return "", nil, 0, 0, nil, nil, response, nil
 	}
 
@@ -99,7 +99,7 @@ func HandlePDUSessionSMContextCreate(
 	smfSelf := context.SMFSelf()
 	pduAddress, err := smfSelf.DBInstance.AllocateIP(ctx, smContext.Supi)
 	if err != nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResources)
+		response := context.GeneratePDUSessionEstablishmentReject(smContext.PDUSessionID, smContext.Pti, nasMessage.Cause5GSMInsufficientResources)
 		return "", nil, 0, 0, nil, nil, response, nil
 	}
 
@@ -107,9 +107,12 @@ func HandlePDUSessionSMContextCreate(
 
 	allowedSessionType := context.GetAllowedSessionType()
 
-	pco, pduSessionType, estAcceptCause5gSMValue, err := smContext.HandlePDUSessionEstablishmentRequest(allowedSessionType, m.PDUSessionEstablishmentRequest)
+	smContext.PDUSessionID = m.PDUSessionEstablishmentRequest.PDUSessionID.GetPDUSessionID()
+	smContext.Pti = m.PDUSessionEstablishmentRequest.GetPTI()
+
+	pco, pduSessionType, estAcceptCause5gSMValue, err := context.HandlePDUSessionEstablishmentRequest(allowedSessionType, m.PDUSessionEstablishmentRequest)
 	if err != nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
+		response := context.GeneratePDUSessionEstablishmentReject(smContext.PDUSessionID, smContext.Pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", nil, 0, 0, nil, nil, response, err
 	}
 
@@ -131,7 +134,7 @@ func HandlePDUSessionSMContextCreate(
 
 	err = defaultPath.ActivateTunnelAndPDR(smContext, pduAddress, 255)
 	if err != nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
+		response := context.GeneratePDUSessionEstablishmentReject(smContext.PDUSessionID, smContext.Pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", nil, 0, 0, nil, nil, response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
 
@@ -257,14 +260,14 @@ func SendPduSessN1N2Transfer(
 	n1n2Request.JSONData = &models.N1N2MessageTransferReqData{PduSessionID: smContext.PDUSessionID}
 
 	if success {
-		smNasBuf, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext, pco, pduSessionType, estAcceptCause5gSMValue, dnnInfo, pduAddress)
+		smNasBuf, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext.SmPolicyUpdates, smContext.PDUSessionID, smContext.Pti, smContext.Snssai, smContext.Dnn, pco, pduSessionType, estAcceptCause5gSMValue, dnnInfo, pduAddress)
 		if err != nil {
 			return fmt.Errorf("build GSM PDUSessionEstablishmentAccept failed: %v", err)
 		}
 
 		n1n2Request.BinaryDataN1Message = smNasBuf
 
-		n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext)
+		n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext.SmPolicyUpdates, smContext.SmPolicyData, smContext.Tunnel.DataPath.DPNode)
 		if err != nil {
 			return fmt.Errorf("build PDUSessionResourceSetupRequestTransfer failed: %v", err)
 		}
@@ -276,7 +279,7 @@ func SendPduSessN1N2Transfer(
 			SNssai:       smContext.Snssai,
 		}
 	} else {
-		smNasBuf, err := context.BuildGSMPDUSessionEstablishmentReject(smContext, nasMessage.Cause5GSMRequestRejectedUnspecified)
+		smNasBuf, err := context.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, smContext.Pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {
 			return fmt.Errorf("build GSM PDUSessionEstablishmentReject failed: %v", err)
 		}

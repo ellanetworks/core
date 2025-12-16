@@ -40,20 +40,28 @@ func HandleUpdateN1Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 		case nas.MsgTypePDUSessionReleaseRequest:
 			logger.SmfLog.Info("N1 Msg PDU Session Release Request received", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-			smContext.HandlePDUSessionReleaseRequest(ctx, m.PDUSessionReleaseRequest)
-			if buf, err := context.BuildGSMPDUSessionReleaseCommand(smContext); err != nil {
-				logger.SmfLog.Error("build GSM PDUSessionReleaseCommand failed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
-			} else {
-				response.BinaryDataN1SmMessage = buf
+			err := context.HandlePDUSessionReleaseRequest(ctx, smContext.Supi)
+			if err != nil {
+				return fmt.Errorf("error handling PDU Session Release Request: %v", err)
 			}
+
+			pti := m.PDUSessionReleaseRequest.GetPTI()
+
+			buf, err := context.BuildGSMPDUSessionReleaseCommand(smContext.PDUSessionID, pti)
+			if err != nil {
+				return fmt.Errorf("build GSM PDUSessionReleaseCommand failed: %v", err)
+			}
+
+			response.BinaryDataN1SmMessage = buf
 
 			response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResRelCmd
 
-			if buf, err := context.BuildPDUSessionResourceReleaseCommandTransfer(smContext); err != nil {
-				logger.SmfLog.Error("build PDUSessionResourceReleaseCommandTransfer failed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
-			} else {
-				response.BinaryDataN2SmInformation = buf
+			buf, err = context.BuildPDUSessionResourceReleaseCommandTransfer()
+			if err != nil {
+				return fmt.Errorf("build PDUSession Resource Release Command Transfer Error: %v", err)
 			}
+
+			response.BinaryDataN2SmInformation = buf
 
 			if smContext.Tunnel != nil {
 				// Send release to UPF
@@ -81,7 +89,7 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 		response.JSONData.UpCnxState = models.UpCnxStateActivating
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResSetupReq
 
-		n2Buf, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext)
+		n2Buf, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext.SmPolicyUpdates, smContext.SmPolicyData, smContext.Tunnel.DataPath.DPNode)
 		if err != nil {
 			logger.SmfLog.Error("build PDUSession Resource Setup Request Transfer Error", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
@@ -123,12 +131,12 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 	switch smContextUpdateData.HoState {
 	case models.HoStatePreparing:
 
-		if err := context.HandleHandoverRequiredTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
+		if err := context.HandleHandoverRequiredTransfer(body.BinaryDataN2SmInformation); err != nil {
 			logger.SmfLog.Error("handle HandoverRequiredTransfer failed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResSetupReq
 
-		if n2Buf, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext); err != nil {
+		if n2Buf, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext.SmPolicyUpdates, smContext.SmPolicyData, smContext.Tunnel.DataPath.DPNode); err != nil {
 			logger.SmfLog.Error("build PDUSession Resource Setup Request Transfer Error", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		} else {
 			response.BinaryDataN2SmInformation = n2Buf
@@ -143,7 +151,7 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 			logger.SmfLog.Error("handle HandoverRequestAcknowledgeTransfer failed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
 
-		if n2Buf, err := context.BuildHandoverCommandTransfer(smContext); err != nil {
+		if n2Buf, err := context.BuildHandoverCommandTransfer(smContext.Tunnel.DataPath.DPNode); err != nil {
 			logger.SmfLog.Error("build PDUSession Resource Setup Request Transfer Error", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		} else {
 			response.BinaryDataN2SmInformation = n2Buf
@@ -169,7 +177,7 @@ func HandleUpdateCause(body models.UpdateSmContextRequest, smContext *context.SM
 	response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResRelCmd
 	smContext.PDUSessionReleaseDueToDupPduID = true
 
-	buf, err := context.BuildPDUSessionResourceReleaseCommandTransfer(smContext)
+	buf, err := context.BuildPDUSessionResourceReleaseCommandTransfer()
 	response.BinaryDataN2SmInformation = buf
 	if err != nil {
 		logger.SmfLog.Error("build PDUSession Resource Release Command Transfer Error", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
@@ -218,7 +226,7 @@ func HandleUpdateN2Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 
 		pfcpAction.sendPfcpModify = true
 	case models.N2SmInfoTypePduResSetupFail:
-		if err := context.HandlePDUSessionResourceSetupUnsuccessfulTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
+		if err := context.HandlePDUSessionResourceSetupUnsuccessfulTransfer(body.BinaryDataN2SmInformation); err != nil {
 			logger.SmfLog.Error("failed to handle PDU Session Resource Setup Response Transfer", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
 	case models.N2SmInfoTypePduResRelRsp:
@@ -237,7 +245,7 @@ func HandleUpdateN2Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 			logger.SmfLog.Error("handle PathSwitchRequestTransfer", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
 
-		if n2Buf, err := context.BuildPathSwitchRequestAcknowledgeTransfer(smContext); err != nil {
+		if n2Buf, err := context.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.DataPath.DPNode); err != nil {
 			logger.SmfLog.Error("build Path Switch Transfer Error", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		} else {
 			response.BinaryDataN2SmInformation = n2Buf
@@ -259,7 +267,7 @@ func HandleUpdateN2Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smC
 
 		pfcpAction.sendPfcpModify = true
 	case models.N2SmInfoTypePathSwitchSetupFail:
-		if err := context.HandlePathSwitchRequestSetupFailedTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
+		if err := context.HandlePathSwitchRequestSetupFailedTransfer(body.BinaryDataN2SmInformation); err != nil {
 			logger.SmfLog.Error("handle PathSwitchRequestSetupFailedTransfer failed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
 	case models.N2SmInfoTypeHandoverRequired:

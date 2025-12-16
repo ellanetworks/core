@@ -9,21 +9,15 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error) {
-	if ctx.Tunnel == nil || ctx.Tunnel.DataPath == nil {
-		return nil, fmt.Errorf("data path is not established")
-	}
-
-	dataPath := ctx.Tunnel.DataPath
-	ANUPF := dataPath.DPNode
-	UpNode := ANUPF.UPF
+func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpdate, qosPolicyData qos.SmCtxtPolicyData, dpNode *DataPathNode) ([]byte, error) {
 	teidOct := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
+	binary.BigEndian.PutUint32(teidOct, dpNode.UpLinkTunnel.TEID)
 
 	resourceSetupRequestTransfer := ngapType.PDUSessionResourceSetupRequestTransfer{}
 
@@ -32,10 +26,12 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	ie := ngapType.PDUSessionResourceSetupRequestTransferIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	sessRule := ctx.SelectedSessionRule()
+
+	sessRule := SelectedSessionRule(smPolicyUpdates, qosPolicyData)
 	if sessRule == nil || sessRule.AuthSessAmbr == nil {
 		return nil, fmt.Errorf("no PDU Session AMBR")
 	}
+
 	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
 		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentPDUSessionAggregateMaximumBitRate,
 		PDUSessionAggregateMaximumBitRate: &ngapType.PDUSessionAggregateMaximumBitRate{
@@ -61,8 +57,8 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 			GTPTunnel: &ngapType.GTPTunnel{
 				TransportLayerAddress: ngapType.TransportLayerAddress{
 					Value: aper.BitString{
-						Bytes:     UpNode.N3Interface,
-						BitLength: uint64(len(UpNode.N3Interface) * 8),
+						Bytes:     dpNode.UPF.N3Interface,
+						BitLength: uint64(len(dpNode.UPF.N3Interface) * 8),
 					},
 				},
 				GTPTEID: ngapType.GTPTEID{Value: teidOct},
@@ -87,13 +83,12 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	// Get Qos Flow
 	var qosAddFlow *models.QosData
 
-	if ctx.SmPolicyData.SmCtxtQosData != nil {
-		qosAddFlow = ctx.SmPolicyData.SmCtxtQosData
+	if qosPolicyData.SmCtxtQosData != nil {
+		qosAddFlow = qosPolicyData.SmCtxtQosData
 	}
 
 	// PCF has provided some update
-	if ctx.SmPolicyUpdates != nil {
-		smPolicyUpdates := ctx.SmPolicyUpdates
+	if smPolicyUpdates != nil {
 		if smPolicyUpdates.QosFlowUpdate != nil && smPolicyUpdates.QosFlowUpdate.Add != nil {
 			qosAddFlow = smPolicyUpdates.QosFlowUpdate.Add
 		}
@@ -159,7 +154,7 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	}
 }
 
-func BuildPDUSessionResourceReleaseCommandTransfer(ctx *SMContext) ([]byte, error) {
+func BuildPDUSessionResourceReleaseCommandTransfer() ([]byte, error) {
 	resourceReleaseCommandTransfer := ngapType.PDUSessionResourceReleaseCommandTransfer{
 		Cause: ngapType.Cause{
 			Present: ngapType.CausePresentNas,
@@ -178,12 +173,12 @@ func BuildPDUSessionResourceReleaseCommandTransfer(ctx *SMContext) ([]byte, erro
 }
 
 // TS 38.413 9.3.4.9
-func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
-	dataPath := ctx.Tunnel.DataPath
-	ANUPF := dataPath.DPNode
-	UpNode := ANUPF.UPF
+func BuildPathSwitchRequestAcknowledgeTransfer(dpNode *DataPathNode) ([]byte, error) {
+	// dataPath := ctx.Tunnel.DataPath
+	// ANUPF := dataPath.DPNode
+	// UpNode := ANUPF.UPF
 	teidOct := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
+	binary.BigEndian.PutUint32(teidOct, dpNode.UpLinkTunnel.TEID)
 
 	pathSwitchRequestAcknowledgeTransfer := ngapType.PathSwitchRequestAcknowledgeTransfer{}
 
@@ -198,8 +193,8 @@ func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
 	gtpTunnel := ULNGUUPTNLInformation.GTPTunnel
 	gtpTunnel.GTPTEID.Value = teidOct
 	gtpTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     UpNode.N3Interface,
-		BitLength: uint64(len(UpNode.N3Interface) * 8),
+		Bytes:     dpNode.UPF.N3Interface,
+		BitLength: uint64(len(dpNode.UPF.N3Interface) * 8),
 	}
 
 	// Security Indication(optional) TS 38.413 9.3.1.27
@@ -222,12 +217,9 @@ func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
 	}
 }
 
-func BuildHandoverCommandTransfer(ctx *SMContext) ([]byte, error) {
-	dataPath := ctx.Tunnel.DataPath
-	ANUPF := dataPath.DPNode
-	UpNode := ANUPF.UPF
+func BuildHandoverCommandTransfer(dpNode *DataPathNode) ([]byte, error) {
 	teidOct := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
+	binary.BigEndian.PutUint32(teidOct, dpNode.UpLinkTunnel.TEID)
 	handoverCommandTransfer := ngapType.HandoverCommandTransfer{}
 
 	handoverCommandTransfer.DLForwardingUPTNLInformation = new(ngapType.UPTransportLayerInformation)
@@ -237,8 +229,8 @@ func BuildHandoverCommandTransfer(ctx *SMContext) ([]byte, error) {
 	gtpTunnel := handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel
 	gtpTunnel.GTPTEID.Value = teidOct
 	gtpTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     UpNode.N3Interface,
-		BitLength: uint64(len(UpNode.N3Interface) * 8),
+		Bytes:     dpNode.UPF.N3Interface,
+		BitLength: uint64(len(dpNode.UPF.N3Interface) * 8),
 	}
 
 	buf, err := aper.MarshalWithParams(handoverCommandTransfer, "valueExt")

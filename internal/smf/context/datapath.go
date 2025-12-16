@@ -140,7 +140,7 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) 
 		return nil, fmt.Errorf("failed to add QER: %v", err)
 	}
 
-	sessionRule := smContext.SelectedSessionRule()
+	sessionRule := SelectedSessionRule(smContext.SmPolicyUpdates, smContext.SmPolicyData)
 
 	newQER.QFI = smPolicyDec.QosDecs.QFI
 	newQER.GateStatus = &GateStatus{

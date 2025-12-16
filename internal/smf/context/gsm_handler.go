@@ -10,11 +10,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
-	"go.uber.org/zap"
 )
 
 type ProtocolConfigurationOptions struct {
@@ -23,11 +21,7 @@ type ProtocolConfigurationOptions struct {
 	IPv4LinkMTURequest bool
 }
 
-func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(allowedSessionType models.PduSessionType, req *nasMessage.PDUSessionEstablishmentRequest) (*ProtocolConfigurationOptions, uint8, uint8, error) {
-	smContext.PDUSessionID = req.PDUSessionID.GetPDUSessionID()
-
-	smContext.Pti = req.GetPTI()
-
+func HandlePDUSessionEstablishmentRequest(allowedSessionType models.PduSessionType, req *nasMessage.PDUSessionEstablishmentRequest) (*ProtocolConfigurationOptions, uint8, uint8, error) {
 	// Handle PDUSessionType
 	var estAcceptCause5gSMValue uint8
 	selectedPDUSessionType := nasMessage.PDUSessionTypeIPv4
@@ -70,14 +64,11 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(allowedSessionT
 	return pco, selectedPDUSessionType, estAcceptCause5gSMValue, nil
 }
 
-func (smContext *SMContext) HandlePDUSessionReleaseRequest(ctx context.Context, req *nasMessage.PDUSessionReleaseRequest) {
-	smContext.Pti = req.GetPTI()
-
-	err := ReleaseUeIPAddr(ctx, smContext.Supi)
+func HandlePDUSessionReleaseRequest(ctx context.Context, supi string) error {
+	err := ReleaseUeIPAddr(ctx, supi)
 	if err != nil {
-		logger.SmfLog.Error("Releasing UE IP Addr", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
-		return
+		return fmt.Errorf("failed to release UE IP Addr: %v", err)
 	}
 
-	logger.SmfLog.Info("Successfully completed PDU Session Release Request", zap.Uint8("pduSessionID", smContext.PDUSessionID))
+	return nil
 }
