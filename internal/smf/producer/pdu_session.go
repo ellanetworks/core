@@ -235,7 +235,7 @@ func releaseTunnel(ctx ctxt.Context, smContext *context.SMContext) error {
 		return fmt.Errorf("tunnel not found")
 	}
 
-	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR(smContext)
+	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR()
 
 	err := pfcp.SendPfcpSessionDeletionRequest(ctx, smContext.Tunnel.DataPath.DPNode.UPF.NodeID, smContext)
 	if err != nil {
