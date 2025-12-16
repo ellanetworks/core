@@ -20,20 +20,6 @@ import (
 	"go.uber.org/zap"
 )
 
-func sendCreateSmContextRequest(ctx ctxt.Context, supi string, pduSessionID uint8, snssai *models.Snssai, dnn string, nasPdu []byte) (string, *models.PostSmContextsErrorResponse, error) {
-	postSmContextsRequest := models.PostSmContextsRequest{
-		JSONData: &models.SmContextCreateData{
-			Supi:         supi,
-			PduSessionID: pduSessionID,
-			SNssai:       snssai,
-			Dnn:          dnn,
-		},
-		BinaryDataN1SmMessage: nasPdu,
-	}
-
-	return pdusession.CreateSmContext(ctx, postSmContextsRequest)
-}
-
 func forward5GSMMessageToSMF(
 	ctx ctxt.Context,
 	ue *context.AmfUe,
@@ -245,7 +231,17 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 
 			newSmContext.SetSnssai(snssai)
 
-			smContextRef, errResponse, err := sendCreateSmContextRequest(ctx, ue.Supi, pduSessionID, &snssai, dnn, smMessage)
+			postSmContextsRequest := models.PostSmContextsRequest{
+				JSONData: &models.SmContextCreateData{
+					Supi:         ue.Supi,
+					PduSessionID: pduSessionID,
+					SNssai:       &snssai,
+					Dnn:          dnn,
+				},
+				BinaryDataN1SmMessage: smMessage,
+			}
+
+			smContextRef, errResponse, err := pdusession.CreateSmContext(ctx, postSmContextsRequest)
 			if err != nil {
 				ue.Log.Error("couldn't send create sm context request", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 			}

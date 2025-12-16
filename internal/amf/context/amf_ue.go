@@ -63,9 +63,7 @@ type AmfUe struct {
 	RegistrationType5GS             uint8
 	IdentityTypeUsedForRegistration uint8
 	RegistrationRequest             *nasMessage.RegistrationRequest
-	ServingAmfChanged               bool
 	RetransmissionOfInitialNASMsg   bool
-	/* Used for AMF relocation */
 	/* Ue Identity*/
 	PlmnID  models.PlmnID
 	Suci    string
@@ -75,18 +73,15 @@ type AmfUe struct {
 	OldTmsi int32
 	Guti    string
 	OldGuti string
-	/* Ue Identity*/
 	/* User Location*/
 	Location                 models.UserLocation
 	Tai                      models.Tai
 	LastVisitedRegisteredTai models.Tai
 	TimeZone                 string
 	/* context about udm */
-	SubscriptionDataValid             bool
 	Dnn                               string
 	SubscribedNssai                   *models.Snssai
 	Ambr                              *models.Ambr
-	RoutingIndicator                  string
 	AuthenticationCtx                 *models.Av5gAka
 	AuthFailureCauseSynchFailureTimes int
 	ABBA                              []uint8
@@ -97,7 +92,6 @@ type AmfUe struct {
 	RanUe                             *RanUe
 	OnGoing                           *OnGoingProcedureWithPrio
 	UeRadioCapability                 string // OCTET string
-	Capability5GMM                    nasType.Capability5GMM
 	ConfigurationUpdateIndication     nasType.ConfigurationUpdateIndication
 	ConfigurationUpdateCommandFlags   *ConfigurationUpdateCommandFlags
 
@@ -425,7 +419,6 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 	ue.RegistrationType5GS = 0
 	ue.IdentityTypeUsedForRegistration = 0
 	ue.AuthFailureCauseSynchFailureTimes = 0
-	ue.ServingAmfChanged = false
 	if ue.RanUe != nil {
 		ue.RanUe.UeContextRequest = false
 		ue.RanUe.RecvdInitialContextSetupResponse = false
@@ -438,7 +431,6 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 func (ue *AmfUe) ClearRegistrationData() {
 	// Allowed Nssai should be cleared first as it is a new Registration
 	ue.SubscribedNssai = nil
-	ue.SubscriptionDataValid = false
 
 	ue.SmContextList = make(map[uint8]*SmContext)
 }

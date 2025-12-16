@@ -44,9 +44,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		return err
 	}
 
-	if ue.RegistrationRequest.Capability5GMM != nil {
-		ue.Capability5GMM = *ue.RegistrationRequest.Capability5GMM
-	} else {
+	if ue.RegistrationRequest.Capability5GMM == nil {
 		if ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
 			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
 			if err != nil {
@@ -74,11 +72,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		return nil
 	}
 
-	if ue.ServingAmfChanged ||
-		!ue.SubscriptionDataValid {
-		if err := getAndSetSubscriberData(ctx, ue); err != nil {
-			return err
-		}
+	err = getAndSetSubscriberData(ctx, ue)
+	if err != nil {
+		return fmt.Errorf("failed to get and set subscriber data: %v", err)
 	}
 
 	var reactivationResult *[16]bool

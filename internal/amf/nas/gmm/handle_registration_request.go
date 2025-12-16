@@ -4,7 +4,6 @@ import (
 	ctxt "context"
 	"errors"
 	"fmt"
-	"reflect"
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
@@ -37,8 +36,6 @@ func getRegistrationType5GSName(regType5Gs uint8) string {
 
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
 func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registrationRequest *nasMessage.RegistrationRequest) error {
-	var guamiFromUeGuti models.Guami
-
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
 	}
@@ -95,17 +92,9 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
 		ue.PlmnID = plmnIDStringToModels(plmnID)
 	case nasMessage.MobileIdentity5GSType5gGuti:
-		guamiFromUeGutiTmp, guti := util.GutiToString(mobileIdentity5GSContents)
-		guamiFromUeGuti = guamiFromUeGutiTmp
+		_, guti := util.GutiToString(mobileIdentity5GSContents)
 		ue.Guti = guti
 		ue.Log.Debug("UE used GUTI identity for registration", zap.String("guti", guti))
-
-		if reflect.DeepEqual(guamiFromUeGuti, operatorInfo.Guami) {
-			ue.ServingAmfChanged = false
-		} else {
-			ue.Log.Debug("Serving AMF has changed but 5G-Core is not supporting for now")
-			ue.ServingAmfChanged = false
-		}
 	case nasMessage.MobileIdentity5GSTypeImei:
 		imei := nasConvert.PeiToString(mobileIdentity5GSContents)
 		ue.Pei = imei
@@ -165,10 +154,6 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 
 	if registrationRequest.UESecurityCapability != nil {
 		ue.UESecurityCapability = registrationRequest.UESecurityCapability
-	}
-
-	if ue.ServingAmfChanged {
-		logger.AmfLog.Debug("Serving AMF has changed - Unsupported")
 	}
 
 	return nil

@@ -27,7 +27,6 @@ func handleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe) error {
 		ue.T3522 = nil // clear the timer
 	}
 
-	ue.SubscriptionDataValid = false
 	ue.State.Set(context.Deregistered)
 
 	if ue.RanUe != nil {

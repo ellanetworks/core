@@ -122,7 +122,6 @@ func getAndSetSubscriberData(ctx ctxt.Context, ue *context.AmfUe) error {
 
 	ue.Dnn = dnn
 	ue.Ambr = bitRate
-	ue.SubscriptionDataValid = true
 
 	return nil
 }

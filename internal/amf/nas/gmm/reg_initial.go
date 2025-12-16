@@ -34,10 +34,6 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 		return err
 	}
 
-	if ue.RegistrationRequest.Capability5GMM != nil {
-		ue.Capability5GMM = *ue.RegistrationRequest.Capability5GMM
-	}
-
 	if ue.AllowedNssai == nil {
 		err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 		if err != nil {
@@ -59,11 +55,8 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 
 	negotiateDRXParameters(ue, ue.RegistrationRequest.RequestedDRXParameters)
 
-	if ue.ServingAmfChanged ||
-		!ue.SubscriptionDataValid {
-		if err := getAndSetSubscriberData(ctx, ue); err != nil {
-			return err
-		}
+	if err := getAndSetSubscriberData(ctx, ue); err != nil {
+		return fmt.Errorf("failed to get and set subscriber data: %v", err)
 	}
 
 	if !context.SubscriberExists(ctx, ue.Supi) {
