@@ -51,11 +51,6 @@ type NetworkFeatureSupport5GS struct {
 	Mcsi    uint8
 }
 
-type PlmnSupportItem struct {
-	PlmnID models.PlmnID
-	SNssai *models.Snssai
-}
-
 type NetworkName struct {
 	Full  string
 	Short string
@@ -109,6 +104,7 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 	if err != nil {
 		return -1, fmt.Errorf("could not allocate AmfUeNgapID: %v", err)
 	}
+
 	return val, nil
 }
 
@@ -276,10 +272,6 @@ func (context *AMFContext) DeleteAmfRan(conn *sctp.SCTPConn) {
 	defer context.Mutex.Unlock()
 
 	delete(context.AmfRanPool, conn)
-}
-
-func (context *AMFContext) InPlmnSupport(ctx context.Context, snssai *models.Snssai, supportedPLMN *PlmnSupportItem) bool {
-	return reflect.DeepEqual(supportedPLMN.SNssai, snssai)
 }
 
 // Looks up a UE by the provided GUTI.

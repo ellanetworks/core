@@ -153,7 +153,7 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 				ranUe.Log.Debug("find AmfUe", zap.String("GUTI", guti))
 				/* checking the guti-ue belongs to this amf instance */
 
-				if amfUe.CmConnect() {
+				if amfUe.RanUe != nil {
 					ranUe.Log.Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 					amfUe.DetachRanUe()
 				}

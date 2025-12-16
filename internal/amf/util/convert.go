@@ -12,6 +12,6 @@ func TACConfigToModels(intString string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error parsing TAC: %+v", err)
 	}
-	hexString := fmt.Sprintf("%06x", tmp)
-	return hexString, nil
+
+	return fmt.Sprintf("%06x", tmp), nil
 }

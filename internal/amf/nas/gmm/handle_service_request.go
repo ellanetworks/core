@@ -261,7 +261,6 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 	case nasMessage.ServiceTypeMobileTerminatedServices: // Triggered by Network
 		// TS 24.501 5.4.4.1 - We need to assign a new GUTI after a successful Service Request
 		// triggered by a paging request.
-		ue.ConfigurationUpdateCommandFlags = &context.ConfigurationUpdateCommandFlags{NeedGUTI: true}
 
 		if ue.N1N2Message != nil {
 			requestData := ue.N1N2Message.JSONData
@@ -316,14 +315,11 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 				return fmt.Errorf("error sending service accept: %v", err)
 			}
 		}
-		if ue.ConfigurationUpdateCommandFlags != nil {
-			// Allocate a new GUTI after successful network triggered Service Request
-			amfSelf := context.AMFSelf()
-			amfSelf.ReAllocateGutiToUe(ctx, ue, operatorInfo.Guami)
 
-			message.SendConfigurationUpdateCommand(ctx, ue)
-			ue.ConfigurationUpdateCommandFlags = nil
-		}
+		amfSelf := context.AMFSelf()
+		amfSelf.ReAllocateGutiToUe(ctx, ue, operatorInfo.Guami)
+		message.SendConfigurationUpdateCommand(ctx, ue, &context.ConfigurationUpdateCommandFlags{NeedGUTI: true})
+
 	case nasMessage.ServiceTypeData:
 		err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
 		if err != nil {

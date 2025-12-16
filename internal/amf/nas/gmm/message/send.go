@@ -383,7 +383,7 @@ func SendRegistrationAccept(
 	return nil
 }
 
-func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe) {
+func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe, flags *context.ConfigurationUpdateCommandFlags) {
 	if amfUe == nil {
 		return
 	}
@@ -395,8 +395,6 @@ func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe) {
 		trace.WithSpanKind(trace.SpanKindServer),
 	)
 	defer span.End()
-
-	flags := amfUe.ConfigurationUpdateCommandFlags
 
 	if amfUe.RanUe == nil {
 		amfUe.Log.Error("cannot SendConfigurationUpdateCommand: RanUe is nil")

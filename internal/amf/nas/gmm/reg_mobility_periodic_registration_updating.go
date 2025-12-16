@@ -36,17 +36,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 	}
 
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
-	if ue.SubscribedNssai == nil {
-		ue.SubscribedNssai = operatorInfo.SupportedPLMN.SNssai
-	}
-
-	if err := handleRequestedNssai(ctx, ue, operatorInfo.SupportedPLMN); err != nil {
+	if err := handleRequestedNssai(ue, operatorInfo.SupportedPLMN.SNssai); err != nil {
 		return err
 	}
 
-	if ue.RegistrationRequest.Capability5GMM != nil {
-		ue.Capability5GMM = *ue.RegistrationRequest.Capability5GMM
-	} else {
+	if ue.RegistrationRequest.Capability5GMM == nil {
 		if ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
 			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
 			if err != nil {
@@ -56,13 +50,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		}
 	}
 
-	storeLastVisitedRegisteredTAI(ue, ue.RegistrationRequest.LastVisitedRegisteredTAI)
-
 	if ue.RegistrationRequest.MICOIndication != nil {
 		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.MICOIndication.GetRAAI()))
 	}
 
-	negotiateDRXParameters(ue, ue.RegistrationRequest.RequestedDRXParameters)
+	if ue.RegistrationRequest.RequestedDRXParameters != nil {
+		ue.UESpecificDRX = ue.RegistrationRequest.RequestedDRXParameters.GetDRXValue()
+	}
 
 	if len(ue.Pei) == 0 {
 		ue.Log.Debug("The UE did not provide PEI")
@@ -74,11 +68,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		return nil
 	}
 
-	if ue.ServingAmfChanged ||
-		!ue.SubscriptionDataValid {
-		if err := getAndSetSubscriberData(ctx, ue); err != nil {
-			return err
-		}
+	err = getAndSetSubscriberData(ctx, ue)
+	if err != nil {
+		return fmt.Errorf("failed to get and set subscriber data: %v", err)
 	}
 
 	var reactivationResult *[16]bool

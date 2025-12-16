@@ -63,9 +63,7 @@ type AmfUe struct {
 	RegistrationType5GS             uint8
 	IdentityTypeUsedForRegistration uint8
 	RegistrationRequest             *nasMessage.RegistrationRequest
-	ServingAmfChanged               bool
 	RetransmissionOfInitialNASMsg   bool
-	/* Used for AMF relocation */
 	/* Ue Identity*/
 	PlmnID  models.PlmnID
 	Suci    string
@@ -75,18 +73,13 @@ type AmfUe struct {
 	OldTmsi int32
 	Guti    string
 	OldGuti string
-	/* Ue Identity*/
 	/* User Location*/
-	Location                 models.UserLocation
-	Tai                      models.Tai
-	LastVisitedRegisteredTai models.Tai
-	TimeZone                 string
+	Location models.UserLocation
+	Tai      models.Tai
+	TimeZone string
 	/* context about udm */
-	SubscriptionDataValid             bool
 	Dnn                               string
-	SubscribedNssai                   *models.Snssai
 	Ambr                              *models.Ambr
-	RoutingIndicator                  string
 	AuthenticationCtx                 *models.Av5gAka
 	AuthFailureCauseSynchFailureTimes int
 	ABBA                              []uint8
@@ -97,9 +90,6 @@ type AmfUe struct {
 	RanUe                             *RanUe
 	OnGoing                           *OnGoingProcedureWithPrio
 	UeRadioCapability                 string // OCTET string
-	Capability5GMM                    nasType.Capability5GMM
-	ConfigurationUpdateIndication     nasType.ConfigurationUpdateIndication
-	ConfigurationUpdateCommandFlags   *ConfigurationUpdateCommandFlags
 
 	/* context related to Paging */
 	UeRadioCapabilityForPaging                 *UERadioCapabilityForPaging
@@ -194,10 +184,6 @@ func (ue *AmfUe) init() {
 	ue.SmContextList = make(map[uint8]*SmContext)
 }
 
-func (ue *AmfUe) CmConnect() bool {
-	return ue.RanUe != nil
-}
-
 func (ue *AmfUe) Remove() {
 	if ue.RanUe != nil {
 		err := ue.RanUe.Remove()
@@ -245,10 +231,6 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 
 func (ue *AmfUe) InAllowedNssai(targetSNssai *models.Snssai) bool {
 	return reflect.DeepEqual(*ue.AllowedNssai, *targetSNssai)
-}
-
-func (ue *AmfUe) InSubscribedNssai(targetSNssai *models.Snssai) bool {
-	return ue.SubscribedNssai.Sst == targetSNssai.Sst && ue.SubscribedNssai.Sd == targetSNssai.Sd
 }
 
 func (ue *AmfUe) SecurityContextIsValid() bool {
@@ -425,7 +407,6 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 	ue.RegistrationType5GS = 0
 	ue.IdentityTypeUsedForRegistration = 0
 	ue.AuthFailureCauseSynchFailureTimes = 0
-	ue.ServingAmfChanged = false
 	if ue.RanUe != nil {
 		ue.RanUe.UeContextRequest = false
 		ue.RanUe.RecvdInitialContextSetupResponse = false
@@ -436,10 +417,6 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 
 // this method called when we are reusing the same uecontext during the registration procedure
 func (ue *AmfUe) ClearRegistrationData() {
-	// Allowed Nssai should be cleared first as it is a new Registration
-	ue.SubscribedNssai = nil
-	ue.SubscriptionDataValid = false
-
 	ue.SmContextList = make(map[uint8]*SmContext)
 }
 
