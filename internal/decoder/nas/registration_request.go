@@ -3,7 +3,6 @@ package nas
 import (
 	"encoding/hex"
 
-	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -187,7 +186,7 @@ func getMobileIdentity5GS(mobileIdentity5GS nasType.MobileIdentity5GS) MobileIde
 			PLMNID:   &plmnIDModel,
 		}
 	case nasMessage.MobileIdentity5GSType5gGuti:
-		_, guti := util.GutiToString(mobileIdentity5GSContents)
+		_, guti := nasConvert.GutiToString(mobileIdentity5GSContents)
 		return MobileIdentity5GS{
 			GUTI:     &guti,
 			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "5G-GUTI", false),

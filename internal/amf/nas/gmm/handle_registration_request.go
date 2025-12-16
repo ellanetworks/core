@@ -92,7 +92,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
 		ue.PlmnID = plmnIDStringToModels(plmnID)
 	case nasMessage.MobileIdentity5GSType5gGuti:
-		_, guti := util.GutiToString(mobileIdentity5GSContents)
+		_, guti := nasConvert.GutiToString(mobileIdentity5GSContents)
 		ue.Guti = guti
 		ue.Log.Debug("UE used GUTI identity for registration", zap.String("guti", guti))
 	case nasMessage.MobileIdentity5GSTypeImei:
