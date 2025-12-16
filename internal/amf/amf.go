@@ -30,8 +30,16 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 		Mcsi:    0,
 		Mpsi:    0,
 	}
-	self.SecurityAlgorithm.IntegrityOrder = []uint8{security.AlgIntegrity128NIA2, security.AlgIntegrity128NIA0}
-	self.SecurityAlgorithm.CipheringOrder = []uint8{security.AlgCiphering128NEA2, security.AlgCiphering128NEA0}
+	self.SecurityAlgorithm.IntegrityOrder = []uint8{
+		security.AlgIntegrity128NIA2,
+		security.AlgIntegrity128NIA1,
+		security.AlgIntegrity128NIA0,
+	}
+	self.SecurityAlgorithm.CipheringOrder = []uint8{
+		security.AlgCiphering128NEA2,
+		security.AlgCiphering128NEA1,
+		security.AlgCiphering128NEA0,
+	}
 	self.NetworkName = context.NetworkName{
 		Full:  "ELLACORE5G",
 		Short: "ELLACORE",
