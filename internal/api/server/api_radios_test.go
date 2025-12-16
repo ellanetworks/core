@@ -119,7 +119,11 @@ func TestListRadios(t *testing.T) {
 		},
 	}
 	ran1.GnbIP = "1.2.3.4"
-	ran1.GnbID = "mcc:001:mnc:01:gnb-001"
+	ran1.RanID = &models.GlobalRanNodeID{
+		GNbID: &models.GNbID{
+			GNBValue: "mcc:001:mnc:01:gnb-001",
+		},
+	}
 	// amf.AmfRanPool.Store("id1", &ran1)
 	conn1 := sctp.NewSCTPConn(1, nil)
 	amf.AmfRanPool[conn1] = &ran1
@@ -143,7 +147,11 @@ func TestListRadios(t *testing.T) {
 		},
 	}
 	ran2.GnbIP = "2.3.4.5"
-	ran2.GnbID = "mcc:001:mnc:01:gnb-002"
+	ran2.RanID = &models.GlobalRanNodeID{
+		GNbID: &models.GNbID{
+			GNBValue: "mcc:001:mnc:01:gnb-002",
+		},
+	}
 	conn2 := sctp.NewSCTPConn(1, nil)
 	amf.AmfRanPool[conn2] = &ran2
 

@@ -92,7 +92,7 @@ func ListRadios() http.HandlerFunc {
 			supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAList)
 			newRadio := Radio{
 				Name:          radio.Name,
-				ID:            radio.GnbID,
+				ID:            radio.RanID.GNbID.GNBValue,
 				Address:       radio.GnbIP,
 				SupportedTAIs: supportedTais,
 			}
@@ -126,7 +126,7 @@ func GetRadio() http.HandlerFunc {
 				supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAList)
 				result := Radio{
 					Name:          radio.Name,
-					ID:            radio.GnbID,
+					ID:            radio.RanID.GNbID.GNBValue,
 					Address:       radio.GnbIP,
 					SupportedTAIs: supportedTais,
 				}

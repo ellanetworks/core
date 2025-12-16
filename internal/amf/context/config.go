@@ -46,6 +46,11 @@ func ListAmfRan(page int, perPage int) (int, []AmfRan) {
 	return total, ranListPage
 }
 
+type PlmnSupportItem struct {
+	PlmnID models.PlmnID
+	SNssai *models.Snssai
+}
+
 type OperatorInfo struct {
 	Tais          []models.Tai
 	Guami         *models.Guami

@@ -24,13 +24,14 @@ func RanIDToModels(ranNodeID ngapType.GlobalRANNodeID) models.GlobalRanNodeID {
 		ngapNgENBID := ranNodeID.GlobalNgENBID
 		plmnid := PlmnIDToModels(ngapNgENBID.PLMNIdentity)
 		ranID.PlmnID = &plmnid
-		if ngapNgENBID.NgENBID.Present == ngapType.NgENBIDPresentMacroNgENBID {
+		switch ngapNgENBID.NgENBID.Present {
+		case ngapType.NgENBIDPresentMacroNgENBID:
 			macroNgENBID := ngapNgENBID.NgENBID.MacroNgENBID
 			ranID.NgeNbID = "MacroNGeNB-" + BitStringToHex(macroNgENBID)
-		} else if ngapNgENBID.NgENBID.Present == ngapType.NgENBIDPresentShortMacroNgENBID {
+		case ngapType.NgENBIDPresentShortMacroNgENBID:
 			shortMacroNgENBID := ngapNgENBID.NgENBID.ShortMacroNgENBID
 			ranID.NgeNbID = "SMacroNGeNB-" + BitStringToHex(shortMacroNgENBID)
-		} else if ngapNgENBID.NgENBID.Present == ngapType.NgENBIDPresentLongMacroNgENBID {
+		case ngapType.NgENBIDPresentLongMacroNgENBID:
 			longMacroNgENBID := ngapNgENBID.NgENBID.LongMacroNgENBID
 			ranID.NgeNbID = "LMacroNGeNB-" + BitStringToHex(longMacroNgENBID)
 		}
