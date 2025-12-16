@@ -278,10 +278,6 @@ func (context *AMFContext) DeleteAmfRan(conn *sctp.SCTPConn) {
 	delete(context.AmfRanPool, conn)
 }
 
-func (context *AMFContext) InPlmnSupport(ctx context.Context, snssai *models.Snssai, supportedPLMN *PlmnSupportItem) bool {
-	return reflect.DeepEqual(supportedPLMN.SNssai, snssai)
-}
-
 // Looks up a UE by the provided GUTI.
 func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (*AmfUe, bool) {
 	if guti == "" {

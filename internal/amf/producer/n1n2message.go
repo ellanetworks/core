@@ -55,7 +55,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, supi string, n1n2MessageTran
 	n2Info := n1n2MessageTransferRequest.BinaryDataN2Information
 	// var n1n2MessageTransferRspData *models.N1N2MessageTransferRspData
 	// UE is CM-Connected
-	if ue.CmConnect() {
+	if ue.RanUe != nil {
 		var (
 			nasPdu []byte
 			err    error

@@ -80,7 +80,6 @@ type AmfUe struct {
 	TimeZone                 string
 	/* context about udm */
 	Dnn                               string
-	SubscribedNssai                   *models.Snssai
 	Ambr                              *models.Ambr
 	AuthenticationCtx                 *models.Av5gAka
 	AuthFailureCauseSynchFailureTimes int
@@ -186,10 +185,6 @@ func (ue *AmfUe) init() {
 	ue.SmContextList = make(map[uint8]*SmContext)
 }
 
-func (ue *AmfUe) CmConnect() bool {
-	return ue.RanUe != nil
-}
-
 func (ue *AmfUe) Remove() {
 	if ue.RanUe != nil {
 		err := ue.RanUe.Remove()
@@ -237,10 +232,6 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 
 func (ue *AmfUe) InAllowedNssai(targetSNssai *models.Snssai) bool {
 	return reflect.DeepEqual(*ue.AllowedNssai, *targetSNssai)
-}
-
-func (ue *AmfUe) InSubscribedNssai(targetSNssai *models.Snssai) bool {
-	return ue.SubscribedNssai.Sst == targetSNssai.Sst && ue.SubscribedNssai.Sd == targetSNssai.Sd
 }
 
 func (ue *AmfUe) SecurityContextIsValid() bool {
@@ -427,9 +418,6 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 
 // this method called when we are reusing the same uecontext during the registration procedure
 func (ue *AmfUe) ClearRegistrationData() {
-	// Allowed Nssai should be cleared first as it is a new Registration
-	ue.SubscribedNssai = nil
-
 	ue.SmContextList = make(map[uint8]*SmContext)
 }
 
