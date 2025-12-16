@@ -44,7 +44,6 @@ type SMContext struct {
 	PFCPContext                    map[string]*PFCPSessionContext // key: UPF NodeID
 	PDUSessionID                   uint8
 	PDUSessionReleaseDueToDupPduID bool
-	Pti                            uint8
 }
 
 func CanonicalName(identifier string, pduSessID uint8) string {
