@@ -101,7 +101,7 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 	for _, pduSessionid := range targetUe.SuccessPduSessionID {
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionid)
 		if !ok {
-			ran.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionid))
+			ran.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionid))
 		}
 		_, err := consumer.SendUpdateSmContextN2HandoverComplete(ctx, amfUe, smContext)
 		if err != nil {

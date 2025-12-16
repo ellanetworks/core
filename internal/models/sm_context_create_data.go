@@ -2,7 +2,7 @@ package models
 
 type SmContextCreateData struct {
 	Supi         string
-	PduSessionID int32
+	PduSessionID uint8
 	Dnn          string
 	SNssai       *Snssai
 }

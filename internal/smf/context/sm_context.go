@@ -42,16 +42,16 @@ type SMContext struct {
 	SmPolicyUpdates                *qos.PolicyUpdate
 	SmPolicyData                   qos.SmCtxtPolicyData
 	PFCPContext                    map[string]*PFCPSessionContext // key: UPF NodeID
-	PDUSessionID                   int32
+	PDUSessionID                   uint8
 	PDUSessionReleaseDueToDupPduID bool
 	Pti                            uint8
 }
 
-func CanonicalName(identifier string, pduSessID int32) string {
+func CanonicalName(identifier string, pduSessID uint8) string {
 	return fmt.Sprintf("%s-%d", identifier, pduSessID)
 }
 
-func NewSMContext(supi string, pduSessID int32) *SMContext {
+func NewSMContext(supi string, pduSessID uint8) *SMContext {
 	smfContext.Mutex.Lock()
 	defer smfContext.Mutex.Unlock()
 

@@ -119,7 +119,7 @@ func HandlePfcpSessionEstablishmentResponse(ctx ctxt.Context, msg *message.Sessi
 		return fmt.Errorf("failed to parse Cause IE: %+v", err)
 	}
 	if causeValue == ie.CauseRequestAccepted {
-		logger.SmfLog.Info("PFCP Session Establishment accepted", zap.Uint64("SEID", SEID), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+		logger.SmfLog.Info("PFCP Session Establishment accepted", zap.Uint64("SEID", SEID), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		return nil
 	}
 	return fmt.Errorf("PFCP Session Establishment rejected with cause: %v", causeValue)

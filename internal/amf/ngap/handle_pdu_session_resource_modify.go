@@ -95,11 +95,11 @@ func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, msg *
 	ranUe.Log.Debug("Send PDUSessionResourceNotifyTransfer to SMF")
 
 	for _, item := range pDUSessionResourceNotifyList.List {
-		pduSessionID := int32(item.PDUSessionID.Value)
+		pduSessionID := uint8(item.PDUSessionID.Value)
 		transfer := item.PDUSessionResourceNotifyTransfer
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
-			ranUe.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionID))
+			ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 		}
 		response, err := consumer.SendUpdateSmContextN2Info(ctx, amfUe, smContext,
 			models.N2SmInfoTypePduResNty, transfer)
@@ -117,8 +117,7 @@ func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, msg *
 					ranUe.Log.Debug("AMF Transfer NGAP PDU Resource Modify Req from SMF")
 					var nasPdu []byte
 					if n1Msg != nil {
-						pduSessionIDUint8 := uint8(pduSessionID)
-						nasPdu, err = gmm_message.BuildDLNASTransport(amfUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionIDUint8, nil)
+						nasPdu, err = gmm_message.BuildDLNASTransport(amfUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
 						if err != nil {
 							ranUe.Log.Warn("error building NAS transport message", zap.Error(err))
 						}
@@ -136,7 +135,7 @@ func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, msg *
 		} else if err != nil {
 			return
 		} else {
-			ranUe.Log.Error("Failed to Update smContext", zap.Int32("PduSessionID", pduSessionID), zap.Error(err))
+			ranUe.Log.Error("Failed to Update smContext", zap.Uint8("PduSessionID", pduSessionID), zap.Error(err))
 			return
 		}
 	}
@@ -144,11 +143,11 @@ func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, msg *
 	if pDUSessionResourceReleasedListNot != nil {
 		ranUe.Log.Debug("Send PDUSessionResourceNotifyReleasedTransfer to SMF")
 		for _, item := range pDUSessionResourceReleasedListNot.List {
-			pduSessionID := int32(item.PDUSessionID.Value)
+			pduSessionID := uint8(item.PDUSessionID.Value)
 			transfer := item.PDUSessionResourceNotifyReleasedTransfer
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				ranUe.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionID))
+				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			}
 			response, err := consumer.SendUpdateSmContextN2Info(ctx, amfUe, smContext, models.N2SmInfoTypePduResNtyRel, transfer)
 			if err != nil {
@@ -162,23 +161,22 @@ func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, msg *
 			} else if err != nil {
 				return
 			} else {
-				ranUe.Log.Error("Failed to Update smContext", zap.Int32("PduSessionID", pduSessionID), zap.Error(err))
+				ranUe.Log.Error("Failed to Update smContext", zap.Uint8("PduSessionID", pduSessionID), zap.Error(err))
 				return
 			}
 		}
 	}
 }
 
-func buildAndSendN1N2Msg(ctx ctxt.Context, ranUe *context.RanUe, n1Msg, n2Info []byte, N2SmInfoType models.N2SmInfoType, pduSessID int32) {
+func buildAndSendN1N2Msg(ctx ctxt.Context, ranUe *context.RanUe, n1Msg, n2Info []byte, N2SmInfoType models.N2SmInfoType, pduSessID uint8) {
 	if n2Info != nil {
 		switch N2SmInfoType {
 		case models.N2SmInfoTypePduResRelCmd:
 			ranUe.Log.Debug("AMF Transfer NGAP PDU Session Resource Rel Co from SMF")
 			var nasPdu []byte
 			if n1Msg != nil {
-				pduSessionID := uint8(pduSessID)
 				var err error
-				nasPdu, err = gmm_message.BuildDLNASTransport(ranUe.AmfUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
+				nasPdu, err = gmm_message.BuildDLNASTransport(ranUe.AmfUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessID, nil)
 				if err != nil {
 					ranUe.Log.Warn("error building NAS transport message", zap.Error(err))
 				}

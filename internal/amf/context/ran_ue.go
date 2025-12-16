@@ -39,7 +39,7 @@ type RanUe struct {
 	RanUeNgapID                      int64
 	AmfUeNgapID                      int64
 	HandOverType                     ngapType.HandoverType
-	SuccessPduSessionID              []int32
+	SuccessPduSessionID              []uint8
 	SourceUe                         *RanUe
 	TargetUe                         *RanUe
 	Tai                              models.Tai

@@ -36,7 +36,7 @@ func HandlePduSessionContextReplacement(ctx ctxt.Context, smCtxt *context.SMCont
 	if smCtxt.Tunnel != nil {
 		err := releaseTunnel(ctx, smCtxt)
 		if err != nil {
-			logger.SmfLog.Error("release tunnel failed", zap.Error(err), zap.String("supi", smCtxt.Supi), zap.Int32("pduSessionID", smCtxt.PDUSessionID))
+			logger.SmfLog.Error("release tunnel failed", zap.Error(err), zap.String("supi", smCtxt.Supi), zap.Uint8("pduSessionID", smCtxt.PDUSessionID))
 		}
 	}
 
@@ -103,7 +103,7 @@ func HandlePDUSessionSMContextCreate(
 		return "", nil, 0, 0, nil, nil, response, nil
 	}
 
-	logger.SmfLog.Info("Successfully allocated IP address", zap.String("IP", pduAddress.String()), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+	logger.SmfLog.Info("Successfully allocated IP address", zap.String("IP", pduAddress.String()), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
 	allowedSessionType := context.GetAllowedSessionType()
 
@@ -135,7 +135,7 @@ func HandlePDUSessionSMContextCreate(
 		return "", nil, 0, 0, nil, nil, response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
 
-	logger.SmfLog.Info("Successfully created PDU session context", zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+	logger.SmfLog.Info("Successfully created PDU session context", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
 	return context.CanonicalName(smContext.Supi, smContext.PDUSessionID), pco, pduSessionType, estAcceptCause5gSMValue, dnnInfo, pduAddress, nil, nil
 }
@@ -199,7 +199,7 @@ func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmCo
 			return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 		}
 
-		logger.SmfLog.Info("Sent PFCP session modification request", zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+		logger.SmfLog.Info("Sent PFCP session modification request", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 	}
 
 	return &response, nil
@@ -211,7 +211,7 @@ func HandlePDUSessionSMContextRelease(ctx ctxt.Context, smContext *context.SMCon
 
 	err := context.ReleaseUeIPAddr(ctx, smContext.Supi)
 	if err != nil {
-		logger.SmfLog.Error("release UE IP address failed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+		logger.SmfLog.Error("release UE IP address failed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 	}
 
 	// Release User-plane
@@ -294,7 +294,7 @@ func SendPduSessN1N2Transfer(
 		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
 	}
 
-	logger.SmfLog.Debug("Sent n1 n2 transfer request", zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+	logger.SmfLog.Debug("Sent n1 n2 transfer request", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
 	err = smContext.CommitSmPolicyDecision(true)
 	if err != nil {

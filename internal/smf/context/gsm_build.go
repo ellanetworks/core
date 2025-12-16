@@ -58,7 +58,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 
 	sessRule := smContext.SmPolicyUpdates.SessRuleUpdate.ActiveSessRule
 
-	pDUSessionEstablishmentAccept.SetPDUSessionID(uint8(smContext.PDUSessionID))
+	pDUSessionEstablishmentAccept.SetPDUSessionID(smContext.PDUSessionID)
 	pDUSessionEstablishmentAccept.SetMessageType(nas.MsgTypePDUSessionEstablishmentAccept)
 	pDUSessionEstablishmentAccept.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
 	pDUSessionEstablishmentAccept.SetPTI(smContext.Pti)
@@ -149,7 +149,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		if pco.DNSIPv4Request {
 			err := protocolConfigurationOptions.AddDNSServerIPv4Address(dNNInfo.DNS)
 			if err != nil {
-				logger.SmfLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+				logger.SmfLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 			}
 		}
 
@@ -162,7 +162,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		if pco.IPv4LinkMTURequest {
 			err := protocolConfigurationOptions.AddIPv4LinkMTU(dNNInfo.MTU)
 			if err != nil {
-				logger.SmfLog.Warn("Error while adding MTU", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+				logger.SmfLog.Warn("Error while adding MTU", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 			}
 		}
 
@@ -188,7 +188,7 @@ func BuildGSMPDUSessionEstablishmentReject(smContext *SMContext, cause uint8) ([
 
 	pDUSessionEstablishmentReject.SetMessageType(nas.MsgTypePDUSessionEstablishmentReject)
 	pDUSessionEstablishmentReject.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	pDUSessionEstablishmentReject.SetPDUSessionID(uint8(smContext.PDUSessionID))
+	pDUSessionEstablishmentReject.SetPDUSessionID(smContext.PDUSessionID)
 	pDUSessionEstablishmentReject.SetCauseValue(cause)
 	pDUSessionEstablishmentReject.SetPTI(smContext.Pti)
 
@@ -205,7 +205,7 @@ func BuildGSMPDUSessionReleaseCommand(smContext *SMContext) ([]byte, error) {
 
 	pDUSessionReleaseCommand.SetMessageType(nas.MsgTypePDUSessionReleaseCommand)
 	pDUSessionReleaseCommand.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	pDUSessionReleaseCommand.SetPDUSessionID(uint8(smContext.PDUSessionID))
+	pDUSessionReleaseCommand.SetPDUSessionID(smContext.PDUSessionID)
 	pDUSessionReleaseCommand.SetPTI(smContext.Pti)
 	pDUSessionReleaseCommand.SetCauseValue(0x0)
 

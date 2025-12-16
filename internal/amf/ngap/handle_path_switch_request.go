@@ -140,11 +140,11 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 
 	if pduSessionResourceToBeSwitchedInDLList != nil {
 		for _, item := range pduSessionResourceToBeSwitchedInDLList.List {
-			pduSessionID := int32(item.PDUSessionID.Value)
+			pduSessionID := uint8(item.PDUSessionID.Value)
 			transfer := item.PathSwitchRequestTransfer
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				ranUe.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionID))
+				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			}
 			response, err := consumer.SendUpdateSmContextXnHandover(ctx, amfUe, smContext,
 				models.N2SmInfoTypePathSwitchReq, transfer)
@@ -162,11 +162,11 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 
 	if pduSessionResourceFailedToSetupList != nil {
 		for _, item := range pduSessionResourceFailedToSetupList.List {
-			pduSessionID := int32(item.PDUSessionID.Value)
+			pduSessionID := uint8(item.PDUSessionID.Value)
 			transfer := item.PathSwitchRequestSetupFailedTransfer
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				ranUe.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionID))
+				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			}
 			response, err := consumer.SendUpdateSmContextXnHandoverFailed(ctx, amfUe, smContext,
 				models.N2SmInfoTypePathSwitchSetupFail, transfer)

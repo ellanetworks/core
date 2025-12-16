@@ -178,7 +178,7 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 
 	var reactivationResult, acceptPduSessionPsi *[16]bool
 	var errPduSessionID, errCause []uint8
-	var targetPduSessionID int32
+	var targetPduSessionID uint8
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
 	ctxList := ngapType.PDUSessionResourceSetupListCxtReq{}
 
@@ -227,10 +227,10 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 				if uplinkDataPsi[pduSessionID] {
 					response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext)
 					if err != nil {
-						ue.Log.Error("SendUpdateSmContextActivateUpCnxState Error", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
+						ue.Log.Error("SendUpdateSmContextActivateUpCnxState Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 					} else if response == nil {
 						reactivationResult[pduSessionID] = true
-						errPduSessionID = append(errPduSessionID, uint8(pduSessionID))
+						errPduSessionID = append(errPduSessionID, pduSessionID)
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
 					} else if ue.RanUe.UeContextRequest {
@@ -293,8 +293,7 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 				if requestData.NgapIeType == models.N2SmInfoTypePduResSetupReq {
 					var nasPdu []byte
 					if n1Msg != nil {
-						pduSessionID := uint8(requestData.PduSessionID)
-						nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
+						nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
 						if err != nil {
 							return fmt.Errorf("error building DL NAS transport message: %v", err)
 						}

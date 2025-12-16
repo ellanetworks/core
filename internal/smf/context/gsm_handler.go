@@ -24,7 +24,7 @@ type ProtocolConfigurationOptions struct {
 }
 
 func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(allowedSessionType models.PduSessionType, req *nasMessage.PDUSessionEstablishmentRequest) (*ProtocolConfigurationOptions, uint8, uint8, error) {
-	smContext.PDUSessionID = int32(req.PDUSessionID.GetPDUSessionID())
+	smContext.PDUSessionID = req.PDUSessionID.GetPDUSessionID()
 
 	smContext.Pti = req.GetPTI()
 
@@ -75,9 +75,9 @@ func (smContext *SMContext) HandlePDUSessionReleaseRequest(ctx context.Context, 
 
 	err := ReleaseUeIPAddr(ctx, smContext.Supi)
 	if err != nil {
-		logger.SmfLog.Error("Releasing UE IP Addr", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+		logger.SmfLog.Error("Releasing UE IP Addr", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		return
 	}
 
-	logger.SmfLog.Info("Successfully completed PDU Session Release Request", zap.Int32("PDUSessionID", smContext.PDUSessionID))
+	logger.SmfLog.Info("Successfully completed PDU Session Release Request", zap.Uint8("pduSessionID", smContext.PDUSessionID))
 }

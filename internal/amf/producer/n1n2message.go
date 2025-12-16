@@ -61,7 +61,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, supi string, n1n2MessageTran
 			err    error
 		)
 		if n1Msg != nil {
-			nasPdu, err = gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, uint8(requestData.PduSessionID), nil)
+			nasPdu, err = gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
 			if err != nil {
 				return fmt.Errorf("build DL NAS Transport error: %v", err)
 			}

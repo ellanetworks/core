@@ -93,7 +93,7 @@ type AmfUe struct {
 	Kseaf                             string
 	Kamf                              string
 	N1N2Message                       *models.N1N2MessageTransferRequest
-	SmContextList                     map[int32]*SmContext // Key: pdu session id
+	SmContextList                     map[uint8]*SmContext // Key: pdu session id
 	RanUe                             *RanUe
 	OnGoing                           *OnGoingProcedureWithPrio
 	UeRadioCapability                 string // OCTET string
@@ -191,7 +191,7 @@ func (ue *AmfUe) init() {
 	ue.RegistrationArea = make([]models.Tai, 0)
 	ue.OnGoing = new(OnGoingProcedureWithPrio)
 	ue.OnGoing.Procedure = OnGoingProcedureNothing
-	ue.SmContextList = make(map[int32]*SmContext)
+	ue.SmContextList = make(map[uint8]*SmContext)
 }
 
 func (ue *AmfUe) CmConnect() bool {
@@ -438,7 +438,7 @@ func (ue *AmfUe) ClearRegistrationData() {
 	ue.SubscribedNssai = nil
 	ue.SubscriptionDataValid = false
 
-	ue.SmContextList = make(map[int32]*SmContext)
+	ue.SmContextList = make(map[uint8]*SmContext)
 }
 
 func (ue *AmfUe) SetOnGoing(onGoing *OnGoingProcedureWithPrio) {
@@ -451,11 +451,11 @@ func (ue *AmfUe) GetOnGoing() OnGoingProcedureWithPrio {
 	return *ue.OnGoing
 }
 
-func (ue *AmfUe) StoreSmContext(pduSessionID int32, smContext *SmContext) {
+func (ue *AmfUe) StoreSmContext(pduSessionID uint8, smContext *SmContext) {
 	ue.SmContextList[pduSessionID] = smContext
 }
 
-func (ue *AmfUe) SmContextFindByPDUSessionID(pduSessionID int32) (*SmContext, bool) {
+func (ue *AmfUe) SmContextFindByPDUSessionID(pduSessionID uint8) (*SmContext, bool) {
 	smContext, ok := ue.SmContextList[pduSessionID]
 	return smContext, ok
 }

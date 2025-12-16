@@ -83,11 +83,11 @@ func HandlePDUSessionResourceModifyResponse(ctx ctxt.Context, ran *context.AmfRa
 			ranUe.Log.Debug("Send PDUSessionResourceModifyResponseTransfer to SMF")
 
 			for _, item := range pduSessionResourceModifyResponseList.List {
-				pduSessionID := int32(item.PDUSessionID.Value)
+				pduSessionID := uint8(item.PDUSessionID.Value)
 				transfer := item.PDUSessionResourceModifyResponseTransfer
 				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 				if !ok {
-					ranUe.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionID))
+					ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				}
 				_, err := consumer.SendUpdateSmContextN2Info(ctx, amfUe, smContext,
 					models.N2SmInfoTypePduResModRsp, transfer)
@@ -101,11 +101,11 @@ func HandlePDUSessionResourceModifyResponse(ctx ctxt.Context, ran *context.AmfRa
 			ranUe.Log.Debug("Send PDUSessionResourceModifyUnsuccessfulTransfer to SMF")
 
 			for _, item := range pduSessionResourceFailedToModifyList.List {
-				pduSessionID := int32(item.PDUSessionID.Value)
+				pduSessionID := uint8(item.PDUSessionID.Value)
 				transfer := item.PDUSessionResourceModifyUnsuccessfulTransfer
 				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 				if !ok {
-					ranUe.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionID))
+					ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				}
 				_, err := consumer.SendUpdateSmContextN2Info(ctx, amfUe, smContext,
 					models.N2SmInfoTypePduResModFail, transfer)

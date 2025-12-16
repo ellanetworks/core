@@ -110,7 +110,7 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		for pduSessionID, smContext := range amfUe.SmContextList {
 			_, err := consumer.SendUpdateSmContextN2HandoverCanceled(ctx, amfUe, smContext)
 			if err != nil {
-				sourceUe.Log.Error("Send UpdateSmContextN2HandoverCanceled Error", zap.Error(err), zap.Int32("PduSessionID", pduSessionID))
+				sourceUe.Log.Error("Send UpdateSmContextN2HandoverCanceled Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 			}
 		}
 		amfUe.Mutex.Unlock()

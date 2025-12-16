@@ -34,7 +34,7 @@ func sendCreateSmContextRequest(ctx ctxt.Context, ue *context.AmfUe, smContext *
 	return pdusession.CreateSmContext(ctx, postSmContextsRequest)
 }
 
-func createSmContext(pduSessionID int32, snssai models.Snssai, dnn string) *context.SmContext {
+func createSmContext(pduSessionID uint8, snssai models.Snssai, dnn string) *context.SmContext {
 	smContext := context.NewSmContext(pduSessionID)
 
 	smContext.SetSnssai(snssai)
@@ -46,13 +46,13 @@ func createSmContext(pduSessionID int32, snssai models.Snssai, dnn string) *cont
 func forward5GSMMessageToSMF(
 	ctx ctxt.Context,
 	ue *context.AmfUe,
-	pduSessionID int32,
+	pduSessionID uint8,
 	smContext *context.SmContext,
 	smMessage []byte,
 ) error {
 	response, err := consumer.SendUpdateSmContextRequest(ctx, smContext, nil, smMessage, nil)
 	if err != nil {
-		ue.Log.Error("couldn't send update sm context request", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
+		ue.Log.Error("couldn't send update sm context request", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 		return nil
 	}
 
@@ -62,7 +62,7 @@ func forward5GSMMessageToSMF(
 		n2SmInfo := response.BinaryDataN2SmInformation
 		if response.BinaryDataN1SmMessage != nil {
 			ue.Log.Debug("Receive N1 SM Message from SMF")
-			n1Msg, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, response.BinaryDataN1SmMessage, uint8(pduSessionID), nil)
+			n1Msg, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, response.BinaryDataN1SmMessage, pduSessionID, nil)
 			if err != nil {
 				return err
 			}
@@ -103,14 +103,14 @@ func forward5GSMMessageToSMF(
 }
 
 func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *nasMessage.ULNASTransport) error {
-	var pduSessionID int32
 	smMessage := ulNasTransport.PayloadContainer.GetPayloadContainerContents()
 
 	id := ulNasTransport.PduSessionID2Value
 	if id == nil {
 		return fmt.Errorf("pdu session id is nil")
 	}
-	pduSessionID = int32(id.GetPduSessionID2Value())
+
+	pduSessionID := id.GetPduSessionID2Value()
 
 	if ulNasTransport.OldPDUSessionID != nil {
 		return fmt.Errorf("old pdu session id is not supported")
@@ -167,13 +167,13 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 			updateData := &models.SmContextUpdateData{
 				Cause: models.CauseRelDueToDuplicateSessionID,
 			}
-			ue.Log.Warn("Duplicated PDU session ID", zap.Int32("pduSessionID", pduSessionID))
+			ue.Log.Warn("Duplicated PDU session ID", zap.Uint8("pduSessionID", pduSessionID))
 			response, err := consumer.SendUpdateSmContextRequest(ctx, smContext, updateData, nil, nil)
 			if err != nil {
 				return err
 			}
 			if response == nil {
-				ue.Log.Error("PDU Session can't be released in DUPLICATE_SESSION_ID case", zap.Int32("pduSessionID", pduSessionID))
+				ue.Log.Error("PDU Session can't be released in DUPLICATE_SESSION_ID case", zap.Uint8("pduSessionID", pduSessionID))
 				err = message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
@@ -203,7 +203,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 				return forward5GSMMessageToSMF(ctx, ue, pduSessionID, smContext, smMessage)
 			}
 
-			ue.Log.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai()), zap.Int32("pduSessionID", pduSessionID))
+			ue.Log.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai()), zap.Uint8("pduSessionID", pduSessionID))
 			err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %s", err)
@@ -254,7 +254,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 
 			smContextRef, errResponse, err := sendCreateSmContextRequest(ctx, ue, newSmContext, smMessage)
 			if err != nil {
-				ue.Log.Error("couldn't send create sm context request", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
+				ue.Log.Error("couldn't send create sm context request", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 			}
 
 			if errResponse != nil {
@@ -269,7 +269,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 			newSmContext.SetSmContextRef(smContextRef)
 
 			ue.StoreSmContext(pduSessionID, newSmContext)
-			ue.Log.Debug("Created sm context for pdu session", zap.Int32("pduSessionID", pduSessionID))
+			ue.Log.Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
 
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:
 			fallthrough

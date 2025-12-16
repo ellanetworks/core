@@ -136,11 +136,11 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 
 	ran.Log.Debug("send PDUSessionResourceModifyIndicationTransfer to SMF")
 	for _, item := range pduSessionResourceModifyIndicationList.List {
-		pduSessionID := int32(item.PDUSessionID.Value)
+		pduSessionID := uint8(item.PDUSessionID.Value)
 		transfer := item.PDUSessionResourceModifyIndicationTransfer
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
-			ranUe.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionID))
+			ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 		}
 		response, err := consumer.SendUpdateSmContextN2Info(ctx, amfUe, smContext,
 			models.N2SmInfoTypePduResModInd, transfer)

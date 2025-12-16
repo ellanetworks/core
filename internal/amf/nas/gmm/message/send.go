@@ -22,7 +22,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/nas/send")
 
-func SendDLNASTransport(ctx ctxt.Context, ue *context.RanUe, payloadContainerType uint8, nasPdu []byte, pduSessionID int32, cause uint8) error {
+func SendDLNASTransport(ctx ctxt.Context, ue *context.RanUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause uint8) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -42,7 +42,7 @@ func SendDLNASTransport(ctx ctxt.Context, ue *context.RanUe, payloadContainerTyp
 		causePtr = &cause
 	}
 
-	nasMsg, err := BuildDLNASTransport(ue.AmfUe, payloadContainerType, nasPdu, uint8(pduSessionID), causePtr)
+	nasMsg, err := BuildDLNASTransport(ue.AmfUe, payloadContainerType, nasPdu, pduSessionID, causePtr)
 	if err != nil {
 		return fmt.Errorf("error building downlink NAS transport message: %s", err.Error())
 	}
