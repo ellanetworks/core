@@ -29,7 +29,6 @@ type AmfRan struct {
 	RanID           *models.GlobalRanNodeID
 	Name            string
 	GnbIP           string
-	GnbID           string // RanID in string format, i.e.,mcc:mnc:gnbid
 	Conn            *sctp.SCTPConn
 	SupportedTAList []SupportedTAI
 	RanUeList       []*RanUe // RanUeNgapID as key
@@ -56,20 +55,25 @@ func (ran *AmfRan) Remove() {
 }
 
 func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {
-	ranUe := RanUe{}
 	self := AMFSelf()
+
 	amfUeNgapID, err := self.AllocateAmfUeNgapID()
 	if err != nil {
 		return nil, fmt.Errorf("error allocating amf ue ngap id: %+v", err)
 	}
+
+	ranUe := RanUe{}
 	ranUe.AmfUeNgapID = amfUeNgapID
 	ranUe.RanUeNgapID = ranUeNgapID
 	ranUe.Ran = ran
 	ranUe.Log = ran.Log.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("%d", ranUe.AmfUeNgapID)))
+
 	ran.RanUeList = append(ran.RanUeList, &ranUe)
+
 	self.Mutex.Lock()
 	defer self.Mutex.Unlock()
 	self.RanUePool[ranUe.AmfUeNgapID] = &ranUe
+
 	return &ranUe, nil
 }
 
@@ -82,31 +86,20 @@ func (ran *AmfRan) RemoveAllUeInRan() {
 	}
 }
 
-func (ran *AmfRan) RanUeFindByRanUeNgapIDLocal(ranUeNgapID int64) *RanUe {
+func (ran *AmfRan) RanUeFindByRanUeNgapID(ranUeNgapID int64) *RanUe {
 	for _, ranUe := range ran.RanUeList {
 		if ranUe.RanUeNgapID == ranUeNgapID {
 			return ranUe
 		}
 	}
-	ran.Log.Debug("Ran UE not found", zap.Int64("ranUeNgapID", ranUeNgapID))
-	return nil
-}
 
-func (ran *AmfRan) RanUeFindByRanUeNgapID(ranUeNgapID int64) *RanUe {
-	ranUe := ran.RanUeFindByRanUeNgapIDLocal(ranUeNgapID)
-	return ranUe
+	ran.Log.Debug("Ran UE not found", zap.Int64("ranUeNgapID", ranUeNgapID))
+
+	return nil
 }
 
 func (ran *AmfRan) SetRanID(ranNodeID *ngapType.GlobalRANNodeID) {
 	ranID := util.RanIDToModels(*ranNodeID)
 	ran.RanPresent = ranNodeID.Present
 	ran.RanID = &ranID
-
-	if ranID.PlmnID != nil {
-		ran.GnbID = ranID.PlmnID.Mcc + ":" + ranID.PlmnID.Mnc + ":"
-	}
-
-	if ranID.GNbID != nil {
-		ran.GnbID += ranID.GNbID.GNBValue
-	}
 }

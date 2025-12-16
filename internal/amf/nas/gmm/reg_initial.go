@@ -26,16 +26,8 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 	}
 
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
-	if ue.SubscribedNssai == nil {
-		ue.SubscribedNssai = operatorInfo.SupportedPLMN.SNssai
-	}
-
-	if err := handleRequestedNssai(ctx, ue, operatorInfo.SupportedPLMN); err != nil {
+	if err := handleRequestedNssai(ue, operatorInfo.SupportedPLMN.SNssai); err != nil {
 		return err
-	}
-
-	if ue.RegistrationRequest.Capability5GMM != nil {
-		ue.Capability5GMM = *ue.RegistrationRequest.Capability5GMM
 	}
 
 	if ue.AllowedNssai == nil {
@@ -51,19 +43,16 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 		return fmt.Errorf("no allowed nssai")
 	}
 
-	storeLastVisitedRegisteredTAI(ue, ue.RegistrationRequest.LastVisitedRegisteredTAI)
-
 	if ue.RegistrationRequest.MICOIndication != nil {
 		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.MICOIndication.GetRAAI()))
 	}
 
-	negotiateDRXParameters(ue, ue.RegistrationRequest.RequestedDRXParameters)
+	if ue.RegistrationRequest.RequestedDRXParameters != nil {
+		ue.UESpecificDRX = ue.RegistrationRequest.RequestedDRXParameters.GetDRXValue()
+	}
 
-	if ue.ServingAmfChanged ||
-		!ue.SubscriptionDataValid {
-		if err := getAndSetSubscriberData(ctx, ue); err != nil {
-			return err
-		}
+	if err := getAndSetSubscriberData(ctx, ue); err != nil {
+		return fmt.Errorf("failed to get and set subscriber data: %v", err)
 	}
 
 	if !context.SubscriberExists(ctx, ue.Supi) {

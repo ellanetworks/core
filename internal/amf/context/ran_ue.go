@@ -110,7 +110,7 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
 	ranUe.Ran = newRan
 	ranUe.RanUeNgapID = ranUeNgapID
 
-	logger.AmfLog.Info("ran ue switch to new Ran", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.String("RanName", ranUe.Ran.Name))
+	logger.AmfLog.Info("ran ue switch to new Ran", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 	return nil
 }
 
