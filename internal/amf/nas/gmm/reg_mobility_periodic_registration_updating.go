@@ -100,19 +100,19 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 			}
 		} else {
 			for idx, hasUplinkData := range uplinkDataPsi {
-				pduSessionID := int32(idx)
+				pduSessionID := uint8(idx)
 				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 					// uplink data are pending for the corresponding PDU session identity
 					if hasUplinkData {
 						response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext)
 						if response == nil {
 							reactivationResult[pduSessionID] = true
-							errPduSessionID = append(errPduSessionID, uint8(pduSessionID))
+							errPduSessionID = append(errPduSessionID, pduSessionID)
 							cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 							errCause = append(errCause, cause)
 
 							if err != nil {
-								ue.Log.Error("Update SmContext Error", zap.Error(err), zap.Int32("pduSessionID", pduSessionID))
+								ue.Log.Error("Update SmContext Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 							}
 						} else {
 							if ue.RanUe.UeContextRequest {
@@ -134,7 +134,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		pduSessionStatus = new([16]bool)
 		psiArray := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.PDUSessionStatus.Buffer)
 		for psi := 1; psi <= 15; psi++ {
-			pduSessionID := int32(psi)
+			pduSessionID := uint8(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] {
 					err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
@@ -200,8 +200,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 				var nasPdu []byte
 				var err error
 				if n1Msg != nil {
-					pduSessionID := uint8(requestData.PduSessionID)
-					nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
+					nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
 					if err != nil {
 						return err
 					}

@@ -9,8 +9,10 @@ package context
 import (
 	"encoding/hex"
 	"fmt"
+	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/free5gc/nas"
@@ -24,20 +26,27 @@ const (
 	DefaultQosRuleID uint8 = 1
 )
 
-func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error) {
-	if smContext == nil {
-		return nil, fmt.Errorf("SM Context is nil")
-	}
-
-	if len(smContext.SmPolicyUpdates) == 0 {
+func BuildGSMPDUSessionEstablishmentAccept(
+	smPolicyUpdates *qos.PolicyUpdate,
+	pduSessionID uint8,
+	pti uint8,
+	snssai *models.Snssai,
+	dnn string,
+	pco *ProtocolConfigurationOptions,
+	pduSessionType uint8,
+	estAcceptCause5gSMValue uint8,
+	dNNInfo *SnssaiSmfDnnInfo,
+	pduAddress net.IP,
+) ([]byte, error) {
+	if smPolicyUpdates == nil {
 		return nil, fmt.Errorf("no SM Policy Update found in SM Context")
 	}
 
-	if smContext.SmPolicyUpdates[0].SessRuleUpdate == nil {
+	if smPolicyUpdates.SessRuleUpdate == nil {
 		return nil, fmt.Errorf("no Session Rule Update found in SM Policy Update")
 	}
 
-	if smContext.SmPolicyUpdates[0].QosFlowUpdate == nil {
+	if smPolicyUpdates.QosFlowUpdate == nil {
 		return nil, fmt.Errorf("no Qos Flow Update found in SM Policy Update")
 	}
 
@@ -48,18 +57,19 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	m.PDUSessionEstablishmentAccept = nasMessage.NewPDUSessionEstablishmentAccept(0x0)
 	pDUSessionEstablishmentAccept := m.PDUSessionEstablishmentAccept
 
-	sessRule := smContext.SmPolicyUpdates[0].SessRuleUpdate.ActiveSessRule
+	sessRule := smPolicyUpdates.SessRuleUpdate.ActiveSessRule
 
-	pDUSessionEstablishmentAccept.SetPDUSessionID(uint8(smContext.PDUSessionID))
+	pDUSessionEstablishmentAccept.SetPDUSessionID(pduSessionID)
 	pDUSessionEstablishmentAccept.SetMessageType(nas.MsgTypePDUSessionEstablishmentAccept)
 	pDUSessionEstablishmentAccept.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	pDUSessionEstablishmentAccept.SetPTI(smContext.Pti)
+	pDUSessionEstablishmentAccept.SetPTI(pti)
 
-	if v := smContext.EstAcceptCause5gSMValue; v != 0 {
+	if estAcceptCause5gSMValue != 0 {
 		pDUSessionEstablishmentAccept.Cause5GSM = nasType.NewCause5GSM(nasMessage.PDUSessionEstablishmentAcceptCause5GSMType)
-		pDUSessionEstablishmentAccept.Cause5GSM.SetCauseValue(v)
+		pDUSessionEstablishmentAccept.Cause5GSM.SetCauseValue(estAcceptCause5gSMValue)
 	}
-	pDUSessionEstablishmentAccept.SetPDUSessionType(smContext.SelectedPDUSessionType)
+
+	pDUSessionEstablishmentAccept.SetPDUSessionType(pduSessionType)
 
 	pDUSessionEstablishmentAccept.SetSSCMode(1)
 	ambr, err := util.ModelsToSessionAMBR(sessRule.AuthSessAmbr)
@@ -69,7 +79,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	pDUSessionEstablishmentAccept.SessionAMBR = ambr
 	pDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(pDUSessionEstablishmentAccept.SessionAMBR.Octet)))
 
-	defaultQFI := smContext.SmPolicyUpdates[0].QosFlowUpdate.Add.QFI
+	defaultQFI := smPolicyUpdates.QosFlowUpdate.Add.QFI
 
 	defQosRule := qos.BuildDefaultQosRule(DefaultQosRuleID, defaultQFI)
 	qosRules := qos.QoSRules{
@@ -86,16 +96,16 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	pDUSessionEstablishmentAccept.AuthorizedQosRules.SetLen(uint16(len(qosRulesBytes)))
 	pDUSessionEstablishmentAccept.AuthorizedQosRules.SetQosRule(qosRulesBytes)
 
-	if smContext.PDUAddress != nil {
-		addr, addrLen := smContext.PDUAddressToNAS()
+	if pduAddress != nil {
+		addr, addrLen := PDUAddressToNAS(pduAddress, pduSessionType)
 		pDUSessionEstablishmentAccept.PDUAddress = nasType.NewPDUAddress(nasMessage.PDUSessionEstablishmentAcceptPDUAddressType)
 		pDUSessionEstablishmentAccept.PDUAddress.SetLen(addrLen)
-		pDUSessionEstablishmentAccept.PDUAddress.SetPDUSessionTypeValue(smContext.SelectedPDUSessionType)
+		pDUSessionEstablishmentAccept.PDUAddress.SetPDUSessionTypeValue(pduSessionType)
 		pDUSessionEstablishmentAccept.PDUAddress.SetPDUAddressInformation(addr)
 	}
 
 	// Get Authorized QoS Flow Descriptions
-	authQfd, err := qos.BuildAuthorizedQosFlowDescription(smContext.SmPolicyUpdates[0].QosFlowUpdate.Add)
+	authQfd, err := qos.BuildAuthorizedQosFlowDescription(smPolicyUpdates.QosFlowUpdate.Add)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build Authorized QoS Flow Descriptions: %v", err)
 	}
@@ -110,11 +120,11 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	// pDUSessionEstablishmentAccept.SetQoSFlowDescriptions([]uint8{uint8(authDefQos.Var5qi), 0x20, 0x41, 0x01, 0x01, 0x09})
 
 	pDUSessionEstablishmentAccept.SNSSAI = nasType.NewSNSSAI(nasMessage.ULNASTransportSNSSAIType)
-	pDUSessionEstablishmentAccept.SNSSAI.SetSST(uint8(smContext.Snssai.Sst))
+	pDUSessionEstablishmentAccept.SNSSAI.SetSST(uint8(snssai.Sst))
 	pDUSessionEstablishmentAccept.SNSSAI.SetLen(1)
 
-	if smContext.Snssai.Sd != "" {
-		byteArray, err := hex.DecodeString(smContext.Snssai.Sd)
+	if snssai.Sd != "" {
+		byteArray, err := hex.DecodeString(snssai.Sd)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode sd: %v", err)
 		}
@@ -128,32 +138,32 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	}
 
 	pDUSessionEstablishmentAccept.DNN = nasType.NewDNN(nasMessage.ULNASTransportDNNType)
-	pDUSessionEstablishmentAccept.DNN.SetDNN(smContext.Dnn)
+	pDUSessionEstablishmentAccept.DNN.SetDNN(dnn)
 
-	if smContext.ProtocolConfigurationOptions.DNSIPv4Request || smContext.ProtocolConfigurationOptions.DNSIPv6Request || smContext.ProtocolConfigurationOptions.IPv4LinkMTURequest {
+	if pco.DNSIPv4Request || pco.DNSIPv6Request || pco.IPv4LinkMTURequest {
 		pDUSessionEstablishmentAccept.ExtendedProtocolConfigurationOptions = nasType.NewExtendedProtocolConfigurationOptions(
 			nasMessage.PDUSessionEstablishmentAcceptExtendedProtocolConfigurationOptionsType,
 		)
 		protocolConfigurationOptions := nasConvert.NewProtocolConfigurationOptions()
 
 		// IPv4 DNS
-		if smContext.ProtocolConfigurationOptions.DNSIPv4Request {
-			err := protocolConfigurationOptions.AddDNSServerIPv4Address(smContext.DNNInfo.DNS)
+		if pco.DNSIPv4Request {
+			err := protocolConfigurationOptions.AddDNSServerIPv4Address(dNNInfo.DNS)
 			if err != nil {
-				logger.SmfLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+				logger.SmfLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 			}
 		}
 
 		// IPv6 DNS
-		if smContext.ProtocolConfigurationOptions.DNSIPv6Request {
+		if pco.DNSIPv6Request {
 			logger.SmfLog.Warn("IPv6 DNS request is not supported")
 		}
 
 		// MTU
-		if smContext.ProtocolConfigurationOptions.IPv4LinkMTURequest {
-			err := protocolConfigurationOptions.AddIPv4LinkMTU(smContext.DNNInfo.MTU)
+		if pco.IPv4LinkMTURequest {
+			err := protocolConfigurationOptions.AddIPv4LinkMTU(dNNInfo.MTU)
 			if err != nil {
-				logger.SmfLog.Warn("Error while adding MTU", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+				logger.SmfLog.Warn("Error while adding MTU", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 			}
 		}
 
@@ -169,7 +179,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	return m.PlainNasEncode()
 }
 
-func BuildGSMPDUSessionEstablishmentReject(smContext *SMContext, cause uint8) ([]byte, error) {
+func BuildGSMPDUSessionEstablishmentReject(pduSessionID uint8, pti uint8, cause uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GsmMessage = nas.NewGsmMessage()
 	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionEstablishmentReject)
@@ -179,14 +189,14 @@ func BuildGSMPDUSessionEstablishmentReject(smContext *SMContext, cause uint8) ([
 
 	pDUSessionEstablishmentReject.SetMessageType(nas.MsgTypePDUSessionEstablishmentReject)
 	pDUSessionEstablishmentReject.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	pDUSessionEstablishmentReject.SetPDUSessionID(uint8(smContext.PDUSessionID))
+	pDUSessionEstablishmentReject.SetPDUSessionID(pduSessionID)
 	pDUSessionEstablishmentReject.SetCauseValue(cause)
-	pDUSessionEstablishmentReject.SetPTI(smContext.Pti)
+	pDUSessionEstablishmentReject.SetPTI(pti)
 
 	return m.PlainNasEncode()
 }
 
-func BuildGSMPDUSessionReleaseCommand(smContext *SMContext) ([]byte, error) {
+func BuildGSMPDUSessionReleaseCommand(pduSessionID uint8, pti uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GsmMessage = nas.NewGsmMessage()
 	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionReleaseCommand)
@@ -196,8 +206,8 @@ func BuildGSMPDUSessionReleaseCommand(smContext *SMContext) ([]byte, error) {
 
 	pDUSessionReleaseCommand.SetMessageType(nas.MsgTypePDUSessionReleaseCommand)
 	pDUSessionReleaseCommand.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	pDUSessionReleaseCommand.SetPDUSessionID(uint8(smContext.PDUSessionID))
-	pDUSessionReleaseCommand.SetPTI(smContext.Pti)
+	pDUSessionReleaseCommand.SetPDUSessionID(pduSessionID)
+	pDUSessionReleaseCommand.SetPTI(pti)
 	pDUSessionReleaseCommand.SetCauseValue(0x0)
 
 	return m.PlainNasEncode()

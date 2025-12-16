@@ -9,6 +9,7 @@ package producer
 import (
 	ctxt "context"
 	"fmt"
+	"net"
 
 	amf_producer "github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/logger"
@@ -35,14 +36,28 @@ func HandlePduSessionContextReplacement(ctx ctxt.Context, smCtxt *context.SMCont
 	if smCtxt.Tunnel != nil {
 		err := releaseTunnel(ctx, smCtxt)
 		if err != nil {
-			logger.SmfLog.Error("release tunnel failed", zap.Error(err), zap.String("supi", smCtxt.Supi), zap.Int32("pduSessionID", smCtxt.PDUSessionID))
+			logger.SmfLog.Error("release tunnel failed", zap.Error(err), zap.String("supi", smCtxt.Supi), zap.Uint8("pduSessionID", smCtxt.PDUSessionID))
 		}
 	}
 
 	return nil
 }
 
-func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmContextsRequest, smContext *context.SMContext) (string, *models.PostSmContextsErrorResponse, error) {
+func HandlePDUSessionSMContextCreate(
+	ctx ctxt.Context,
+	request models.PostSmContextsRequest,
+	smContext *context.SMContext,
+) (
+	string,
+	*context.ProtocolConfigurationOptions,
+	uint8,
+	uint8,
+	*context.SnssaiSmfDnnInfo,
+	net.IP,
+	uint8,
+	*models.PostSmContextsErrorResponse,
+	error,
+) {
 	ctx, span := tracer.Start(ctx, "SMF Handle PDU Session SM Context Create")
 	defer span.End()
 	span.SetAttributes(
@@ -55,58 +70,57 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	err := m.GsmMessageDecode(&request.BinaryDataN1SmMessage)
 	if err != nil {
 		errRsp := &models.PostSmContextsErrorResponse{}
-		return "", errRsp, fmt.Errorf("error decoding NAS message: %v", err)
+		return "", nil, 0, 0, nil, nil, 0, errRsp, fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
 	if m.GsmHeader.GetMessageType() != nas.MsgTypePDUSessionEstablishmentRequest {
 		errRsp := &models.PostSmContextsErrorResponse{}
-		return "", errRsp, fmt.Errorf("error decoding NAS message: %v", err)
+		return "", nil, 0, 0, nil, nil, 0, errRsp, fmt.Errorf("error decoding NAS message: %v", err)
 	}
-
-	createData := request.JSONData
-
-	// Create SM context
-	smContext.SetCreateData(createData)
 
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	pti := m.PDUSessionEstablishmentRequest.GetPTI()
+
+	smContext.SetCreateData(request.JSONData)
+
 	subscriberPolicy, err := context.GetSubscriberPolicy(ctx, smContext.Supi)
 	if err != nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("failed to find subscriber policy: %v", err)
+		response := context.GeneratePDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
+		return "", nil, 0, 0, nil, nil, 0, response, fmt.Errorf("failed to find subscriber policy: %v", err)
 	}
 
-	dnnInfo, err := context.RetrieveDnnInformation(ctx, *createData.SNssai, createData.Dnn)
+	dnnInfo, err := context.RetrieveDnnInformation(ctx, *request.JSONData.SNssai, request.JSONData.Dnn)
 	if err != nil {
-		logger.SmfLog.Warn("error retrieving DNN information", zap.String("SST", fmt.Sprintf("%d", createData.SNssai.Sst)), zap.String("SD", createData.SNssai.Sd), zap.String("DNN", createData.Dnn), zap.Error(err))
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
-		return "", response, nil
+		logger.SmfLog.Warn("error retrieving DNN information", zap.String("SST", fmt.Sprintf("%d", request.JSONData.SNssai.Sst)), zap.String("SD", request.JSONData.SNssai.Sd), zap.String("DNN", request.JSONData.Dnn), zap.Error(err))
+		response := context.GeneratePDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
+		return "", nil, 0, 0, nil, nil, 0, response, nil
 	}
-
-	smContext.DNNInfo = dnnInfo
 
 	// IP Allocation
 	smfSelf := context.SMFSelf()
-	ip, err := smfSelf.DBInstance.AllocateIP(ctx, smContext.Supi)
+	pduAddress, err := smfSelf.DBInstance.AllocateIP(ctx, smContext.Supi)
 	if err != nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResources)
-		return "", response, nil
+		response := context.GeneratePDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMInsufficientResources)
+		return "", nil, 0, 0, nil, nil, 0, response, nil
 	}
 
-	logger.SmfLog.Info("Successfully allocated IP address", zap.String("IP", ip.String()), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+	logger.SmfLog.Info("Successfully allocated IP address", zap.String("IP", pduAddress.String()), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-	smContext.PDUAddress = ip
+	allowedSessionType := context.GetAllowedSessionType()
 
-	smContext.AllowedSessionType = context.GetAllowedSessionType()
+	smContext.PDUSessionID = m.PDUSessionEstablishmentRequest.PDUSessionID.GetPDUSessionID()
 
-	// Decode UE content(PCO)
-	establishmentRequest := m.PDUSessionEstablishmentRequest
-	smContext.HandlePDUSessionEstablishmentRequest(establishmentRequest)
+	pco, pduSessionType, estAcceptCause5gSMValue, err := context.HandlePDUSessionEstablishmentRequest(allowedSessionType, m.PDUSessionEstablishmentRequest)
+	if err != nil {
+		response := context.GeneratePDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
+		return "", nil, 0, 0, nil, nil, 0, response, err
+	}
 
 	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, subscriberPolicy)
 
-	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
+	smContext.SmPolicyUpdates = policyUpdates
 
 	defaultPath := &context.DataPath{
 		DPNode: &context.DataPathNode{
@@ -120,15 +134,15 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 		DataPath: defaultPath,
 	}
 
-	err = defaultPath.ActivateTunnelAndPDR(smContext, 255)
+	err = defaultPath.ActivateTunnelAndPDR(smContext, pduAddress, 255)
 	if err != nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("couldn't activate data path: %v", err)
+		response := context.GeneratePDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
+		return "", nil, 0, 0, nil, nil, 0, response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
 
-	logger.SmfLog.Info("Successfully created PDU session context", zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+	logger.SmfLog.Info("Successfully created PDU session context", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-	return context.CanonicalName(smContext.Supi, smContext.PDUSessionID), nil, nil
+	return context.CanonicalName(smContext.Supi, smContext.PDUSessionID), pco, pduSessionType, estAcceptCause5gSMValue, dnnInfo, pduAddress, pti, nil, nil
 }
 
 func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmContextRequest, smContext *context.SMContext) (*models.UpdateSmContextResponse, error) {
@@ -190,7 +204,7 @@ func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmCo
 			return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 		}
 
-		logger.SmfLog.Info("Sent PFCP session modification request", zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+		logger.SmfLog.Info("Sent PFCP session modification request", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 	}
 
 	return &response, nil
@@ -200,10 +214,9 @@ func HandlePDUSessionSMContextRelease(ctx ctxt.Context, smContext *context.SMCon
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	// Release UE IP-Address
-	err := smContext.ReleaseUeIPAddr(ctx)
+	err := context.ReleaseUeIPAddr(ctx, smContext.Supi)
 	if err != nil {
-		logger.SmfLog.Error("release UE IP address failed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+		logger.SmfLog.Error("release UE IP address failed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 	}
 
 	// Release User-plane
@@ -222,7 +235,7 @@ func releaseTunnel(ctx ctxt.Context, smContext *context.SMContext) error {
 		return fmt.Errorf("tunnel not found")
 	}
 
-	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR(smContext)
+	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR()
 
 	err := pfcp.SendPfcpSessionDeletionRequest(ctx, smContext.Tunnel.DataPath.DPNode.UPF.NodeID, smContext)
 	if err != nil {
@@ -234,48 +247,60 @@ func releaseTunnel(ctx ctxt.Context, smContext *context.SMContext) error {
 	return nil
 }
 
-func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, success bool) error {
+func SendPduSessN1N2Transfer(
+	ctx ctxt.Context,
+	smContext *context.SMContext,
+	pco *context.ProtocolConfigurationOptions,
+	pduSessionType uint8,
+	estAcceptCause5gSMValue uint8,
+	dnnInfo *context.SnssaiSmfDnnInfo,
+	pduAddress net.IP,
+	pti uint8,
+	success bool,
+) error {
 	n1n2Request := models.N1N2MessageTransferRequest{}
 
-	// N1N2 Json Data
 	n1n2Request.JSONData = &models.N1N2MessageTransferReqData{PduSessionID: smContext.PDUSessionID}
 
 	if success {
-		if smNasBuf, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext); err != nil {
-			logger.SmfLog.Error("Build GSM PDUSessionEstablishmentAccept failed", zap.Error(err))
-		} else {
-			n1n2Request.BinaryDataN1Message = smNasBuf
+		smNasBuf, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext.SmPolicyUpdates, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, pduSessionType, estAcceptCause5gSMValue, dnnInfo, pduAddress)
+		if err != nil {
+			return fmt.Errorf("build GSM PDUSessionEstablishmentAccept failed: %v", err)
 		}
 
-		if n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext); err != nil {
-			logger.SmfLog.Error("Build PDUSessionResourceSetupRequestTransfer failed", zap.Error(err))
-		} else {
-			n1n2Request.BinaryDataN2Information = n2Pdu
-			n1n2Request.JSONData = &models.N1N2MessageTransferReqData{
-				PduSessionID: smContext.PDUSessionID,
-				NgapIeType:   models.N2SmInfoTypePduResSetupReq,
-				SNssai:       smContext.Snssai,
-			}
+		n1n2Request.BinaryDataN1Message = smNasBuf
+
+		n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext.SmPolicyUpdates, smContext.SmPolicyData, smContext.Tunnel.DataPath.DPNode)
+		if err != nil {
+			return fmt.Errorf("build PDUSessionResourceSetupRequestTransfer failed: %v", err)
+		}
+
+		n1n2Request.BinaryDataN2Information = n2Pdu
+		n1n2Request.JSONData = &models.N1N2MessageTransferReqData{
+			PduSessionID: smContext.PDUSessionID,
+			NgapIeType:   models.N2SmInfoTypePduResSetupReq,
+			SNssai:       smContext.Snssai,
 		}
 	} else {
-		if smNasBuf, err := context.BuildGSMPDUSessionEstablishmentReject(smContext,
-			nasMessage.Cause5GSMRequestRejectedUnspecified); err != nil {
-			logger.SmfLog.Error("Build GSM PDUSessionEstablishmentReject failed", zap.Error(err))
-		} else {
-			n1n2Request.BinaryDataN1Message = smNasBuf
+		smNasBuf, err := context.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
+		if err != nil {
+			return fmt.Errorf("build GSM PDUSessionEstablishmentReject failed: %v", err)
 		}
+
+		n1n2Request.BinaryDataN1Message = smNasBuf
 	}
 
 	err := amf_producer.N1N2MessageTransferProcedure(ctx, smContext.Supi, n1n2Request)
 	if err != nil {
-		err = smContext.CommitSmPolicyDecision(false)
-		if err != nil {
-			return fmt.Errorf("failed to commit sm policy decision: %v", err)
+		err1 := smContext.CommitSmPolicyDecision(false)
+		if err1 != nil {
+			return fmt.Errorf("failed to commit sm policy decision: %v", err1)
 		}
+
 		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
 	}
 
-	logger.SmfLog.Debug("Sent n1 n2 transfer request", zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+	logger.SmfLog.Debug("Sent n1 n2 transfer request", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
 	err = smContext.CommitSmPolicyDecision(true)
 	if err != nil {

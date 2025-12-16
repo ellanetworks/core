@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -48,11 +47,10 @@ func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) err
 		dlOuterHeaderCreation.IPv4Address = ctx.Tunnel.ANInformation.IPAddress.To4()
 	}
 
-	ctx.UpCnxState = models.UpCnxStateActivated
 	return nil
 }
 
-func HandlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte, ctx *SMContext) error {
+func HandlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte) error {
 	resourceSetupUnsuccessfulTransfer := ngapType.PDUSessionResourceSetupUnsuccessfulTransfer{}
 
 	err := aper.UnmarshalWithParams(b, &resourceSetupUnsuccessfulTransfer, "valueExt")
@@ -62,17 +60,17 @@ func HandlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte, ctx *SMContext)
 
 	switch resourceSetupUnsuccessfulTransfer.Cause.Present {
 	case ngapType.CausePresentRadioNetwork:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by RadioNetwork", zap.String("Cause", radioNetworkCauseString(resourceSetupUnsuccessfulTransfer.Cause.RadioNetwork.Value)), zap.String("supi", ctx.Supi), zap.Int32("pduSessionID", ctx.PDUSessionID))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by RadioNetwork", zap.String("Cause", radioNetworkCauseString(resourceSetupUnsuccessfulTransfer.Cause.RadioNetwork.Value)))
 	case ngapType.CausePresentTransport:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Transport", zap.String("Cause", transportCauseString(resourceSetupUnsuccessfulTransfer.Cause.Transport.Value)), zap.String("supi", ctx.Supi), zap.Int32("pduSessionID", ctx.PDUSessionID))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Transport", zap.String("Cause", transportCauseString(resourceSetupUnsuccessfulTransfer.Cause.Transport.Value)))
 	case ngapType.CausePresentNas:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by NAS", zap.String("Cause", nasCauseString(resourceSetupUnsuccessfulTransfer.Cause.Nas.Value)), zap.String("supi", ctx.Supi), zap.Int32("pduSessionID", ctx.PDUSessionID))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by NAS", zap.String("Cause", nasCauseString(resourceSetupUnsuccessfulTransfer.Cause.Nas.Value)))
 	case ngapType.CausePresentProtocol:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Protocol", zap.String("Cause", protocolCauseString(resourceSetupUnsuccessfulTransfer.Cause.Protocol.Value)), zap.String("supi", ctx.Supi), zap.Int32("pduSessionID", ctx.PDUSessionID))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Protocol", zap.String("Cause", protocolCauseString(resourceSetupUnsuccessfulTransfer.Cause.Protocol.Value)))
 	case ngapType.CausePresentMisc:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Misc", zap.String("Cause", miscCauseString(resourceSetupUnsuccessfulTransfer.Cause.Misc.Value)), zap.String("supi", ctx.Supi), zap.Int32("pduSessionID", ctx.PDUSessionID))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Misc", zap.String("Cause", miscCauseString(resourceSetupUnsuccessfulTransfer.Cause.Misc.Value)))
 	case ngapType.CausePresentChoiceExtensions:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by ChoiceExtensions", zap.Any("Cause", resourceSetupUnsuccessfulTransfer.Cause.ChoiceExtensions), zap.String("supi", ctx.Supi), zap.Int32("pduSessionID", ctx.PDUSessionID))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by ChoiceExtensions", zap.Any("Cause", resourceSetupUnsuccessfulTransfer.Cause.ChoiceExtensions))
 	}
 
 	return nil
@@ -111,7 +109,7 @@ func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
 	return nil
 }
 
-func HandlePathSwitchRequestSetupFailedTransfer(b []byte, ctx *SMContext) error {
+func HandlePathSwitchRequestSetupFailedTransfer(b []byte) error {
 	pathSwitchRequestSetupFailedTransfer := ngapType.PathSwitchRequestSetupFailedTransfer{}
 	err := aper.UnmarshalWithParams(b, &pathSwitchRequestSetupFailedTransfer, "valueExt")
 	if err != nil {
@@ -120,7 +118,7 @@ func HandlePathSwitchRequestSetupFailedTransfer(b []byte, ctx *SMContext) error 
 	return nil
 }
 
-func HandleHandoverRequiredTransfer(b []byte, ctx *SMContext) error {
+func HandleHandoverRequiredTransfer(b []byte) error {
 	handoverRequiredTransfer := ngapType.HandoverRequiredTransfer{}
 	err := aper.UnmarshalWithParams(b, &handoverRequiredTransfer, "valueExt")
 	if err != nil {
@@ -144,6 +142,7 @@ func HandleHandoverRequestAcknowledgeTransfer(b []byte, ctx *SMContext) error {
 	if err != nil {
 		return fmt.Errorf("parse TEID error %s", err.Error())
 	}
+
 	dataPath := ctx.Tunnel.DataPath
 	if dataPath.Activated {
 		ANUPF := dataPath.DPNode

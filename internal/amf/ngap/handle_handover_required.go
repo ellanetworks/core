@@ -176,18 +176,18 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 
 	var pduSessionReqList ngapType.PDUSessionResourceSetupListHOReq
 	for _, pDUSessionResourceHoItem := range pDUSessionResourceListHORqd.List {
-		pduSessionIDInt32 := int32(pDUSessionResourceHoItem.PDUSessionID.Value)
-		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDInt32); exist {
+		pduSessionIDUint8 := uint8(pDUSessionResourceHoItem.PDUSessionID.Value)
+		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
 			response, err := consumer.SendUpdateSmContextN2HandoverPreparing(ctx, amfUe, smContext,
 				models.N2SmInfoTypeHandoverRequired, pDUSessionResourceHoItem.HandoverRequiredTransfer)
 			if err != nil {
-				sourceUe.Log.Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Int32("PduSessionID", pduSessionIDInt32))
+				sourceUe.Log.Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
 			}
 			if response == nil {
-				sourceUe.Log.Error("SendUpdateSmContextN2HandoverPreparing Error for PduSessionID", zap.Int32("PduSessionID", pduSessionIDInt32))
+				sourceUe.Log.Error("SendUpdateSmContextN2HandoverPreparing Error for PduSessionID", zap.Uint8("PduSessionID", pduSessionIDUint8))
 				continue
 			} else if response.BinaryDataN2SmInformation != nil {
-				message.AppendPDUSessionResourceSetupListHOReq(&pduSessionReqList, pduSessionIDInt32,
+				message.AppendPDUSessionResourceSetupListHOReq(&pduSessionReqList, pduSessionIDUint8,
 					smContext.Snssai(), response.BinaryDataN2SmInformation)
 			}
 		}

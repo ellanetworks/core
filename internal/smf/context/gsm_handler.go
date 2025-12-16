@@ -8,91 +8,67 @@ package context
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
-	"go.uber.org/zap"
 )
 
-func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmentRequest) {
-	smContext.PDUSessionID = int32(req.PDUSessionID.GetPDUSessionID())
+type ProtocolConfigurationOptions struct {
+	DNSIPv4Request     bool
+	DNSIPv6Request     bool
+	IPv4LinkMTURequest bool
+}
 
-	smContext.Pti = req.GetPTI()
-
+func HandlePDUSessionEstablishmentRequest(allowedSessionType models.PduSessionType, req *nasMessage.PDUSessionEstablishmentRequest) (*ProtocolConfigurationOptions, uint8, uint8, error) {
 	// Handle PDUSessionType
+	var estAcceptCause5gSMValue uint8
+	selectedPDUSessionType := nasMessage.PDUSessionTypeIPv4
 	if req.PDUSessionType != nil {
-		requestedPDUSessionType := req.PDUSessionType.GetPDUSessionTypeValue()
-		if err := smContext.isAllowedPDUSessionType(requestedPDUSessionType); err != nil {
-			logger.SmfLog.Error("Requested PDUSessionType is not allowed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
-			return
+		selectedPDUSessionType = req.PDUSessionType.GetPDUSessionTypeValue()
+		var err error
+		estAcceptCause5gSMValue, err = isAllowedPDUSessionType(allowedSessionType, selectedPDUSessionType)
+		if err != nil {
+			return nil, 0, 0, fmt.Errorf("requested PDUSessionType is not allowed: %v", err)
 		}
-	} else {
-		smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv4
 	}
+
+	pco := &ProtocolConfigurationOptions{}
 
 	if req.ExtendedProtocolConfigurationOptions != nil {
 		EPCOContents := req.ExtendedProtocolConfigurationOptions.GetExtendedProtocolConfigurationOptionsContents()
 		protocolConfigurationOptions := nasConvert.NewProtocolConfigurationOptions()
 		unmarshalErr := protocolConfigurationOptions.UnMarshal(EPCOContents)
 		if unmarshalErr != nil {
-			logger.SmfLog.Error("Parsing PCO failed", zap.Error(unmarshalErr), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+			return nil, 0, 0, fmt.Errorf("parsing PCO failed: %v", unmarshalErr)
 		}
 
 		// Send MTU to UE always even if UE does not request it.
 		// Preconfiguring MTU request flag.
-		smContext.ProtocolConfigurationOptions.IPv4LinkMTURequest = true
+
+		pco.IPv4LinkMTURequest = true
 
 		for _, container := range protocolConfigurationOptions.ProtocolOrContainerList {
 			switch container.ProtocolOrContainerID {
-			case nasMessage.PCSCFIPv6AddressRequestUL:
-			case nasMessage.IMCNSubsystemSignalingFlagUL:
 			case nasMessage.DNSServerIPv6AddressRequestUL:
-				smContext.ProtocolConfigurationOptions.DNSIPv6Request = true
-			case nasMessage.NotSupportedUL:
-			case nasMessage.MSSupportOfNetworkRequestedBearerControlIndicatorUL:
-			case nasMessage.DSMIPv6HomeAgentAddressRequestUL:
-			case nasMessage.DSMIPv6HomeNetworkPrefixRequestUL:
-			case nasMessage.DSMIPv6IPv4HomeAgentAddressRequestUL:
-			case nasMessage.IPAddressAllocationViaNASSignallingUL:
-			case nasMessage.IPv4AddressAllocationViaDHCPv4UL:
-			case nasMessage.PCSCFIPv4AddressRequestUL:
+				pco.DNSIPv6Request = true
 			case nasMessage.DNSServerIPv4AddressRequestUL:
-				smContext.ProtocolConfigurationOptions.DNSIPv4Request = true
-			case nasMessage.MSISDNRequestUL:
-			case nasMessage.IFOMSupportRequestUL:
-			case nasMessage.MSSupportOfLocalAddressInTFTIndicatorUL:
-			case nasMessage.PCSCFReSelectionSupportUL:
-			case nasMessage.NBIFOMRequestIndicatorUL:
-			case nasMessage.NBIFOMModeUL:
-			case nasMessage.NonIPLinkMTURequestUL:
-			case nasMessage.APNRateControlSupportIndicatorUL:
-			case nasMessage.UEStatus3GPPPSDataOffUL:
-			case nasMessage.ReliableDataServiceRequestIndicatorUL:
-			case nasMessage.AdditionalAPNRateControlForExceptionDataSupportIndicatorUL:
-			case nasMessage.PDUSessionIDUL:
-			case nasMessage.EthernetFramePayloadMTURequestUL:
-			case nasMessage.UnstructuredLinkMTURequestUL:
-			case nasMessage.I5GSMCauseValueUL:
-			case nasMessage.QoSRulesWithTheLengthOfTwoOctetsSupportIndicatorUL:
-			case nasMessage.QoSFlowDescriptionsWithTheLengthOfTwoOctetsSupportIndicatorUL:
-			case nasMessage.LinkControlProtocolUL:
-			case nasMessage.PushAccessControlProtocolUL:
-			case nasMessage.ChallengeHandshakeAuthenticationProtocolUL:
-			case nasMessage.InternetProtocolControlProtocolUL:
+				pco.DNSIPv4Request = true
 			default:
-				logger.SmfLog.Info("Unknown Container ID", zap.Uint16("ContainerID", container.ProtocolOrContainerID), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+				continue
 			}
 		}
 	}
+
+	return pco, selectedPDUSessionType, estAcceptCause5gSMValue, nil
 }
 
-func (smContext *SMContext) HandlePDUSessionReleaseRequest(ctx context.Context, req *nasMessage.PDUSessionReleaseRequest) {
-	smContext.Pti = req.GetPTI()
-	err := smContext.ReleaseUeIPAddr(ctx)
+func HandlePDUSessionReleaseRequest(ctx context.Context, supi string) error {
+	err := ReleaseUeIPAddr(ctx, supi)
 	if err != nil {
-		logger.SmfLog.Error("Releasing UE IP Addr", zap.Error(err), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
-		return
+		return fmt.Errorf("failed to release UE IP Addr: %v", err)
 	}
-	logger.SmfLog.Info("Successfully completed PDU Session Release Request", zap.Int32("PDUSessionID", smContext.PDUSessionID))
+
+	return nil
 }

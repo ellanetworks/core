@@ -16,14 +16,14 @@ import (
 type SmContext struct {
 	Mu *sync.RWMutex // protect the following fields
 
-	PduSessionIDVal       int32
+	PduSessionIDVal       uint8
 	SmContextRefVal       string
 	SnssaiVal             models.Snssai
 	DnnVal                string
 	PduSessionInactiveVal bool
 }
 
-func NewSmContext(pduSessionID int32) *SmContext {
+func NewSmContext(pduSessionID uint8) *SmContext {
 	c := &SmContext{
 		PduSessionIDVal: pduSessionID,
 		Mu:              new(sync.RWMutex),
@@ -39,7 +39,7 @@ func (c *SmContext) SetPduSessionInActive(s bool) {
 	c.PduSessionInactiveVal = s
 }
 
-func (c *SmContext) PduSessionID() int32 {
+func (c *SmContext) PduSessionID() uint8 {
 	c.Mu.RLock()
 	defer c.Mu.RUnlock()
 	return c.PduSessionIDVal

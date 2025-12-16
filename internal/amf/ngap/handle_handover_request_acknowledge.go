@@ -103,8 +103,8 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 		for _, item := range pDUSessionResourceAdmittedList.List {
 			pduSessionID := item.PDUSessionID.Value
 			transfer := item.HandoverRequestAcknowledgeTransfer
-			pduSessionIDInt32 := int32(pduSessionID)
-			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDInt32); exist {
+			pduSessionIDUint8 := uint8(pduSessionID)
+			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
 				response, err := consumer.SendUpdateSmContextN2HandoverPrepared(ctx, amfUe, smContext, models.N2SmInfoTypeHandoverReqAck, transfer)
 				if err != nil {
 					targetUe.Log.Error("Send HandoverRequestAcknowledgeTransfer error", zap.Error(err))
@@ -114,7 +114,7 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 					handoverItem.PDUSessionID = item.PDUSessionID
 					handoverItem.HandoverCommandTransfer = response.BinaryDataN2SmInformation
 					pduSessionResourceHandoverList.List = append(pduSessionResourceHandoverList.List, handoverItem)
-					targetUe.SuccessPduSessionID = append(targetUe.SuccessPduSessionID, pduSessionIDInt32)
+					targetUe.SuccessPduSessionID = append(targetUe.SuccessPduSessionID, pduSessionIDUint8)
 				}
 			}
 		}
@@ -124,8 +124,8 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 		for _, item := range pDUSessionResourceFailedToSetupListHOAck.List {
 			pduSessionID := item.PDUSessionID.Value
 			transfer := item.HandoverResourceAllocationUnsuccessfulTransfer
-			pduSessionIDInt32 := int32(pduSessionID)
-			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDInt32); exist {
+			pduSessionIDUint8 := uint8(pduSessionID)
+			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
 				_, err := consumer.SendUpdateSmContextN2HandoverPrepared(ctx, amfUe, smContext, models.N2SmInfoTypeHandoverResAllocFail, transfer)
 				if err != nil {
 					targetUe.Log.Error("Send HandoverResourceAllocationUnsuccessfulTransfer error", zap.Error(err))

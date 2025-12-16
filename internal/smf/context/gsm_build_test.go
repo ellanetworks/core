@@ -12,37 +12,40 @@ import (
 )
 
 func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
-	smContext := &context.SMContext{
-		SmPolicyUpdates: []*qos.PolicyUpdate{
-			{
-				SessRuleUpdate: &qos.SessRulesUpdate{
-					ActiveSessRule: &models.SessionRule{
-						AuthSessAmbr: &models.Ambr{
-							Uplink:   "1 Gbps",
-							Downlink: "1 Gbps",
-						},
-						AuthDefQos: &models.AuthorizedDefaultQos{
-							Var5qi: 9,
-						},
-					},
+	smPolicyUpdates := &qos.PolicyUpdate{
+		SessRuleUpdate: &qos.SessRulesUpdate{
+			ActiveSessRule: &models.SessionRule{
+				AuthSessAmbr: &models.Ambr{
+					Uplink:   "1 Gbps",
+					Downlink: "1 Gbps",
 				},
-				QosFlowUpdate: &qos.QosFlowsUpdate{
-					Add: &models.QosData{
-						QFI:    1,
-						Var5qi: 9,
-					},
+				AuthDefQos: &models.AuthorizedDefaultQos{
+					Var5qi: 9,
 				},
 			},
 		},
-		Snssai: &models.Snssai{
-			Sst: 1,
-			Sd:  "010203",
+		QosFlowUpdate: &qos.QosFlowsUpdate{
+			Add: &models.QosData{
+				QFI:    1,
+				Var5qi: 9,
+			},
 		},
-		PDUAddress:                   nil,
-		ProtocolConfigurationOptions: &context.ProtocolConfigurationOptions{},
 	}
 
-	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext)
+	pduSessionID := uint8(10)
+
+	pti := uint8(5)
+
+	snssai := &models.Snssai{
+		Sst: 1,
+		Sd:  "010203",
+	}
+
+	dnn := "internet"
+
+	pco := &context.ProtocolConfigurationOptions{}
+
+	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(smPolicyUpdates, pduSessionID, pti, snssai, dnn, pco, 0, 0, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
 	}
@@ -73,37 +76,39 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 }
 
 func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
-	smContext := &context.SMContext{
-		SmPolicyUpdates: []*qos.PolicyUpdate{
-			{
-				SessRuleUpdate: &qos.SessRulesUpdate{
-					ActiveSessRule: &models.SessionRule{
-						AuthSessAmbr: &models.Ambr{
-							Uplink:   "1 Gbps",
-							Downlink: "1 Gbps",
-						},
-						AuthDefQos: &models.AuthorizedDefaultQos{
-							Var5qi: 9,
-						},
-					},
+	smPolicyUpdates := &qos.PolicyUpdate{
+		SessRuleUpdate: &qos.SessRulesUpdate{
+			ActiveSessRule: &models.SessionRule{
+				AuthSessAmbr: &models.Ambr{
+					Uplink:   "1 Gbps",
+					Downlink: "1 Gbps",
 				},
-				QosFlowUpdate: &qos.QosFlowsUpdate{
-					Add: &models.QosData{
-						QFI:    1,
-						Var5qi: 9,
-					},
+				AuthDefQos: &models.AuthorizedDefaultQos{
+					Var5qi: 9,
 				},
 			},
 		},
-		Snssai: &models.Snssai{
-			Sst: 1,
-			Sd:  "",
+		QosFlowUpdate: &qos.QosFlowsUpdate{
+			Add: &models.QosData{
+				QFI:    1,
+				Var5qi: 9,
+			},
 		},
-		PDUAddress:                   nil,
-		ProtocolConfigurationOptions: &context.ProtocolConfigurationOptions{},
+	}
+	pduSessionID := uint8(10)
+
+	pti := uint8(5)
+
+	snssai := &models.Snssai{
+		Sst: 1,
+		Sd:  "",
 	}
 
-	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext)
+	dnn := "internet"
+
+	pco := &context.ProtocolConfigurationOptions{}
+
+	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(smPolicyUpdates, pduSessionID, pti, snssai, dnn, pco, 0, 0, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
 	}

@@ -4,6 +4,7 @@ package core
 import (
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
@@ -11,13 +12,48 @@ import (
 var connection *PfcpConnection
 
 type PfcpConnection struct {
-	Sessions             map[uint64]*Session
+	mu sync.Mutex
+
+	sessions             map[uint64]*Session
 	nodeID               string
 	nodeAddrV4           net.IP
 	n3Address            net.IP
 	advertisedN3Address  net.IP
 	BpfObjects           *ebpf.BpfObjects
 	FteIDResourceManager *FteIDResourceManager
+}
+
+func (pc *PfcpConnection) ListSessions() map[uint64]*Session {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	return pc.sessions
+}
+
+func (pc *PfcpConnection) GetSession(seid uint64) *Session {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	session, ok := pc.sessions[seid]
+	if !ok {
+		return nil
+	}
+
+	return session
+}
+
+func (pc *PfcpConnection) DeleteSession(seid uint64) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	delete(pc.sessions, seid)
+}
+
+func (pc *PfcpConnection) AddSession(seid uint64, session *Session) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	pc.sessions[seid] = session
 }
 
 func (pc *PfcpConnection) SetBPFObjects(bpfObjects *ebpf.BpfObjects) {
@@ -49,7 +85,7 @@ func CreatePfcpConnection(addr string, nodeID string, n3Ip string, advertisedN3I
 	}
 
 	connection = &PfcpConnection{
-		Sessions:             make(map[uint64]*Session),
+		sessions:             make(map[uint64]*Session),
 		nodeID:               nodeID,
 		nodeAddrV4:           addrV4,
 		n3Address:            n3Addr,

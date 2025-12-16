@@ -41,13 +41,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, supi string, n1n2MessageTran
 
 	requestData := n1n2MessageTransferRequest.JSONData
 
-	_, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
-	if !ok {
-		return fmt.Errorf("sm context not found")
-	}
-
 	onGoing := ue.GetOnGoing()
-	// 4xx response cases
 	switch onGoing.Procedure {
 	case context.OnGoingProcedurePaging:
 		return fmt.Errorf("higher priority request ongoing")
@@ -67,7 +61,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, supi string, n1n2MessageTran
 			err    error
 		)
 		if n1Msg != nil {
-			nasPdu, err = gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, uint8(requestData.PduSessionID), nil)
+			nasPdu, err = gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
 			if err != nil {
 				return fmt.Errorf("build DL NAS Transport error: %v", err)
 			}
@@ -158,7 +152,7 @@ func N1N2MessageTransferProcedure(ctx ctxt.Context, supi string, n1n2MessageTran
 		Procedure: context.OnGoingProcedurePaging,
 	})
 
-	pkg, err := message.BuildPaging(ue, pagingPriority, false)
+	pkg, err := message.BuildPaging(ue, pagingPriority)
 	if err != nil {
 		return fmt.Errorf("build paging error: %v", err)
 	}

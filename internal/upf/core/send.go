@@ -31,8 +31,8 @@ func getUsageReportSeqNumber() uint32 {
 func SendPfcpSessionReportRequestForDownlinkData(ctx context.Context, localSeid uint64, pdrid uint16, qfi uint8) error {
 	conn := GetConnection()
 
-	session, ok := conn.Sessions[localSeid]
-	if !ok {
+	session := conn.GetSession(localSeid)
+	if session == nil {
 		return fmt.Errorf("failed to find session with localSeid: %d", localSeid)
 	}
 
@@ -54,8 +54,8 @@ func SendPfcpSessionReportRequestForDownlinkData(ctx context.Context, localSeid 
 func SendPfcpSessionReportRequestForUsage(ctx context.Context, localSeid uint64, urrid uint32, uvol uint64, dvol uint64) error {
 	conn := GetConnection()
 
-	session, ok := conn.Sessions[localSeid]
-	if !ok {
+	session := conn.GetSession(localSeid)
+	if session == nil {
 		return fmt.Errorf("failed to find session with localSeid: %d", localSeid)
 	}
 

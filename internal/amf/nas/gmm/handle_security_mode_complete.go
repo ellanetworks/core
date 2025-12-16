@@ -27,8 +27,6 @@ func handleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Gm
 		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", ue.State.Current())
 	}
 
-	logger.AmfLog.Debug("Handle Security Mode Complete", zap.String("supi", ue.Supi))
-
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}

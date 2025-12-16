@@ -1724,19 +1724,10 @@ func BuildPathSwitchRequestFailure(
 	return ngap.Encoder(pdu)
 }
 
-// anType indicate amfUe send this msg for which accessType
 // Paging Priority: is included only if the AMF receives an Namf_Communication_N1N2MessageTransfer message
 // with an ARP value associated with
 // priority services (e.g., MPS, MCS), as configured by the operator. (TS 23.502 4.2.3.3, TS 23.501 5.22.3)
-// pagingOriginNon3GPP: TS 23.502 4.2.3.3 step 4b: If the UE is simultaneously registered over
-// 3GPP and non-3GPP accesses in the same PLMN,
-// the UE is in CM-IDLE state in both 3GPP access and non-3GPP access, and the PDU Session ID in step 3a
-// is associated with non-3GPP access, the AMF sends a Paging message with associated access "non-3GPP" to
-// NG-RAN node(s) via 3GPP access.
-// more paging policy with 3gpp/non-3gpp access is described in TS 23.501 5.6.8
-func BuildPaging(
-	ue *context.AmfUe, pagingPriority *ngapType.PagingPriority, pagingOriginNon3GPP bool,
-) ([]byte, error) {
+func BuildPaging(ue *context.AmfUe, pagingPriority *ngapType.PagingPriority) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
 	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
@@ -1893,17 +1884,6 @@ func BuildPaging(
 			recommendedCellList.List = append(recommendedCellList.List, recommendedCellItem)
 		}
 
-		pagingIEs.List = append(pagingIEs.List, ie)
-	}
-
-	// Paging Origin (optional)
-	if pagingOriginNon3GPP {
-		ie = ngapType.PagingIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDPagingOrigin
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.PagingIEsPresentPagingOrigin
-		ie.Value.PagingOrigin = new(ngapType.PagingOrigin)
-		ie.Value.PagingOrigin.Value = ngapType.PagingOriginPresentNon3gpp
 		pagingIEs.List = append(pagingIEs.List, ie)
 	}
 

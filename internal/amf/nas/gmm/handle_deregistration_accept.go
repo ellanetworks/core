@@ -27,15 +27,15 @@ func handleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe) error {
 		ue.T3522 = nil // clear the timer
 	}
 
+	ue.SubscriptionDataValid = false
+	ue.State.Set(context.Deregistered)
+
 	if ue.RanUe != nil {
 		err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
 	}
-
-	ue.SubscriptionDataValid = false
-	ue.State.Set(context.Deregistered)
 
 	return nil
 }

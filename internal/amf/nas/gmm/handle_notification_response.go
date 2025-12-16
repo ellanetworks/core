@@ -40,7 +40,7 @@ func handleNotificationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Gm
 	if msg.NotificationResponse != nil && msg.NotificationResponse.PDUSessionStatus != nil {
 		psiArray := nasConvert.PSIToBooleanArray(msg.NotificationResponse.PDUSessionStatus.Buffer)
 		for psi := 1; psi <= 15; psi++ {
-			pduSessionID := int32(psi)
+			pduSessionID := uint8(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] {
 					err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())

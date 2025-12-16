@@ -135,13 +135,13 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 	}
 
 	if amfUe.State.Is(context.Registered) {
-		ranUe.Log.Info("Rel Ue Context in GMM-Registered")
+		ranUe.Log.Warn("Rel Ue Context in GMM-Registered", zap.String("supi", amfUe.Supi))
 		if pDUSessionResourceList != nil {
 			for _, pduSessionReourceItem := range pDUSessionResourceList.List {
-				pduSessionID := int32(pduSessionReourceItem.PDUSessionID.Value)
+				pduSessionID := uint8(pduSessionReourceItem.PDUSessionID.Value)
 				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 				if !ok {
-					ranUe.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionID))
+					ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				}
 				response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext)
 				if err != nil {

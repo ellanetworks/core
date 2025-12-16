@@ -55,20 +55,20 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 	if msg.ReportType.HasDLDR() {
 		n1n2Request := models.N1N2MessageTransferRequest{}
 
-		// N1N2 Json Data
 		n1n2Request.JSONData = &models.N1N2MessageTransferReqData{
 			PduSessionID: smContext.PDUSessionID,
 			NgapIeType:   models.N2SmInfoTypePduResSetupReq,
 			SNssai:       smContext.Snssai,
 		}
 
-		if n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext); err != nil {
-			logger.SmfLog.Error("Build PDUSessionResourceSetupRequestTransfer failed", zap.Error(err))
-		} else {
-			n1n2Request.BinaryDataN2Information = n2Pdu
+		n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext.SmPolicyUpdates, smContext.SmPolicyData, smContext.Tunnel.DataPath.DPNode)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 		}
 
-		err := amf_producer.N1N2MessageTransferProcedure(ctx, smContext.Supi, n1n2Request)
+		n1n2Request.BinaryDataN2Information = n2Pdu
+
+		err = amf_producer.N1N2MessageTransferProcedure(ctx, smContext.Supi, n1n2Request)
 		if err != nil {
 			return message.NewSessionReportResponse(
 				1,

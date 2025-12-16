@@ -84,11 +84,11 @@ func HandlePDUSessionResourceReleaseResponse(ctx ctxt.Context, ran *context.AmfR
 		ranUe.Log.Debug("Send PDUSessionResourceReleaseResponseTransfer to SMF")
 
 		for _, item := range pDUSessionResourceReleasedList.List {
-			pduSessionID := int32(item.PDUSessionID.Value)
+			pduSessionID := uint8(item.PDUSessionID.Value)
 			transfer := item.PDUSessionResourceReleaseResponseTransfer
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				ranUe.Log.Error("SmContext not found", zap.Int32("PduSessionID", pduSessionID))
+				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			}
 			_, err := consumer.SendUpdateSmContextN2Info(ctx, amfUe, smContext,
 				models.N2SmInfoTypePduResRelRsp, transfer)

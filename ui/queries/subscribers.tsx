@@ -1,12 +1,8 @@
 import { HTTPStatus } from "@/queries/utils";
 
-export type SubscriberSession = {
-  ipAddress: string;
-};
-
 export type SubscriberStatus = {
   registered?: boolean;
-  sessions?: SubscriberSession[];
+  ipAddress?: string;
 };
 
 export type APISubscriber = {

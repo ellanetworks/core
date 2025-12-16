@@ -97,19 +97,6 @@ func HandlePfcpSessionEstablishmentResponse(ctx ctxt.Context, msg *message.Sessi
 
 	// UE IP-Addr(only v4 supported)
 	if msg.CreatedPDR != nil {
-		ueIPAddress := FindUEIPAddress(msg.CreatedPDR)
-		if ueIPAddress != nil {
-			logger.SmfLog.Info("UPF provided UE IP address", zap.String("IP", ueIPAddress.String()), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
-			// Release previous locally allocated UE IP-Addr
-			err := smContext.ReleaseUeIPAddr(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to release UE IP-Addr: %+v", err)
-			}
-
-			// Update with one received from UPF
-			smContext.PDUAddress = ueIPAddress
-		}
-
 		// Store F-TEID created by UPF
 		fteid, err := FindFTEID(msg.CreatedPDR)
 		if err != nil {
@@ -132,7 +119,7 @@ func HandlePfcpSessionEstablishmentResponse(ctx ctxt.Context, msg *message.Sessi
 		return fmt.Errorf("failed to parse Cause IE: %+v", err)
 	}
 	if causeValue == ie.CauseRequestAccepted {
-		logger.SmfLog.Info("PFCP Session Establishment accepted", zap.Uint64("SEID", SEID), zap.String("supi", smContext.Supi), zap.Int32("pduSessionID", smContext.PDUSessionID))
+		logger.SmfLog.Info("PFCP Session Establishment accepted", zap.Uint64("SEID", SEID), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		return nil
 	}
 	return fmt.Errorf("PFCP Session Establishment rejected with cause: %v", causeValue)
