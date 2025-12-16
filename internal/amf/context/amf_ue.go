@@ -92,8 +92,6 @@ type AmfUe struct {
 	RanUe                             *RanUe
 	OnGoing                           *OnGoingProcedureWithPrio
 	UeRadioCapability                 string // OCTET string
-	ConfigurationUpdateIndication     nasType.ConfigurationUpdateIndication
-	ConfigurationUpdateCommandFlags   *ConfigurationUpdateCommandFlags
 
 	/* context related to Paging */
 	UeRadioCapabilityForPaging                 *UERadioCapabilityForPaging
