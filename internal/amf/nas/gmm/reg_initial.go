@@ -43,8 +43,6 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 		return fmt.Errorf("no allowed nssai")
 	}
 
-	storeLastVisitedRegisteredTAI(ue, ue.RegistrationRequest.LastVisitedRegisteredTAI)
-
 	if ue.RegistrationRequest.MICOIndication != nil {
 		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.MICOIndication.GetRAAI()))
 	}

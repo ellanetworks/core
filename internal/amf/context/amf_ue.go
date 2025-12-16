@@ -74,10 +74,9 @@ type AmfUe struct {
 	Guti    string
 	OldGuti string
 	/* User Location*/
-	Location                 models.UserLocation
-	Tai                      models.Tai
-	LastVisitedRegisteredTai models.Tai
-	TimeZone                 string
+	Location models.UserLocation
+	Tai      models.Tai
+	TimeZone string
 	/* context about udm */
 	Dnn                               string
 	Ambr                              *models.Ambr

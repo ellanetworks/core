@@ -2,37 +2,12 @@ package gmm
 
 import (
 	ctxt "context"
-	"encoding/hex"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/nasType"
-	"go.uber.org/zap"
 )
-
-// TS 23.502 4.2.2.2.2 step 1
-// If available, the last visited TAI shall be included in order to help the AMF produce Registration Area for the UE
-func storeLastVisitedRegisteredTAI(ue *context.AmfUe, lastVisitedRegisteredTAI *nasType.LastVisitedRegisteredTAI) {
-	if lastVisitedRegisteredTAI != nil {
-		plmnID := nasConvert.PlmnIDToString(lastVisitedRegisteredTAI.Octet[1:4])
-		nasTac := lastVisitedRegisteredTAI.GetTAC()
-		tac := hex.EncodeToString(nasTac[:])
-
-		tai := models.Tai{
-			PlmnID: &models.PlmnID{
-				Mcc: plmnID[:3],
-				Mnc: plmnID[3:],
-			},
-			Tac: tac,
-		}
-
-		ue.LastVisitedRegisteredTai = tai
-		ue.Log.Debug("Ue Last Visited Registered Tai", zap.String("plmnID", plmnID), zap.String("tac", tac))
-	}
-}
 
 func inSubscribedNssai(subscribedSnssai *models.Snssai, targetSNssai *models.Snssai) bool {
 	return subscribedSnssai.Sst == targetSNssai.Sst && subscribedSnssai.Sd == targetSNssai.Sd
