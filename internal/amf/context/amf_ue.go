@@ -287,7 +287,7 @@ func (ue *AmfUe) DerivateKamf() {
 }
 
 // Algorithm key Derivation function defined in TS 33.501 Annex A.9
-func (ue *AmfUe) DerivateAlgKey() {
+func (ue *AmfUe) DerivateAlgKey() error {
 	// Security Key
 	P0 := []byte{security.NNASEncAlg}
 	L0 := ueauth.KDFLen(P0)
@@ -296,14 +296,14 @@ func (ue *AmfUe) DerivateAlgKey() {
 
 	KamfBytes, err := hex.DecodeString(ue.Kamf)
 	if err != nil {
-		logger.AmfLog.Error("decode kamf error", zap.Error(err))
-		return
+		return fmt.Errorf("decode kamf error: %v", err)
 	}
+
 	kenc, err := ueauth.GetKDFValue(KamfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
-		logger.AmfLog.Error("get kdf value error", zap.Error(err))
-		return
+		return fmt.Errorf("get kdf value error: %v", err)
 	}
+
 	copy(ue.KnasEnc[:], kenc[16:32])
 
 	// Integrity Key
@@ -314,10 +314,12 @@ func (ue *AmfUe) DerivateAlgKey() {
 
 	kint, err := ueauth.GetKDFValue(KamfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
-		logger.AmfLog.Error("get kdf value error", zap.Error(err))
-		return
+		return fmt.Errorf("get kdf value error: %v", err)
 	}
+
 	copy(ue.KnasInt[:], kint[16:32])
+
+	return nil
 }
 
 // Access Network key Derivation function defined in TS 33.501 Annex A.9

@@ -106,6 +106,7 @@ func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.
 		}
 
 		return nil
+	default:
+		return fmt.Errorf("unknown auth result: %v", response.AuthResult)
 	}
-	return nil
 }
