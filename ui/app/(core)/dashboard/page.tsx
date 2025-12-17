@@ -193,16 +193,16 @@ const Dashboard = () => {
       return Number.isFinite(n) ? n : null;
     };
 
-    const pduSessions = getValue("app_pdu_sessions ");
+    const pduSessions = getValue("app_pdu_sessions_total ");
     const memBytes = getValue("go_memstats_alloc_bytes ");
     const goGoroutines = getValue("go_goroutines ");
     const dbBytes = getValue("app_database_storage_bytes ");
-    const allocIPs = getValue("app_ip_addresses_allocated ");
+    const allocIPs = getValue("app_ip_addresses_allocated_total ");
     const totalIPsV = getValue("app_ip_addresses_total ");
     const ulBytes = getValue("app_uplink_bytes ");
     const dlBytes = getValue("app_downlink_bytes ");
-    const n3Drop = getValue("app_n3_xdp_drop ");
-    const n6Drop = getValue("app_n6_xdp_drop ");
+    const n3Drop = getValue("app_n3_xdp_drop_total ");
+    const n6Drop = getValue("app_n6_xdp_drop_total ");
     const startTime = getValue("process_start_time_seconds ");
 
     return {

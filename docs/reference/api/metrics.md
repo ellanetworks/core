@@ -22,10 +22,10 @@ None
 # HELP app_database_storage_bytes The total storage used by the database in bytes. This is the size of the database file on disk.
 # TYPE app_database_storage_bytes gauge
 app_database_storage_bytes 28672
-# HELP app_ip_addresses_allocated The total number of IP addresses currently allocated to subscribers
-# TYPE app_ip_addresses_allocated gauge
-app_ip_addresses_allocated 0
-# HELP app_ip_addresses_total The total number of IP addresses allocated to subscribers
+# HELP app_ip_addresses_allocated_total The total number of IP addresses currently allocated to subscribers
+# TYPE app_ip_addresses_allocated_total gauge
+app_ip_addresses_allocated_total 0
+# HELP app_ip_addresses_total The total number of IP addresses available for subscribers
 # TYPE app_ip_addresses_total gauge
 app_ip_addresses_total 65792
 # HELP go_gc_duration_seconds A summary of the wall-time pause (stop-the-world) duration in garbage collection cycles.
