@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -93,22 +92,13 @@ func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.R
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	query := fmt.Sprintf(insertRadioEventStmt, db.networkLogsTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(query),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
-	stmt, err := sqlair.Prepare(query, dbwriter.RadioEvent{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-
-	if err := db.conn.Query(ctx, stmt, radioEvent).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.insertRadioEventStmt, radioEvent).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -130,31 +120,13 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	listSQL := fmt.Sprintf(listRadioEventsPagedFilteredStmt, db.networkLogsTable)
-	countSQL := fmt.Sprintf(countRadioEventsFilteredStmt, db.networkLogsTable)
-
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(listSQL),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 		attribute.Int("page", page),
 		attribute.Int("per_page", perPage),
 	)
-
-	// Prepare both statements with all the bind models they use
-	listStmt, err := sqlair.Prepare(listSQL, ListArgs{}, RadioEventFilters{}, dbwriter.RadioEvent{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare list failed")
-		return nil, 0, err
-	}
-	countStmt, err := sqlair.Prepare(countSQL, RadioEventFilters{}, NumItems{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare count failed")
-		return nil, 0, err
-	}
 
 	args := ListArgs{
 		Limit:  perPage,
@@ -163,7 +135,7 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 
 	// Count with filters
 	var total NumItems
-	if err := db.conn.Query(ctx, countStmt, filters).Get(&total); err != nil && err != sql.ErrNoRows {
+	if err := db.conn.Query(ctx, db.countRadioEventsStmt, filters).Get(&total); err != nil && err != sql.ErrNoRows {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
 		return nil, 0, err
@@ -171,7 +143,7 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 
 	// Rows with filters
 	var logs []dbwriter.RadioEvent
-	if err := db.conn.Query(ctx, listStmt, args, filters).GetAll(&logs); err != nil {
+	if err := db.conn.Query(ctx, db.listRadioEventsStmt, args, filters).GetAll(&logs); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, total.Count, nil
@@ -197,25 +169,16 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 	// Compute UTC cutoff so string comparison works lexicographically for RFC3339
 	cutoff := time.Now().AddDate(0, 0, -days).UTC().Format(time.RFC3339)
 
-	stmtStr := fmt.Sprintf(deleteOldRadioEventsStmt, db.networkLogsTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 		attribute.Int("retention.days", days),
 		attribute.String("retention.cutoff", cutoff),
 	)
 
-	stmt, err := sqlair.Prepare(stmtStr, cutoffArgs{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-
 	args := cutoffArgs{Cutoff: cutoff}
-	if err := db.conn.Query(ctx, stmt, args).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.deleteOldRadioEventsStmt, args).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -233,22 +196,13 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmtStr := fmt.Sprintf(deleteAllRadioEventsStmt, db.networkLogsTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
-	stmt, err := sqlair.Prepare(stmtStr)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-
-	if err := db.conn.Query(ctx, stmt).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.deleteAllRadioEventsStmt).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -266,25 +220,16 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	query := fmt.Sprintf(getRadioEventByIDStmt, db.networkLogsTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(query),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 		attribute.Int("id", id),
 	)
 
-	stmt, err := sqlair.Prepare(query, dbwriter.RadioEvent{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
-	}
-
 	log := dbwriter.RadioEvent{ID: id}
 
-	if err := db.conn.Query(ctx, stmt, log).Get(&log); err != nil {
+	if err := db.conn.Query(ctx, db.getRadioEventByIDStmt, log).Get(&log); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil

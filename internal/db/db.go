@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
+	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 	_ "github.com/mattn/go-sqlite3"
 	"go.opentelemetry.io/otel"
@@ -58,6 +59,14 @@ type Database struct {
 	getAPITokenByNameStmt *sqlair.Statement
 	getAPITokenByIDStmt   *sqlair.Statement
 	deleteAPITokenStmt    *sqlair.Statement
+
+	// Radio Event statements
+	insertRadioEventStmt     *sqlair.Statement
+	listRadioEventsStmt      *sqlair.Statement
+	countRadioEventsStmt     *sqlair.Statement
+	deleteOldRadioEventsStmt *sqlair.Statement
+	deleteAllRadioEventsStmt *sqlair.Statement
+	getRadioEventByIDStmt    *sqlair.Statement
 
 	conn *sqlair.DB
 }
@@ -295,6 +304,36 @@ func (db *Database) PrepareStatements() error {
 		return fmt.Errorf("failed to prepare get API token by ID statement: %v", err)
 	}
 
+	insertRadioEventStmt, err := sqlair.Prepare(fmt.Sprintf(insertRadioEventStmt, db.networkLogsTable), dbwriter.RadioEvent{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare insert radio event statement: %v", err)
+	}
+
+	listRadioEventsStmt, err := sqlair.Prepare(fmt.Sprintf(listRadioEventsPagedFilteredStmt, db.networkLogsTable), ListArgs{}, RadioEventFilters{}, dbwriter.RadioEvent{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare list radio events statement: %v", err)
+	}
+
+	countRadioEventsStmt, err := sqlair.Prepare(fmt.Sprintf(countRadioEventsFilteredStmt, db.networkLogsTable), RadioEventFilters{}, NumItems{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare count radio events statement: %v", err)
+	}
+
+	deleteOldRadioEventsStmt, err := sqlair.Prepare(fmt.Sprintf(deleteOldRadioEventsStmt, db.networkLogsTable), cutoffArgs{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete old radio events statement: %v", err)
+	}
+
+	deleteAllRadioEventsStmt, err := sqlair.Prepare(fmt.Sprintf(deleteAllRadioEventsStmt, db.networkLogsTable))
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete all radio events statement: %v", err)
+	}
+
+	getRadioEventByIDStmt, err := sqlair.Prepare(fmt.Sprintf(getRadioEventByIDStmt, db.networkLogsTable), dbwriter.RadioEvent{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get radio event by ID statement: %v", err)
+	}
+
 	db.listSubscribersStmt = listSubscribersStmt
 	db.countSubscribersStmt = countSubscribersStmt
 	db.getSubscriberStmt = getSubscriberStmt
@@ -314,6 +353,13 @@ func (db *Database) PrepareStatements() error {
 	db.getAPITokenByNameStmt = getAPITokenByNameStmt
 	db.deleteAPITokenStmt = deleteAPITokenStmt
 	db.getAPITokenByIDStmt = getAPITokenByIDStmt
+
+	db.insertRadioEventStmt = insertRadioEventStmt
+	db.listRadioEventsStmt = listRadioEventsStmt
+	db.countRadioEventsStmt = countRadioEventsStmt
+	db.deleteOldRadioEventsStmt = deleteOldRadioEventsStmt
+	db.deleteAllRadioEventsStmt = deleteAllRadioEventsStmt
+	db.getRadioEventByIDStmt = getRadioEventByIDStmt
 
 	return nil
 }
