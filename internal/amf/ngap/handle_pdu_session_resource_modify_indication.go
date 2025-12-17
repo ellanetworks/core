@@ -3,11 +3,9 @@ package ngap
 import (
 	ctxt "context"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -125,34 +123,8 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 
 	ran.Log.Debug("UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
-	amfUe := ranUe.AmfUe
-	if amfUe == nil {
-		ran.Log.Error("AmfUe is nil")
-		return
-	}
-
 	pduSessionResourceModifyListModCfm := ngapType.PDUSessionResourceModifyListModCfm{}
 	pduSessionResourceFailedToModifyListModCfm := ngapType.PDUSessionResourceFailedToModifyListModCfm{}
-
-	ran.Log.Debug("send PDUSessionResourceModifyIndicationTransfer to SMF")
-	for _, item := range pduSessionResourceModifyIndicationList.List {
-		pduSessionID := uint8(item.PDUSessionID.Value)
-		transfer := item.PDUSessionResourceModifyIndicationTransfer
-		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
-		if !ok {
-			ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
-		}
-		response, err := consumer.SendUpdateSmContextN2Info(ctx, amfUe, smContext,
-			models.N2SmInfoTypePduResModInd, transfer)
-		if err != nil {
-			ranUe.Log.Error("SendUpdateSmContextN2Info[PDUSessionResourceModifyIndicationTransfer] Error", zap.Error(err))
-		}
-
-		if response != nil && response.BinaryDataN2SmInformation != nil {
-			message.AppendPDUSessionResourceModifyListModCfm(&pduSessionResourceModifyListModCfm, int64(pduSessionID),
-				response.BinaryDataN2SmInformation)
-		}
-	}
 
 	err := message.SendPDUSessionResourceModifyConfirm(ctx, ranUe, pduSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyListModCfm, nil)
 	if err != nil {

@@ -702,69 +702,11 @@ func BuildPDUSessionResourceModifyConfirm(
 	return ngap.Encoder(pdu)
 }
 
-// pduSessionResourceModifyRequestList: from SMF
-func BuildPDUSessionResourceModifyRequest(ue *context.RanUe,
-	pduSessionResourceModifyRequestList ngapType.PDUSessionResourceModifyListModReq,
-) ([]byte, error) {
-	var pdu ngapType.NGAPPDU
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-
-	initiatingMessage := pdu.InitiatingMessage
-	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodePDUSessionResourceModify
-	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentReject
-
-	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentPDUSessionResourceModifyRequest
-	initiatingMessage.Value.PDUSessionResourceModifyRequest = new(ngapType.PDUSessionResourceModifyRequest)
-
-	pDUSessionResourceModifyRequest := initiatingMessage.Value.PDUSessionResourceModifyRequest
-	pDUSessionResourceModifyRequestIEs := &pDUSessionResourceModifyRequest.ProtocolIEs
-
-	// AMF UE NGAP ID
-	ie := ngapType.PDUSessionResourceModifyRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.PDUSessionResourceModifyRequestIEsPresentAMFUENGAPID
-	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
-
-	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapID
-
-	pDUSessionResourceModifyRequestIEs.List = append(pDUSessionResourceModifyRequestIEs.List, ie)
-
-	// RAN UE NGAP ID
-	ie = ngapType.PDUSessionResourceModifyRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.PDUSessionResourceModifyRequestIEsPresentRANUENGAPID
-	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
-
-	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ue.RanUeNgapID
-
-	pDUSessionResourceModifyRequestIEs.List = append(pDUSessionResourceModifyRequestIEs.List, ie)
-
-	// Ran Paging Priority (optional)
-
-	// PDU Session Resource Modify Request List
-	ie = ngapType.PDUSessionResourceModifyRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceModifyListModReq
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.PDUSessionResourceModifyRequestIEsPresentPDUSessionResourceModifyListModReq
-	ie.Value.PDUSessionResourceModifyListModReq = &pduSessionResourceModifyRequestList
-	pDUSessionResourceModifyRequestIEs.List = append(pDUSessionResourceModifyRequestIEs.List, ie)
-
-	return ngap.Encoder(pdu)
-}
-
 func BuildInitialContextSetupRequest(
 	ctx ctxt.Context,
 	amfUe *context.AmfUe,
 	nasPdu []byte,
 	pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq,
-	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
-	coreNetworkAssistanceInfo *ngapType.CoreNetworkAssistanceInformation,
-	emergencyFallbackIndicator *ngapType.EmergencyFallbackIndicator,
 	supportedGUAMI *models.Guami,
 ) ([]byte, error) {
 	// Old AMF: new amf should get old amf's amf name
@@ -850,16 +792,6 @@ func BuildInitialContextSetupRequest(
 		ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value = ueAmbrUL
 		ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value = ueAmbrDL
 
-		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
-	}
-
-	// Core Network Assistance Information (optional)
-	if coreNetworkAssistanceInfo != nil {
-		ie = ngapType.InitialContextSetupRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDCoreNetworkAssistanceInformation
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentCoreNetworkAssistanceInformation
-		ie.Value.CoreNetworkAssistanceInformation = coreNetworkAssistanceInfo
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 	}
 
@@ -1041,26 +973,6 @@ func BuildInitialContextSetupRequest(
 
 		ie.Value.NASPDU.Value = nasPdu
 
-		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
-	}
-
-	// Emergency Fallback indicator (optional)
-	if emergencyFallbackIndicator != nil {
-		ie = ngapType.InitialContextSetupRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDEmergencyFallbackIndicator
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentEmergencyFallbackIndicator
-		ie.Value.EmergencyFallbackIndicator = emergencyFallbackIndicator
-		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
-	}
-
-	// RRC Inactive Transition Report Request (optional)
-	if rrcInactiveTransitionReportRequest != nil {
-		ie = ngapType.InitialContextSetupRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDRRCInactiveTransitionReportRequest
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentRRCInactiveTransitionReportRequest
-		ie.Value.RRCInactiveTransitionReportRequest = rrcInactiveTransitionReportRequest
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 	}
 

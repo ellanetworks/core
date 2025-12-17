@@ -66,28 +66,6 @@ func AppendPDUSessionResourceSetupListCxtReq(list *ngapType.PDUSessionResourceSe
 	list.List = append(list.List, item)
 }
 
-func AppendPDUSessionResourceModifyListModReq(list *ngapType.PDUSessionResourceModifyListModReq,
-	pduSessionID uint8, nasPDU []byte, transfer []byte,
-) {
-	var item ngapType.PDUSessionResourceModifyItemModReq
-	item.PDUSessionID.Value = int64(pduSessionID)
-	item.PDUSessionResourceModifyRequestTransfer = transfer
-	if nasPDU != nil {
-		item.NASPDU = new(ngapType.NASPDU)
-		item.NASPDU.Value = nasPDU
-	}
-	list.List = append(list.List, item)
-}
-
-func AppendPDUSessionResourceModifyListModCfm(list *ngapType.PDUSessionResourceModifyListModCfm,
-	pduSessionID int64, transfer []byte,
-) {
-	var item ngapType.PDUSessionResourceModifyItemModCfm
-	item.PDUSessionID.Value = pduSessionID
-	item.PDUSessionResourceModifyConfirmTransfer = transfer
-	list.List = append(list.List, item)
-}
-
 func AppendPDUSessionResourceToReleaseListRelCmd(list *ngapType.PDUSessionResourceToReleaseListRelCmd,
 	pduSessionID uint8, transfer []byte,
 ) {

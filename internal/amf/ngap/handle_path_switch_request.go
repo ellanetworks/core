@@ -3,11 +3,10 @@ package ngap
 import (
 	ctxt "context"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -146,17 +145,15 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 			if !ok {
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			}
-			response, err := consumer.SendUpdateSmContextXnHandover(ctx, amfUe, smContext,
-				models.N2SmInfoTypePathSwitchReq, transfer)
+			n2Rsp, err := pdusession.UpdateSmContextXnHandoverPathSwitchReq(ctx, smContext.SmContextRef(), transfer)
 			if err != nil {
 				ranUe.Log.Error("SendUpdateSmContextXnHandover[PathSwitchRequestTransfer] Error", zap.Error(err))
+				continue
 			}
-			if response != nil && response.BinaryDataN2SmInformation != nil {
-				pduSessionResourceSwitchedItem := ngapType.PDUSessionResourceSwitchedItem{}
-				pduSessionResourceSwitchedItem.PDUSessionID.Value = int64(pduSessionID)
-				pduSessionResourceSwitchedItem.PathSwitchRequestAcknowledgeTransfer = response.BinaryDataN2SmInformation
-				pduSessionResourceSwitchedList.List = append(pduSessionResourceSwitchedList.List, pduSessionResourceSwitchedItem)
-			}
+			pduSessionResourceSwitchedItem := ngapType.PDUSessionResourceSwitchedItem{}
+			pduSessionResourceSwitchedItem.PDUSessionID.Value = int64(pduSessionID)
+			pduSessionResourceSwitchedItem.PathSwitchRequestAcknowledgeTransfer = n2Rsp
+			pduSessionResourceSwitchedList.List = append(pduSessionResourceSwitchedList.List, pduSessionResourceSwitchedItem)
 		}
 	}
 
@@ -168,17 +165,9 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 			if !ok {
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			}
-			response, err := consumer.SendUpdateSmContextXnHandoverFailed(ctx, amfUe, smContext,
-				models.N2SmInfoTypePathSwitchSetupFail, transfer)
+			err := pdusession.UpdateSmContextHandoverFailed(smContext.SmContextRef(), transfer)
 			if err != nil {
 				ranUe.Log.Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err))
-			}
-			if response != nil && response.BinaryDataN2SmInformation != nil {
-				pduSessionResourceReleasedItem := ngapType.PDUSessionResourceReleasedItemPSAck{}
-				pduSessionResourceReleasedItem.PDUSessionID.Value = int64(pduSessionID)
-				pduSessionResourceReleasedItem.PathSwitchRequestUnsuccessfulTransfer = response.BinaryDataN2SmInformation
-				pduSessionResourceReleasedListPSAck.List = append(pduSessionResourceReleasedListPSAck.List,
-					pduSessionResourceReleasedItem)
 			}
 		}
 	}

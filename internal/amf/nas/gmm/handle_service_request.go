@@ -4,7 +4,6 @@ import (
 	ctxt "context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
@@ -53,13 +52,13 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, ctxList ngapType.PDU
 			return err
 		}
 		if len(ctxList.List) != 0 {
-			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, nasPdu, &ctxList, nil, nil, nil, supportedGUAMI)
+			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, nasPdu, &ctxList, supportedGUAMI)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
 			ue.Log.Info("sent service accept with context list", zap.Int("len", len(ctxList.List)))
 		} else {
-			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, nasPdu, nil, nil, nil, nil, supportedGUAMI)
+			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, nasPdu, nil, supportedGUAMI)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
@@ -212,7 +211,7 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 		return err
 	}
 	if ue.N1N2Message != nil {
-		requestData := ue.N1N2Message.JSONData
+		requestData := ue.N1N2Message
 		if ue.N1N2Message.BinaryDataN2Information != nil {
 			targetPduSessionID = requestData.PduSessionID
 		}
@@ -225,18 +224,17 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 		for pduSessionID, smContext := range ue.SmContextList {
 			if pduSessionID != targetPduSessionID {
 				if uplinkDataPsi[pduSessionID] {
-					response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext)
+					binaryDataN2SmInformation, err := pdusession.ActivateSmContext(smContext.SmContextRef())
 					if err != nil {
-						ue.Log.Error("SendUpdateSmContextActivateUpCnxState Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
-					} else if response == nil {
+						ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 						reactivationResult[pduSessionID] = true
 						errPduSessionID = append(errPduSessionID, pduSessionID)
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
 					} else if ue.RanUe.UeContextRequest {
-						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
+						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID, smContext.Snssai(), nil, binaryDataN2SmInformation)
 					} else {
-						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
+						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID, smContext.Snssai(), nil, binaryDataN2SmInformation)
 					}
 				}
 			}
@@ -263,7 +261,7 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 		// triggered by a paging request.
 
 		if ue.N1N2Message != nil {
-			requestData := ue.N1N2Message.JSONData
+			requestData := ue.N1N2Message
 			n1Msg := ue.N1N2Message.BinaryDataN1Message
 			n2Info := ue.N1N2Message.BinaryDataN2Information
 
@@ -289,19 +287,17 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 					return fmt.Errorf("service Request triggered by Network for pduSessionID that does not exist")
 				}
 
-				if requestData.NgapIeType == models.N2SmInfoTypePduResSetupReq {
-					var nasPdu []byte
-					if n1Msg != nil {
-						nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
-						if err != nil {
-							return fmt.Errorf("error building DL NAS transport message: %v", err)
-						}
+				var nasPdu []byte
+				if n1Msg != nil {
+					nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
+					if err != nil {
+						return fmt.Errorf("error building DL NAS transport message: %v", err)
 					}
-					if ue.RanUe.UeContextRequest {
-						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
-					} else {
-						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
-					}
+				}
+				if ue.RanUe.UeContextRequest {
+					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+				} else {
+					ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 				}
 				ue.Log.Debug("sending service accept")
 				err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)

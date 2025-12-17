@@ -3,12 +3,11 @@ package ngap
 import (
 	ctxt "context"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -178,18 +177,12 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 	for _, pDUSessionResourceHoItem := range pDUSessionResourceListHORqd.List {
 		pduSessionIDUint8 := uint8(pDUSessionResourceHoItem.PDUSessionID.Value)
 		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-			response, err := consumer.SendUpdateSmContextN2HandoverPreparing(ctx, amfUe, smContext,
-				models.N2SmInfoTypeHandoverRequired, pDUSessionResourceHoItem.HandoverRequiredTransfer)
+			n2Rsp, err := pdusession.UpdateSmContextN2HandoverPreparing(smContext.SmContextRef(), pDUSessionResourceHoItem.HandoverRequiredTransfer)
 			if err != nil {
 				sourceUe.Log.Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
-			}
-			if response == nil {
-				sourceUe.Log.Error("SendUpdateSmContextN2HandoverPreparing Error for PduSessionID", zap.Uint8("PduSessionID", pduSessionIDUint8))
 				continue
-			} else if response.BinaryDataN2SmInformation != nil {
-				message.AppendPDUSessionResourceSetupListHOReq(&pduSessionReqList, pduSessionIDUint8,
-					smContext.Snssai(), response.BinaryDataN2SmInformation)
 			}
+			message.AppendPDUSessionResourceSetupListHOReq(&pduSessionReqList, pduSessionIDUint8, smContext.Snssai(), n2Rsp)
 		}
 	}
 	if len(pduSessionReqList.List) == 0 {

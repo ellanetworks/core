@@ -3,7 +3,6 @@ package ngap
 import (
 	ctxt "context"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
@@ -86,17 +85,6 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 	if sourceUe == nil {
 		ran.Log.Error("N2 Handover between AMF has not been implemented yet")
 	} else {
-		amfUe := targetUe.AmfUe
-		if amfUe != nil {
-			amfUe.Mutex.Lock()
-			for pduSessionID, smContext := range amfUe.SmContextList {
-				_, err := consumer.SendUpdateSmContextN2HandoverCanceled(ctx, amfUe, smContext)
-				if err != nil {
-					ran.Log.Error("Send UpdateSmContextN2HandoverCanceled Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
-				}
-			}
-			amfUe.Mutex.Unlock()
-		}
 		err := ngap_message.SendHandoverPreparationFailure(ctx, sourceUe, *cause, criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending handover preparation failure", zap.Error(err))

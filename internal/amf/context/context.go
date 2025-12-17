@@ -33,7 +33,6 @@ var (
 func init() {
 	amfContext = AMFContext{
 		UePool:     make(map[string]*AmfUe),
-		RanUePool:  make(map[int64]*RanUe),
 		AmfRanPool: make(map[*sctp.SCTPConn]*AmfRan),
 	}
 	tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
@@ -67,7 +66,6 @@ type AMFContext struct {
 
 	DBInstance               *db.Database
 	UePool                   map[string]*AmfUe          // Key: supi
-	RanUePool                map[int64]*RanUe           // Key: AmfUeNgapID
 	AmfRanPool               map[*sctp.SCTPConn]*AmfRan // map[net.Conn]*AmfRan
 	RelativeCapacity         int64
 	Name                     string
@@ -207,6 +205,7 @@ func (context *AMFContext) NewAmfRan(conn *sctp.SCTPConn) *AmfRan {
 	}
 
 	ran := AmfRan{}
+	ran.RanUePool = make(map[int64]*RanUe)
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.Conn = conn
 	ran.GnbIP = remoteAddr.String()
@@ -275,7 +274,7 @@ func (context *AMFContext) DeleteAmfRan(conn *sctp.SCTPConn) {
 }
 
 // Looks up a UE by the provided GUTI.
-func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (*AmfUe, bool) {
+func (context *AMFContext) AmfUeFindByGuti(guti string) (*AmfUe, bool) {
 	if guti == "" {
 		return nil, false
 	}
@@ -292,25 +291,19 @@ func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (*AmfUe, bool) {
 	return nil, false
 }
 
-func (context *AMFContext) AmfUeFindByGuti(guti string) (*AmfUe, bool) {
-	ue, ok := context.AmfUeFindByGutiLocal(guti)
-	if !ok {
-		return nil, false
-	}
-
-	return ue, ok
-}
-
 func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	context.Mutex.Lock()
 	defer context.Mutex.Unlock()
 
-	ranUe, ok := context.RanUePool[amfUeNgapID]
-	if !ok {
-		return nil
+	for _, ran := range context.AmfRanPool {
+		for _, ranUe := range ran.RanUePool {
+			if ranUe.AmfUeNgapID == amfUeNgapID {
+				return ranUe
+			}
+		}
 	}
 
-	return ranUe
+	return nil
 }
 
 func (context *AMFContext) Get5gsNwFeatSuppImsVoPS() uint8 {

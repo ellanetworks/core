@@ -69,9 +69,9 @@ func (ranUe *RanUe) Remove() error {
 		ranUe.DetachAmfUe()
 	}
 
-	for index, ranUe1 := range ran.RanUeList {
+	for _, ranUe1 := range ran.RanUePool {
 		if ranUe1 == ranUe {
-			ran.RanUeList = append(ran.RanUeList[:index], ran.RanUeList[index+1:]...)
+			delete(ran.RanUePool, ranUe.RanUeNgapID)
 			break
 		}
 	}
@@ -96,15 +96,15 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
 	oldRan := ranUe.Ran
 
 	// remove ranUe from oldRan
-	for index, ranUe1 := range oldRan.RanUeList {
+	for _, ranUe1 := range oldRan.RanUePool {
 		if ranUe1 == ranUe {
-			oldRan.RanUeList = append(oldRan.RanUeList[:index], oldRan.RanUeList[index+1:]...)
+			delete(oldRan.RanUePool, ranUe.RanUeNgapID)
 			break
 		}
 	}
 
 	// add ranUe to newRan
-	newRan.RanUeList = append(newRan.RanUeList, ranUe)
+	newRan.RanUePool[ranUeNgapID] = ranUe
 
 	// switch to newRan
 	ranUe.Ran = newRan

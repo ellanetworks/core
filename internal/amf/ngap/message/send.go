@@ -371,39 +371,11 @@ func SendPDUSessionResourceModifyConfirm(
 	return nil
 }
 
-// pduSessionResourceModifyRequestList: from SMF
-func SendPDUSessionResourceModifyRequest(ctx ctxt.Context, ue *context.RanUe, pduSessionResourceModifyRequestList ngapType.PDUSessionResourceModifyListModReq) error {
-	if ue == nil {
-		return fmt.Errorf("ran ue is nil")
-	}
-
-	ue.Log.Info("Send PDU Session Resource Modify Request")
-
-	if len(pduSessionResourceModifyRequestList.List) > context.MaxNumOfPDUSessions {
-		return fmt.Errorf("pdu list out of range")
-	}
-
-	pkt, err := BuildPDUSessionResourceModifyRequest(ue, pduSessionResourceModifyRequestList)
-	if err != nil {
-		return fmt.Errorf("error building pdu session resource modify request: %s", err.Error())
-	}
-
-	err = SendToRanUe(ctx, ue, pkt, NGAPProcedurePDUSessionResourceModifyRequest)
-	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
-	}
-
-	return nil
-}
-
 func SendInitialContextSetupRequest(
 	ctx ctxt.Context,
 	amfUe *context.AmfUe,
 	nasPdu []byte,
 	pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq,
-	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
-	coreNetworkAssistanceInfo *ngapType.CoreNetworkAssistanceInformation,
-	emergencyFallbackIndicator *ngapType.EmergencyFallbackIndicator,
 	supportedGUAMI *models.Guami,
 ) error {
 	if amfUe == nil {
@@ -416,7 +388,7 @@ func SendInitialContextSetupRequest(
 		}
 	}
 
-	pkt, err := BuildInitialContextSetupRequest(ctx, amfUe, nasPdu, pduSessionResourceSetupRequestList, rrcInactiveTransitionReportRequest, coreNetworkAssistanceInfo, emergencyFallbackIndicator, supportedGUAMI)
+	pkt, err := BuildInitialContextSetupRequest(ctx, amfUe, nasPdu, pduSessionResourceSetupRequestList, supportedGUAMI)
 	if err != nil {
 		return fmt.Errorf("error building initial context setup request: %s", err)
 	}

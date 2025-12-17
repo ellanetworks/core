@@ -3,7 +3,6 @@ package ngap
 import (
 	ctxt "context"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
@@ -113,11 +112,9 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *n
 						ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 						continue
 					}
-					response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext)
+					err := pdusession.DeactivateSmContext(ctx, smContext.SmContextRef())
 					if err != nil {
 						ranUe.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
-					} else if response == nil {
-						ranUe.Log.Error("Send Update SmContextDeactivate UpCnxState Error")
 					}
 				}
 			} else {
@@ -129,11 +126,9 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *n
 						ranUe.Log.Info("Pdu Session is inactive so not sending deactivate to SMF")
 						break
 					}
-					response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext)
+					err := pdusession.DeactivateSmContext(ctx, smContext.SmContextRef())
 					if err != nil {
 						ranUe.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
-					} else if response == nil {
-						ranUe.Log.Error("Send Update SmContextDeactivate UpCnxState Error")
 					}
 				}
 				amfUe.Mutex.Unlock()

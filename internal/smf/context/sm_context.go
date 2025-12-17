@@ -131,12 +131,6 @@ func ReleaseUeIPAddr(ctx context.Context, supi string) error {
 	return nil
 }
 
-func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData) {
-	smContext.Supi = createData.Supi
-	smContext.Dnn = createData.Dnn
-	smContext.Snssai = createData.SNssai
-}
-
 func PDUAddressToNAS(pduAddress net.IP, pduSessionType uint8) ([12]byte, uint8) {
 	var addr [12]byte
 
@@ -231,18 +225,6 @@ func SelectedSessionRule(smPolicyUpdates *qos.PolicyUpdate, qosPolicyData qos.Sm
 	}
 
 	return qosPolicyData.SmCtxtSessionRules.ActiveRule
-}
-
-func GeneratePDUSessionEstablishmentReject(pduSessionID uint8, pti uint8, cause uint8) *models.PostSmContextsErrorResponse {
-	buf, err := BuildGSMPDUSessionEstablishmentReject(pduSessionID, pti, cause)
-	if err != nil {
-		return &models.PostSmContextsErrorResponse{}
-	}
-
-	return &models.PostSmContextsErrorResponse{
-		BinaryDataN1SmMessage: buf,
-		Cause:                 cause,
-	}
 }
 
 func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {

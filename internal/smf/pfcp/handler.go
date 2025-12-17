@@ -53,22 +53,18 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 
 	// Downlink Data Report
 	if msg.ReportType.HasDLDR() {
-		n1n2Request := models.N1N2MessageTransferRequest{}
-
-		n1n2Request.JSONData = &models.N1N2MessageTransferReqData{
-			PduSessionID: smContext.PDUSessionID,
-			NgapIeType:   models.N2SmInfoTypePduResSetupReq,
-			SNssai:       smContext.Snssai,
-		}
-
 		n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext.SmPolicyUpdates, smContext.SmPolicyData, smContext.Tunnel.DataPath.DPNode)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 		}
 
-		n1n2Request.BinaryDataN2Information = n2Pdu
+		n1n2Request := models.N1N2MessageTransferRequest{
+			PduSessionID:            smContext.PDUSessionID,
+			SNssai:                  smContext.Snssai,
+			BinaryDataN2Information: n2Pdu,
+		}
 
-		err = amf_producer.N1N2MessageTransferProcedure(ctx, smContext.Supi, n1n2Request)
+		err = amf_producer.N2MessageTransferOrPage(ctx, smContext.Supi, n1n2Request)
 		if err != nil {
 			return message.NewSessionReportResponse(
 				1,

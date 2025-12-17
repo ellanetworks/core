@@ -3,12 +3,12 @@ package ngap
 import (
 	ctxt "context"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -143,22 +143,18 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 				if !ok {
 					ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				}
-				response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext)
+				err := pdusession.DeactivateSmContext(ctx, smContext.SmContextRef())
 				if err != nil {
 					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
-				} else if response == nil {
-					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error")
 				}
 			}
 		} else {
 			ranUe.Log.Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
 			amfUe.Mutex.Lock()
 			for _, smContext := range amfUe.SmContextList {
-				response, err := consumer.SendUpdateSmContextDeactivateUpCnxState(ctx, amfUe, smContext)
+				err := pdusession.DeactivateSmContext(ctx, smContext.SmContextRef())
 				if err != nil {
 					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
-				} else if response == nil {
-					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error")
 				}
 			}
 			amfUe.Mutex.Unlock()
