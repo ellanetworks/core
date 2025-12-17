@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/canonical/sqlair"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -53,22 +52,13 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmtStr := fmt.Sprintf(listDataNetworksPagedStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 		attribute.Int("page", page),
 		attribute.Int("per_page", perPage),
 	)
-
-	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, DataNetwork{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, 0, err
-	}
 
 	args := ListArgs{
 		Limit:  perPage,
@@ -84,7 +74,7 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 
 	var dataNetworks []DataNetwork
 
-	if err := db.conn.Query(ctx, stmt, args).GetAll(&dataNetworks); err != nil {
+	if err := db.conn.Query(ctx, db.listDataNetworksStmt, args).GetAll(&dataNetworks); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, count, nil
@@ -106,23 +96,15 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(getDataNetworkStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
 	row := DataNetwork{Name: name}
-	q, err := sqlair.Prepare(stmt, DataNetwork{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
-	}
 
-	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
+	if err := db.conn.Query(ctx, db.getDataNetworkStmt, row).Get(&row); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return nil, err
@@ -140,23 +122,15 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwor
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(getDataNetworkByIDStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
 	row := DataNetwork{ID: id}
-	q, err := sqlair.Prepare(stmt, DataNetwork{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
-	}
 
-	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
+	if err := db.conn.Query(ctx, db.getDataNetworkByIDStmt, row).Get(&row); err != nil {
 		if err == sql.ErrNoRows {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "not found")
@@ -179,21 +153,13 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(createDataNetworkStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
-	q, err := sqlair.Prepare(stmt, DataNetwork{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-	if err := db.conn.Query(ctx, q, dataNetwork).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.createDataNetworkStmt, dataNetwork).Run(); err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
 			span.SetStatus(codes.Error, "unique constraint failed")
@@ -217,10 +183,8 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(editDataNetworkStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
@@ -232,13 +196,7 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 		return err
 	}
 
-	q, err := sqlair.Prepare(stmt, DataNetwork{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-	if err := db.conn.Query(ctx, q, dataNetwork).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.editDataNetworkStmt, dataNetwork).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -256,10 +214,8 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(deleteDataNetworkStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
@@ -271,13 +227,7 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 		return err
 	}
 
-	q, err := sqlair.Prepare(stmt, DataNetwork{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-	if err := db.conn.Query(ctx, q, DataNetwork{Name: name}).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.deleteDataNetworkStmt, DataNetwork{Name: name}).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -295,22 +245,15 @@ func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(countDataNetworksStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
 	var result NumItems
-	q, err := sqlair.Prepare(stmt, NumItems{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
-	if err := db.conn.Query(ctx, q).Get(&result); err != nil {
+
+	if err := db.conn.Query(ctx, db.countDataNetworksStmt).Get(&result); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err

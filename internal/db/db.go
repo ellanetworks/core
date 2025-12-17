@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
@@ -27,16 +28,12 @@ type Database struct {
 	policiesTable          string
 	routesTable            string
 	operatorTable          string
-	dataNetworksTable      string
 	usersTable             string
 	auditLogsTable         string
-	networkLogsTable       string
 	retentionPoliciesTable string
-	apiTokensTable         string
 	sessionsTable          string
 	natSettingsTable       string
 	n3SettingsTable        string
-	dailyUsageTable        string
 
 	// Subscriber statements
 	listSubscribersStmt          *sqlair.Statement
@@ -67,6 +64,22 @@ type Database struct {
 	deleteOldRadioEventsStmt *sqlair.Statement
 	deleteAllRadioEventsStmt *sqlair.Statement
 	getRadioEventByIDStmt    *sqlair.Statement
+
+	// Daily Usage statements
+	incrementDailyUsageStmt   *sqlair.Statement
+	getUsagePerDayStmt        *sqlair.Statement
+	getUsagePerSubscriberStmt *sqlair.Statement
+	deleteAllDailyUsageStmt   *sqlair.Statement
+	deleteOldDailyUsageStmt   *sqlair.Statement
+
+	// Data Network statements
+	listDataNetworksStmt   *sqlair.Statement
+	getDataNetworkStmt     *sqlair.Statement
+	getDataNetworkByIDStmt *sqlair.Statement
+	createDataNetworkStmt  *sqlair.Statement
+	editDataNetworkStmt    *sqlair.Statement
+	deleteDataNetworkStmt  *sqlair.Statement
+	countDataNetworksStmt  *sqlair.Statement
 
 	conn *sqlair.DB
 }
@@ -187,16 +200,12 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.policiesTable = PoliciesTableName
 	db.routesTable = RoutesTableName
 	db.operatorTable = OperatorTableName
-	db.dataNetworksTable = DataNetworksTableName
 	db.usersTable = UsersTableName
 	db.auditLogsTable = AuditLogsTableName
 	db.retentionPoliciesTable = RetentionPolicyTableName
-	db.apiTokensTable = APITokensTableName
 	db.sessionsTable = SessionsTableName
 	db.natSettingsTable = NATSettingsTableName
 	db.n3SettingsTable = N3SettingsTableName
-	db.networkLogsTable = RadioEventsTableName
-	db.dailyUsageTable = DailyUsageTableName
 
 	err = db.PrepareStatements()
 	if err != nil {
@@ -214,6 +223,8 @@ func NewDatabase(databasePath string) (*Database, error) {
 }
 
 func (db *Database) PrepareStatements() error {
+	t0 := time.Now()
+
 	listSubscribersStmt, err := sqlair.Prepare(fmt.Sprintf(listSubscribersPagedStmt, SubscribersTableName), ListArgs{}, Subscriber{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare list subscribers statement: %v", err)
@@ -274,64 +285,124 @@ func (db *Database) PrepareStatements() error {
 		return fmt.Errorf("failed to prepare count subscribers with IP statement: %v", err)
 	}
 
-	listAPITokensStmt, err := sqlair.Prepare(fmt.Sprintf(listAPITokensPagedStmt, db.apiTokensTable), ListArgs{}, APIToken{})
+	listAPITokensStmt, err := sqlair.Prepare(fmt.Sprintf(listAPITokensPagedStmt, APITokensTableName), ListArgs{}, APIToken{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare list API tokens statement: %v", err)
 	}
 
-	countAPITokensStmt, err := sqlair.Prepare(fmt.Sprintf(countAPITokensStmt, db.apiTokensTable), APIToken{}, NumItems{})
+	countAPITokensStmt, err := sqlair.Prepare(fmt.Sprintf(countAPITokensStmt, APITokensTableName), APIToken{}, NumItems{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare count API tokens statement: %v", err)
 	}
 
-	createAPITokenStmt, err := sqlair.Prepare(fmt.Sprintf(createAPITokenStmt, db.apiTokensTable), APIToken{})
+	createAPITokenStmt, err := sqlair.Prepare(fmt.Sprintf(createAPITokenStmt, APITokensTableName), APIToken{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare create API token statement: %v", err)
 	}
 
-	getAPITokenByNameStmt, err := sqlair.Prepare(fmt.Sprintf(getByNameStmt, db.apiTokensTable), APIToken{})
+	getAPITokenByNameStmt, err := sqlair.Prepare(fmt.Sprintf(getByNameStmt, APITokensTableName), APIToken{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare get API token by name statement: %v", err)
 	}
 
-	deleteAPITokenStmt, err := sqlair.Prepare(fmt.Sprintf(deleteAPITokenStmt, db.apiTokensTable), APIToken{})
+	deleteAPITokenStmt, err := sqlair.Prepare(fmt.Sprintf(deleteAPITokenStmt, APITokensTableName), APIToken{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare delete API token statement: %v", err)
 	}
 
-	getAPITokenByIDStmt, err := sqlair.Prepare(fmt.Sprintf(getByTokenIDStmt, db.apiTokensTable), APIToken{})
+	getAPITokenByIDStmt, err := sqlair.Prepare(fmt.Sprintf(getByTokenIDStmt, APITokensTableName), APIToken{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare get API token by ID statement: %v", err)
 	}
 
-	insertRadioEventStmt, err := sqlair.Prepare(fmt.Sprintf(insertRadioEventStmt, db.networkLogsTable), dbwriter.RadioEvent{})
+	insertRadioEventStmt, err := sqlair.Prepare(fmt.Sprintf(insertRadioEventStmt, RadioEventsTableName), dbwriter.RadioEvent{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare insert radio event statement: %v", err)
 	}
 
-	listRadioEventsStmt, err := sqlair.Prepare(fmt.Sprintf(listRadioEventsPagedFilteredStmt, db.networkLogsTable), ListArgs{}, RadioEventFilters{}, dbwriter.RadioEvent{})
+	listRadioEventsStmt, err := sqlair.Prepare(fmt.Sprintf(listRadioEventsPagedFilteredStmt, RadioEventsTableName), ListArgs{}, RadioEventFilters{}, dbwriter.RadioEvent{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare list radio events statement: %v", err)
 	}
 
-	countRadioEventsStmt, err := sqlair.Prepare(fmt.Sprintf(countRadioEventsFilteredStmt, db.networkLogsTable), RadioEventFilters{}, NumItems{})
+	countRadioEventsStmt, err := sqlair.Prepare(fmt.Sprintf(countRadioEventsFilteredStmt, RadioEventsTableName), RadioEventFilters{}, NumItems{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare count radio events statement: %v", err)
 	}
 
-	deleteOldRadioEventsStmt, err := sqlair.Prepare(fmt.Sprintf(deleteOldRadioEventsStmt, db.networkLogsTable), cutoffArgs{})
+	deleteOldRadioEventsStmt, err := sqlair.Prepare(fmt.Sprintf(deleteOldRadioEventsStmt, RadioEventsTableName), cutoffArgs{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare delete old radio events statement: %v", err)
 	}
 
-	deleteAllRadioEventsStmt, err := sqlair.Prepare(fmt.Sprintf(deleteAllRadioEventsStmt, db.networkLogsTable))
+	deleteAllRadioEventsStmt, err := sqlair.Prepare(fmt.Sprintf(deleteAllRadioEventsStmt, RadioEventsTableName))
 	if err != nil {
 		return fmt.Errorf("failed to prepare delete all radio events statement: %v", err)
 	}
 
-	getRadioEventByIDStmt, err := sqlair.Prepare(fmt.Sprintf(getRadioEventByIDStmt, db.networkLogsTable), dbwriter.RadioEvent{})
+	getRadioEventByIDStmt, err := sqlair.Prepare(fmt.Sprintf(getRadioEventByIDStmt, RadioEventsTableName), dbwriter.RadioEvent{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare get radio event by ID statement: %v", err)
+	}
+
+	incrementDailyUsageStmt, err := sqlair.Prepare(fmt.Sprintf(incrementDailyUsageStmt, DailyUsageTableName), DailyUsage{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare increment daily usage statement: %v", err)
+	}
+
+	getUsagePerDayStmt, err := sqlair.Prepare(fmt.Sprintf(getUsagePerDayStmt, DailyUsageTableName), UsageFilters{}, UsagePerDay{})
+	if err != nil {
+		return fmt.Errorf("couldn't prepare statement: %w", err)
+	}
+
+	getUsagePerSubscriberStmt, err := sqlair.Prepare(fmt.Sprintf(getUsagePerSubscriberStmt, DailyUsageTableName), UsageFilters{}, UsagePerSub{})
+	if err != nil {
+		return fmt.Errorf("couldn't prepare statement: %w", err)
+	}
+
+	deleteAllDailyUsageStmt, err := sqlair.Prepare(fmt.Sprintf(deleteAllDailyUsageStmt, DailyUsageTableName))
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete all daily usage statement: %v", err)
+	}
+
+	deleteOldDailyUsageStmt, err := sqlair.Prepare(fmt.Sprintf(deleteOldDailyUsageStmt, DailyUsageTableName), cutoffDaysArgs{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete old daily usage statement: %v", err)
+	}
+
+	listDataNetworksStmt, err := sqlair.Prepare(fmt.Sprintf(listDataNetworksPagedStmt, DataNetworksTableName), ListArgs{}, DataNetwork{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare list data networks statement: %v", err)
+	}
+
+	getDataNetworkStmt, err := sqlair.Prepare(fmt.Sprintf(getDataNetworkStmt, DataNetworksTableName), DataNetwork{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get data network statement: %v", err)
+	}
+
+	getDataNetworkByIDStmt, err := sqlair.Prepare(fmt.Sprintf(getDataNetworkByIDStmt, DataNetworksTableName), DataNetwork{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get data network by ID statement: %v", err)
+	}
+
+	createDataNetworkStmt, err := sqlair.Prepare(fmt.Sprintf(createDataNetworkStmt, DataNetworksTableName), DataNetwork{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare create data network statement: %v", err)
+	}
+
+	editDataNetworkStmt, err := sqlair.Prepare(fmt.Sprintf(editDataNetworkStmt, DataNetworksTableName), DataNetwork{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare update data network statement: %v", err)
+	}
+
+	deleteDataNetworkStmt, err := sqlair.Prepare(fmt.Sprintf(deleteDataNetworkStmt, DataNetworksTableName), DataNetwork{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete data network statement: %v", err)
+	}
+
+	countDataNetworksStmt, err := sqlair.Prepare(fmt.Sprintf(countDataNetworksStmt, DataNetworksTableName), NumItems{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare count data networks statement: %v", err)
 	}
 
 	db.listSubscribersStmt = listSubscribersStmt
@@ -360,6 +431,23 @@ func (db *Database) PrepareStatements() error {
 	db.deleteOldRadioEventsStmt = deleteOldRadioEventsStmt
 	db.deleteAllRadioEventsStmt = deleteAllRadioEventsStmt
 	db.getRadioEventByIDStmt = getRadioEventByIDStmt
+
+	db.incrementDailyUsageStmt = incrementDailyUsageStmt
+	db.getUsagePerDayStmt = getUsagePerDayStmt
+	db.getUsagePerSubscriberStmt = getUsagePerSubscriberStmt
+	db.deleteAllDailyUsageStmt = deleteAllDailyUsageStmt
+	db.deleteOldDailyUsageStmt = deleteOldDailyUsageStmt
+
+	db.listDataNetworksStmt = listDataNetworksStmt
+	db.getDataNetworkStmt = getDataNetworkStmt
+	db.getDataNetworkByIDStmt = getDataNetworkByIDStmt
+	db.createDataNetworkStmt = createDataNetworkStmt
+	db.editDataNetworkStmt = editDataNetworkStmt
+	db.deleteDataNetworkStmt = deleteDataNetworkStmt
+	db.countDataNetworksStmt = countDataNetworksStmt
+
+	t1 := time.Now()
+	logger.DBLog.Debug("Prepared database statements", zap.Duration("duration", t1.Sub(t0)))
 
 	return nil
 }

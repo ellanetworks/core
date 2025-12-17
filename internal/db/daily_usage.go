@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/canonical/sqlair"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -117,21 +116,13 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(incrementDailyUsageStmt, db.dailyUsageTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
-	q, err := sqlair.Prepare(stmt, DailyUsage{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-	if err := db.conn.Query(ctx, q, usage).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.incrementDailyUsageStmt, usage).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -157,25 +148,15 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmtStr := fmt.Sprintf(getUsagePerDayStmt, db.dailyUsageTable)
-
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
 	var dailyUsage []UsagePerDay
 
-	q, err := sqlair.Prepare(stmtStr, UsageFilters{}, UsagePerDay{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, fmt.Errorf("couldn't prepare statement: %w", err)
-	}
-
-	if err := db.conn.Query(ctx, q, dailyUsageFilters).GetAll(&dailyUsage); err != nil {
+	if err := db.conn.Query(ctx, db.getUsagePerDayStmt, dailyUsageFilters).GetAll(&dailyUsage); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
@@ -206,25 +187,15 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmtStr := fmt.Sprintf(getUsagePerSubscriberStmt, db.dailyUsageTable)
-
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
 	var dailyUsage []UsagePerSub
 
-	q, err := sqlair.Prepare(stmtStr, UsageFilters{}, UsagePerSub{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, fmt.Errorf("couldn't prepare statement: %w", err)
-	}
-
-	if err := db.conn.Query(ctx, q, dailyUsageFilters).GetAll(&dailyUsage); err != nil {
+	if err := db.conn.Query(ctx, db.getUsagePerSubscriberStmt, dailyUsageFilters).GetAll(&dailyUsage); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
@@ -247,22 +218,13 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(deleteAllDailyUsageStmt, db.dailyUsageTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
-	q, err := sqlair.Prepare(stmt)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-
-	if err := db.conn.Query(ctx, q).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.deleteAllDailyUsageStmt).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -284,24 +246,15 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 	now := time.Now().UTC()
 	cutoffDay := DaysSinceEpoch(now.AddDate(0, 0, -days))
 
-	stmtStr := fmt.Sprintf(deleteOldDailyUsageStmt, db.dailyUsageTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 		attribute.Int("retention.days", days),
 		attribute.Int64("retention.cutoff_epoch_day", cutoffDay),
 	)
 
-	q, err := sqlair.Prepare(stmtStr, cutoffDaysArgs{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-
-	if err := db.conn.Query(ctx, q, cutoffDaysArgs{CutoffDays: cutoffDay}).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: cutoffDay}).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
