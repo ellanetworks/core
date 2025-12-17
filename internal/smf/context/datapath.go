@@ -9,9 +9,10 @@ package context
 import (
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/smf/util"
 	"go.uber.org/zap"
 )
 
@@ -148,8 +149,8 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) 
 		DLGate: GateOpen,
 	}
 	newQER.MBR = &MBR{
-		ULMBR: util.BitRateTokbps(sessionRule.AuthSessAmbr.Uplink),
-		DLMBR: util.BitRateTokbps(sessionRule.AuthSessAmbr.Downlink),
+		ULMBR: BitRateTokbps(sessionRule.AuthSessAmbr.Uplink),
+		DLMBR: BitRateTokbps(sessionRule.AuthSessAmbr.Downlink),
 	}
 
 	flowQER := newQER
@@ -293,4 +294,31 @@ func (dataPath *DataPath) DeactivateTunnelAndPDR() {
 	DPNode.DeactivateUpLinkTunnel()
 	DPNode.DeactivateDownLinkTunnel()
 	dataPath.Activated = false
+}
+
+func BitRateTokbps(bitrate string) uint64 {
+	s := strings.Split(bitrate, " ")
+	var kbps uint64
+
+	var digit int
+
+	if n, err := strconv.Atoi(s[0]); err != nil {
+		return 0
+	} else {
+		digit = n
+	}
+
+	switch s[1] {
+	case "bps":
+		kbps = uint64(digit / 1000)
+	case "Kbps":
+		kbps = uint64(digit * 1)
+	case "Mbps":
+		kbps = uint64(digit * 1000)
+	case "Gbps":
+		kbps = uint64(digit * 1000000)
+	case "Tbps":
+		kbps = uint64(digit * 1000000000)
+	}
+	return kbps
 }

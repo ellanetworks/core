@@ -3,11 +3,10 @@ package ngap
 import (
 	ctxt "context"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -105,17 +104,16 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 			transfer := item.HandoverRequestAcknowledgeTransfer
 			pduSessionIDUint8 := uint8(pduSessionID)
 			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-				response, err := consumer.SendUpdateSmContextN2HandoverPrepared(ctx, amfUe, smContext, models.N2SmInfoTypeHandoverReqAck, transfer)
+				n2Rsp, err := pdusession.UpdateSmContextN2HandoverPrepared(smContext.SmContextRef(), transfer)
 				if err != nil {
 					targetUe.Log.Error("Send HandoverRequestAcknowledgeTransfer error", zap.Error(err))
+					continue
 				}
-				if response != nil && response.BinaryDataN2SmInformation != nil {
-					handoverItem := ngapType.PDUSessionResourceHandoverItem{}
-					handoverItem.PDUSessionID = item.PDUSessionID
-					handoverItem.HandoverCommandTransfer = response.BinaryDataN2SmInformation
-					pduSessionResourceHandoverList.List = append(pduSessionResourceHandoverList.List, handoverItem)
-					targetUe.SuccessPduSessionID = append(targetUe.SuccessPduSessionID, pduSessionIDUint8)
-				}
+				handoverItem := ngapType.PDUSessionResourceHandoverItem{}
+				handoverItem.PDUSessionID = item.PDUSessionID
+				handoverItem.HandoverCommandTransfer = n2Rsp
+				pduSessionResourceHandoverList.List = append(pduSessionResourceHandoverList.List, handoverItem)
+				targetUe.SuccessPduSessionID = append(targetUe.SuccessPduSessionID, pduSessionIDUint8)
 			}
 		}
 	}
@@ -126,7 +124,7 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 			transfer := item.HandoverResourceAllocationUnsuccessfulTransfer
 			pduSessionIDUint8 := uint8(pduSessionID)
 			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-				_, err := consumer.SendUpdateSmContextN2HandoverPrepared(ctx, amfUe, smContext, models.N2SmInfoTypeHandoverResAllocFail, transfer)
+				_, err := pdusession.UpdateSmContextN2HandoverPrepared(smContext.SmContextRef(), transfer)
 				if err != nil {
 					targetUe.Log.Error("Send HandoverResourceAllocationUnsuccessfulTransfer error", zap.Error(err))
 				}

@@ -50,7 +50,7 @@ func RegisterDatabaseMetrics(db *db.Database) {
 
 	IPAddressesTotal = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "app_ip_addresses_total",
-		Help: "The total number of IP addresses allocated to subscribers",
+		Help: "The total number of IP addresses available for subscribers",
 	}, func() float64 {
 		total, err := db.GetIPAddressesTotal()
 		if err != nil {
@@ -61,7 +61,7 @@ func RegisterDatabaseMetrics(db *db.Database) {
 	})
 
 	IPAddressesAllocated = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Name: "app_ip_addresses_allocated",
+		Name: "app_ip_addresses_allocated_total",
 		Help: "The total number of IP addresses currently allocated to subscribers",
 	}, func() float64 {
 		allocated, err := db.GetIPAddressesAllocated(context.Background())
@@ -78,8 +78,8 @@ func RegisterDatabaseMetrics(db *db.Database) {
 }
 
 func RegisterSmfMetrics() {
-	PduSessions = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_pdu_sessions",
+	PduSessions = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "app_pdu_sessions_total",
 		Help: "Number of PDU sessions currently in Ella",
 	}, func() float64 {
 		return float64(smfStats.GetPDUSessionCount())
@@ -91,70 +91,70 @@ func RegisterSmfMetrics() {
 func RegisterUPFMetrics(stats *ebpf.UpfXdpActionStatistic) {
 	// Metrics for the app_xdp_statistic (xdp_action)
 	UpfN3XdpAborted = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n3_xdp_aborted",
+		Name: "app_n3_xdp_aborted_total",
 		Help: "The total number of aborted packets (n3)",
 	}, func() float64 {
 		return float64(stats.GetN3Aborted())
 	})
 
 	UpfN3XdpDrop = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n3_xdp_drop",
+		Name: "app_n3_xdp_drop_total",
 		Help: "The total number of dropped packets (n3)",
 	}, func() float64 {
 		return float64(stats.GetN3Drop())
 	})
 
 	UpfN3XdpPass = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n3_xdp_pass",
+		Name: "app_n3_xdp_pass_total",
 		Help: "The total number of passed packets (n3)",
 	}, func() float64 {
 		return float64(stats.GetN3Pass())
 	})
 
 	UpfN3XdpTx = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n3_xdp_tx",
+		Name: "app_n3_xdp_tx_total",
 		Help: "The total number of transmitted packets (n3)",
 	}, func() float64 {
 		return float64(stats.GetN3Tx())
 	})
 
 	UpfN3XdpRedirect = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n3_xdp_redirect",
+		Name: "app_n3_xdp_redirect_total",
 		Help: "The total number of redirected packets (n3)",
 	}, func() float64 {
 		return float64(stats.GetN3Redirect())
 	})
 
 	UpfN6XdpAborted = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n6_xdp_aborted",
+		Name: "app_n6_xdp_aborted_total",
 		Help: "The total number of aborted packets (n6)",
 	}, func() float64 {
 		return float64(stats.GetN6Aborted())
 	})
 
 	UpfN6XdpDrop = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n6_xdp_drop",
+		Name: "app_n6_xdp_drop_total",
 		Help: "The total number of dropped packets (n6)",
 	}, func() float64 {
 		return float64(stats.GetN6Drop())
 	})
 
 	UpfN6XdpPass = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n6_xdp_pass",
+		Name: "app_n6_xdp_pass_total",
 		Help: "The total number of passed packets (n6)",
 	}, func() float64 {
 		return float64(stats.GetN3Pass())
 	})
 
 	UpfN6XdpTx = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n6_xdp_tx",
+		Name: "app_n6_xdp_tx_total",
 		Help: "The total number of transmitted packets (n6)",
 	}, func() float64 {
 		return float64(stats.GetN6Tx())
 	})
 
 	UpfN6XdpRedirect = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n6_xdp_redirect",
+		Name: "app_n6_xdp_redirect_total",
 		Help: "The total number of redirected packets (n6)",
 	}, func() float64 {
 		return float64(stats.GetN6Redirect())

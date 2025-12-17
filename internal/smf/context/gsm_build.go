@@ -7,14 +7,16 @@
 package context
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
-	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -72,7 +74,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	pDUSessionEstablishmentAccept.SetPDUSessionType(pduSessionType)
 
 	pDUSessionEstablishmentAccept.SetSSCMode(1)
-	ambr, err := util.ModelsToSessionAMBR(sessRule.AuthSessAmbr)
+	ambr, err := modelsToSessionAMBR(sessRule.AuthSessAmbr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert models to SessionAMBR: %v", err)
 	}
@@ -211,4 +213,46 @@ func BuildGSMPDUSessionReleaseCommand(pduSessionID uint8, pti uint8) ([]byte, er
 	pDUSessionReleaseCommand.SetCauseValue(0x0)
 
 	return m.PlainNasEncode()
+}
+
+func modelsToSessionAMBR(ambr *models.Ambr) (nasType.SessionAMBR, error) {
+	var sessAmbr nasType.SessionAMBR
+	uplink := strings.Split(ambr.Uplink, " ")
+	if bitRate, err := strconv.ParseUint(uplink[0], 10, 16); err != nil {
+		return sessAmbr, fmt.Errorf("failed to parse uplink bitrate: %v", err)
+	} else {
+		var bitRateBytes [2]byte
+		binary.BigEndian.PutUint16(bitRateBytes[:], uint16(bitRate))
+		sessAmbr.SetSessionAMBRForUplink(bitRateBytes)
+	}
+	sessAmbr.SetUnitForSessionAMBRForUplink(strToAMBRUnit(uplink[1]))
+
+	downlink := strings.Split(ambr.Downlink, " ")
+	if bitRate, err := strconv.ParseUint(downlink[0], 10, 16); err != nil {
+		return sessAmbr, fmt.Errorf("failed to parse downlink bitrate: %v", err)
+	} else {
+		var bitRateBytes [2]byte
+		binary.BigEndian.PutUint16(bitRateBytes[:], uint16(bitRate))
+		sessAmbr.SetSessionAMBRForDownlink(bitRateBytes)
+	}
+	sessAmbr.SetUnitForSessionAMBRForDownlink(strToAMBRUnit(downlink[1]))
+	return sessAmbr, nil
+}
+
+func strToAMBRUnit(unit string) uint8 {
+	switch unit {
+	case "bps":
+		return nasMessage.SessionAMBRUnitNotUsed
+	case "Kbps":
+		return nasMessage.SessionAMBRUnit1Kbps
+	case "Mbps":
+		return nasMessage.SessionAMBRUnit1Mbps
+	case "Gbps":
+		return nasMessage.SessionAMBRUnit1Gbps
+	case "Tbps":
+		return nasMessage.SessionAMBRUnit1Tbps
+	case "Pbps":
+		return nasMessage.SessionAMBRUnit1Pbps
+	}
+	return nasMessage.SessionAMBRUnitNotUsed
 }

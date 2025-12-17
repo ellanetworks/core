@@ -3,10 +3,9 @@ package ngap
 import (
 	ctxt "context"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -102,16 +101,9 @@ func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, me
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				return
 			}
-			response, err := consumer.SendUpdateSmContextN2Info(ctx, amfUe, smContext,
-				models.N2SmInfoTypePduResSetupRsp, transfer)
+			err := pdusession.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.SmContextRef(), transfer)
 			if err != nil {
 				ranUe.Log.Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err))
-			}
-			// RAN initiated QoS Flow Mobility in subclause 5.2.2.3.7
-			if response != nil && response.BinaryDataN2SmInformation != nil {
-			} else if response == nil {
-				// error handling
-				ranUe.Log.Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error: received error response from SMF")
 			}
 		}
 	}
@@ -127,8 +119,7 @@ func HandleInitialContextSetupResponse(ctx ctxt.Context, ran *context.AmfRan, me
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				return
 			}
-			_, err := consumer.SendUpdateSmContextN2Info(ctx, amfUe, smContext,
-				models.N2SmInfoTypePduResSetupFail, transfer)
+			err := pdusession.UpdateSmContextN2InfoPduResSetupFail(smContext.SmContextRef(), transfer)
 			if err != nil {
 				ranUe.Log.Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err))
 			}

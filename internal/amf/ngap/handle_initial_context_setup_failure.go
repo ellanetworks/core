@@ -3,10 +3,9 @@ package ngap
 import (
 	ctxt "context"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -96,8 +95,7 @@ func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, mes
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				continue
 			}
-			_, err := consumer.SendUpdateSmContextN2Info(ctx, amfUe, smContext,
-				models.N2SmInfoTypePduResSetupFail, transfer)
+			err := pdusession.UpdateSmContextN2InfoPduResSetupFail(smContext.SmContextRef(), transfer)
 			if err != nil {
 				ranUe.Log.Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err))
 			}

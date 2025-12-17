@@ -17,13 +17,3 @@ func FindFTEID(createdPDRIEs []*ie.IE) (*ie.FTEIDFields, error) {
 	}
 	return nil, fmt.Errorf("FTEID not found in CreatedPDR")
 }
-
-// func FindUEIPAddress(createdPDRIEs []*ie.IE) net.IP {
-// 	for _, createdPDRIE := range createdPDRIEs {
-// 		ueIPAddress, err := createdPDRIE.UEIPAddress()
-// 		if err == nil {
-// 			return ueIPAddress.IPv4Address
-// 		}
-// 	}
-// 	return nil
-// }

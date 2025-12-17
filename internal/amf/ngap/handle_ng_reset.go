@@ -79,7 +79,7 @@ func HandleNGReset(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU)
 		for _, ueAssociatedLogicalNGConnectionItem := range partOfNGInterface.List {
 			if ueAssociatedLogicalNGConnectionItem.AMFUENGAPID != nil {
 				ran.Log.Debug("NG Reset with AMFUENGAPID", zap.Int64("AmfUeNgapID", ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value))
-				for _, ue := range ran.RanUeList {
+				for _, ue := range ran.RanUePool {
 					if ue.AmfUeNgapID == ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value {
 						ranUe = ue
 						break

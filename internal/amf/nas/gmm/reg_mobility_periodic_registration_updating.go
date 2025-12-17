@@ -4,11 +4,9 @@ import (
 	ctxt "context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -96,23 +94,20 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 					// uplink data are pending for the corresponding PDU session identity
 					if hasUplinkData {
-						response, err := consumer.SendUpdateSmContextActivateUpCnxState(ctx, ue, smContext)
-						if response == nil {
+						binaryDataN2SmInformation, err := pdusession.ActivateSmContext(smContext.SmContextRef())
+						if err != nil {
+							ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 							reactivationResult[pduSessionID] = true
 							errPduSessionID = append(errPduSessionID, pduSessionID)
 							cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 							errCause = append(errCause, cause)
-
-							if err != nil {
-								ue.Log.Error("Update SmContext Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
-							}
 						} else {
 							if ue.RanUe.UeContextRequest {
 								ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID,
-									smContext.Snssai(), response.BinaryDataN1SmMessage, response.BinaryDataN2SmInformation)
+									smContext.Snssai(), nil, binaryDataN2SmInformation)
 							} else {
 								ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID,
-									smContext.Snssai(), response.BinaryDataN1SmMessage, response.BinaryDataN2SmInformation)
+									smContext.Snssai(), nil, binaryDataN2SmInformation)
 							}
 						}
 					}
@@ -148,7 +143,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 
 	if ue.RegistrationRequest.AllowedPDUSessionStatus != nil {
 		if ue.N1N2Message != nil {
-			requestData := ue.N1N2Message.JSONData
+			requestData := ue.N1N2Message
 			n1Msg := ue.N1N2Message.BinaryDataN1Message
 			n2Info := ue.N1N2Message.BinaryDataN2Information
 
@@ -188,17 +183,16 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 				return fmt.Errorf("pdu Session Id does not Exists")
 			}
 
-			if requestData.NgapIeType == models.N2SmInfoTypePduResSetupReq {
-				var nasPdu []byte
-				var err error
-				if n1Msg != nil {
-					nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
-					if err != nil {
-						return err
-					}
+			var nasPdu []byte
+			var err error
+			if n1Msg != nil {
+				nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
+				if err != nil {
+					return err
 				}
-				ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 			}
+
+			ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 		}
 	}
 

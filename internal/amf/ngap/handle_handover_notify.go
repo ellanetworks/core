@@ -3,7 +3,6 @@ package ngap
 import (
 	ctxt "context"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
@@ -98,19 +97,9 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 	}
 
 	ran.Log.Info("Handle Handover notification Finshed ")
-	for _, pduSessionid := range targetUe.SuccessPduSessionID {
-		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionid)
-		if !ok {
-			ran.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionid))
-		}
-		_, err := consumer.SendUpdateSmContextN2HandoverComplete(ctx, amfUe, smContext)
-		if err != nil {
-			ran.Log.Error("Send UpdateSmContextN2HandoverComplete Error", zap.Error(err))
-		}
-	}
+
 	amfUe.AttachRanUe(targetUe)
-	err := ngap_message.SendUEContextReleaseCommand(ctx, sourceUe, context.UeContextReleaseHandover, ngapType.CausePresentNas,
-		ngapType.CauseNasPresentNormalRelease)
+	err := ngap_message.SendUEContextReleaseCommand(ctx, sourceUe, context.UeContextReleaseHandover, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {
 		ran.Log.Error("error sending ue context release command", zap.Error(err))
 		return

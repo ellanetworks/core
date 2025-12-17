@@ -31,7 +31,7 @@ type AmfRan struct {
 	GnbIP           string
 	Conn            *sctp.SCTPConn
 	SupportedTAList []SupportedTAI
-	RanUeList       []*RanUe // RanUeNgapID as key
+	RanUePool       map[int64]*RanUe // Key: RanUeNgapID
 	Log             *zap.Logger
 }
 
@@ -68,17 +68,16 @@ func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {
 	ranUe.Ran = ran
 	ranUe.Log = ran.Log.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("%d", ranUe.AmfUeNgapID)))
 
-	ran.RanUeList = append(ran.RanUeList, &ranUe)
+	ran.RanUePool[ranUe.RanUeNgapID] = &ranUe
 
 	self.Mutex.Lock()
 	defer self.Mutex.Unlock()
-	self.RanUePool[ranUe.AmfUeNgapID] = &ranUe
 
 	return &ranUe, nil
 }
 
 func (ran *AmfRan) RemoveAllUeInRan() {
-	for _, ranUe := range ran.RanUeList {
+	for _, ranUe := range ran.RanUePool {
 		err := ranUe.Remove()
 		if err != nil {
 			logger.AmfLog.Error("error removing ran ue", zap.Error(err))
@@ -87,10 +86,9 @@ func (ran *AmfRan) RemoveAllUeInRan() {
 }
 
 func (ran *AmfRan) RanUeFindByRanUeNgapID(ranUeNgapID int64) *RanUe {
-	for _, ranUe := range ran.RanUeList {
-		if ranUe.RanUeNgapID == ranUeNgapID {
-			return ranUe
-		}
+	ranUe, ok := ran.RanUePool[ranUeNgapID]
+	if ok {
+		return ranUe
 	}
 
 	ran.Log.Debug("Ran UE not found", zap.Int64("ranUeNgapID", ranUeNgapID))

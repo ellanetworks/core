@@ -336,7 +336,7 @@ func SendRegistrationAccept(
 	}
 
 	if ue.RanUe.UeContextRequest {
-		err = ngap_message.SendInitialContextSetupRequest(ctx, ue, nasMsg, pduSessionResourceSetupList, nil, nil, nil, supportedGUAMI)
+		err = ngap_message.SendInitialContextSetupRequest(ctx, ue, nasMsg, pduSessionResourceSetupList, supportedGUAMI)
 		if err != nil {
 			return fmt.Errorf("error sending initial context setup request: %s", err.Error())
 		}
@@ -357,7 +357,7 @@ func SendRegistrationAccept(
 				ue.T3550 = nil
 			} else {
 				if ue.RanUe.UeContextRequest && !ue.RanUe.RecvdInitialContextSetupResponse {
-					err = ngap_message.SendInitialContextSetupRequest(ctx, ue, nasMsg, pduSessionResourceSetupList, nil, nil, nil, supportedGUAMI)
+					err = ngap_message.SendInitialContextSetupRequest(ctx, ue, nasMsg, pduSessionResourceSetupList, supportedGUAMI)
 					if err != nil {
 						ue.Log.Error("could not send initial context setup request", zap.Error(err))
 					}

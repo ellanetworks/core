@@ -20,10 +20,7 @@ type DockerClient struct {
 }
 
 func NewDockerClient() (*DockerClient, error) {
-	cli, err := client.New(
-		client.FromEnv,
-		client.WithAPIVersionNegotiation(),
-	)
+	cli, err := client.New(client.FromEnv)
 	if err != nil {
 		return nil, fmt.Errorf("create docker client: %w", err)
 	}

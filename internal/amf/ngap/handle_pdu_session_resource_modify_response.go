@@ -3,10 +3,8 @@ package ngap
 import (
 	ctxt "context"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -34,8 +32,6 @@ func HandlePDUSessionResourceModifyResponse(ctx ctxt.Context, ran *context.AmfRa
 
 	var aMFUENGAPID *ngapType.AMFUENGAPID
 	var rANUENGAPID *ngapType.RANUENGAPID
-	var pduSessionResourceModifyResponseList *ngapType.PDUSessionResourceModifyListModRes
-	var pduSessionResourceFailedToModifyList *ngapType.PDUSessionResourceFailedToModifyListModRes
 	var userLocationInformation *ngapType.UserLocationInformation
 
 	for _, ie := range pDUSessionResourceModifyResponse.ProtocolIEs.List {
@@ -45,9 +41,7 @@ func HandlePDUSessionResourceModifyResponse(ctx ctxt.Context, ran *context.AmfRa
 		case ngapType.ProtocolIEIDRANUENGAPID: // ignore
 			rANUENGAPID = ie.Value.RANUENGAPID
 		case ngapType.ProtocolIEIDPDUSessionResourceModifyListModRes: // ignore
-			pduSessionResourceModifyResponseList = ie.Value.PDUSessionResourceModifyListModRes
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToModifyListModRes: // ignore
-			pduSessionResourceFailedToModifyList = ie.Value.PDUSessionResourceFailedToModifyListModRes
 		case ngapType.ProtocolIEIDUserLocationInformation: // optional, ignore
 			userLocationInformation = ie.Value.UserLocationInformation
 		}
@@ -73,47 +67,6 @@ func HandlePDUSessionResourceModifyResponse(ctx ctxt.Context, ran *context.AmfRa
 	if ranUe != nil {
 		ranUe.Ran = ran
 		ranUe.Log.Debug("Handle PDUSessionResourceModifyResponse", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
-		amfUe := ranUe.AmfUe
-		if amfUe == nil {
-			ranUe.Log.Error("amfUe is nil")
-			return
-		}
-
-		if pduSessionResourceModifyResponseList != nil {
-			ranUe.Log.Debug("Send PDUSessionResourceModifyResponseTransfer to SMF")
-
-			for _, item := range pduSessionResourceModifyResponseList.List {
-				pduSessionID := uint8(item.PDUSessionID.Value)
-				transfer := item.PDUSessionResourceModifyResponseTransfer
-				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
-				if !ok {
-					ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
-				}
-				_, err := consumer.SendUpdateSmContextN2Info(ctx, amfUe, smContext,
-					models.N2SmInfoTypePduResModRsp, transfer)
-				if err != nil {
-					ranUe.Log.Error("SendUpdateSmContextN2Info[PDUSessionResourceModifyResponseTransfer] Error", zap.Error(err))
-				}
-			}
-		}
-
-		if pduSessionResourceFailedToModifyList != nil {
-			ranUe.Log.Debug("Send PDUSessionResourceModifyUnsuccessfulTransfer to SMF")
-
-			for _, item := range pduSessionResourceFailedToModifyList.List {
-				pduSessionID := uint8(item.PDUSessionID.Value)
-				transfer := item.PDUSessionResourceModifyUnsuccessfulTransfer
-				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
-				if !ok {
-					ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
-				}
-				_, err := consumer.SendUpdateSmContextN2Info(ctx, amfUe, smContext,
-					models.N2SmInfoTypePduResModFail, transfer)
-				if err != nil {
-					ranUe.Log.Error("SendUpdateSmContextN2Info[PDUSessionResourceModifyUnsuccessfulTransfer] Error", zap.Error(err))
-				}
-			}
-		}
 
 		if userLocationInformation != nil {
 			ranUe.UpdateLocation(ctx, userLocationInformation)

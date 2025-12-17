@@ -3,7 +3,6 @@ package ngap
 import (
 	ctxt "context"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
@@ -101,19 +100,6 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 	if targetUe == nil {
 		ran.Log.Error("N2 Handover between AMF has not been implemented yet")
 		return
-	}
-
-	ran.Log.Debug("handle handover cancel", zap.Int64("targetRanUeNgapID", targetUe.RanUeNgapID), zap.Int64("targetAmfUeNgapID", targetUe.AmfUeNgapID), zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID))
-	amfUe := sourceUe.AmfUe
-	if amfUe != nil {
-		amfUe.Mutex.Lock()
-		for pduSessionID, smContext := range amfUe.SmContextList {
-			_, err := consumer.SendUpdateSmContextN2HandoverCanceled(ctx, amfUe, smContext)
-			if err != nil {
-				sourceUe.Log.Error("Send UpdateSmContextN2HandoverCanceled Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
-			}
-		}
-		amfUe.Mutex.Unlock()
 	}
 
 	err = message.SendUEContextReleaseCommand(ctx, targetUe, context.UeContextReleaseHandover, causePresent, causeValue)

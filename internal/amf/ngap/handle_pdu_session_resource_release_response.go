@@ -3,10 +3,9 @@ package ngap
 import (
 	ctxt "context"
 
-	"github.com/ellanetworks/core/internal/amf/consumer"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -85,19 +84,17 @@ func HandlePDUSessionResourceReleaseResponse(ctx ctxt.Context, ran *context.AmfR
 
 		for _, item := range pDUSessionResourceReleasedList.List {
 			pduSessionID := uint8(item.PDUSessionID.Value)
-			transfer := item.PDUSessionResourceReleaseResponseTransfer
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+				continue
 			}
-			_, err := consumer.SendUpdateSmContextN2Info(ctx, amfUe, smContext,
-				models.N2SmInfoTypePduResRelRsp, transfer)
-			if err == nil && smContext != nil {
-				smContext.SetPduSessionInActive(true)
-			}
+			err := pdusession.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.SmContextRef())
 			if err != nil {
-				ranUe.Log.Error("error sending update sm context n2 info", zap.Error(err))
+				ranUe.Log.Error("SendUpdateSmContextN2InfoPduResRelRsp failed", zap.Error(err))
+				continue
 			}
+			smContext.SetPduSessionInActive(true)
 		}
 	}
 }
