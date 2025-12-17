@@ -51,6 +51,14 @@ type Database struct {
 	countSubscribersByPolicyStmt *sqlair.Statement
 	countSubscribersWithIPStmt   *sqlair.Statement
 
+	// API Token statements
+	listAPITokensStmt     *sqlair.Statement
+	countAPITokensStmt    *sqlair.Statement
+	createAPITokenStmt    *sqlair.Statement
+	getAPITokenByNameStmt *sqlair.Statement
+	getAPITokenByIDStmt   *sqlair.Statement
+	deleteAPITokenStmt    *sqlair.Statement
+
 	conn *sqlair.DB
 }
 
@@ -257,6 +265,36 @@ func (db *Database) PrepareStatements() error {
 		return fmt.Errorf("failed to prepare count subscribers with IP statement: %v", err)
 	}
 
+	listAPITokensStmt, err := sqlair.Prepare(fmt.Sprintf(listAPITokensPagedStmt, db.apiTokensTable), ListArgs{}, APIToken{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare list API tokens statement: %v", err)
+	}
+
+	countAPITokensStmt, err := sqlair.Prepare(fmt.Sprintf(countAPITokensStmt, db.apiTokensTable), APIToken{}, NumItems{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare count API tokens statement: %v", err)
+	}
+
+	createAPITokenStmt, err := sqlair.Prepare(fmt.Sprintf(createAPITokenStmt, db.apiTokensTable), APIToken{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare create API token statement: %v", err)
+	}
+
+	getAPITokenByNameStmt, err := sqlair.Prepare(fmt.Sprintf(getByNameStmt, db.apiTokensTable), APIToken{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get API token by name statement: %v", err)
+	}
+
+	deleteAPITokenStmt, err := sqlair.Prepare(fmt.Sprintf(deleteAPITokenStmt, db.apiTokensTable), APIToken{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete API token statement: %v", err)
+	}
+
+	getAPITokenByIDStmt, err := sqlair.Prepare(fmt.Sprintf(getByTokenIDStmt, db.apiTokensTable), APIToken{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get API token by ID statement: %v", err)
+	}
+
 	db.listSubscribersStmt = listSubscribersStmt
 	db.countSubscribersStmt = countSubscribersStmt
 	db.getSubscriberStmt = getSubscriberStmt
@@ -269,6 +307,13 @@ func (db *Database) PrepareStatements() error {
 	db.releaseSubscriberIPStmt = releaseSubscriberIPStmt
 	db.countSubscribersByPolicyStmt = countSubscribersByPolicyStmt
 	db.countSubscribersWithIPStmt = countSubscribersWithIPStmt
+
+	db.listAPITokensStmt = listAPITokensStmt
+	db.countAPITokensStmt = countAPITokensStmt
+	db.createAPITokenStmt = createAPITokenStmt
+	db.getAPITokenByNameStmt = getAPITokenByNameStmt
+	db.deleteAPITokenStmt = deleteAPITokenStmt
+	db.getAPITokenByIDStmt = getAPITokenByIDStmt
 
 	return nil
 }
