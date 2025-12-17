@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -63,27 +62,17 @@ type Subscriber struct {
 func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage int) ([]Subscriber, int, error) {
 	const operation = "SELECT"
 	const target = SubscribersTableName
+
 	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmtStr := fmt.Sprintf(listSubscribersPagedStmt, db.subscribersTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
-		attribute.Int("page", page),
-		attribute.Int("per_page", perPage),
 	)
-
-	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, Subscriber{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, 0, err
-	}
 
 	count, err := db.CountSubscribers(ctx)
 	if err != nil {
@@ -99,7 +88,7 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 		Offset: (page - 1) * perPage,
 	}
 
-	if err := db.conn.Query(ctx, stmt, args).GetAll(&subs); err != nil {
+	if err := db.conn.Query(ctx, db.listSubscribersStmt, args).GetAll(&subs); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, count, nil
@@ -115,29 +104,21 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 
 func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber, error) {
 	operation := "SELECT"
-	target := db.subscribersTable
+	target := SubscribersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(getSubscriberStmt, db.subscribersTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
 	row := Subscriber{Imsi: imsi}
-	q, err := sqlair.Prepare(stmt, Subscriber{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
-	}
 
-	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
+	if err := db.conn.Query(ctx, db.getSubscriberStmt, row).Get(&row); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return nil, err
@@ -149,28 +130,19 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 
 func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber) error {
 	operation := "INSERT"
-	target := db.subscribersTable
+	target := SubscribersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(createSubscriberStmt, db.subscribersTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
-	q, err := sqlair.Prepare(stmt, Subscriber{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-
-	if err := db.conn.Query(ctx, q, subscriber).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.createSubscriberStmt, subscriber).Run(); err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
 			span.SetStatus(codes.Error, "unique constraint failed")
@@ -188,28 +160,19 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 
 func (db *Database) UpdateSubscriber(ctx context.Context, subscriber *Subscriber) error {
 	operation := "UPDATE"
-	target := db.subscribersTable
+	target := SubscribersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(editSubscriberStmt, db.subscribersTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
-	q, err := sqlair.Prepare(stmt, Subscriber{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-
-	if err := db.conn.Query(ctx, q, subscriber).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.updateSubscriberStmt, subscriber).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -221,16 +184,14 @@ func (db *Database) UpdateSubscriber(ctx context.Context, subscriber *Subscriber
 
 func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi string, sequenceNumber string) error {
 	operation := "UPDATE"
-	target := db.subscribersTable
+	target := SubscribersTableName
 	spanName := fmt.Sprintf("%s %s (sequence number)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(editSubscriberSeqNumStmt, db.subscribersTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
@@ -240,14 +201,7 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 		SequenceNumber: sequenceNumber,
 	}
 
-	q, err := sqlair.Prepare(stmt, Subscriber{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-
-	if err := db.conn.Query(ctx, q, subscriber).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.updateSubscriberSqnNumStmt, subscriber).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -259,35 +213,25 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 
 func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 	operation := "DELETE"
-	target := db.subscribersTable
+	target := SubscribersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(deleteSubscriberStmt, db.subscribersTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
-	// verify existence
 	if _, err := db.GetSubscriber(ctx, imsi); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
 		return err
 	}
 
-	q, err := sqlair.Prepare(stmt, Subscriber{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-
-	if err := db.conn.Query(ctx, q, Subscriber{Imsi: imsi}).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.deleteSubscriberStmt, Subscriber{Imsi: imsi}).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -380,27 +324,17 @@ func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error)
 	maskBits, totalBits := ipNet.Mask.Size()
 	totalIPs := 1 << (totalBits - maskBits)
 
-	checkStmt, err := sqlair.Prepare(fmt.Sprintf(checkIPStmt, SubscribersTableName), Subscriber{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare IP check statement: %v", err)
-	}
-
 	for i := 1; i < totalIPs-1; i++ { // Skip network and broadcast addresses
 		ip := addOffsetToIP(baseIP, i)
 		ipStr := ip.String()
 
 		var existing Subscriber
-		err = db.conn.Query(ctx, checkStmt, Subscriber{IPAddress: &ipStr}).Get(&existing)
+		err = db.conn.Query(ctx, db.checkSubscriberIPStmt, Subscriber{IPAddress: &ipStr}).Get(&existing)
 		if err == sql.ErrNoRows {
 			// IP is not allocated, assign it to the subscriber
 			subscriber.IPAddress = &ipStr
 
-			stmt, err := sqlair.Prepare(fmt.Sprintf(allocateIPStmt, SubscribersTableName), Subscriber{})
-			if err != nil {
-				return nil, fmt.Errorf("failed to prepare IP allocation statement: %v", err)
-			}
-
-			err = db.conn.Query(ctx, stmt, subscriber).Run()
+			err = db.conn.Query(ctx, db.allocateSubscriberIPStmt, subscriber).Run()
 			if err != nil {
 				if isUniqueNameError(err) {
 					logger.DBLog.Warn("IP address collision during allocation, retrying", zap.String("ip", ipStr))
@@ -427,12 +361,7 @@ func (db *Database) releaseIP(ctx context.Context, imsi string) error {
 		return nil
 	}
 
-	stmt, err := sqlair.Prepare(fmt.Sprintf(releaseIPStmt, SubscribersTableName), Subscriber{})
-	if err != nil {
-		return fmt.Errorf("failed to prepare IP release statement: %v", err)
-	}
-
-	err = db.conn.Query(ctx, stmt, subscriber).Run()
+	err = db.conn.Query(ctx, db.releaseSubscriberIPStmt, subscriber).Run()
 	if err != nil {
 		return fmt.Errorf("failed to release IP: %v", err)
 	}
@@ -471,30 +400,21 @@ func addOffsetToIP(baseIP net.IP, offset int) net.IP {
 
 func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 	operation := "SELECT"
-	target := db.subscribersTable
+	target := SubscribersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(countSubscribersStmt, db.subscribersTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
-	q, err := sqlair.Prepare(stmt, NumItems{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
-
 	var result NumItems
 
-	if err := db.conn.Query(ctx, q).Get(&result); err != nil {
+	if err := db.conn.Query(ctx, db.countSubscribersStmt).Get(&result); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err
@@ -506,33 +426,24 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 
 func (db *Database) CountSubscribersInPolicy(ctx context.Context, policyID int) (int, error) {
 	operation := "SELECT"
-	target := db.subscribersTable
+	target := SubscribersTableName
 	spanName := fmt.Sprintf("%s %s (by policy)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(countSubscribersInPolicyStmt, db.subscribersTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 		attribute.Int("policy_id", policyID),
 	)
 
-	q, err := sqlair.Prepare(stmt, NumItems{}, Subscriber{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
-
 	var result NumItems
 
 	subscriber := Subscriber{PolicyID: policyID}
 
-	if err := db.conn.Query(ctx, q, subscriber).Get(&result); err != nil {
+	if err := db.conn.Query(ctx, db.countSubscribersByPolicyStmt, subscriber).Get(&result); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err
@@ -544,30 +455,21 @@ func (db *Database) CountSubscribersInPolicy(ctx context.Context, policyID int) 
 
 func (db *Database) CountSubscribersWithIP(ctx context.Context) (int, error) {
 	operation := "SELECT"
-	target := db.subscribersTable
+	target := SubscribersTableName
 	spanName := fmt.Sprintf("%s %s (with IP)", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(countSubscribersWithIPStmt, db.subscribersTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
 		semconv.DBOperationKey.String(operation),
 		attribute.String("db.collection", target),
 	)
 
-	q, err := sqlair.Prepare(stmt, NumItems{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
-
 	var result NumItems
 
-	if err := db.conn.Query(ctx, q).Get(&result); err != nil {
+	if err := db.conn.Query(ctx, db.countSubscribersWithIPStmt).Get(&result); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err

@@ -21,8 +21,8 @@ var tracer = otel.Tracer("ella-core/db")
 
 // Database is the object used to communicate with the established repository.
 type Database struct {
-	filepath               string
-	subscribersTable       string
+	filepath string
+
 	policiesTable          string
 	routesTable            string
 	operatorTable          string
@@ -36,7 +36,22 @@ type Database struct {
 	natSettingsTable       string
 	n3SettingsTable        string
 	dailyUsageTable        string
-	conn                   *sqlair.DB
+
+	// Subscriber statements
+	listSubscribersStmt          *sqlair.Statement
+	countSubscribersStmt         *sqlair.Statement
+	getSubscriberStmt            *sqlair.Statement
+	createSubscriberStmt         *sqlair.Statement
+	updateSubscriberStmt         *sqlair.Statement
+	updateSubscriberSqnNumStmt   *sqlair.Statement
+	deleteSubscriberStmt         *sqlair.Statement
+	checkSubscriberIPStmt        *sqlair.Statement
+	allocateSubscriberIPStmt     *sqlair.Statement
+	releaseSubscriberIPStmt      *sqlair.Statement
+	countSubscribersByPolicyStmt *sqlair.Statement
+	countSubscribersWithIPStmt   *sqlair.Statement
+
+	conn *sqlair.DB
 }
 
 // Initial Retention Policy values
@@ -152,7 +167,6 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db := new(Database)
 	db.conn = sqlair.NewDB(sqlConnection)
 	db.filepath = databasePath
-	db.subscribersTable = SubscribersTableName
 	db.policiesTable = PoliciesTableName
 	db.routesTable = RoutesTableName
 	db.operatorTable = OperatorTableName
@@ -167,6 +181,11 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.networkLogsTable = RadioEventsTableName
 	db.dailyUsageTable = DailyUsageTableName
 
+	err = db.PrepareStatements()
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare statements: %w", err)
+	}
+
 	err = db.Initialize()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
@@ -175,6 +194,83 @@ func NewDatabase(databasePath string) (*Database, error) {
 	logger.DBLog.Debug("Database Initialized")
 
 	return db, nil
+}
+
+func (db *Database) PrepareStatements() error {
+	listSubscribersStmt, err := sqlair.Prepare(fmt.Sprintf(listSubscribersPagedStmt, SubscribersTableName), ListArgs{}, Subscriber{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare list subscribers statement: %v", err)
+	}
+
+	countSubscribersStmt, err := sqlair.Prepare(fmt.Sprintf(countSubscribersStmt, SubscribersTableName), NumItems{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare count subscribers statement: %v", err)
+	}
+
+	getSubscriberStmt, err := sqlair.Prepare(fmt.Sprintf(getSubscriberStmt, SubscribersTableName), Subscriber{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get subscriber statement: %v", err)
+	}
+
+	createSubscriberStmt, err := sqlair.Prepare(fmt.Sprintf(createSubscriberStmt, SubscribersTableName), Subscriber{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare create subscriber statement: %v", err)
+	}
+
+	updateSubscriberStmt, err := sqlair.Prepare(fmt.Sprintf(editSubscriberStmt, SubscribersTableName), Subscriber{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare update subscriber statement: %v", err)
+	}
+
+	updateSubscriberSqnNumStmt, err := sqlair.Prepare(fmt.Sprintf(editSubscriberSeqNumStmt, SubscribersTableName), Subscriber{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare update subscriber SQN statement: %v", err)
+	}
+
+	deleteSubscriberStmt, err := sqlair.Prepare(fmt.Sprintf(deleteSubscriberStmt, SubscribersTableName), Subscriber{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete subscriber statement: %v", err)
+	}
+
+	checkSubscriberIPStmt, err := sqlair.Prepare(fmt.Sprintf(checkIPStmt, SubscribersTableName), Subscriber{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare IP check statement: %v", err)
+	}
+
+	allocateSubscriberIPStmt, err := sqlair.Prepare(fmt.Sprintf(allocateIPStmt, SubscribersTableName), Subscriber{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare IP allocation statement: %v", err)
+	}
+
+	releaseSubscriberIPStmt, err := sqlair.Prepare(fmt.Sprintf(releaseIPStmt, SubscribersTableName), Subscriber{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare IP release statement: %v", err)
+	}
+
+	countSubscribersByPolicyStmt, err := sqlair.Prepare(fmt.Sprintf(countSubscribersInPolicyStmt, SubscribersTableName), NumItems{}, Subscriber{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare count subscribers by policy statement: %v", err)
+	}
+
+	countSubscribersWithIPStmt, err := sqlair.Prepare(fmt.Sprintf(countSubscribersWithIPStmt, SubscribersTableName), NumItems{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare count subscribers with IP statement: %v", err)
+	}
+
+	db.listSubscribersStmt = listSubscribersStmt
+	db.countSubscribersStmt = countSubscribersStmt
+	db.getSubscriberStmt = getSubscriberStmt
+	db.createSubscriberStmt = createSubscriberStmt
+	db.updateSubscriberStmt = updateSubscriberStmt
+	db.updateSubscriberSqnNumStmt = updateSubscriberSqnNumStmt
+	db.deleteSubscriberStmt = deleteSubscriberStmt
+	db.checkSubscriberIPStmt = checkSubscriberIPStmt
+	db.allocateSubscriberIPStmt = allocateSubscriberIPStmt
+	db.releaseSubscriberIPStmt = releaseSubscriberIPStmt
+	db.countSubscribersByPolicyStmt = countSubscribersByPolicyStmt
+	db.countSubscribersWithIPStmt = countSubscribersWithIPStmt
+
+	return nil
 }
 
 func (db *Database) Initialize() error {
