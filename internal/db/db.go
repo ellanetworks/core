@@ -27,13 +27,10 @@ type Database struct {
 
 	policiesTable          string
 	routesTable            string
-	operatorTable          string
 	usersTable             string
 	auditLogsTable         string
 	retentionPoliciesTable string
 	sessionsTable          string
-	natSettingsTable       string
-	// n3SettingsTable        string
 
 	// Subscriber statements
 	listSubscribersStmt          *sqlair.Statement
@@ -85,6 +82,20 @@ type Database struct {
 	insertDefaultN3SettingsStmt *sqlair.Statement
 	updateN3SettingsStmt        *sqlair.Statement
 	getN3SettingsStmt           *sqlair.Statement
+
+	// NAT Settings statements
+	insertDefaultNATSettingsStmt *sqlair.Statement
+	getNATSettingsStmt           *sqlair.Statement
+	upsertNATSettingsStmt        *sqlair.Statement
+
+	// Operator statements
+	getOperatorStmt                 *sqlair.Statement
+	initializeOperatorStmt          *sqlair.Statement
+	updateOperatorSliceStmt         *sqlair.Statement
+	updateOperatorTrackingStmt      *sqlair.Statement
+	updateOperatorIDStmt            *sqlair.Statement
+	updateOperatorCodeStmt          *sqlair.Statement
+	updateHomeNetworkPrivateKeyStmt *sqlair.Statement
 
 	conn *sqlair.DB
 }
@@ -204,19 +215,17 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.filepath = databasePath
 	db.policiesTable = PoliciesTableName
 	db.routesTable = RoutesTableName
-	db.operatorTable = OperatorTableName
 	db.usersTable = UsersTableName
 	db.auditLogsTable = AuditLogsTableName
 	db.retentionPoliciesTable = RetentionPolicyTableName
 	db.sessionsTable = SessionsTableName
-	db.natSettingsTable = NATSettingsTableName
 
 	err = db.PrepareStatements()
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statements: %w", err)
 	}
 
-	err = db.Initialize()
+	err = db.Initialize(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
@@ -424,6 +433,56 @@ func (db *Database) PrepareStatements() error {
 		return fmt.Errorf("failed to prepare get N3 settings statement: %w", err)
 	}
 
+	insertDefaultNATSettingsStmt, err := sqlair.Prepare(fmt.Sprintf(insertDefaultNATSettingsStmt, NATSettingsTableName), NATSettings{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare insert default NAT settings statement: %w", err)
+	}
+
+	getNATSettingsStmt, err := sqlair.Prepare(fmt.Sprintf(getNATSettingsStmt, NATSettingsTableName), NATSettings{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get NAT settings statement: %w", err)
+	}
+
+	upsertNATSettingsStmt, err := sqlair.Prepare(fmt.Sprintf(upsertNATSettingsStmt, NATSettingsTableName), NATSettings{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare upsert NAT settings statement: %w", err)
+	}
+
+	getOperatorSettingsStmt, err := sqlair.Prepare(fmt.Sprintf(getOperatorStmt, OperatorTableName), Operator{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get operator statement: %v", err)
+	}
+
+	initializeOperatorStmt, err := sqlair.Prepare(fmt.Sprintf(initializeOperatorStmt, OperatorTableName), Operator{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare initialize operator configuration statement: %w", err)
+	}
+
+	updateOperatorSliceStmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorSliceStmt, OperatorTableName), Operator{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare update operator slice statement: %w", err)
+	}
+
+	updateOperatorTrackingStmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorTrackingStmt, OperatorTableName), Operator{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare update operator tracking statement: %w", err)
+	}
+
+	updateOperatorIDStmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorIDStmt, OperatorTableName), Operator{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare update operator ID statement: %w", err)
+	}
+
+	updateOperatorCodeStmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorCodeStmt, OperatorTableName), Operator{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare update operator code statement: %w", err)
+	}
+
+	updateHomeNetworkPrivateKeyStmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorHomeNetworkPrivateKeyStmt, OperatorTableName), Operator{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare update operator HN private key statement: %w", err)
+	}
+
 	db.listSubscribersStmt = listSubscribersStmt
 	db.countSubscribersStmt = countSubscribersStmt
 	db.getSubscriberStmt = getSubscriberStmt
@@ -469,24 +528,36 @@ func (db *Database) PrepareStatements() error {
 	db.updateN3SettingsStmt = updateN3SettingsStmt
 	db.getN3SettingsStmt = getN3SettingsStmt
 
+	db.insertDefaultNATSettingsStmt = insertDefaultNATSettingsStmt
+	db.getNATSettingsStmt = getNATSettingsStmt
+	db.upsertNATSettingsStmt = upsertNATSettingsStmt
+
+	db.getOperatorStmt = getOperatorSettingsStmt
+	db.initializeOperatorStmt = initializeOperatorStmt
+	db.updateOperatorSliceStmt = updateOperatorSliceStmt
+	db.updateOperatorTrackingStmt = updateOperatorTrackingStmt
+	db.updateOperatorIDStmt = updateOperatorIDStmt
+	db.updateOperatorCodeStmt = updateOperatorCodeStmt
+	db.updateHomeNetworkPrivateKeyStmt = updateHomeNetworkPrivateKeyStmt
+
 	t1 := time.Now()
 	logger.DBLog.Debug("Prepared database statements", zap.Duration("duration", t1.Sub(t0)))
 
 	return nil
 }
 
-func (db *Database) Initialize() error {
-	err := db.InitializeNATSettings(context.Background())
+func (db *Database) Initialize(ctx context.Context) error {
+	err := db.InitializeNATSettings(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to initialize NAT settings: %w", err)
 	}
 
-	err = db.InitializeN3Settings(context.Background())
+	err = db.InitializeN3Settings(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to initialize N3 settings: %w", err)
 	}
 
-	if !db.IsOperatorInitialized() {
+	if !db.IsOperatorInitialized(ctx) {
 		initialOp, err := generateOperatorCode()
 		if err != nil {
 			return fmt.Errorf("couldn't generate operator code: %w", err)
@@ -504,8 +575,14 @@ func (db *Database) Initialize() error {
 			Sd:                    InitialOperatorSd,
 			HomeNetworkPrivateKey: initialHNPrivateKey,
 		}
-		initialOperator.SetSupportedTacs(InitialSupportedTacs)
-		if err := db.InitializeOperator(context.Background(), initialOperator); err != nil {
+
+		err = initialOperator.SetSupportedTacs(InitialSupportedTacs)
+		if err != nil {
+			return fmt.Errorf("failed to set supported TACs: %w", err)
+		}
+
+		err = db.InitializeOperator(context.Background(), initialOperator)
+		if err != nil {
 			return fmt.Errorf("failed to initialize network configuration: %v", err)
 		}
 	}
