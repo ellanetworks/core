@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/canonical/sqlair"
-	"github.com/ellanetworks/core/internal/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -42,105 +40,82 @@ type NATSettings struct {
 // InitializeNATSettings inserts the default NAT settings into the database.
 // If the settings already exist, it does nothing.
 func (db *Database) InitializeNATSettings(ctx context.Context) error {
-	operation := "INSERT"
-	target := NATSettingsTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	stmt := fmt.Sprintf(insertDefaultNATSettingsStmt, db.natSettingsTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "INSERT", NATSettingsTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("INSERT"),
+			attribute.String("db.collection", NATSettingsTableName),
+		),
 	)
-
-	q, err := sqlair.Prepare(stmt, NATSettings{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return fmt.Errorf("failed to prepare insert default NAT settings statement: %w", err)
-	}
+	defer span.End()
 
 	natSettings := NATSettings{Enabled: NATDefaultEnabled}
 
-	if err := db.conn.Query(ctx, q, natSettings).Run(); err != nil {
+	err := db.conn.Query(ctx, db.insertDefaultNATSettingsStmt, natSettings).Run()
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return fmt.Errorf("failed to insert default NAT settings: %w", err)
 	}
 
-	logger.DBLog.Debug("Initialized NAT settings")
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 func (db *Database) IsNATEnabled(ctx context.Context) (bool, error) {
-	operation := "SELECT"
-	target := NATSettingsTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", NATSettingsTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", NATSettingsTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(getNATSettingsStmt, db.natSettingsTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	q, err := sqlair.Prepare(stmt, NATSettings{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return false, fmt.Errorf("failed to prepare get NAT settings statement: %w", err)
-	}
-
 	var natSettings NATSettings
-	if err := db.conn.Query(ctx, q).Get(&natSettings); err != nil {
+
+	err := db.conn.Query(ctx, db.getNATSettingsStmt).Get(&natSettings)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return false, fmt.Errorf("failed to get NAT settings: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return natSettings.Enabled, nil
 }
 
 func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
-	operation := "UPSERT"
-	target := NATSettingsTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPSERT", NATSettingsTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("UPSERT"),
+			attribute.String("db.collection", NATSettingsTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(upsertNATSettingsStmt, db.natSettingsTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	q, err := sqlair.Prepare(stmt, NATSettings{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return fmt.Errorf("failed to prepare upsert NAT settings statement: %w", err)
-	}
-
 	arg := NATSettings{Enabled: enabled}
-	if err := db.conn.Query(ctx, q, arg).Run(); err != nil {
+
+	err := db.conn.Query(ctx, db.upsertNATSettingsStmt, arg).Run()
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return fmt.Errorf("failed to upsert NAT settings: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }

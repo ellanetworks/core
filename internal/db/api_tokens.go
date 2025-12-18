@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/canonical/sqlair"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -47,29 +46,19 @@ const (
 )
 
 func (db *Database) ListAPITokensPage(ctx context.Context, userID int, page int, perPage int) ([]APIToken, int, error) {
-	const operation = "SELECT"
-	const target = APITokensTableName
-	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	stmtStr := fmt.Sprintf(listAPITokensPagedStmt, db.apiTokensTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-		attribute.Int("page", page),
-		attribute.Int("per_page", perPage),
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (paged)", "SELECT", APITokensTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", APITokensTableName),
+			attribute.Int("page", page),
+			attribute.Int("per_page", perPage),
+		),
 	)
-
-	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, APIToken{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, 0, err
-	}
+	defer span.End()
 
 	count, err := db.CountAPITokens(ctx, userID)
 	if err != nil {
@@ -87,7 +76,8 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID int, page int,
 
 	apiTokenArg := APIToken{UserID: userID}
 
-	if err := db.conn.Query(ctx, stmt, args, apiTokenArg).GetAll(&tokens); err != nil {
+	err = db.conn.Query(ctx, db.listAPITokensStmt, args, apiTokenArg).GetAll(&tokens)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, count, nil
@@ -98,160 +88,146 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID int, page int,
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return tokens, count, nil
 }
 
 // CreateAPIToken inserts a new api token with a span named "INSERT api_token".
 func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) error {
-	operation := "INSERT"
-	target := APITokensTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "INSERT", APITokensTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("INSERT"),
+			attribute.String("db.collection", APITokensTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(createAPITokenStmt, db.apiTokensTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	q, err := sqlair.Prepare(stmt, APIToken{})
+	err := db.conn.Query(ctx, db.createAPITokenStmt, apiToken).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-	if err := db.conn.Query(ctx, q, apiToken).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*APIToken, error) {
-	stmt := fmt.Sprintf(getByTokenIDStmt, db.apiTokensTable)
-	q, err := sqlair.Prepare(stmt, APIToken{})
-	if err != nil {
-		return nil, err
-	}
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", APITokensTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", APITokensTableName),
+		),
+	)
+	defer span.End()
 
 	row := APIToken{TokenID: tokenID}
-	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
+
+	err := db.conn.Query(ctx, db.getAPITokenByIDStmt, row).Get(&row)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, err
-	}
-	return &row, nil
-}
 
-func (db *Database) GetAPITokenByName(ctx context.Context, userID int, name string) (*APIToken, error) {
-	operation := "SELECT"
-	target := APITokensTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	stmt := fmt.Sprintf(getByNameStmt, db.apiTokensTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	row := APIToken{UserID: userID, Name: name}
-
-	q, err := sqlair.Prepare(stmt, APIToken{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
-	}
-
-	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return nil, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
+	return &row, nil
+}
+
+func (db *Database) GetAPITokenByName(ctx context.Context, userID int, name string) (*APIToken, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", APITokensTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", APITokensTableName),
+		),
+	)
+	defer span.End()
+
+	row := APIToken{UserID: userID, Name: name}
+
+	err := db.conn.Query(ctx, db.getAPITokenByNameStmt, row).Get(&row)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+		return nil, err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
 	return &row, nil
 }
 
 func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
-	operation := "DELETE"
-	target := APITokensTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "DELETE", APITokensTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("DELETE"),
+			attribute.String("db.collection", APITokensTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(deleteAPITokenStmt, db.apiTokensTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	q, err := sqlair.Prepare(stmt, APIToken{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
 	arg := APIToken{ID: id}
-	if err := db.conn.Query(ctx, q, arg).Run(); err != nil {
+
+	err := db.conn.Query(ctx, db.deleteAPITokenStmt, arg).Run()
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 func (db *Database) CountAPITokens(ctx context.Context, userID int) (int, error) {
-	operation := "SELECT"
-	target := APITokensTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	stmt := fmt.Sprintf(countAPITokensStmt, db.apiTokensTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", APITokensTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", APITokensTableName),
+		),
 	)
-
-	q, err := sqlair.Prepare(stmt, APIToken{}, NumItems{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
+	defer span.End()
 
 	var result NumItems
 
 	arg := APIToken{UserID: userID}
 
-	if err := db.conn.Query(ctx, q, arg).Get(&result); err != nil {
+	err := db.conn.Query(ctx, db.countAPITokensStmt, arg).Get(&result)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return result.Count, nil
 }

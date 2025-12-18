@@ -39,30 +39,22 @@ type Session struct {
 }
 
 func (db *Database) CreateSession(ctx context.Context, session *Session) (int64, error) {
-	operation := "INSERT"
-	target := db.sessionsTable
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "INSERT", SessionsTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("INSERT"),
+			attribute.String("db.collection", SessionsTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(createSessionStmt, db.sessionsTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	var outcome sqlair.Outcome
-	q, err := sqlair.Prepare(stmt, Session{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
 
-	if err := db.conn.Query(ctx, q, session).Get(&outcome); err != nil {
+	err := db.conn.Query(ctx, db.createSessionStmt, session).Get(&outcome)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err
@@ -76,101 +68,81 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) (int64,
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return id, nil
 }
 
 func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (*Session, error) {
-	operation := "SELECT"
-	target := db.sessionsTable
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", SessionsTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", SessionsTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(getSessionByTokenHashStmt, db.sessionsTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	row := Session{TokenHash: tokenHash}
-	q, err := sqlair.Prepare(stmt, Session{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
-	}
 
-	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
+	err := db.conn.Query(ctx, db.getSessionByTokenHashStmt, row).Get(&row)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return nil, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return &row, nil
 }
 
 func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []byte) error {
-	operation := "DELETE"
-	target := db.sessionsTable
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("DELETE"),
+			attribute.String("db.collection", SessionsTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(deleteSessionByTokenHashStmt, db.sessionsTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	q, err := sqlair.Prepare(stmt, Session{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
 	arg := Session{TokenHash: tokenHash}
-	if err := db.conn.Query(ctx, q, arg).Run(); err != nil {
+
+	err := db.conn.Query(ctx, db.deleteSessionByTokenHashStmt, arg).Run()
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
-	operation := "DELETE"
-	target := db.sessionsTable
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("DELETE"),
+			attribute.String("db.collection", SessionsTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(deleteExpiredSessionsStmt, db.sessionsTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	var outcome sqlair.Outcome
-	q, err := sqlair.Prepare(stmt)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
 
-	if err := db.conn.Query(ctx, q).Get(&outcome); err != nil {
+	err := db.conn.Query(ctx, db.deleteExpiredSessionsStmt).Get(&outcome)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err
@@ -184,5 +156,6 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return int(rowsAffected), nil
 }
