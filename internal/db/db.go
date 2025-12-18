@@ -25,7 +25,6 @@ var tracer = otel.Tracer("ella-core/db")
 type Database struct {
 	filepath string
 
-	policiesTable          string
 	routesTable            string
 	usersTable             string
 	auditLogsTable         string
@@ -96,6 +95,15 @@ type Database struct {
 	updateOperatorIDStmt            *sqlair.Statement
 	updateOperatorCodeStmt          *sqlair.Statement
 	updateHomeNetworkPrivateKeyStmt *sqlair.Statement
+
+	// Policies statements
+	listPoliciesStmt  *sqlair.Statement
+	getPolicyStmt     *sqlair.Statement
+	getPolicyByIDStmt *sqlair.Statement
+	createPolicyStmt  *sqlair.Statement
+	editPolicyStmt    *sqlair.Statement
+	deletePolicyStmt  *sqlair.Statement
+	countPoliciesStmt *sqlair.Statement
 
 	conn *sqlair.DB
 }
@@ -213,7 +221,6 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db := new(Database)
 	db.conn = sqlair.NewDB(sqlConnection)
 	db.filepath = databasePath
-	db.policiesTable = PoliciesTableName
 	db.routesTable = RoutesTableName
 	db.usersTable = UsersTableName
 	db.auditLogsTable = AuditLogsTableName
@@ -483,6 +490,41 @@ func (db *Database) PrepareStatements() error {
 		return fmt.Errorf("failed to prepare update operator HN private key statement: %w", err)
 	}
 
+	listPoliciesStmt, err := sqlair.Prepare(fmt.Sprintf(listPoliciesPagedStmt, PoliciesTableName), ListArgs{}, Policy{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare list policies statement: %v", err)
+	}
+
+	getPolicyStmt, err := sqlair.Prepare(fmt.Sprintf(getPolicyStmt, PoliciesTableName), Policy{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get policy statement: %v", err)
+	}
+
+	getPolicyByIDStmt, err := sqlair.Prepare(fmt.Sprintf(getPolicyByIDStmt, PoliciesTableName), Policy{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get policy by ID statement: %v", err)
+	}
+
+	createPolicyStmt, err := sqlair.Prepare(fmt.Sprintf(createPolicyStmt, PoliciesTableName), Policy{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare create policy statement: %v", err)
+	}
+
+	editPolicyStmt, err := sqlair.Prepare(fmt.Sprintf(editPolicyStmt, PoliciesTableName), Policy{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare update policy statement: %v", err)
+	}
+
+	deletePolicyStmt, err := sqlair.Prepare(fmt.Sprintf(deletePolicyStmt, PoliciesTableName), Policy{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete policy statement: %v", err)
+	}
+
+	countPoliciesStmt, err := sqlair.Prepare(fmt.Sprintf(countPoliciesStmt, PoliciesTableName), NumItems{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare count policies statement: %v", err)
+	}
+
 	db.listSubscribersStmt = listSubscribersStmt
 	db.countSubscribersStmt = countSubscribersStmt
 	db.getSubscriberStmt = getSubscriberStmt
@@ -539,6 +581,14 @@ func (db *Database) PrepareStatements() error {
 	db.updateOperatorIDStmt = updateOperatorIDStmt
 	db.updateOperatorCodeStmt = updateOperatorCodeStmt
 	db.updateHomeNetworkPrivateKeyStmt = updateHomeNetworkPrivateKeyStmt
+
+	db.listPoliciesStmt = listPoliciesStmt
+	db.getPolicyStmt = getPolicyStmt
+	db.getPolicyByIDStmt = getPolicyByIDStmt
+	db.createPolicyStmt = createPolicyStmt
+	db.editPolicyStmt = editPolicyStmt
+	db.deletePolicyStmt = deletePolicyStmt
+	db.countPoliciesStmt = countPoliciesStmt
 
 	t1 := time.Now()
 	logger.DBLog.Debug("Prepared database statements", zap.Duration("duration", t1.Sub(t0)))

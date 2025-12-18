@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/canonical/sqlair"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -52,29 +51,19 @@ type Policy struct {
 }
 
 func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int) ([]Policy, int, error) {
-	const operation = "SELECT"
-	const target = PoliciesTableName
-	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	stmtStr := fmt.Sprintf(listPoliciesPagedStmt, db.policiesTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-		attribute.Int("page", page),
-		attribute.Int("per_page", perPage),
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (paged)", "SELECT", PoliciesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", PoliciesTableName),
+			attribute.Int("page", page),
+			attribute.Int("per_page", perPage),
+		),
 	)
-
-	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, Policy{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, 0, err
-	}
+	defer span.End()
 
 	count, err := db.CountPolicies(ctx)
 	if err != nil {
@@ -90,7 +79,8 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 		Offset: (page - 1) * perPage,
 	}
 
-	if err := db.conn.Query(ctx, stmt, args).GetAll(&policies); err != nil {
+	err = db.conn.Query(ctx, db.listPoliciesStmt, args).GetAll(&policies)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, count, nil
@@ -101,68 +91,54 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return policies, count, nil
 }
 
 func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error) {
-	operation := "SELECT"
-	target := PoliciesTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", PoliciesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", PoliciesTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(getPolicyStmt, db.policiesTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	row := Policy{Name: name}
-	q, err := sqlair.Prepare(stmt, Policy{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
-	}
 
-	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
+	err := db.conn.Query(ctx, db.getPolicyStmt, row).Get(&row)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return nil, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return &row, nil
 }
 
 func (db *Database) GetPolicyByID(ctx context.Context, id int) (*Policy, error) {
-	operation := "SELECT"
-	target := PoliciesTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", PoliciesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", PoliciesTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(getPolicyByIDStmt, db.policiesTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	row := Policy{ID: id}
-	q, err := sqlair.Prepare(stmt, Policy{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
-	}
 
-	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
+	err := db.conn.Query(ctx, db.getPolicyByIDStmt, row).Get(&row)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "not found")
@@ -174,33 +150,25 @@ func (db *Database) GetPolicyByID(ctx context.Context, id int) (*Policy, error) 
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return &row, nil
 }
 
 func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
-	operation := "INSERT"
-	target := PoliciesTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "INSERT", PoliciesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("INSERT"),
+			attribute.String("db.collection", PoliciesTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(createPolicyStmt, db.policiesTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	q, err := sqlair.Prepare(stmt, Policy{})
+	err := db.conn.Query(ctx, db.createPolicyStmt, policy).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-
-	if err := db.conn.Query(ctx, q, policy).Run(); err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
 			span.SetStatus(codes.Error, "unique constraint failed")
@@ -213,117 +181,98 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
-	operation := "UPDATE"
-	target := PoliciesTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPDATE", PoliciesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("UPDATE"),
+			attribute.String("db.collection", PoliciesTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(editPolicyStmt, db.policiesTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	// ensure exists
-	if _, err := db.GetPolicy(ctx, policy.Name); err != nil {
+	_, err := db.GetPolicy(ctx, policy.Name)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
 		return err
 	}
 
-	q, err := sqlair.Prepare(stmt, Policy{})
+	err = db.conn.Query(ctx, db.editPolicyStmt, policy).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-	if err := db.conn.Query(ctx, q, policy).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 func (db *Database) DeletePolicy(ctx context.Context, name string) error {
-	operation := "DELETE"
-	target := PoliciesTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "DELETE", PoliciesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("DELETE"),
+			attribute.String("db.collection", PoliciesTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(deletePolicyStmt, db.policiesTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	// ensure exists
-	if _, err := db.GetPolicy(ctx, name); err != nil {
+	_, err := db.GetPolicy(ctx, name)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
 		return err
 	}
 
-	q, err := sqlair.Prepare(stmt, Policy{})
+	err = db.conn.Query(ctx, db.deletePolicyStmt, Policy{Name: name}).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-	if err := db.conn.Query(ctx, q, Policy{Name: name}).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 // CountPolicies returns policy count
 func (db *Database) CountPolicies(ctx context.Context) (int, error) {
-	operation := "SELECT"
-	target := PoliciesTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", PoliciesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", PoliciesTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(countPoliciesStmt, db.policiesTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	var result NumItems
-	q, err := sqlair.Prepare(stmt, NumItems{})
+
+	err := db.conn.Query(ctx, db.countPoliciesStmt).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
-	if err := db.conn.Query(ctx, q).Get(&result); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return result.Count, nil
 }
