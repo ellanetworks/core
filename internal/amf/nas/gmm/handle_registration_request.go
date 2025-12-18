@@ -13,6 +13,7 @@ import (
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/nas/security"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
@@ -58,14 +59,51 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		ue.T3513.Stop()
 		ue.T3513 = nil // clear the timer
 	}
+
 	if ue.T3565 != nil {
 		ue.T3565.Stop()
 		ue.T3565 = nil // clear the timer
 	}
 
+	// TS 24.501 4.4.6: If NASMessageContainer is present, it contains a ciphered inner Registration Request
+	// carrying non-cleartext IEs, which must be decrypted and processed instead of the outer message.
+	if registrationRequest.NASMessageContainer != nil {
+		contents := registrationRequest.NASMessageContainer.GetNASMessageContainerContents()
+
+		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
+		if err != nil {
+			err1 := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			if err1 != nil {
+				return fmt.Errorf("error sending registration reject after error decrypting: %v", err1)
+			}
+			return fmt.Errorf("failed to decrypt NAS message - sent registration reject: %v", err)
+		}
+
+		m := nas.NewMessage()
+
+		if err := m.GmmMessageDecode(&contents); err != nil {
+			err1 := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			if err1 != nil {
+				return fmt.Errorf("error sending registration reject after error decoding: %v", err1)
+			}
+			return fmt.Errorf("failed to decode NAS message - sent registration reject: %v", err)
+		}
+
+		messageType := m.GmmMessage.GmmHeader.GetMessageType()
+		if messageType != nas.MsgTypeRegistrationRequest {
+			return fmt.Errorf("expected registration request, got %d", messageType)
+		}
+
+		registrationRequest = m.RegistrationRequest
+
+		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
+	}
+
 	ue.RegistrationRequest = registrationRequest
 	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
+
 	regName := getRegistrationType5GSName(ue.RegistrationType5GS)
+
 	ue.Log.Debug("Received Registration Request", zap.String("registrationType", regName))
 
 	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSReserved {
@@ -172,7 +210,7 @@ func handleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Gmm
 	switch ue.State.Current() {
 	case context.Deregistered, context.Registered:
 		if err := HandleRegistrationRequest(ctx, ue, msg.RegistrationRequest); err != nil {
-			return fmt.Errorf("failed handling registration request")
+			return fmt.Errorf("failed handling registration request: %v", err)
 		}
 
 		ue.State.Set(context.Authentication)
