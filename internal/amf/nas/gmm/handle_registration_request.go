@@ -65,10 +65,9 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		ue.T3565 = nil // clear the timer
 	}
 
-	// TS 24.501 4.4.6: When the UE has a valid 5G NAS security context and needs to send non-cleartext IEs
+	// TS 24.501 4.4.6: If NASMessageContainer is present, it contains a ciphered inner Registration Request
+	// carrying non-cleartext IEs, which must be decrypted and processed instead of the outer message.
 	if registrationRequest.NASMessageContainer != nil {
-		logger.AmfLog.Warn("TO DELETE: Received NAS Message Container in Registration Request")
-
 		contents := registrationRequest.NASMessageContainer.GetNASMessageContainerContents()
 
 		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
@@ -96,8 +95,6 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		}
 
 		registrationRequest = m.RegistrationRequest
-
-		logger.AmfLog.Warn("TO DELETE: Received NAS Message Container in Registration Request - finished")
 
 		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
 	}
@@ -213,7 +210,7 @@ func handleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Gmm
 	switch ue.State.Current() {
 	case context.Deregistered, context.Registered:
 		if err := HandleRegistrationRequest(ctx, ue, msg.RegistrationRequest); err != nil {
-			return fmt.Errorf("failed handling registration request")
+			return fmt.Errorf("failed handling registration request: %v", err)
 		}
 
 		ue.State.Set(context.Authentication)
