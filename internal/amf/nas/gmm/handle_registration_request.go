@@ -65,6 +65,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		ue.T3565 = nil // clear the timer
 	}
 
+	// TS 24.501 4.4.6: When the UE has a valid 5G NAS security context and needs to send non-cleartext IEs
 	if registrationRequest.NASMessageContainer != nil {
 		logger.AmfLog.Warn("TO DELETE: Received NAS Message Container in Registration Request")
 
@@ -96,12 +97,16 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 
 		registrationRequest = m.RegistrationRequest
 
+		logger.AmfLog.Warn("TO DELETE: Received NAS Message Container in Registration Request - finished")
+
 		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
 	}
 
 	ue.RegistrationRequest = registrationRequest
 	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
+
 	regName := getRegistrationType5GSName(ue.RegistrationType5GS)
+
 	ue.Log.Debug("Received Registration Request", zap.String("registrationType", regName))
 
 	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSReserved {
