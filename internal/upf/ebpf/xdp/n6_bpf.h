@@ -60,7 +60,7 @@ send_to_gtp_tunnel(struct packet_context *ctx, int srcip, int dstip, __u8 tos,
 		return XDP_ABORTED;
 	upf_printk("upf: send gtp pdu %pI4 -> %pI4", &ctx->ip4->saddr,
 		   &ctx->ip4->daddr);
-	ctx->downlink_statistics->packet_counters.tx++;
+	ctx->statistics->packet_counters.tx++;
 
 	const __u32 key = 0;
 	struct route_stat *route_statistic =
@@ -142,7 +142,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	/* Update downlink traffic counter */
 	{
 		__u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-		ctx->downlink_statistics->byte_counter.bytes +=
+		ctx->statistics->byte_counter.bytes +=
 			packet_size; // Count downlink traffic
 	}
 

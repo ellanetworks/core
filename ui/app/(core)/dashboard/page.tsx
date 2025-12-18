@@ -201,8 +201,12 @@ const Dashboard = () => {
     const totalIPsV = getValue("app_ip_addresses_total ");
     const ulBytes = getValue("app_uplink_bytes ");
     const dlBytes = getValue("app_downlink_bytes ");
-    const n3Drop = getValue("app_n3_xdp_drop_total ");
-    const n6Drop = getValue("app_n6_xdp_drop_total ");
+    const n3Drop = getValue(
+      'app_xdp_action_total{action="XDP_DROP",interface="n3"} ',
+    );
+    const n6Drop = getValue(
+      'app_xdp_action_total{action="XDP_DROP",interface="n6"} ',
+    );
     const startTime = getValue("process_start_time_seconds ");
 
     return {

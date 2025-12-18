@@ -107,7 +107,7 @@ handle_gtp_packet(struct packet_context *ctx)
 	/* Account uplink traffic */
 	{
 		__u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-		ctx->uplink_statistics->byte_counter.bytes += packet_size;
+		ctx->statistics->byte_counter.bytes += packet_size;
 	}
 
 	update_urr_bytes(ctx, urr_id);

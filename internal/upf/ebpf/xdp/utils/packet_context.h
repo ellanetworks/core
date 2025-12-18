@@ -38,8 +38,7 @@ struct vlan_hdr {
 struct packet_context {
 	void *data;
 	const void *data_end;
-	struct upf_statistic *uplink_statistics;
-	struct upf_statistic *downlink_statistics;
+	struct upf_statistic *statistics;
 	struct counters *counter;
 	struct xdp_md *xdp_ctx;
 	struct ethhdr *eth;
