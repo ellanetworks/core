@@ -72,21 +72,21 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 
 		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
 		if err != nil {
-			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
-			if err != nil {
-				return fmt.Errorf("error sending registration reject: %v", err)
+			err1 := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			if err1 != nil {
+				return fmt.Errorf("error sending registration reject after error decrypting: %v", err1)
 			}
-			return fmt.Errorf("NAS encrypt error: %v", err)
+			return fmt.Errorf("failed to decrypt NAS message - sent registration reject: %v", err)
 		}
 
 		m := nas.NewMessage()
 
 		if err := m.GmmMessageDecode(&contents); err != nil {
-			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
-			if err != nil {
-				return fmt.Errorf("error sending registration reject: %v", err)
+			err1 := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			if err1 != nil {
+				return fmt.Errorf("error sending registration reject after error decoding: %v", err1)
 			}
-			return fmt.Errorf("NAS decode error: %v", err)
+			return fmt.Errorf("failed to decode NAS message - sent registration reject: %v", err)
 		}
 
 		messageType := m.GmmMessage.GmmHeader.GetMessageType()
