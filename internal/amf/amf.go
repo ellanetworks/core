@@ -46,7 +46,7 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	}
 	self.TimeZone = nasConvert.GetTimeZone(time.Now())
 	self.T3502Value = 720
-	self.T3512Value = 30 // TO DO: revert before merging
+	self.T3512Value = 3600
 	self.T3513Cfg = context.TimerValue{
 		Enable:        true,
 		ExpireTime:    6 * time.Second,
