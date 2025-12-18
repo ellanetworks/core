@@ -14,15 +14,18 @@ The following table outlines the performance test results of Ella Core's data pl
 
 | Uplink (Gbps) | Downlink (Gbps) |
 | ------------- | --------------- |
-| 5.47          | 1.77            |
+| 10+           | 10+             |
+
+The tests could saturate the 10Gbps connection consistently, with or without NAT enabled, with CPU
+usage peaking at 8%.
 
 ### Latency (Round-trip)
 
 The following table outlines the performance test results of Ella Core's data plane latency:
 
-| Average (ms) | Best (ms) | Worst (ms) | Mean Deviation (ms) |
+| Average (ms) | Best (ms) | Worst (ms) | Mean Deviation (ms)     |
 | ------------ | --------- | ---------- | ----------------------- |
-| 1.401        | 1.049     | 1.512      | 0.082                   |
+| 1.160        | 0.803     | 1.457      | 0.194                   |
 
 The value represents the round-trip-response times from the UE to the server and back.
 
@@ -35,11 +38,13 @@ using 10 simulated gNodeBs each handling 100 subscribers.
 
 We performed performance tests with Ella Core running on a baremetal system with the following specifications:
 
-- **System**: Protectli Vault Pro VP6670
-- **OS**: Ubuntu 22.04 LTS
-- **CPU**: 12th Gen Intel(R) Core(TM) i7-1255U
-- **RAM**: 16GB
-- **Disk**: 256GB NVMe SSD
+- **OS**: Ubuntu 24.04 LTS
+- **CPU**: 12th Gen Intel(R) Core(TM) i5-1540p
+- **RAM**: 32GB
+- **Disk**: 512GB NVMe SSD
+- **NICs**: 2 x Intel Corporation 82599ES 10-Gigabit
+
+The RAN simulator used was [Packet Rusher](https://github.com/HewlettPackard/PacketRusher)
 
 <figure markdown="span">
   ![Connectivity](../images/performance_setup.svg){ width="800" }
@@ -54,10 +59,9 @@ Test parameters:
 
 - **Version**: v3.16
 - **Protocol**: TCP
-- **Duration**: 30 seconds
-- **Streams**: 1
-- **MTU (upstream)**: 1424 bytes
-- **MTU (downstream)**: 1416 bytes
+- **Duration**: 120 seconds
+- **Streams**: 4
+- **MSS**: 1416 bytes
 - **Runs (average over)**: 5
 
 ### Latency testing
