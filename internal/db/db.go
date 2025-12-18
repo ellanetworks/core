@@ -25,9 +25,7 @@ var tracer = otel.Tracer("ella-core/db")
 type Database struct {
 	filepath string
 
-	usersTable     string
-	auditLogsTable string
-	sessionsTable  string
+	usersTable string
 
 	// Subscriber statements
 	listSubscribersStmt          *sqlair.Statement
@@ -113,6 +111,18 @@ type Database struct {
 	createRouteStmt *sqlair.Statement
 	deleteRouteStmt *sqlair.Statement
 	countRoutesStmt *sqlair.Statement
+
+	// Audit Log statements
+	insertAuditLogStmt     *sqlair.Statement
+	listAuditLogsStmt      *sqlair.Statement
+	deleteOldAuditLogsStmt *sqlair.Statement
+	countAuditLogsStmt     *sqlair.Statement
+
+	// Session statements
+	createSessionStmt            *sqlair.Statement
+	getSessionByTokenHashStmt    *sqlair.Statement
+	deleteSessionByTokenHashStmt *sqlair.Statement
+	deleteExpiredSessionsStmt    *sqlair.Statement
 
 	conn *sqlair.DB
 }
@@ -231,8 +241,6 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.conn = sqlair.NewDB(sqlConnection)
 	db.filepath = databasePath
 	db.usersTable = UsersTableName
-	db.auditLogsTable = AuditLogsTableName
-	db.sessionsTable = SessionsTableName
 
 	err = db.PrepareStatements()
 	if err != nil {
@@ -567,6 +575,46 @@ func (db *Database) PrepareStatements() error {
 		return fmt.Errorf("failed to prepare count routes statement: %v", err)
 	}
 
+	insertAuditLogStmt, err := sqlair.Prepare(fmt.Sprintf(insertAuditLogStmt, AuditLogsTableName), dbwriter.AuditLog{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare insert audit log statement: %v", err)
+	}
+
+	listAuditLogsStmt, err := sqlair.Prepare(fmt.Sprintf(listAuditLogsPageStmt, AuditLogsTableName), ListArgs{}, dbwriter.AuditLog{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare list audit logs statement: %v", err)
+	}
+
+	deleteOldAuditLogsStmt, err := sqlair.Prepare(fmt.Sprintf(deleteOldAuditLogsStmt, AuditLogsTableName), cutoffArgs{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete old audit logs statement: %v", err)
+	}
+
+	countAuditLogsStmt, err := sqlair.Prepare(fmt.Sprintf(countAuditLogsStmt, AuditLogsTableName), NumItems{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare count audit logs statement: %v", err)
+	}
+
+	createSessionStmt, err := sqlair.Prepare(fmt.Sprintf(createSessionStmt, SessionsTableName), Session{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare create session statement: %v", err)
+	}
+
+	getSessionByTokenHashStmt, err := sqlair.Prepare(fmt.Sprintf(getSessionByTokenHashStmt, SessionsTableName), Session{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get session by token hash statement: %v", err)
+	}
+
+	deleteSessionByTokenHashStmt, err := sqlair.Prepare(fmt.Sprintf(deleteSessionByTokenHashStmt, SessionsTableName), Session{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete session by token hash statement: %v", err)
+	}
+
+	deleteExpiredSessionsStmt, err := sqlair.Prepare(fmt.Sprintf(deleteExpiredSessionsStmt, SessionsTableName))
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete expired sessions statement: %v", err)
+	}
+
 	db.listSubscribersStmt = listSubscribersStmt
 	db.countSubscribersStmt = countSubscribersStmt
 	db.getSubscriberStmt = getSubscriberStmt
@@ -640,6 +688,16 @@ func (db *Database) PrepareStatements() error {
 	db.createRouteStmt = createRouteStmt
 	db.deleteRouteStmt = deleteRouteStmt
 	db.countRoutesStmt = countRoutesStmt
+
+	db.insertAuditLogStmt = insertAuditLogStmt
+	db.listAuditLogsStmt = listAuditLogsStmt
+	db.deleteOldAuditLogsStmt = deleteOldAuditLogsStmt
+	db.countAuditLogsStmt = countAuditLogsStmt
+
+	db.createSessionStmt = createSessionStmt
+	db.getSessionByTokenHashStmt = getSessionByTokenHashStmt
+	db.deleteSessionByTokenHashStmt = deleteSessionByTokenHashStmt
+	db.deleteExpiredSessionsStmt = deleteExpiredSessionsStmt
 
 	t1 := time.Now()
 	logger.DBLog.Debug("Prepared database statements", zap.Duration("duration", t1.Sub(t0)))
