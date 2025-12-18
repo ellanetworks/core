@@ -144,8 +144,8 @@ func handlePDUSessionSMContextCreate(
 		return "", nil, 0, nil, nil, 0, rsp, nil
 	}
 
-	// IP Allocation
 	smfSelf := context.SMFSelf()
+
 	pduAddress, err := smfSelf.DBInstance.AllocateIP(ctx, smContext.Supi)
 	if err != nil {
 		rsp, err := context.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMInsufficientResources)
