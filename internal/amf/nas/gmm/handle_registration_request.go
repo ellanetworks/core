@@ -13,6 +13,7 @@ import (
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/nas/security"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
@@ -58,9 +59,42 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		ue.T3513.Stop()
 		ue.T3513 = nil // clear the timer
 	}
+
 	if ue.T3565 != nil {
 		ue.T3565.Stop()
 		ue.T3565 = nil // clear the timer
+	}
+
+	if registrationRequest.NASMessageContainer != nil {
+		contents := registrationRequest.NASMessageContainer.GetNASMessageContainerContents()
+
+		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
+		if err != nil {
+			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			if err != nil {
+				return fmt.Errorf("error sending registration reject: %v", err)
+			}
+			return fmt.Errorf("NAS encrypt error: %v", err)
+		}
+
+		m := nas.NewMessage()
+
+		if err := m.GmmMessageDecode(&contents); err != nil {
+			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			if err != nil {
+				return fmt.Errorf("error sending registration reject: %v", err)
+			}
+			return fmt.Errorf("NAS decode error: %v", err)
+		}
+
+		messageType := m.GmmMessage.GmmHeader.GetMessageType()
+		if messageType != nas.MsgTypeRegistrationRequest {
+			return fmt.Errorf("expected registration request, got %d", messageType)
+		}
+
+		registrationRequest = m.RegistrationRequest
+
+		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
 	}
 
 	ue.RegistrationRequest = registrationRequest
