@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/canonical/sqlair"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -45,67 +44,54 @@ type RetentionPolicy struct {
 }
 
 func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCategory) (int, error) {
-	const operation = "SELECT"
-	const target = RetentionPolicyTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", RetentionPolicyTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", RetentionPolicyTableName),
+			attribute.String("policy.category", string(category)),
+		),
+	)
 	defer span.End()
 
-	stmtStr := fmt.Sprintf(selectRetentionPolicyStmt, RetentionPolicyTableName)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-		attribute.String("policy.category", string(category)),
-	)
-
-	stmt, err := sqlair.Prepare(stmtStr, RetentionPolicy{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
-
 	arg := RetentionPolicy{Category: category}
+
 	var row RetentionPolicy
-	if err := db.conn.Query(ctx, stmt, arg).Get(&row); err != nil {
+
+	err := db.conn.Query(ctx, db.selectRetentionPolicyStmt, arg).Get(&row)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return row.Days, nil
 }
 
 // Ensure that we have a row for the Audit Log retention policy.
 func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category RetentionCategory) bool {
-	operation := "SELECT"
-	target := RetentionPolicyTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", RetentionPolicyTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", RetentionPolicyTableName),
+			attribute.String("policy.category", string(category)),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(selectRetentionPolicyStmt, db.retentionPoliciesTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	row := RetentionPolicy{Category: category}
-	q, err := sqlair.Prepare(stmt, RetentionPolicy{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return false
-	}
 
-	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
+	err := db.conn.Query(ctx, db.selectRetentionPolicyStmt, row).Get(&row)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return false
@@ -116,41 +102,34 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return true
 }
 
 // SetRetentionPolicy upserts the retention policy for a category.
 func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPolicy) error {
-	const operation = "UPSERT"
-	const target = RetentionPolicyTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPSERT", RetentionPolicyTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("UPSERT"),
+			attribute.String("db.collection", RetentionPolicyTableName),
+			attribute.String("policy.category", string(policy.Category)),
+			attribute.Int("policy.days", policy.Days),
+		),
+	)
 	defer span.End()
 
-	stmtStr := fmt.Sprintf(upsertRetentionPolicyStmt, RetentionPolicyTableName)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-		attribute.String("policy.category", string(policy.Category)),
-		attribute.Int("policy.days", policy.Days),
-	)
-
-	stmt, err := sqlair.Prepare(stmtStr, RetentionPolicy{})
+	err := db.conn.Query(ctx, db.upsertRetentionPolicyStmt, *policy).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-
-	if err := db.conn.Query(ctx, stmt, *policy).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }

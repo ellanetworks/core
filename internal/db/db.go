@@ -25,11 +25,9 @@ var tracer = otel.Tracer("ella-core/db")
 type Database struct {
 	filepath string
 
-	routesTable            string
-	usersTable             string
-	auditLogsTable         string
-	retentionPoliciesTable string
-	sessionsTable          string
+	usersTable     string
+	auditLogsTable string
+	sessionsTable  string
 
 	// Subscriber statements
 	listSubscribersStmt          *sqlair.Statement
@@ -104,6 +102,17 @@ type Database struct {
 	editPolicyStmt    *sqlair.Statement
 	deletePolicyStmt  *sqlair.Statement
 	countPoliciesStmt *sqlair.Statement
+
+	// Retention Policy statements
+	selectRetentionPolicyStmt *sqlair.Statement
+	upsertRetentionPolicyStmt *sqlair.Statement
+
+	// Routes statements
+	listRoutesStmt  *sqlair.Statement
+	getRouteStmt    *sqlair.Statement
+	createRouteStmt *sqlair.Statement
+	deleteRouteStmt *sqlair.Statement
+	countRoutesStmt *sqlair.Statement
 
 	conn *sqlair.DB
 }
@@ -221,10 +230,8 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db := new(Database)
 	db.conn = sqlair.NewDB(sqlConnection)
 	db.filepath = databasePath
-	db.routesTable = RoutesTableName
 	db.usersTable = UsersTableName
 	db.auditLogsTable = AuditLogsTableName
-	db.retentionPoliciesTable = RetentionPolicyTableName
 	db.sessionsTable = SessionsTableName
 
 	err = db.PrepareStatements()
@@ -525,6 +532,41 @@ func (db *Database) PrepareStatements() error {
 		return fmt.Errorf("failed to prepare count policies statement: %v", err)
 	}
 
+	selectRetentionPolicyStmt, err := sqlair.Prepare(fmt.Sprintf(selectRetentionPolicyStmt, RetentionPolicyTableName), RetentionPolicy{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare select retention policy statement: %v", err)
+	}
+
+	upsertRetentionPolicyStmt, err := sqlair.Prepare(fmt.Sprintf(upsertRetentionPolicyStmt, RetentionPolicyTableName), RetentionPolicy{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare upsert retention policy statement: %v", err)
+	}
+
+	listRoutesStmt, err := sqlair.Prepare(fmt.Sprintf(listRoutesPageStmt, RoutesTableName), ListArgs{}, Route{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare list routes statement: %v", err)
+	}
+
+	getRouteStmt, err := sqlair.Prepare(fmt.Sprintf(getRouteStmt, RoutesTableName), Route{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get route statement: %v", err)
+	}
+
+	createRouteStmt, err := sqlair.Prepare(fmt.Sprintf(createRouteStmt, RoutesTableName), Route{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare create route statement: %v", err)
+	}
+
+	deleteRouteStmt, err := sqlair.Prepare(fmt.Sprintf(deleteRouteStmt, RoutesTableName), Route{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete route statement: %v", err)
+	}
+
+	countRoutesStmt, err := sqlair.Prepare(fmt.Sprintf(countRoutesStmt, RoutesTableName), NumItems{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare count routes statement: %v", err)
+	}
+
 	db.listSubscribersStmt = listSubscribersStmt
 	db.countSubscribersStmt = countSubscribersStmt
 	db.getSubscriberStmt = getSubscriberStmt
@@ -589,6 +631,15 @@ func (db *Database) PrepareStatements() error {
 	db.editPolicyStmt = editPolicyStmt
 	db.deletePolicyStmt = deletePolicyStmt
 	db.countPoliciesStmt = countPoliciesStmt
+
+	db.selectRetentionPolicyStmt = selectRetentionPolicyStmt
+	db.upsertRetentionPolicyStmt = upsertRetentionPolicyStmt
+
+	db.listRoutesStmt = listRoutesStmt
+	db.getRouteStmt = getRouteStmt
+	db.createRouteStmt = createRouteStmt
+	db.deleteRouteStmt = deleteRouteStmt
+	db.countRoutesStmt = countRoutesStmt
 
 	t1 := time.Now()
 	logger.DBLog.Debug("Prepared database statements", zap.Duration("duration", t1.Sub(t0)))

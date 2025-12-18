@@ -62,29 +62,19 @@ type Route struct {
 }
 
 func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) ([]Route, int, error) {
-	const operation = "SELECT"
-	const target = RoutesTableName
-	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	stmtStr := fmt.Sprintf(listRoutesPageStmt, db.routesTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmtStr),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-		attribute.Int("page", page),
-		attribute.Int("per_page", perPage),
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (paged)", "SELECT", RoutesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", RoutesTableName),
+			attribute.Int("page", page),
+			attribute.Int("per_page", perPage),
+		),
 	)
-
-	stmt, err := sqlair.Prepare(stmtStr, ListArgs{}, Route{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, 0, err
-	}
+	defer span.End()
 
 	count, err := db.CountRoutes(ctx)
 	if err != nil {
@@ -100,7 +90,8 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 		Offset: (page - 1) * perPage,
 	}
 
-	if err := db.conn.Query(ctx, stmt, args).GetAll(&routes); err != nil {
+	err = db.conn.Query(ctx, db.listRoutesStmt, args).GetAll(&routes)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, count, nil
@@ -111,68 +102,54 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return routes, count, nil
 }
 
 func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
-	operation := "SELECT"
-	target := RoutesTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", RoutesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", RoutesTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(getRouteStmt, db.routesTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	row := Route{ID: id}
-	q, err := sqlair.Prepare(stmt, Route{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
-	}
 
-	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
+	err := db.conn.Query(ctx, db.getRouteStmt, row).Get(&row)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return nil, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return &row, nil
 }
 
 func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, error) {
-	operation := "INSERT"
-	target := t.db.routesTable
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "INSERT", RoutesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("INSERT"),
+			attribute.String("db.collection", RoutesTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(createRouteStmt, t.db.routesTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	var outcome sqlair.Outcome
-	q, err := sqlair.Prepare(stmt, Route{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
 
-	if err := t.tx.Query(ctx, q, route).Get(&outcome); err != nil {
+	err := t.tx.Query(ctx, t.db.createRouteStmt, route).Get(&outcome)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err
@@ -186,72 +163,59 @@ func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return id, nil
 }
 
 func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
-	operation := "DELETE"
-	target := t.db.routesTable
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "DELETE", RoutesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("DELETE"),
+			attribute.String("db.collection", RoutesTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(deleteRouteStmt, t.db.routesTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	q, err := sqlair.Prepare(stmt, Route{})
+	err := t.tx.Query(ctx, t.db.deleteRouteStmt, Route{ID: id}).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-
-	if err := t.tx.Query(ctx, q, Route{ID: id}).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 // NumRoutes returns route count
 func (db *Database) CountRoutes(ctx context.Context) (int, error) {
-	operation := "SELECT"
-	target := RoutesTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", RoutesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", RoutesTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(countRoutesStmt, db.routesTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	var result NumItems
-	q, err := sqlair.Prepare(stmt, NumItems{})
+
+	err := db.conn.Query(ctx, db.countRoutesStmt).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
-	if err := db.conn.Query(ctx, q).Get(&result); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return result.Count, nil
 }
