@@ -92,6 +92,10 @@ func (stat *UpfXdpActionStatistic) GetN6Drop() uint64 {
 	return stat.getUpfN6XdpStatisticField(uint32(1))
 }
 
+func (stat *UpfXdpActionStatistic) GetN6Pass() uint64 {
+	return stat.getUpfN6XdpStatisticField(uint32(2))
+}
+
 func (stat *UpfXdpActionStatistic) GetN6Tx() uint64 {
 	return stat.getUpfN3XdpStatisticField(uint32(3))
 }

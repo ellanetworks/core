@@ -14,17 +14,8 @@ import (
 )
 
 var (
-	PduSessions      prometheus.CounterFunc
-	UpfN3XdpAborted  prometheus.CounterFunc
-	UpfN3XdpDrop     prometheus.CounterFunc
-	UpfN3XdpPass     prometheus.CounterFunc
-	UpfN3XdpTx       prometheus.CounterFunc
-	UpfN3XdpRedirect prometheus.CounterFunc
-	UpfN6XdpAborted  prometheus.CounterFunc
-	UpfN6XdpDrop     prometheus.CounterFunc
-	UpfN6XdpPass     prometheus.CounterFunc
-	UpfN6XdpTx       prometheus.CounterFunc
-	UpfN6XdpRedirect prometheus.CounterFunc
+	PduSessions  prometheus.CounterFunc
+	UpfXdpAction prometheus.CollectorFunc
 
 	UpfUplinkBytes   prometheus.CounterFunc
 	UpfDownlinkBytes prometheus.CounterFunc
@@ -89,77 +80,6 @@ func RegisterSmfMetrics() {
 }
 
 func RegisterUPFMetrics(stats *ebpf.UpfXdpActionStatistic) {
-	// Metrics for the app_xdp_statistic (xdp_action)
-	UpfN3XdpAborted = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n3_xdp_aborted_total",
-		Help: "The total number of aborted packets (n3)",
-	}, func() float64 {
-		return float64(stats.GetN3Aborted())
-	})
-
-	UpfN3XdpDrop = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n3_xdp_drop_total",
-		Help: "The total number of dropped packets (n3)",
-	}, func() float64 {
-		return float64(stats.GetN3Drop())
-	})
-
-	UpfN3XdpPass = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n3_xdp_pass_total",
-		Help: "The total number of passed packets (n3)",
-	}, func() float64 {
-		return float64(stats.GetN3Pass())
-	})
-
-	UpfN3XdpTx = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n3_xdp_tx_total",
-		Help: "The total number of transmitted packets (n3)",
-	}, func() float64 {
-		return float64(stats.GetN3Tx())
-	})
-
-	UpfN3XdpRedirect = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n3_xdp_redirect_total",
-		Help: "The total number of redirected packets (n3)",
-	}, func() float64 {
-		return float64(stats.GetN3Redirect())
-	})
-
-	UpfN6XdpAborted = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n6_xdp_aborted_total",
-		Help: "The total number of aborted packets (n6)",
-	}, func() float64 {
-		return float64(stats.GetN6Aborted())
-	})
-
-	UpfN6XdpDrop = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n6_xdp_drop_total",
-		Help: "The total number of dropped packets (n6)",
-	}, func() float64 {
-		return float64(stats.GetN6Drop())
-	})
-
-	UpfN6XdpPass = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n6_xdp_pass_total",
-		Help: "The total number of passed packets (n6)",
-	}, func() float64 {
-		return float64(stats.GetN3Pass())
-	})
-
-	UpfN6XdpTx = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n6_xdp_tx_total",
-		Help: "The total number of transmitted packets (n6)",
-	}, func() float64 {
-		return float64(stats.GetN6Tx())
-	})
-
-	UpfN6XdpRedirect = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_n6_xdp_redirect_total",
-		Help: "The total number of redirected packets (n6)",
-	}, func() float64 {
-		return float64(stats.GetN6Redirect())
-	})
-
 	UpfUplinkBytes = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_uplink_bytes",
 		Help: "The total number of uplink bytes going through the data plane (N3 -> N6). This value includes the Ethernet header.",
@@ -176,17 +96,98 @@ func RegisterUPFMetrics(stats *ebpf.UpfXdpActionStatistic) {
 		return float64(downlinkBytes)
 	})
 
+	// Metrics for the app_xdp_statistic (xdp_action)
+	xdpActionDesc := prometheus.NewDesc(
+		"app_xdp_action_total",
+		"XDP action per packet.",
+		[]string{"interface", "action"},
+		nil,
+	)
+
+	UpfXdpAction = prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		ch <- prometheus.MustNewConstMetric(
+			xdpActionDesc,
+			prometheus.CounterValue,
+			float64(stats.GetN3Pass()),
+			"n3",
+			"XDP_PASS",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			xdpActionDesc,
+			prometheus.CounterValue,
+			float64(stats.GetN3Drop()),
+			"n3",
+			"XDP_DROP",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			xdpActionDesc,
+			prometheus.CounterValue,
+			float64(stats.GetN3Tx()),
+			"n3",
+			"XDP_TX",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			xdpActionDesc,
+			prometheus.CounterValue,
+			float64(stats.GetN3Aborted()),
+			"n3",
+			"XDP_ABORTED",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			xdpActionDesc,
+			prometheus.CounterValue,
+			float64(stats.GetN3Redirect()),
+			"n3",
+			"XDP_REDIRECT",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			xdpActionDesc,
+			prometheus.CounterValue,
+			float64(stats.GetN6Pass()),
+			"n6",
+			"XDP_PASS",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			xdpActionDesc,
+			prometheus.CounterValue,
+			float64(stats.GetN6Drop()),
+			"n6",
+			"XDP_DROP",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			xdpActionDesc,
+			prometheus.CounterValue,
+			float64(stats.GetN6Tx()),
+			"n6",
+			"XDP_TX",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			xdpActionDesc,
+			prometheus.CounterValue,
+			float64(stats.GetN6Aborted()),
+			"n6",
+			"XDP_ABORTED",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			xdpActionDesc,
+			prometheus.CounterValue,
+			float64(stats.GetN6Redirect()),
+			"n6",
+			"XDP_REDIRECT",
+		)
+	})
+
 	// Register metrics
-	prometheus.MustRegister(UpfN3XdpAborted)
-	prometheus.MustRegister(UpfN3XdpDrop)
-	prometheus.MustRegister(UpfN3XdpPass)
-	prometheus.MustRegister(UpfN3XdpTx)
-	prometheus.MustRegister(UpfN3XdpRedirect)
-	prometheus.MustRegister(UpfN6XdpAborted)
-	prometheus.MustRegister(UpfN6XdpDrop)
-	prometheus.MustRegister(UpfN6XdpPass)
-	prometheus.MustRegister(UpfN6XdpTx)
-	prometheus.MustRegister(UpfN6XdpRedirect)
 	prometheus.MustRegister(UpfUplinkBytes)
 	prometheus.MustRegister(UpfDownlinkBytes)
+	prometheus.MustRegister(UpfXdpAction)
 }

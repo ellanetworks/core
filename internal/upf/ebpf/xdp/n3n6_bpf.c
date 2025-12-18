@@ -15,6 +15,7 @@
  */
 
 #include "xdp/utils/common.h"
+#include "xdp/utils/routing.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
@@ -43,19 +44,19 @@ static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
 	if (l4_protocol == IPPROTO_UDP && GTP_UDP_PORT == parse_udp(ctx)) {
 		upf_printk("upf: gtp-u received");
 		action = handle_gtpu(ctx);
-		ctx->uplink_statistics
+		ctx->statistics
 			->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return action;
 	} else if (l4_protocol != IPPROTO_ICMP && l4_protocol != IPPROTO_UDP &&
 		   l4_protocol != IPPROTO_TCP) {
 		action = DEFAULT_XDP_ACTION;
-		ctx->downlink_statistics
+		ctx->statistics
 			->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return DEFAULT_XDP_ACTION;
 	}
-	ctx->downlink_statistics->packet_counters.rx++;
+	ctx->statistics->packet_counters.rx++;
 	action = handle_n6_packet_ipv4(ctx);
-	ctx->downlink_statistics
+	ctx->statistics
 		->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return action;
 }
@@ -100,35 +101,37 @@ SEC("xdp/upf_n3_n6_entrypoint")
 int upf_n3_n6_entrypoint_func(struct xdp_md *ctx)
 {
 	const __u32 key = 0;
-	struct upf_statistic *uplink_statistic =
-		bpf_map_lookup_elem(&uplink_statistics, &key);
-	if (!uplink_statistic) {
-		const struct upf_statistic initval = {};
-		bpf_map_update_elem(&uplink_statistics, &key, &initval,
-				    BPF_ANY);
-		uplink_statistic =
-			bpf_map_lookup_elem(&uplink_statistics, &key);
-		if (!uplink_statistic)
-			return XDP_ABORTED;
-	}
-	struct upf_statistic *downlink_statistic =
-		bpf_map_lookup_elem(&downlink_statistics, &key);
-	if (!downlink_statistic) {
-		const struct upf_statistic initval = {};
-		bpf_map_update_elem(&downlink_statistics, &key, &initval,
-				    BPF_ANY);
-		downlink_statistic =
-			bpf_map_lookup_elem(&downlink_statistics, &key);
-		if (!downlink_statistic)
-			return XDP_ABORTED;
+	
+	struct upf_statistic *statistics = NULL;
+	if (ctx->ingress_ifindex == n3_ifindex) {
+		statistics = bpf_map_lookup_elem(&uplink_statistics, &key);
+		if (!statistics) {
+			const struct upf_statistic initval = {};
+			bpf_map_update_elem(&uplink_statistics, &key, &initval,
+					    BPF_ANY);
+			statistics = bpf_map_lookup_elem(&uplink_statistics, &key);
+			if (!statistics)
+				return XDP_ABORTED;
+		}
+	} else if (ctx->ingress_ifindex == n6_ifindex) {
+		statistics = bpf_map_lookup_elem(&downlink_statistics, &key);
+		if (!statistics) {
+			const struct upf_statistic initval = {};
+			bpf_map_update_elem(&downlink_statistics, &key, &initval,
+					    BPF_ANY);
+			statistics = bpf_map_lookup_elem(&downlink_statistics, &key);
+			if (!statistics)
+				return XDP_ABORTED;
+		}
+	} else {
+		return XDP_ABORTED;
 	}
 
 	struct packet_context context = {
 		.data = (void *)(long)ctx->data,
 		.data_end = (const void *)(long)ctx->data_end,
 		.xdp_ctx = ctx,
-		.downlink_statistics = downlink_statistic,
-		.uplink_statistics = uplink_statistic,
+		.statistics = statistics,
 	};
 
 	return process_packet(&context);
