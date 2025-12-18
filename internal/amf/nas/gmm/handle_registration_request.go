@@ -66,6 +66,8 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 	}
 
 	if registrationRequest.NASMessageContainer != nil {
+		logger.AmfLog.Warn("TO DELETE: Received NAS Message Container in Registration Request")
+
 		contents := registrationRequest.NASMessageContainer.GetNASMessageContainerContents()
 
 		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
