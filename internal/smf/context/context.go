@@ -15,6 +15,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -23,7 +24,7 @@ var smfContext SMFContext
 
 var tracer = otel.Tracer("ella-core/smf")
 
-var AllowedSessionType = models.PduSessionTypeIPv4
+var AllowedSessionType = nasMessage.PDUSessionTypeIPv4
 
 type SMFContext struct {
 	Mutex sync.Mutex
@@ -120,7 +121,7 @@ func GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
 	return snssaiInfo, nil
 }
 
-func GetAllowedSessionType() models.PduSessionType {
+func GetAllowedSessionType() uint8 {
 	return AllowedSessionType
 }
 

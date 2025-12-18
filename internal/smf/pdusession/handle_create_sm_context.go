@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/free5gc/nas"
+	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -44,7 +45,7 @@ func CreateSmContext(ctx ctxt.Context, supi string, pduSessionID uint8, dnn stri
 
 	smContext = context.NewSMContext(supi, pduSessionID)
 
-	smContextRef, pco, pduSessionType, estAcceptCause5gSMValue, dnnInfo, pduAddress, pti, errRsp, err := handlePDUSessionSMContextCreate(ctx, supi, dnn, snssai, n1Msg, smContext)
+	smContextRef, pco, pduSessionType, dnnInfo, pduAddress, pti, errRsp, err := handlePDUSessionSMContextCreate(ctx, supi, dnn, snssai, n1Msg, smContext)
 	if err != nil {
 		return "", errRsp, fmt.Errorf("failed to create SM Context: %v", err)
 	}
@@ -62,7 +63,7 @@ func CreateSmContext(ctx ctxt.Context, supi string, pduSessionID uint8, dnn stri
 		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
 	}
 
-	err = sendPduSessionEstablishmentAccept(ctx, smContext, pco, pduSessionType, estAcceptCause5gSMValue, dnnInfo, pduAddress, pti)
+	err = sendPduSessionEstablishmentAccept(ctx, smContext, pco, pduSessionType, dnnInfo, pduAddress, pti)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to send pdu session establishment accept n1 message: %v", err)
 	}
@@ -98,7 +99,6 @@ func handlePDUSessionSMContextCreate(
 	string,
 	*context.ProtocolConfigurationOptions,
 	uint8,
-	uint8,
 	*context.SnssaiSmfDnnInfo,
 	net.IP,
 	uint8,
@@ -109,11 +109,11 @@ func handlePDUSessionSMContextCreate(
 
 	err := m.GsmMessageDecode(&n1Msg)
 	if err != nil {
-		return "", nil, 0, 0, nil, nil, 0, nil, fmt.Errorf("error decoding NAS message: %v", err)
+		return "", nil, 0, nil, nil, 0, nil, fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
 	if m.GsmHeader.GetMessageType() != nas.MsgTypePDUSessionEstablishmentRequest {
-		return "", nil, 0, 0, nil, nil, 0, nil, fmt.Errorf("error decoding NAS message: %v", err)
+		return "", nil, 0, nil, nil, 0, nil, fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
 	smContext.Mutex.Lock()
@@ -131,7 +131,7 @@ func handlePDUSessionSMContextCreate(
 		if err != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
-		return "", nil, 0, 0, nil, nil, 0, rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
+		return "", nil, 0, nil, nil, 0, rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
 	}
 
 	dnnInfo, err := context.RetrieveDnnInformation(ctx, *snssai, dnn)
@@ -141,33 +141,32 @@ func handlePDUSessionSMContextCreate(
 		if err != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
-		return "", nil, 0, 0, nil, nil, 0, rsp, nil
+		return "", nil, 0, nil, nil, 0, rsp, nil
 	}
 
-	// IP Allocation
 	smfSelf := context.SMFSelf()
+
 	pduAddress, err := smfSelf.DBInstance.AllocateIP(ctx, smContext.Supi)
 	if err != nil {
 		rsp, err := context.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMInsufficientResources)
 		if err != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
-		return "", nil, 0, 0, nil, nil, 0, rsp, nil
+		return "", nil, 0, nil, nil, 0, rsp, nil
 	}
 
 	logger.SmfLog.Info("Successfully allocated IP address", zap.String("IP", pduAddress.String()), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-	allowedSessionType := context.GetAllowedSessionType()
-
 	smContext.PDUSessionID = m.PDUSessionEstablishmentRequest.PDUSessionID.GetPDUSessionID()
 
-	pco, pduSessionType, estAcceptCause5gSMValue, err := context.HandlePDUSessionEstablishmentRequest(allowedSessionType, m.PDUSessionEstablishmentRequest)
+	pco, err := handlePDUSessionEstablishmentRequest(m.PDUSessionEstablishmentRequest)
 	if err != nil {
+		logger.SmfLog.Error("failed to handle PDU Session Establishment Request", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		response, err := context.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
-		return "", nil, 0, 0, nil, nil, 0, response, err
+		return "", nil, 0, nil, nil, 0, response, err
 	}
 
 	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, subscriberPolicy)
@@ -192,12 +191,52 @@ func handlePDUSessionSMContextCreate(
 		if err != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
-		return "", nil, 0, 0, nil, nil, 0, response, fmt.Errorf("couldn't activate data path: %v", err)
+		return "", nil, 0, nil, nil, 0, response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
+
+	allowedSessionType := context.GetAllowedSessionType()
 
 	logger.SmfLog.Info("Successfully created PDU session context", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-	return context.CanonicalName(smContext.Supi, smContext.PDUSessionID), pco, pduSessionType, estAcceptCause5gSMValue, dnnInfo, pduAddress, pti, nil, nil
+	return context.CanonicalName(smContext.Supi, smContext.PDUSessionID), pco, allowedSessionType, dnnInfo, pduAddress, pti, nil, nil
+}
+
+func handlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmentRequest) (*context.ProtocolConfigurationOptions, error) {
+	if req.PDUSessionType != nil {
+		requestedPDUSessionType := req.PDUSessionType.GetPDUSessionTypeValue()
+		if requestedPDUSessionType != nasMessage.PDUSessionTypeIPv4 && requestedPDUSessionType != nasMessage.PDUSessionTypeIPv4IPv6 {
+			return nil, fmt.Errorf("requested PDUSessionType is invalid: %d", requestedPDUSessionType)
+		}
+	}
+
+	pco := &context.ProtocolConfigurationOptions{}
+
+	if req.ExtendedProtocolConfigurationOptions != nil {
+		EPCOContents := req.ExtendedProtocolConfigurationOptions.GetExtendedProtocolConfigurationOptionsContents()
+		protocolConfigurationOptions := nasConvert.NewProtocolConfigurationOptions()
+		unmarshalErr := protocolConfigurationOptions.UnMarshal(EPCOContents)
+		if unmarshalErr != nil {
+			return nil, fmt.Errorf("parsing PCO failed: %v", unmarshalErr)
+		}
+
+		// Send MTU to UE always even if UE does not request it.
+		// Preconfiguring MTU request flag.
+
+		pco.IPv4LinkMTURequest = true
+
+		for _, container := range protocolConfigurationOptions.ProtocolOrContainerList {
+			switch container.ProtocolOrContainerID {
+			case nasMessage.DNSServerIPv6AddressRequestUL:
+				pco.DNSIPv6Request = true
+			case nasMessage.DNSServerIPv4AddressRequestUL:
+				pco.DNSIPv4Request = true
+			default:
+				continue
+			}
+		}
+	}
+
+	return pco, nil
 }
 
 // SendPFCPRules send all datapaths to UPFs
@@ -293,12 +332,11 @@ func sendPduSessionEstablishmentAccept(
 	smContext *context.SMContext,
 	pco *context.ProtocolConfigurationOptions,
 	pduSessionType uint8,
-	estAcceptCause5gSMValue uint8,
 	dnnInfo *context.SnssaiSmfDnnInfo,
 	pduAddress net.IP,
 	pti uint8,
 ) error {
-	n1Msg, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext.SmPolicyUpdates, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, pduSessionType, estAcceptCause5gSMValue, dnnInfo, pduAddress)
+	n1Msg, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext.SmPolicyUpdates, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, pduSessionType, dnnInfo, pduAddress)
 	if err != nil {
 		return fmt.Errorf("build GSM PDUSessionEstablishmentAccept failed: %v", err)
 	}
