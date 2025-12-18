@@ -33,7 +33,7 @@ type Database struct {
 	retentionPoliciesTable string
 	sessionsTable          string
 	natSettingsTable       string
-	n3SettingsTable        string
+	// n3SettingsTable        string
 
 	// Subscriber statements
 	listSubscribersStmt          *sqlair.Statement
@@ -80,6 +80,11 @@ type Database struct {
 	editDataNetworkStmt    *sqlair.Statement
 	deleteDataNetworkStmt  *sqlair.Statement
 	countDataNetworksStmt  *sqlair.Statement
+
+	// N3 Settings statements
+	insertDefaultN3SettingsStmt *sqlair.Statement
+	updateN3SettingsStmt        *sqlair.Statement
+	getN3SettingsStmt           *sqlair.Statement
 
 	conn *sqlair.DB
 }
@@ -205,7 +210,6 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.retentionPoliciesTable = RetentionPolicyTableName
 	db.sessionsTable = SessionsTableName
 	db.natSettingsTable = NATSettingsTableName
-	db.n3SettingsTable = N3SettingsTableName
 
 	err = db.PrepareStatements()
 	if err != nil {
@@ -405,6 +409,21 @@ func (db *Database) PrepareStatements() error {
 		return fmt.Errorf("failed to prepare count data networks statement: %v", err)
 	}
 
+	insertDefaultN3SettingsStmt, err := sqlair.Prepare(fmt.Sprintf(insertDefaultN3SettingsStmt, N3SettingsTableName), N3Settings{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare insert default N3 settings statement: %w", err)
+	}
+
+	updateN3SettingsStmt, err := sqlair.Prepare(fmt.Sprintf(upsertN3SettingsStmt, N3SettingsTableName), N3Settings{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare upsert N3 settings statement: %w", err)
+	}
+
+	getN3SettingsStmt, err := sqlair.Prepare(fmt.Sprintf(getN3SettingsStmt, N3SettingsTableName), N3Settings{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get N3 settings statement: %w", err)
+	}
+
 	db.listSubscribersStmt = listSubscribersStmt
 	db.countSubscribersStmt = countSubscribersStmt
 	db.getSubscriberStmt = getSubscriberStmt
@@ -445,6 +464,10 @@ func (db *Database) PrepareStatements() error {
 	db.editDataNetworkStmt = editDataNetworkStmt
 	db.deleteDataNetworkStmt = deleteDataNetworkStmt
 	db.countDataNetworksStmt = countDataNetworksStmt
+
+	db.insertDefaultN3SettingsStmt = insertDefaultN3SettingsStmt
+	db.updateN3SettingsStmt = updateN3SettingsStmt
+	db.getN3SettingsStmt = getN3SettingsStmt
 
 	t1 := time.Now()
 	logger.DBLog.Debug("Prepared database statements", zap.Duration("duration", t1.Sub(t0)))

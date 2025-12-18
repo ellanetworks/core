@@ -109,54 +109,56 @@ func (d *UsagePerDay) GetDay() time.Time {
 }
 
 func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) error {
-	operation := "INSERT"
-	target := DailyUsageTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "INSERT", DailyUsageTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("INSERT"),
+			attribute.String("db.collection", DailyUsageTableName),
+		),
+	)
 	defer span.End()
 
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	if err := db.conn.Query(ctx, db.incrementDailyUsageStmt, usage).Run(); err != nil {
+	err := db.conn.Query(ctx, db.incrementDailyUsageStmt, usage).Run()
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate time.Time, endDate time.Time) ([]UsagePerDay, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", DailyUsageTableName),
+		),
+	)
+	defer span.End()
+
 	dailyUsageFilters := UsageFilters{
 		StartDate: DaysSinceEpoch(startDate),
 		EndDate:   DaysSinceEpoch(endDate),
 	}
+
 	if imsi != "" {
 		dailyUsageFilters.IMSI = &imsi
 	}
 
-	operation := "SELECT"
-	target := DailyUsageTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	var dailyUsage []UsagePerDay
 
-	if err := db.conn.Query(ctx, db.getUsagePerDayStmt, dailyUsageFilters).GetAll(&dailyUsage); err != nil {
+	err := db.conn.Query(ctx, db.getUsagePerDayStmt, dailyUsageFilters).GetAll(&dailyUsage)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
@@ -172,30 +174,31 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 }
 
 func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, startDate time.Time, endDate time.Time) ([]UsagePerSub, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", DailyUsageTableName),
+		),
+	)
+	defer span.End()
+
 	dailyUsageFilters := UsageFilters{
 		StartDate: DaysSinceEpoch(startDate),
 		EndDate:   DaysSinceEpoch(endDate),
 	}
+
 	if imsi != "" {
 		dailyUsageFilters.IMSI = &imsi
 	}
 
-	operation := "SELECT"
-	target := DailyUsageTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	var dailyUsage []UsagePerSub
 
-	if err := db.conn.Query(ctx, db.getUsagePerSubscriberStmt, dailyUsageFilters).GetAll(&dailyUsage); err != nil {
+	err := db.conn.Query(ctx, db.getUsagePerSubscriberStmt, dailyUsageFilters).GetAll(&dailyUsage)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
@@ -211,20 +214,20 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 }
 
 func (db *Database) ClearDailyUsage(ctx context.Context) error {
-	operation := "DELETE"
-	target := DailyUsageTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "DELETE", DailyUsageTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("DELETE"),
+			attribute.String("db.collection", DailyUsageTableName),
+		),
+	)
 	defer span.End()
 
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	if err := db.conn.Query(ctx, db.deleteAllDailyUsageStmt).Run(); err != nil {
+	err := db.conn.Query(ctx, db.deleteAllDailyUsageStmt).Run()
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -236,30 +239,31 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 }
 
 func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
-	operation := "DELETE"
-	target := DailyUsageTableName
-	spanName := fmt.Sprintf("%s %s (older than %d days)", operation, target, days)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (older than %d days)", "DELETE", DailyUsageTableName, days),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("DELETE"),
+			attribute.String("db.collection", DailyUsageTableName),
+			attribute.Int("retention.days", days),
+		),
+	)
 	defer span.End()
 
 	now := time.Now().UTC()
+
 	cutoffDay := DaysSinceEpoch(now.AddDate(0, 0, -days))
 
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-		attribute.Int("retention.days", days),
-		attribute.Int64("retention.cutoff_epoch_day", cutoffDay),
-	)
-
-	if err := db.conn.Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: cutoffDay}).Run(); err != nil {
+	err := db.conn.Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: cutoffDay}).Run()
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }

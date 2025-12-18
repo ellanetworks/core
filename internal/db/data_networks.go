@@ -45,20 +45,19 @@ type DataNetwork struct {
 }
 
 func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int) ([]DataNetwork, int, error) {
-	operation := "SELECT"
-	target := DataNetworksTableName
-	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-		attribute.Int("page", page),
-		attribute.Int("per_page", perPage),
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (paged)", "SELECT", DataNetworksTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", DataNetworksTableName),
+			attribute.Int("page", page),
+			attribute.Int("per_page", perPage),
+		),
 	)
+	defer span.End()
 
 	args := ListArgs{
 		Limit:  perPage,
@@ -74,7 +73,8 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 
 	var dataNetworks []DataNetwork
 
-	if err := db.conn.Query(ctx, db.listDataNetworksStmt, args).GetAll(&dataNetworks); err != nil {
+	err = db.conn.Query(ctx, db.listDataNetworksStmt, args).GetAll(&dataNetworks)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, count, nil
@@ -85,52 +85,54 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return dataNetworks, count, nil
 }
 
 func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwork, error) {
-	operation := "SELECT"
-	target := DataNetworksTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", DataNetworksTableName),
+		),
 	)
+	defer span.End()
 
 	row := DataNetwork{Name: name}
 
-	if err := db.conn.Query(ctx, db.getDataNetworkStmt, row).Get(&row); err != nil {
+	err := db.conn.Query(ctx, db.getDataNetworkStmt, row).Get(&row)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return nil, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return &row, nil
 }
 
 func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwork, error) {
-	operation := "SELECT"
-	target := DataNetworksTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", DataNetworksTableName),
+		),
 	)
+	defer span.End()
 
 	row := DataNetwork{ID: id}
 
-	if err := db.conn.Query(ctx, db.getDataNetworkByIDStmt, row).Get(&row); err != nil {
+	err := db.conn.Query(ctx, db.getDataNetworkByIDStmt, row).Get(&row)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "not found")
@@ -142,24 +144,25 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwor
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return &row, nil
 }
 
 func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
-	operation := "INSERT"
-	target := DataNetworksTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "INSERT", DataNetworksTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("INSERT"),
+			attribute.String("db.collection", DataNetworksTableName),
+		),
+	)
 	defer span.End()
 
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	if err := db.conn.Query(ctx, db.createDataNetworkStmt, dataNetwork).Run(); err != nil {
+	err := db.conn.Query(ctx, db.createDataNetworkStmt, dataNetwork).Run()
+	if err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
 			span.SetStatus(codes.Error, "unique constraint failed")
@@ -172,93 +175,99 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
-	operation := "UPDATE"
-	target := DataNetworksTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPDATE", DataNetworksTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("UPDATE"),
+			attribute.String("db.collection", DataNetworksTableName),
+		),
+	)
 	defer span.End()
 
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	// ensure exists
-	if _, err := db.GetDataNetwork(ctx, dataNetwork.Name); err != nil {
+	_, err := db.GetDataNetwork(ctx, dataNetwork.Name)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
 		return err
 	}
 
-	if err := db.conn.Query(ctx, db.editDataNetworkStmt, dataNetwork).Run(); err != nil {
+	err = db.conn.Query(ctx, db.editDataNetworkStmt, dataNetwork).Run()
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
-	operation := "DELETE"
-	target := DataNetworksTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "DELETE", DataNetworksTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("DELETE"),
+			attribute.String("db.collection", DataNetworksTableName),
+		),
+	)
 	defer span.End()
 
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	// ensure exists
-	if _, err := db.GetDataNetwork(ctx, name); err != nil {
+	_, err := db.GetDataNetwork(ctx, name)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
 		return err
 	}
 
-	if err := db.conn.Query(ctx, db.deleteDataNetworkStmt, DataNetwork{Name: name}).Run(); err != nil {
+	err = db.conn.Query(ctx, db.deleteDataNetworkStmt, DataNetwork{Name: name}).Run()
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
-	operation := "SELECT"
-	target := DataNetworksTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", DataNetworksTableName),
+		),
 	)
+	defer span.End()
 
 	var result NumItems
 
-	if err := db.conn.Query(ctx, db.countDataNetworksStmt).Get(&result); err != nil {
+	err := db.conn.Query(ctx, db.countDataNetworksStmt).Get(&result)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return result.Count, nil
 }
