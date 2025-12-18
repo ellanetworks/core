@@ -9,7 +9,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"time"
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
@@ -24,8 +23,6 @@ var tracer = otel.Tracer("ella-core/db")
 // Database is the object used to communicate with the established repository.
 type Database struct {
 	filepath string
-
-	usersTable string
 
 	// Subscriber statements
 	listSubscribersStmt          *sqlair.Statement
@@ -123,6 +120,16 @@ type Database struct {
 	getSessionByTokenHashStmt    *sqlair.Statement
 	deleteSessionByTokenHashStmt *sqlair.Statement
 	deleteExpiredSessionsStmt    *sqlair.Statement
+
+	// User statements
+	listUsersStmt        *sqlair.Statement
+	getUserStmt          *sqlair.Statement
+	getUserByIDStmt      *sqlair.Statement
+	createUserStmt       *sqlair.Statement
+	editUserStmt         *sqlair.Statement
+	editUserPasswordStmt *sqlair.Statement
+	deleteUserStmt       *sqlair.Statement
+	countUsersStmt       *sqlair.Statement
 
 	conn *sqlair.DB
 }
@@ -240,7 +247,6 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db := new(Database)
 	db.conn = sqlair.NewDB(sqlConnection)
 	db.filepath = databasePath
-	db.usersTable = UsersTableName
 
 	err = db.PrepareStatements()
 	if err != nil {
@@ -258,8 +264,6 @@ func NewDatabase(databasePath string) (*Database, error) {
 }
 
 func (db *Database) PrepareStatements() error {
-	t0 := time.Now()
-
 	listSubscribersStmt, err := sqlair.Prepare(fmt.Sprintf(listSubscribersPagedStmt, SubscribersTableName), ListArgs{}, Subscriber{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare list subscribers statement: %v", err)
@@ -615,6 +619,46 @@ func (db *Database) PrepareStatements() error {
 		return fmt.Errorf("failed to prepare delete expired sessions statement: %v", err)
 	}
 
+	listUsersStmt, err := sqlair.Prepare(fmt.Sprintf(listUsersPageStmt, UsersTableName), ListArgs{}, User{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare list users statement: %v", err)
+	}
+
+	getUserStmt, err := sqlair.Prepare(fmt.Sprintf(getUserStmt, UsersTableName), User{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get user statement: %v", err)
+	}
+
+	getUserByIDStmt, err := sqlair.Prepare(fmt.Sprintf(getUserByIDStmt, UsersTableName), User{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get user by ID statement: %v", err)
+	}
+
+	createUserStmt, err := sqlair.Prepare(fmt.Sprintf(createUserStmt, UsersTableName), User{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare create user statement: %v", err)
+	}
+
+	editUserStmt, err := sqlair.Prepare(fmt.Sprintf(editUserStmt, UsersTableName), User{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare edit user statement: %v", err)
+	}
+
+	editUserPasswordStmt, err := sqlair.Prepare(fmt.Sprintf(editUserPasswordStmt, UsersTableName), User{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare edit user password statement: %v", err)
+	}
+
+	deleteUserStmt, err := sqlair.Prepare(fmt.Sprintf(deleteUserStmt, UsersTableName), User{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete user statement: %v", err)
+	}
+
+	countUsersStmt, err := sqlair.Prepare(fmt.Sprintf(countUsersStmt, UsersTableName), NumItems{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare count users statement: %v", err)
+	}
+
 	db.listSubscribersStmt = listSubscribersStmt
 	db.countSubscribersStmt = countSubscribersStmt
 	db.getSubscriberStmt = getSubscriberStmt
@@ -699,8 +743,14 @@ func (db *Database) PrepareStatements() error {
 	db.deleteSessionByTokenHashStmt = deleteSessionByTokenHashStmt
 	db.deleteExpiredSessionsStmt = deleteExpiredSessionsStmt
 
-	t1 := time.Now()
-	logger.DBLog.Debug("Prepared database statements", zap.Duration("duration", t1.Sub(t0)))
+	db.listUsersStmt = listUsersStmt
+	db.getUserStmt = getUserStmt
+	db.getUserByIDStmt = getUserByIDStmt
+	db.createUserStmt = createUserStmt
+	db.editUserStmt = editUserStmt
+	db.editUserPasswordStmt = editUserPasswordStmt
+	db.deleteUserStmt = deleteUserStmt
+	db.countUsersStmt = countUsersStmt
 
 	return nil
 }

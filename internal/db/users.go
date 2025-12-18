@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/canonical/sqlair"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -52,29 +51,19 @@ type User struct {
 }
 
 func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]User, int, error) {
-	const operation = "SELECT"
-	const target = UsersTableName
-	spanName := fmt.Sprintf("%s %s (paged)", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	stmt := fmt.Sprintf(listUsersPageStmt, db.usersTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-		attribute.Int("page", page),
-		attribute.Int("per_page", perPage),
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (paged)", "SELECT", UsersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", UsersTableName),
+			attribute.Int("page", page),
+			attribute.Int("per_page", perPage),
+		),
 	)
-
-	q, err := sqlair.Prepare(stmt, ListArgs{}, User{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, 0, err
-	}
+	defer span.End()
 
 	args := ListArgs{
 		Limit:  perPage,
@@ -90,7 +79,8 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 
 	var users []User
 
-	if err := db.conn.Query(ctx, q, args).GetAll(&users); err != nil {
+	err = db.conn.Query(ctx, db.listUsersStmt, args).GetAll(&users)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, count, nil
@@ -101,66 +91,56 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return users, count, nil
 }
 
 // GetUser fetches a single user by email with a span named "SELECT users".
 func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
-	operation := "SELECT"
-	target := UsersTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", UsersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", UsersTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(getUserStmt, db.usersTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	row := User{Email: email}
-	q, err := sqlair.Prepare(stmt, User{})
+
+	err := db.conn.Query(ctx, db.getUserStmt, row).Get(&row)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
-	}
-	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return nil, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return &row, nil
 }
 
 // GetUserByID fetches a single user by ID with a span named "SELECT users".
 func (db *Database) GetUserByID(ctx context.Context, id int) (*User, error) {
-	operation := "SELECT"
-	target := UsersTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", UsersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", UsersTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(getUserByIDStmt, db.usersTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
 	row := User{ID: id}
-	q, err := sqlair.Prepare(stmt, User{})
+
+	err := db.conn.Query(ctx, db.getUserByIDStmt, row).Get(&row)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return nil, err
-	}
-	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
@@ -169,55 +149,54 @@ func (db *Database) GetUserByID(ctx context.Context, id int) (*User, error) {
 		span.SetStatus(codes.Error, "query failed")
 		return nil, err
 	}
+
 	span.SetStatus(codes.Ok, "")
+
 	return &row, nil
 }
 
 // CreateUser inserts a new user with a span named "INSERT users".
 func (db *Database) CreateUser(ctx context.Context, user *User) (int, error) {
-	const operation = "INSERT"
-	const target = UsersTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "INSERT", UsersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("INSERT"),
+			attribute.String("db.collection", UsersTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(createUserStmt, db.usersTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	q, err := sqlair.Prepare(stmt, User{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
-
 	in := *user
-	if err := db.conn.Query(ctx, q, in).Get(user); err != nil {
+
+	err := db.conn.Query(ctx, db.createUserStmt, in).Get(user)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return user.ID, nil
 }
 
 // UpdateUser updates a user's role with a span named "UPDATE users".
 func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID) error {
-	operation := "UPDATE"
-	target := UsersTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPDATE", UsersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("UPDATE"),
+			attribute.String("db.collection", UsersTableName),
+		),
+	)
 	defer span.End()
 
-	// existence check
 	user, err := db.GetUser(ctx, email)
 	if err != nil {
 		span.RecordError(err)
@@ -225,38 +204,32 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 		return err
 	}
 
-	stmt := fmt.Sprintf(editUserStmt, db.usersTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	q, err := sqlair.Prepare(stmt, User{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
 	user.RoleID = roleID
-	if err := db.conn.Query(ctx, q, user).Run(); err != nil {
+
+	err = db.conn.Query(ctx, db.editUserStmt, user).Run()
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 // UpdateUserPassword sets a new password hash with a span named "UPDATE users".
 func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashedPassword string) error {
-	operation := "UPDATE"
-	target := UsersTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPDATE", UsersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("UPDATE"),
+			attribute.String("db.collection", UsersTableName),
+		),
+	)
 	defer span.End()
 
 	user, err := db.GetUser(ctx, email)
@@ -266,101 +239,77 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 		return err
 	}
 
-	stmt := fmt.Sprintf(editUserPasswordStmt, db.usersTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	q, err := sqlair.Prepare(stmt, User{})
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
 	user.HashedPassword = hashedPassword
-	if err := db.conn.Query(ctx, q, user).Run(); err != nil {
+
+	err = db.conn.Query(ctx, db.editUserPasswordStmt, user).Run()
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 // DeleteUser removes a user by email with a span named "DELETE users".
 func (db *Database) DeleteUser(ctx context.Context, email string) error {
-	operation := "DELETE"
-	target := UsersTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "DELETE", UsersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("DELETE"),
+			attribute.String("db.collection", UsersTableName),
+		),
+	)
 	defer span.End()
 
-	// existence check
-	if _, err := db.GetUser(ctx, email); err != nil {
+	_, err := db.GetUser(ctx, email)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
 		return err
 	}
 
-	stmt := fmt.Sprintf(deleteUserStmt, db.usersTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	q, err := sqlair.Prepare(stmt, User{})
+	err = db.conn.Query(ctx, db.deleteUserStmt, User{Email: email}).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-	if err := db.conn.Query(ctx, q, User{Email: email}).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return nil
 }
 
 // CountUsers returns user count with a span named "SELECT users".
 func (db *Database) CountUsers(ctx context.Context) (int, error) {
-	operation := "SELECT"
-	target := UsersTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", UsersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", UsersTableName),
+		),
+	)
 	defer span.End()
 
-	stmt := fmt.Sprintf(countUsersStmt, db.usersTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(stmt),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
 	var result NumItems
-	q, err := sqlair.Prepare(stmt, NumItems{})
+
+	err := db.conn.Query(ctx, db.countUsersStmt).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return 0, err
-	}
-	if err := db.conn.Query(ctx, q).Get(&result); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return result.Count, nil
 }
