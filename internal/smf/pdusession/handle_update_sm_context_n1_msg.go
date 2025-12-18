@@ -64,9 +64,9 @@ func handleUpdateN1Msg(ctx ctxt.Context, n1Msg []byte, smContext *context.SMCont
 	case nas.MsgTypePDUSessionReleaseRequest:
 		logger.SmfLog.Info("N1 Msg PDU Session Release Request received", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-		err := context.HandlePDUSessionReleaseRequest(ctx, smContext.Supi)
+		err := context.ReleaseUeIPAddr(ctx, smContext.Supi)
 		if err != nil {
-			return nil, false, fmt.Errorf("error handling PDU Session Release Request: %v", err)
+			return nil, false, fmt.Errorf("failed to release UE IP Addr: %v", err)
 		}
 
 		pti := m.PDUSessionReleaseRequest.GetPTI()

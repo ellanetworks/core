@@ -168,56 +168,6 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) err
 	return nil
 }
 
-func isAllowedPDUSessionType(allowedPDUSessionType models.PduSessionType, requestedPDUSessionType uint8) (uint8, error) {
-	allowIPv4 := false
-	allowIPv6 := false
-	allowEthernet := false
-
-	switch allowedPDUSessionType {
-	case models.PduSessionTypeIPv4:
-		allowIPv4 = true
-	case models.PduSessionTypeIPv6:
-		allowIPv6 = true
-	case models.PduSessionTypeIPv4v6:
-		allowIPv4 = true
-		allowIPv6 = true
-	case models.PduSessionTypeEthernet:
-		allowEthernet = true
-	}
-
-	if !allowIPv4 {
-		return 0, fmt.Errorf("PduSessionTypeIPv4 is not allowed")
-	}
-
-	switch requestedPDUSessionType {
-	case nasMessage.PDUSessionTypeIPv4:
-		if !allowIPv4 {
-			return 0, fmt.Errorf("PduSessionTypeIPv4 is not allowed")
-		}
-	case nasMessage.PDUSessionTypeIPv6:
-		if !allowIPv6 {
-			return 0, fmt.Errorf("PduSessionTypeIPv6 is not allowed")
-		}
-	case nasMessage.PDUSessionTypeIPv4IPv6:
-		if allowIPv4 && allowIPv6 {
-		} else if allowIPv4 {
-			return nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed, nil
-		} else if allowIPv6 {
-			return nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed, nil
-		} else {
-			return 0, fmt.Errorf("PduSessionTypeIPv4v6 is not allowed")
-		}
-	case nasMessage.PDUSessionTypeEthernet:
-		if !allowEthernet {
-			return 0, fmt.Errorf("PduSessionTypeEthernet is not allowed")
-		}
-	default:
-		return 0, fmt.Errorf("requested PDU Session type[%d] is not supported", requestedPDUSessionType)
-	}
-
-	return 0, nil
-}
-
 // SelectedSessionRule - return the SMF selected session rule for this SM Context
 func SelectedSessionRule(smPolicyUpdates *qos.PolicyUpdate, qosPolicyData qos.SmCtxtPolicyData) *models.SessionRule {
 	if smPolicyUpdates != nil {

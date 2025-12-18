@@ -28,6 +28,12 @@ const (
 	DefaultQosRuleID uint8 = 1
 )
 
+type ProtocolConfigurationOptions struct {
+	DNSIPv4Request     bool
+	DNSIPv6Request     bool
+	IPv4LinkMTURequest bool
+}
+
 func BuildGSMPDUSessionEstablishmentAccept(
 	smPolicyUpdates *qos.PolicyUpdate,
 	pduSessionID uint8,
@@ -36,7 +42,6 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	dnn string,
 	pco *ProtocolConfigurationOptions,
 	pduSessionType uint8,
-	estAcceptCause5gSMValue uint8,
 	dNNInfo *SnssaiSmfDnnInfo,
 	pduAddress net.IP,
 ) ([]byte, error) {
@@ -66,18 +71,15 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	pDUSessionEstablishmentAccept.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
 	pDUSessionEstablishmentAccept.SetPTI(pti)
 
-	if estAcceptCause5gSMValue != 0 {
-		pDUSessionEstablishmentAccept.Cause5GSM = nasType.NewCause5GSM(nasMessage.PDUSessionEstablishmentAcceptCause5GSMType)
-		pDUSessionEstablishmentAccept.Cause5GSM.SetCauseValue(estAcceptCause5gSMValue)
-	}
-
 	pDUSessionEstablishmentAccept.SetPDUSessionType(pduSessionType)
 
 	pDUSessionEstablishmentAccept.SetSSCMode(1)
+
 	ambr, err := modelsToSessionAMBR(sessRule.AuthSessAmbr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert models to SessionAMBR: %v", err)
 	}
+
 	pDUSessionEstablishmentAccept.SessionAMBR = ambr
 	pDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(pDUSessionEstablishmentAccept.SessionAMBR.Octet)))
 
