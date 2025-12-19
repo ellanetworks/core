@@ -46,12 +46,11 @@ const (
 
 // GMM state for UE
 const (
-	Deregistered            StateType = "Deregistered"
-	DeregistrationInitiated StateType = "DeregistrationInitiated"
-	Authentication          StateType = "Authentication"
-	SecurityMode            StateType = "SecurityMode"
-	ContextSetup            StateType = "ContextSetup"
-	Registered              StateType = "Registered"
+	Deregistered   StateType = "Deregistered"
+	Authentication StateType = "Authentication"
+	SecurityMode   StateType = "SecurityMode"
+	ContextSetup   StateType = "ContextSetup"
+	Registered     StateType = "Registered"
 )
 
 type AmfUe struct {
