@@ -35,7 +35,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue
 		return fmt.Errorf("gmm message is nil")
 	}
 
-	ue.State.Set(context.DeregistrationInitiated)
+	ue.State.Set(context.Deregistered)
 
 	targetDeregistrationAccessType := msg.DeregistrationRequestUEOriginatingDeregistration.GetAccessType()
 
