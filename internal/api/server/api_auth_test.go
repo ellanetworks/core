@@ -403,8 +403,8 @@ func TestRefreshAfterUserDeletion(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
 		}
 
-		if resp.Error != "Invalid session user" {
-			t.Fatalf("expected error %q, got %q", "Invalid session user", resp.Error)
+		if resp.Error != "Invalid session token" {
+			t.Fatalf("expected error %q, got %q", "Invalid session token", resp.Error)
 		}
 	})
 }

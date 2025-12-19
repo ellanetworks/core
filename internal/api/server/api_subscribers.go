@@ -183,7 +183,11 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 
 		dbSubscriber, err := dbInstance.GetSubscriber(r.Context(), imsi)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Subscriber not found", err, logger.APILog)
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber", err, logger.APILog)
 			return
 		}
 
@@ -276,7 +280,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 
 		policy, err := dbInstance.GetPolicy(r.Context(), params.PolicyName)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Policy not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 			return
 		}
 
@@ -301,7 +305,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 
 		if err := dbInstance.CreateSubscriber(r.Context(), newSubscriber); err != nil {
 			if errors.Is(err, db.ErrAlreadyExists) {
-				writeError(w, http.StatusConflict, "Subscriber already exists", err, logger.APILog)
+				writeError(w, http.StatusConflict, "Subscriber already exists", nil, logger.APILog)
 				return
 			}
 
@@ -346,25 +350,21 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		existing, err := dbInstance.GetSubscriber(r.Context(), imsi)
-		if err != nil {
-			writeError(w, http.StatusNotFound, "Subscriber not found", err, logger.APILog)
-			return
-		}
 		policy, err := dbInstance.GetPolicy(r.Context(), params.PolicyName)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Policy not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 			return
 		}
 
 		updated := &db.Subscriber{
-			Imsi:           existing.Imsi,
-			SequenceNumber: existing.SequenceNumber,
-			PermanentKey:   existing.PermanentKey,
-			Opc:            existing.Opc,
-			PolicyID:       policy.ID,
+			Imsi:     params.Imsi,
+			PolicyID: policy.ID,
 		}
-		if err := dbInstance.UpdateSubscriber(r.Context(), updated); err != nil {
+		if err := dbInstance.UpdateSubscriberPolicy(r.Context(), updated); err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Failed to update subscriber", err, logger.APILog)
 			return
 		}
@@ -385,7 +385,11 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		if _, err := dbInstance.GetSubscriber(r.Context(), imsi); err != nil {
-			writeError(w, http.StatusNotFound, "Subscriber not found", err, logger.APILog)
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber", err, logger.APILog)
 			return
 		}
 
@@ -396,11 +400,16 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		if err := dbInstance.DeleteSubscriber(r.Context(), imsi); err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Failed to delete subscriber", err, logger.APILog)
 			return
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Subscriber deleted successfully"}, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent(r.Context(), DeleteSubscriberAction, email, getClientIP(r), "User deleted subscriber: "+imsi)
 	})
 }

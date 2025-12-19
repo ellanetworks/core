@@ -40,8 +40,8 @@ func TestDatabaseMetrics(t *testing.T) {
 	}
 
 	policies := []db.Policy{
-		{Name: "Policy1"},
-		{Name: "Policy2"},
+		{Name: "Policy1", DataNetworkID: 1},
+		{Name: "Policy2", DataNetworkID: 1},
 	}
 	for _, policy := range policies {
 		err := database.CreatePolicy(context.Background(), &policy)

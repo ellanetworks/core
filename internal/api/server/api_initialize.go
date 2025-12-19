@@ -68,6 +68,10 @@ func Initialize(dbInstance *db.Database, secureCookie bool) http.Handler {
 
 		userID, err := dbInstance.CreateUser(r.Context(), dbUser)
 		if err != nil {
+			if errors.Is(err, db.ErrAlreadyExists) {
+				writeError(w, http.StatusConflict, "User already exists", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Failed to create user", err, logger.APILog)
 			return
 		}

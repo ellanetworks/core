@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/canonical/sqlair"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -28,7 +29,7 @@ const (
 	listUsersPageStmt    = "SELECT &User.* from %s ORDER BY id LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getUserStmt          = "SELECT &User.* from %s WHERE email==$User.email"
 	getUserByIDStmt      = "SELECT &User.* from %s WHERE id==$User.id"
-	createUserStmt       = "INSERT INTO %s (email, roleID, hashedPassword) VALUES ($User.email, $User.roleID, $User.hashedPassword) RETURNING &User.*"
+	createUserStmt       = "INSERT INTO %s (email, roleID, hashedPassword) VALUES ($User.email, $User.roleID, $User.hashedPassword)"
 	editUserStmt         = "UPDATE %s SET roleID=$User.roleID WHERE email==$User.email"
 	editUserPasswordStmt = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE email==$User.email" // #nosec: G101
 	deleteUserStmt       = "DELETE FROM %s WHERE email==$User.email"
@@ -44,7 +45,7 @@ const (
 )
 
 type User struct {
-	ID             int    `db:"id"`
+	ID             int64  `db:"id"`
 	Email          string `db:"email"`
 	RoleID         RoleID `db:"roleID"`
 	HashedPassword string `db:"hashedPassword"`
@@ -113,6 +114,10 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 
 	err := db.conn.Query(ctx, db.getUserStmt, row).Get(&row)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, ErrNotFound
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return nil, err
@@ -124,7 +129,7 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 }
 
 // GetUserByID fetches a single user by ID with a span named "SELECT users".
-func (db *Database) GetUserByID(ctx context.Context, id int) (*User, error) {
+func (db *Database) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", UsersTableName),
@@ -143,7 +148,7 @@ func (db *Database) GetUserByID(ctx context.Context, id int) (*User, error) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, nil
+			return nil, ErrNotFound
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -155,8 +160,7 @@ func (db *Database) GetUserByID(ctx context.Context, id int) (*User, error) {
 	return &row, nil
 }
 
-// CreateUser inserts a new user with a span named "INSERT users".
-func (db *Database) CreateUser(ctx context.Context, user *User) (int, error) {
+func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", UsersTableName),
@@ -169,18 +173,30 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int, error) {
 	)
 	defer span.End()
 
-	in := *user
+	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.createUserStmt, in).Get(user)
+	err := db.conn.Query(ctx, db.createUserStmt, user).Get(&outcome)
 	if err != nil {
+		if isUniqueNameError(err) {
+			span.RecordError(ErrAlreadyExists)
+			span.SetStatus(codes.Error, "unique constraint failed")
+			return 0, ErrAlreadyExists
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return 0, err
 	}
 
+	id, err := outcome.Result().LastInsertId()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving insert ID failed")
+		return 0, err
+	}
+
 	span.SetStatus(codes.Ok, "")
 
-	return user.ID, nil
+	return id, nil
 }
 
 // UpdateUser updates a user's role with a span named "UPDATE users".
@@ -197,20 +213,31 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 	)
 	defer span.End()
 
-	user, err := db.GetUser(ctx, email)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "not found")
-		return err
+	user := &User{
+		Email:  email,
+		RoleID: roleID,
 	}
 
-	user.RoleID = roleID
+	var outcome sqlair.Outcome
 
-	err = db.conn.Query(ctx, db.editUserStmt, user).Run()
+	err := db.conn.Query(ctx, db.editUserStmt, user).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		return err
+	}
+
+	if rowsAffected == 0 {
+		span.RecordError(ErrNotFound)
+		span.SetStatus(codes.Error, "not found")
+		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -232,20 +259,31 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 	)
 	defer span.End()
 
-	user, err := db.GetUser(ctx, email)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "not found")
-		return err
+	user := &User{
+		Email:          email,
+		HashedPassword: hashedPassword,
 	}
 
-	user.HashedPassword = hashedPassword
+	var outcome sqlair.Outcome
 
-	err = db.conn.Query(ctx, db.editUserPasswordStmt, user).Run()
+	err := db.conn.Query(ctx, db.editUserPasswordStmt, user).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		return err
+	}
+
+	if rowsAffected == 0 {
+		span.RecordError(ErrNotFound)
+		span.SetStatus(codes.Error, "not found")
+		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -267,18 +305,26 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 	)
 	defer span.End()
 
-	_, err := db.GetUser(ctx, email)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "not found")
-		return err
-	}
+	var outcome sqlair.Outcome
 
-	err = db.conn.Query(ctx, db.deleteUserStmt, User{Email: email}).Run()
+	err := db.conn.Query(ctx, db.deleteUserStmt, User{Email: email}).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		return err
+	}
+
+	if rowsAffected == 0 {
+		span.RecordError(ErrNotFound)
+		span.SetStatus(codes.Error, "not found")
+		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")

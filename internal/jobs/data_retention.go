@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -65,11 +66,11 @@ func enforceSubscriberUsageDataRetention(database *db.Database) error {
 
 	days, err := database.GetRetentionPolicy(ctx, db.CategorySubscriberUsage)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get subscriber usage retention policy: %v", err)
 	}
 
 	if err := database.DeleteOldDailyUsage(ctx, days); err != nil {
-		return err
+		return fmt.Errorf("failed to delete old daily usage data: %v", err)
 	}
 
 	return nil

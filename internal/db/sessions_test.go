@@ -4,6 +4,7 @@ package db_test
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -25,10 +26,19 @@ func TestSessionsEndToEnd(t *testing.T) {
 		}
 	}()
 
+	user := &db.User{
+		Email:          "testuser@example.com",
+		HashedPassword: "afewfawe12321",
+	}
+	userID, err := database.CreateUser(context.Background(), user)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateUser: %s", err)
+	}
+
 	expiresAt := time.Now().Add(1 * time.Hour)
 
 	session := &db.Session{
-		UserID:    1,
+		UserID:    userID,
 		TokenHash: make([]byte, 32),
 		ExpiresAt: expiresAt.Unix(),
 	}
@@ -82,10 +92,19 @@ func TestDeleteSessionByTokenHash(t *testing.T) {
 		}
 	}()
 
+	user := &db.User{
+		Email:          "testuser@example.com",
+		HashedPassword: "afewfawe12321",
+	}
+	userID, err := database.CreateUser(context.Background(), user)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateUser: %s", err)
+	}
+
 	expiresAt := time.Now().Add(1 * time.Hour)
 
 	session := &db.Session{
-		UserID:    1,
+		UserID:    userID,
 		TokenHash: make([]byte, 32),
 		ExpiresAt: expiresAt.Unix(),
 	}
@@ -124,14 +143,32 @@ func TestDeleteExpiredSessions(t *testing.T) {
 		}
 	}()
 
+	user1 := &db.User{
+		Email:          "testuser1@example.com",
+		HashedPassword: "afewfawe12321",
+	}
+	userID1, err := database.CreateUser(context.Background(), user1)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateUser: %s", err)
+	}
+
+	user2 := &db.User{
+		Email:          "testuser2@example.com",
+		HashedPassword: "afewfawe12321",
+	}
+	userID2, err := database.CreateUser(context.Background(), user2)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateUser: %s", err)
+	}
+
 	expiredSession := &db.Session{
-		UserID:    1,
+		UserID:    userID1,
 		TokenHash: []byte{1, 2, 3, 4, 5},
 		ExpiresAt: time.Now().Add(-1 * time.Hour).Unix(), // already expired
 	}
 
 	validSession := &db.Session{
-		UserID:    2,
+		UserID:    userID2,
 		TokenHash: []byte{6, 7, 8, 9, 10},
 		ExpiresAt: time.Now().Add(1 * time.Hour).Unix(),
 	}
@@ -193,9 +230,19 @@ func TestDeleteManyExpiredSessions(t *testing.T) {
 	totalSessions := 100
 	expiredSessions := totalSessions / 2
 
-	for i := 0; i < totalSessions; i++ {
+	for i := range totalSessions {
+		user := &db.User{
+			Email:          fmt.Sprintf("testuser%d@example.com", i),
+			HashedPassword: "afewfawe12321",
+		}
+
+		userID, err := database.CreateUser(context.Background(), user)
+		if err != nil {
+			t.Fatalf("Couldn't complete CreateUser: %s", err)
+		}
+
 		session := &db.Session{
-			UserID:    i,
+			UserID:    userID,
 			TokenHash: []byte{byte(i)},
 		}
 

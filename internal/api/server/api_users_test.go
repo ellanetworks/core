@@ -763,6 +763,37 @@ func TestCreateUserInvalidInput(t *testing.T) {
 	}
 }
 
+func TestEditUnexistentUser(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	updateUserParams := &UpdateUserParams{
+		Email:  "nonexistent@ellanetworks.com",
+		RoleID: RoleReadOnly,
+	}
+	statusCode, response, err := editUser(ts.URL, client, token, "nonexistent@ellanetworks.com", updateUserParams)
+	if err != nil {
+		t.Fatalf("couldn't edit user: %s", err)
+	}
+	if statusCode != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
+	}
+	if response.Error == "" {
+		t.Fatalf("expected error, got none")
+	}
+}
+
 func TestCreateTooManyUsers(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")

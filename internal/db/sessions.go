@@ -32,7 +32,7 @@ const (
 
 type Session struct {
 	ID        int    `db:"id"`
-	UserID    int    `db:"user_id"`
+	UserID    int64  `db:"user_id"`
 	TokenHash []byte `db:"token_hash"`
 	CreatedAt int64  `db:"created_at"` // store as Unix timestamp (seconds since epoch)
 	ExpiresAt int64  `db:"expires_at"` // store as Unix timestamp (seconds since epoch)

@@ -6,7 +6,10 @@ import (
 	"github.com/mattn/go-sqlite3"
 )
 
-var ErrAlreadyExists = errors.New("already exists")
+var (
+	ErrAlreadyExists = errors.New("already exists")
+	ErrNotFound      = errors.New("not found")
+)
 
 func isUniqueNameError(err error) bool {
 	var se sqlite3.Error

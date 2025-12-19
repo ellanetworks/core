@@ -123,6 +123,10 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 
 	err := db.conn.Query(ctx, db.getRouteStmt, row).Get(&row)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, ErrNotFound
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return nil, err

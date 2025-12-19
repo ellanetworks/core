@@ -122,7 +122,7 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 					getSeqNumber(),
 					0,
 					ie.NewCause(ie.CauseRequestRejected),
-				), fmt.Errorf("failed to update uplink data volume in db: %v", err)
+				), fmt.Errorf("failed to update uplink data volume in db for imsi %s: %v", smContext.Supi, err)
 			}
 			logger.SmfLog.Debug(
 				"Processed usage report",

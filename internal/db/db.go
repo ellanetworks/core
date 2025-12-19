@@ -29,7 +29,7 @@ type Database struct {
 	countSubscribersStmt         *sqlair.Statement
 	getSubscriberStmt            *sqlair.Statement
 	createSubscriberStmt         *sqlair.Statement
-	updateSubscriberStmt         *sqlair.Statement
+	updateSubscriberPolicyStmt   *sqlair.Statement
 	updateSubscriberSqnNumStmt   *sqlair.Statement
 	deleteSubscriberStmt         *sqlair.Statement
 	checkSubscriberIPStmt        *sqlair.Statement
@@ -197,6 +197,24 @@ func NewDatabase(databasePath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to enable WAL journaling: %w", err)
 	}
 
+	// turn synchronous to NORMAL for performance
+	if _, err := sqlConnection.Exec("PRAGMA synchronous = NORMAL;"); err != nil {
+		err := sqlConnection.Close()
+		if err != nil {
+			logger.DBLog.Error("Failed to close database connection after error", zap.Error(err))
+		}
+		return nil, fmt.Errorf("failed to set synchronous to NORMAL: %w", err)
+	}
+
+	// turn on foreign key support
+	if _, err := sqlConnection.Exec("PRAGMA foreign_keys = ON;"); err != nil {
+		err := sqlConnection.Close()
+		if err != nil {
+			logger.DBLog.Error("Failed to close database connection after error", zap.Error(err))
+		}
+		return nil, fmt.Errorf("failed to enable foreign key support: %w", err)
+	}
+
 	// Initialize tables
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateSubscribersTable, SubscribersTableName)); err != nil {
 		return nil, err
@@ -284,9 +302,9 @@ func (db *Database) PrepareStatements() error {
 		return fmt.Errorf("failed to prepare create subscriber statement: %v", err)
 	}
 
-	updateSubscriberStmt, err := sqlair.Prepare(fmt.Sprintf(editSubscriberStmt, SubscribersTableName), Subscriber{})
+	updateSubscriberPolicyStmt, err := sqlair.Prepare(fmt.Sprintf(editSubscriberPolicyStmt, SubscribersTableName), Subscriber{})
 	if err != nil {
-		return fmt.Errorf("failed to prepare update subscriber statement: %v", err)
+		return fmt.Errorf("failed to prepare update subscriber policy statement: %v", err)
 	}
 
 	updateSubscriberSqnNumStmt, err := sqlair.Prepare(fmt.Sprintf(editSubscriberSeqNumStmt, SubscribersTableName), Subscriber{})
@@ -663,7 +681,7 @@ func (db *Database) PrepareStatements() error {
 	db.countSubscribersStmt = countSubscribersStmt
 	db.getSubscriberStmt = getSubscriberStmt
 	db.createSubscriberStmt = createSubscriberStmt
-	db.updateSubscriberStmt = updateSubscriberStmt
+	db.updateSubscriberPolicyStmt = updateSubscriberPolicyStmt
 	db.updateSubscriberSqnNumStmt = updateSubscriberSqnNumStmt
 	db.deleteSubscriberStmt = deleteSubscriberStmt
 	db.checkSubscriberIPStmt = checkSubscriberIPStmt

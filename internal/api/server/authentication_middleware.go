@@ -21,7 +21,7 @@ var tracer = otel.Tracer("ella-core/api/authentication_middleware")
 const AuthenticationAction = "user_authentication"
 
 type claims struct {
-	ID     int    `json:"id"`
+	ID     int64  `json:"id"`
 	Email  string `json:"email"`
 	RoleID RoleID `json:"role_id"`
 	jwt.RegisteredClaims
@@ -51,7 +51,7 @@ func parseAPIToken(presented string) (tokenID, secret string, ok bool) {
 
 // authenticateRequest validates the Authorization header (JWT or API token),
 // and returns (userID, email, roleID) for authorization.
-func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) (int, string, RoleID, error) {
+func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) (int64, string, RoleID, error) {
 	ctx, span := tracer.Start(r.Context(), "Authenticate",
 		trace.WithAttributes(),
 	)
@@ -104,7 +104,7 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 }
 
 // putIdentity adds identity to context.
-func putIdentity(ctx context.Context, id int, email string, role RoleID) context.Context {
+func putIdentity(ctx context.Context, id int64, email string, role RoleID) context.Context {
 	ctx = context.WithValue(ctx, contextKeyUserID, id)
 	ctx = context.WithValue(ctx, contextKeyEmail, email)
 	ctx = context.WithValue(ctx, contextKeyRoleID, role)

@@ -11,6 +11,55 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
+func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (int, error) {
+	newDataNetwork := &db.DataNetwork{
+		Name:   "not-internet",
+		IPPool: "1.2.3.0/24",
+	}
+	err := database.CreateDataNetwork(context.Background(), newDataNetwork)
+	if err != nil {
+		return 0, err
+	}
+
+	createdNetwork, err := database.GetDataNetwork(context.Background(), newDataNetwork.Name)
+	if err != nil {
+		return 0, err
+	}
+
+	policy := &db.Policy{
+		Name:            "my-policy",
+		BitrateUplink:   "100 Mbps",
+		BitrateDownlink: "200 Mbps",
+		Var5qi:          9,
+		Arp:             1,
+		DataNetworkID:   createdNetwork.ID,
+	}
+
+	err = database.CreatePolicy(context.Background(), policy)
+	if err != nil {
+		return 0, err
+	}
+
+	policyCreated, err := database.GetPolicy(context.Background(), policy.Name)
+	if err != nil {
+		return 0, err
+	}
+
+	subscriber := &db.Subscriber{
+		Imsi:           imsi,
+		SequenceNumber: "123456",
+		PermanentKey:   "123456",
+		Opc:            "123456",
+		PolicyID:       policyCreated.ID,
+	}
+	err = database.CreateSubscriber(context.Background(), subscriber)
+	if err != nil {
+		return 0, err
+	}
+
+	return policyCreated.ID, nil
+}
+
 func TestGetUsagePerDay_1Sub(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -24,11 +73,18 @@ func TestGetUsagePerDay_1Sub(t *testing.T) {
 		}
 	}()
 
+	imsi := "001010100007487"
+
+	_, err = createDataNetworkPolicyAndSubscriber(database, imsi)
+	if err != nil {
+		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
+	}
+
 	date1 := time.Now().Add(-24 * time.Hour)
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi",
+		IMSI:          imsi,
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -75,11 +131,18 @@ func TestGetUsagePerDay_1Sub_OutOfRangeDates(t *testing.T) {
 		}
 	}()
 
+	imsi := "001010100007487"
+
+	_, err = createDataNetworkPolicyAndSubscriber(database, imsi)
+	if err != nil {
+		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
+	}
+
 	date1 := time.Now().Add(-1 * 24 * time.Hour)
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi",
+		IMSI:          imsi,
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -113,11 +176,18 @@ func TestGetUsagePerDay_MultiSubsSameDay(t *testing.T) {
 		}
 	}()
 
+	imsi1 := "001010100007487"
+
+	policyID, err := createDataNetworkPolicyAndSubscriber(database, imsi1)
+	if err != nil {
+		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
+	}
+
 	date1 := time.Now().Add(-24 * time.Hour)
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi_1",
+		IMSI:          imsi1,
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -125,9 +195,22 @@ func TestGetUsagePerDay_MultiSubsSameDay(t *testing.T) {
 		t.Fatalf("couldn't increment daily usage: %s", err)
 	}
 
+	imsi2 := "001010100007488"
+	subscriber := &db.Subscriber{
+		Imsi:           imsi2,
+		SequenceNumber: "123456",
+		PermanentKey:   "123456",
+		Opc:            "123456",
+		PolicyID:       policyID,
+	}
+	err = database.CreateSubscriber(context.Background(), subscriber)
+	if err != nil {
+		t.Fatalf("Couldn't complete create subscriber 2: %s", err)
+	}
+
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi_2",
+		IMSI:          imsi2,
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -174,12 +257,19 @@ func TestGetUsagePerDay_MultiSubsMultiDays(t *testing.T) {
 		}
 	}()
 
+	imsi1 := "001010100007487"
+
+	_, err = createDataNetworkPolicyAndSubscriber(database, imsi1)
+	if err != nil {
+		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
+	}
+
 	date1 := time.Now().Add(-48 * time.Hour)
 	date2 := time.Now().Add(-24 * time.Hour)
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi_1",
+		IMSI:          imsi1,
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -189,7 +279,7 @@ func TestGetUsagePerDay_MultiSubsMultiDays(t *testing.T) {
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date2),
-		IMSI:          "test_imsi_1",
+		IMSI:          imsi1,
 		BytesUplink:   1500,
 		BytesDownlink: 2500,
 	})
@@ -251,11 +341,18 @@ func TestGetUsagePerDay_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
 		}
 	}()
 
+	imsi1 := "001010100007487"
+
+	policyID, err := createDataNetworkPolicyAndSubscriber(database, imsi1)
+	if err != nil {
+		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
+	}
+
 	date1 := time.Now().Add(-48 * time.Hour)
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi_1",
+		IMSI:          imsi1,
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -263,9 +360,22 @@ func TestGetUsagePerDay_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
 		t.Fatalf("couldn't increment daily usage: %s", err)
 	}
 
+	imsi2 := "001010100007488"
+	subscriber := &db.Subscriber{
+		Imsi:           imsi2,
+		SequenceNumber: "123456",
+		PermanentKey:   "123456",
+		Opc:            "123456",
+		PolicyID:       policyID,
+	}
+	err = database.CreateSubscriber(context.Background(), subscriber)
+	if err != nil {
+		t.Fatalf("Couldn't complete create subscriber 2: %s", err)
+	}
+
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi_2",
+		IMSI:          imsi2,
 		BytesUplink:   1500,
 		BytesDownlink: 2500,
 	})
@@ -276,7 +386,7 @@ func TestGetUsagePerDay_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	dailyUsages, err := database.GetUsagePerDay(context.Background(), "test_imsi_2", startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), imsi2, startDate, endDate)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -312,12 +422,19 @@ func TestGetUsagePerDay_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
 		}
 	}()
 
+	imsi1 := "001010100007487"
+
+	policyID, err := createDataNetworkPolicyAndSubscriber(database, imsi1)
+	if err != nil {
+		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
+	}
+
 	date1 := time.Now().Add(-48 * time.Hour)
 	date2 := time.Now().Add(-24 * time.Hour)
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi_1",
+		IMSI:          imsi1,
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -325,9 +442,22 @@ func TestGetUsagePerDay_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
 		t.Fatalf("couldn't increment daily usage: %s", err)
 	}
 
+	imsi2 := "001010100007488"
+	subscriber := &db.Subscriber{
+		Imsi:           imsi2,
+		SequenceNumber: "123456",
+		PermanentKey:   "123456",
+		Opc:            "123456",
+		PolicyID:       policyID,
+	}
+	err = database.CreateSubscriber(context.Background(), subscriber)
+	if err != nil {
+		t.Fatalf("Couldn't complete create subscriber 2: %s", err)
+	}
+
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi_2",
+		IMSI:          imsi2,
 		BytesUplink:   1500,
 		BytesDownlink: 2500,
 	})
@@ -337,7 +467,7 @@ func TestGetUsagePerDay_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date2),
-		IMSI:          "test_imsi_1",
+		IMSI:          imsi1,
 		BytesUplink:   1222,
 		BytesDownlink: 23222,
 	})
@@ -348,7 +478,7 @@ func TestGetUsagePerDay_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	dailyUsages, err := database.GetUsagePerDay(context.Background(), "test_imsi_1", startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), imsi1, startDate, endDate)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -397,11 +527,17 @@ func TestGetUsagePerSubscriber_1Sub(t *testing.T) {
 		}
 	}()
 
+	imsi1 := "001010100007488"
+	_, err = createDataNetworkPolicyAndSubscriber(database, imsi1)
+	if err != nil {
+		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
+	}
+
 	date1 := time.Now().Add(-24 * time.Hour)
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi_1",
+		IMSI:          imsi1,
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -421,7 +557,7 @@ func TestGetUsagePerSubscriber_1Sub(t *testing.T) {
 		t.Fatalf("Expected 1 usage per subscriber entry, but got %d", len(usagePerSubscriber))
 	}
 
-	if usagePerSubscriber[0].IMSI != "test_imsi_1" {
+	if usagePerSubscriber[0].IMSI != imsi1 {
 		t.Fatalf("Expected IMSI 'test_imsi_1', but got %s", usagePerSubscriber[0].IMSI)
 	}
 
@@ -447,12 +583,19 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 		}
 	}()
 
+	imsi1 := "001010100007487"
+
+	policyID, err := createDataNetworkPolicyAndSubscriber(database, imsi1)
+	if err != nil {
+		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
+	}
+
 	date1 := time.Now().Add(-24 * time.Hour)
 	date2 := time.Now().Add(-48 * time.Hour)
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi_1",
+		IMSI:          imsi1,
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -460,9 +603,22 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 		t.Fatalf("couldn't increment daily usage: %s", err)
 	}
 
+	imsi2 := "001010100007488"
+	subscriber := &db.Subscriber{
+		Imsi:           imsi2,
+		SequenceNumber: "123456",
+		PermanentKey:   "123456",
+		Opc:            "123456",
+		PolicyID:       policyID,
+	}
+	err = database.CreateSubscriber(context.Background(), subscriber)
+	if err != nil {
+		t.Fatalf("Couldn't complete create subscriber 2: %s", err)
+	}
+
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi_2",
+		IMSI:          imsi2,
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -470,9 +626,22 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 		t.Fatalf("couldn't increment daily usage: %s", err)
 	}
 
+	imsi3 := "001010100007489"
+	subscriber = &db.Subscriber{
+		Imsi:           imsi3,
+		SequenceNumber: "123456",
+		PermanentKey:   "123456",
+		Opc:            "123456",
+		PolicyID:       policyID,
+	}
+	err = database.CreateSubscriber(context.Background(), subscriber)
+	if err != nil {
+		t.Fatalf("Couldn't complete create subscriber 3: %s", err)
+	}
+
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date1),
-		IMSI:          "test_imsi_3",
+		IMSI:          imsi3,
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -482,7 +651,7 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date2),
-		IMSI:          "test_imsi_3",
+		IMSI:          imsi3,
 		BytesUplink:   3333,
 		BytesDownlink: 4444,
 	})
@@ -502,8 +671,8 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 		t.Fatalf("Expected 3 usage per subscriber entries, but got %d", len(usagePerSubscriber))
 	}
 
-	if usagePerSubscriber[0].IMSI != "test_imsi_3" {
-		t.Fatalf("Expected IMSI 'test_imsi_3', but got %s", usagePerSubscriber[0].IMSI)
+	if usagePerSubscriber[0].IMSI != imsi3 {
+		t.Fatalf("Expected IMSI '%s', but got %s", imsi3, usagePerSubscriber[0].IMSI)
 	}
 
 	if usagePerSubscriber[0].BytesUplink != 4333 {
@@ -514,8 +683,8 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 		t.Fatalf("Expected 6444 downlink bytes, but got %d", usagePerSubscriber[0].BytesDownlink)
 	}
 
-	if usagePerSubscriber[1].IMSI != "test_imsi_2" {
-		t.Fatalf("Expected IMSI 'test_imsi_2', but got %s", usagePerSubscriber[1].IMSI)
+	if usagePerSubscriber[1].IMSI != imsi2 {
+		t.Fatalf("Expected IMSI '%s', but got %s", imsi2, usagePerSubscriber[1].IMSI)
 	}
 
 	if usagePerSubscriber[1].BytesUplink != 1000 {
@@ -526,8 +695,8 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 		t.Fatalf("Expected 2000 downlink bytes, but got %d", usagePerSubscriber[1].BytesDownlink)
 	}
 
-	if usagePerSubscriber[2].IMSI != "test_imsi_1" {
-		t.Fatalf("Expected IMSI 'test_imsi_1', but got %s", usagePerSubscriber[2].IMSI)
+	if usagePerSubscriber[2].IMSI != imsi1 {
+		t.Fatalf("Expected IMSI '%s', but got %s", imsi1, usagePerSubscriber[2].IMSI)
 	}
 
 	if usagePerSubscriber[2].BytesUplink != 1000 {
@@ -550,9 +719,16 @@ func TestClearDailyUsage(t *testing.T) {
 
 	date := time.Now()
 
+	testImsi := "001010100007487"
+
+	_, err = createDataNetworkPolicyAndSubscriber(database, testImsi)
+	if err != nil {
+		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
+	}
+
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(date),
-		IMSI:          "test_imsi",
+		IMSI:          testImsi,
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -560,7 +736,7 @@ func TestClearDailyUsage(t *testing.T) {
 		t.Fatalf("couldn't increment daily usage: %s", err)
 	}
 
-	dailyUsage, err := database.GetUsagePerDay(context.Background(), "test_imsi", date, date)
+	dailyUsage, err := database.GetUsagePerDay(context.Background(), testImsi, date, date)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage: %s", err)
 	}
@@ -574,7 +750,7 @@ func TestClearDailyUsage(t *testing.T) {
 		t.Fatalf("couldn't clear daily usage: %s", err)
 	}
 
-	dailyUsage, err = database.GetUsagePerDay(context.Background(), "test_imsi", date, date)
+	dailyUsage, err = database.GetUsagePerDay(context.Background(), testImsi, date, date)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage: %s", err)
 	}
@@ -597,12 +773,19 @@ func TestDeleteOldDailyUsage(t *testing.T) {
 		}
 	}()
 
+	testImsi := "001010100007487"
+
+	_, err = createDataNetworkPolicyAndSubscriber(database, testImsi)
+	if err != nil {
+		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
+	}
+
 	oldDate := time.Now().AddDate(0, 0, -10)
 	newDate := time.Now()
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(oldDate),
-		IMSI:          "test_imsi",
+		IMSI:          testImsi,
 		BytesUplink:   1000,
 		BytesDownlink: 2000,
 	})
@@ -612,7 +795,7 @@ func TestDeleteOldDailyUsage(t *testing.T) {
 
 	err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 		EpochDay:      db.DaysSinceEpoch(newDate),
-		IMSI:          "test_imsi",
+		IMSI:          testImsi,
 		BytesUplink:   3000,
 		BytesDownlink: 4000,
 	})
@@ -625,7 +808,7 @@ func TestDeleteOldDailyUsage(t *testing.T) {
 		t.Fatalf("couldn't delete old daily usage: %s", err)
 	}
 
-	dailyUsage, err := database.GetUsagePerDay(context.Background(), "test_imsi", oldDate, oldDate)
+	dailyUsage, err := database.GetUsagePerDay(context.Background(), testImsi, oldDate, oldDate)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage: %s", err)
 	}
@@ -634,7 +817,7 @@ func TestDeleteOldDailyUsage(t *testing.T) {
 		t.Fatalf("Expected no old daily usage entry, but got one: %+v", dailyUsage)
 	}
 
-	dailyUsage, err = database.GetUsagePerDay(context.Background(), "test_imsi", newDate, newDate)
+	dailyUsage, err = database.GetUsagePerDay(context.Background(), testImsi, newDate, newDate)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage: %s", err)
 	}

@@ -142,7 +142,7 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 		}
 		dbPolicy, err := dbInstance.GetPolicy(r.Context(), name)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Policy not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 			return
 		}
 		dataNetwork, err := dbInstance.GetDataNetworkByID(r.Context(), dbPolicy.DataNetworkID)
@@ -169,30 +169,45 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
+
 		name := r.PathValue("name")
 		if name == "" {
 			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
 		}
+
 		_, err := dbInstance.GetPolicy(r.Context(), name)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Policy not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 			return
 		}
+
 		subsInPolicy, err := dbInstance.SubscribersInPolicy(r.Context(), name)
 		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Failed to check subscribers", err, logger.APILog)
 			return
 		}
+
 		if subsInPolicy {
 			writeError(w, http.StatusConflict, "Policy has subscribers", nil, logger.APILog)
 			return
 		}
+
 		if err := dbInstance.DeletePolicy(r.Context(), name); err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Failed to delete policy", err, logger.APILog)
 			return
 		}
+
 		writeResponse(w, SuccessResponse{Message: "Policy deleted successfully"}, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent(r.Context(), DeletePolicyAction, email, getClientIP(r), "User deleted policy: "+name)
 	})
 }
@@ -229,7 +244,7 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 
 		dataNetwork, err := dbInstance.GetDataNetwork(r.Context(), createPolicyParams.DataNetworkName)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Policy not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 			return
 		}
 
@@ -244,7 +259,7 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 
 		if err := dbInstance.CreatePolicy(r.Context(), dbPolicy); err != nil {
 			if errors.Is(err, db.ErrAlreadyExists) {
-				writeError(w, http.StatusConflict, "Policy already exists", err, logger.APILog)
+				writeError(w, http.StatusConflict, "Policy already exists", nil, logger.APILog)
 				return
 			}
 
@@ -253,6 +268,7 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Policy created successfully"}, http.StatusCreated, logger.APILog)
+
 		logger.LogAuditEvent(r.Context(), CreatePolicyAction, email, getClientIP(r), "User created policy: "+createPolicyParams.Name)
 	})
 }
@@ -272,6 +288,7 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		var updatePolicyParams CreatePolicyParams
+
 		if err := json.NewDecoder(r.Body).Decode(&updatePolicyParams); err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
@@ -284,13 +301,13 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 
 		policy, err := dbInstance.GetPolicy(r.Context(), policyName)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Policy not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 			return
 		}
 
 		dataNetwork, err := dbInstance.GetDataNetwork(r.Context(), updatePolicyParams.DataNetworkName)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Data Network not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 			return
 		}
 

@@ -108,9 +108,10 @@ func GetDataNetwork(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
 		}
+
 		dbDataNetwork, err := dbInstance.GetDataNetwork(r.Context(), name)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Data Network not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 			return
 		}
 
@@ -136,30 +137,39 @@ func DeleteDataNetwork(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
+
 		name := r.PathValue("name")
 		if name == "" {
 			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
 		}
-		_, err := dbInstance.GetDataNetwork(r.Context(), name)
-		if err != nil {
-			writeError(w, http.StatusNotFound, "Data Network not found", err, logger.APILog)
-			return
-		}
+
 		policiesInDataNetwork, err := dbInstance.PoliciesInDataNetwork(r.Context(), name)
 		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Failed to check policies", err, logger.APILog)
 			return
 		}
+
 		if policiesInDataNetwork {
 			writeError(w, http.StatusConflict, "Data Network has policies", nil, logger.APILog)
 			return
 		}
+
 		if err := dbInstance.DeleteDataNetwork(r.Context(), name); err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Failed to delete data network", err, logger.APILog)
 			return
 		}
+
 		writeResponse(w, SuccessResponse{Message: "DataNetwork deleted successfully"}, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent(r.Context(), DeleteDataNetworkAction, email, getClientIP(r), "User deleted data network: "+name)
 	})
 }
@@ -202,7 +212,7 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 
 		if err := dbInstance.CreateDataNetwork(r.Context(), dbDataNetwork); err != nil {
 			if errors.Is(err, db.ErrAlreadyExists) {
-				writeError(w, http.StatusConflict, "Data Network already exists", err, logger.APILog)
+				writeError(w, http.StatusConflict, "Data Network already exists", nil, logger.APILog)
 				return
 			}
 
@@ -230,6 +240,7 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 		}
 
 		var updateDataNetworkParams CreateDataNetworkParams
+
 		if err := json.NewDecoder(r.Body).Decode(&updateDataNetworkParams); err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
@@ -240,23 +251,24 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		dn, err := dbInstance.GetDataNetwork(r.Context(), name)
-		if err != nil {
-			writeError(w, http.StatusNotFound, "Data Network not found", err, logger.APILog)
-			return
+		dn := &db.DataNetwork{
+			Name:   updateDataNetworkParams.Name,
+			IPPool: updateDataNetworkParams.IPPool,
+			DNS:    updateDataNetworkParams.DNS,
+			MTU:    updateDataNetworkParams.MTU,
 		}
 
-		dn.Name = updateDataNetworkParams.Name
-		dn.IPPool = updateDataNetworkParams.IPPool
-		dn.DNS = updateDataNetworkParams.DNS
-		dn.MTU = updateDataNetworkParams.MTU
-
 		if err := dbInstance.UpdateDataNetwork(r.Context(), dn); err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Failed to update data network", err, logger.APILog)
 			return
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Data Network updated successfully"}, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent(r.Context(), UpdateDataNetworkAction, email, getClientIP(r), "User updated data network: "+updateDataNetworkParams.Name)
 	})
 }

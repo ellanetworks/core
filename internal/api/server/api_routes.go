@@ -124,7 +124,11 @@ func GetRoute(dbInstance *db.Database) http.Handler {
 
 		dbRoute, err := dbInstance.GetRoute(r.Context(), idNum)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Route not found", err, logger.APILog)
+			if err == db.ErrNotFound {
+				writeError(w, http.StatusNotFound, "Route not found", nil, logger.APILog)
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "Failed to get route", err, logger.APILog)
 			return
 		}
 
@@ -288,7 +292,11 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 
 		route, err := dbInstance.GetRoute(r.Context(), routeID)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Route not found", err, logger.APILog)
+			if err == db.ErrNotFound {
+				writeError(w, http.StatusNotFound, "Route not found", nil, logger.APILog)
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "Failed to get route", err, logger.APILog)
 			return
 		}
 
@@ -310,7 +318,9 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			writeError(w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
 			return
 		}
+
 		committed := false
+
 		defer func() {
 			if !committed {
 				if rbErr := tx.Rollback(); rbErr != nil {
@@ -339,9 +349,11 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			writeError(w, http.StatusInternalServerError, "Failed to commit transaction", err, logger.APILog)
 			return
 		}
+
 		committed = true
 
 		writeResponse(w, SuccessResponse{Message: "Route deleted successfully"}, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent(
 			r.Context(),
 			DeleteRouteAction,
