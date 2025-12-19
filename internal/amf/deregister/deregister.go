@@ -14,7 +14,7 @@ func DeregisterSubscriber(ctx ctxt.Context, supi string) error {
 
 	ue, ok := amfSelf.AmfUeFindBySupi(supi)
 	if !ok {
-		logger.AmfLog.Debug("UE with SUPI %s not found", zap.String("supi", supi))
+		logger.AmfLog.Debug("UE with SUPI not found", zap.String("supi", supi))
 		return nil
 	}
 

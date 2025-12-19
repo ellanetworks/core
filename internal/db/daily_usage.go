@@ -26,7 +26,7 @@ const QueryCreateDailyUsageTable = `
 
 		PRIMARY KEY (epoch_day, imsi),
 
-		FOREIGN KEY (imsi) REFERENCES subscribers(imsi)
+		FOREIGN KEY (imsi) REFERENCES subscribers(imsi) ON DELETE CASCADE
 )`
 
 const (

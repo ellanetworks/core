@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/canonical/sqlair"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -106,6 +107,11 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 
 	err := db.conn.Query(ctx, db.getDataNetworkStmt, row).Get(&row)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "not found")
+			return nil, ErrNotFound
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return nil, err
@@ -136,7 +142,7 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwor
 		if err == sql.ErrNoRows {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "not found")
-			return nil, fmt.Errorf("data network with ID %d not found", id)
+			return nil, ErrNotFound
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -192,19 +198,26 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 	)
 	defer span.End()
 
-	// ensure exists
-	_, err := db.GetDataNetwork(ctx, dataNetwork.Name)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "not found")
-		return err
-	}
+	var outcome sqlair.Outcome
 
-	err = db.conn.Query(ctx, db.editDataNetworkStmt, dataNetwork).Run()
+	err := db.conn.Query(ctx, db.editDataNetworkStmt, dataNetwork).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		return err
+	}
+
+	if rowsAffected == 0 {
+		span.RecordError(ErrNotFound)
+		span.SetStatus(codes.Error, "not found")
+		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -225,19 +238,26 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 	)
 	defer span.End()
 
-	// ensure exists
-	_, err := db.GetDataNetwork(ctx, name)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "not found")
-		return err
-	}
+	var outcome sqlair.Outcome
 
-	err = db.conn.Query(ctx, db.deleteDataNetworkStmt, DataNetwork{Name: name}).Run()
+	err := db.conn.Query(ctx, db.deleteDataNetworkStmt, DataNetwork{Name: name}).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		return err
+	}
+
+	if rowsAffected == 0 {
+		span.RecordError(ErrNotFound)
+		span.SetStatus(codes.Error, "not found")
+		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")

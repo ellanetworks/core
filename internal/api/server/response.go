@@ -47,7 +47,7 @@ func writeResponse(w http.ResponseWriter, v any, status int, logger *zap.Logger)
 
 // writeError is a helper function that logs errors and writes http response for errors
 func writeError(w http.ResponseWriter, status int, message string, err error, logger *zap.Logger) {
-	logger.Info(message, zap.Error(err))
+	logger.Debug(message, zap.Error(err))
 
 	resp := ErrorResponse{Error: message}
 

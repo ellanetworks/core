@@ -159,7 +159,11 @@ func GetUser(dbInstance *db.Database) http.Handler {
 
 		dbUser, err := dbInstance.GetUser(r.Context(), emailParam)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
 			return
 		}
 
@@ -183,7 +187,11 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 
 		dbUser, err := dbInstance.GetUser(r.Context(), email)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
 			return
 		}
 
@@ -223,11 +231,6 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if _, err := dbInstance.GetUser(r.Context(), newUser.Email); err == nil {
-			writeError(w, http.StatusBadRequest, "user already exists", errors.New("duplicate"), logger.APILog)
-			return
-		}
-
 		hashedPassword, err := hashPassword(newUser.Password)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
@@ -253,6 +256,10 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 
 		_, err = dbInstance.CreateUser(r.Context(), dbUser)
 		if err != nil {
+			if errors.Is(err, db.ErrAlreadyExists) {
+				writeError(w, http.StatusBadRequest, "User already exists", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Failed to create user", err, logger.APILog)
 			return
 		}
@@ -285,26 +292,30 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 		}
 
 		var updateUserParams UpdateUserParams
-		if err := json.NewDecoder(r.Body).Decode(&updateUserParams); err != nil {
+
+		err := json.NewDecoder(r.Body).Decode(&updateUserParams)
+		if err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
+
 		if updateUserParams.Email == "" || !isValidEmail(updateUserParams.Email) {
 			writeError(w, http.StatusBadRequest, "Invalid or missing email", errors.New("bad format"), logger.APILog)
 			return
 		}
 
-		if _, err := dbInstance.GetUser(r.Context(), emailParam); err != nil {
-			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
-			return
-		}
-
-		if err := dbInstance.UpdateUser(r.Context(), updateUserParams.Email, db.RoleID(updateUserParams.RoleID)); err != nil {
+		err = dbInstance.UpdateUser(r.Context(), updateUserParams.Email, db.RoleID(updateUserParams.RoleID))
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Failed to update user", err, logger.APILog)
 			return
 		}
 
 		writeResponse(w, SuccessResponse{Message: "User updated successfully"}, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent(r.Context(), UpdateUserAction, requester, getClientIP(r), "User updated user: "+updateUserParams.Email)
 	})
 }
@@ -325,17 +336,14 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 		}
 
 		var updateUserParams UpdateUserPasswordParams
+
 		if err := json.NewDecoder(r.Body).Decode(&updateUserParams); err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
+
 		if updateUserParams.Email == "" || updateUserParams.Password == "" || !isValidEmail(updateUserParams.Email) {
 			writeError(w, http.StatusBadRequest, "Invalid input", errors.New("bad input"), logger.APILog)
-			return
-		}
-
-		if _, err := dbInstance.GetUser(r.Context(), emailParam); err != nil {
-			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
 			return
 		}
 
@@ -345,12 +353,18 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := dbInstance.UpdateUserPassword(r.Context(), updateUserParams.Email, hashedPassword); err != nil {
+		err = dbInstance.UpdateUserPassword(r.Context(), updateUserParams.Email, hashedPassword)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Failed to update password", err, logger.APILog)
 			return
 		}
 
 		writeResponse(w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent(r.Context(), UpdateUserPasswordAction, requester, getClientIP(r), "User updated password for user: "+updateUserParams.Email)
 	})
 }
@@ -365,10 +379,13 @@ func UpdateMyUserPassword(dbInstance *db.Database) http.Handler {
 		}
 
 		var updateUserParams UpdateMyUserPasswordParams
-		if err := json.NewDecoder(r.Body).Decode(&updateUserParams); err != nil {
+
+		err := json.NewDecoder(r.Body).Decode(&updateUserParams)
+		if err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
+
 		if updateUserParams.Password == "" {
 			writeError(w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
 			return
@@ -380,12 +397,14 @@ func UpdateMyUserPassword(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := dbInstance.UpdateUserPassword(r.Context(), email, hashedPassword); err != nil {
+		err = dbInstance.UpdateUserPassword(r.Context(), email, hashedPassword)
+		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to update password", err, logger.APILog)
 			return
 		}
 
 		writeResponse(w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent(r.Context(), UpdateUserPasswordAction, email, getClientIP(r), "User updated own password")
 	})
 }
@@ -405,17 +424,18 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if _, err := dbInstance.GetUser(r.Context(), emailParam); err != nil {
-			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
-			return
-		}
-
-		if err := dbInstance.DeleteUser(r.Context(), emailParam); err != nil {
+		err := dbInstance.DeleteUser(r.Context(), emailParam)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Failed to delete user", err, logger.APILog)
 			return
 		}
 
 		writeResponse(w, SuccessResponse{Message: "User deleted successfully"}, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent(r.Context(), DeleteUserAction, requester, getClientIP(r), "User deleted user: "+emailParam)
 	})
 }
@@ -444,13 +464,15 @@ func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		user, err := dbInstance.GetUser(r.Context(), email)
-		if err != nil {
-			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
+		userIDAny := r.Context().Value(contextKeyUserID)
+
+		userID, ok := userIDAny.(int64)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
 			return
 		}
 
-		tokens, total, err := dbInstance.ListAPITokensPage(r.Context(), user.ID, page, perPage)
+		tokens, total, err := dbInstance.ListAPITokensPage(r.Context(), userID, page, perPage)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Unable to retrieve API tokens", err, logger.APILog)
 			return
@@ -527,9 +549,11 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		user, err := dbInstance.GetUser(r.Context(), email)
-		if err != nil {
-			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
+		userIDAny := r.Context().Value(contextKeyUserID)
+
+		userID, ok := userIDAny.(int64)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
 			return
 		}
 
@@ -549,13 +573,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 			expiresAt = &t
 		}
 
-		_, err = dbInstance.GetAPITokenByName(r.Context(), user.ID, params.Name)
-		if err == nil {
-			writeError(w, http.StatusConflict, "API token with this name already exists", errors.New("duplicate token name"), logger.APILog)
-			return
-		}
-
-		numTokens, err := dbInstance.CountAPITokens(r.Context(), user.ID)
+		numTokens, err := dbInstance.CountAPITokens(r.Context(), userID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to count API tokens", err, logger.APILog)
 			return
@@ -587,13 +605,17 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 		apiToken := &db.APIToken{
 			TokenID:   tokenID,
 			Name:      params.Name,
-			UserID:    user.ID,
+			UserID:    userID,
 			TokenHash: hash,
 			ExpiresAt: expiresAt,
 		}
 
-		if err := dbInstance.CreateAPIToken(r.Context(), apiToken); err != nil {
-			logger.APILog.Warn("Failed to create API token", zap.Error(err))
+		err = dbInstance.CreateAPIToken(r.Context(), apiToken)
+		if err != nil {
+			if errors.Is(err, db.ErrAlreadyExists) {
+				writeError(w, http.StatusConflict, "API token already exists", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Failed to create API token", err, logger.APILog)
 			return
 		}
@@ -603,6 +625,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, response, http.StatusCreated, logger.APILog)
+
 		logger.LogAuditEvent(
 			r.Context(),
 			CreateAPITokenAction,
@@ -628,19 +651,21 @@ func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		user, err := dbInstance.GetUser(r.Context(), email)
-		if err != nil {
-			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
+		userIDAny := r.Context().Value(contextKeyUserID)
+
+		userID, ok := userIDAny.(int64)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
 			return
 		}
 
 		token, err := dbInstance.GetAPITokenByTokenID(r.Context(), idParam)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "API token not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "API token not found", nil, logger.APILog)
 			return
 		}
 
-		if token.UserID != user.ID {
+		if token.UserID != userID {
 			writeError(w, http.StatusForbidden, "You do not have permission to delete this token", errors.New("forbidden"), logger.APILog)
 			return
 		}
@@ -652,6 +677,7 @@ func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "API token deleted successfully"}, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent(
 			r.Context(),
 			DeleteAPITokenAction,

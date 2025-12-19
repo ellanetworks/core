@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -61,8 +60,6 @@ func (db *Database) InitializeN3Settings(ctx context.Context) error {
 		span.SetStatus(codes.Error, "execution failed")
 		return fmt.Errorf("failed to insert default N3 settings: %w", err)
 	}
-
-	logger.DBLog.Debug("Initialized N3 settings")
 
 	span.SetStatus(codes.Ok, "")
 

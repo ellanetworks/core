@@ -106,6 +106,7 @@ func parseRadioEventFilters(r *http.Request) (*db.RadioEventFilters, error) {
 func GetRadioEventRetentionPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+
 		policyDays, err := dbInstance.GetRetentionPolicy(ctx, db.CategoryRadioLogs)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve radio event retention policy", err, logger.APILog)
@@ -113,6 +114,7 @@ func GetRadioEventRetentionPolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		response := GetRadioEventsRetentionPolicyResponse{Days: policyDays}
+
 		writeResponse(w, response, http.StatusOK, logger.APILog)
 	})
 }

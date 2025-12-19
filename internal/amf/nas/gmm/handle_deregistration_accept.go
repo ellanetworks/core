@@ -18,10 +18,6 @@ func handleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe) error {
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleDeregistrationAccept")
 	defer span.End()
 
-	if ue.State.Current() != context.DeregistrationInitiated {
-		return fmt.Errorf("state mismatch: receive Deregistration Accept message in state %s", ue.State.Current())
-	}
-
 	if ue.T3522 != nil {
 		ue.T3522.Stop()
 		ue.T3522 = nil // clear the timer

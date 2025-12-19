@@ -178,6 +178,34 @@ func editSubscriberUsageRetentionPolicy(url string, client *http.Client, token s
 	return res.StatusCode, &updateResponse, nil
 }
 
+func createDataNetworkAndPolicy(url string, client *http.Client, token string) error {
+	createDataNetworkParams := &CreateDataNetworkParams{
+		Name:   DataNetworkName,
+		MTU:    MTU,
+		IPPool: IPPool,
+		DNS:    DNS,
+	}
+	_, _, err := createDataNetwork(url, client, token, createDataNetworkParams)
+	if err != nil {
+		return err
+	}
+
+	createPolicyParams := &CreatePolicyParams{
+		Name:            PolicyName,
+		BitrateUplink:   "100 Mbps",
+		BitrateDownlink: "100 Mbps",
+		Var5qi:          9,
+		Arp:             1,
+		DataNetworkName: DataNetworkName,
+	}
+	_, _, err = createPolicy(url, client, token, createPolicyParams)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
@@ -192,6 +220,9 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
+
+	imsi1 := "001010100007487"
+	imsi2 := "001010100007488"
 
 	t.Run("1. Get subscriber usage per day - no usage", func(t *testing.T) {
 		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "", "", "", GroupByDay)
@@ -211,6 +242,37 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		}
 	})
 
+	t.Run("2. Create Data Network, Policy, and Subscribers", func(t *testing.T) {
+		err := createDataNetworkAndPolicy(ts.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't create data network and policy: %s", err)
+		}
+
+		createSubscriberParams := &CreateSubscriberParams{
+			Imsi:           imsi1,
+			Key:            Key,
+			Opc:            Opc,
+			SequenceNumber: SequenceNumber,
+			PolicyName:     PolicyName,
+		}
+		_, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
+		if err != nil {
+			t.Fatalf("couldn't create subscriber: %s", err)
+		}
+
+		createSubscriberParams = &CreateSubscriberParams{
+			Imsi:           imsi2,
+			Key:            Key,
+			Opc:            Opc,
+			SequenceNumber: SequenceNumber,
+			PolicyName:     PolicyName,
+		}
+		_, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
+		if err != nil {
+			t.Fatalf("couldn't create subscriber: %s", err)
+		}
+	})
+
 	t.Run("2. Add subscriber usage (directly through database)", func(t *testing.T) {
 		date1 := "2025-11-14"
 		date2 := "2025-11-19"
@@ -227,7 +289,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 
 		err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 			EpochDay:      db.DaysSinceEpoch(date1Parsed),
-			IMSI:          "test_imsi_1",
+			IMSI:          imsi1,
 			BytesUplink:   1500,
 			BytesDownlink: 2500,
 		})
@@ -237,7 +299,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 
 		err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 			EpochDay:      db.DaysSinceEpoch(date2Parsed),
-			IMSI:          "test_imsi_2",
+			IMSI:          imsi2,
 			BytesUplink:   1222,
 			BytesDownlink: 23222,
 		})
@@ -283,7 +345,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Get subscriber usage per day - subscriber filter", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "2025-11-14", "2025-11-19", "test_imsi_2", GroupByDay)
+		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "2025-11-14", "2025-11-19", imsi2, GroupByDay)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -356,6 +418,9 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
+	imsi1 := "001010100007487"
+	imsi2 := "001010100007488"
+
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
@@ -379,6 +444,37 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 		}
 	})
 
+	t.Run("2. Create Data Network, Policy, and Subscribers", func(t *testing.T) {
+		err := createDataNetworkAndPolicy(ts.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't create data network and policy: %s", err)
+		}
+
+		createSubscriberParams := &CreateSubscriberParams{
+			Imsi:           imsi1,
+			Key:            Key,
+			Opc:            Opc,
+			SequenceNumber: SequenceNumber,
+			PolicyName:     PolicyName,
+		}
+		_, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
+		if err != nil {
+			t.Fatalf("couldn't create subscriber: %s", err)
+		}
+
+		createSubscriberParams = &CreateSubscriberParams{
+			Imsi:           imsi2,
+			Key:            Key,
+			Opc:            Opc,
+			SequenceNumber: SequenceNumber,
+			PolicyName:     PolicyName,
+		}
+		_, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
+		if err != nil {
+			t.Fatalf("couldn't create subscriber: %s", err)
+		}
+	})
+
 	t.Run("2. Add subscriber usage (directly through database)", func(t *testing.T) {
 		date1 := "2025-11-14"
 		date2 := "2025-11-19"
@@ -395,7 +491,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 
 		err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 			EpochDay:      db.DaysSinceEpoch(date1Parsed),
-			IMSI:          "test_imsi_1",
+			IMSI:          imsi1,
 			BytesUplink:   1500,
 			BytesDownlink: 2500,
 		})
@@ -405,7 +501,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 
 		err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
 			EpochDay:      db.DaysSinceEpoch(date2Parsed),
-			IMSI:          "test_imsi_2",
+			IMSI:          imsi2,
 			BytesUplink:   1222,
 			BytesDownlink: 23222,
 		})
@@ -431,12 +527,12 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			t.Fatalf("expected 2 usage data entries, got %d entries", len(response.Result))
 		}
 
-		expectedDate1Key := "test_imsi_2"
+		expectedDate1Key := imsi2
 		if _, ok := response.Result[0][expectedDate1Key]; !ok {
 			t.Fatalf("expected first entry to have date key %s, got %v", expectedDate1Key, response.Result[0])
 		}
 
-		expectedDate2Key := "test_imsi_1"
+		expectedDate2Key := imsi1
 		if _, ok := response.Result[1][expectedDate2Key]; !ok {
 			t.Fatalf("expected second entry to have date key %s, got %v", expectedDate2Key, response.Result[1])
 		}
@@ -451,7 +547,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Get subscriber usage per subscriber - subscriber filter", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "2025-11-14", "2025-11-19", "test_imsi_2", GroupBySubscriber)
+		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "2025-11-14", "2025-11-19", imsi2, GroupBySubscriber)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
 		}
@@ -467,7 +563,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			t.Fatalf("expected 1 usage data entries, got %d entries", len(response.Result))
 		}
 
-		expectedDateKey := "test_imsi_2"
+		expectedDateKey := imsi2
 		if _, ok := response.Result[0][expectedDateKey]; !ok {
 			t.Fatalf("expected first entry to have date key %s, got %v", expectedDateKey, response.Result[0])
 		}

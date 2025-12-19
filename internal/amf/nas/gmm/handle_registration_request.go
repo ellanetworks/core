@@ -239,6 +239,8 @@ func handleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Gmm
 		ue.State.Set(context.Deregistered)
 		ue.Log.Info("state reset to Deregistered")
 		return nil
+	default:
+		return fmt.Errorf("state mismatch: receive Registration Request message in state %s", ue.State.Current())
 	}
 
 	return nil

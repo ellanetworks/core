@@ -23,7 +23,9 @@ const QueryCreateAPITokensTable = `
   token_hash  TEXT NOT NULL,
   user_id     INTEGER NOT NULL,
   expires_at  DATETIME,
-  FOREIGN KEY (user_id) REFERENCES users(id)
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+
+	UNIQUE (name, user_id)
 );
 ` // #nosec: G101
 
@@ -32,7 +34,7 @@ type APIToken struct {
 	TokenID   string     `db:"token_id"`
 	Name      string     `db:"name"`
 	TokenHash string     `db:"token_hash"`
-	UserID    int        `db:"user_id"`
+	UserID    int64      `db:"user_id"`
 	ExpiresAt *time.Time `db:"expires_at"`
 }
 
@@ -45,7 +47,7 @@ const (
 	countAPITokensStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE user_id==$APIToken.user_id"                                                                                                 // #nosec: G101
 )
 
-func (db *Database) ListAPITokensPage(ctx context.Context, userID int, page int, perPage int) ([]APIToken, int, error) {
+func (db *Database) ListAPITokensPage(ctx context.Context, userID int64, page int, perPage int) ([]APIToken, int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (paged)", "SELECT", APITokensTableName),
@@ -108,6 +110,11 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 
 	err := db.conn.Query(ctx, db.createAPITokenStmt, apiToken).Run()
 	if err != nil {
+		if isUniqueNameError(err) {
+			span.RecordError(ErrAlreadyExists)
+			span.SetStatus(codes.Error, "unique constraint failed")
+			return ErrAlreadyExists
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -149,7 +156,7 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 	return &row, nil
 }
 
-func (db *Database) GetAPITokenByName(ctx context.Context, userID int, name string) (*APIToken, error) {
+func (db *Database) GetAPITokenByName(ctx context.Context, userID int64, name string) (*APIToken, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", APITokensTableName),
@@ -203,7 +210,7 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
 	return nil
 }
 
-func (db *Database) CountAPITokens(ctx context.Context, userID int) (int, error) {
+func (db *Database) CountAPITokens(ctx context.Context, userID int64) (int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", APITokensTableName),

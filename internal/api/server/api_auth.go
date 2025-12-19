@@ -42,7 +42,7 @@ const (
 )
 
 // Helper function to generate a JWT
-func generateJWT(id int, email string, roleID RoleID, jwtSecret []byte) (string, error) {
+func generateJWT(id int64, email string, roleID RoleID, jwtSecret []byte) (string, error) {
 	expiresAt := jwt.NewNumericDate(time.Now().Add(AccessTokenDuration))
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
 		ID:     id,
@@ -98,12 +98,11 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 
 		user, err := dbInstance.GetUserByID(r.Context(), session.UserID)
 		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusUnauthorized, "Invalid session user", nil, logger.APILog)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
-			return
-		}
-
-		if user == nil {
-			writeError(w, http.StatusUnauthorized, "Invalid session user", errors.New("invalid session user"), logger.APILog)
 			return
 		}
 
@@ -181,7 +180,7 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 	})
 }
 
-func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, userID int, secureCookie bool, w http.ResponseWriter) error {
+func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, userID int64, secureCookie bool, w http.ResponseWriter) error {
 	rawToken := make([]byte, 32)
 
 	_, err := rand.Read(rawToken)

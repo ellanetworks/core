@@ -5,9 +5,11 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net"
 
+	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -31,14 +33,15 @@ const QueryCreateSubscribersTable = `
 		opc TEXT NOT NULL,
 
 		policyID INTEGER NOT NULL,
-    	FOREIGN KEY (policyID) REFERENCES policies (id)
+
+		FOREIGN KEY (policyID) REFERENCES policies (id) ON DELETE CASCADE
 )`
 
 const (
 	listSubscribersPagedStmt     = "SELECT &Subscriber.* from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getSubscriberStmt            = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
 	createSubscriberStmt         = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKey, opc, policyID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.policyID)"
-	editSubscriberStmt           = "UPDATE %s SET ipAddress=$Subscriber.ipAddress, sequenceNumber=$Subscriber.sequenceNumber, permanentKey=$Subscriber.permanentKey, opc=$Subscriber.opc, policyID=$Subscriber.policyID WHERE imsi==$Subscriber.imsi"
+	editSubscriberPolicyStmt     = "UPDATE %s SET policyID=$Subscriber.policyID WHERE imsi==$Subscriber.imsi"
 	editSubscriberSeqNumStmt     = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
 	deleteSubscriberStmt         = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
 	countSubscribersStmt         = "SELECT COUNT(*) AS &NumItems.count FROM %s"
@@ -121,6 +124,10 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 
 	err := db.conn.Query(ctx, db.getSubscriberStmt, row).Get(&row)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, ErrNotFound
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		return nil, err
@@ -162,7 +169,7 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 	return nil
 }
 
-func (db *Database) UpdateSubscriber(ctx context.Context, subscriber *Subscriber) error {
+func (db *Database) UpdateSubscriberPolicy(ctx context.Context, subscriber *Subscriber) error {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", SubscribersTableName),
@@ -175,11 +182,26 @@ func (db *Database) UpdateSubscriber(ctx context.Context, subscriber *Subscriber
 	)
 	defer span.End()
 
-	err := db.conn.Query(ctx, db.updateSubscriberStmt, subscriber).Run()
+	var outcome sqlair.Outcome
+
+	err := db.conn.Query(ctx, db.updateSubscriberPolicyStmt, subscriber).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		return err
+	}
+
+	if rowsAffected == 0 {
+		span.RecordError(ErrNotFound)
+		span.SetStatus(codes.Error, "not found")
+		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -230,18 +252,26 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 	)
 	defer span.End()
 
-	_, err := db.GetSubscriber(ctx, imsi)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "not found")
-		return err
-	}
+	var outcome sqlair.Outcome
 
-	err = db.conn.Query(ctx, db.deleteSubscriberStmt, Subscriber{Imsi: imsi}).Run()
+	err := db.conn.Query(ctx, db.deleteSubscriberStmt, Subscriber{Imsi: imsi}).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		return err
+	}
+
+	if rowsAffected == 0 {
+		span.RecordError(ErrNotFound)
+		span.SetStatus(codes.Error, "not found")
+		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -262,6 +292,11 @@ func (db *Database) SubscribersInPolicy(ctx context.Context, name string) (bool,
 
 	policy, err := db.GetPolicy(ctx, name)
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			span.RecordError(ErrNotFound)
+			span.SetStatus(codes.Error, "policy not found")
+			return false, ErrNotFound
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "policy not found")
 		return false, err

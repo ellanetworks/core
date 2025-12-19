@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/canonical/sqlair"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -27,7 +28,8 @@ const QueryCreatePoliciesTable = `
 		arp INTEGER NOT NULL,
 
 		dataNetworkID INTEGER NOT NULL,
-    	FOREIGN KEY (dataNetworkID) REFERENCES data_networks (id)
+
+		FOREIGN KEY (dataNetworkID) REFERENCES data_networks (id) ON DELETE CASCADE
 )`
 
 const (
@@ -198,18 +200,26 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 	)
 	defer span.End()
 
-	_, err := db.GetPolicy(ctx, policy.Name)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "not found")
-		return err
-	}
+	var outcome sqlair.Outcome
 
-	err = db.conn.Query(ctx, db.editPolicyStmt, policy).Run()
+	err := db.conn.Query(ctx, db.editPolicyStmt, policy).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		return err
+	}
+
+	if rowsAffected == 0 {
+		span.RecordError(ErrNotFound)
+		span.SetStatus(codes.Error, "not found")
+		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -230,18 +240,26 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 	)
 	defer span.End()
 
-	_, err := db.GetPolicy(ctx, name)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "not found")
-		return err
-	}
+	var outcome sqlair.Outcome
 
-	err = db.conn.Query(ctx, db.deletePolicyStmt, Policy{Name: name}).Run()
+	err := db.conn.Query(ctx, db.deletePolicyStmt, Policy{Name: name}).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		return err
+	}
+
+	if rowsAffected == 0 {
+		span.RecordError(ErrNotFound)
+		span.SetStatus(codes.Error, "not found")
+		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")
