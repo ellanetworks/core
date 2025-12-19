@@ -2,7 +2,7 @@
 // Copyright 2019 Communication Service/Software Laboratory, National Chiao Tung University (free5gc.org)
 // SPDX-License-Identifier: Apache-2.0
 
-package milenage_test
+package ausf_test
 
 import (
 	"crypto/aes"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/util/milenage"
+	"github.com/ellanetworks/core/internal/ausf"
 )
 
 type f1Test struct {
@@ -168,7 +168,7 @@ func TestF1Test35207(t *testing.T) {
 			t.Errorf("Testf1Test35207[%d] \t OPC[0x%x] \t ExpectedOPc[0x%x]\n", i, OPC, ExpectedOPc)
 		}
 		macA, macS := make([]byte, 8), make([]byte, 8)
-		err = milenage.F1(OPC, K, RAND, SQN, AMF, macA, macS)
+		err = ausf.F1(OPC, K, RAND, SQN, AMF, macA, macS)
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
@@ -272,7 +272,7 @@ func TestF2F5F3Test35207(t *testing.T) {
 		CK, IK := make([]byte, 16), make([]byte, 16)
 		RES := make([]byte, 8)
 		AK, AKstar := make([]byte, 6), make([]byte, 6)
-		err = milenage.F2345(OPC, K, RAND, RES, CK, IK, AK, AKstar)
+		err = ausf.F2345(OPC, K, RAND, RES, CK, IK, AK, AKstar)
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
@@ -378,7 +378,7 @@ func TestF4F5StarTest35207(t *testing.T) {
 		CK, IK := make([]byte, 16), make([]byte, 16)
 		RES := make([]byte, 8)
 		AK, AKstar := make([]byte, 6), make([]byte, 6)
-		err = milenage.F2345(OPC, K, RAND, RES, CK, IK, AK, AKstar)
+		err = ausf.F2345(OPC, K, RAND, RES, CK, IK, AK, AKstar)
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
@@ -463,14 +463,14 @@ func TestRAND(t *testing.T) {
 
 	// Generate macA, macS
 
-	err = milenage.F1(OPC, K, RAND, SQN, AMF, macA, macS)
+	err = ausf.F1(OPC, K, RAND, SQN, AMF, macA, macS)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
 
 	// Generate RES, CK, IK, AK, AKstar
 	// RES == XRES (expected RES) for server
-	err = milenage.F2345(OPC, K, RAND, RES, CK, IK, AK, AKstar)
+	err = ausf.F2345(OPC, K, RAND, RES, CK, IK, AK, AKstar)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}

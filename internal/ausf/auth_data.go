@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/util/milenage"
-	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -31,7 +29,7 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
 		return nil, nil, fmt.Errorf("failed to decode AMF: %w", err)
 	}
 
-	err = milenage.F2345(opc, k, rand, nil, nil, nil, nil, AK)
+	err = F2345(opc, k, rand, nil, nil, nil, nil, AK)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate AK: %w", err)
 	}
@@ -40,7 +38,7 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
 		SQNms[i] = AK[i] ^ ConcSQNms[i]
 	}
 
-	err = milenage.F1(opc, k, rand, SQNms, AMF, nil, macS)
+	err = F1(opc, k, rand, SQNms, AMF, nil, macS)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate macS: %w", err)
 	}
@@ -58,11 +56,11 @@ func strictHex(s string, n int) string {
 	return s[l-n : l]
 }
 
-func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationInfoRequest, suc string) (*models.AuthenticationInfoResult, error) {
+func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationInfoRequest, suci string) (*models.AuthenticationInfoResult, error) {
 	ctx, span := tracer.Start(ctx, "AUSF CreateAuthData")
 	defer span.End()
 	span.SetAttributes(
-		attribute.String("suci", suc),
+		attribute.String("suci", suci),
 	)
 
 	if ausfContext.DBInstance == nil {
@@ -74,7 +72,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 		return nil, fmt.Errorf("couldn't get home network private key: %w", err)
 	}
 
-	supi, err := suci.ToSupi(suc, hnPrivateKey)
+	supi, err := ToSupi(suci, hnPrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}
@@ -190,14 +188,14 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	}
 
 	// Generate macA, macS
-	err = milenage.F1(opc, k, RAND, sqn, amf, macA, macS)
+	err = F1(opc, k, RAND, sqn, amf, macA, macS)
 	if err != nil {
 		return nil, fmt.Errorf("milenage F1 err: %w", err)
 	}
 
 	// Generate RES, CK, IK, AK, AKstar
 	// RES == XRES (expected RES) for server
-	err = milenage.F2345(opc, k, RAND, RES, CK, IK, AK, AKstar)
+	err = F2345(opc, k, RAND, RES, CK, IK, AK, AKstar)
 	if err != nil {
 		return nil, fmt.Errorf("milenage F2345 err: %w", err)
 	}
@@ -210,8 +208,6 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	}
 
 	AUTN := append(append(SQNxorAK, amf...), macA...)
-	response := &models.AuthenticationInfoResult{}
-	var av models.AuthenticationVector
 
 	// derive XRES*
 	key := append(CK, IK...)
@@ -224,6 +220,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	if err != nil {
 		return nil, fmt.Errorf("failed to get KDF value: %w", err)
 	}
+
 	xresStar := kdfValForXresStar[len(kdfValForXresStar)/2:]
 
 	// derive Kausf
@@ -236,13 +233,13 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 		return nil, fmt.Errorf("failed to get KDF value: %w", err)
 	}
 
-	// Fill in rand, xresStar, autn, kausf
-	av.Rand = hex.EncodeToString(RAND)
-	av.XresStar = hex.EncodeToString(xresStar)
-	av.Autn = hex.EncodeToString(AUTN)
-	av.Kausf = hex.EncodeToString(kdfValForKausf)
-
-	response.AuthenticationVector = &av
-	response.Supi = supi
-	return response, nil
+	return &models.AuthenticationInfoResult{
+		AuthenticationVector: &models.AuthenticationVector{
+			Rand:     hex.EncodeToString(RAND),
+			XresStar: hex.EncodeToString(xresStar),
+			Autn:     hex.EncodeToString(AUTN),
+			Kausf:    hex.EncodeToString(kdfValForKausf),
+		},
+		Supi: supi,
+	}, nil
 }
