@@ -82,9 +82,9 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 
 	subscriber := &db.Subscriber{
 		Imsi:           "001010100007487",
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       policyID,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber)
@@ -213,9 +213,9 @@ func TestIPAllocationAndRelease(t *testing.T) {
 
 	subscriber := &db.Subscriber{
 		Imsi:           "001010123456789",
-		SequenceNumber: "123456",
-		PermanentKey:   "abcdef",
-		Opc:            "123456",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       createdPolicy.ID,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber)
@@ -321,10 +321,10 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 
 	for i := 1; i < totalIPs-1; i++ { // Skip network and broadcast addresses
 		subscriber := &db.Subscriber{
-			Imsi:           fmt.Sprintf("IMSI%012d", i),
-			SequenceNumber: fmt.Sprintf("%d", i),
-			PermanentKey:   fmt.Sprintf("%d", i),
-			Opc:            fmt.Sprintf("%d", i),
+			Imsi:           fmt.Sprintf("00%012d", i),
+			SequenceNumber: "000000000001",
+			PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+			Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 			PolicyID:       createdPolicy.ID,
 		}
 
@@ -355,10 +355,10 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 
 	// Attempt to allocate one more IP, which should fail
 	extraSubscriber := &db.Subscriber{
-		Imsi:           "IMSI_OVERFLOW",
-		SequenceNumber: "123456",
-		PermanentKey:   "abcdef",
-		Opc:            "123456",
+		Imsi:           "001019379926284",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       createdPolicy.ID,
 	}
 	err = database.CreateSubscriber(context.Background(), extraSubscriber)
@@ -405,9 +405,9 @@ func TestCountSubscribersWithIP(t *testing.T) {
 	ip := "192.168.1.2"
 	subscriber1 := &db.Subscriber{
 		Imsi:           "001010100007487",
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "e08f6711b5319a21d550787cd263ee0a",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		IPAddress:      &ip,
 		PolicyID:       policyID,
 	}
@@ -418,9 +418,9 @@ func TestCountSubscribersWithIP(t *testing.T) {
 
 	subscriber2 := &db.Subscriber{
 		Imsi:           "001010100007488",
-		SequenceNumber: "123457",
-		PermanentKey:   "123457",
-		Opc:            "123457",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       policyID,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber2)
@@ -440,9 +440,9 @@ func TestCountSubscribersWithIP(t *testing.T) {
 	ip = "192.168.1.3"
 	subscriber3 := &db.Subscriber{
 		Imsi:           "001010100007489",
-		SequenceNumber: "123458",
-		PermanentKey:   "123458",
-		Opc:            "123458",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "e08f6711b5319a21d550787cd263ee0a",
+		Opc:            "89aae6a1b7c490eecf67f66badffbc0d",
 		IPAddress:      &ip,
 		PolicyID:       policyID,
 	}
@@ -490,9 +490,9 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 
 	subscriber1 := &db.Subscriber{
 		Imsi:           "001010100007487",
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "e08f6711b5319a21d550787cd263ee0a",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       policyID,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber1)
@@ -516,9 +516,9 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 
 	subscriber2 := &db.Subscriber{
 		Imsi:           "001010100007488",
-		SequenceNumber: "123457",
-		PermanentKey:   "123457",
-		Opc:            "123457",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       newPolicyCreated.ID,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber2)
@@ -537,9 +537,9 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 
 	subscriber3 := &db.Subscriber{
 		Imsi:           "001010100007489",
-		SequenceNumber: "123458",
-		PermanentKey:   "123458",
-		Opc:            "123458",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       policyID,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber3)

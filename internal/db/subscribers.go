@@ -24,13 +24,13 @@ const QueryCreateSubscribersTable = `
 	CREATE TABLE IF NOT EXISTS %s (
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		imsi TEXT NOT NULL UNIQUE,
+		imsi TEXT NOT NULL UNIQUE CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
 
 		ipAddress TEXT UNIQUE,
 
-		sequenceNumber TEXT NOT NULL,
-		permanentKey TEXT NOT NULL,
-		opc TEXT NOT NULL,
+		sequenceNumber TEXT NOT NULL CHECK (length(sequenceNumber) = 12),
+		permanentKey TEXT NOT NULL CHECK (length(permanentKey) = 32),
+		opc TEXT NOT NULL CHECK (length(opc) = 32),
 
 		policyID INTEGER NOT NULL,
 

@@ -9,20 +9,16 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"go.opentelemetry.io/otel/attribute"
-	"go.uber.org/zap"
 )
 
 const (
-	SqnMAx    int64 = 0x7FFFFFFFFFF
-	ind       int64 = 32
-	keyStrLen int   = 32
-	opcStrLen int   = 32
+	SqnMAx int64 = 0x7FFFFFFFFFF
+	ind    int64 = 32
 )
 
 func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
@@ -94,44 +90,22 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 		AMF: 16 bits (2 bytes) (hex len = 4) TS33.102 - Annex H
 	*/
 
-	hasOPC := false
-
-	var kStr, opcStr string
-
-	var k []byte
-	opc := make([]byte, 16)
-
 	if subscriber.PermanentKey == "" {
 		return nil, fmt.Errorf("permanent key is nil")
 	}
 
-	kStr = subscriber.PermanentKey
-	if len(kStr) != keyStrLen {
-		return nil, fmt.Errorf("kStr length is %d", len(kStr))
+	if subscriber.Opc == "" {
+		return nil, fmt.Errorf("opc is nil")
 	}
 
-	k, err = hex.DecodeString(kStr)
+	k, err := hex.DecodeString(subscriber.PermanentKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode k: %w", err)
 	}
 
-	if subscriber.Opc != "" {
-		opcStr = subscriber.Opc
-		if len(opcStr) == opcStrLen {
-			opc, err = hex.DecodeString(opcStr)
-			if err != nil {
-				return nil, fmt.Errorf("failed to decode opc: %w", err)
-			}
-			hasOPC = true
-		} else {
-			logger.UdmLog.Error("opcStr length is not 32", zap.Int("len", len(opcStr)))
-		}
-	} else {
-		logger.UdmLog.Info("nil Opc")
-	}
-
-	if !hasOPC {
-		return nil, fmt.Errorf("unable to derive OP")
+	opc, err := hex.DecodeString(subscriber.Opc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode opc: %w", err)
 	}
 
 	sqnStr := strictHex(subscriber.SequenceNumber, 12)

@@ -94,30 +94,15 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 	return &av5gAka, nil
 }
 
-func Auth5gAkaComfirmRequestProcedure(ctx context.Context, resStar string, suci string) (*models.ConfirmationDataResponse, error) {
-	_, span := tracer.Start(ctx, "AUSF UEAuthentication ConfirmRequest")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.suci", suci),
-		attribute.String("auth.Method", "5G AKA"),
-	)
-
+func Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (string, string, error) {
 	ausfCurrentContext := GetAusfUeContext(suci)
 	if ausfCurrentContext == nil {
-		return nil, fmt.Errorf("ausf ue context is nil for suci: %s", suci)
+		return "", "", fmt.Errorf("ausf ue context is nil for suci: %s", suci)
 	}
 
-	var responseBody models.ConfirmationDataResponse
-	responseBody.AuthResult = models.AuthResultFailure
-
-	// Compare the received RES* with the stored XRES*
-	if strings.Compare(resStar, ausfCurrentContext.XresStar) == 0 {
-		responseBody.AuthResult = models.AuthResultSuccess
-		responseBody.Kseaf = ausfCurrentContext.Kseaf
-	} else {
-		responseBody.AuthResult = models.AuthResultFailure
+	if strings.Compare(resStar, ausfCurrentContext.XresStar) != 0 {
+		return "", "", fmt.Errorf("RES* mismatch for suci: %s", suci)
 	}
 
-	responseBody.Supi = ausfCurrentContext.Supi
-	return &responseBody, nil
+	return ausfCurrentContext.Supi, ausfCurrentContext.Kseaf, nil
 }
