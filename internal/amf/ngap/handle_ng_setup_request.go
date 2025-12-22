@@ -131,9 +131,6 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		return
 	}
 
-	// taiList := make([]models.Tai, len(operatorInfo.Tais))
-	// copy(taiList, operatorInfo.Tais)
-
 	var found bool
 
 	for i, tai := range ran.SupportedTAList {
