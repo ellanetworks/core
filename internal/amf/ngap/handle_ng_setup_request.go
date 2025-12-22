@@ -8,7 +8,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -132,21 +131,13 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		return
 	}
 
-	taiList := make([]models.Tai, len(operatorInfo.Tais))
-	copy(taiList, operatorInfo.Tais)
-	for i := range taiList {
-		tac, err := util.TACConfigToModels(taiList[i].Tac)
-		if err != nil {
-			ran.Log.Warn("tac is invalid", zap.String("tac", taiList[i].Tac))
-			continue
-		}
-		taiList[i].Tac = tac
-	}
+	// taiList := make([]models.Tai, len(operatorInfo.Tais))
+	// copy(taiList, operatorInfo.Tais)
 
 	var found bool
 
 	for i, tai := range ran.SupportedTAList {
-		if context.InTaiList(tai.Tai, taiList) {
+		if context.InTaiList(tai.Tai, operatorInfo.Tais) {
 			ran.Log.Debug("Found served TAI in Core", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
 			found = true
 			break
@@ -164,7 +155,7 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 			ran.Log.Error("error sending NG Setup Failure", zap.Error(err))
 			return
 		}
-		ran.Log.Warn("Could not find Served TAI in Core", zap.Any("gnb_tai_list", ran.SupportedTAList), zap.Any("core_tai_list", taiList))
+		ran.Log.Warn("Could not find Served TAI in Core", zap.Any("gnb_tai_list", ran.SupportedTAList), zap.Any("core_tai_list", operatorInfo.Tais))
 		return
 	}
 

@@ -8,7 +8,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -110,18 +109,9 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, msg *ng
 			}
 			return
 		}
-		taiList := make([]models.Tai, len(operatorInfo.Tais))
-		copy(taiList, operatorInfo.Tais)
-		for i := range taiList {
-			tac, err := util.TACConfigToModels(taiList[i].Tac)
-			if err != nil {
-				ran.Log.Warn("tac is invalid", zap.String("TAC", taiList[i].Tac))
-				continue
-			}
-			taiList[i].Tac = tac
-		}
+
 		for i, tai := range ran.SupportedTAList {
-			if context.InTaiList(tai.Tai, taiList) {
+			if context.InTaiList(tai.Tai, operatorInfo.Tais) {
 				ran.Log.Debug("handle ran configuration update", zap.Any("SERVED_TAI_INDEX", i))
 				found = true
 				break
