@@ -1,15 +1,13 @@
 module github.com/ellanetworks/core
 
-go 1.24.0
-
-toolchain go1.24.2
+go 1.25.5
 
 require (
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
 	github.com/cilium/ebpf v0.20.0
-	github.com/free5gc/aper v1.0.6-0.20250102035630-3ddc831eed6a
-	github.com/free5gc/nas v1.2.1
-	github.com/free5gc/ngap v1.1.1
+	github.com/free5gc/aper v1.1.0
+	github.com/free5gc/nas v1.2.2
+	github.com/free5gc/ngap v1.1.2
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/nftables v0.3.0
 	github.com/mattn/go-sqlite3 v1.14.32
@@ -41,7 +39,7 @@ require (
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/free5gc/openapi v1.2.2 // indirect
+	github.com/free5gc/openapi v1.2.3 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
