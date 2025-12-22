@@ -7,7 +7,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
-	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -162,17 +161,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 	ue.Tai = ue.RanUe.Tai
 
 	// Check TAI
-	taiList := make([]models.Tai, len(operatorInfo.Tais))
-	copy(taiList, operatorInfo.Tais)
-	for i := range taiList {
-		tac, err := util.TACConfigToModels(taiList[i].Tac)
-		if err != nil {
-			logger.AmfLog.Warn("failed to convert TAC to models.Tac", zap.Error(err), zap.String("tac", taiList[i].Tac))
-			continue
-		}
-		taiList[i].Tac = tac
-	}
-	if !context.InTaiList(ue.Tai, taiList) {
+	if !context.InTaiList(ue.Tai, operatorInfo.Tais) {
 		err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMTrackingAreaNotAllowed)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
