@@ -16,7 +16,7 @@ import (
 func TestRadioEventsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -105,7 +105,7 @@ func TestGetRadioEventByID(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestRadioEventsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestListRadioEventsProtocolFilter(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestListRadioEventsTimestampFilter(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}
@@ -370,7 +370,7 @@ func TestListRadioEventsTimestampAndProtocolFilters(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}

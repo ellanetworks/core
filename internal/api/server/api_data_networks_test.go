@@ -95,7 +95,7 @@ func listDataNetworks(url string, client *http.Client, token string) (int, *List
 }
 
 func getDataNetwork(url string, client *http.Client, token string, name string) (int, *GetDataNetworkResponse, error) {
-	req, err := http.NewRequest("GET", url+"/api/v1/networking/data-networks/"+name, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/data-networks/"+name, nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -169,7 +169,7 @@ func editDataNetwork(url string, client *http.Client, name string, token string,
 }
 
 func deleteDataNetwork(url string, client *http.Client, token, name string) (int, *DeleteDataNetworkResponse, error) {
-	req, err := http.NewRequest("DELETE", url+"/api/v1/networking/data-networks/"+name, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/networking/data-networks/"+name, nil)
 	if err != nil {
 		return 0, nil, err
 	}
