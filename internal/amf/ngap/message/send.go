@@ -138,43 +138,6 @@ func SendToRan(ctx ctxt.Context, ran *context.AmfRan, packet []byte, msgType NGA
 	return nil
 }
 
-func SendToRanUe(ctx ctxt.Context, ue *context.RanUe, packet []byte, ngapMsgType NGAPProcedure) error {
-	var ran *context.AmfRan
-
-	if ue == nil {
-		return fmt.Errorf("ran ue is nil")
-	}
-
-	if ran = ue.Ran; ran == nil {
-		return fmt.Errorf("ran is nil")
-	}
-
-	err := SendToRan(ctx, ran, packet, ngapMsgType)
-	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
-	}
-
-	return nil
-}
-
-func NasSendToRan(ctx ctxt.Context, ue *context.AmfUe, packet []byte, msgType NGAPProcedure) error {
-	if ue == nil {
-		return fmt.Errorf("amf ue is nil")
-	}
-
-	ranUe := ue.RanUe
-	if ranUe == nil {
-		return fmt.Errorf("ran ue is nil")
-	}
-
-	err := SendToRanUe(ctx, ranUe, packet, msgType)
-	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
-	}
-
-	return nil
-}
-
 func SendDownlinkNasTransport(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
 	if ue == nil {
 		return fmt.Errorf("ran ue is nil")
@@ -184,12 +147,12 @@ func SendDownlinkNasTransport(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte
 		return fmt.Errorf("nas pdu is nil")
 	}
 
-	pkt, err := BuildDownlinkNasTransport(ue, nasPdu, mobilityRestrictionList)
+	pkt, err := BuildDownlinkNasTransport(ue.AmfUeNgapID, ue.RanUeNgapID, nasPdu, mobilityRestrictionList)
 	if err != nil {
 		return fmt.Errorf("error building DownlinkNasTransport: %s", err.Error())
 	}
 
-	err = SendToRanUe(ctx, ue, pkt, NGAPProcedureDownlinkNasTransport)
+	err = SendToRan(ctx, ue.Ran, pkt, NGAPProcedureDownlinkNasTransport)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -207,7 +170,7 @@ func SendPDUSessionResourceReleaseCommand(ctx ctxt.Context, ue *context.RanUe, n
 		return fmt.Errorf("error building pdu session resource release: %s", err.Error())
 	}
 
-	err = SendToRanUe(ctx, ue, pkt, NGAPProcedurePDUSessionResourceReleaseCommand)
+	err = SendToRan(ctx, ue.Ran, pkt, NGAPProcedurePDUSessionResourceReleaseCommand)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -220,14 +183,14 @@ func SendUEContextReleaseCommand(ctx ctxt.Context, ue *context.RanUe, action con
 		return fmt.Errorf("ran ue is nil")
 	}
 
-	pkt, err := BuildUEContextReleaseCommand(ue, causePresent, cause)
+	pkt, err := BuildUEContextReleaseCommand(ue.AmfUeNgapID, ue.RanUeNgapID, causePresent, cause)
 	if err != nil {
 		return fmt.Errorf("error building ue context release: %s", err.Error())
 	}
 
 	ue.ReleaseAction = action
 
-	err = SendToRanUe(ctx, ue, pkt, NGAPProcedureUEContextReleaseCommand)
+	err = SendToRan(ctx, ue.Ran, pkt, NGAPProcedureUEContextReleaseCommand)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -242,11 +205,11 @@ func SendHandoverCancelAcknowledge(ctx ctxt.Context, ue *context.RanUe, critical
 
 	ue.Log.Info("Send Handover Cancel Acknowledge")
 
-	pkt, err := BuildHandoverCancelAcknowledge(ue, criticalityDiagnostics)
+	pkt, err := BuildHandoverCancelAcknowledge(ue.AmfUeNgapID, ue.RanUeNgapID, criticalityDiagnostics)
 	if err != nil {
 		return fmt.Errorf("error building handover cancel acknowledge: %s", err.Error())
 	}
-	err = SendToRanUe(ctx, ue, pkt, NGAPProcedureHandoverCancelAcknowledge)
+	err = SendToRan(ctx, ue.Ran, pkt, NGAPProcedureHandoverCancelAcknowledge)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -262,12 +225,12 @@ func SendPDUSessionResourceSetupRequest(ctx ctxt.Context, ue *context.RanUe, nas
 		return fmt.Errorf("pdu list out of range")
 	}
 
-	pkt, err := BuildPDUSessionResourceSetupRequest(ue, nasPdu, pduSessionResourceSetupRequestList)
+	pkt, err := BuildPDUSessionResourceSetupRequest(ue.AmfUeNgapID, ue.RanUeNgapID, ue.AmfUe.Ambr.Uplink, ue.AmfUe.Ambr.Downlink, nasPdu, pduSessionResourceSetupRequestList)
 	if err != nil {
 		return fmt.Errorf("error building pdu session resource setup request: %s", err.Error())
 	}
 
-	err = SendToRanUe(ctx, ue, pkt, NGAPProcedurePDUSessionResourceSetupRequest)
+	err = SendToRan(ctx, ue.Ran, pkt, NGAPProcedurePDUSessionResourceSetupRequest)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -294,13 +257,14 @@ func SendPDUSessionResourceModifyConfirm(
 		return fmt.Errorf("pdu list out of range")
 	}
 
-	pkt, err := BuildPDUSessionResourceModifyConfirm(ue, pduSessionResourceModifyConfirmList,
+	pkt, err := BuildPDUSessionResourceModifyConfirm(
+		ue.AmfUeNgapID, ue.RanUeNgapID, pduSessionResourceModifyConfirmList,
 		pduSessionResourceFailedToModifyList, criticalityDiagnostics)
 	if err != nil {
 		return fmt.Errorf("error building pdu session resource modify confirm: %s", err.Error())
 	}
 
-	err = SendToRanUe(ctx, ue, pkt, NGAPProcedurePDUSessionResourceModifyConfirm)
+	err = SendToRan(ctx, ue.Ran, pkt, NGAPProcedurePDUSessionResourceModifyConfirm)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -347,7 +311,7 @@ func SendInitialContextSetupRequest(
 
 	amfUe.RanUe.SentInitialContextSetupRequest = true
 
-	err = NasSendToRan(ctx, amfUe, pkt, NGAPProcedureInitialContextSetupRequest)
+	err = SendToRan(ctx, amfUe.RanUe.Ran, pkt, NGAPProcedureInitialContextSetupRequest)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -385,7 +349,7 @@ func SendHandoverCommand(
 		return fmt.Errorf("error building handover command: %s", err.Error())
 	}
 
-	err = SendToRanUe(ctx, sourceUe, pkt, NGAPProcedureHandoverCommand)
+	err = SendToRan(ctx, sourceUe.Ran, pkt, NGAPProcedureHandoverCommand)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -417,7 +381,7 @@ func SendHandoverPreparationFailure(ctx ctxt.Context, sourceUe *context.RanUe, c
 		return fmt.Errorf("error building handover preparation failure: %s", err.Error())
 	}
 
-	err = SendToRanUe(ctx, sourceUe, pkt, NGAPProcedureHandoverPreparationFailure)
+	err = SendToRan(ctx, sourceUe.Ran, pkt, NGAPProcedureHandoverPreparationFailure)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -483,7 +447,7 @@ func SendHandoverRequest(
 		return fmt.Errorf("error building handover request: %s", err.Error())
 	}
 
-	err = SendToRanUe(ctx, targetUe, pkt, NGAPProcedureHandoverRequest)
+	err = SendToRan(ctx, targetUe.Ran, pkt, NGAPProcedureHandoverRequest)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -530,7 +494,7 @@ func SendPathSwitchRequestAcknowledge(
 		return fmt.Errorf("error building path switch request acknowledge: %s", err.Error())
 	}
 
-	err = SendToRanUe(ctx, ue, pkt, NGAPProcedurePathSwitchRequestAcknowledge)
+	err = SendToRan(ctx, ue.Ran, pkt, NGAPProcedurePathSwitchRequestAcknowledge)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -626,7 +590,7 @@ func SendLocationReportingControl(
 		return fmt.Errorf("error building location reporting control: %s", err.Error())
 	}
 
-	err = SendToRanUe(ctx, ue, pkt, NGAPProcedureLocationReportingControl)
+	err = SendToRan(ctx, ue.Ran, pkt, NGAPProcedureLocationReportingControl)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}

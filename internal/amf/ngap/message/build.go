@@ -85,9 +85,7 @@ func BuildPDUSessionResourceReleaseCommand(amfUENgapID int64, ranUENgapID int64,
 	return ngap.Encoder(pdu)
 }
 
-func BuildDownlinkNasTransport(ue *context.RanUe, nasPdu []byte,
-	mobilityRestrictionList *ngapType.MobilityRestrictionList,
-) ([]byte, error) {
+func BuildDownlinkNasTransport(amfUENGAPID int64, ranUENGAPID int64, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -111,7 +109,7 @@ func BuildDownlinkNasTransport(ue *context.RanUe, nasPdu []byte,
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapID
+	aMFUENGAPID.Value = amfUENGAPID
 
 	downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
 
@@ -123,7 +121,7 @@ func BuildDownlinkNasTransport(ue *context.RanUe, nasPdu []byte,
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ue.RanUeNgapID
+	rANUENGAPID.Value = ranUENGAPID
 
 	downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
 
@@ -141,11 +139,6 @@ func BuildDownlinkNasTransport(ue *context.RanUe, nasPdu []byte,
 	// RAN Paging Priority (optional)
 	// Mobility Restriction List (optional)
 	if mobilityRestrictionList != nil {
-		amfUe := ue.AmfUe
-		if amfUe == nil {
-			return nil, fmt.Errorf("amfUe is nil")
-		}
-
 		ie = ngapType.DownlinkNASTransportIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDMobilityRestrictionList
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -160,9 +153,7 @@ func BuildDownlinkNasTransport(ue *context.RanUe, nasPdu []byte,
 	return ngap.Encoder(pdu)
 }
 
-func BuildUEContextReleaseCommand(
-	ue *context.RanUe, causePresent int, cause aper.Enumerated,
-) ([]byte, error) {
+func BuildUEContextReleaseCommand(amfUENGAPID int64, ranUENGAPID int64, causePresent int, cause aper.Enumerated) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -187,17 +178,17 @@ func BuildUEContextReleaseCommand(
 
 	ueNGAPIDs := ie.Value.UENGAPIDs
 
-	if ue.RanUeNgapID == context.RanUeNgapIDUnspecified {
+	if ranUENGAPID == context.RanUeNgapIDUnspecified {
 		ueNGAPIDs.Present = ngapType.UENGAPIDsPresentAMFUENGAPID
 		ueNGAPIDs.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
-		ueNGAPIDs.AMFUENGAPID.Value = ue.AmfUeNgapID
+		ueNGAPIDs.AMFUENGAPID.Value = amfUENGAPID
 	} else {
 		ueNGAPIDs.Present = ngapType.UENGAPIDsPresentUENGAPIDPair
 		ueNGAPIDs.UENGAPIDPair = new(ngapType.UENGAPIDPair)
 
-		ueNGAPIDs.UENGAPIDPair.AMFUENGAPID.Value = ue.AmfUeNgapID
-		ueNGAPIDs.UENGAPIDPair.RANUENGAPID.Value = ue.RanUeNgapID
+		ueNGAPIDs.UENGAPIDPair.AMFUENGAPID.Value = amfUENGAPID
+		ueNGAPIDs.UENGAPIDPair.RANUENGAPID.Value = ranUENGAPID
 	}
 
 	ueContextReleaseCommandIEs.List = append(ueContextReleaseCommandIEs.List, ie)
@@ -238,9 +229,7 @@ func BuildUEContextReleaseCommand(
 	return ngap.Encoder(pdu)
 }
 
-func BuildHandoverCancelAcknowledge(
-	ue *context.RanUe, criticalityDiagnostics *ngapType.CriticalityDiagnostics,
-) ([]byte, error) {
+func BuildHandoverCancelAcknowledge(amfUENGAPID int64, ranUENGAPID int64, criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
 	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
@@ -262,7 +251,7 @@ func BuildHandoverCancelAcknowledge(
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapID
+	aMFUENGAPID.Value = amfUENGAPID
 
 	handoverCancelAcknowledgeIEs.List = append(handoverCancelAcknowledgeIEs.List, ie)
 
@@ -274,7 +263,7 @@ func BuildHandoverCancelAcknowledge(
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ue.RanUeNgapID
+	rANUENGAPID.Value = ranUENGAPID
 
 	handoverCancelAcknowledgeIEs.List = append(handoverCancelAcknowledgeIEs.List, ie)
 
@@ -296,9 +285,7 @@ func BuildHandoverCancelAcknowledge(
 
 // nasPDU: from nas layer
 // pduSessionResourceSetupRequestList: provided by AMF, and transfer data is from SMF
-func BuildPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte,
-	pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq,
-) ([]byte, error) {
+func BuildPDUSessionResourceSetupRequest(amfUENGAPID int64, ranUENGAPID int64, bitrateUplink string, bitrateDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
 	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
@@ -321,7 +308,7 @@ func BuildPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte,
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapID
+	aMFUENGAPID.Value = amfUENGAPID
 
 	pDUSessionResourceSetupRequestIEs.List = append(pDUSessionResourceSetupRequestIEs.List, ie)
 
@@ -333,7 +320,7 @@ func BuildPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte,
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ue.RanUeNgapID
+	rANUENGAPID.Value = ranUENGAPID
 
 	pDUSessionResourceSetupRequestIEs.List = append(pDUSessionResourceSetupRequestIEs.List, ie)
 
@@ -366,8 +353,8 @@ func BuildPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte,
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
 	ie.Value.Present = ngapType.PDUSessionResourceSetupRequestIEsPresentUEAggregateMaximumBitRate
 	ie.Value.UEAggregateMaximumBitRate = new(ngapType.UEAggregateMaximumBitRate)
-	ueAmbrUL := ngapConvert.UEAmbrToInt64(ue.AmfUe.Ambr.Uplink)
-	ueAmbrDL := ngapConvert.UEAmbrToInt64(ue.AmfUe.Ambr.Downlink)
+	ueAmbrUL := ngapConvert.UEAmbrToInt64(bitrateUplink)
+	ueAmbrDL := ngapConvert.UEAmbrToInt64(bitrateDownlink)
 	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value = ueAmbrUL
 	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value = ueAmbrDL
 	pDUSessionResourceSetupRequestIEs.List = append(pDUSessionResourceSetupRequestIEs.List, ie)
@@ -378,7 +365,8 @@ func BuildPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte,
 // pduSessionResourceModifyConfirmList: provided by AMF, and transfer data is return from SMF
 // pduSessionResourceFailedToModifyList: provided by AMF, and transfer data is return from SMF
 func BuildPDUSessionResourceModifyConfirm(
-	ue *context.RanUe,
+	amfUENGAPID int64,
+	ranUENGAPID int64,
 	pduSessionResourceModifyConfirmList ngapType.PDUSessionResourceModifyListModCfm,
 	pduSessionResourceFailedToModifyList ngapType.PDUSessionResourceFailedToModifyListModCfm,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
@@ -405,7 +393,7 @@ func BuildPDUSessionResourceModifyConfirm(
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapID
+	aMFUENGAPID.Value = amfUENGAPID
 
 	pDUSessionResourceModifyConfirmIEs.List = append(pDUSessionResourceModifyConfirmIEs.List, ie)
 
@@ -417,7 +405,7 @@ func BuildPDUSessionResourceModifyConfirm(
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ue.RanUeNgapID
+	rANUENGAPID.Value = ranUENGAPID
 
 	pDUSessionResourceModifyConfirmIEs.List = append(pDUSessionResourceModifyConfirmIEs.List, ie)
 
