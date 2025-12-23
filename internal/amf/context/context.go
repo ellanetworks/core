@@ -214,7 +214,9 @@ func (context *AMFContext) NewAmfRan(conn *sctp.SCTPConn) *AmfRan {
 	}
 
 	ran := AmfRan{
-		NGAPSender: &send.RealNGAPSender{},
+		NGAPSender: &send.RealNGAPSender{
+			Conn: conn,
+		},
 	}
 	ran.RanUePool = make(map[int64]*RanUe)
 	ran.SupportedTAList = make([]SupportedTAI, 0)
