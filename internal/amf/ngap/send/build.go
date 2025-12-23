@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapConvert"
@@ -128,6 +129,134 @@ func BuildNGSetupFailure(cause *ngapType.Cause) ([]byte, error) {
 	ie.Value.Cause = cause
 
 	nGSetupFailureIEs.List = append(nGSetupFailureIEs.List, ie)
+
+	return ngap.Encoder(pdu)
+}
+
+func BuildNGResetAcknowledge(partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) ([]byte, error) {
+	var pdu ngapType.NGAPPDU
+
+	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
+	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
+
+	successfulOutcome := pdu.SuccessfulOutcome
+	successfulOutcome.ProcedureCode.Value = ngapType.ProcedureCodeNGReset
+	successfulOutcome.Criticality.Value = ngapType.CriticalityPresentReject
+
+	successfulOutcome.Value.Present = ngapType.SuccessfulOutcomePresentNGResetAcknowledge
+	successfulOutcome.Value.NGResetAcknowledge = new(ngapType.NGResetAcknowledge)
+
+	nGResetAcknowledge := successfulOutcome.Value.NGResetAcknowledge
+	nGResetAcknowledgeIEs := &nGResetAcknowledge.ProtocolIEs
+
+	// UE-associated Logical NG-connection List (optional)
+	if partOfNGInterface != nil && len(partOfNGInterface.List) > 0 {
+		ie := ngapType.NGResetAcknowledgeIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDUEAssociatedLogicalNGConnectionList
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.NGResetAcknowledgeIEsPresentUEAssociatedLogicalNGConnectionList
+		ie.Value.UEAssociatedLogicalNGConnectionList = new(ngapType.UEAssociatedLogicalNGConnectionList)
+
+		uEAssociatedLogicalNGConnectionList := ie.Value.UEAssociatedLogicalNGConnectionList
+
+		for _, item := range partOfNGInterface.List {
+			if item.AMFUENGAPID == nil && item.RANUENGAPID == nil {
+				logger.AmfLog.Warn("[Build NG Reset Ack] No AmfUeNgapID & RanUeNgapID")
+				continue
+			}
+
+			uEAssociatedLogicalNGConnectionItem := ngapType.UEAssociatedLogicalNGConnectionItem{}
+
+			if item.AMFUENGAPID != nil {
+				uEAssociatedLogicalNGConnectionItem.AMFUENGAPID = new(ngapType.AMFUENGAPID)
+				uEAssociatedLogicalNGConnectionItem.AMFUENGAPID = item.AMFUENGAPID
+			}
+			if item.RANUENGAPID != nil {
+				uEAssociatedLogicalNGConnectionItem.RANUENGAPID = new(ngapType.RANUENGAPID)
+				uEAssociatedLogicalNGConnectionItem.RANUENGAPID = item.RANUENGAPID
+			}
+
+			uEAssociatedLogicalNGConnectionList.List = append(uEAssociatedLogicalNGConnectionList.List, uEAssociatedLogicalNGConnectionItem)
+		}
+
+		nGResetAcknowledgeIEs.List = append(nGResetAcknowledgeIEs.List, ie)
+	}
+
+	return ngap.Encoder(pdu)
+}
+
+func BuildErrorIndication(amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause,
+	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
+) ([]byte, error) {
+	var pdu ngapType.NGAPPDU
+
+	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
+	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
+
+	initiatingMessage := pdu.InitiatingMessage
+	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeErrorIndication
+	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentIgnore
+
+	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentErrorIndication
+	initiatingMessage.Value.ErrorIndication = new(ngapType.ErrorIndication)
+
+	errorIndication := initiatingMessage.Value.ErrorIndication
+	errorIndicationIEs := &errorIndication.ProtocolIEs
+
+	if cause == nil && criticalityDiagnostics == nil {
+		logger.AmfLog.Error(
+			"[Build Error Indication] shall contain at least either the Cause or the Criticality Diagnostics")
+	}
+
+	if amfUeNgapID != nil {
+		ie := ngapType.ErrorIndicationIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.ErrorIndicationIEsPresentAMFUENGAPID
+		ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
+
+		aMFUENGAPID := ie.Value.AMFUENGAPID
+		aMFUENGAPID.Value = *amfUeNgapID
+
+		errorIndicationIEs.List = append(errorIndicationIEs.List, ie)
+	}
+
+	if ranUeNgapID != nil {
+		ie := ngapType.ErrorIndicationIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.ErrorIndicationIEsPresentRANUENGAPID
+		ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
+
+		rANUENGAPID := ie.Value.RANUENGAPID
+		rANUENGAPID.Value = *ranUeNgapID
+
+		errorIndicationIEs.List = append(errorIndicationIEs.List, ie)
+	}
+
+	if cause != nil {
+		ie := ngapType.ErrorIndicationIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDCause
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.ErrorIndicationIEsPresentCause
+		ie.Value.Cause = new(ngapType.Cause)
+
+		ie.Value.Cause = cause
+
+		errorIndicationIEs.List = append(errorIndicationIEs.List, ie)
+	}
+
+	if criticalityDiagnostics != nil {
+		ie := ngapType.ErrorIndicationIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDCriticalityDiagnostics
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.ErrorIndicationIEsPresentCriticalityDiagnostics
+		ie.Value.CriticalityDiagnostics = new(ngapType.CriticalityDiagnostics)
+
+		ie.Value.CriticalityDiagnostics = criticalityDiagnostics
+
+		errorIndicationIEs.List = append(errorIndicationIEs.List, ie)
+	}
 
 	return ngap.Encoder(pdu)
 }

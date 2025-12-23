@@ -30,7 +30,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 				Value: ngapType.CauseProtocolPresentAbstractSyntaxErrorReject,
 			},
 		}
-		err := message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
+		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 		}
@@ -46,7 +46,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 				Value: ngapType.CauseProtocolPresentAbstractSyntaxErrorReject,
 			},
 		}
-		err := message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
+		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 		}
@@ -94,7 +94,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 		procedureCriticality := ngapType.CriticalityPresentReject
 		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage, &procedureCriticality,
 			&iesCriticalityDiagnostics)
-		err := message.SendErrorIndication(ctx, ran, nil, nil, nil, &criticalityDiagnostics)
+		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -112,7 +112,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
+		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return

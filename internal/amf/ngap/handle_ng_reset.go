@@ -4,7 +4,6 @@ import (
 	ctxt "context"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -60,7 +59,7 @@ func HandleNGReset(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU)
 		ran.Log.Debug("ResetType Present: NG Interface")
 		ran.RemoveAllUeInRan()
 		ran.Log.Debug("All UE Context in RAN have been removed")
-		err := message.SendNGResetAcknowledge(ctx, ran, nil)
+		err := ran.NGAPSender.SendNGResetAcknowledge(ctx, nil)
 		if err != nil {
 			ran.Log.Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return
@@ -106,7 +105,7 @@ func HandleNGReset(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU)
 			}
 		}
 
-		err := message.SendNGResetAcknowledge(ctx, ran, partOfNGInterface)
+		err := ran.NGAPSender.SendNGResetAcknowledge(ctx, partOfNGInterface)
 		if err != nil {
 			ran.Log.Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return

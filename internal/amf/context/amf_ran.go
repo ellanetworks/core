@@ -28,6 +28,8 @@ const (
 type NGAPSender interface {
 	SendNGSetupFailure(ctx context.Context, cause *ngapType.Cause) error
 	SendNGSetupResponse(ctx context.Context, guami *models.Guami, plmnSupported *models.PlmnSupportItem, amfName string, amfRelativeCapacity int64) error
+	SendNGResetAcknowledge(ctx context.Context, partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) error
+	SendErrorIndication(ctx context.Context, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error
 }
 
 type AmfRan struct {

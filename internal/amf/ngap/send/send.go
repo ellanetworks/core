@@ -108,6 +108,38 @@ func (s *RealNGAPSender) SendNGSetupFailure(ctx context.Context, cause *ngapType
 	return nil
 }
 
+func (s *RealNGAPSender) SendNGResetAcknowledge(ctx context.Context, partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) error {
+	if partOfNGInterface != nil && len(partOfNGInterface.List) == 0 {
+		return fmt.Errorf("length of partOfNGInterface is 0")
+	}
+
+	pkt, err := BuildNGResetAcknowledge(partOfNGInterface)
+	if err != nil {
+		return fmt.Errorf("error building NG Reset Acknowledge: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedureNGResetAcknowledge)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}
+
+func (s *RealNGAPSender) SendErrorIndication(ctx context.Context, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	pkt, err := BuildErrorIndication(amfUeNgapID, ranUeNgapID, cause, criticalityDiagnostics)
+	if err != nil {
+		return fmt.Errorf("error building error indication: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedureErrorIndication)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}
+
 func nativeToNetworkEndianness32(value uint32) uint32 {
 	var b [4]byte
 	binary.NativeEndian.PutUint32(b[:], value)

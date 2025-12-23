@@ -175,24 +175,6 @@ func NasSendToRan(ctx ctxt.Context, ue *context.AmfUe, packet []byte, msgType NG
 	return nil
 }
 
-func SendNGResetAcknowledge(ctx ctxt.Context, ran *context.AmfRan, partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) error {
-	if partOfNGInterface != nil && len(partOfNGInterface.List) == 0 {
-		return fmt.Errorf("length of partOfNGInterface is 0")
-	}
-
-	pkt, err := BuildNGResetAcknowledge(partOfNGInterface)
-	if err != nil {
-		return fmt.Errorf("error building NG Reset Acknowledge: %s", err.Error())
-	}
-
-	err = SendToRan(ctx, ran, pkt, NGAPProcedureNGResetAcknowledge)
-	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
-	}
-
-	return nil
-}
-
 func SendDownlinkNasTransport(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
 	if ue == nil {
 		return fmt.Errorf("ran ue is nil")
@@ -220,7 +202,7 @@ func SendPDUSessionResourceReleaseCommand(ctx ctxt.Context, ue *context.RanUe, n
 		return fmt.Errorf("ran ue is nil")
 	}
 
-	pkt, err := BuildPDUSessionResourceReleaseCommand(ue, nasPdu, pduSessionResourceReleasedList)
+	pkt, err := BuildPDUSessionResourceReleaseCommand(ue.AmfUeNgapID, ue.RanUeNgapID, nasPdu, pduSessionResourceReleasedList)
 	if err != nil {
 		return fmt.Errorf("error building pdu session resource release: %s", err.Error())
 	}
@@ -246,24 +228,6 @@ func SendUEContextReleaseCommand(ctx ctxt.Context, ue *context.RanUe, action con
 	ue.ReleaseAction = action
 
 	err = SendToRanUe(ctx, ue, pkt, NGAPProcedureUEContextReleaseCommand)
-	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
-	}
-
-	return nil
-}
-
-func SendErrorIndication(ctx ctxt.Context, ran *context.AmfRan, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
-	if ran == nil {
-		return fmt.Errorf("ran is nil")
-	}
-
-	pkt, err := BuildErrorIndication(amfUeNgapID, ranUeNgapID, cause, criticalityDiagnostics)
-	if err != nil {
-		return fmt.Errorf("error building error indication: %s", err.Error())
-	}
-
-	err = SendToRan(ctx, ran, pkt, NGAPProcedureErrorIndication)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
