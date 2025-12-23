@@ -47,9 +47,9 @@ func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (i
 
 	subscriber := &db.Subscriber{
 		Imsi:           imsi,
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       policyCreated.ID,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber)
@@ -198,9 +198,9 @@ func TestGetUsagePerDay_MultiSubsSameDay(t *testing.T) {
 	imsi2 := "001010100007488"
 	subscriber := &db.Subscriber{
 		Imsi:           imsi2,
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       policyID,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber)
@@ -363,9 +363,9 @@ func TestGetUsagePerDay_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
 	imsi2 := "001010100007488"
 	subscriber := &db.Subscriber{
 		Imsi:           imsi2,
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "1234567890abcdef1234567890abcdef",
+		Opc:            "1234567890abcdef1234567890abcdef",
 		PolicyID:       policyID,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber)
@@ -445,9 +445,9 @@ func TestGetUsagePerDay_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
 	imsi2 := "001010100007488"
 	subscriber := &db.Subscriber{
 		Imsi:           imsi2,
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "1234567890abcdef1234567890abcdef",
+		Opc:            "1234567890abcdef1234567890abcdef",
 		PolicyID:       policyID,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber)
@@ -606,9 +606,9 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 	imsi2 := "001010100007488"
 	subscriber := &db.Subscriber{
 		Imsi:           imsi2,
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "1234567890abcdef1234567890abcdef",
+		Opc:            "1234567890abcdef1234567890abcdef",
 		PolicyID:       policyID,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber)
@@ -629,9 +629,9 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 	imsi3 := "001010100007489"
 	subscriber = &db.Subscriber{
 		Imsi:           imsi3,
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "1234567890abcdef1234567890abcdef",
+		Opc:            "1234567890abcdef1234567890abcdef",
 		PolicyID:       policyID,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber)

@@ -2,7 +2,7 @@
 // Copyright 2019 Communication Service/Software Laboratory, National Chiao Tung University (free5gc.org)
 // SPDX-License-Identifier: Apache-2.0
 
-package milenage
+package ausf
 
 import (
 	"crypto/aes"
@@ -19,7 +19,7 @@ import (
  * @macS: Buffer for MAC-S = 64-bit resync authentication code, or %NULL
  * Returns: 0 on success, -1 on failure
  */
-func milenageF1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
+func F1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
 	tmp2, tmp3 := make([]uint8, 16), make([]uint8, 16)
 	// var tmp1, tmp2, tmp3 [16]uint8
 
@@ -87,11 +87,11 @@ func milenageF1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
  * @akstar: Buffer for AK = 48-bit anonymity key (f5*), or %NULL
  * Returns: 0 on success, -1 on failure
  */
-func milenageF2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
+func F2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
 	tmp1 := make([]uint8, 16)
 
 	/* tmp2 = TEMP = E_K(RAND XOR OP_C) */
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		tmp1[i] = _rand[i] ^ opc[i]
 	}
 
@@ -110,7 +110,7 @@ func milenageF2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
 
 	/* f2 and f5 */
 	/* rotate by r2 (= 0, i.e., NOP) */
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		tmp1[i] = tmp2[i] ^ opc[i]
 	}
 	tmp1[15] ^= 1 // XOR c2 (= ..01)
@@ -124,7 +124,7 @@ func milenageF2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
 	tmp3 := make([]byte, block.BlockSize())
 	block.Encrypt(tmp3, tmp1)
 
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		tmp3[i] ^= opc[i]
 	}
 
@@ -149,14 +149,14 @@ func milenageF2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
 	/* f3 */
 	if ck != nil {
 		// rotate by r3 = 0x20 = 4 bytes
-		for i := 0; i < 16; i++ {
+		for i := range 16 {
 			tmp1[(i+12)%16] = tmp2[i] ^ opc[i]
 		}
 		tmp1[15] ^= 2 // XOR c3 (= ..02)
 
 		block.Encrypt(ck, tmp1)
 
-		for i := 0; i < 16; i++ {
+		for i := range 16 {
 			ck[i] ^= opc[i]
 		}
 	}
@@ -176,14 +176,14 @@ func milenageF2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
 	/* f4 */
 	if ik != nil {
 		// rotate by r4 = 0x40 = 8 bytes
-		for i := 0; i < 16; i++ {
+		for i := range 16 {
 			tmp1[(i+8)%16] = tmp2[i] ^ opc[i]
 		}
 		tmp1[15] ^= 4 // XOR c4 (= ..04)
 
 		block.Encrypt(ik, tmp1)
 
-		for i := 0; i < 16; i++ {
+		for i := range 16 {
 			ik[i] ^= opc[i]
 		}
 	}
@@ -203,14 +203,14 @@ func milenageF2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
 	/* f5* */
 	if akstar != nil {
 		// rotate by r5 = 0x60 = 12 bytes
-		for i := 0; i < 16; i++ {
+		for i := range 16 {
 			tmp1[(i+4)%16] = tmp2[i] ^ opc[i]
 		}
 		tmp1[15] ^= 8 // XOR c5 (= ..08)
 
 		block.Encrypt(tmp1, tmp1)
 
-		for i := 0; i < 6; i++ {
+		for i := range 6 {
 			akstar[i] = tmp1[i] ^ opc[i]
 		}
 	}
@@ -228,12 +228,4 @@ func milenageF2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
 	*/
 
 	return nil
-}
-
-func F1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
-	return milenageF1(opc, k, _rand, sqn, amf, macA, macS)
-}
-
-func F2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
-	return milenageF2345(opc, k, _rand, res, ck, ik, ak, akstar)
 }

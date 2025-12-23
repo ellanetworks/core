@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel/attribute"
@@ -75,21 +74,10 @@ func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.
 		return nil
 	}
 
-	response, err := ausf.Auth5gAkaComfirmRequestProcedure(ctx, hex.EncodeToString(resStar[:]), ue.Suci)
+	supi, kseaf, err := ausf.Auth5gAkaComfirmRequestProcedure(hex.EncodeToString(resStar[:]), ue.Suci)
 	if err != nil {
-		return fmt.Errorf("ausf 5G-AKA Confirm Request failed: %s", err.Error())
-	}
+		logger.AmfLog.Error("5G AKA Confirmation Request Procedure failed", zap.Error(err))
 
-	switch response.AuthResult {
-	case models.AuthResultSuccess:
-		ue.Kseaf = response.Kseaf
-		ue.Supi = response.Supi
-		ue.DerivateKamf()
-		ue.State.Set(context.SecurityMode)
-
-		return securityMode(ctx, ue)
-
-	case models.AuthResultFailure:
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 			err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
 			if err != nil {
@@ -106,7 +94,14 @@ func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.
 		}
 
 		return nil
-	default:
-		return fmt.Errorf("unknown auth result: %v", response.AuthResult)
 	}
+
+	ue.Kseaf = kseaf
+	ue.Supi = supi
+
+	ue.DerivateKamf()
+
+	ue.State.Set(context.SecurityMode)
+
+	return securityMode(ctx, ue)
 }

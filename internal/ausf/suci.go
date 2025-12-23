@@ -2,7 +2,7 @@
 // Copyright 2019 Communication Service/Software Laboratory, National Chiao Tung University (free5gc.org)
 // SPDX-License-Identifier: Apache-2.0
 
-package suci
+package ausf
 
 import (
 	"bytes"
@@ -46,29 +46,37 @@ const (
 
 func hmacSha256(input, macKey []byte, macLen int) ([]byte, error) {
 	h := hmac.New(sha256.New, macKey)
+
 	if _, err := h.Write(input); err != nil {
 		return nil, err
 	}
+
 	macVal := h.Sum(nil)
 	macTag := macVal[:macLen]
+
 	return macTag, nil
 }
 
 func aes128ctr(input, encKey, icb []byte) ([]byte, error) {
 	output := make([]byte, len(input))
+
 	block, err := aes.NewCipher(encKey)
 	if err != nil {
 		return nil, fmt.Errorf("error creating AES cipher: %w", err)
 	}
+
 	stream := cipher.NewCTR(block, icb)
 	stream.XORKeyStream(output, input)
+
 	return output, nil
 }
 
 func ansiX963KDF(sharedKey, publicKey []byte, profileEncKeyLen, profileMacKeyLen, profileHashLen int) []byte {
 	var counter uint32 = 0x00000001
 	var kdfKey []byte
+
 	kdfRounds := int(math.Ceil(float64(profileEncKeyLen+profileMacKeyLen) / float64(profileHashLen)))
+
 	for i := 1; i <= kdfRounds; i++ {
 		counterBytes := make([]byte, 4)
 		binary.BigEndian.PutUint32(counterBytes, counter)
@@ -77,19 +85,23 @@ func ansiX963KDF(sharedKey, publicKey []byte, profileEncKeyLen, profileMacKeyLen
 		kdfKey = append(kdfKey, sliceK...)
 		counter++
 	}
+
 	return kdfKey
 }
 
 func swapNibbles(input []byte) []byte {
 	output := make([]byte, len(input))
+
 	for i, b := range input {
 		output[i] = bits.RotateLeft8(b, 4)
 	}
+
 	return output
 }
 
 func calcSchemeResult(decryptPlainText []byte, supiType string) string {
 	var schemeResult string
+
 	if supiType == typeIMSI {
 		schemeResult = hex.EncodeToString(swapNibbles(decryptPlainText))
 		if schemeResult[len(schemeResult)-1] == 'f' {
@@ -98,6 +110,7 @@ func calcSchemeResult(decryptPlainText []byte, supiType string) string {
 	} else {
 		schemeResult = hex.EncodeToString(decryptPlainText)
 	}
+
 	return schemeResult
 }
 
@@ -119,38 +132,48 @@ func profileA(input, supiType, privateKey string) (string, error) {
 	decryptCipherText := s[ProfileAPubKeyLen : len(s)-ProfileAMacLen]
 
 	// test data from TS33.501 Annex C.4
+
 	var aHNPriv []byte
+
 	aHNPrivTmp, err := hex.DecodeString(privateKey)
 	if err != nil {
 		return "", fmt.Errorf("decode error: %w", err)
 	}
+
 	aHNPriv = aHNPrivTmp
+
 	decryptSharedKeyTmp, err := curve25519.X25519(aHNPriv, decryptPublicKey)
 	if err != nil {
 		return "", fmt.Errorf("could not calculate shared key: %w", err)
 	}
+
 	decryptSharedKey := decryptSharedKeyTmp
 	kdfKey := ansiX963KDF(decryptSharedKey, decryptPublicKey, ProfileAEncKeyLen, ProfileAMacKeyLen, ProfileAHashLen)
 	decryptEncKey := kdfKey[:ProfileAEncKeyLen]
 	decryptIcb := kdfKey[ProfileAEncKeyLen : ProfileAEncKeyLen+ProfileAIcbLen]
 	decryptMacKey := kdfKey[len(kdfKey)-ProfileAMacKeyLen:]
+
 	decryptMacTag, err := hmacSha256(decryptCipherText, decryptMacKey, ProfileAMacLen)
 	if err != nil {
 		return "", fmt.Errorf("error calculating MAC: %w", err)
 	}
+
 	if !bytes.Equal(decryptMacTag, decryptMac) {
 		return "", fmt.Errorf("decryption MAC failed")
 	}
+
 	decryptPlainText, err := aes128ctr(decryptCipherText, decryptEncKey, decryptIcb) // #nosec G407
 	if err != nil {
 		return "", fmt.Errorf("error decrypting: %w", err)
 	}
+
 	return calcSchemeResult(decryptPlainText, supiType), nil
 }
 
 func ToSupi(suci string, privateKey string) (string, error) {
 	suciPart := strings.Split(suci, "-")
 	suciPrefix := suciPart[0]
+
 	switch suciPrefix {
 	case "imsi", "nai":
 		return suci, nil
@@ -181,5 +204,6 @@ func ToSupi(suci string, privateKey string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("profile A error: %w", err)
 	}
+
 	return mccMnc + profileAResult, nil
 }

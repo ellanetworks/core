@@ -38,20 +38,14 @@ func init() {
 	}
 }
 
-func NewAusfUeContext(supi string) (ausfUeContext *AusfUeContext) {
-	ausfUeContext = new(AusfUeContext)
-	ausfUeContext.Supi = supi
-	return ausfUeContext
-}
-
-func AddAusfUeContextToPool(suci string, ausfUeContext *AusfUeContext) {
+func addUeContextToPool(suci string, ausfUeContext *AusfUeContext) {
 	ausfContext.Mutex.Lock()
 	defer ausfContext.Mutex.Unlock()
 
 	ausfContext.UePool[suci] = ausfUeContext
 }
 
-func GetAusfUeContext(suci string) *AusfUeContext {
+func getUeContext(suci string) *AusfUeContext {
 	ausfContext.Mutex.Lock()
 	defer ausfContext.Mutex.Unlock()
 
@@ -63,7 +57,7 @@ func GetAusfUeContext(suci string) *AusfUeContext {
 	return ausfUeContext
 }
 
-func IsServingNetworkAuthorized(lookup string) bool {
+func isServingNetworkAuthorized(lookup string) bool {
 	return servingNetworkRegex.MatchString(lookup)
 }
 
