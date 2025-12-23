@@ -187,6 +187,22 @@ func (s *RealNGAPSender) SendDownlinkRanConfigurationTransfer(ctx context.Contex
 	return nil
 }
 
+// pduSessionResourceReleasedList: provided by AMF, and the transfer data is from SMF
+// criticalityDiagnostics: from received node when received not comprehended IE or missing IE
+func (s *RealNGAPSender) SendPathSwitchRequestFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	pkt, err := BuildPathSwitchRequestFailure(amfUeNgapID, ranUeNgapID, pduSessionResourceReleasedList, criticalityDiagnostics)
+	if err != nil {
+		return fmt.Errorf("error building path switch request failure: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedurePathSwitchRequestFailure)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}
+
 func nativeToNetworkEndianness32(value uint32) uint32 {
 	var b [4]byte
 	binary.NativeEndian.PutUint32(b[:], value)

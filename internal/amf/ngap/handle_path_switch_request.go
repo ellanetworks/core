@@ -81,7 +81,7 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 	ranUe := amfSelf.RanUeFindByAmfUeNgapID(sourceAMFUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", sourceAMFUENGAPID.Value))
-		err := message.SendPathSwitchRequestFailure(ctx, ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
+		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
 			ran.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
@@ -96,7 +96,7 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
 		ranUe.Log.Error("AmfUe is nil")
-		err := message.SendPathSwitchRequestFailure(ctx, ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
+		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
 			ranUe.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
@@ -110,7 +110,7 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 		amfUe.UpdateNH()
 	} else {
 		ranUe.Log.Error("No Security Context", zap.String("supi", amfUe.Supi))
-		err := message.SendPathSwitchRequestFailure(ctx, ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
+		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
 			ranUe.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
@@ -194,14 +194,14 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 		}
 		ranUe.Log.Info("sent path switch request acknowledge")
 	} else if len(pduSessionResourceReleasedListPSFail.List) > 0 {
-		err := message.SendPathSwitchRequestFailure(ctx, ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, &pduSessionResourceReleasedListPSFail, nil)
+		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, &pduSessionResourceReleasedListPSFail, nil)
 		if err != nil {
 			ranUe.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
 		}
 		ranUe.Log.Info("sent path switch request failure")
 	} else {
-		err := message.SendPathSwitchRequestFailure(ctx, ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
+		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
 			ranUe.Log.Error("error sending path switch request failure", zap.Error(err))
 			return

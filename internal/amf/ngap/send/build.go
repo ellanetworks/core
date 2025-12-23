@@ -383,3 +383,71 @@ func BuildDownlinkRanConfigurationTransfer(
 
 	return ngap.Encoder(pdu)
 }
+
+// pduSessionResourceReleasedList: provided by AMF, and the transfer data is from SMF
+// criticalityDiagnostics: from received node when received not comprehended IE or missing IE
+func BuildPathSwitchRequestFailure(
+	amfUeNgapID,
+	ranUeNgapID int64,
+	pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail,
+	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
+) ([]byte, error) {
+	var pdu ngapType.NGAPPDU
+	pdu.Present = ngapType.NGAPPDUPresentUnsuccessfulOutcome
+	pdu.UnsuccessfulOutcome = new(ngapType.UnsuccessfulOutcome)
+
+	unsuccessfulOutcome := pdu.UnsuccessfulOutcome
+	unsuccessfulOutcome.ProcedureCode.Value = ngapType.ProcedureCodePathSwitchRequest
+	unsuccessfulOutcome.Criticality.Value = ngapType.CriticalityPresentReject
+
+	unsuccessfulOutcome.Value.Present = ngapType.UnsuccessfulOutcomePresentPathSwitchRequestFailure
+	unsuccessfulOutcome.Value.PathSwitchRequestFailure = new(ngapType.PathSwitchRequestFailure)
+
+	pathSwitchRequestFailure := unsuccessfulOutcome.Value.PathSwitchRequestFailure
+	pathSwitchRequestFailureIEs := &pathSwitchRequestFailure.ProtocolIEs
+
+	// AMF UE NGAP ID
+	ie := ngapType.PathSwitchRequestFailureIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
+	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+	ie.Value.Present = ngapType.PathSwitchRequestFailureIEsPresentAMFUENGAPID
+	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
+
+	aMFUENGAPID := ie.Value.AMFUENGAPID
+	aMFUENGAPID.Value = amfUeNgapID
+
+	pathSwitchRequestFailureIEs.List = append(pathSwitchRequestFailureIEs.List, ie)
+
+	// RAN UE NGAP ID
+	ie = ngapType.PathSwitchRequestFailureIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
+	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+	ie.Value.Present = ngapType.PathSwitchRequestFailureIEsPresentRANUENGAPID
+	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
+
+	rANUENGAPID := ie.Value.RANUENGAPID
+	rANUENGAPID.Value = ranUeNgapID
+
+	pathSwitchRequestFailureIEs.List = append(pathSwitchRequestFailureIEs.List, ie)
+
+	// PDU Session Resource Released List
+	if pduSessionResourceReleasedList != nil {
+		ie = ngapType.PathSwitchRequestFailureIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceReleasedListPSFail
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.PathSwitchRequestFailureIEsPresentPDUSessionResourceReleasedListPSFail
+		ie.Value.PDUSessionResourceReleasedListPSFail = pduSessionResourceReleasedList
+		pathSwitchRequestFailureIEs.List = append(pathSwitchRequestFailureIEs.List, ie)
+	}
+
+	if criticalityDiagnostics != nil {
+		ie = ngapType.PathSwitchRequestFailureIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDCriticalityDiagnostics
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.PathSwitchRequestFailureIEsPresentCriticalityDiagnostics
+		ie.Value.CriticalityDiagnostics = criticalityDiagnostics
+		pathSwitchRequestFailureIEs.List = append(pathSwitchRequestFailureIEs.List, ie)
+	}
+
+	return ngap.Encoder(pdu)
+}

@@ -523,34 +523,6 @@ func SendPathSwitchRequestAcknowledge(
 	return nil
 }
 
-// pduSessionResourceReleasedList: provided by AMF, and the transfer data is from SMF
-// criticalityDiagnostics: from received node when received not comprehended IE or missing IE
-func SendPathSwitchRequestFailure(
-	ctx ctxt.Context,
-	ran *context.AmfRan,
-	amfUeNgapID,
-	ranUeNgapID int64,
-	pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail,
-	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
-) error {
-	if pduSessionResourceReleasedList != nil && len(pduSessionResourceReleasedList.List) > context.MaxNumOfPDUSessions {
-		return fmt.Errorf("pdu list out of range")
-	}
-
-	pkt, err := BuildPathSwitchRequestFailure(amfUeNgapID, ranUeNgapID, pduSessionResourceReleasedList,
-		criticalityDiagnostics)
-	if err != nil {
-		return fmt.Errorf("error building path switch request failure: %s", err.Error())
-	}
-
-	err = SendToRan(ctx, ran, pkt, NGAPProcedurePathSwitchRequestFailure)
-	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
-	}
-
-	return nil
-}
-
 func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
 	if ue == nil {
 		return fmt.Errorf("amf ue is nil")
