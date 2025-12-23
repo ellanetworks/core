@@ -408,7 +408,7 @@ func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe, flag
 	}
 	amfUe.Log.Info("Send Configuration Update Command")
 
-	mobilityRestrictionList, err := ngap_message.BuildIEMobilityRestrictionList(amfUe)
+	mobilityRestrictionList, err := ngap_message.BuildIEMobilityRestrictionList(amfUe.PlmnID)
 	if err != nil {
 		amfUe.Log.Error("could not build Mobility Restriction List IE", zap.Error(err))
 		return

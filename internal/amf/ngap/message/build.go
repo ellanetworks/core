@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
+	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
@@ -453,7 +454,16 @@ func BuildPDUSessionResourceModifyConfirm(
 
 func BuildInitialContextSetupRequest(
 	ctx ctxt.Context,
-	amfUe *context.AmfUe,
+	amfUENgapID int64,
+	ranUENgapID int64,
+	bitrateUplink string,
+	bitrateDownlink string,
+	allowedNssai *models.Snssai,
+	kgnodeb []byte,
+	servingPlmnID models.PlmnID,
+	radioCapability string,
+	ueRadioCapabilityForPaging *context.UERadioCapabilityForPaging,
+	ueSecurityCapability *nasType.UESecurityCapability,
 	nasPdu []byte,
 	pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq,
 	supportedGUAMI *models.Guami,
@@ -476,16 +486,6 @@ func BuildInitialContextSetupRequest(
 	// the UE, e.g., handover, or for SCG selection during dual connectivity operation or for
 	// assigning proper RNAs. If the NG-RAN receives the Mobility Restriction List IE, it shall
 	// overwrite previously received mobility restriction information.
-
-	if amfUe == nil {
-		return nil, fmt.Errorf("amfUe is nil")
-	}
-
-	ranUe := amfUe.RanUe
-
-	if ranUe == nil {
-		return nil, fmt.Errorf("ranUe is nil")
-	}
 
 	var pdu ngapType.NGAPPDU
 
@@ -510,7 +510,7 @@ func BuildInitialContextSetupRequest(
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ranUe.AmfUeNgapID
+	aMFUENGAPID.Value = amfUENgapID
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
@@ -522,7 +522,7 @@ func BuildInitialContextSetupRequest(
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ranUe.RanUeNgapID
+	rANUENGAPID.Value = ranUENgapID
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
@@ -536,8 +536,8 @@ func BuildInitialContextSetupRequest(
 		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentUEAggregateMaximumBitRate
 		ie.Value.UEAggregateMaximumBitRate = new(ngapType.UEAggregateMaximumBitRate)
 
-		ueAmbrUL := ngapConvert.UEAmbrToInt64(amfUe.Ambr.Uplink)
-		ueAmbrDL := ngapConvert.UEAmbrToInt64(amfUe.Ambr.Downlink)
+		ueAmbrUL := ngapConvert.UEAmbrToInt64(bitrateUplink)
+		ueAmbrDL := ngapConvert.UEAmbrToInt64(bitrateDownlink)
 		ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value = ueAmbrUL
 		ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value = ueAmbrDL
 
@@ -585,7 +585,7 @@ func BuildInitialContextSetupRequest(
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 
-	snssaiNgap, err := util.SNssaiToNgap(amfUe.AllowedNssai)
+	snssaiNgap, err := util.SNssaiToNgap(allowedNssai)
 	if err != nil {
 		return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
 	}
@@ -614,20 +614,20 @@ func BuildInitialContextSetupRequest(
 	ueSecurityCapabilities := ie.Value.UESecurityCapabilities
 	nrEncryptionAlgorighm := []byte{0x00, 0x00}
 
-	if amfUe.UESecurityCapability == nil {
+	if ueSecurityCapability == nil {
 		return nil, fmt.Errorf("UE Security Capability is nil")
 	}
 
-	nrEncryptionAlgorighm[0] |= amfUe.UESecurityCapability.GetEA1_128_5G() << 7
-	nrEncryptionAlgorighm[0] |= amfUe.UESecurityCapability.GetEA2_128_5G() << 6
-	nrEncryptionAlgorighm[0] |= amfUe.UESecurityCapability.GetEA3_128_5G() << 5
+	nrEncryptionAlgorighm[0] |= ueSecurityCapability.GetEA1_128_5G() << 7
+	nrEncryptionAlgorighm[0] |= ueSecurityCapability.GetEA2_128_5G() << 6
+	nrEncryptionAlgorighm[0] |= ueSecurityCapability.GetEA3_128_5G() << 5
 	ueSecurityCapabilities.NRencryptionAlgorithms.Value = ngapConvert.ByteToBitString(nrEncryptionAlgorighm, 16)
 
 	nrIntegrityAlgorithm := []byte{0x00, 0x00}
 
-	nrIntegrityAlgorithm[0] |= amfUe.UESecurityCapability.GetIA1_128_5G() << 7
-	nrIntegrityAlgorithm[0] |= amfUe.UESecurityCapability.GetIA2_128_5G() << 6
-	nrIntegrityAlgorithm[0] |= amfUe.UESecurityCapability.GetIA3_128_5G() << 5
+	nrIntegrityAlgorithm[0] |= ueSecurityCapability.GetIA1_128_5G() << 7
+	nrIntegrityAlgorithm[0] |= ueSecurityCapability.GetIA2_128_5G() << 6
+	nrIntegrityAlgorithm[0] |= ueSecurityCapability.GetIA3_128_5G() << 5
 
 	ueSecurityCapabilities.NRintegrityProtectionAlgorithms.Value = ngapConvert.ByteToBitString(nrIntegrityAlgorithm, 16)
 
@@ -648,7 +648,7 @@ func BuildInitialContextSetupRequest(
 	ie.Value.SecurityKey = new(ngapType.SecurityKey)
 
 	securityKey := ie.Value.SecurityKey
-	securityKey.Value = ngapConvert.ByteToBitString(amfUe.Kgnb, 256)
+	securityKey.Value = ngapConvert.ByteToBitString(kgnodeb, 256)
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
@@ -659,7 +659,7 @@ func BuildInitialContextSetupRequest(
 	ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentMobilityRestrictionList
 	ie.Value.MobilityRestrictionList = new(ngapType.MobilityRestrictionList)
 
-	mobilityRestrictionList, err := BuildIEMobilityRestrictionList(amfUe)
+	mobilityRestrictionList, err := BuildIEMobilityRestrictionList(servingPlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("error building Mobility Restriction List IE: %s", err)
 	}
@@ -669,13 +669,13 @@ func BuildInitialContextSetupRequest(
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
 	// UE Radio Capability (optional)
-	if amfUe.UeRadioCapability != "" {
+	if radioCapability != "" {
 		ie = ngapType.InitialContextSetupRequestIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDUERadioCapability
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
 		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentUERadioCapability
 		ie.Value.UERadioCapability = new(ngapType.UERadioCapability)
-		uecapa, err := hex.DecodeString(amfUe.UeRadioCapability)
+		uecapa, err := hex.DecodeString(radioCapability)
 		if err != nil {
 			return nil, fmt.Errorf("cannot decode UeRadioCapability: %+v", err)
 		}
@@ -726,7 +726,7 @@ func BuildInitialContextSetupRequest(
 	}
 
 	// UE Radio Capability for Paging (optional)
-	if amfUe.UeRadioCapabilityForPaging != nil {
+	if ueRadioCapabilityForPaging != nil {
 		ie = ngapType.InitialContextSetupRequestIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDUERadioCapabilityForPaging
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -734,14 +734,14 @@ func BuildInitialContextSetupRequest(
 		ie.Value.UERadioCapabilityForPaging = new(ngapType.UERadioCapabilityForPaging)
 		uERadioCapabilityForPaging := ie.Value.UERadioCapabilityForPaging
 		var err error
-		if amfUe.UeRadioCapabilityForPaging.NR != "" {
-			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value, err = hex.DecodeString(amfUe.UeRadioCapabilityForPaging.NR)
+		if ueRadioCapabilityForPaging.NR != "" {
+			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value, err = hex.DecodeString(ueRadioCapabilityForPaging.NR)
 			if err != nil {
 				logger.AmfLog.Error("DecodeString amfUe.UeRadioCapabilityForPaging.NR error", zap.Error(err))
 			}
 		}
-		if amfUe.UeRadioCapabilityForPaging.EUTRA != "" {
-			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value, err = hex.DecodeString(amfUe.UeRadioCapabilityForPaging.EUTRA)
+		if ueRadioCapabilityForPaging.EUTRA != "" {
+			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value, err = hex.DecodeString(ueRadioCapabilityForPaging.EUTRA)
 			if err != nil {
 				logger.AmfLog.Error("DecodeString amfUe.UeRadioCapabilityForPaging.NR error", zap.Error(err))
 			}
@@ -1479,42 +1479,6 @@ func BuildPaging(ue *context.AmfUe, pagingPriority *ngapType.PagingPriority) ([]
 
 		pagingIEs.List = append(pagingIEs.List, ie)
 	}
-
-	return ngap.Encoder(pdu)
-}
-
-// An AMF shall be able to instruct other peer CP NFs, subscribed to receive such a notification,
-// that it will be unavailable on this AMF and its corresponding target AMF(s).
-// If CP NF does not subscribe to receive AMF unavailable notification, the CP NF may attempt
-// forwarding the transaction towards the old AMF and detect that the AMF is unavailable. When
-// it detects unavailable, it marks the AMF and its associated GUAMI(s) as unavailable.
-// Defined in 23.501 5.21.2.2.2
-func BuildAMFStatusIndication(unavailableGUAMIList ngapType.UnavailableGUAMIList) ([]byte, error) {
-	var pdu ngapType.NGAPPDU
-
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-
-	initiatingMessage := pdu.InitiatingMessage
-	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeAMFStatusIndication
-	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentIgnore
-
-	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentAMFStatusIndication
-	initiatingMessage.Value.AMFStatusIndication = new(ngapType.AMFStatusIndication)
-
-	aMFStatusIndication := initiatingMessage.Value.AMFStatusIndication
-	aMFStatusIndicationIEs := &aMFStatusIndication.ProtocolIEs
-
-	//	Unavailable GUAMI List
-	ie := ngapType.AMFStatusIndicationIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDUnavailableGUAMIList
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.AMFStatusIndicationIEsPresentUnavailableGUAMIList
-	ie.Value.UnavailableGUAMIList = new(ngapType.UnavailableGUAMIList)
-
-	ie.Value.UnavailableGUAMIList = &unavailableGUAMIList
-
-	aMFStatusIndicationIEs.List = append(aMFStatusIndicationIEs.List, ie)
 
 	return ngap.Encoder(pdu)
 }

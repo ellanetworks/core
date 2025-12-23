@@ -325,7 +325,22 @@ func SendInitialContextSetupRequest(
 		}
 	}
 
-	pkt, err := BuildInitialContextSetupRequest(ctx, amfUe, nasPdu, pduSessionResourceSetupRequestList, supportedGUAMI)
+	pkt, err := BuildInitialContextSetupRequest(
+		ctx,
+		amfUe.RanUe.AmfUeNgapID,
+		amfUe.RanUe.RanUeNgapID,
+		amfUe.Ambr.Uplink,
+		amfUe.Ambr.Downlink,
+		amfUe.AllowedNssai,
+		amfUe.Kgnb,
+		amfUe.PlmnID,
+		amfUe.UeRadioCapability,
+		amfUe.UeRadioCapabilityForPaging,
+		amfUe.UESecurityCapability,
+		nasPdu,
+		pduSessionResourceSetupRequestList,
+		supportedGUAMI,
+	)
 	if err != nil {
 		return fmt.Errorf("error building initial context setup request: %s", err)
 	}
@@ -570,36 +585,6 @@ func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
 			ue.Log.Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
 			ue.T3513 = nil // clear the timer
 		})
-	}
-
-	return nil
-}
-
-// An AMF shall be able to instruct other peer CP NFs, subscribed to receive such a notification,
-// that it will be unavailable on this AMF and its corresponding target AMF(s).
-// If CP NF does not subscribe to receive AMF unavailable notification, the CP NF may attempt
-// forwarding the transaction towards the old AMF and detect that the AMF is unavailable. When
-// it detects unavailable, it marks the AMF and its associated GUAMI(s) as unavailable.
-// Defined in 23.501 5.21.2.2.2
-func SendAMFStatusIndication(ctx ctxt.Context, ran *context.AmfRan, unavailableGUAMIList ngapType.UnavailableGUAMIList) error {
-	if ran == nil {
-		return fmt.Errorf("ran is nil")
-	}
-
-	ran.Log.Info("Send AMF Status Indication")
-
-	if len(unavailableGUAMIList.List) > context.MaxNumOfServedGuamiList {
-		return fmt.Errorf("guami List out of range")
-	}
-
-	pkt, err := BuildAMFStatusIndication(unavailableGUAMIList)
-	if err != nil {
-		return fmt.Errorf("error building amf status indication: %s", err.Error())
-	}
-
-	err = SendToRan(ctx, ran, pkt, NGAPProcedureAMFStatusIndication)
-	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
 	}
 
 	return nil

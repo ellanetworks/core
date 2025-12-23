@@ -203,6 +203,26 @@ func (s *RealNGAPSender) SendPathSwitchRequestFailure(ctx context.Context, amfUe
 	return nil
 }
 
+// An AMF shall be able to instruct other peer CP NFs, subscribed to receive such a notification,
+// that it will be unavailable on this AMF and its corresponding target AMF(s).
+// If CP NF does not subscribe to receive AMF unavailable notification, the CP NF may attempt
+// forwarding the transaction towards the old AMF and detect that the AMF is unavailable. When
+// it detects unavailable, it marks the AMF and its associated GUAMI(s) as unavailable.
+// Defined in 23.501 5.21.2.2.2
+func (s *RealNGAPSender) SendAMFStatusIndication(ctx context.Context, unavailableGUAMIList ngapType.UnavailableGUAMIList) error {
+	pkt, err := BuildAMFStatusIndication(unavailableGUAMIList)
+	if err != nil {
+		return fmt.Errorf("error building amf status indication: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedureAMFStatusIndication)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}
+
 func nativeToNetworkEndianness32(value uint32) uint32 {
 	var b [4]byte
 	binary.NativeEndian.PutUint32(b[:], value)

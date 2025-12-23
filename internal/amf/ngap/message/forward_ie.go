@@ -8,7 +8,6 @@ package message
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -75,14 +74,14 @@ func AppendPDUSessionResourceToReleaseListRelCmd(list *ngapType.PDUSessionResour
 	list.List = append(list.List, item)
 }
 
-func BuildIEMobilityRestrictionList(ue *context.AmfUe) (*ngapType.MobilityRestrictionList, error) {
-	plmnID, err := util.PlmnIDToNgap(ue.PlmnID)
+func BuildIEMobilityRestrictionList(plmnID models.PlmnID) (*ngapType.MobilityRestrictionList, error) {
+	plmnIDNGAP, err := util.PlmnIDToNgap(plmnID)
 	if err != nil {
 		return nil, fmt.Errorf("could not convert PLMN ID to NGAP: %s", err)
 	}
 
 	return &ngapType.MobilityRestrictionList{
-		ServingPLMN: *plmnID,
+		ServingPLMN: *plmnIDNGAP,
 	}, nil
 }
 

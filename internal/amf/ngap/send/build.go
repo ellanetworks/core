@@ -451,3 +451,39 @@ func BuildPathSwitchRequestFailure(
 
 	return ngap.Encoder(pdu)
 }
+
+// An AMF shall be able to instruct other peer CP NFs, subscribed to receive such a notification,
+// that it will be unavailable on this AMF and its corresponding target AMF(s).
+// If CP NF does not subscribe to receive AMF unavailable notification, the CP NF may attempt
+// forwarding the transaction towards the old AMF and detect that the AMF is unavailable. When
+// it detects unavailable, it marks the AMF and its associated GUAMI(s) as unavailable.
+// Defined in 23.501 5.21.2.2.2
+func BuildAMFStatusIndication(unavailableGUAMIList ngapType.UnavailableGUAMIList) ([]byte, error) {
+	var pdu ngapType.NGAPPDU
+
+	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
+	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
+
+	initiatingMessage := pdu.InitiatingMessage
+	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeAMFStatusIndication
+	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentIgnore
+
+	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentAMFStatusIndication
+	initiatingMessage.Value.AMFStatusIndication = new(ngapType.AMFStatusIndication)
+
+	aMFStatusIndication := initiatingMessage.Value.AMFStatusIndication
+	aMFStatusIndicationIEs := &aMFStatusIndication.ProtocolIEs
+
+	//	Unavailable GUAMI List
+	ie := ngapType.AMFStatusIndicationIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDUnavailableGUAMIList
+	ie.Criticality.Value = ngapType.CriticalityPresentReject
+	ie.Value.Present = ngapType.AMFStatusIndicationIEsPresentUnavailableGUAMIList
+	ie.Value.UnavailableGUAMIList = new(ngapType.UnavailableGUAMIList)
+
+	ie.Value.UnavailableGUAMIList = &unavailableGUAMIList
+
+	aMFStatusIndicationIEs.List = append(aMFStatusIndicationIEs.List, ie)
+
+	return ngap.Encoder(pdu)
+}
