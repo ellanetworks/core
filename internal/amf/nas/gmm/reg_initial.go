@@ -20,7 +20,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 	// update Kgnb/Kn3iwf
 	ue.UpdateSecurityContext()
 
-	operatorInfo, err := context.GetOperatorInfo(ctx)
+	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}

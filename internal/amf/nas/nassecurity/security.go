@@ -84,20 +84,6 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 	}
 }
 
-func StmsiToGuti(ctx ctxt.Context, buf [7]byte) (string, error) {
-	operatorInfo, err := context.GetOperatorInfo(ctx)
-	if err != nil {
-		return "", fmt.Errorf("could not get operator info: %v", err)
-	}
-
-	tmpReginID := operatorInfo.Guami.AmfID[:2]
-	amfID := hex.EncodeToString(buf[1:3])
-	tmsi5G := hex.EncodeToString(buf[3:])
-
-	guti := operatorInfo.Guami.PlmnID.Mcc + operatorInfo.Guami.PlmnID.Mnc + tmpReginID + amfID + tmsi5G
-	return guti, nil
-}
-
 /*
 fetch Guti if present incase of integrity protected Nas Message
 */
@@ -153,10 +139,13 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*contex
 			return nil, fmt.Errorf("mobile identity 5GS is empty")
 		}
 		if nasMessage.MobileIdentity5GSType5gSTmsi == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			guti, err := StmsiToGuti(ctx, mobileIdentity5GSContents)
+			amfSelf := context.AMFSelf()
+
+			guti, err := amfSelf.StmsiToGuti(ctx, mobileIdentity5GSContents)
 			if err != nil {
 				return nil, fmt.Errorf("error converting 5G-S-TMSI to GUTI: %+v", err)
 			}
+
 			logger.AmfLog.Debug("Guti derived from Service Request Message", zap.String("guti", guti))
 		}
 	} else if msg.GmmHeader.GetMessageType() == nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration {

@@ -315,7 +315,7 @@ func SendRegistrationAccept(
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
 	pduSessionResourceSetupList *ngapType.PDUSessionResourceSetupListCxtReq,
-	supportedPLMN *context.PlmnSupportItem,
+	supportedPLMN *models.PlmnSupportItem,
 	supportedGUAMI *models.Guami,
 ) error {
 	if ue == nil {

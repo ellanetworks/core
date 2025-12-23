@@ -8,6 +8,7 @@
 package context
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/sctp"
@@ -24,9 +25,15 @@ const (
 	RanPresentN3IwfID = 3
 )
 
+type NGAPSender interface {
+	SendNGSetupFailure(ctx context.Context, cause *ngapType.Cause) error
+	SendNGSetupResponse(ctx context.Context, guami *models.Guami, plmnSupported *models.PlmnSupportItem, amfName string, amfRelativeCapacity int64) error
+}
+
 type AmfRan struct {
 	RanPresent      int
 	RanID           *models.GlobalRanNodeID
+	NGAPSender      NGAPSender
 	Name            string
 	GnbIP           string
 	Conn            *sctp.SCTPConn

@@ -76,7 +76,9 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 		return
 	}
 
-	ranUe := context.AMFSelf().RanUeFindByAmfUeNgapID(sourceAMFUENGAPID.Value)
+	amfSelf := context.AMFSelf()
+
+	ranUe := amfSelf.RanUeFindByAmfUeNgapID(sourceAMFUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", sourceAMFUENGAPID.Value))
 		err := message.SendPathSwitchRequestFailure(ctx, ran, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
@@ -180,7 +182,7 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 			ranUe.Log.Error(err.Error())
 			return
 		}
-		operatorInfo, err := context.GetOperatorInfo(ctx)
+		operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 		if err != nil {
 			ranUe.Log.Error("Get Operator Info Error", zap.Error(err))
 			return

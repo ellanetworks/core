@@ -202,10 +202,14 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 		return
 	}
 	amfUe.UpdateNH()
-	operatorInfo, err := context.GetOperatorInfo(ctx)
+
+	amfSelf := context.AMFSelf()
+
+	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 	if err != nil {
 		sourceUe.Log.Error("Could not get operator info", zap.Error(err))
 	}
+
 	err = message.SendHandoverRequest(ctx, sourceUe, targetRan, *cause, pduSessionReqList, *sourceToTargetTransparentContainer, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 	if err != nil {
 		sourceUe.Log.Error("error sending handover request to target UE", zap.Error(err))

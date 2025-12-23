@@ -100,7 +100,9 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, msg *ng
 		}
 	} else {
 		var found bool
-		operatorInfo, err := context.GetOperatorInfo(ctx)
+		amfSelf := context.AMFSelf()
+
+		operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 		if err != nil {
 			ran.Log.Error("Could not get operator info", zap.Error(err))
 			cause.Present = ngapType.CausePresentMisc

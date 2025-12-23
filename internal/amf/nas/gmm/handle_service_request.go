@@ -201,7 +201,9 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 		return nil
 	}
 
-	operatorInfo, err := context.GetOperatorInfo(ctx)
+	amfSelf := context.AMFSelf()
+
+	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}

@@ -131,7 +131,9 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 
 		if fiveGSTMSI != nil {
 			ranUe.Log.Debug("Receive 5G-S-TMSI")
-			operatorInfo, err := context.GetOperatorInfo(ctx)
+			amfSelf := context.AMFSelf()
+
+			operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 			if err != nil {
 				ranUe.Log.Error("Could not get operator info", zap.Error(err))
 				return
@@ -146,7 +148,6 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 			tmsi := hex.EncodeToString(fiveGSTMSI.FiveGTMSI.Value)
 
 			guti := operatorInfo.Guami.PlmnID.Mcc + operatorInfo.Guami.PlmnID.Mnc + amfID + tmsi
-			amfSelf := context.AMFSelf()
 			if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); !ok {
 				ranUe.Log.Warn("Unknown UE", zap.String("GUTI", guti))
 			} else {

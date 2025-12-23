@@ -109,7 +109,7 @@ func Close() {
 
 	ctx := ctxt.Background()
 
-	operatorInfo, err := context.GetOperatorInfo(ctxt.Background())
+	operatorInfo, err := amfSelf.GetOperatorInfo(ctxt.Background())
 	if err != nil {
 		logger.AmfLog.Error("Could not get operator info", zap.Error(err))
 		return

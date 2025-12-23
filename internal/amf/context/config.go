@@ -46,30 +46,28 @@ func ListAmfRan(page int, perPage int) (int, []AmfRan) {
 	return total, ranListPage
 }
 
-type PlmnSupportItem struct {
-	PlmnID models.PlmnID
-	SNssai *models.Snssai
-}
-
 type OperatorInfo struct {
 	Tais          []models.Tai
 	Guami         *models.Guami
-	SupportedPLMN *PlmnSupportItem
+	SupportedPLMN *models.PlmnSupportItem
 }
 
-func GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
+func (amf *AMFContext) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 	ctx, span := tracer.Start(ctx, "AMF GetOperatorInfo")
 	defer span.End()
 
-	amfSelf := AMFSelf()
-
-	operator, err := amfSelf.DBInstance.GetOperator(ctx)
+	operator, err := amf.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator: %s", err)
 	}
 
+	supportedTAIs, err := getSupportedTAIs(operator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get supported TAIs: %w", err)
+	}
+
 	operatorInfo := &OperatorInfo{
-		Tais: getSupportedTAIs(operator),
+		Tais: supportedTAIs,
 		Guami: &models.Guami{
 			PlmnID: &models.PlmnID{
 				Mcc: operator.Mcc,
@@ -77,7 +75,7 @@ func GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 			},
 			AmfID: "cafe00", // To edit
 		},
-		SupportedPLMN: &PlmnSupportItem{
+		SupportedPLMN: &models.PlmnSupportItem{
 			PlmnID: models.PlmnID{
 				Mcc: operator.Mcc,
 				Mnc: operator.Mnc,
@@ -92,10 +90,13 @@ func GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 	return operatorInfo, nil
 }
 
-func getSupportedTAIs(operator *db.Operator) []models.Tai {
+func getSupportedTAIs(operator *db.Operator) ([]models.Tai, error) {
 	tais := make([]models.Tai, 0)
 
-	supportedTacs := operator.GetSupportedTacs()
+	supportedTacs, err := operator.GetSupportedTacs()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get supported TACs: %w", err)
+	}
 
 	for _, tac := range supportedTacs {
 		tai := models.Tai{
@@ -108,7 +109,7 @@ func getSupportedTAIs(operator *db.Operator) []models.Tai {
 		tais = append(tais, tai)
 	}
 
-	return tais
+	return tais, nil
 }
 
 func SubscriberExists(ctx context.Context, ueID string) bool {

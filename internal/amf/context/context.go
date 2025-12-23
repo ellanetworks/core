@@ -9,6 +9,7 @@ package context
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"reflect"
@@ -16,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -61,12 +63,19 @@ type TimerValue struct {
 	MaxRetryTimes int32
 }
 
+type DBer interface {
+	GetOperator(ctx context.Context) (*db.Operator, error)
+	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
+	GetPolicyByID(ctx context.Context, id int) (*db.Policy, error)
+	GetDataNetworkByID(ctx context.Context, id int) (*db.DataNetwork, error)
+}
+
 type AMFContext struct {
 	Mutex sync.Mutex
 
-	DBInstance               *db.Database
-	UePool                   map[string]*AmfUe          // Key: supi
-	AmfRanPool               map[*sctp.SCTPConn]*AmfRan // map[net.Conn]*AmfRan
+	DBInstance               DBer
+	UePool                   map[string]*AmfUe // Key: supi
+	AmfRanPool               map[*sctp.SCTPConn]*AmfRan
 	RelativeCapacity         int64
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
@@ -204,7 +213,9 @@ func (context *AMFContext) NewAmfRan(conn *sctp.SCTPConn) *AmfRan {
 		return nil
 	}
 
-	ran := AmfRan{}
+	ran := AmfRan{
+		NGAPSender: &send.RealNGAPSender{},
+	}
 	ran.RanUePool = make(map[int64]*RanUe)
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.Conn = conn
@@ -365,4 +376,18 @@ func (context *AMFContext) Get5gsNwFeatSuppMcsi() uint8 {
 // Returns the AMFContext
 func AMFSelf() *AMFContext {
 	return &amfContext
+}
+
+func (amf *AMFContext) StmsiToGuti(ctx context.Context, buf [7]byte) (string, error) {
+	operatorInfo, err := amf.GetOperatorInfo(ctx)
+	if err != nil {
+		return "", fmt.Errorf("could not get operator info: %v", err)
+	}
+
+	tmpReginID := operatorInfo.Guami.AmfID[:2]
+	amfID := hex.EncodeToString(buf[1:3])
+	tmsi5G := hex.EncodeToString(buf[3:])
+
+	guti := operatorInfo.Guami.PlmnID.Mcc + operatorInfo.Guami.PlmnID.Mnc + tmpReginID + amfID + tmsi5G
+	return guti, nil
 }

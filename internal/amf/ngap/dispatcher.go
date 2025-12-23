@@ -84,6 +84,8 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 	)
 	defer span.End()
 
+	amf := context.AMFSelf()
+
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
 		initiatingMessage := pdu.InitiatingMessage
@@ -94,7 +96,7 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 
 		switch initiatingMessage.ProcedureCode.Value {
 		case ngapType.ProcedureCodeNGSetup:
-			HandleNGSetupRequest(ctx, ran, pdu)
+			HandleNGSetupRequest(ctx, amf, ran, pdu)
 		case ngapType.ProcedureCodeInitialUEMessage:
 			HandleInitialUEMessage(ctx, ran, pdu)
 		case ngapType.ProcedureCodeUplinkNASTransport:

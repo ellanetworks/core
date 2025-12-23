@@ -5,14 +5,13 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
+func HandleNGSetupRequest(ctx ctxt.Context, amf *context.AMFContext, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -25,13 +24,13 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 
 	initiatingMessage := msg.InitiatingMessage
 	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
+		ran.Log.Fatal("Initiating Message is nil")
 		return
 	}
 
 	nGSetupRequest := initiatingMessage.Value.NGSetupRequest
 	if nGSetupRequest == nil {
-		ran.Log.Error("NGSetupRequest is nil")
+		ran.Log.Fatal("NGSetupRequest is nil")
 		return
 	}
 
@@ -82,6 +81,21 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		ran.SupportedTAList = context.NewSupportedTAIList()
 	}
 
+	if supportedTAList == nil || len(supportedTAList.List) == 0 {
+		err := ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+			Present: ngapType.CausePresentMisc,
+			Misc: &ngapType.CauseMisc{
+				Value: ngapType.CauseMiscPresentUnspecified,
+			},
+		})
+		if err != nil {
+			ran.Log.Error("error sending NG Setup Failure", zap.Error(err))
+			return
+		}
+		ran.Log.Warn("NG Setup failure: No supported TA exist in NG Setup request")
+		return
+	}
+
 	for i := 0; i < len(supportedTAList.List); i++ {
 		supportedTAItem := supportedTAList.List[i]
 		tac := hex.EncodeToString(supportedTAItem.TAC.Value)
@@ -110,24 +124,9 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		}
 	}
 
-	operatorInfo, err := context.GetOperatorInfo(ctx)
+	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
 		ran.Log.Error("Could not get operator info", zap.Error(err))
-		return
-	}
-
-	if len(ran.SupportedTAList) == 0 {
-		err := message.SendNGSetupFailure(ctx, ran, &ngapType.Cause{
-			Present: ngapType.CausePresentMisc,
-			Misc: &ngapType.CauseMisc{
-				Value: ngapType.CauseMiscPresentUnspecified,
-			},
-		})
-		if err != nil {
-			ran.Log.Error("error sending NG Setup Failure", zap.Error(err))
-			return
-		}
-		ran.Log.Warn("NG Setup failure: No supported TA exist in NG Setup request")
 		return
 	}
 
@@ -142,7 +141,7 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 	}
 
 	if !found {
-		err := message.SendNGSetupFailure(ctx, ran, &ngapType.Cause{
+		err := ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc: &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnknownPLMN,
@@ -156,7 +155,7 @@ func HandleNGSetupRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		return
 	}
 
-	err = message.SendNGSetupResponse(ctx, ran, operatorInfo.Guami, operatorInfo.SupportedPLMN)
+	err = ran.NGAPSender.SendNGSetupResponse(ctx, operatorInfo.Guami, operatorInfo.SupportedPLMN, amf.Name, amf.RelativeCapacity)
 	if err != nil {
 		ran.Log.Error("error sending NG Setup Response", zap.Error(err))
 		return

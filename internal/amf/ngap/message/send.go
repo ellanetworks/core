@@ -22,7 +22,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var tracer = otel.Tracer("ella-core/amf/ngap/send")
+var tracer = otel.Tracer("ella-core/amf/ngap/message")
 
 type NGAPProcedure string
 
@@ -79,6 +79,7 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 	}
 }
 
+// TO delete once RealNGAPSender.SendToRan is used everywhere
 func SendToRan(ctx ctxt.Context, ran *context.AmfRan, packet []byte, msgType NGAPProcedure) error {
 	ctx, span := tracer.Start(ctx, "Send To RAN",
 		trace.WithAttributes(
@@ -167,34 +168,6 @@ func NasSendToRan(ctx ctxt.Context, ue *context.AmfUe, packet []byte, msgType NG
 	}
 
 	err := SendToRanUe(ctx, ranUe, packet, msgType)
-	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
-	}
-
-	return nil
-}
-
-func SendNGSetupResponse(ctx ctxt.Context, ran *context.AmfRan, guami *models.Guami, plmnSupported *context.PlmnSupportItem) error {
-	pkt, err := BuildNGSetupResponse(ctx, guami, plmnSupported)
-	if err != nil {
-		return fmt.Errorf("error building NG Setup Response: %s", err.Error())
-	}
-
-	err = SendToRan(ctx, ran, pkt, NGAPProcedureNGSetupResponse)
-	if err != nil {
-		return fmt.Errorf("couldn't send packet to ran: %s", err.Error())
-	}
-
-	return nil
-}
-
-func SendNGSetupFailure(ctx ctxt.Context, ran *context.AmfRan, cause *ngapType.Cause) error {
-	pkt, err := BuildNGSetupFailure(cause)
-	if err != nil {
-		return fmt.Errorf("error building NG Setup Failure: %s", err.Error())
-	}
-
-	err = SendToRan(ctx, ran, pkt, NGAPProcedureNGSetupFailure)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -487,7 +460,7 @@ func SendHandoverRequest(
 	cause ngapType.Cause,
 	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
 	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer,
-	supportedPLMN *context.PlmnSupportItem,
+	supportedPLMN *models.PlmnSupportItem,
 	supportedGUAMI *models.Guami,
 ) error {
 	if sourceUe == nil {
@@ -557,7 +530,7 @@ func SendPathSwitchRequestAcknowledge(
 	coreNetworkAssistanceInformation *ngapType.CoreNetworkAssistanceInformation,
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
-	supportedPLMN *context.PlmnSupportItem,
+	supportedPLMN *models.PlmnSupportItem,
 ) error {
 	if ue == nil {
 		return fmt.Errorf("ran ue is nil")

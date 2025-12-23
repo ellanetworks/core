@@ -196,6 +196,13 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		supportedTACs, err := dbOperator.GetSupportedTacs()
+		if err != nil {
+			logger.APILog.Warn("Failed to get supported TACs", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "Failed to get supported TACs", err, logger.APILog)
+			return
+		}
+
 		operator := &GetOperatorResponse{
 			ID: GetOperatorIDResponse{
 				Mcc: dbOperator.Mcc,
@@ -206,7 +213,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 				Sd:  SDToString(dbOperator.Sd),
 			},
 			Tracking: GetOperatorTrackingResponse{
-				SupportedTacs: dbOperator.GetSupportedTacs(),
+				SupportedTacs: supportedTACs,
 			},
 			HomeNetwork: GetOperatorHomeNetworkResponse{
 				PublicKey: hnPublicKey,
@@ -242,8 +249,15 @@ func GetOperatorTracking(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		supportedTACs, err := dbOperator.GetSupportedTacs()
+		if err != nil {
+			logger.APILog.Warn("Failed to get supported TACs", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "Failed to get supported TACs", err, logger.APILog)
+			return
+		}
+
 		operatorTracking := &GetOperatorTrackingResponse{
-			SupportedTacs: dbOperator.GetSupportedTacs(),
+			SupportedTacs: supportedTACs,
 		}
 
 		writeResponse(w, operatorTracking, http.StatusOK, logger.APILog)

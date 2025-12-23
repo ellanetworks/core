@@ -63,7 +63,7 @@ func TransferN1N2Message(ctx ctxt.Context, supi string, req models.N1N2MessageTr
 		return nil
 	}
 
-	operatorInfo, err := context.GetOperatorInfo(ctx)
+	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
@@ -122,7 +122,7 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 			return nil
 		}
 
-		operatorInfo, err := context.GetOperatorInfo(ctx)
+		operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 		if err != nil {
 			return fmt.Errorf("error getting operator info: %v", err)
 		}

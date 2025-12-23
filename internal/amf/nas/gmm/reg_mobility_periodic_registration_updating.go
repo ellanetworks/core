@@ -28,7 +28,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		}
 	}
 
-	operatorInfo, err := context.GetOperatorInfo(ctx)
+	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}

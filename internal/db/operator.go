@@ -54,14 +54,19 @@ type Operator struct {
 	HomeNetworkPrivateKey string `db:"homeNetworkPrivateKey"`
 }
 
-func (operator *Operator) GetSupportedTacs() []string {
+func (operator *Operator) GetSupportedTacs() ([]string, error) {
+	if operator.SupportedTACs == "" {
+		return nil, nil
+	}
+
 	var supportedTACs []string
+
 	err := json.Unmarshal([]byte(operator.SupportedTACs), &supportedTACs)
 	if err != nil {
-		logger.DBLog.Warn("Failed to unmarshal supported TACs", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("failed to unmarshal supported TACs: %w", err)
 	}
-	return supportedTACs
+
+	return supportedTACs, nil
 }
 
 func (operator *Operator) GetHomeNetworkPublicKey() (string, error) {

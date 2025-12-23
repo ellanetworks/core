@@ -205,7 +205,9 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation 
 		ranUe.Location.N3gaLocation.UeIpv6Addr = ipv6Addr
 		ranUe.Location.N3gaLocation.PortNumber = ngapConvert.PortNumberToInt(port)
 
-		operatorInfo, err := GetOperatorInfo(ctx)
+		amfSelf := AMFSelf()
+
+		operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 		if err != nil {
 			logger.AmfLog.Error("Error getting supported TAI list", zap.Error(err))
 			return
