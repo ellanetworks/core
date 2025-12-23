@@ -13,12 +13,14 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/service"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	nasLogger "github.com/free5gc/nas/logger"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/security"
 	"go.uber.org/zap"
 )
 
 func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
+	nasLogger.SetLogLevel(0) // Panic level to avoid NAS log output
 	self := context.AMFSelf()
 	self.NetworkFeatureSupport5GS = &context.NetworkFeatureSupport5GS{
 		Emc:     0,
