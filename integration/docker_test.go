@@ -30,8 +30,8 @@ func NewDockerClient() (*DockerClient, error) {
 
 // ComposeUp starts containers defined in a docker-compose file located in composeDir
 // Note: `compose` is not part of the moby client, so we use exec.Command to call the CLI
-func (dc *DockerClient) ComposeUp(composeDir string) error {
-	cmd := exec.Command("docker", "compose", "up", "-d")
+func (dc *DockerClient) ComposeUp(ctx context.Context, composeDir string) error {
+	cmd := exec.CommandContext(ctx, "docker", "compose", "up", "-d")
 	cmd.Dir = composeDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -45,8 +45,8 @@ func (dc *DockerClient) ComposeUp(composeDir string) error {
 
 // ComposeDown stops and removes containers defined in a docker-compose file located in composeDir
 // Note: `compose` is not part of the moby client, so we use exec.Command to call the CLI
-func (dc *DockerClient) ComposeDown(composeDir string) {
-	cmd := exec.Command("docker", "compose", "down")
+func (dc *DockerClient) ComposeDown(ctx context.Context, composeDir string) {
+	cmd := exec.CommandContext(ctx, "docker", "compose", "down")
 	cmd.Dir = composeDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

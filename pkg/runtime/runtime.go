@@ -71,7 +71,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}()
 	}
 
-	dbInstance, err := db.NewDatabase(cfg.DB.Path)
+	dbInstance, err := db.NewDatabase(context.Background(), cfg.DB.Path)
 	if err != nil {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}

@@ -19,7 +19,7 @@ func TestDatabaseMetrics(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(dbPath)
+	database, err := db.NewDatabase(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("Couldn't initialize NewDatabase: %s", err)
 	}

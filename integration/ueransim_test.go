@@ -39,10 +39,10 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			}
 			defer dockerClient.Close()
 
-			dockerClient.ComposeDown("compose/ueransim/")
-			dockerClient.ComposeDown("compose/core-tester/")
+			dockerClient.ComposeDown(ctx, "compose/ueransim/")
+			dockerClient.ComposeDown(ctx, "compose/core-tester/")
 
-			err = dockerClient.ComposeUp("compose/ueransim/")
+			err = dockerClient.ComposeUp(ctx, "compose/ueransim/")
 			if err != nil {
 				t.Fatalf("failed to bring up compose: %v", err)
 			}
@@ -194,7 +194,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Logf("Network tester results: %s", result)
 
-			dockerClient.ComposeDown("compose/ueransim/compose.yaml")
+			dockerClient.ComposeDown(ctx, "compose/ueransim/compose.yaml")
 		})
 	}
 }

@@ -52,7 +52,7 @@ func createDataNetworkAndPolicy(database *db.Database) (int, int, error) {
 func TestSubscribersDbEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -172,7 +172,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 func TestIPAllocationAndRelease(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -274,7 +274,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 func TestAllocateAllIPsInPool(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -379,7 +379,7 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 func TestCountSubscribersWithIP(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -464,7 +464,7 @@ func TestCountSubscribersWithIP(t *testing.T) {
 func TestCountSubscribersInPolicy(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}

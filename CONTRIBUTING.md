@@ -65,7 +65,7 @@ Install pre-requisites:
 
 ```shell
 sudo apt install clang llvm gcc-multilib libbpf-dev
-sudo snap install go --channel=1.24/stable --classic
+sudo snap install go --channel=1.25/stable --classic
 ```
 
 Generate the eBPF Go bindings:

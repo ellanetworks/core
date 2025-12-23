@@ -9,8 +9,6 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-24.04
-    env:
-      GO111MODULE: on
     steps:
       - uses: actions/checkout@v6
 
@@ -18,7 +16,8 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Run Gosec Security Scanner
-        uses: securego/gosec@424fc4cd9c82ea0fd6bee9cd49c2db2c3cc0c93f # v2.22.11
-        with:
-          args: -exclude=G103,G115 ./...
+      - name: Install Gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.11
+
+      - name: Run Gosec
+        run: gosec -exclude=G103,G115 ./...
