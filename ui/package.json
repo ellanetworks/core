@@ -26,7 +26,7 @@
     "next": "16.1.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "react-resizable-panels": "^4.0.15",
+    "react-resizable-panels": "^3.0.6",
     "sass": "^1.97.1",
     "tailwindcss": "^4.1.17",
     "@tailwindcss/postcss": "^4.1.18",
