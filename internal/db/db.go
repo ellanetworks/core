@@ -182,14 +182,14 @@ func (db *Database) Close() error {
 // stores the connection information and returns an object containing the information.
 // The database path must be a valid file path or ":memory:".
 // The table will be created if it doesn't exist in the format expected by the package.
-func NewDatabase(databasePath string) (*Database, error) {
+func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 	sqlConnection, err := sql.Open("sqlite3", databasePath)
 	if err != nil {
 		return nil, err
 	}
 
 	// turn on WAL journaling
-	if _, err := sqlConnection.Exec("PRAGMA journal_mode = WAL;"); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, "PRAGMA journal_mode = WAL;"); err != nil {
 		err := sqlConnection.Close()
 		if err != nil {
 			logger.DBLog.Error("Failed to close database connection after error", zap.Error(err))
@@ -198,7 +198,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 	}
 
 	// turn synchronous to NORMAL for performance
-	if _, err := sqlConnection.Exec("PRAGMA synchronous = NORMAL;"); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, "PRAGMA synchronous = NORMAL;"); err != nil {
 		err := sqlConnection.Close()
 		if err != nil {
 			logger.DBLog.Error("Failed to close database connection after error", zap.Error(err))
@@ -207,7 +207,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 	}
 
 	// turn on foreign key support
-	if _, err := sqlConnection.Exec("PRAGMA foreign_keys = ON;"); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, "PRAGMA foreign_keys = ON;"); err != nil {
 		err := sqlConnection.Close()
 		if err != nil {
 			logger.DBLog.Error("Failed to close database connection after error", zap.Error(err))
@@ -216,49 +216,49 @@ func NewDatabase(databasePath string) (*Database, error) {
 	}
 
 	// Initialize tables
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateSubscribersTable, SubscribersTableName)); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateSubscribersTable, SubscribersTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreatePoliciesTable, PoliciesTableName)); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreatePoliciesTable, PoliciesTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRoutesTable, RoutesTableName)); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateRoutesTable, RoutesTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateOperatorTable, OperatorTableName)); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateOperatorTable, OperatorTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateDataNetworksTable, DataNetworksTableName)); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateDataNetworksTable, DataNetworksTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateUsersTable, UsersTableName)); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateUsersTable, UsersTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(createSessionsTableSQL); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, createSessionsTableSQL); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateAuditLogsTable, AuditLogsTableName)); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateAuditLogsTable, AuditLogsTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRadioEventsTable, RadioEventsTableName)); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateRadioEventsTable, RadioEventsTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(QueryCreateRadioEventsIndex); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, QueryCreateRadioEventsIndex); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRetentionPolicyTable, RetentionPolicyTableName)); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateRetentionPolicyTable, RetentionPolicyTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateAPITokensTable, APITokensTableName)); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateAPITokensTable, APITokensTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateNATSettingsTable, NATSettingsTableName)); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateNATSettingsTable, NATSettingsTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateN3SettingsTable, N3SettingsTableName)); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateN3SettingsTable, N3SettingsTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateDailyUsageTable, DailyUsageTableName)); err != nil {
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateDailyUsageTable, DailyUsageTableName)); err != nil {
 		return nil, err
 	}
 
@@ -271,7 +271,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to prepare statements: %w", err)
 	}
 
-	err = db.Initialize(context.Background())
+	err = db.Initialize(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}

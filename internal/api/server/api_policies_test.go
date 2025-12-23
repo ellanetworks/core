@@ -94,7 +94,7 @@ func listPolicies(url string, client *http.Client, token string) (int, *ListPoli
 }
 
 func getPolicy(url string, client *http.Client, token string, name string) (int, *GetPolicyResponse, error) {
-	req, err := http.NewRequest("GET", url+"/api/v1/policies/"+name, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/policies/"+name, nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -168,7 +168,7 @@ func editPolicy(url string, client *http.Client, name string, token string, data
 }
 
 func deletePolicy(url string, client *http.Client, token, name string) (int, *DeletePolicyResponse, error) {
-	req, err := http.NewRequest("DELETE", url+"/api/v1/policies/"+name, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/policies/"+name, nil)
 	if err != nil {
 		return 0, nil, err
 	}

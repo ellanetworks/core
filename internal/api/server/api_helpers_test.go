@@ -2,6 +2,7 @@
 package server_test
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"net"
@@ -66,7 +67,7 @@ func (f FakeUPF) UpdateAdvertisedN3Address(ip net.IP) {
 }
 
 func setupServer(filepath string) (*httptest.Server, []byte, *db.Database, error) {
-	testdb, err := db.NewDatabase(filepath)
+	testdb, err := db.NewDatabase(context.Background(), filepath)
 	if err != nil {
 		return nil, nil, nil, err
 	}

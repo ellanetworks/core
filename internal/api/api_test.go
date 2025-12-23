@@ -19,11 +19,15 @@ import (
 
 // freePort finds an available port on localhost.
 func freePort(t *testing.T) int {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+
+	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("failed to get free port: %v", err)
 	}
+
 	defer l.Close()
+
 	return l.Addr().(*net.TCPAddr).Port
 }
 
@@ -45,7 +49,7 @@ func TestStartServerStandup(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	testdb, err := db.NewDatabase(dbPath)
+	testdb, err := db.NewDatabase(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("could not create new database: %v", err)
 	}
