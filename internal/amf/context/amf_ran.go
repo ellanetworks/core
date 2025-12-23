@@ -47,15 +47,6 @@ type SupportedTAI struct {
 	SNssaiList []models.Snssai
 }
 
-func NewSupportedTAI() (tai SupportedTAI) {
-	tai.SNssaiList = make([]models.Snssai, 0, MaxNumOfSlice)
-	return
-}
-
-func NewSupportedTAIList() []SupportedTAI {
-	return make([]SupportedTAI, 0, MaxNumOfTAI*MaxNumOfBroadcastPLMNs)
-}
-
 func (ran *AmfRan) Remove() {
 	ran.RemoveAllUeInRan()
 	AMFSelf().DeleteAmfRan(ran.Conn)

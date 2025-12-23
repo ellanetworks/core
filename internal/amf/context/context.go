@@ -217,7 +217,7 @@ func (context *AMFContext) NewAmfRan(conn *sctp.SCTPConn) *AmfRan {
 		NGAPSender: &send.RealNGAPSender{},
 	}
 	ran.RanUePool = make(map[int64]*RanUe)
-	ran.SupportedTAList = NewSupportedTAIList()
+	ran.SupportedTAList = make([]SupportedTAI, 0)
 	ran.Conn = conn
 	ran.GnbIP = remoteAddr.String()
 	ran.Log = logger.AmfLog.With(zap.String("ran_addr", remoteAddr.String()))

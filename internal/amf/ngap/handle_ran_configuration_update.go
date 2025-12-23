@@ -8,6 +8,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -69,7 +70,8 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, msg *ng
 		tac := hex.EncodeToString(supportedTAItem.TAC.Value)
 		capOfSupportTai := cap(ran.SupportedTAList)
 		for j := 0; j < len(supportedTAItem.BroadcastPLMNList.List); j++ {
-			supportedTAI := context.NewSupportedTAI()
+			supportedTAI := context.SupportedTAI{}
+			supportedTAI.SNssaiList = make([]models.Snssai, 0)
 			supportedTAI.Tai.Tac = tac
 			broadcastPLMNItem := supportedTAItem.BroadcastPLMNList.List[j]
 			plmnID := util.PlmnIDToModels(broadcastPLMNItem.PLMNIdentity)

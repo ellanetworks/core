@@ -78,7 +78,7 @@ func HandleNGSetupRequest(ctx ctxt.Context, amf *context.AMFContext, ran *contex
 
 	// Clearing any existing contents of ran.SupportedTAList
 	if len(ran.SupportedTAList) != 0 {
-		ran.SupportedTAList = context.NewSupportedTAIList()
+		ran.SupportedTAList = make([]context.SupportedTAI, 0)
 	}
 
 	if supportedTAList == nil || len(supportedTAList.List) == 0 {
@@ -99,28 +99,18 @@ func HandleNGSetupRequest(ctx ctxt.Context, amf *context.AMFContext, ran *contex
 	for i := 0; i < len(supportedTAList.List); i++ {
 		supportedTAItem := supportedTAList.List[i]
 		tac := hex.EncodeToString(supportedTAItem.TAC.Value)
-		capOfSupportTai := cap(ran.SupportedTAList)
 		for j := 0; j < len(supportedTAItem.BroadcastPLMNList.List); j++ {
 			supportedTAI := context.SupportedTAI{}
 			supportedTAI.Tai.Tac = tac
 			broadcastPLMNItem := supportedTAItem.BroadcastPLMNList.List[j]
 			plmnID := util.PlmnIDToModels(broadcastPLMNItem.PLMNIdentity)
 			supportedTAI.Tai.PlmnID = &plmnID
-			capOfSNssaiList := cap(supportedTAI.SNssaiList)
 			for k := 0; k < len(broadcastPLMNItem.TAISliceSupportList.List); k++ {
 				tAISliceSupportItem := broadcastPLMNItem.TAISliceSupportList.List[k]
-				if len(supportedTAI.SNssaiList) < capOfSNssaiList {
-					supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, util.SNssaiToModels(tAISliceSupportItem.SNSSAI))
-				} else {
-					break
-				}
+				supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, util.SNssaiToModels(tAISliceSupportItem.SNSSAI))
 			}
 
-			if len(ran.SupportedTAList) < capOfSupportTai {
-				ran.SupportedTAList = append(ran.SupportedTAList, supportedTAI)
-			} else {
-				break
-			}
+			ran.SupportedTAList = append(ran.SupportedTAList, supportedTAI)
 		}
 	}
 
