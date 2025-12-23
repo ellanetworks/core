@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -131,13 +130,13 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, msg *ng
 	}
 
 	if cause.Present == ngapType.CausePresentNothing {
-		err := message.SendRanConfigurationUpdateAcknowledge(ctx, ran, nil)
+		err := ran.NGAPSender.SendRanConfigurationUpdateAcknowledge(ctx, nil)
 		if err != nil {
 			ran.Log.Error("error sending ran configuration update acknowledge", zap.Error(err))
 		}
 		ran.Log.Info("sent ran configuration update acknowledge to target ran", zap.Any("RAN ID", ran.RanID))
 	} else {
-		err := message.SendRanConfigurationUpdateFailure(ctx, ran, cause, nil)
+		err := ran.NGAPSender.SendRanConfigurationUpdateFailure(ctx, cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending ran configuration update failure", zap.Error(err))
 		}

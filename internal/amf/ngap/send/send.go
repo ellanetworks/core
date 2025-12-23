@@ -140,6 +140,38 @@ func (s *RealNGAPSender) SendErrorIndication(ctx context.Context, amfUeNgapID, r
 	return nil
 }
 
+// criticality ->from received node when received node can't comprehend the IE or missing IE
+func (s *RealNGAPSender) SendRanConfigurationUpdateAcknowledge(ctx context.Context, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	pkt, err := BuildRanConfigurationUpdateAcknowledge(criticalityDiagnostics)
+	if err != nil {
+		return fmt.Errorf("error building ran configuration update acknowledge: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedureRanConfigurationUpdateAcknowledge)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}
+
+// criticality ->from received node when received node can't comprehend the IE or missing IE
+// If the AMF cannot accept the update,
+// it shall respond with a RAN CONFIGURATION UPDATE FAILURE message and appropriate cause value.
+func (s *RealNGAPSender) SendRanConfigurationUpdateFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	pkt, err := BuildRanConfigurationUpdateFailure(cause, criticalityDiagnostics)
+	if err != nil {
+		return fmt.Errorf("error building ran configuration update failure: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedureRanConfigurationUpdateFailure)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}
+
 func nativeToNetworkEndianness32(value uint32) uint32 {
 	var b [4]byte
 	binary.NativeEndian.PutUint32(b[:], value)

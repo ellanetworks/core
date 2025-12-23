@@ -260,3 +260,92 @@ func BuildErrorIndication(amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause
 
 	return ngap.Encoder(pdu)
 }
+
+func BuildRanConfigurationUpdateAcknowledge(
+	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
+) ([]byte, error) {
+	// criticality ->from received node when received node can't comprehend the IE or missing IE
+
+	var pdu ngapType.NGAPPDU
+	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
+	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
+
+	successfulOutcome := pdu.SuccessfulOutcome
+	successfulOutcome.ProcedureCode.Value = ngapType.ProcedureCodeRANConfigurationUpdate
+	successfulOutcome.Criticality.Value = ngapType.CriticalityPresentReject
+	successfulOutcome.Value.Present = ngapType.SuccessfulOutcomePresentRANConfigurationUpdateAcknowledge
+	successfulOutcome.Value.RANConfigurationUpdateAcknowledge = new(ngapType.RANConfigurationUpdateAcknowledge)
+
+	rANConfigurationUpdateAcknowledge := successfulOutcome.Value.RANConfigurationUpdateAcknowledge
+	rANConfigurationUpdateAcknowledgeIEs := &rANConfigurationUpdateAcknowledge.ProtocolIEs
+
+	// Criticality Doagnostics(Optional)
+	if criticalityDiagnostics != nil {
+		ie := ngapType.RANConfigurationUpdateAcknowledgeIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDCriticalityDiagnostics
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.RANConfigurationUpdateAcknowledgeIEsPresentCriticalityDiagnostics
+		ie.Value.CriticalityDiagnostics = new(ngapType.CriticalityDiagnostics)
+
+		ie.Value.CriticalityDiagnostics = criticalityDiagnostics
+		rANConfigurationUpdateAcknowledgeIEs.List = append(rANConfigurationUpdateAcknowledgeIEs.List, ie)
+	}
+
+	return ngap.Encoder(pdu)
+}
+
+func BuildRanConfigurationUpdateFailure(
+	cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics,
+) ([]byte, error) {
+	// criticality ->from received node when received node can't comprehend the IE or missing IE
+	// If the AMF cannot accept the update,
+	// it shall respond with a RAN CONFIGURATION UPDATE FAILURE message and appropriate cause value.
+
+	var pdu ngapType.NGAPPDU
+	pdu.Present = ngapType.NGAPPDUPresentUnsuccessfulOutcome
+	pdu.UnsuccessfulOutcome = new(ngapType.UnsuccessfulOutcome)
+
+	unsuccessfulOutcome := pdu.UnsuccessfulOutcome
+	unsuccessfulOutcome.ProcedureCode.Value = ngapType.ProcedureCodeRANConfigurationUpdate
+	unsuccessfulOutcome.Criticality.Value = ngapType.CriticalityPresentReject
+	unsuccessfulOutcome.Value.Present = ngapType.UnsuccessfulOutcomePresentRANConfigurationUpdateFailure
+	unsuccessfulOutcome.Value.RANConfigurationUpdateFailure = new(ngapType.RANConfigurationUpdateFailure)
+
+	rANConfigurationUpdateFailure := unsuccessfulOutcome.Value.RANConfigurationUpdateFailure
+	rANConfigurationUpdateFailureIEs := &rANConfigurationUpdateFailure.ProtocolIEs
+
+	// Cause
+	ie := ngapType.RANConfigurationUpdateFailureIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDCause
+	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+	ie.Value.Present = ngapType.RANConfigurationUpdateFailureIEsPresentCause
+	ie.Value.Cause = &cause
+
+	rANConfigurationUpdateFailureIEs.List = append(rANConfigurationUpdateFailureIEs.List, ie)
+
+	// Time To Wait(Optional)
+	ie = ngapType.RANConfigurationUpdateFailureIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDTimeToWait
+	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+	ie.Value.Present = ngapType.RANConfigurationUpdateFailureIEsPresentTimeToWait
+	ie.Value.TimeToWait = new(ngapType.TimeToWait)
+
+	timeToWait := ie.Value.TimeToWait
+	timeToWait.Value = ngapType.TimeToWaitPresentV1s
+
+	rANConfigurationUpdateFailureIEs.List = append(rANConfigurationUpdateFailureIEs.List, ie)
+
+	// Criticality Doagnostics(Optional)
+	if criticalityDiagnostics != nil {
+		ie = ngapType.RANConfigurationUpdateFailureIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDCriticalityDiagnostics
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.RANConfigurationUpdateFailureIEsPresentCriticalityDiagnostics
+		ie.Value.CriticalityDiagnostics = new(ngapType.CriticalityDiagnostics)
+
+		ie.Value.CriticalityDiagnostics = criticalityDiagnostics
+		rANConfigurationUpdateFailureIEs.List = append(rANConfigurationUpdateFailureIEs.List, ie)
+	}
+
+	return ngap.Encoder(pdu)
+}

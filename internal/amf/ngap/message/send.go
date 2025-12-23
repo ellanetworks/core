@@ -603,46 +603,6 @@ func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
 	return nil
 }
 
-// criticality ->from received node when received node can't comprehend the IE or missing IE
-func SendRanConfigurationUpdateAcknowledge(ctx ctxt.Context, ran *context.AmfRan, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
-	if ran == nil {
-		return fmt.Errorf("ran is nil")
-	}
-
-	pkt, err := BuildRanConfigurationUpdateAcknowledge(criticalityDiagnostics)
-	if err != nil {
-		return fmt.Errorf("error building ran configuration update acknowledge: %s", err.Error())
-	}
-
-	err = SendToRan(ctx, ran, pkt, NGAPProcedureRanConfigurationUpdateAcknowledge)
-	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
-	}
-
-	return nil
-}
-
-// criticality ->from received node when received node can't comprehend the IE or missing IE
-// If the AMF cannot accept the update,
-// it shall respond with a RAN CONFIGURATION UPDATE FAILURE message and appropriate cause value.
-func SendRanConfigurationUpdateFailure(ctx ctxt.Context, ran *context.AmfRan, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
-	if ran == nil {
-		return fmt.Errorf("ran is nil")
-	}
-
-	pkt, err := BuildRanConfigurationUpdateFailure(cause, criticalityDiagnostics)
-	if err != nil {
-		return fmt.Errorf("error building ran configuration update failure: %s", err.Error())
-	}
-
-	err = SendToRan(ctx, ran, pkt, NGAPProcedureRanConfigurationUpdateFailure)
-	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
-	}
-
-	return nil
-}
-
 // An AMF shall be able to instruct other peer CP NFs, subscribed to receive such a notification,
 // that it will be unavailable on this AMF and its corresponding target AMF(s).
 // If CP NF does not subscribe to receive AMF unavailable notification, the CP NF may attempt

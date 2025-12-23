@@ -261,3 +261,11 @@ func (fng *FakeNGAPSender) SendNGResetAcknowledge(ctx context.Context, partOfNGI
 func (fng *FakeNGAPSender) SendErrorIndication(ctx context.Context, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	return nil
 }
+
+func (fng *FakeNGAPSender) SendRanConfigurationUpdateAcknowledge(ctx context.Context, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	return nil
+}
+
+func (fng *FakeNGAPSender) SendRanConfigurationUpdateFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	return nil
+}
