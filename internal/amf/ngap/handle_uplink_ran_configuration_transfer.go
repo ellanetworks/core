@@ -4,7 +4,6 @@ import (
 	ctxt "context"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
@@ -65,9 +64,10 @@ func HandleUplinkRanConfigurationTransfer(ctx ctxt.Context, ran *context.AmfRan,
 		return
 	}
 
-	err := message.SendDownlinkRanConfigurationTransfer(ctx, targetRan, sONConfigurationTransferUL)
+	err := targetRan.NGAPSender.SendDownlinkRanConfigurationTransfer(ctx, sONConfigurationTransferUL)
 	if err != nil {
 		ran.Log.Error("error sending downlink ran configuration transfer", zap.Error(err))
+		return
 	}
 
 	ran.Log.Info("sent downlink ran configuration transfer to target ran", zap.Any("RAN ID", targetRan.RanID))

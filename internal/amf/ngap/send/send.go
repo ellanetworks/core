@@ -172,6 +172,21 @@ func (s *RealNGAPSender) SendRanConfigurationUpdateFailure(ctx context.Context, 
 	return nil
 }
 
+// SONConfigurationTransfer = sONConfigurationTransfer from uplink Ran Configuration Transfer
+func (s *RealNGAPSender) SendDownlinkRanConfigurationTransfer(ctx context.Context, transfer *ngapType.SONConfigurationTransfer) error {
+	pkt, err := BuildDownlinkRanConfigurationTransfer(transfer)
+	if err != nil {
+		return fmt.Errorf("error building downlink ran configuration transfer: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedureDownlinkRanConfigurationTransfer)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}
+
 func nativeToNetworkEndianness32(value uint32) uint32 {
 	var b [4]byte
 	binary.NativeEndian.PutUint32(b[:], value)

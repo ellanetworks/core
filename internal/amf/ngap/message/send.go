@@ -633,25 +633,6 @@ func SendAMFStatusIndication(ctx ctxt.Context, ran *context.AmfRan, unavailableG
 	return nil
 }
 
-// SONConfigurationTransfer = sONConfigurationTransfer from uplink Ran Configuration Transfer
-func SendDownlinkRanConfigurationTransfer(ctx ctxt.Context, ran *context.AmfRan, transfer *ngapType.SONConfigurationTransfer) error {
-	if ran == nil {
-		return fmt.Errorf("ran is nil")
-	}
-
-	pkt, err := BuildDownlinkRanConfigurationTransfer(transfer)
-	if err != nil {
-		return fmt.Errorf("error building downlink ran configuration transfer: %s", err.Error())
-	}
-
-	err = SendToRan(ctx, ran, pkt, NGAPProcedureDownlinkRanConfigurationTransfer)
-	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
-	}
-
-	return nil
-}
-
 // AOI List is from SMF
 // The SMF may subscribe to the UE mobility event notification from the AMF
 // (e.g. location reporting, UE moving into or out of Area Of Interest) TS 23.502 4.3.2.2.1 Step.17

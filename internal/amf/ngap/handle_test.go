@@ -269,3 +269,7 @@ func (fng *FakeNGAPSender) SendRanConfigurationUpdateAcknowledge(ctx context.Con
 func (fng *FakeNGAPSender) SendRanConfigurationUpdateFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	return nil
 }
+
+func (fng *FakeNGAPSender) SendDownlinkRanConfigurationTransfer(ctx context.Context, transfer *ngapType.SONConfigurationTransfer) error {
+	return nil
+}
