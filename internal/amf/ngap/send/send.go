@@ -8,6 +8,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -216,6 +217,44 @@ func (s *RealNGAPSender) SendAMFStatusIndication(ctx context.Context, unavailabl
 	}
 
 	err = s.SendToRan(ctx, pkt, NGAPProcedureAMFStatusIndication)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}
+
+func (s *RealNGAPSender) SendUEContextReleaseCommand(
+	ctx context.Context,
+	amfUeNgapID int64,
+	ranUeNgapID int64,
+	causePresent int,
+	cause aper.Enumerated,
+) error {
+	pkt, err := BuildUEContextReleaseCommand(amfUeNgapID, ranUeNgapID, causePresent, cause)
+	if err != nil {
+		return fmt.Errorf("error building ue context release: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedureUEContextReleaseCommand)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}
+
+func (s *RealNGAPSender) SendDownlinkNasTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
+	if len(nasPdu) == 0 {
+		return fmt.Errorf("nas pdu is nil")
+	}
+
+	pkt, err := BuildDownlinkNasTransport(amfUeNgapID, ranUeNgapID, nasPdu, mobilityRestrictionList)
+	if err != nil {
+		return fmt.Errorf("error building DownlinkNasTransport: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedureDownlinkNasTransport)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}

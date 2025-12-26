@@ -4,7 +4,6 @@ import (
 	ctxt "context"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
@@ -143,16 +142,22 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *n
 				}
 			}
 			amfUe.Mutex.Unlock()
-			err := message.SendUEContextReleaseCommand(ctx, ranUe, context.UeContextReleaseUeContext, causeGroup, causeValue)
+
+			ranUe.ReleaseAction = context.UeContextReleaseUeContext
+
+			err := ran.NGAPSender.SendUEContextReleaseCommand(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, causeGroup, causeValue)
 			if err != nil {
 				ranUe.Log.Error("error sending ue context release command", zap.Error(err))
 				return
 			}
+
 			return
 		}
 	}
 
-	err = message.SendUEContextReleaseCommand(ctx, ranUe, context.UeContextN2NormalRelease, causeGroup, causeValue)
+	ranUe.ReleaseAction = context.UeContextN2NormalRelease
+
+	err = ran.NGAPSender.SendUEContextReleaseCommand(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, causeGroup, causeValue)
 	if err != nil {
 		ranUe.Log.Error("error sending ue context release command", zap.Error(err))
 		return

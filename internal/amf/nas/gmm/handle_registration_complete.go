@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
@@ -40,7 +39,8 @@ func handleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe) error {
 	shouldRelease := !(forPending || udsHasPending || hasActiveSessions)
 
 	if shouldRelease {
-		err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		ue.RanUe.ReleaseAction = context.UeContextN2NormalRelease
+		err := ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}

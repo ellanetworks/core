@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -26,7 +25,8 @@ func handleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe) error {
 	ue.State.Set(context.Deregistered)
 
 	if ue.RanUe != nil {
-		err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
+		ue.RanUe.ReleaseAction = context.UeContextReleaseDueToNwInitiatedDeregistraion
+		err := ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}

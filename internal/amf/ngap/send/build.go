@@ -7,6 +7,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
@@ -546,6 +547,150 @@ func BuildPDUSessionResourceReleaseCommand(amfUENgapID int64, ranUENgapID int64,
 	ie.Value.Present = ngapType.PDUSessionResourceReleaseCommandIEsPresentPDUSessionResourceToReleaseListRelCmd
 	ie.Value.PDUSessionResourceToReleaseListRelCmd = &pduSessionResourceReleasedList
 	PDUSessionResourceReleaseCommandIEs.List = append(PDUSessionResourceReleaseCommandIEs.List, ie)
+
+	return ngap.Encoder(pdu)
+}
+
+func BuildUEContextReleaseCommand(amfUENGAPID int64, ranUENGAPID int64, causePresent int, cause aper.Enumerated) ([]byte, error) {
+	var pdu ngapType.NGAPPDU
+
+	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
+	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
+
+	initiatingMessage := pdu.InitiatingMessage
+	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeUEContextRelease
+	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentReject
+
+	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentUEContextReleaseCommand
+	initiatingMessage.Value.UEContextReleaseCommand = new(ngapType.UEContextReleaseCommand)
+
+	ueContextReleaseCommand := initiatingMessage.Value.UEContextReleaseCommand
+	ueContextReleaseCommandIEs := &ueContextReleaseCommand.ProtocolIEs
+
+	// UE NGAP IDs
+	ie := ngapType.UEContextReleaseCommandIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDUENGAPIDs
+	ie.Criticality.Value = ngapType.CriticalityPresentReject
+	ie.Value.Present = ngapType.UEContextReleaseCommandIEsPresentUENGAPIDs
+	ie.Value.UENGAPIDs = new(ngapType.UENGAPIDs)
+
+	ueNGAPIDs := ie.Value.UENGAPIDs
+
+	if ranUENGAPID == models.RanUeNgapIDUnspecified {
+		ueNGAPIDs.Present = ngapType.UENGAPIDsPresentAMFUENGAPID
+		ueNGAPIDs.AMFUENGAPID = new(ngapType.AMFUENGAPID)
+
+		ueNGAPIDs.AMFUENGAPID.Value = amfUENGAPID
+	} else {
+		ueNGAPIDs.Present = ngapType.UENGAPIDsPresentUENGAPIDPair
+		ueNGAPIDs.UENGAPIDPair = new(ngapType.UENGAPIDPair)
+
+		ueNGAPIDs.UENGAPIDPair.AMFUENGAPID.Value = amfUENGAPID
+		ueNGAPIDs.UENGAPIDPair.RANUENGAPID.Value = ranUENGAPID
+	}
+
+	ueContextReleaseCommandIEs.List = append(ueContextReleaseCommandIEs.List, ie)
+
+	// Cause
+	ie = ngapType.UEContextReleaseCommandIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDCause
+	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+	ie.Value.Present = ngapType.UEContextReleaseCommandIEsPresentCause
+	ngapCause := ngapType.Cause{
+		Present: causePresent,
+	}
+	switch causePresent {
+	case ngapType.CausePresentNothing:
+		return nil, fmt.Errorf("cause present is nothing")
+	case ngapType.CausePresentRadioNetwork:
+		ngapCause.RadioNetwork = new(ngapType.CauseRadioNetwork)
+		ngapCause.RadioNetwork.Value = cause
+	case ngapType.CausePresentTransport:
+		ngapCause.Transport = new(ngapType.CauseTransport)
+		ngapCause.Transport.Value = cause
+	case ngapType.CausePresentNas:
+		ngapCause.Nas = new(ngapType.CauseNas)
+		ngapCause.Nas.Value = cause
+	case ngapType.CausePresentProtocol:
+		ngapCause.Protocol = new(ngapType.CauseProtocol)
+		ngapCause.Protocol.Value = cause
+	case ngapType.CausePresentMisc:
+		ngapCause.Misc = new(ngapType.CauseMisc)
+		ngapCause.Misc.Value = cause
+	default:
+		return nil, fmt.Errorf("invalid cause present")
+	}
+	ie.Value.Cause = &ngapCause
+
+	ueContextReleaseCommandIEs.List = append(ueContextReleaseCommandIEs.List, ie)
+
+	return ngap.Encoder(pdu)
+}
+
+func BuildDownlinkNasTransport(amfUENGAPID int64, ranUENGAPID int64, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) ([]byte, error) {
+	var pdu ngapType.NGAPPDU
+
+	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
+	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
+
+	initiatingMessage := pdu.InitiatingMessage
+	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeDownlinkNASTransport
+	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentIgnore
+
+	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentDownlinkNASTransport
+	initiatingMessage.Value.DownlinkNASTransport = new(ngapType.DownlinkNASTransport)
+
+	downlinkNasTransport := initiatingMessage.Value.DownlinkNASTransport
+	downlinkNasTransportIEs := &downlinkNasTransport.ProtocolIEs
+
+	// AMF UE NGAP ID
+	ie := ngapType.DownlinkNASTransportIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
+	ie.Criticality.Value = ngapType.CriticalityPresentReject
+	ie.Value.Present = ngapType.DownlinkNASTransportIEsPresentAMFUENGAPID
+	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
+
+	aMFUENGAPID := ie.Value.AMFUENGAPID
+	aMFUENGAPID.Value = amfUENGAPID
+
+	downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
+
+	// RAN UE NGAP ID
+	ie = ngapType.DownlinkNASTransportIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
+	ie.Criticality.Value = ngapType.CriticalityPresentReject
+	ie.Value.Present = ngapType.DownlinkNASTransportIEsPresentRANUENGAPID
+	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
+
+	rANUENGAPID := ie.Value.RANUENGAPID
+	rANUENGAPID.Value = ranUENGAPID
+
+	downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
+
+	// NAS PDU
+	ie = ngapType.DownlinkNASTransportIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDNASPDU
+	ie.Criticality.Value = ngapType.CriticalityPresentReject
+	ie.Value.Present = ngapType.DownlinkNASTransportIEsPresentNASPDU
+	ie.Value.NASPDU = new(ngapType.NASPDU)
+
+	ie.Value.NASPDU.Value = nasPdu
+
+	downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
+
+	// RAN Paging Priority (optional)
+	// Mobility Restriction List (optional)
+	if mobilityRestrictionList != nil {
+		ie = ngapType.DownlinkNASTransportIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDMobilityRestrictionList
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.DownlinkNASTransportIEsPresentMobilityRestrictionList
+		ie.Value.MobilityRestrictionList = mobilityRestrictionList
+		downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
+	}
+	// Index to RAT/Frequency Selection Priority (optional)
+	// UE Aggregate Maximum Bit Rate (optional)
+	// Allowed NSSAI (optional)
 
 	return ngap.Encoder(pdu)
 }

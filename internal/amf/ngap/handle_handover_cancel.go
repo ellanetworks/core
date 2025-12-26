@@ -30,6 +30,7 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		ran.Log.Error("Initiating Message is nil")
 		return
 	}
+
 	HandoverCancel := initiatingMessage.Value.HandoverCancel
 	if HandoverCancel == nil {
 		ran.Log.Error("Handover Cancel is nil")
@@ -102,7 +103,9 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		return
 	}
 
-	err = message.SendUEContextReleaseCommand(ctx, targetUe, context.UeContextReleaseHandover, causePresent, causeValue)
+	targetUe.ReleaseAction = context.UeContextReleaseHandover
+
+	err = targetUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, targetUe.AmfUeNgapID, targetUe.RanUeNgapID, causePresent, causeValue)
 	if err != nil {
 		ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		return

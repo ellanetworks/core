@@ -6,7 +6,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
-	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/nas"
@@ -61,7 +60,8 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue
 	}
 
 	if ue.RanUe != nil {
-		err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
+		ue.RanUe.ReleaseAction = context.UeContextReleaseUeContext
+		err := ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}

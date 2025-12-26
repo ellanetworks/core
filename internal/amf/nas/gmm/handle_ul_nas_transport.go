@@ -66,7 +66,7 @@ func forward5GSMMessageToSMF(
 	}
 
 	if n1Msg != nil {
-		err := ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe, n1Msg, nil)
+		err := ue.RanUe.Ran.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, n1Msg, nil)
 		if err != nil {
 			return fmt.Errorf("error sending downlink nas transport: %s", err)
 		}

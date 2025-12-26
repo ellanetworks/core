@@ -35,11 +35,6 @@ const (
 )
 
 const (
-	NgRanCgiPresentNRCGI    int32 = 0
-	NgRanCgiPresentEUTRACGI int32 = 1
-)
-
-const (
 	RecommendRanNodePresentRanNode int32 = 0
 	RecommendRanNodePresentTAI     int32 = 1
 )
@@ -91,8 +86,8 @@ type AmfUe struct {
 	UeRadioCapability                 string // OCTET string
 
 	/* context related to Paging */
-	UeRadioCapabilityForPaging                 *UERadioCapabilityForPaging
-	InfoOnRecommendedCellsAndRanNodesForPaging *InfoOnRecommendedCellsAndRanNodesForPaging
+	UeRadioCapabilityForPaging                 *models.UERadioCapabilityForPaging
+	InfoOnRecommendedCellsAndRanNodesForPaging *models.InfoOnRecommendedCellsAndRanNodesForPaging
 	UESpecificDRX                              uint8
 
 	/* Security Context */
@@ -135,28 +130,6 @@ type AmfUe struct {
 
 type OnGoingProcedureWithPrio struct {
 	Procedure OnGoingProcedure
-}
-
-type UERadioCapabilityForPaging struct {
-	NR    string // OCTET string
-	EUTRA string // OCTET string
-}
-
-// TS 38.413 9.3.1.100
-type InfoOnRecommendedCellsAndRanNodesForPaging struct {
-	RecommendedCells []RecommendedCell // RecommendedCellsForPaging
-}
-
-// TS 38.413 9.3.1.71
-type RecommendedCell struct {
-	NgRanCGI         NGRANCGI
-	TimeStayedInCell *int64
-}
-
-type NGRANCGI struct {
-	Present  int32
-	NRCGI    *models.Ncgi
-	EUTRACGI *models.Ecgi
 }
 
 // TS 24.501 8.2.19

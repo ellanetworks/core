@@ -102,21 +102,21 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 	}
 
 	if infoOnRecommendedCellsAndRANNodesForPaging != nil {
-		amfUe.InfoOnRecommendedCellsAndRanNodesForPaging = new(context.InfoOnRecommendedCellsAndRanNodesForPaging)
+		amfUe.InfoOnRecommendedCellsAndRanNodesForPaging = new(models.InfoOnRecommendedCellsAndRanNodesForPaging)
 
 		recommendedCells := &amfUe.InfoOnRecommendedCellsAndRanNodesForPaging.RecommendedCells
 		for _, item := range infoOnRecommendedCellsAndRANNodesForPaging.RecommendedCellsForPaging.RecommendedCellList.List {
-			recommendedCell := context.RecommendedCell{}
+			recommendedCell := models.RecommendedCell{}
 
 			switch item.NGRANCGI.Present {
 			case ngapType.NGRANCGIPresentNRCGI:
-				recommendedCell.NgRanCGI.Present = context.NgRanCgiPresentNRCGI
+				recommendedCell.NgRanCGI.Present = models.NgRanCgiPresentNRCGI
 				recommendedCell.NgRanCGI.NRCGI = new(models.Ncgi)
 				plmnID := util.PlmnIDToModels(item.NGRANCGI.NRCGI.PLMNIdentity)
 				recommendedCell.NgRanCGI.NRCGI.PlmnID = &plmnID
 				recommendedCell.NgRanCGI.NRCGI.NrCellID = ngapConvert.BitStringToHex(&item.NGRANCGI.NRCGI.NRCellIdentity.Value)
 			case ngapType.NGRANCGIPresentEUTRACGI:
-				recommendedCell.NgRanCGI.Present = context.NgRanCgiPresentEUTRACGI
+				recommendedCell.NgRanCGI.Present = models.NgRanCgiPresentEUTRACGI
 				recommendedCell.NgRanCGI.EUTRACGI = new(models.Ecgi)
 				plmnID := util.PlmnIDToModels(item.NGRANCGI.EUTRACGI.PLMNIdentity)
 				recommendedCell.NgRanCGI.EUTRACGI.PlmnID = &plmnID

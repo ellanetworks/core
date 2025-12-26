@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -138,28 +137,6 @@ func SendToRan(ctx ctxt.Context, ran *context.AmfRan, packet []byte, msgType NGA
 	return nil
 }
 
-func SendDownlinkNasTransport(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
-	if ue == nil {
-		return fmt.Errorf("ran ue is nil")
-	}
-
-	if len(nasPdu) == 0 {
-		return fmt.Errorf("nas pdu is nil")
-	}
-
-	pkt, err := BuildDownlinkNasTransport(ue.AmfUeNgapID, ue.RanUeNgapID, nasPdu, mobilityRestrictionList)
-	if err != nil {
-		return fmt.Errorf("error building DownlinkNasTransport: %s", err.Error())
-	}
-
-	err = SendToRan(ctx, ue.Ran, pkt, NGAPProcedureDownlinkNasTransport)
-	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
-	}
-
-	return nil
-}
-
 func SendPDUSessionResourceReleaseCommand(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte, pduSessionResourceReleasedList ngapType.PDUSessionResourceToReleaseListRelCmd) error {
 	if ue == nil {
 		return fmt.Errorf("ran ue is nil")
@@ -171,26 +148,6 @@ func SendPDUSessionResourceReleaseCommand(ctx ctxt.Context, ue *context.RanUe, n
 	}
 
 	err = SendToRan(ctx, ue.Ran, pkt, NGAPProcedurePDUSessionResourceReleaseCommand)
-	if err != nil {
-		return fmt.Errorf("send error: %s", err.Error())
-	}
-
-	return nil
-}
-
-func SendUEContextReleaseCommand(ctx ctxt.Context, ue *context.RanUe, action context.RelAction, causePresent int, cause aper.Enumerated) error {
-	if ue == nil {
-		return fmt.Errorf("ran ue is nil")
-	}
-
-	pkt, err := BuildUEContextReleaseCommand(ue.AmfUeNgapID, ue.RanUeNgapID, causePresent, cause)
-	if err != nil {
-		return fmt.Errorf("error building ue context release: %s", err.Error())
-	}
-
-	ue.ReleaseAction = action
-
-	err = SendToRan(ctx, ue.Ran, pkt, NGAPProcedureUEContextReleaseCommand)
 	if err != nil {
 		return fmt.Errorf("send error: %s", err.Error())
 	}
@@ -290,7 +247,6 @@ func SendInitialContextSetupRequest(
 	}
 
 	pkt, err := BuildInitialContextSetupRequest(
-		ctx,
 		amfUe.RanUe.AmfUeNgapID,
 		amfUe.RanUe.RanUeNgapID,
 		amfUe.Ambr.Uplink,
@@ -343,8 +299,15 @@ func SendHandoverCommand(
 		return fmt.Errorf("pdu list out of range")
 	}
 
-	pkt, err := BuildHandoverCommand(sourceUe, pduSessionResourceHandoverList, pduSessionResourceToReleaseList,
-		container, criticalityDiagnostics)
+	pkt, err := BuildHandoverCommand(
+		sourceUe.AmfUeNgapID,
+		sourceUe.RanUeNgapID,
+		sourceUe.HandOverType,
+		pduSessionResourceHandoverList,
+		pduSessionResourceToReleaseList,
+		container,
+		criticalityDiagnostics,
+	)
 	if err != nil {
 		return fmt.Errorf("error building handover command: %s", err.Error())
 	}
@@ -376,7 +339,7 @@ func SendHandoverPreparationFailure(ctx ctxt.Context, sourceUe *context.RanUe, c
 		Procedure: context.OnGoingProcedureNothing,
 	})
 
-	pkt, err := BuildHandoverPreparationFailure(sourceUe, cause, criticalityDiagnostics)
+	pkt, err := BuildHandoverPreparationFailure(sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, cause, criticalityDiagnostics)
 	if err != nil {
 		return fmt.Errorf("error building handover preparation failure: %s", err.Error())
 	}
@@ -431,7 +394,7 @@ func SendHandoverRequest(
 	}
 
 	var targetUe *context.RanUe
-	if targetUeTmp, err := targetRan.NewRanUe(context.RanUeNgapIDUnspecified); err != nil {
+	if targetUeTmp, err := targetRan.NewRanUe(models.RanUeNgapIDUnspecified); err != nil {
 		return fmt.Errorf("error creating target ue: %s", err.Error())
 	} else {
 		targetUe = targetUeTmp
@@ -442,7 +405,20 @@ func SendHandoverRequest(
 		return fmt.Errorf("attach source ue target ue error: %s", err.Error())
 	}
 
-	pkt, err := BuildHandoverRequest(ctx, targetUe, cause, pduSessionResourceSetupListHOReq, sourceToTargetTransparentContainer, supportedPLMN, supportedGUAMI)
+	pkt, err := BuildHandoverRequest(
+		targetUe.AmfUeNgapID,
+		targetUe.HandOverType,
+		targetUe.AmfUe.Ambr.Uplink,
+		targetUe.AmfUe.Ambr.Downlink,
+		targetUe.AmfUe.UESecurityCapability,
+		targetUe.AmfUe.NCC,
+		targetUe.AmfUe.NH,
+		cause,
+		pduSessionResourceSetupListHOReq,
+		sourceToTargetTransparentContainer,
+		supportedPLMN,
+		supportedGUAMI,
+	)
 	if err != nil {
 		return fmt.Errorf("error building handover request: %s", err.Error())
 	}
@@ -487,9 +463,20 @@ func SendPathSwitchRequestAcknowledge(
 		return fmt.Errorf("pdu list out of range")
 	}
 
-	pkt, err := BuildPathSwitchRequestAcknowledge(ctx, ue, pduSessionResourceSwitchedList, pduSessionResourceReleasedList,
-		newSecurityContextIndicator, coreNetworkAssistanceInformation, rrcInactiveTransitionReportRequest,
-		criticalityDiagnostics, supportedPLMN)
+	pkt, err := BuildPathSwitchRequestAcknowledge(
+		ue.AmfUeNgapID,
+		ue.RanUeNgapID,
+		ue.AmfUe.UESecurityCapability,
+		ue.AmfUe.NCC,
+		ue.AmfUe.NH,
+		pduSessionResourceSwitchedList,
+		pduSessionResourceReleasedList,
+		newSecurityContextIndicator,
+		coreNetworkAssistanceInformation,
+		rrcInactiveTransitionReportRequest,
+		criticalityDiagnostics,
+		supportedPLMN,
+	)
 	if err != nil {
 		return fmt.Errorf("error building path switch request acknowledge: %s", err.Error())
 	}
@@ -585,7 +572,7 @@ func SendLocationReportingControl(
 		}
 	}
 
-	pkt, err := BuildLocationReportingControl(ue, AOIList, LocationReportingReferenceIDToBeCancelled, eventType)
+	pkt, err := BuildLocationReportingControl(ue.AmfUeNgapID, ue.RanUeNgapID, AOIList, LocationReportingReferenceIDToBeCancelled, eventType)
 	if err != nil {
 		return fmt.Errorf("error building location reporting control: %s", err.Error())
 	}

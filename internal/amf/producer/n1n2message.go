@@ -155,7 +155,13 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 		Procedure: context.OnGoingProcedurePaging,
 	})
 
-	pkg, err := message.BuildPaging(ue, pagingPriority)
+	pkg, err := message.BuildPaging(
+		ue.Guti,
+		ue.RegistrationArea,
+		ue.UeRadioCapabilityForPaging,
+		ue.InfoOnRecommendedCellsAndRanNodesForPaging,
+		pagingPriority,
+	)
 	if err != nil {
 		return fmt.Errorf("build paging error: %v", err)
 	}
@@ -192,7 +198,7 @@ func TransferN1Msg(ctx ctxt.Context, supi string, n1Msg []byte, pduSessionID uin
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	err = message.SendDownlinkNasTransport(ctx, ue.RanUe, nasPdu, nil)
+	err = ue.RanUe.Ran.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasPdu, nil)
 	if err != nil {
 		return fmt.Errorf("send downlink nas transport error: %v", err)
 	}

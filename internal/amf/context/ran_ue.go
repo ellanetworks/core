@@ -25,10 +25,6 @@ import (
 type RelAction int
 
 const (
-	RanUeNgapIDUnspecified int64 = 0xffffffff
-)
-
-const (
 	UeContextN2NormalRelease RelAction = iota
 	UeContextReleaseHandover
 	UeContextReleaseUeContext

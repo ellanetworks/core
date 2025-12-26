@@ -5,6 +5,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -84,7 +85,7 @@ func HandleUERadioCapabilityInfoIndication(ran *context.AmfRan, message *ngapTyp
 	}
 
 	if uERadioCapabilityForPaging != nil {
-		amfUe.UeRadioCapabilityForPaging = &context.UERadioCapabilityForPaging{}
+		amfUe.UeRadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
 		if uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR != nil {
 			amfUe.UeRadioCapabilityForPaging.NR = hex.EncodeToString(
 				uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value)

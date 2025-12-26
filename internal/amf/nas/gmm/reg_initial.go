@@ -6,7 +6,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
-	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -35,10 +34,14 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 		if err != nil {
 			ue.Log.Error("error sending registration reject", zap.Error(err))
 		}
-		err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+
+		ue.RanUe.ReleaseAction = context.UeContextN2NormalRelease
+
+		err = ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			ue.Log.Error("error sending ue context release command", zap.Error(err))
 		}
+
 		ue.Remove()
 		return fmt.Errorf("no allowed nssai")
 	}

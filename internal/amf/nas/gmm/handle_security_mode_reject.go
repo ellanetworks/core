@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
@@ -35,8 +34,9 @@ func handleSecurityModeReject(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmM
 	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", zap.String("Cause", nasMessage.Cause5GMMToString(cause)), zap.String("supi", ue.Supi))
 
 	ue.SecurityContextAvailable = false
+	ue.RanUe.ReleaseAction = context.UeContextReleaseUeContext
 
-	err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+	err := ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {
 		return fmt.Errorf("error sending ue context release command: %v", err)
 	}

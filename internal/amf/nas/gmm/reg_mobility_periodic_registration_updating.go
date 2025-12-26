@@ -217,7 +217,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 			}
 			ue.Log.Info("Sent NGAP pdu session resource setup request")
 		} else {
-			err := ngap_message.SendDownlinkNasTransport(ctx, ue.RanUe, nasPdu, nil)
+			err := ue.RanUe.Ran.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasPdu, nil)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %v", err)
 			}

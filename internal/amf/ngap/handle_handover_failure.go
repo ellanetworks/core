@@ -93,7 +93,9 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 		ran.Log.Info("sent handover preparation failure to source UE")
 	}
 
-	err = ngap_message.SendUEContextReleaseCommand(ctx, targetUe, context.UeContextReleaseHandover, causePresent, causeValue)
+	targetUe.ReleaseAction = context.UeContextReleaseHandover
+
+	err = targetUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, targetUe.AmfUeNgapID, targetUe.RanUeNgapID, causePresent, causeValue)
 	if err != nil {
 		ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		return

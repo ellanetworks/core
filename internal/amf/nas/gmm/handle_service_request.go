@@ -131,7 +131,8 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
 		ue.Log.Info("sent service reject")
-		err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		ue.RanUe.ReleaseAction = context.UeContextN2NormalRelease
+		err = ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
@@ -194,10 +195,13 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
 		ue.Log.Info("sent service reject")
-		err = ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextN2NormalRelease, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		ue.RanUe.ReleaseAction = context.UeContextN2NormalRelease
+
+		err = ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
+
 		return nil
 	}
 

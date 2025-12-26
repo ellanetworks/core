@@ -281,3 +281,17 @@ func (fng *FakeNGAPSender) SendPathSwitchRequestFailure(ctx context.Context, amf
 func (fng *FakeNGAPSender) SendAMFStatusIndication(ctx context.Context, unavailableGUAMIList ngapType.UnavailableGUAMIList) error {
 	return nil
 }
+
+func (fng *FakeNGAPSender) SendUEContextReleaseCommand(
+	ctx context.Context,
+	amfUeNgapID int64,
+	ranUeNgapID int64,
+	causePresent int,
+	cause aper.Enumerated,
+) error {
+	return nil
+}
+
+func (fng *FakeNGAPSender) SendDownlinkNasTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
+	return nil
+}
