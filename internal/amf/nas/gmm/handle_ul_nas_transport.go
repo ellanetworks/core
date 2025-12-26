@@ -6,7 +6,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
-	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -54,7 +54,7 @@ func forward5GSMMessageToSMF(
 		}
 
 		list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
-		ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, response.BinaryDataN2SmInformation)
+		send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, response.BinaryDataN2SmInformation)
 		err := ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, n1Msg, list)
 		if err != nil {
 			return fmt.Errorf("error sending pdu session resource release command: %s", err)
@@ -146,7 +146,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 			}
 			ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 			list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
-			ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2Rsp)
+			send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2Rsp)
 			err = ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nil, list)
 			if err != nil {
 				return fmt.Errorf("error sending pdu session resource release command: %s", err)

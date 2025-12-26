@@ -6,7 +6,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
-	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
@@ -278,9 +278,9 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
 					} else if ue.RanUe.UeContextRequest {
-						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID, smContext.Snssai(), nil, binaryDataN2SmInformation)
+						send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID, smContext.Snssai(), nil, binaryDataN2SmInformation)
 					} else {
-						ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID, smContext.Snssai(), nil, binaryDataN2SmInformation)
+						send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID, smContext.Snssai(), nil, binaryDataN2SmInformation)
 					}
 				}
 			}
@@ -341,9 +341,9 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 					}
 				}
 				if ue.RanUe.UeContextRequest {
-					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+					send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 				} else {
-					ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+					send.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 				}
 				ue.Log.Debug("sending service accept")
 				err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
@@ -240,6 +241,10 @@ type FakeNGAPSender struct {
 	SentNGSetupResponses []*NGSetupResponse
 }
 
+func (fng *FakeNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error {
+	return nil
+}
+
 func (fng *FakeNGAPSender) SendNGSetupFailure(ctx context.Context, cause *ngapType.Cause) error {
 	fng.SentNGSetupFailures = append(fng.SentNGSetupFailures, &NGSetupFailure{Cause: cause})
 	return nil
@@ -326,5 +331,27 @@ func (fng *FakeNGAPSender) SendHandoverCommand(ctx context.Context, amfUeNgapID 
 }
 
 func (fng *FakeNGAPSender) SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai *models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability string, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error {
+	return nil
+}
+
+func (fng *FakeNGAPSender) SendPathSwitchRequestAcknowledge(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList, pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck, supportedPLMN *models.PlmnSupportItem) error {
+	return nil
+}
+
+func (fng *FakeNGAPSender) SendHandoverRequest(
+	ctx context.Context,
+	amfUeNgapID int64,
+	handOverType ngapType.HandoverType,
+	uplinkAmbr string,
+	downlinkAmbr string,
+	ueSecurityCapability *nasType.UESecurityCapability,
+	ncc uint8,
+	nh []byte,
+	cause ngapType.Cause,
+	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
+	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer,
+	supportedPLMN *models.PlmnSupportItem,
+	supportedGUAMI *models.Guami,
+) error {
 	return nil
 }

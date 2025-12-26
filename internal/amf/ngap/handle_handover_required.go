@@ -4,9 +4,10 @@ import (
 	ctxt "context"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -185,7 +186,7 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 				sourceUe.Log.Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
 				continue
 			}
-			message.AppendPDUSessionResourceSetupListHOReq(&pduSessionReqList, pduSessionIDUint8, smContext.Snssai(), n2Rsp)
+			send.AppendPDUSessionResourceSetupListHOReq(&pduSessionReqList, pduSessionIDUint8, smContext.Snssai(), n2Rsp)
 		}
 	}
 	if len(pduSessionReqList.List) == 0 {
@@ -216,10 +217,37 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 		sourceUe.Log.Error("Could not get operator info", zap.Error(err))
 	}
 
-	err = message.SendHandoverRequest(ctx, sourceUe, targetRan, *cause, pduSessionReqList, *sourceToTargetTransparentContainer, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+	targetUe, err := targetRan.NewRanUe(models.RanUeNgapIDUnspecified)
+	if err != nil {
+		logger.AmfLog.Error("error creating target ue", zap.Error(err))
+		return
+	}
+
+	err = context.AttachSourceUeTargetUe(sourceUe, targetUe)
+	if err != nil {
+		logger.AmfLog.Error("attach source ue target ue error", zap.Error(err))
+		return
+	}
+
+	err = targetUe.Ran.NGAPSender.SendHandoverRequest(
+		ctx,
+		targetUe.AmfUeNgapID,
+		targetUe.HandOverType,
+		targetUe.AmfUe.Ambr.Uplink,
+		targetUe.AmfUe.Ambr.Downlink,
+		targetUe.AmfUe.UESecurityCapability,
+		targetUe.AmfUe.NCC,
+		targetUe.AmfUe.NH,
+		*cause,
+		pduSessionReqList,
+		*sourceToTargetTransparentContainer,
+		operatorInfo.SupportedPLMN,
+		operatorInfo.Guami,
+	)
 	if err != nil {
 		sourceUe.Log.Error("error sending handover request to target UE", zap.Error(err))
 		return
 	}
+
 	sourceUe.Log.Info("sent handover request to target UE")
 }

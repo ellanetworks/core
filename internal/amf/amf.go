@@ -9,7 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/ngap/service"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -115,7 +115,7 @@ func Close() {
 		return
 	}
 
-	unavailableGuamiList := message.BuildUnavailableGUAMIList(operatorInfo.Guami)
+	unavailableGuamiList := send.BuildUnavailableGUAMIList(operatorInfo.Guami)
 
 	for _, ran := range amfSelf.AmfRanPool {
 		err := ran.NGAPSender.SendAMFStatusIndication(ctx, unavailableGuamiList)

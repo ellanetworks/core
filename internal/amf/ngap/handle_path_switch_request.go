@@ -4,7 +4,6 @@ import (
 	ctxt "context"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
@@ -187,7 +186,17 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 			ranUe.Log.Error("Get Operator Info Error", zap.Error(err))
 			return
 		}
-		err = message.SendPathSwitchRequestAcknowledge(ctx, ranUe, pduSessionResourceSwitchedList, pduSessionResourceReleasedListPSAck, false, nil, nil, nil, operatorInfo.SupportedPLMN)
+		err = ranUe.Ran.NGAPSender.SendPathSwitchRequestAcknowledge(
+			ctx,
+			ranUe.AmfUeNgapID,
+			ranUe.RanUeNgapID,
+			amfUe.UESecurityCapability,
+			amfUe.NCC,
+			amfUe.NH,
+			pduSessionResourceSwitchedList,
+			pduSessionResourceReleasedListPSAck,
+			operatorInfo.SupportedPLMN,
+		)
 		if err != nil {
 			ranUe.Log.Error("error sending path switch request acknowledge", zap.Error(err))
 			return

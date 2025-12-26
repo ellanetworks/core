@@ -13,7 +13,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	gmm_message "github.com/ellanetworks/core/internal/amf/nas/gmm/message"
-	message "github.com/ellanetworks/core/internal/amf/ngap/message"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
@@ -52,7 +52,7 @@ func TransferN1N2Message(ctx ctxt.Context, supi string, req models.N1N2MessageTr
 	if ue.RanUe.SentInitialContextSetupRequest {
 		list := ngapType.PDUSessionResourceSetupListSUReq{}
 
-		message.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
+		send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
 		err := ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ue.RanUe.AmfUe.Ambr.Uplink, ue.RanUe.AmfUe.Ambr.Downlink, nil, list)
 		if err != nil {
@@ -70,7 +70,7 @@ func TransferN1N2Message(ctx ctxt.Context, supi string, req models.N1N2MessageTr
 
 	list := ngapType.PDUSessionResourceSetupListCxtReq{}
 
-	message.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
+	send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
 	ue.RanUe.SentInitialContextSetupRequest = true
 
@@ -130,7 +130,7 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 		ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 		if ue.RanUe.SentInitialContextSetupRequest {
 			list := ngapType.PDUSessionResourceSetupListSUReq{}
-			message.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
+			send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 			err := ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ue.RanUe.AmfUe.Ambr.Uplink, ue.RanUe.AmfUe.Ambr.Downlink, nil, list)
 			if err != nil {
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
@@ -145,7 +145,7 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 		}
 
 		list := ngapType.PDUSessionResourceSetupListCxtReq{}
-		message.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
+		send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
 		ue.RanUe.SentInitialContextSetupRequest = true
 
@@ -189,7 +189,7 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 		Procedure: context.OnGoingProcedurePaging,
 	})
 
-	pkg, err := message.BuildPaging(
+	pkg, err := send.BuildPaging(
 		ue.Guti,
 		ue.RegistrationArea,
 		ue.UeRadioCapabilityForPaging,
@@ -200,7 +200,7 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 		return fmt.Errorf("build paging error: %v", err)
 	}
 
-	err = message.SendPaging(ctx, ue, pkg)
+	err = SendPaging(ctx, ue, pkg)
 	if err != nil {
 		return fmt.Errorf("send paging error: %v", err)
 	}
@@ -238,6 +238,58 @@ func TransferN1Msg(ctx ctxt.Context, supi string, n1Msg []byte, pduSessionID uin
 	}
 
 	ue.Log.Info("sent downlink nas transport to UE", zap.String("supi", supi))
+
+	return nil
+}
+
+func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
+	if ue == nil {
+		return fmt.Errorf("amf ue is nil")
+	}
+
+	amfSelf := context.AMFSelf()
+
+	amfSelf.Mutex.Lock()
+	defer amfSelf.Mutex.Unlock()
+
+	taiList := ue.RegistrationArea
+
+	for _, ran := range amfSelf.AmfRanPool {
+		for _, item := range ran.SupportedTAList {
+			if context.InTaiList(item.Tai, taiList) {
+				err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
+				if err != nil {
+					ue.Log.Error("failed to send paging", zap.Error(err))
+					continue
+				}
+				ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
+				break
+			}
+		}
+	}
+
+	if amfSelf.T3513Cfg.Enable {
+		cfg := amfSelf.T3513Cfg
+		ue.T3513 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+			ue.Log.Warn("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
+			for _, ran := range amfSelf.AmfRanPool {
+				for _, item := range ran.SupportedTAList {
+					if context.InTaiList(item.Tai, taiList) {
+						err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
+						if err != nil {
+							ue.Log.Error("failed to send paging", zap.Error(err))
+							continue
+						}
+						ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
+						break
+					}
+				}
+			}
+		}, func() {
+			ue.Log.Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
+			ue.T3513 = nil // clear the timer
+		})
+	}
 
 	return nil
 }

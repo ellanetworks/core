@@ -6,7 +6,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
-	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -103,10 +103,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 							errCause = append(errCause, cause)
 						} else {
 							if ue.RanUe.UeContextRequest {
-								ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID,
+								send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID,
 									smContext.Snssai(), nil, binaryDataN2SmInformation)
 							} else {
-								ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID,
+								send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID,
 									smContext.Snssai(), nil, binaryDataN2SmInformation)
 							}
 						}
@@ -200,7 +200,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 				}
 			}
 
-			ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+			send.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 		}
 	}
 

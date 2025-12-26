@@ -422,6 +422,96 @@ func (s *RealNGAPSender) SendInitialContextSetupRequest(
 	return nil
 }
 
+// pduSessionResourceSwitchedList: provided by AMF, and the transfer data is from SMF
+// pduSessionResourceReleasedList: provided by AMF, and the transfer data is from SMF
+// newSecurityContextIndicator: if AMF has activated a new 5G NAS security context, set it to true,
+// otherwise set to false
+// coreNetworkAssistanceInformation: provided by AMF, based on collection of UE behaviour statistics
+// and/or other available
+// information about the expected UE behaviour. TS 23.501 5.4.6, 5.4.6.2
+// rrcInactiveTransitionReportRequest: configured by amf
+// criticalityDiagnostics: from received node when received not comprehended IE or missing IE
+func (s *RealNGAPSender) SendPathSwitchRequestAcknowledge(
+	ctx context.Context,
+	amfUeNgapID int64,
+	ranUeNgapID int64,
+	ueSecurityCapability *nasType.UESecurityCapability,
+	ncc uint8,
+	nh []byte,
+	pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList,
+	pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck,
+	supportedPLMN *models.PlmnSupportItem,
+) error {
+	pkt, err := buildPathSwitchRequestAcknowledge(
+		amfUeNgapID,
+		ranUeNgapID,
+		ueSecurityCapability,
+		ncc,
+		nh,
+		pduSessionResourceSwitchedList,
+		pduSessionResourceReleasedList,
+		supportedPLMN,
+	)
+	if err != nil {
+		return fmt.Errorf("error building path switch request acknowledge: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedurePathSwitchRequestAcknowledge)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}
+
+/*The PGW-C+SMF (V-SMF in the case of home-routed roaming scenario only) sends
+a Nsmf_PDUSession_CreateSMContext Response(N2 SM Information (PDU Session ID, cause code)) to the AMF.*/
+// Cause is from SMF
+// pduSessionResourceSetupList provided by AMF, and the transfer data is from SMF
+// sourceToTargetTransparentContainer is received from S-RAN
+// nsci: new security context indicator, if amfUe has updated security context, set nsci to true, otherwise set to false
+// N2 handover in same AMF
+func (s *RealNGAPSender) SendHandoverRequest(
+	ctx context.Context,
+	amfUeNgapID int64,
+	handOverType ngapType.HandoverType,
+	uplinkAmbr string,
+	downlinkAmbr string,
+	ueSecurityCapability *nasType.UESecurityCapability,
+	ncc uint8,
+	nh []byte,
+	cause ngapType.Cause,
+	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
+	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer,
+	supportedPLMN *models.PlmnSupportItem,
+	supportedGUAMI *models.Guami,
+) error {
+	pkt, err := buildHandoverRequest(
+		amfUeNgapID,
+		handOverType,
+		uplinkAmbr,
+		downlinkAmbr,
+		ueSecurityCapability,
+		ncc,
+		nh,
+		cause,
+		pduSessionResourceSetupListHOReq,
+		sourceToTargetTransparentContainer,
+		supportedPLMN,
+		supportedGUAMI,
+	)
+	if err != nil {
+		return fmt.Errorf("error building handover request: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedureHandoverRequest)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}
+
 func nativeToNetworkEndianness32(value uint32) uint32 {
 	var b [4]byte
 	binary.NativeEndian.PutUint32(b[:], value)
