@@ -52,13 +52,45 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, ctxList ngapType.PDU
 			return err
 		}
 		if len(ctxList.List) != 0 {
-			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, nasPdu, &ctxList, supportedGUAMI)
+			ue.RanUe.SentInitialContextSetupRequest = true
+			err := ue.RanUe.Ran.NGAPSender.SendInitialContextSetupRequest(
+				ctx,
+				ue.RanUe.AmfUeNgapID,
+				ue.RanUe.RanUeNgapID,
+				ue.RanUe.AmfUe.Ambr.Uplink,
+				ue.RanUe.AmfUe.Ambr.Downlink,
+				ue.RanUe.AmfUe.AllowedNssai,
+				ue.RanUe.AmfUe.Kgnb,
+				ue.RanUe.AmfUe.PlmnID,
+				ue.RanUe.AmfUe.UeRadioCapability,
+				ue.RanUe.AmfUe.UeRadioCapabilityForPaging,
+				ue.RanUe.AmfUe.UESecurityCapability,
+				nasPdu,
+				&ctxList,
+				supportedGUAMI,
+			)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
 			ue.Log.Info("sent service accept with context list", zap.Int("len", len(ctxList.List)))
 		} else {
-			err := ngap_message.SendInitialContextSetupRequest(ctx, ue, nasPdu, nil, supportedGUAMI)
+			ue.RanUe.SentInitialContextSetupRequest = true
+			err := ue.RanUe.Ran.NGAPSender.SendInitialContextSetupRequest(
+				ctx,
+				ue.RanUe.AmfUeNgapID,
+				ue.RanUe.RanUeNgapID,
+				ue.RanUe.AmfUe.Ambr.Uplink,
+				ue.RanUe.AmfUe.Ambr.Downlink,
+				ue.RanUe.AmfUe.AllowedNssai,
+				ue.RanUe.AmfUe.Kgnb,
+				ue.RanUe.AmfUe.PlmnID,
+				ue.RanUe.AmfUe.UeRadioCapability,
+				ue.RanUe.AmfUe.UeRadioCapabilityForPaging,
+				ue.RanUe.AmfUe.UESecurityCapability,
+				nasPdu,
+				nil,
+				supportedGUAMI,
+			)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
@@ -70,7 +102,15 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, ctxList ngapType.PDU
 		if err != nil {
 			return err
 		}
-		err = ngap_message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe, nasPdu, suList)
+		err = ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(
+			ctx,
+			ue.RanUe.AmfUeNgapID,
+			ue.RanUe.RanUeNgapID,
+			ue.RanUe.AmfUe.Ambr.Uplink,
+			ue.RanUe.AmfUe.Ambr.Downlink,
+			nasPdu,
+			suList,
+		)
 		if err != nil {
 			return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 		}

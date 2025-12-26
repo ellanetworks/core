@@ -4,7 +4,6 @@ import (
 	ctxt "context"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -126,7 +125,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 	pduSessionResourceModifyListModCfm := ngapType.PDUSessionResourceModifyListModCfm{}
 	pduSessionResourceFailedToModifyListModCfm := ngapType.PDUSessionResourceFailedToModifyListModCfm{}
 
-	err := message.SendPDUSessionResourceModifyConfirm(ctx, ranUe, pduSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyListModCfm, nil)
+	err := ranUe.Ran.NGAPSender.SendPDUSessionResourceModifyConfirm(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, pduSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyListModCfm)
 	if err != nil {
 		ranUe.Log.Error("error sending pdu session resource modify confirm", zap.Error(err))
 		return

@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
@@ -337,7 +337,23 @@ func SendRegistrationAccept(
 	}
 
 	if ue.RanUe.UeContextRequest {
-		err = ngap_message.SendInitialContextSetupRequest(ctx, ue, nasMsg, pduSessionResourceSetupList, supportedGUAMI)
+		ue.RanUe.SentInitialContextSetupRequest = true
+		err = ue.RanUe.Ran.NGAPSender.SendInitialContextSetupRequest(
+			ctx,
+			ue.RanUe.AmfUeNgapID,
+			ue.RanUe.RanUeNgapID,
+			ue.RanUe.AmfUe.Ambr.Uplink,
+			ue.RanUe.AmfUe.Ambr.Downlink,
+			ue.RanUe.AmfUe.AllowedNssai,
+			ue.RanUe.AmfUe.Kgnb,
+			ue.RanUe.AmfUe.PlmnID,
+			ue.RanUe.AmfUe.UeRadioCapability,
+			ue.RanUe.AmfUe.UeRadioCapabilityForPaging,
+			ue.RanUe.AmfUe.UESecurityCapability,
+			nasMsg,
+			pduSessionResourceSetupList,
+			supportedGUAMI,
+		)
 		if err != nil {
 			return fmt.Errorf("error sending initial context setup request: %s", err.Error())
 		}
@@ -358,7 +374,23 @@ func SendRegistrationAccept(
 				ue.T3550 = nil
 			} else {
 				if ue.RanUe.UeContextRequest && !ue.RanUe.RecvdInitialContextSetupResponse {
-					err = ngap_message.SendInitialContextSetupRequest(ctx, ue, nasMsg, pduSessionResourceSetupList, supportedGUAMI)
+					ue.RanUe.SentInitialContextSetupRequest = true
+					err = ue.RanUe.Ran.NGAPSender.SendInitialContextSetupRequest(
+						ctx,
+						ue.RanUe.AmfUeNgapID,
+						ue.RanUe.RanUeNgapID,
+						ue.RanUe.AmfUe.Ambr.Uplink,
+						ue.RanUe.AmfUe.Ambr.Downlink,
+						ue.RanUe.AmfUe.AllowedNssai,
+						ue.RanUe.AmfUe.Kgnb,
+						ue.RanUe.AmfUe.PlmnID,
+						ue.RanUe.AmfUe.UeRadioCapability,
+						ue.RanUe.AmfUe.UeRadioCapabilityForPaging,
+						ue.RanUe.AmfUe.UESecurityCapability,
+						nasMsg,
+						pduSessionResourceSetupList,
+						supportedGUAMI,
+					)
 					if err != nil {
 						ue.Log.Error("could not send initial context setup request", zap.Error(err))
 					}
@@ -409,7 +441,7 @@ func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe, flag
 	}
 	amfUe.Log.Info("Send Configuration Update Command")
 
-	mobilityRestrictionList, err := ngap_message.BuildIEMobilityRestrictionList(amfUe.PlmnID)
+	mobilityRestrictionList, err := send.BuildIEMobilityRestrictionList(amfUe.PlmnID)
 	if err != nil {
 		amfUe.Log.Error("could not build Mobility Restriction List IE", zap.Error(err))
 		return

@@ -4,7 +4,6 @@ import (
 	ctxt "context"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
@@ -146,14 +145,17 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 					Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
 				},
 			}
-			err := message.SendHandoverPreparationFailure(ctx, sourceUe, *cause, nil)
+			sourceUe.AmfUe.SetOnGoing(&context.OnGoingProcedureWithPrio{
+				Procedure: context.OnGoingProcedureNothing,
+			})
+			err := sourceUe.Ran.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 			if err != nil {
 				ran.Log.Error("error sending handover preparation failure", zap.Error(err))
 			}
 			ran.Log.Info("sent handover preparation failure to source UE")
 			return
 		}
-		err := message.SendHandoverCommand(ctx, sourceUe, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, *targetToSourceTransparentContainer, nil)
+		err := sourceUe.Ran.NGAPSender.SendHandoverCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, *targetToSourceTransparentContainer)
 		if err != nil {
 			ran.Log.Error("error sending handover command to source UE", zap.Error(err))
 		}

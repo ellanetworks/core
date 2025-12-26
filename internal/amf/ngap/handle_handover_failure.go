@@ -4,7 +4,6 @@ import (
 	ctxt "context"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -85,7 +84,10 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 	if sourceUe == nil {
 		ran.Log.Error("N2 Handover between AMF has not been implemented yet")
 	} else {
-		err := ngap_message.SendHandoverPreparationFailure(ctx, sourceUe, *cause, criticalityDiagnostics)
+		sourceUe.AmfUe.SetOnGoing(&context.OnGoingProcedureWithPrio{
+			Procedure: context.OnGoingProcedureNothing,
+		})
+		err := sourceUe.Ran.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending handover preparation failure", zap.Error(err))
 			return

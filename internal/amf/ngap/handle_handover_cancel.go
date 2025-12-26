@@ -4,7 +4,6 @@ import (
 	ctxt "context"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -111,7 +110,7 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		return
 	}
 
-	err = message.SendHandoverCancelAcknowledge(ctx, sourceUe, nil)
+	err = sourceUe.Ran.NGAPSender.SendHandoverCancelAcknowledge(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID)
 	if err != nil {
 		ran.Log.Error("error sending handover cancel acknowledge to source UE", zap.Error(err))
 		return

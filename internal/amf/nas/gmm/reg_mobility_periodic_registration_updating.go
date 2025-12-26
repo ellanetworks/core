@@ -155,7 +155,15 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 					if err != nil {
 						return err
 					}
-					err = ngap_message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe, nasPdu, suList)
+					err = ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(
+						ctx,
+						ue.RanUe.AmfUeNgapID,
+						ue.RanUe.RanUeNgapID,
+						ue.RanUe.AmfUe.Ambr.Uplink,
+						ue.RanUe.AmfUe.Ambr.Downlink,
+						nasPdu,
+						suList,
+					)
 					if err != nil {
 						return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 					}
@@ -211,7 +219,15 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 			return fmt.Errorf("error building registration accept: %v", err)
 		}
 		if len(suList.List) != 0 {
-			err := ngap_message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe, nasPdu, suList)
+			err := ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(
+				ctx,
+				ue.RanUe.AmfUeNgapID,
+				ue.RanUe.RanUeNgapID,
+				ue.RanUe.AmfUe.Ambr.Uplink,
+				ue.RanUe.AmfUe.Ambr.Downlink,
+				nasPdu,
+				suList,
+			)
 			if err != nil {
 				return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 			}

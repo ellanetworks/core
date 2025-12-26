@@ -54,7 +54,7 @@ func TransferN1N2Message(ctx ctxt.Context, supi string, req models.N1N2MessageTr
 
 		message.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-		err := message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe, nil, list)
+		err := ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ue.RanUe.AmfUe.Ambr.Uplink, ue.RanUe.AmfUe.Ambr.Downlink, nil, list)
 		if err != nil {
 			return fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}
@@ -72,7 +72,24 @@ func TransferN1N2Message(ctx ctxt.Context, supi string, req models.N1N2MessageTr
 
 	message.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-	err = message.SendInitialContextSetupRequest(ctx, ue, nil, &list, operatorInfo.Guami)
+	ue.RanUe.SentInitialContextSetupRequest = true
+
+	err = ue.RanUe.Ran.NGAPSender.SendInitialContextSetupRequest(
+		ctx,
+		ue.RanUe.AmfUeNgapID,
+		ue.RanUe.RanUeNgapID,
+		ue.RanUe.AmfUe.Ambr.Uplink,
+		ue.RanUe.AmfUe.Ambr.Downlink,
+		ue.RanUe.AmfUe.AllowedNssai,
+		ue.RanUe.AmfUe.Kgnb,
+		ue.RanUe.AmfUe.PlmnID,
+		ue.RanUe.AmfUe.UeRadioCapability,
+		ue.RanUe.AmfUe.UeRadioCapabilityForPaging,
+		ue.RanUe.AmfUe.UESecurityCapability,
+		nil,
+		&list,
+		operatorInfo.Guami,
+	)
 	if err != nil {
 		return fmt.Errorf("send initial context setup request error: %v", err)
 	}
@@ -114,7 +131,7 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 		if ue.RanUe.SentInitialContextSetupRequest {
 			list := ngapType.PDUSessionResourceSetupListSUReq{}
 			message.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
-			err := message.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe, nil, list)
+			err := ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ue.RanUe.AmfUe.Ambr.Uplink, ue.RanUe.AmfUe.Ambr.Downlink, nil, list)
 			if err != nil {
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
 			}
@@ -130,7 +147,24 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 		list := ngapType.PDUSessionResourceSetupListCxtReq{}
 		message.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
-		err = message.SendInitialContextSetupRequest(ctx, ue, nil, &list, operatorInfo.Guami)
+		ue.RanUe.SentInitialContextSetupRequest = true
+
+		err = ue.RanUe.Ran.NGAPSender.SendInitialContextSetupRequest(
+			ctx,
+			ue.RanUe.AmfUeNgapID,
+			ue.RanUe.RanUeNgapID,
+			ue.RanUe.AmfUe.Ambr.Uplink,
+			ue.RanUe.AmfUe.Ambr.Downlink,
+			ue.RanUe.AmfUe.AllowedNssai,
+			ue.RanUe.AmfUe.Kgnb,
+			ue.RanUe.AmfUe.PlmnID,
+			ue.RanUe.AmfUe.UeRadioCapability,
+			ue.RanUe.AmfUe.UeRadioCapabilityForPaging,
+			ue.RanUe.AmfUe.UESecurityCapability,
+			nil,
+			&list,
+			operatorInfo.Guami,
+		)
 		if err != nil {
 			return fmt.Errorf("send initial context setup request error: %v", err)
 		}

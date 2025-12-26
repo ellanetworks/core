@@ -152,7 +152,10 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 				Value: ngapType.CauseNasPresentAuthenticationFailure,
 			},
 		}
-		err := message.SendHandoverPreparationFailure(ctx, sourceUe, *cause, nil)
+		sourceUe.AmfUe.SetOnGoing(&context.OnGoingProcedureWithPrio{
+			Procedure: context.OnGoingProcedureNothing,
+		})
+		err := sourceUe.Ran.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {
 			sourceUe.Log.Error("error sending handover preparation failure", zap.Error(err))
 			return
@@ -193,7 +196,10 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
 			},
 		}
-		err := message.SendHandoverPreparationFailure(ctx, sourceUe, *cause, nil)
+		sourceUe.AmfUe.SetOnGoing(&context.OnGoingProcedureWithPrio{
+			Procedure: context.OnGoingProcedureNothing,
+		})
+		err := sourceUe.Ran.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {
 			sourceUe.Log.Error("error sending handover preparation failure", zap.Error(err))
 			return

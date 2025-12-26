@@ -55,7 +55,7 @@ func forward5GSMMessageToSMF(
 
 		list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 		ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, response.BinaryDataN2SmInformation)
-		err := ngap_message.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe, n1Msg, list)
+		err := ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, n1Msg, list)
 		if err != nil {
 			return fmt.Errorf("error sending pdu session resource release command: %s", err)
 		}
@@ -147,7 +147,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 			ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 			list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 			ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2Rsp)
-			err = ngap_message.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe, nil, list)
+			err = ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nil, list)
 			if err != nil {
 				return fmt.Errorf("error sending pdu session resource release command: %s", err)
 			}

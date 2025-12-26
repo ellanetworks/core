@@ -4,7 +4,6 @@ import (
 	ctxt "context"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -101,7 +100,7 @@ func HandleLocationReport(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		}
 
 	case ngapType.EventTypePresentStopChangeOfServeCell:
-		err := message.SendLocationReportingControl(ctx, ranUe, nil, 0, locationReportingRequestType.EventType)
+		err := ranUe.Ran.NGAPSender.SendLocationReportingControl(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, locationReportingRequestType.EventType)
 		if err != nil {
 			ranUe.Log.Error("error sending location reporting control", zap.Error(err))
 		}
