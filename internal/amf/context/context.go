@@ -26,6 +26,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	MaxValueOfAmfUeNgapID int64 = 1099511627775
+)
+
 var (
 	amfContext                                    = AMFContext{}
 	tmsiGenerator        *idgenerator.IDGenerator = nil

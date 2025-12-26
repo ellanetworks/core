@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	gmm_message "github.com/ellanetworks/core/internal/amf/nas/gmm/message"
+	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasMessage"
@@ -43,7 +43,7 @@ func TransferN1N2Message(ctx ctxt.Context, supi string, req models.N1N2MessageTr
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
-	nasPdu, err := gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, req.BinaryDataN1Message, req.PduSessionID, nil)
+	nasPdu, err := message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, req.BinaryDataN1Message, req.PduSessionID, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
@@ -223,7 +223,7 @@ func TransferN1Msg(ctx ctxt.Context, supi string, n1Msg []byte, pduSessionID uin
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
-	nasPdu, err := gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
+	nasPdu, err := message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
