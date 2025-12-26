@@ -72,8 +72,6 @@ func TransferN1N2Message(ctx ctxt.Context, supi string, req models.N1N2MessageTr
 
 	send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-	ue.RanUe.SentInitialContextSetupRequest = true
-
 	err = ue.RanUe.Ran.NGAPSender.SendInitialContextSetupRequest(
 		ctx,
 		ue.RanUe.AmfUeNgapID,
@@ -146,8 +144,6 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 
 		list := ngapType.PDUSessionResourceSetupListCxtReq{}
 		send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
-
-		ue.RanUe.SentInitialContextSetupRequest = true
 
 		err = ue.RanUe.Ran.NGAPSender.SendInitialContextSetupRequest(
 			ctx,

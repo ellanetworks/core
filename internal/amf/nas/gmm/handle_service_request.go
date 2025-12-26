@@ -74,7 +74,6 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, ctxList ngapType.PDU
 			}
 			ue.Log.Info("sent service accept with context list", zap.Int("len", len(ctxList.List)))
 		} else {
-			ue.RanUe.SentInitialContextSetupRequest = true
 			err := ue.RanUe.Ran.NGAPSender.SendInitialContextSetupRequest(
 				ctx,
 				ue.RanUe.AmfUeNgapID,
@@ -94,6 +93,7 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, ctxList ngapType.PDU
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
+			ue.RanUe.SentInitialContextSetupRequest = true
 			ue.Log.Info("sent service accept")
 		}
 	} else if len(suList.List) != 0 {

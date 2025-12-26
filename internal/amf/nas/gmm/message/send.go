@@ -374,7 +374,6 @@ func SendRegistrationAccept(
 				ue.T3550 = nil
 			} else {
 				if ue.RanUe.UeContextRequest && !ue.RanUe.RecvdInitialContextSetupResponse {
-					ue.RanUe.SentInitialContextSetupRequest = true
 					err = ue.RanUe.Ran.NGAPSender.SendInitialContextSetupRequest(
 						ctx,
 						ue.RanUe.AmfUeNgapID,
@@ -394,6 +393,7 @@ func SendRegistrationAccept(
 					if err != nil {
 						ue.Log.Error("could not send initial context setup request", zap.Error(err))
 					}
+					ue.RanUe.SentInitialContextSetupRequest = true
 					ue.Log.Info("Sent NGAP initial context setup request")
 				} else {
 					ue.Log.Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
