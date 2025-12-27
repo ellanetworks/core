@@ -35,7 +35,6 @@ type RanUe struct {
 	RanUeNgapID                      int64
 	AmfUeNgapID                      int64
 	HandOverType                     ngapType.HandoverType
-	SuccessPduSessionID              []uint8
 	SourceUe                         *RanUe
 	TargetUe                         *RanUe
 	Tai                              models.Tai
@@ -55,14 +54,14 @@ func (ranUe *RanUe) Remove() error {
 		return fmt.Errorf("ran ue is nil")
 	}
 
-	ran := ranUe.Ran
-	if ran == nil {
-		return fmt.Errorf("ran not found in ranUe not found")
-	}
-
 	if ranUe.AmfUe != nil {
 		ranUe.AmfUe.DetachRanUe()
 		ranUe.DetachAmfUe()
+	}
+
+	ran := ranUe.Ran
+	if ran == nil {
+		return fmt.Errorf("ran not found in ranUe not found")
 	}
 
 	for _, ranUe1 := range ran.RanUePool {

@@ -112,7 +112,6 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 				handoverItem.PDUSessionID = item.PDUSessionID
 				handoverItem.HandoverCommandTransfer = n2Rsp
 				pduSessionResourceHandoverList.List = append(pduSessionResourceHandoverList.List, handoverItem)
-				targetUe.SuccessPduSessionID = append(targetUe.SuccessPduSessionID, pduSessionIDUint8)
 			}
 		}
 	}

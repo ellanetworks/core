@@ -52,6 +52,11 @@ func HandleNGReset(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU)
 		}
 	}
 
+	if cause == nil {
+		logger.AmfLog.Error("Cause IE (mandatory) is missing in NG Reset")
+		return
+	}
+
 	logger.AmfLog.Debug("Received NG Reset with Cause", zap.String("Cause", causeToString(*cause)))
 
 	switch resetType.Present {

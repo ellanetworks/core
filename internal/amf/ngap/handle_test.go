@@ -152,6 +152,84 @@ func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngapType.NGAPPDU, error) {
 	return &pdu, nil
 }
 
+type ResetType int
+
+const (
+	ResetTypePresentNGInterface ResetType = iota
+)
+
+type NGResetOpts struct {
+	ResetType ResetType
+}
+
+func buildNGReset(opts *NGResetOpts) (*ngapType.NGAPPDU, error) {
+	pdu := ngapType.NGAPPDU{
+		Present: ngapType.NGAPPDUPresentInitiatingMessage,
+		InitiatingMessage: &ngapType.InitiatingMessage{
+			ProcedureCode: ngapType.ProcedureCode{
+				Value: ngapType.ProcedureCodeNGReset,
+			},
+			Criticality: ngapType.Criticality{
+				Value: ngapType.CriticalityPresentReject,
+			},
+			Value: ngapType.InitiatingMessageValue{
+				Present: ngapType.InitiatingMessagePresentNGReset,
+				NGReset: &ngapType.NGReset{},
+			},
+		},
+	}
+
+	nGResetIEs := &pdu.InitiatingMessage.Value.NGReset.ProtocolIEs
+
+	ie := ngapType.NGResetIEs{
+		Id: ngapType.ProtocolIEID{
+			Value: ngapType.ProtocolIEIDResetType,
+		},
+		Criticality: ngapType.Criticality{
+			Value: ngapType.CriticalityPresentReject,
+		},
+		Value: ngapType.NGResetIEsValue{
+			Present: ngapType.NGResetIEsPresentResetType,
+		},
+	}
+
+	switch opts.ResetType {
+	case ResetTypePresentNGInterface:
+		ie.Value.ResetType = &ngapType.ResetType{
+			Present: ngapType.ResetTypePresentNGInterface,
+			NGInterface: &ngapType.ResetAll{
+				Value: ngapType.ResetAllPresentResetAll,
+			},
+		}
+	default:
+		return nil, fmt.Errorf("unsupported ResetType: %v", opts.ResetType)
+	}
+
+	nGResetIEs.List = append(nGResetIEs.List, ie)
+
+	ie = ngapType.NGResetIEs{
+		Id: ngapType.ProtocolIEID{
+			Value: ngapType.ProtocolIEIDCause,
+		},
+		Criticality: ngapType.Criticality{
+			Value: ngapType.CriticalityPresentIgnore,
+		},
+		Value: ngapType.NGResetIEsValue{
+			Present: ngapType.NGResetIEsPresentCause,
+			Cause: &ngapType.Cause{
+				Present: ngapType.CausePresentMisc,
+				Misc: &ngapType.CauseMisc{
+					Value: ngapType.CauseMiscPresentHardwareFailure,
+				},
+			},
+		},
+	}
+
+	nGResetIEs.List = append(nGResetIEs.List, ie)
+
+	return &pdu, nil
+}
+
 func getMccAndMncInOctets(mccStr string, mncStr string) ([]byte, error) {
 	mcc := reverse(mccStr)
 	mnc := reverse(mncStr)
@@ -236,9 +314,14 @@ type NGSetupResponse struct {
 	AmfRelativeCapacity int64
 }
 
+type NGResetAcknowledge struct {
+	PartOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList
+}
+
 type FakeNGAPSender struct {
-	SentNGSetupFailures  []*NGSetupFailure
-	SentNGSetupResponses []*NGSetupResponse
+	SentNGSetupFailures     []*NGSetupFailure
+	SentNGSetupResponses    []*NGSetupResponse
+	SentNGResetAcknowledges []*NGResetAcknowledge
 }
 
 func (fng *FakeNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error {
@@ -261,6 +344,9 @@ func (fng *FakeNGAPSender) SendNGSetupResponse(ctx context.Context, guami *model
 }
 
 func (fng *FakeNGAPSender) SendNGResetAcknowledge(ctx context.Context, partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) error {
+	fng.SentNGResetAcknowledges = append(fng.SentNGResetAcknowledges, &NGResetAcknowledge{
+		PartOfNGInterface: partOfNGInterface,
+	})
 	return nil
 }
 
