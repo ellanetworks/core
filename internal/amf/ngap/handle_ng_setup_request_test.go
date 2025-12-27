@@ -1,4 +1,4 @@
-// Copyright 2024 Ella Networks
+// Copyright 2025 Ella Networks
 
 package ngap_test
 
