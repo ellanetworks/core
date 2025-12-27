@@ -156,10 +156,17 @@ type ResetType int
 
 const (
 	ResetTypePresentNGInterface ResetType = iota
+	ResetTypePresentPartOfNGInterface
 )
 
+type NGInterface struct {
+	RanUENgapID int64
+	AmfUENgapID int64
+}
+
 type NGResetOpts struct {
-	ResetType ResetType
+	ResetType         ResetType
+	PartOfNGInterface []NGInterface
 }
 
 func buildNGReset(opts *NGResetOpts) (*ngapType.NGAPPDU, error) {
@@ -200,6 +207,21 @@ func buildNGReset(opts *NGResetOpts) (*ngapType.NGAPPDU, error) {
 			NGInterface: &ngapType.ResetAll{
 				Value: ngapType.ResetAllPresentResetAll,
 			},
+		}
+	case ResetTypePresentPartOfNGInterface:
+		ie.Value.ResetType = &ngapType.ResetType{
+			Present:           ngapType.ResetTypePresentPartOfNGInterface,
+			PartOfNGInterface: &ngapType.UEAssociatedLogicalNGConnectionList{},
+		}
+		for _, ngInterface := range opts.PartOfNGInterface {
+			ueAssociatedLogicalNGConnectionItem := ngapType.UEAssociatedLogicalNGConnectionItem{}
+			ueAssociatedLogicalNGConnectionItem.RANUENGAPID = &ngapType.RANUENGAPID{
+				Value: ngInterface.RanUENgapID,
+			}
+			ueAssociatedLogicalNGConnectionItem.AMFUENGAPID = &ngapType.AMFUENGAPID{
+				Value: ngInterface.AmfUENgapID,
+			}
+			ie.Value.ResetType.PartOfNGInterface.List = append(ie.Value.ResetType.PartOfNGInterface.List, ueAssociatedLogicalNGConnectionItem)
 		}
 	default:
 		return nil, fmt.Errorf("unsupported ResetType: %v", opts.ResetType)
