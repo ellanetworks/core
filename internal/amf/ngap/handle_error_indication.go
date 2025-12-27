@@ -22,6 +22,7 @@ func HandleErrorIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
+
 	initiatingMessage := message.InitiatingMessage
 	if initiatingMessage == nil {
 		ran.Log.Error("InitiatingMessage is nil")

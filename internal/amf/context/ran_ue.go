@@ -61,7 +61,7 @@ func (ranUe *RanUe) Remove() error {
 
 	ran := ranUe.Ran
 	if ran == nil {
-		return fmt.Errorf("ran not found in ranUe not found")
+		return fmt.Errorf("ran not found in ranUe")
 	}
 
 	for _, ranUe1 := range ran.RanUePool {

@@ -17,13 +17,15 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 	ran := &ctxt.AmfRan{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
-		// RanUePool:       make(map[int64]*ctxt.RanUe),
 		RanUePool: map[int64]*ctxt.RanUe{
-			0: {RanUeNgapID: 0, AmfUeNgapID: 0},
-			1: {RanUeNgapID: 1, AmfUeNgapID: 1},
+			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Ran: &ctxt.AmfRan{}},
+			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Ran: &ctxt.AmfRan{}},
 		},
 		SupportedTAList: make([]ctxt.SupportedTAI, 0),
 	}
+
+	ran.RanUePool[0].Ran = ran
+	ran.RanUePool[1].Ran = ran
 
 	msg, err := buildNGReset(&NGResetOpts{
 		ResetType: ResetTypePresentNGInterface,
@@ -43,7 +45,7 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 	}
 
 	// Re-add this validation
-	// if len(ran.RanUePool) != 0 {
-	// 	t.Errorf("expected all UEs to be removed from the RAN, but got %d", len(ran.RanUePool))
-	// }
+	if len(ran.RanUePool) != 0 {
+		t.Errorf("expected all UEs to be removed from the RAN, but got %d", len(ran.RanUePool))
+	}
 }
