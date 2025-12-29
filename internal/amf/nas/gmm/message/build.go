@@ -12,7 +12,6 @@ import (
 	"time"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -52,7 +51,7 @@ func BuildDLNASTransport(ue *amfContext.AmfUe, payloadContainerType uint8, nasPd
 
 	m.GmmMessage.DLNASTransport = dLNASTransport
 
-	return nassecurity.Encode(ue, m)
+	return ue.EncodeNASMessage(m)
 }
 
 func BuildIdentityRequest(typeOfIdentity uint8) ([]byte, error) {
@@ -150,10 +149,10 @@ func BuildServiceAccept(ue *amfContext.AmfUe, pDUSessionStatus *[16]bool,
 	}
 	m.GmmMessage.ServiceAccept = serviceAccept
 
-	return nassecurity.Encode(ue, m)
+	return ue.EncodeNASMessage(m)
 }
 
-func BuildAuthenticationReject(ue *amfContext.AmfUe) ([]byte, error) {
+func BuildAuthenticationReject() ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeAuthenticationReject)
@@ -193,7 +192,7 @@ func BuildServiceReject(pDUSessionStatus *[16]bool, cause uint8) ([]byte, error)
 }
 
 // T3346 timer are not supported
-func BuildRegistrationReject(ue *amfContext.AmfUe, cause5GMM uint8) ([]byte, error) {
+func BuildRegistrationReject(t3502Value int, cause5GMM uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeRegistrationReject)
@@ -205,10 +204,10 @@ func BuildRegistrationReject(ue *amfContext.AmfUe, cause5GMM uint8) ([]byte, err
 	registrationReject.RegistrationRejectMessageIdentity.SetMessageType(nas.MsgTypeRegistrationReject)
 	registrationReject.Cause5GMM.SetCauseValue(cause5GMM)
 
-	if ue.T3502Value != 0 {
+	if t3502Value != 0 {
 		registrationReject.T3502Value = nasType.NewT3502Value(nasMessage.RegistrationRejectT3502ValueType)
 		registrationReject.T3502Value.SetLen(1)
-		t3502 := nasConvert.GPRSTimer2ToNas(ue.T3502Value)
+		t3502 := nasConvert.GPRSTimer2ToNas(t3502Value)
 		registrationReject.T3502Value.SetGPRSTimer2Value(t3502)
 	}
 
@@ -267,13 +266,14 @@ func BuildSecurityModeCommand(ue *amfContext.AmfUe) ([]byte, error) {
 
 	ue.SecurityContextAvailable = true
 	m.GmmMessage.SecurityModeCommand = securityModeCommand
-	payload, err := nassecurity.Encode(ue, m)
+
+	payload, err := ue.EncodeNASMessage(m)
 	if err != nil {
 		ue.SecurityContextAvailable = false
 		return nil, err
-	} else {
-		return payload, nil
 	}
+
+	return payload, nil
 }
 
 func BuildDeregistrationAccept() ([]byte, error) {
@@ -415,7 +415,7 @@ func BuildRegistrationAccept(
 
 	m.GmmMessage.RegistrationAccept = registrationAccept
 
-	return nassecurity.Encode(ue, m)
+	return ue.EncodeNASMessage(m)
 }
 
 // TS 24.501 - 5.4.4 Generic UE configuration update procedure - 5.4.4.1 General
@@ -601,9 +601,10 @@ func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe, flags *amfContext.Con
 		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
 	}
 
-	b, err := nassecurity.Encode(ue, m)
+	b, err := ue.EncodeNASMessage(m)
 	if err != nil {
 		return nil, fmt.Errorf("could not encode NAS message: %v", err), false
 	}
+
 	return b, err, needTimer
 }

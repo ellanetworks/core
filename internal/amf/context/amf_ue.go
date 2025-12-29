@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
+	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
@@ -419,4 +420,209 @@ func (ue *AmfUe) HasActivePduSessions() bool {
 	}
 
 	return false
+}
+
+func (ue *AmfUe) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
+	if ue == nil {
+		return nil, fmt.Errorf("amf ue is nil")
+	}
+
+	if msg == nil {
+		return nil, fmt.Errorf("nas message is nil")
+	}
+
+	// Plain NAS message
+	if !ue.SecurityContextAvailable {
+		return msg.PlainNasEncode()
+	}
+
+	// Security protected NAS Message
+	// a security protected NAS message must be integrity protected, and ciphering is optional
+	needCiphering := false
+	switch msg.SecurityHeader.SecurityHeaderType {
+	case nas.SecurityHeaderTypeIntegrityProtected:
+	case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
+		needCiphering = true
+	case nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext:
+		ue.ULCount.Set(0, 0)
+		ue.DLCount.Set(0, 0)
+	default:
+		return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
+	}
+
+	// encode plain nas first
+	payload, err := msg.PlainNasEncode()
+	if err != nil {
+		return nil, fmt.Errorf("error encoding plain nas: %+v", err)
+	}
+
+	if needCiphering {
+		if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.DLCount.Get(), security.Bearer3GPP,
+			security.DirectionDownlink, payload); err != nil {
+			return nil, fmt.Errorf("error encrypting: %+v", err)
+		}
+	}
+
+	// add sequece number
+	payload = append([]byte{ue.DLCount.SQN()}, payload[:]...)
+
+	mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ue.DLCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload)
+	if err != nil {
+		return nil, fmt.Errorf("MAC calcuate error: %+v", err)
+	}
+
+	// Add mac value
+	payload = append(mac32, payload[:]...)
+
+	// Add EPD and Security Type
+	msgSecurityHeader := []byte{msg.SecurityHeader.ProtocolDiscriminator, msg.SecurityHeader.SecurityHeaderType}
+	payload = append(msgSecurityHeader, payload[:]...)
+
+	// Increase DL Count
+	ue.DLCount.AddOne()
+
+	return payload, nil
+}
+
+/*
+payload either a security protected 5GS NAS message or a plain 5GS NAS message which
+format is followed TS 24.501 9.1.1
+*/
+func (ue *AmfUe) DecodeNASMessage(payload []byte) (*nas.Message, error) {
+	if payload == nil {
+		return nil, fmt.Errorf("nas payload is empty")
+	}
+
+	if len(payload) < 2 {
+		return nil, fmt.Errorf("nas payload is too short")
+	}
+
+	msg := new(nas.Message)
+	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
+	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
+		// RRCEstablishmentCause 0 is for emergency service
+		if ue.SecurityContextAvailable && ue.RanUe.RRCEstablishmentCause != "0" {
+			ue.Log.Warn("Received Plain NAS message")
+			ue.MacFailed = false
+			ue.SecurityContextAvailable = false
+			if err := msg.PlainNasDecode(&payload); err != nil {
+				return nil, err
+			}
+
+			if msg.GmmMessage == nil {
+				return nil, fmt.Errorf("gmm message is nil")
+			}
+
+			// TS 24.501 4.4.4.3: Except the messages listed below, no NAS signalling messages shall be processed
+			// by the receiving 5GMM entity in the AMF or forwarded to the 5GSM entity, unless the secure exchange
+			// of NAS messages has been established for the NAS signalling connection
+			switch msg.GmmHeader.GetMessageType() {
+			case nas.MsgTypeRegistrationRequest:
+				return msg, nil
+			case nas.MsgTypeIdentityResponse:
+				return msg, nil
+			case nas.MsgTypeAuthenticationResponse:
+				return msg, nil
+			case nas.MsgTypeAuthenticationFailure:
+				return msg, nil
+			case nas.MsgTypeSecurityModeReject:
+				return msg, nil
+			case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
+				return msg, nil
+			case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
+				return msg, nil
+			default:
+				return nil, fmt.Errorf(
+					"UE can not send plain nas for non-emergency service when there is a valid security context")
+			}
+		} else {
+			ue.MacFailed = false
+			err := msg.PlainNasDecode(&payload)
+			return msg, err
+		}
+	} else { // Security protected NAS message
+		if len(payload) < 7 {
+			return nil, fmt.Errorf("nas payload is too short")
+		}
+		securityHeader := payload[0:6]
+		sequenceNumber := payload[6]
+
+		receivedMac32 := securityHeader[2:]
+		// remove security Header except for sequece Number
+		payload = payload[6:]
+
+		// a security protected NAS message must be integrity protected, and ciphering is optional
+		ciphered := false
+		switch msg.SecurityHeaderType {
+		case nas.SecurityHeaderTypeIntegrityProtected:
+		case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
+			ciphered = true
+		case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
+			ciphered = true
+			ue.ULCount.Set(0, 0)
+		default:
+			return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
+		}
+
+		if ue.ULCount.SQN() > sequenceNumber {
+			ue.Log.Debug("set ULCount overflow")
+			ue.ULCount.SetOverflow(ue.ULCount.Overflow() + 1)
+		}
+		ue.ULCount.SetSQN(sequenceNumber)
+
+		mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ue.ULCount.Get(), security.Bearer3GPP,
+			security.DirectionUplink, payload)
+		if err != nil {
+			return nil, fmt.Errorf("error calculating mac: %+v", err)
+		}
+
+		if !reflect.DeepEqual(mac32, receivedMac32) {
+			ue.Log.Warn("MAC verification failed", zap.String("received", hex.EncodeToString(receivedMac32)), zap.String("expected", hex.EncodeToString(mac32)))
+			ue.MacFailed = true
+		} else {
+			ue.MacFailed = false
+		}
+
+		if ciphered {
+			ue.Log.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.CipheringAlg), zap.Uint32("ULCount", ue.ULCount.Get()))
+			// decrypt payload without sequence number (payload[1])
+			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
+				security.DirectionUplink, payload[1:]); err != nil {
+				return nil, fmt.Errorf("error encrypting: %+v", err)
+			}
+		}
+
+		// remove sequece Number
+		payload = payload[1:]
+		err = msg.PlainNasDecode(&payload)
+
+		/*
+			integrity check failed, as per spec 24501 section 4.4.4.3 AMF shouldnt process or forward to SMF
+			except below message types
+		*/
+		if err == nil && ue.MacFailed {
+			switch msg.GmmHeader.GetMessageType() {
+			case nas.MsgTypeRegistrationRequest:
+				return msg, nil
+			case nas.MsgTypeIdentityResponse:
+				return msg, nil
+			case nas.MsgTypeAuthenticationResponse:
+				return msg, nil
+			case nas.MsgTypeAuthenticationFailure:
+				return msg, nil
+			case nas.MsgTypeSecurityModeReject:
+				return msg, nil
+			case nas.MsgTypeServiceRequest:
+				return msg, nil
+			case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
+				return msg, nil
+			case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
+				return msg, nil
+			default:
+				return nil, fmt.Errorf("mac verification failed for the nas message: %v", msg.GmmHeader.GetMessageType())
+			}
+		}
+
+		return msg, err
+	}
 }

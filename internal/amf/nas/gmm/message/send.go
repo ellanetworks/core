@@ -170,7 +170,7 @@ func SendAuthenticationReject(ctx context.Context, ue *amfContext.RanUe) error {
 	)
 	defer span.End()
 
-	nasMsg, err := BuildAuthenticationReject(ue.AmfUe)
+	nasMsg, err := BuildAuthenticationReject()
 	if err != nil {
 		return fmt.Errorf("error building authentication reject: %s", err.Error())
 	}
@@ -225,7 +225,7 @@ func SendRegistrationReject(ctx context.Context, ue *amfContext.RanUe, cause5GMM
 	)
 	defer span.End()
 
-	nasMsg, err := BuildRegistrationReject(ue.AmfUe, cause5GMM)
+	nasMsg, err := BuildRegistrationReject(ue.AmfUe.T3502Value, cause5GMM)
 	if err != nil {
 		return fmt.Errorf("error building registration reject: %s", err.Error())
 	}
