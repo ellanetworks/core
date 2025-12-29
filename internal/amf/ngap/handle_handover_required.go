@@ -1,9 +1,9 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
+func HandleHandoverRequired(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -137,8 +137,8 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 		return
 	}
 
-	amfUe.SetOnGoing(&context.OnGoingProcedureWithPrio{
-		Procedure: context.OnGoingProcedureN2Handover,
+	amfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
+		Procedure: amfContext.OnGoingProcedureN2Handover,
 	})
 
 	if !amfUe.SecurityContextIsValid() {
@@ -149,8 +149,8 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 				Value: ngapType.CauseNasPresentAuthenticationFailure,
 			},
 		}
-		sourceUe.AmfUe.SetOnGoing(&context.OnGoingProcedureWithPrio{
-			Procedure: context.OnGoingProcedureNothing,
+		sourceUe.AmfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
+			Procedure: amfContext.OnGoingProcedureNothing,
 		})
 		err := sourceUe.Ran.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {
@@ -160,7 +160,7 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 		sourceUe.Log.Info("sent handover preparation failure to source UE")
 		return
 	}
-	aMFSelf := context.AMFSelf()
+	aMFSelf := amfContext.AMFSelf()
 	targetRanNodeID := util.RanIDToModels(targetID.TargetRANNodeID.GlobalRANNodeID)
 	targetRan, ok := aMFSelf.AmfRanFindByRanID(targetRanNodeID)
 	if !ok {
@@ -193,8 +193,8 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
 			},
 		}
-		sourceUe.AmfUe.SetOnGoing(&context.OnGoingProcedureWithPrio{
-			Procedure: context.OnGoingProcedureNothing,
+		sourceUe.AmfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
+			Procedure: amfContext.OnGoingProcedureNothing,
 		})
 		err := sourceUe.Ran.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {
@@ -206,7 +206,7 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 	}
 	amfUe.UpdateNH()
 
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 
 	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 	if err != nil {
@@ -219,7 +219,7 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 		return
 	}
 
-	err = context.AttachSourceUeTargetUe(sourceUe, targetUe)
+	err = amfContext.AttachSourceUeTargetUe(sourceUe, targetUe)
 	if err != nil {
 		logger.AmfLog.Error("attach source ue target ue error", zap.Error(err))
 		return

@@ -1,15 +1,15 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceModifyResponse(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
+func HandlePDUSessionResourceModifyResponse(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -47,7 +47,7 @@ func HandlePDUSessionResourceModifyResponse(ctx ctxt.Context, ran *context.AmfRa
 		}
 	}
 
-	var ranUe *context.RanUe
+	var ranUe *amfContext.RanUe
 
 	if rANUENGAPID != nil {
 		ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
@@ -57,7 +57,7 @@ func HandlePDUSessionResourceModifyResponse(ctx ctxt.Context, ran *context.AmfRa
 	}
 
 	if aMFUENGAPID != nil {
-		ranUe = context.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+		ranUe = amfContext.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
 		if ranUe == nil {
 			ran.Log.Warn("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 			return

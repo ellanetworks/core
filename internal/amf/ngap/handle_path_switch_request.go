@@ -1,9 +1,9 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
@@ -11,7 +11,7 @@ import (
 )
 
 // TS 23.502 4.9.1
-func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
+func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -75,7 +75,7 @@ func HandlePathSwitchRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapTyp
 		return
 	}
 
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 
 	ranUe := amfSelf.RanUeFindByAmfUeNgapID(sourceAMFUENGAPID.Value)
 	if ranUe == nil {

@@ -1,18 +1,18 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 	"encoding/hex"
 	"strconv"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
+func HandleInitialUEMessage(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -121,7 +121,7 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 
 		if fiveGSTMSI != nil {
 			ranUe.Log.Debug("Receive 5G-S-TMSI")
-			amfSelf := context.AMFSelf()
+			amfSelf := amfContext.AMFSelf()
 
 			operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 			if err != nil {

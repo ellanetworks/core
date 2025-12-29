@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	ctxt "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -16,10 +16,10 @@ import (
 func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &ctxt.AmfRan{
+	ran := &amfContext.AmfRan{
 		Log:             logger.AmfLog,
 		NGAPSender:      fakeNGAPSender,
-		SupportedTAList: make([]ctxt.SupportedTAI, 0),
+		SupportedTAList: make([]amfContext.SupportedTAI, 0),
 	}
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
@@ -35,7 +35,7 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 		t.Fatalf("failed to build NGSetupRequest: %v", err)
 	}
 
-	amf := &ctxt.AMFContext{
+	amf := &amfContext.AMFContext{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc: "001",
@@ -64,10 +64,10 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &ctxt.AmfRan{
+	ran := &amfContext.AmfRan{
 		Log:             logger.AmfLog,
 		NGAPSender:      fakeNGAPSender,
-		SupportedTAList: make([]ctxt.SupportedTAI, 0),
+		SupportedTAList: make([]amfContext.SupportedTAI, 0),
 	}
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
@@ -95,7 +95,7 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 		t.Fatalf("failed to set supported TACS: %v", err)
 	}
 
-	amf := &ctxt.AMFContext{
+	amf := &amfContext.AMFContext{
 		DBInstance: &FakeDBInstance{
 			Operator: op,
 		},
@@ -120,10 +120,10 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &ctxt.AmfRan{
+	ran := &amfContext.AmfRan{
 		Log:             logger.AmfLog,
 		NGAPSender:      fakeNGAPSender,
-		SupportedTAList: make([]ctxt.SupportedTAI, 0),
+		SupportedTAList: make([]amfContext.SupportedTAI, 0),
 	}
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
@@ -151,7 +151,7 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 		t.Fatalf("failed to set supported TACS: %v", err)
 	}
 
-	amf := &ctxt.AMFContext{
+	amf := &amfContext.AMFContext{
 		Name:             "ella-core",
 		RelativeCapacity: 0xff,
 		DBInstance: &FakeDBInstance{

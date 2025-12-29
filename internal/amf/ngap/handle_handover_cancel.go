@@ -1,15 +1,15 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
+func HandleHandoverCancel(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
 	var aMFUENGAPID *ngapType.AMFUENGAPID
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var cause *ngapType.Cause
@@ -102,7 +102,7 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		return
 	}
 
-	targetUe.ReleaseAction = context.UeContextReleaseHandover
+	targetUe.ReleaseAction = amfContext.UeContextReleaseHandover
 
 	err = targetUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, targetUe.AmfUeNgapID, targetUe.RanUeNgapID, causePresent, causeValue)
 	if err != nil {

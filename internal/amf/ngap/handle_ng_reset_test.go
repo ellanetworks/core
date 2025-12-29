@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	ctxt "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
 )
@@ -14,14 +14,14 @@ import (
 func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &ctxt.AmfRan{
+	ran := &amfContext.AmfRan{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
-		RanUePool: map[int64]*ctxt.RanUe{
-			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Ran: &ctxt.AmfRan{}},
-			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Ran: &ctxt.AmfRan{}},
+		RanUePool: map[int64]*amfContext.RanUe{
+			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Ran: &amfContext.AmfRan{}},
+			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Ran: &amfContext.AmfRan{}},
 		},
-		SupportedTAList: make([]ctxt.SupportedTAI, 0),
+		SupportedTAList: make([]amfContext.SupportedTAI, 0),
 	}
 
 	ran.RanUePool[0].Ran = ran
@@ -52,14 +52,14 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &ctxt.AmfRan{
+	ran := &amfContext.AmfRan{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
-		RanUePool: map[int64]*ctxt.RanUe{
-			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Ran: &ctxt.AmfRan{}},
-			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Ran: &ctxt.AmfRan{}},
+		RanUePool: map[int64]*amfContext.RanUe{
+			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Ran: &amfContext.AmfRan{}},
+			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Ran: &amfContext.AmfRan{}},
 		},
-		SupportedTAList: make([]ctxt.SupportedTAI, 0),
+		SupportedTAList: make([]amfContext.SupportedTAI, 0),
 	}
 
 	ran.RanUePool[0].Ran = ran

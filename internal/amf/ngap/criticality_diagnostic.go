@@ -9,7 +9,8 @@ func buildCriticalityDiagnostics(
 	procedureCode int64,
 	triggeringMessage aper.Enumerated,
 	procedureCriticality aper.Enumerated,
-	iesCriticalityDiagnostics *ngapType.CriticalityDiagnosticsIEList) ngapType.CriticalityDiagnostics {
+	iesCriticalityDiagnostics *ngapType.CriticalityDiagnosticsIEList,
+) ngapType.CriticalityDiagnostics {
 	return ngapType.CriticalityDiagnostics{
 		ProcedureCode: &ngapType.ProcedureCode{
 			Value: procedureCode,

@@ -1,15 +1,15 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
+func HandleHandoverFailure(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -34,7 +34,7 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 
 	var aMFUENGAPID *ngapType.AMFUENGAPID
 	var cause *ngapType.Cause
-	var targetUe *context.RanUe
+	var targetUe *amfContext.RanUe
 	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	for _, ie := range handoverFailure.ProtocolIEs.List {
@@ -60,7 +60,7 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 		}
 	}
 
-	targetUe = context.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+	targetUe = amfContext.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
 
 	if targetUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
@@ -84,8 +84,8 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 	if sourceUe == nil {
 		ran.Log.Error("N2 Handover between AMF has not been implemented yet")
 	} else {
-		sourceUe.AmfUe.SetOnGoing(&context.OnGoingProcedureWithPrio{
-			Procedure: context.OnGoingProcedureNothing,
+		sourceUe.AmfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
+			Procedure: amfContext.OnGoingProcedureNothing,
 		})
 		err := sourceUe.Ran.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, criticalityDiagnostics)
 		if err != nil {
@@ -95,7 +95,7 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 		ran.Log.Info("sent handover preparation failure to source UE")
 	}
 
-	targetUe.ReleaseAction = context.UeContextReleaseHandover
+	targetUe.ReleaseAction = amfContext.UeContextReleaseHandover
 
 	err = targetUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, targetUe.AmfUeNgapID, targetUe.RanUeNgapID, causePresent, causeValue)
 	if err != nil {

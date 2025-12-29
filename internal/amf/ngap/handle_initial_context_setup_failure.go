@@ -1,16 +1,16 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
+func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -80,7 +80,7 @@ func HandleInitialContextSetupFailure(ctx ctxt.Context, ran *context.AmfRan, mes
 	if amfUe.T3550 != nil {
 		amfUe.T3550.Stop()
 		amfUe.T3550 = nil
-		amfUe.State.Set(context.Deregistered)
+		amfUe.State.Set(amfContext.Deregistered)
 		amfUe.ClearRegistrationRequestData()
 	}
 

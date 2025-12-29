@@ -1,16 +1,16 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
+func HandleHandoverRequestAcknowledge(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -72,7 +72,7 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 		ran.Log.Info("sent error indication")
 	}
 
-	targetUe := context.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+	targetUe := amfContext.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
 	if targetUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		return
@@ -142,8 +142,8 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 					Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
 				},
 			}
-			sourceUe.AmfUe.SetOnGoing(&context.OnGoingProcedureWithPrio{
-				Procedure: context.OnGoingProcedureNothing,
+			sourceUe.AmfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
+				Procedure: amfContext.OnGoingProcedureNothing,
 			})
 			err := sourceUe.Ran.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 			if err != nil {

@@ -8,11 +8,11 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 	"reflect"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap"
@@ -25,7 +25,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/ngap")
 
-func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
+func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 	remoteAddress := conn.RemoteAddr()
 	if remoteAddress == nil {
 		logger.AmfLog.Debug("Remote address is nil")
@@ -38,7 +38,7 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 		return
 	}
 
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
@@ -71,11 +71,11 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 	DispatchNgapMsg(ran, pdu)
 }
 
-func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
+func DispatchNgapMsg(ran *amfContext.AmfRan, pdu *ngapType.NGAPPDU) {
 	messageType := getMessageType(pdu)
 
 	spanName := fmt.Sprintf("AMF NGAP %s", messageType)
-	ctx, span := tracer.Start(ctxt.Background(), spanName,
+	ctx, span := tracer.Start(context.Background(), spanName,
 		trace.WithAttributes(
 			attribute.String("ngap.pdu_present", fmt.Sprintf("%d", pdu.Present)),
 			attribute.String("ngap.messageType", messageType),
@@ -84,7 +84,7 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 	)
 	defer span.End()
 
-	amf := context.AMFSelf()
+	amf := amfContext.AMFSelf()
 
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
@@ -178,7 +178,7 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 }
 
 func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification) {
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {

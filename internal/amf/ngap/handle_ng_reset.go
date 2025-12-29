@@ -1,15 +1,15 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleNGReset(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
+func HandleNGReset(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -78,7 +78,7 @@ func HandleNGReset(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU)
 			return
 		}
 
-		var ranUe *context.RanUe
+		var ranUe *amfContext.RanUe
 
 		for _, ueAssociatedLogicalNGConnectionItem := range partOfNGInterface.List {
 			if ueAssociatedLogicalNGConnectionItem.AMFUENGAPID != nil {

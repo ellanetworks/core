@@ -1,10 +1,10 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 	"encoding/hex"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
+func HandleRanConfigurationUpdate(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -69,7 +69,7 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, msg *ng
 		tac := hex.EncodeToString(supportedTAItem.TAC.Value)
 		capOfSupportTai := cap(ran.SupportedTAList)
 		for j := 0; j < len(supportedTAItem.BroadcastPLMNList.List); j++ {
-			supportedTAI := context.SupportedTAI{}
+			supportedTAI := amfContext.SupportedTAI{}
 			supportedTAI.SNssaiList = make([]models.Snssai, 0)
 			supportedTAI.Tai.Tac = tac
 			broadcastPLMNItem := supportedTAItem.BroadcastPLMNList.List[j]
@@ -101,7 +101,7 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, msg *ng
 		}
 	} else {
 		var found bool
-		amfSelf := context.AMFSelf()
+		amfSelf := amfContext.AMFSelf()
 
 		operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 		if err != nil {
@@ -114,7 +114,7 @@ func HandleRanConfigurationUpdate(ctx ctxt.Context, ran *context.AmfRan, msg *ng
 		}
 
 		for i, tai := range ran.SupportedTAList {
-			if context.InTaiList(tai.Tai, operatorInfo.Tais) {
+			if amfContext.InTaiList(tai.Tai, operatorInfo.Tais) {
 				ran.Log.Debug("handle ran configuration update", zap.Any("SERVED_TAI_INDEX", i))
 				found = true
 				break

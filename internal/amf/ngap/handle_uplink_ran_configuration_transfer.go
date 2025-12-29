@@ -1,16 +1,16 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUplinkRanConfigurationTransfer(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
+func HandleUplinkRanConfigurationTransfer(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -56,7 +56,7 @@ func HandleUplinkRanConfigurationTransfer(ctx ctxt.Context, ran *context.AmfRan,
 		ran.Log.Debug("targetRanID", zap.String("targetRanID", targetRanNodeID.GNbID.GNBValue))
 	}
 
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 
 	targetRan, ok := amfSelf.AmfRanFindByRanID(targetRanNodeID)
 	if !ok {

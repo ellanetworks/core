@@ -1,15 +1,15 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
+func HandleHandoverNotify(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -99,7 +99,7 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 
 	amfUe.AttachRanUe(targetUe)
 
-	sourceUe.ReleaseAction = context.UeContextReleaseHandover
+	sourceUe.ReleaseAction = amfContext.UeContextReleaseHandover
 
 	err := sourceUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {

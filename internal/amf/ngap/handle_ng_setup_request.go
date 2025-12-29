@@ -1,17 +1,17 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 	"encoding/hex"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleNGSetupRequest(ctx ctxt.Context, amf *context.AMFContext, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
+func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMFContext, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -78,7 +78,7 @@ func HandleNGSetupRequest(ctx ctxt.Context, amf *context.AMFContext, ran *contex
 
 	// Clearing any existing contents of ran.SupportedTAList
 	if len(ran.SupportedTAList) != 0 {
-		ran.SupportedTAList = make([]context.SupportedTAI, 0)
+		ran.SupportedTAList = make([]amfContext.SupportedTAI, 0)
 	}
 
 	if supportedTAList == nil || len(supportedTAList.List) == 0 {
@@ -100,7 +100,7 @@ func HandleNGSetupRequest(ctx ctxt.Context, amf *context.AMFContext, ran *contex
 		supportedTAItem := supportedTAList.List[i]
 		tac := hex.EncodeToString(supportedTAItem.TAC.Value)
 		for j := 0; j < len(supportedTAItem.BroadcastPLMNList.List); j++ {
-			supportedTAI := context.SupportedTAI{}
+			supportedTAI := amfContext.SupportedTAI{}
 			supportedTAI.Tai.Tac = tac
 			broadcastPLMNItem := supportedTAItem.BroadcastPLMNList.List[j]
 			plmnID := util.PlmnIDToModels(broadcastPLMNItem.PLMNIdentity)
@@ -123,7 +123,7 @@ func HandleNGSetupRequest(ctx ctxt.Context, amf *context.AMFContext, ran *contex
 	var found bool
 
 	for i, tai := range ran.SupportedTAList {
-		if context.InTaiList(tai.Tai, operatorInfo.Tais) {
+		if amfContext.InTaiList(tai.Tai, operatorInfo.Tais) {
 			ran.Log.Debug("Found served TAI in Core", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
 			found = true
 			break

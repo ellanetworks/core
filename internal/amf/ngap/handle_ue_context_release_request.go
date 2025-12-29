@@ -1,16 +1,16 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
+func HandleUEContextReleaseRequest(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -62,7 +62,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *n
 		}
 	}
 
-	ranUe := context.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+	ranUe := amfContext.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
 	if ranUe == nil {
 		ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
 	}
@@ -101,7 +101,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *n
 
 	amfUe := ranUe.AmfUe
 	if amfUe != nil {
-		if amfUe.State.Is(context.Registered) {
+		if amfUe.State.Is(amfContext.Registered) {
 			ranUe.Log.Info("Ue Context in GMM-Registered")
 			if pDUSessionResourceList != nil {
 				for _, pduSessionReourceItem := range pDUSessionResourceList.List {
@@ -143,7 +143,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *n
 			}
 			amfUe.Mutex.Unlock()
 
-			ranUe.ReleaseAction = context.UeContextReleaseUeContext
+			ranUe.ReleaseAction = amfContext.UeContextReleaseUeContext
 
 			err := ran.NGAPSender.SendUEContextReleaseCommand(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, causeGroup, causeValue)
 			if err != nil {
@@ -155,7 +155,7 @@ func HandleUEContextReleaseRequest(ctx ctxt.Context, ran *context.AmfRan, msg *n
 		}
 	}
 
-	ranUe.ReleaseAction = context.UeContextN2NormalRelease
+	ranUe.ReleaseAction = amfContext.UeContextN2NormalRelease
 
 	err = ran.NGAPSender.SendUEContextReleaseCommand(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, causeGroup, causeValue)
 	if err != nil {

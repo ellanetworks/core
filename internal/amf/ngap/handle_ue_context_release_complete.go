@@ -1,9 +1,9 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
+func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
@@ -68,7 +68,7 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 		}
 	}
 
-	ranUe := context.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+	ranUe := amfContext.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No RanUe Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		cause := ngapType.Cause{
@@ -133,7 +133,7 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 		}
 	}
 
-	if amfUe.State.Is(context.Registered) {
+	if amfUe.State.Is(amfContext.Registered) {
 		ranUe.Log.Warn("Rel Ue Context in GMM-Registered", zap.String("supi", amfUe.Supi))
 		if pDUSessionResourceList != nil {
 			for _, pduSessionReourceItem := range pDUSessionResourceList.List {
@@ -161,13 +161,13 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 	}
 
 	switch ranUe.ReleaseAction {
-	case context.UeContextN2NormalRelease:
+	case amfContext.UeContextN2NormalRelease:
 		ran.Log.Info("Release UE Context: N2 Connection Release", zap.String("supi", amfUe.Supi))
 		err := ranUe.Remove()
 		if err != nil {
 			ran.Log.Error(err.Error())
 		}
-	case context.UeContextReleaseUeContext:
+	case amfContext.UeContextReleaseUeContext:
 		ran.Log.Info("Release UE Context: Release Ue Context", zap.String("supi", amfUe.Supi))
 		err := ranUe.Remove()
 		if err != nil {
@@ -179,19 +179,19 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 			ran.Log.Info("Valid Security is not exist for the UE, so deleting AmfUe Context", zap.String("supi", amfUe.Supi))
 			amfUe.Remove()
 		}
-	case context.UeContextReleaseDueToNwInitiatedDeregistraion:
+	case amfContext.UeContextReleaseDueToNwInitiatedDeregistraion:
 		ran.Log.Info("Release UE Context Due to Nw Initiated: Release Ue Context", zap.String("supi", amfUe.Supi))
 		err := ranUe.Remove()
 		if err != nil {
 			ran.Log.Error(err.Error())
 		}
 		amfUe.Remove()
-	case context.UeContextReleaseHandover:
+	case amfContext.UeContextReleaseHandover:
 		ran.Log.Info("Release UE Context : Release for Handover", zap.String("supi", amfUe.Supi))
-		targetRanUe := context.AMFSelf().RanUeFindByAmfUeNgapID(ranUe.TargetUe.AmfUeNgapID)
+		targetRanUe := amfContext.AMFSelf().RanUeFindByAmfUeNgapID(ranUe.TargetUe.AmfUeNgapID)
 
 		targetRanUe.Ran = ran
-		context.DetachSourceUeTargetUe(ranUe)
+		amfContext.DetachSourceUeTargetUe(ranUe)
 		err := ranUe.Remove()
 		if err != nil {
 			ran.Log.Error(err.Error())

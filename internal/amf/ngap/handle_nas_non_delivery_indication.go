@@ -1,16 +1,16 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleNasNonDeliveryIndication(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
+func HandleNasNonDeliveryIndication(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
