@@ -5,17 +5,11 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
 func HandleUplinkNasTransport(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.UplinkNASTransport) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return

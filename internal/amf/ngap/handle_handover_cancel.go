@@ -9,14 +9,14 @@ import (
 )
 
 func HandleHandoverCancel(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.HandoverCancel) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var cause *ngapType.Cause
-
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var cause *ngapType.Cause
 
 	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
 		ie := msg.ProtocolIEs.List[i]

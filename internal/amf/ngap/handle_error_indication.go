@@ -8,15 +8,15 @@ import (
 )
 
 func HandleErrorIndication(ran *context.AmfRan, msg *ngapType.ErrorIndication) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var cause *ngapType.Cause
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
-
 	if msg == nil {
 		ran.Log.Error("ErrorIndication is nil")
 		return
 	}
+
+	var aMFUENGAPID *ngapType.AMFUENGAPID
+	var rANUENGAPID *ngapType.RANUENGAPID
+	var cause *ngapType.Cause
+	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {

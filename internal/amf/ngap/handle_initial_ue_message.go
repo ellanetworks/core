@@ -99,6 +99,7 @@ func HandleInitialUEMessage(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 		}
 		ranUe = nil
 	}
+
 	if ranUe == nil {
 		var err error
 		ranUe, err = ran.NewRanUe(rANUENGAPID.Value)
@@ -150,7 +151,7 @@ func HandleInitialUEMessage(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 	}
 
 	if rRCEstablishmentCause != nil {
-		ranUe.Log.Debug("[Initial UE Message] RRC Establishment Cause", zap.Any("Value", rRCEstablishmentCause.Value))
+		ranUe.Log.Debug("RRC Establishment Cause", zap.Any("Value", rRCEstablishmentCause.Value))
 		ranUe.RRCEstablishmentCause = strconv.Itoa(int(rRCEstablishmentCause.Value))
 	}
 
