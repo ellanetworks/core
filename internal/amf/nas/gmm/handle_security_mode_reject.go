@@ -1,10 +1,10 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
@@ -12,17 +12,17 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleSecurityModeReject(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
+func handleSecurityModeReject(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Security Mode Reject", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleSecurityModeReject")
 	defer span.End()
 
-	if ue.State.Current() != context.SecurityMode {
+	if ue.State.Current() != amfContext.SecurityMode {
 		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", ue.State.Current())
 	}
 
-	ue.State.Set(context.Deregistered)
+	ue.State.Set(amfContext.Deregistered)
 
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
@@ -34,7 +34,7 @@ func handleSecurityModeReject(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmM
 	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", zap.String("Cause", nasMessage.Cause5GMMToString(cause)), zap.String("supi", ue.Supi))
 
 	ue.SecurityContextAvailable = false
-	ue.RanUe.ReleaseAction = context.UeContextReleaseUeContext
+	ue.RanUe.ReleaseAction = amfContext.UeContextReleaseUeContext
 
 	err := ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {

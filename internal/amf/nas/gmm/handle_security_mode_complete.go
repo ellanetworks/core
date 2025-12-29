@@ -1,10 +1,10 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
@@ -13,7 +13,7 @@ import (
 )
 
 // TS 33.501 6.7.2
-func handleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
+func handleSecurityModeComplete(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Security Mode Complete", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleSecurityModeComplete")
@@ -23,7 +23,7 @@ func handleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Gm
 	)
 	defer span.End()
 
-	if ue.State.Current() != context.SecurityMode {
+	if ue.State.Current() != amfContext.SecurityMode {
 		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", ue.State.Current())
 	}
 
@@ -57,12 +57,12 @@ func handleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Gm
 			return fmt.Errorf("nas message container Iei type error")
 		}
 
-		ue.State.Set(context.ContextSetup)
+		ue.State.Set(amfContext.ContextSetup)
 
 		return contextSetup(ctx, ue, m.GmmMessage.RegistrationRequest)
 	}
 
-	ue.State.Set(context.ContextSetup)
+	ue.State.Set(amfContext.ContextSetup)
 
 	err := contextSetup(ctx, ue, ue.RegistrationRequest)
 	if err != nil {

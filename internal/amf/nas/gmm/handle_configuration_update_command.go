@@ -1,16 +1,16 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
-func handleConfigurationUpdateComplete(ctx ctxt.Context, ue *context.AmfUe) error {
+func handleConfigurationUpdateComplete(ctx context.Context, ue *amfContext.AmfUe) error {
 	logger.AmfLog.Debug("Handle Configuration Update Complete", zap.String("supi", ue.Supi))
 
 	_, span := tracer.Start(ctx, "AMF NAS HandleConfigurationUpdateComplete")
@@ -20,7 +20,7 @@ func handleConfigurationUpdateComplete(ctx ctxt.Context, ue *context.AmfUe) erro
 	)
 	defer span.End()
 
-	if ue.State.Current() != context.Registered {
+	if ue.State.Current() != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Configuration Update Complete message in state %s", ue.State.Current())
 	}
 
@@ -33,7 +33,7 @@ func handleConfigurationUpdateComplete(ctx ctxt.Context, ue *context.AmfUe) erro
 		ue.T3555 = nil // clear the timer
 	}
 
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 	amfSelf.FreeOldGuti(ue)
 
 	return nil

@@ -7,11 +7,11 @@
 package nas
 
 import (
-	ctxt "context"
+	"context"
 	"errors"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
 	"github.com/ellanetworks/core/internal/logger"
@@ -24,7 +24,7 @@ import (
 var tracer = otel.Tracer("ella-core/amf/nas")
 
 // HandleNAS processes an uplink NAS PDU and emits a span around the entire operation.
-func HandleNAS(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte) error {
+func HandleNAS(ctx context.Context, ue *amfContext.RanUe, nasPdu []byte) error {
 	if ue == nil {
 		return fmt.Errorf("ue is nil")
 	}
@@ -42,7 +42,7 @@ func HandleNAS(ctx ctxt.Context, ue *context.RanUe, nasPdu []byte) error {
 
 		ue.AmfUe = amfUe
 		if ue.AmfUe == nil {
-			amfSelf := context.AMFSelf()
+			amfSelf := amfContext.AMFSelf()
 
 			ue.AmfUe = amfSelf.NewAmfUe(ctx, "")
 		}

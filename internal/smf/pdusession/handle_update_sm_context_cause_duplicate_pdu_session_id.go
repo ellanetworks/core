@@ -1,14 +1,14 @@
 package pdusession
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/smf/context"
+	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"go.opentelemetry.io/otel/attribute"
 )
 
-func UpdateSmContextCauseDuplicatePDUSessionID(ctx ctxt.Context, smContextRef string) ([]byte, error) {
+func UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error) {
 	ctx, span := tracer.Start(ctx, "SMF Update SmContext Cause Duplicate PDU Session ID")
 	defer span.End()
 	span.SetAttributes(
@@ -19,7 +19,7 @@ func UpdateSmContextCauseDuplicatePDUSessionID(ctx ctxt.Context, smContextRef st
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
 
-	smContext := context.GetSMContext(smContextRef)
+	smContext := smfContext.GetSMContext(smContextRef)
 	if smContext == nil {
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
@@ -29,7 +29,7 @@ func UpdateSmContextCauseDuplicatePDUSessionID(ctx ctxt.Context, smContextRef st
 
 	smContext.PDUSessionReleaseDueToDupPduID = true
 
-	n2Rsp, err := context.BuildPDUSessionResourceReleaseCommandTransfer()
+	n2Rsp, err := smfContext.BuildPDUSessionResourceReleaseCommandTransfer()
 	if err != nil {
 		return nil, fmt.Errorf("build PDUSession Resource Release Command Transfer Error: %v", err)
 	}

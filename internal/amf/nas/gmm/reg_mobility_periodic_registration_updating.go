@@ -1,10 +1,10 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
@@ -14,12 +14,12 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context.AmfUe) error {
+func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfContext.AmfUe) error {
 	ue.Log.Debug("Handle MobilityAndPeriodicRegistrationUpdating")
 
 	ue.DerivateAnKey()
 
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 
 	if ue.RegistrationRequest.UpdateType5GS != nil {
 		if ue.RegistrationRequest.UpdateType5GS.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
@@ -150,8 +150,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 			// downlink signalling
 			if n2Info == nil {
 				if len(suList.List) != 0 {
-					nasPdu, err := message.BuildRegistrationAccept(ctx, ue, pduSessionStatus,
-						reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
+					nasPdu, err := message.BuildRegistrationAccept(ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
 					if err != nil {
 						return err
 					}
@@ -214,7 +213,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		ue.Log.Info("Sent GMM registration accept")
 		return nil
 	} else {
-		nasPdu, err := message.BuildRegistrationAccept(ctx, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
+		nasPdu, err := message.BuildRegistrationAccept(ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
 		if err != nil {
 			return fmt.Errorf("error building registration accept: %v", err)
 		}

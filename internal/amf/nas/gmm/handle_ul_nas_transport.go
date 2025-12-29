@@ -1,10 +1,10 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
@@ -20,8 +20,8 @@ import (
 )
 
 func forward5GSMMessageToSMF(
-	ctx ctxt.Context,
-	ue *context.AmfUe,
+	ctx context.Context,
+	ue *amfContext.AmfUe,
 	pduSessionID uint8,
 	smContextRef string,
 	smMessage []byte,
@@ -77,7 +77,7 @@ func forward5GSMMessageToSMF(
 	return nil
 }
 
-func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *nasMessage.ULNASTransport) error {
+func transport5GSMMessage(ctx context.Context, ue *amfContext.AmfUe, ulNasTransport *nasMessage.ULNASTransport) error {
 	smMessage := ulNasTransport.PayloadContainer.GetPayloadContainerContents()
 
 	id := ulNasTransport.PduSessionID2Value
@@ -198,7 +198,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 				// if user's subscription context obtained from UDM does not contain the default DNN for the,
 				// S-NSSAI, the AMF shall use a locally configured DNN as the DNN
 
-				_, dnnResp, err := context.GetSubscriberData(ctx, ue.Supi)
+				_, dnnResp, err := amfContext.GetSubscriberData(ctx, ue.Supi)
 				if err != nil {
 					return fmt.Errorf("failed to get subscriber data: %v", err)
 				}
@@ -206,7 +206,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 				dnn = dnnResp
 			}
 
-			newSmContext := context.NewSmContext()
+			newSmContext := amfContext.NewSmContext()
 
 			newSmContext.SetSnssai(snssai)
 
@@ -243,7 +243,7 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, ulNasTransport *n
 	return nil
 }
 
-func handleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
+func handleULNASTransport(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle UL NAS Transport", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleULNASTransport")
@@ -253,8 +253,8 @@ func handleULNASTransport(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 	)
 	defer span.End()
 
-	if ue.State.Current() != context.Registered {
-		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", context.Registered, ue.State.Current())
+	if ue.State.Current() != amfContext.Registered {
+		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amfContext.Registered, ue.State.Current())
 	}
 
 	if ue.MacFailed {

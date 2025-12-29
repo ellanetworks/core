@@ -1,14 +1,14 @@
 package pdusession
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/smf/context"
+	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 )
 
-func releaseTunnel(ctx ctxt.Context, smContext *context.SMContext) error {
+func releaseTunnel(ctx context.Context, smContext *smfContext.SMContext) error {
 	if smContext.Tunnel == nil {
 		return fmt.Errorf("tunnel not found")
 	}

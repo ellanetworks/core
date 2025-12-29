@@ -7,12 +7,11 @@
 package message
 
 import (
-	ctxt "context"
 	"encoding/hex"
 	"fmt"
 	"time"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
@@ -22,7 +21,7 @@ import (
 	"github.com/free5gc/nas/nasType"
 )
 
-func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause *uint8) ([]byte, error) {
+func BuildDLNASTransport(ue *amfContext.AmfUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause *uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeDLNASTransport)
@@ -73,7 +72,7 @@ func BuildIdentityRequest(typeOfIdentity uint8) ([]byte, error) {
 	return m.PlainNasEncode()
 }
 
-func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
+func BuildAuthenticationRequest(ue *amfContext.AmfUe) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeAuthenticationRequest)
@@ -113,7 +112,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 	return m.PlainNasEncode()
 }
 
-func BuildServiceAccept(ue *context.AmfUe, pDUSessionStatus *[16]bool,
+func BuildServiceAccept(ue *amfContext.AmfUe, pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool, errPduSessionID, errCause []uint8,
 ) ([]byte, error) {
 	m := nas.NewMessage()
@@ -154,7 +153,7 @@ func BuildServiceAccept(ue *context.AmfUe, pDUSessionStatus *[16]bool,
 	return nassecurity.Encode(ue, m)
 }
 
-func BuildAuthenticationReject(ue *context.AmfUe) ([]byte, error) {
+func BuildAuthenticationReject(ue *amfContext.AmfUe) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeAuthenticationReject)
@@ -194,7 +193,7 @@ func BuildServiceReject(pDUSessionStatus *[16]bool, cause uint8) ([]byte, error)
 }
 
 // T3346 timer are not supported
-func BuildRegistrationReject(ue *context.AmfUe, cause5GMM uint8) ([]byte, error) {
+func BuildRegistrationReject(ue *amfContext.AmfUe, cause5GMM uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeRegistrationReject)
@@ -219,7 +218,7 @@ func BuildRegistrationReject(ue *context.AmfUe, cause5GMM uint8) ([]byte, error)
 }
 
 // TS 24.501 8.2.25
-func BuildSecurityModeCommand(ue *context.AmfUe) ([]byte, error) {
+func BuildSecurityModeCommand(ue *amfContext.AmfUe) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeSecurityModeCommand)
@@ -294,8 +293,7 @@ func BuildDeregistrationAccept() ([]byte, error) {
 }
 
 func BuildRegistrationAccept(
-	ctx ctxt.Context,
-	ue *context.AmfUe,
+	ue *amfContext.AmfUe,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
@@ -363,7 +361,7 @@ func BuildRegistrationAccept(
 	}
 
 	// 5gs network feature support
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 	if amfSelf.Get5gsNwFeatSuppEnable() {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
@@ -421,7 +419,7 @@ func BuildRegistrationAccept(
 }
 
 // TS 24.501 - 5.4.4 Generic UE configuration update procedure - 5.4.4.1 General
-func BuildConfigurationUpdateCommand(ue *context.AmfUe, flags *context.ConfigurationUpdateCommandFlags) ([]byte, error, bool) {
+func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe, flags *amfContext.ConfigurationUpdateCommandFlags) ([]byte, error, bool) {
 	needTimer := false
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -520,7 +518,7 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, flags *context.Configura
 		ue.Log.Warn("Require LADN Information, but got nothing.")
 	}
 
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 
 	if flags.NeedNITZ {
 		// Full network name

@@ -1,10 +1,10 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleStatus5GMM(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
+func handleStatus5GMM(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Status 5GMM", zap.String("supi", ue.Supi))
 
 	_, span := tracer.Start(ctx, "AMF NAS HandleStatus5GMM")
@@ -23,7 +23,7 @@ func handleStatus5GMM(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) 
 	defer span.End()
 
 	switch ue.State.Current() {
-	case context.Registered, context.Authentication, context.SecurityMode, context.ContextSetup:
+	case amfContext.Registered, amfContext.Authentication, amfContext.SecurityMode, amfContext.ContextSetup:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}

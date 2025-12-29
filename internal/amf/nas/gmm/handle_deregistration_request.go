@@ -1,10 +1,10 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
@@ -16,7 +16,7 @@ import (
 )
 
 // TS 23.502 4.2.2.3
-func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
+func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Deregistration Request", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleDeregistrationRequestUEOriginatingDeregistration")
@@ -26,7 +26,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue
 	)
 	defer span.End()
 
-	if ue.State.Current() != context.Registered {
+	if ue.State.Current() != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", ue.State.Current())
 	}
 
@@ -34,7 +34,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue
 		return fmt.Errorf("gmm message is nil")
 	}
 
-	ue.State.Set(context.Deregistered)
+	ue.State.Set(amfContext.Deregistered)
 
 	targetDeregistrationAccessType := msg.DeregistrationRequestUEOriginatingDeregistration.GetAccessType()
 
@@ -60,7 +60,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx ctxt.Context, ue
 	}
 
 	if ue.RanUe != nil {
-		ue.RanUe.ReleaseAction = context.UeContextReleaseUeContext
+		ue.RanUe.ReleaseAction = amfContext.UeContextReleaseUeContext
 		err := ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)

@@ -7,10 +7,10 @@
 package message
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
@@ -22,7 +22,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/nas/send")
 
-func SendDLNASTransport(ctx ctxt.Context, ue *context.RanUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause uint8) error {
+func SendDLNASTransport(ctx context.Context, ue *amfContext.RanUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause uint8) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -55,7 +55,7 @@ func SendDLNASTransport(ctx ctxt.Context, ue *context.RanUe, payloadContainerTyp
 	return nil
 }
 
-func SendIdentityRequest(ctx ctxt.Context, ue *context.RanUe, typeOfIdentity uint8) error {
+func SendIdentityRequest(ctx context.Context, ue *amfContext.RanUe, typeOfIdentity uint8) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -82,7 +82,7 @@ func SendIdentityRequest(ctx ctxt.Context, ue *context.RanUe, typeOfIdentity uin
 	return nil
 }
 
-func SendAuthenticationRequest(ctx ctxt.Context, ue *context.RanUe) error {
+func SendAuthenticationRequest(ctx context.Context, ue *amfContext.RanUe) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -106,9 +106,9 @@ func SendAuthenticationRequest(ctx ctxt.Context, ue *context.RanUe) error {
 		return fmt.Errorf("error building authentication request: %s", err.Error())
 	}
 
-	if context.AMFSelf().T3560Cfg.Enable {
-		cfg := context.AMFSelf().T3560Cfg
-		amfUe.T3560 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+	if amfContext.AMFSelf().T3560Cfg.Enable {
+		cfg := amfContext.AMFSelf().T3560Cfg
+		amfUe.T3560 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("T3560 expires, retransmit Authentication Request", zap.Any("expireTimes", expireTimes))
 			err := ue.Ran.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
 			if err != nil {
@@ -129,7 +129,7 @@ func SendAuthenticationRequest(ctx ctxt.Context, ue *context.RanUe) error {
 	return nil
 }
 
-func SendServiceAccept(ctx ctxt.Context, ue *context.RanUe, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) error {
+func SendServiceAccept(ctx context.Context, ue *amfContext.RanUe, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -157,7 +157,7 @@ func SendServiceAccept(ctx ctxt.Context, ue *context.RanUe, pDUSessionStatus *[1
 	return nil
 }
 
-func SendAuthenticationReject(ctx ctxt.Context, ue *context.RanUe) error {
+func SendAuthenticationReject(ctx context.Context, ue *amfContext.RanUe) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -183,7 +183,7 @@ func SendAuthenticationReject(ctx ctxt.Context, ue *context.RanUe) error {
 	return nil
 }
 
-func SendServiceReject(ctx ctxt.Context, ue *context.RanUe, pDUSessionStatus *[16]bool, cause uint8) error {
+func SendServiceReject(ctx context.Context, ue *amfContext.RanUe, pDUSessionStatus *[16]bool, cause uint8) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -211,7 +211,7 @@ func SendServiceReject(ctx ctxt.Context, ue *context.RanUe, pDUSessionStatus *[1
 }
 
 // T3502: This IE may be included to indicate a value for timer T3502 during the initial registration
-func SendRegistrationReject(ctx ctxt.Context, ue *context.RanUe, cause5GMM uint8) error {
+func SendRegistrationReject(ctx context.Context, ue *amfContext.RanUe, cause5GMM uint8) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -238,7 +238,7 @@ func SendRegistrationReject(ctx ctxt.Context, ue *context.RanUe, cause5GMM uint8
 	return nil
 }
 
-func SendSecurityModeCommand(ctx ctxt.Context, ue *context.RanUe) error {
+func SendSecurityModeCommand(ctx context.Context, ue *amfContext.RanUe) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -263,9 +263,9 @@ func SendSecurityModeCommand(ctx ctxt.Context, ue *context.RanUe) error {
 
 	amfUe := ue.AmfUe
 
-	if context.AMFSelf().T3560Cfg.Enable {
-		cfg := context.AMFSelf().T3560Cfg
-		amfUe.T3560 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+	if amfContext.AMFSelf().T3560Cfg.Enable {
+		cfg := amfContext.AMFSelf().T3560Cfg
+		amfUe.T3560 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("T3560 expires, retransmit Security Mode Command", zap.Any("expireTimes", expireTimes))
 			err = ue.Ran.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
 			if err != nil {
@@ -282,7 +282,7 @@ func SendSecurityModeCommand(ctx ctxt.Context, ue *context.RanUe) error {
 	return nil
 }
 
-func SendDeregistrationAccept(ctx ctxt.Context, ue *context.RanUe) error {
+func SendDeregistrationAccept(ctx context.Context, ue *amfContext.RanUe) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -310,8 +310,8 @@ func SendDeregistrationAccept(ctx ctxt.Context, ue *context.RanUe) error {
 }
 
 func SendRegistrationAccept(
-	ctx ctxt.Context,
-	ue *context.AmfUe,
+	ctx context.Context,
+	ue *amfContext.AmfUe,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
@@ -331,7 +331,7 @@ func SendRegistrationAccept(
 	)
 	defer span.End()
 
-	nasMsg, err := BuildRegistrationAccept(ctx, ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause, supportedPLMN)
+	nasMsg, err := BuildRegistrationAccept(ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause, supportedPLMN)
 	if err != nil {
 		return fmt.Errorf("error building registration accept: %s", err.Error())
 	}
@@ -366,9 +366,9 @@ func SendRegistrationAccept(
 		ue.Log.Info("Sent GMM registration accept")
 	}
 
-	if context.AMFSelf().T3550Cfg.Enable {
-		cfg := context.AMFSelf().T3550Cfg
-		ue.T3550 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+	if amfContext.AMFSelf().T3550Cfg.Enable {
+		cfg := amfContext.AMFSelf().T3550Cfg
+		ue.T3550 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			if ue.RanUe == nil {
 				ue.Log.Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
 				ue.T3550 = nil
@@ -408,7 +408,7 @@ func SendRegistrationAccept(
 			ue.Log.Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
 			ue.T3550 = nil // clear the timer
 			// TS 24.501 5.5.1.2.8 case c, 5.5.1.3.8 case c
-			ue.State.Set(context.Registered)
+			ue.State.Set(amfContext.Registered)
 			ue.ClearRegistrationRequestData()
 		})
 	}
@@ -416,7 +416,7 @@ func SendRegistrationAccept(
 	return nil
 }
 
-func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe, flags *context.ConfigurationUpdateCommandFlags) {
+func SendConfigurationUpdateCommand(ctx context.Context, amfUe *amfContext.AmfUe, flags *amfContext.ConfigurationUpdateCommandFlags) {
 	if amfUe == nil {
 		return
 	}
@@ -453,10 +453,10 @@ func SendConfigurationUpdateCommand(ctx ctxt.Context, amfUe *context.AmfUe, flag
 		return
 	}
 
-	if startT3555 && context.AMFSelf().T3555Cfg.Enable {
-		cfg := context.AMFSelf().T3555Cfg
+	if startT3555 && amfContext.AMFSelf().T3555Cfg.Enable {
+		cfg := amfContext.AMFSelf().T3555Cfg
 		amfUe.Log.Info("start T3555 timer")
-		amfUe.T3555 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		amfUe.T3555 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("timer T3555 expired, retransmit Configuration Update Command",
 				zap.Int32("retry", expireTimes))
 			err = amfUe.RanUe.Ran.NGAPSender.SendDownlinkNasTransport(ctx, amfUe.RanUe.AmfUeNgapID, amfUe.RanUe.RanUeNgapID, nasMsg, mobilityRestrictionList)

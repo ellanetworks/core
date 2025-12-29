@@ -8,10 +8,10 @@
 package producer
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/models"
@@ -24,7 +24,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/producer")
 
-func TransferN1N2Message(ctx ctxt.Context, supi string, req models.N1N2MessageTransferRequest) error {
+func TransferN1N2Message(ctx context.Context, supi string, req models.N1N2MessageTransferRequest) error {
 	ctx, span := tracer.Start(ctx, "AMF N1N2 MessageTransfer")
 	defer span.End()
 
@@ -32,7 +32,7 @@ func TransferN1N2Message(ctx ctxt.Context, supi string, req models.N1N2MessageTr
 		attribute.String("supi", supi),
 	)
 
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 
 	ue, ok := amfSelf.AmfUeFindBySupi(supi)
 	if !ok {
@@ -97,7 +97,7 @@ func TransferN1N2Message(ctx ctxt.Context, supi string, req models.N1N2MessageTr
 	return nil
 }
 
-func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2MessageTransferRequest) error {
+func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2MessageTransferRequest) error {
 	ctx, span := tracer.Start(ctx, "AMF N1N2 MessageTransfer")
 	defer span.End()
 
@@ -105,7 +105,7 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 		attribute.String("supi", supi),
 	)
 
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 
 	ue, ok := amfSelf.AmfUeFindBySupi(supi)
 	if !ok {
@@ -114,11 +114,11 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 
 	onGoing := ue.GetOnGoing()
 	switch onGoing.Procedure {
-	case context.OnGoingProcedurePaging:
+	case amfContext.OnGoingProcedurePaging:
 		return fmt.Errorf("higher priority request ongoing")
-	case context.OnGoingProcedureRegistration:
+	case amfContext.OnGoingProcedureRegistration:
 		return fmt.Errorf("temporary reject registration ongoing")
-	case context.OnGoingProcedureN2Handover:
+	case amfContext.OnGoingProcedureN2Handover:
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
@@ -171,7 +171,7 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 	}
 
 	// 504: the UE in MICO mode or the UE is only registered over Non-3GPP access and its state is CM-IDLE
-	if !ue.State.Is(context.Registered) {
+	if !ue.State.Is(amfContext.Registered) {
 		return fmt.Errorf("ue not reachable")
 	}
 
@@ -181,8 +181,8 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 	// in subclause 5.2.2.3.1.2 of TS29518
 
 	ue.N1N2Message = &req
-	ue.SetOnGoing(&context.OnGoingProcedureWithPrio{
-		Procedure: context.OnGoingProcedurePaging,
+	ue.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
+		Procedure: amfContext.OnGoingProcedurePaging,
 	})
 
 	pkg, err := send.BuildPaging(
@@ -204,7 +204,7 @@ func N2MessageTransferOrPage(ctx ctxt.Context, supi string, req models.N1N2Messa
 	return nil
 }
 
-func TransferN1Msg(ctx ctxt.Context, supi string, n1Msg []byte, pduSessionID uint8) error {
+func TransferN1Msg(ctx context.Context, supi string, n1Msg []byte, pduSessionID uint8) error {
 	ctx, span := tracer.Start(ctx, "AMF N1N2 MessageTransfer")
 	defer span.End()
 
@@ -212,7 +212,7 @@ func TransferN1Msg(ctx ctxt.Context, supi string, n1Msg []byte, pduSessionID uin
 		attribute.String("supi", supi),
 	)
 
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 
 	ue, ok := amfSelf.AmfUeFindBySupi(supi)
 	if !ok {
@@ -238,12 +238,12 @@ func TransferN1Msg(ctx ctxt.Context, supi string, n1Msg []byte, pduSessionID uin
 	return nil
 }
 
-func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
+func SendPaging(ctx context.Context, ue *amfContext.AmfUe, ngapBuf []byte) error {
 	if ue == nil {
 		return fmt.Errorf("amf ue is nil")
 	}
 
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 
 	amfSelf.Mutex.Lock()
 	defer amfSelf.Mutex.Unlock()
@@ -252,7 +252,7 @@ func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
 
 	for _, ran := range amfSelf.AmfRanPool {
 		for _, item := range ran.SupportedTAList {
-			if context.InTaiList(item.Tai, taiList) {
+			if amfContext.InTaiList(item.Tai, taiList) {
 				err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
 				if err != nil {
 					ue.Log.Error("failed to send paging", zap.Error(err))
@@ -266,11 +266,11 @@ func SendPaging(ctx ctxt.Context, ue *context.AmfUe, ngapBuf []byte) error {
 
 	if amfSelf.T3513Cfg.Enable {
 		cfg := amfSelf.T3513Cfg
-		ue.T3513 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		ue.T3513 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			ue.Log.Warn("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
 			for _, ran := range amfSelf.AmfRanPool {
 				for _, item := range ran.SupportedTAList {
-					if context.InTaiList(item.Tai, taiList) {
+					if amfContext.InTaiList(item.Tai, taiList) {
 						err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
 						if err != nil {
 							ue.Log.Error("failed to send paging", zap.Error(err))

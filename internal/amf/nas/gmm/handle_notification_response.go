@@ -1,10 +1,10 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/nas"
@@ -14,7 +14,7 @@ import (
 )
 
 // TS 24501 5.6.3.2
-func handleNotificationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
+func handleNotificationResponse(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Notification Response", zap.String("supi", ue.Supi))
 
 	_, span := tracer.Start(ctx, "AMF NAS HandleNotificationResponse")
@@ -24,7 +24,7 @@ func handleNotificationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.Gm
 	)
 	defer span.End()
 
-	if ue.State.Current() != context.Registered {
+	if ue.State.Current() != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Notification Response message in state %s", ue.State.Current())
 	}
 

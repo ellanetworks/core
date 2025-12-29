@@ -1,17 +1,17 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/free5gc/nas"
 	"go.opentelemetry.io/otel"
 )
 
 var tracer = otel.Tracer("ella-core/amf/nas/handler")
 
-func HandleGmmMessage(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
+func HandleGmmMessage(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	msgType := msg.GetMessageType()
 
 	switch msgType {

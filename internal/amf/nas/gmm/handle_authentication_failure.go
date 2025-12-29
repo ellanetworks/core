@@ -1,11 +1,11 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"encoding/hex"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
+func handleAuthenticationFailure(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Authentication Failure", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleAuthenticationFailure")
@@ -25,7 +25,7 @@ func handleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, msg *nas.G
 	)
 	defer span.End()
 
-	if ue.State.Current() != context.Authentication {
+	if ue.State.Current() != amfContext.Authentication {
 		return fmt.Errorf("state mismatch: receive Authentication Failure message in state %s", ue.State.Current())
 	}
 
@@ -39,7 +39,7 @@ func handleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, msg *nas.G
 	switch cause5GMM {
 	case nasMessage.Cause5GMMMACFailure:
 		ue.Log.Warn("Authentication Failure Cause: Mac Failure")
-		ue.State.Set(context.Deregistered)
+		ue.State.Set(amfContext.Deregistered)
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
@@ -48,7 +48,7 @@ func handleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, msg *nas.G
 		return nil
 	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
 		ue.Log.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
-		ue.State.Set(context.Deregistered)
+		ue.State.Set(amfContext.Deregistered)
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
@@ -78,7 +78,7 @@ func handleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, msg *nas.G
 		ue.AuthFailureCauseSynchFailureTimes++
 		if ue.AuthFailureCauseSynchFailureTimes >= 2 {
 			ue.Log.Warn("2 consecutive Synch Failure, terminate authentication procedure")
-			ue.State.Set(context.Deregistered)
+			ue.State.Set(amfContext.Deregistered)
 			err := message.SendAuthenticationReject(ctx, ue.RanUe)
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)

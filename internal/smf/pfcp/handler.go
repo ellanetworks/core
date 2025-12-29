@@ -4,15 +4,15 @@
 package pfcp
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 	"time"
 
-	amf_producer "github.com/ellanetworks/core/internal/amf/producer"
+	"github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/context"
+	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 	"go.uber.org/zap"
@@ -20,14 +20,14 @@ import (
 
 type SmfPfcpHandler struct{}
 
-func (s SmfPfcpHandler) HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReportRequest) (*message.SessionReportResponse, error) {
+func (s SmfPfcpHandler) HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionReportRequest) (*message.SessionReportResponse, error) {
 	return HandlePfcpSessionReportRequest(ctx, msg)
 }
 
-func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReportRequest) (*message.SessionReportResponse, error) {
+func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionReportRequest) (*message.SessionReportResponse, error) {
 	seid := msg.SEID()
 
-	smContext := context.GetSMContextBySEID(seid)
+	smContext := smfContext.GetSMContextBySEID(seid)
 
 	if smContext == nil || smContext.Supi == "" {
 		return message.NewSessionReportResponse(
@@ -53,7 +53,7 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 
 	// Downlink Data Report
 	if msg.ReportType.HasDLDR() {
-		n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext.SmPolicyUpdates, smContext.SmPolicyData, smContext.Tunnel.DataPath.DPNode)
+		n2Pdu, err := smfContext.BuildPDUSessionResourceSetupRequestTransfer(smContext.SmPolicyUpdates, smContext.SmPolicyData, smContext.Tunnel.DataPath.DPNode)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 		}
@@ -64,7 +64,7 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 			BinaryDataN2Information: n2Pdu,
 		}
 
-		err = amf_producer.N2MessageTransferOrPage(ctx, smContext.Supi, n1n2Request)
+		err = producer.N2MessageTransferOrPage(ctx, smContext.Supi, n1n2Request)
 		if err != nil {
 			return message.NewSessionReportResponse(
 				1,
@@ -79,7 +79,7 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 
 	// Usage Report
 	if msg.ReportType.HasUSAR() {
-		smfSelf := context.SMFSelf()
+		smfSelf := smfContext.SMFSelf()
 
 		for _, urrReport := range msg.UsageReport {
 			// Read Volume Measurement

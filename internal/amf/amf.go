@@ -3,11 +3,11 @@
 package amf
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 	"time"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/ngap/service"
@@ -21,8 +21,8 @@ import (
 
 func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	nasLogger.SetLogLevel(0) // Panic level to avoid NAS log output
-	self := context.AMFSelf()
-	self.NetworkFeatureSupport5GS = &context.NetworkFeatureSupport5GS{
+	self := amfContext.AMFSelf()
+	self.NetworkFeatureSupport5GS = &amfContext.NetworkFeatureSupport5GS{
 		Emc:     0,
 		EmcN3:   0,
 		Emf:     0,
@@ -42,39 +42,39 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 		security.AlgCiphering128NEA1,
 		security.AlgCiphering128NEA0,
 	}
-	self.NetworkName = context.NetworkName{
+	self.NetworkName = amfContext.NetworkName{
 		Full:  "ELLACORE5G",
 		Short: "ELLACORE",
 	}
 	self.TimeZone = nasConvert.GetTimeZone(time.Now())
 	self.T3502Value = 720
 	self.T3512Value = 3600
-	self.T3513Cfg = context.TimerValue{
+	self.T3513Cfg = amfContext.TimerValue{
 		Enable:        true,
 		ExpireTime:    6 * time.Second,
 		MaxRetryTimes: 4,
 	}
-	self.T3522Cfg = context.TimerValue{
+	self.T3522Cfg = amfContext.TimerValue{
 		Enable:        true,
 		ExpireTime:    6 * time.Second,
 		MaxRetryTimes: 4,
 	}
-	self.T3550Cfg = context.TimerValue{
+	self.T3550Cfg = amfContext.TimerValue{
 		Enable:        true,
 		ExpireTime:    6 * time.Second,
 		MaxRetryTimes: 4,
 	}
-	self.T3555Cfg = context.TimerValue{
+	self.T3555Cfg = amfContext.TimerValue{
 		Enable:        true,
 		ExpireTime:    6 * time.Second,
 		MaxRetryTimes: 4,
 	}
-	self.T3560Cfg = context.TimerValue{
+	self.T3560Cfg = amfContext.TimerValue{
 		Enable:        true,
 		ExpireTime:    6 * time.Second,
 		MaxRetryTimes: 4,
 	}
-	self.T3565Cfg = context.TimerValue{
+	self.T3565Cfg = amfContext.TimerValue{
 		Enable:        true,
 		ExpireTime:    6 * time.Second,
 		MaxRetryTimes: 4,
@@ -105,11 +105,11 @@ func StartNGAPService(ngapAddress string, ngapPort int) error {
 }
 
 func Close() {
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 
-	ctx := ctxt.Background()
+	ctx := context.Background()
 
-	operatorInfo, err := amfSelf.GetOperatorInfo(ctxt.Background())
+	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 	if err != nil {
 		logger.AmfLog.Error("Could not get operator info", zap.Error(err))
 		return

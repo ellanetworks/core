@@ -7,14 +7,14 @@
 package pfcp
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 	"net"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
-	"github.com/ellanetworks/core/internal/smf/context"
+	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 	"go.uber.org/zap"
@@ -29,14 +29,14 @@ func getSeqNumber() uint32 {
 }
 
 func SendPfcpSessionEstablishmentRequest(
-	ctx ctxt.Context,
+	ctx context.Context,
 	localSEID uint64,
-	pdrList []*context.PDR,
-	farList []*context.FAR,
-	qerList []*context.QER,
-	urrList []*context.URR,
+	pdrList []*smfContext.PDR,
+	farList []*smfContext.FAR,
+	qerList []*smfContext.QER,
+	urrList []*smfContext.URR,
 ) error {
-	nodeIDIPAddress := context.SMFSelf().CPNodeID
+	nodeIDIPAddress := smfContext.SMFSelf().CPNodeID
 
 	pfcpMsg, err := BuildPfcpSessionEstablishmentRequest(
 		getSeqNumber(),
@@ -64,9 +64,9 @@ func SendPfcpSessionEstablishmentRequest(
 	return nil
 }
 
-func HandlePfcpSessionEstablishmentResponse(ctx ctxt.Context, msg *message.SessionEstablishmentResponse) error {
+func HandlePfcpSessionEstablishmentResponse(ctx context.Context, msg *message.SessionEstablishmentResponse) error {
 	SEID := msg.SEID()
-	smContext := context.GetSMContextBySEID(SEID)
+	smContext := smfContext.GetSMContextBySEID(SEID)
 	if smContext == nil {
 		return fmt.Errorf("failed to find SM Context for SEID: %d", SEID)
 	}
@@ -93,7 +93,7 @@ func HandlePfcpSessionEstablishmentResponse(ctx ctxt.Context, msg *message.Sessi
 	// Get N3 interface UPF
 	dataPath := smContext.Tunnel.DataPath
 	ANUPF := dataPath.DPNode
-	smfSelf := context.SMFSelf()
+	smfSelf := smfContext.SMFSelf()
 
 	// UE IP-Addr(only v4 supported)
 	if msg.CreatedPDR != nil {
@@ -147,16 +147,16 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 }
 
 func SendPfcpSessionModificationRequest(
-	ctx ctxt.Context,
+	ctx context.Context,
 	localSEID uint64,
 	remoteSEID uint64,
-	pdrList []*context.PDR,
-	farList []*context.FAR,
-	qerList []*context.QER,
+	pdrList []*smfContext.PDR,
+	farList []*smfContext.FAR,
+	qerList []*smfContext.QER,
 ) error {
 	seqNum := getSeqNumber()
 
-	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, localSEID, remoteSEID, context.SMFSelf().CPNodeID, pdrList, farList, qerList)
+	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, localSEID, remoteSEID, smfContext.SMFSelf().CPNodeID, pdrList, farList, qerList)
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Modification Request: %v", err)
 	}
@@ -190,21 +190,25 @@ func HandlePfcpSessionDeletionResponse(msg *message.SessionDeletionResponse) err
 	return nil
 }
 
-func SendPfcpSessionDeletionRequest(ctx ctxt.Context, upNodeID net.IP, smCtx *context.SMContext) error {
+func SendPfcpSessionDeletionRequest(ctx context.Context, upNodeID net.IP, smCtx *smfContext.SMContext) error {
 	seqNum := getSeqNumber()
 	upNodeIDStr := upNodeID.String()
+
 	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
-	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID)
+
+	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, smfContext.SMFSelf().CPNodeID)
 	rsp, err := dispatcher.UPF.HandlePfcpSessionDeletionRequest(ctx, pfcpMsg)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP Session Establishment Request to upf: %v", err)
 	}
+
 	err = HandlePfcpSessionDeletionResponse(rsp)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
 	}
+
 	return nil
 }

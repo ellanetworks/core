@@ -1,18 +1,18 @@
 package pdusession
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/context"
+	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/free5gc/nas"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
-func UpdateSmContextN1Msg(ctx ctxt.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error) {
+func UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error) {
 	ctx, span := tracer.Start(ctx, "SMF Update SmContext N1 Msg")
 	defer span.End()
 	span.SetAttributes(
@@ -23,7 +23,7 @@ func UpdateSmContextN1Msg(ctx ctxt.Context, smContextRef string, n1Msg []byte) (
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
 
-	smContext := context.GetSMContext(smContextRef)
+	smContext := smfContext.GetSMContext(smContextRef)
 	if smContext == nil {
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
@@ -46,7 +46,7 @@ func UpdateSmContextN1Msg(ctx ctxt.Context, smContextRef string, n1Msg []byte) (
 	return rsp, nil
 }
 
-func handleUpdateN1Msg(ctx ctxt.Context, n1Msg []byte, smContext *context.SMContext) (*models.UpdateSmContextResponse, bool, error) {
+func handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *smfContext.SMContext) (*models.UpdateSmContextResponse, bool, error) {
 	if n1Msg == nil {
 		return nil, false, nil
 	}
@@ -64,19 +64,19 @@ func handleUpdateN1Msg(ctx ctxt.Context, n1Msg []byte, smContext *context.SMCont
 	case nas.MsgTypePDUSessionReleaseRequest:
 		logger.SmfLog.Info("N1 Msg PDU Session Release Request received", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-		err := context.ReleaseUeIPAddr(ctx, smContext.Supi)
+		err := smfContext.ReleaseUeIPAddr(ctx, smContext.Supi)
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to release UE IP Addr: %v", err)
 		}
 
 		pti := m.PDUSessionReleaseRequest.GetPTI()
 
-		n1SmMsg, err := context.BuildGSMPDUSessionReleaseCommand(smContext.PDUSessionID, pti)
+		n1SmMsg, err := smfContext.BuildGSMPDUSessionReleaseCommand(smContext.PDUSessionID, pti)
 		if err != nil {
 			return nil, false, fmt.Errorf("build GSM PDUSessionReleaseCommand failed: %v", err)
 		}
 
-		n2SmMsg, err := context.BuildPDUSessionResourceReleaseCommandTransfer()
+		n2SmMsg, err := smfContext.BuildPDUSessionResourceReleaseCommandTransfer()
 		if err != nil {
 			return nil, false, fmt.Errorf("build PDUSession Resource Release Command Transfer Error: %v", err)
 		}

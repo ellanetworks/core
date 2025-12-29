@@ -7,12 +7,12 @@
 package nassecurity
 
 import (
-	ctxt "context"
+	"context"
 	"encoding/hex"
 	"fmt"
 	"reflect"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
@@ -24,7 +24,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/nas/security")
 
-func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
+func Encode(ue *amfContext.AmfUe, msg *nas.Message) ([]byte, error) {
 	if ue == nil {
 		return nil, fmt.Errorf("amf ue is nil")
 	}
@@ -87,7 +87,7 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 /*
 fetch Guti if present incase of integrity protected Nas Message
 */
-func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*context.AmfUe, error) {
+func FetchUeContextWithMobileIdentity(ctx context.Context, payload []byte) (*amfContext.AmfUe, error) {
 	if payload == nil {
 		return nil, fmt.Errorf("nas payload is empty")
 	}
@@ -111,7 +111,7 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*contex
 	default:
 		return nil, fmt.Errorf("unsupported security header type: 0x%0x", msg.SecurityHeaderType)
 	}
-	var ue *context.AmfUe = nil
+	var ue *amfContext.AmfUe = nil
 	var guti string
 	if msg.GmmHeader.GetMessageType() == nas.MsgTypeRegistrationRequest {
 		mobileIdentity5GSContents := msg.RegistrationRequest.MobileIdentity5GS.GetMobileIdentity5GSContents()
@@ -126,7 +126,7 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*contex
 			/* UeContext found based on SUCI which means context is exist in Network(AMF) but not
 			   present in UE. Hence, AMF clear the existing context
 			*/
-			ue, _ = context.AMFSelf().AmfUeFindBySuci(suci)
+			ue, _ = amfContext.AMFSelf().AmfUeFindBySuci(suci)
 			if ue != nil {
 				ue.Log.Info("UE Context derived from Suci", zap.String("suci", suci))
 				ue.SecurityContextAvailable = false
@@ -139,7 +139,7 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*contex
 			return nil, fmt.Errorf("mobile identity 5GS is empty")
 		}
 		if nasMessage.MobileIdentity5GSType5gSTmsi == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			amfSelf := context.AMFSelf()
+			amfSelf := amfContext.AMFSelf()
 
 			guti, err := amfSelf.StmsiToGuti(ctx, mobileIdentity5GSContents)
 			if err != nil {
@@ -156,7 +156,7 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*contex
 		}
 	}
 	if guti != "" {
-		ue, _ = context.AMFSelf().AmfUeFindByGuti(guti)
+		ue, _ = amfContext.AMFSelf().AmfUeFindByGuti(guti)
 		if ue != nil {
 			if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
 				ue.Log.Info("UE Context derived from Guti but received in plain nas", zap.String("guti", guti))
@@ -176,7 +176,7 @@ func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) (*contex
 payload either a security protected 5GS NAS message or a plain 5GS NAS message which
 format is followed TS 24.501 9.1.1
 */
-func Decode(ctx ctxt.Context, ue *context.AmfUe, payload []byte) (*nas.Message, error) {
+func Decode(ctx context.Context, ue *amfContext.AmfUe, payload []byte) (*nas.Message, error) {
 	_, span := tracer.Start(ctx, "AMF NAS Decode")
 	defer span.End()
 	if ue == nil {

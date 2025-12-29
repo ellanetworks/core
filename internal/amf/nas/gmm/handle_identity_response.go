@@ -1,12 +1,12 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"encoding/hex"
 	"fmt"
 	"strconv"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func updateUEIdentity(ue *context.AmfUe, mobileIdentityContents []uint8) error {
+func updateUEIdentity(ue *amfContext.AmfUe, mobileIdentityContents []uint8) error {
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
 	}
@@ -61,7 +61,7 @@ func updateUEIdentity(ue *context.AmfUe, mobileIdentityContents []uint8) error {
 	return nil
 }
 
-func handleIdentityResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
+func handleIdentityResponse(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Identity Response", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleIdentityResponse")
@@ -72,27 +72,27 @@ func handleIdentityResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMes
 	defer span.End()
 
 	switch ue.State.Current() {
-	case context.Authentication:
+	case amfContext.Authentication:
 		mobileIdentityContents := msg.IdentityResponse.MobileIdentity.GetMobileIdentityContents()
 
 		if err := updateUEIdentity(ue, mobileIdentityContents); err != nil {
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 
-		ue.State.Set(context.Authentication)
+		ue.State.Set(amfContext.Authentication)
 		pass, err := AuthenticationProcedure(ctx, ue)
 		if err != nil {
-			ue.State.Set(context.Deregistered)
+			ue.State.Set(amfContext.Deregistered)
 			return fmt.Errorf("error in authentication procedure: %v", err)
 		}
 		if pass {
-			ue.State.Set(context.SecurityMode)
+			ue.State.Set(amfContext.SecurityMode)
 			return securityMode(ctx, ue)
 		}
 
 		return nil
 
-	case context.ContextSetup:
+	case amfContext.ContextSetup:
 		mobileIdentityContents := msg.IdentityResponse.MobileIdentity.GetMobileIdentityContents()
 
 		if err := updateUEIdentity(ue, mobileIdentityContents); err != nil {
@@ -101,14 +101,14 @@ func handleIdentityResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMes
 		switch ue.RegistrationType5GS {
 		case nasMessage.RegistrationType5GSInitialRegistration:
 			if err := HandleInitialRegistration(ctx, ue); err != nil {
-				ue.State.Set(context.Deregistered)
+				ue.State.Set(amfContext.Deregistered)
 				return fmt.Errorf("error handling initial registration: %v", err)
 			}
 		case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
 			fallthrough
 		case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
 			if err := HandleMobilityAndPeriodicRegistrationUpdating(ctx, ue); err != nil {
-				ue.State.Set(context.Deregistered)
+				ue.State.Set(amfContext.Deregistered)
 				return fmt.Errorf("error handling mobility and periodic registration updating: %v", err)
 			}
 		}

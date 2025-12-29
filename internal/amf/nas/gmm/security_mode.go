@@ -1,16 +1,16 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
 
-func securityMode(ctx ctxt.Context, ue *context.AmfUe) error {
+func securityMode(ctx context.Context, ue *amfContext.AmfUe) error {
 	logger.AmfLog.Debug("Security Mode Procedure", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "securityMode")
@@ -20,12 +20,11 @@ func securityMode(ctx ctxt.Context, ue *context.AmfUe) error {
 
 	if ue.SecurityContextIsValid() {
 		ue.Log.Debug("UE has a valid security context - skip security mode control procedure")
-		ue.State.Set(context.ContextSetup)
+		ue.State.Set(amfContext.ContextSetup)
 		return contextSetup(ctx, ue, ue.RegistrationRequest)
 	}
 
-	amfSelf := context.AMFSelf()
-
+	amfSelf := amfContext.AMFSelf()
 	ue.SelectSecurityAlg(amfSelf.SecurityAlgorithm.IntegrityOrder, amfSelf.SecurityAlgorithm.CipheringOrder)
 
 	err := ue.DerivateAlgKey()

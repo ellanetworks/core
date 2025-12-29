@@ -1,18 +1,18 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
-	amfSelf := context.AMFSelf()
+func HandleInitialRegistration(ctx context.Context, ue *amfContext.AmfUe) error {
+	amfSelf := amfContext.AMFSelf()
 
 	ue.ClearRegistrationData()
 
@@ -35,7 +35,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 			ue.Log.Error("error sending registration reject", zap.Error(err))
 		}
 
-		ue.RanUe.ReleaseAction = context.UeContextN2NormalRelease
+		ue.RanUe.ReleaseAction = amfContext.UeContextN2NormalRelease
 
 		err = ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
@@ -58,7 +58,7 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe) error {
 		return fmt.Errorf("failed to get and set subscriber data: %v", err)
 	}
 
-	if !context.SubscriberExists(ctx, ue.Supi) {
+	if !amfContext.SubscriberExists(ctx, ue.Supi) {
 		ue.Log.Error("Subscriber does not exist", zap.Error(err))
 		err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 		if err != nil {

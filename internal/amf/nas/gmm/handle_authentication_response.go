@@ -1,12 +1,12 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
@@ -17,7 +17,7 @@ import (
 )
 
 // TS 24.501 5.4.1
-func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
+func handleAuthenticationResponse(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Authentication Response", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleAuthenticationResponse")
@@ -27,7 +27,7 @@ func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.
 	)
 	defer span.End()
 
-	if ue.State.Current() != context.Authentication {
+	if ue.State.Current() != amfContext.Authentication {
 		return fmt.Errorf("state mismatch: receive Authentication Response message in state %s", ue.State.Current())
 	}
 
@@ -65,7 +65,7 @@ func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.
 			return nil
 		}
 
-		ue.State.Set(context.Deregistered)
+		ue.State.Set(amfContext.Deregistered)
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
@@ -87,7 +87,7 @@ func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.
 			return nil
 		}
 
-		ue.State.Set(context.Deregistered)
+		ue.State.Set(amfContext.Deregistered)
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
@@ -101,7 +101,7 @@ func handleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, msg *nas.
 
 	ue.DerivateKamf()
 
-	ue.State.Set(context.SecurityMode)
+	ue.State.Set(amfContext.SecurityMode)
 
 	return securityMode(ctx, ue)
 }

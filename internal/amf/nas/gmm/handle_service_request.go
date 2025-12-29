@@ -1,10 +1,10 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
@@ -38,7 +38,7 @@ func serviceTypeToString(serviceType uint8) string {
 	}
 }
 
-func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, ctxList ngapType.PDUSessionResourceSetupListCxtReq,
+func sendServiceAccept(ctx context.Context, ue *amfContext.AmfUe, ctxList ngapType.PDUSessionResourceSetupListCxtReq,
 	suList ngapType.PDUSessionResourceSetupListSUReq, pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool, errPduSessionID, errCause []uint8, supportedGUAMI *models.Guami,
 ) error {
@@ -126,7 +126,7 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, ctxList ngapType.PDU
 }
 
 // TS 24501 5.6.1
-func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
+func handleServiceRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Service Request", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleServiceRequest")
@@ -136,7 +136,7 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 	)
 	defer span.End()
 
-	if ue.State.Current() != context.Deregistered && ue.State.Current() != context.Registered {
+	if ue.State.Current() != amfContext.Deregistered && ue.State.Current() != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Service Request message in state %s", ue.State.Current())
 	}
 
@@ -154,24 +154,24 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 	}
 
 	// Set No ongoing
-	if procedure := ue.GetOnGoing().Procedure; procedure == context.OnGoingProcedurePaging {
-		ue.SetOnGoing(&context.OnGoingProcedureWithPrio{
-			Procedure: context.OnGoingProcedureNothing,
+	if procedure := ue.GetOnGoing().Procedure; procedure == amfContext.OnGoingProcedurePaging {
+		ue.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
+			Procedure: amfContext.OnGoingProcedureNothing,
 		})
-	} else if procedure != context.OnGoingProcedureNothing {
+	} else if procedure != amfContext.OnGoingProcedureNothing {
 		ue.Log.Warn("UE should not in OnGoing", zap.Any("procedure", procedure))
 	}
 
 	// Send Authtication / Security Procedure not support
 	// Rejecting ServiceRequest if it is received in Deregistered State
-	if !ue.SecurityContextIsValid() || ue.State.Current() == context.Deregistered {
+	if !ue.SecurityContextIsValid() || ue.State.Current() == amfContext.Deregistered {
 		ue.Log.Warn("No security context", zap.String("supi", ue.Supi))
 		err := message.SendServiceReject(ctx, ue.RanUe, nil, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
 		ue.Log.Info("sent service reject")
-		ue.RanUe.ReleaseAction = context.UeContextN2NormalRelease
+		ue.RanUe.ReleaseAction = amfContext.UeContextN2NormalRelease
 		err = ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
@@ -235,7 +235,7 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
 		ue.Log.Info("sent service reject")
-		ue.RanUe.ReleaseAction = context.UeContextN2NormalRelease
+		ue.RanUe.ReleaseAction = amfContext.UeContextN2NormalRelease
 
 		err = ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
@@ -245,7 +245,7 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 		return nil
 	}
 
-	amfSelf := context.AMFSelf()
+	amfSelf := amfContext.AMFSelf()
 
 	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 	if err != nil {
@@ -358,9 +358,9 @@ func handleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessa
 			}
 		}
 
-		amfSelf := context.AMFSelf()
+		amfSelf := amfContext.AMFSelf()
 		amfSelf.ReAllocateGutiToUe(ctx, ue, operatorInfo.Guami)
-		message.SendConfigurationUpdateCommand(ctx, ue, &context.ConfigurationUpdateCommandFlags{NeedGUTI: true})
+		message.SendConfigurationUpdateCommand(ctx, ue, &amfContext.ConfigurationUpdateCommandFlags{NeedGUTI: true})
 
 	case nasMessage.ServiceTypeData:
 		err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)

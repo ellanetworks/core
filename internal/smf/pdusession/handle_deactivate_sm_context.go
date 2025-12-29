@@ -1,17 +1,17 @@
 package pdusession
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/smf/context"
+	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
-func DeactivateSmContext(ctx ctxt.Context, smContextRef string) error {
+func DeactivateSmContext(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "SMF Deactivate SmContext")
 	defer span.End()
 	span.SetAttributes(
@@ -22,7 +22,7 @@ func DeactivateSmContext(ctx ctxt.Context, smContextRef string) error {
 		return fmt.Errorf("SM Context reference is missing")
 	}
 
-	smContext := context.GetSMContext(smContextRef)
+	smContext := smfContext.GetSMContext(smContextRef)
 	if smContext == nil {
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
@@ -50,7 +50,7 @@ func DeactivateSmContext(ctx ctxt.Context, smContextRef string) error {
 	return nil
 }
 
-func handleUpCnxStateDeactivate(smContext *context.SMContext) ([]*context.FAR, error) {
+func handleUpCnxStateDeactivate(smContext *smfContext.SMContext) ([]*smfContext.FAR, error) {
 	if smContext.Tunnel == nil {
 		return nil, nil
 	}
@@ -60,7 +60,7 @@ func handleUpCnxStateDeactivate(smContext *context.SMContext) ([]*context.FAR, e
 		return nil, fmt.Errorf("AN Release Error, PDR is nil")
 	}
 
-	ANUPF.DownLinkTunnel.PDR.FAR.State = context.RuleUpdate
+	ANUPF.DownLinkTunnel.PDR.FAR.State = smfContext.RuleUpdate
 	ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction.Forw = false
 	ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction.Buff = true
 	ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction.Nocp = true
@@ -69,7 +69,7 @@ func handleUpCnxStateDeactivate(smContext *context.SMContext) ([]*context.FAR, e
 		ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
 	}
 
-	farList := []*context.FAR{ANUPF.DownLinkTunnel.PDR.FAR}
+	farList := []*smfContext.FAR{ANUPF.DownLinkTunnel.PDR.FAR}
 
 	return farList, nil
 }

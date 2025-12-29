@@ -1,14 +1,14 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func contextSetup(ctx ctxt.Context, ue *context.AmfUe, msg *nasMessage.RegistrationRequest) error {
+func contextSetup(ctx context.Context, ue *amfContext.AmfUe, msg *nasMessage.RegistrationRequest) error {
 	ctx, span := tracer.Start(ctx, "contextSetup")
 	defer span.End()
 

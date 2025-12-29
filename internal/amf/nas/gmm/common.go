@@ -1,10 +1,10 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
 )
@@ -14,7 +14,7 @@ func inSubscribedNssai(subscribedSnssai *models.Snssai, targetSNssai *models.Sns
 }
 
 // TS 23.502 4.2.2.2.3 Registration with AMF Re-allocation
-func handleRequestedNssai(ue *context.AmfUe, subscribedSssai *models.Snssai) error {
+func handleRequestedNssai(ue *amfContext.AmfUe, subscribedSssai *models.Snssai) error {
 	if ue.RegistrationRequest.RequestedNSSAI != nil {
 		requestedNssai, err := util.RequestedNssaiToModels(ue.RegistrationRequest.RequestedNSSAI)
 		if err != nil {
@@ -59,8 +59,8 @@ func plmnIDStringToModels(plmnIDStr string) models.PlmnID {
 	return plmnID
 }
 
-func getAndSetSubscriberData(ctx ctxt.Context, ue *context.AmfUe) error {
-	bitRate, dnn, err := context.GetSubscriberData(ctx, ue.Supi)
+func getAndSetSubscriberData(ctx context.Context, ue *amfContext.AmfUe) error {
+	bitRate, dnn, err := amfContext.GetSubscriberData(ctx, ue.Supi)
 	if err != nil {
 		return fmt.Errorf("failed to get subscriber data: %v", err)
 	}

@@ -1,16 +1,16 @@
 package deregister
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"go.uber.org/zap"
 )
 
-func DeregisterSubscriber(ctx ctxt.Context, supi string) error {
-	amfSelf := context.AMFSelf()
+func DeregisterSubscriber(ctx context.Context, supi string) error {
+	amfSelf := amfContext.AMFSelf()
 
 	ue, ok := amfSelf.AmfUeFindBySupi(supi)
 	if !ok {
