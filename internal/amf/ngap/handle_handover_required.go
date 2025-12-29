@@ -98,12 +98,8 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 	}
 
 	if len(iesCriticalityDiagnostics.List) > 0 {
-		procedureCode := ngapType.ProcedureCodeHandoverPreparation
-		triggeringMessage := ngapType.TriggeringMessagePresentInitiatingMessage
-		procedureCriticality := ngapType.CriticalityPresentReject
-		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage,
-			&procedureCriticality, &iesCriticalityDiagnostics)
-		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, nil, &criticalityDiagnostics)
+		criticalityDiagnostics := buildCriticalityDiagnostics(ngapType.ProcedureCodeHandoverPreparation, ngapType.TriggeringMessagePresentInitiatingMessage, ngapType.CriticalityPresentReject, &iesCriticalityDiagnostics)
+		err := ran.NGAPSender.SendErrorIndication(ctx, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -121,7 +117,7 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, &cause, nil)
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err), zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
 			return

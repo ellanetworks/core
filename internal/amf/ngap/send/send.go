@@ -124,8 +124,8 @@ func (s *RealNGAPSender) SendNGResetAcknowledge(ctx context.Context, partOfNGInt
 	return nil
 }
 
-func (s *RealNGAPSender) SendErrorIndication(ctx context.Context, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
-	pkt, err := buildErrorIndication(amfUeNgapID, ranUeNgapID, cause, criticalityDiagnostics)
+func (s *RealNGAPSender) SendErrorIndication(ctx context.Context, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	pkt, err := buildErrorIndication(cause, criticalityDiagnostics)
 	if err != nil {
 		return fmt.Errorf("error building error indication: %s", err.Error())
 	}

@@ -70,7 +70,7 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, &cause, nil)
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return

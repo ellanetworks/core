@@ -77,7 +77,7 @@ func HandleUEContextReleaseComplete(ctx ctxt.Context, ran *context.AmfRan, msg *
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, &cause, nil)
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return

@@ -32,18 +32,14 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 
 	// 38413 10.4, logical error case2, checking InitialUE is recevived before NgSetup Message
 	if ran.RanID == nil {
-		procedureCode := ngapType.ProcedureCodeInitialUEMessage
-		triggeringMessage := ngapType.TriggeringMessagePresentInitiatingMessage
-		procedureCriticality := ngapType.CriticalityPresentIgnore
-		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage, &procedureCriticality,
-			nil)
+		criticalityDiagnostics := buildCriticalityDiagnostics(ngapType.ProcedureCodeInitialUEMessage, ngapType.TriggeringMessagePresentInitiatingMessage, ngapType.CriticalityPresentIgnore, nil)
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentProtocol,
 			Protocol: &ngapType.CauseProtocol{
 				Value: ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState,
 			},
 		}
-		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, &cause, &criticalityDiagnostics)
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -98,13 +94,8 @@ func HandleInitialUEMessage(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 
 	if len(iesCriticalityDiagnostics.List) > 0 {
 		ran.Log.Debug("has missing reject IE(s)")
-
-		procedureCode := ngapType.ProcedureCodeInitialUEMessage
-		triggeringMessage := ngapType.TriggeringMessagePresentInitiatingMessage
-		procedureCriticality := ngapType.CriticalityPresentIgnore
-		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage, &procedureCriticality,
-			&iesCriticalityDiagnostics)
-		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, nil, &criticalityDiagnostics)
+		criticalityDiagnostics := buildCriticalityDiagnostics(ngapType.ProcedureCodeInitialUEMessage, ngapType.TriggeringMessagePresentInitiatingMessage, ngapType.CriticalityPresentIgnore, &iesCriticalityDiagnostics)
+		err := ran.NGAPSender.SendErrorIndication(ctx, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return

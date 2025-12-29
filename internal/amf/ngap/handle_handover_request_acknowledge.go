@@ -54,19 +54,17 @@ func HandleHandoverRequestAcknowledge(ctx ctxt.Context, ran *context.AmfRan, msg
 			targetToSourceTransparentContainer = ie.Value.TargetToSourceTransparentContainer
 		}
 	}
+
 	if targetToSourceTransparentContainer == nil {
 		ran.Log.Error("TargetToSourceTransparentContainer is nil")
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDTargetToSourceTransparentContainer)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
+
 	if len(iesCriticalityDiagnostics.List) > 0 {
 		ran.Log.Error("Has missing reject IE(s)")
-
-		procedureCode := ngapType.ProcedureCodeHandoverResourceAllocation
-		triggeringMessage := ngapType.TriggeringMessagePresentSuccessfulOutcome
-		procedureCriticality := ngapType.CriticalityPresentReject
-		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage, &procedureCriticality, &iesCriticalityDiagnostics)
-		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, nil, &criticalityDiagnostics)
+		criticalityDiagnostics := buildCriticalityDiagnostics(ngapType.ProcedureCodeHandoverResourceAllocation, ngapType.TriggeringMessagePresentSuccessfulOutcome, ngapType.CriticalityPresentReject, &iesCriticalityDiagnostics)
+		err := ran.NGAPSender.SendErrorIndication(ctx, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return

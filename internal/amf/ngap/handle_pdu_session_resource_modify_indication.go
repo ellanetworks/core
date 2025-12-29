@@ -29,7 +29,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 				Value: ngapType.CauseProtocolPresentAbstractSyntaxErrorReject,
 			},
 		}
-		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, &cause, nil)
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 		}
@@ -45,7 +45,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 				Value: ngapType.CauseProtocolPresentAbstractSyntaxErrorReject,
 			},
 		}
-		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, &cause, nil)
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 		}
@@ -88,12 +88,8 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 
 	if len(iesCriticalityDiagnostics.List) > 0 {
 		ran.Log.Error("Has missing reject IE(s)")
-		procedureCode := ngapType.ProcedureCodePDUSessionResourceModifyIndication
-		triggeringMessage := ngapType.TriggeringMessagePresentInitiatingMessage
-		procedureCriticality := ngapType.CriticalityPresentReject
-		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage, &procedureCriticality,
-			&iesCriticalityDiagnostics)
-		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, nil, &criticalityDiagnostics)
+		criticalityDiagnostics := buildCriticalityDiagnostics(ngapType.ProcedureCodePDUSessionResourceModifyIndication, ngapType.TriggeringMessagePresentInitiatingMessage, ngapType.CriticalityPresentReject, &iesCriticalityDiagnostics)
+		err := ran.NGAPSender.SendErrorIndication(ctx, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
@@ -111,7 +107,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, &cause, nil)
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return

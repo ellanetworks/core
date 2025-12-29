@@ -6,50 +6,34 @@ import (
 )
 
 func buildCriticalityDiagnostics(
-	procedureCode *int64,
-	triggeringMessage *aper.Enumerated,
-	procedureCriticality *aper.Enumerated,
-	iesCriticalityDiagnostics *ngapType.CriticalityDiagnosticsIEList) (
-	criticalityDiagnostics ngapType.CriticalityDiagnostics,
-) {
-	if procedureCode != nil {
-		criticalityDiagnostics.ProcedureCode = new(ngapType.ProcedureCode)
-		criticalityDiagnostics.ProcedureCode.Value = *procedureCode
+	procedureCode int64,
+	triggeringMessage aper.Enumerated,
+	procedureCriticality aper.Enumerated,
+	iesCriticalityDiagnostics *ngapType.CriticalityDiagnosticsIEList) ngapType.CriticalityDiagnostics {
+	return ngapType.CriticalityDiagnostics{
+		ProcedureCode: &ngapType.ProcedureCode{
+			Value: procedureCode,
+		},
+		TriggeringMessage: &ngapType.TriggeringMessage{
+			Value: triggeringMessage,
+		},
+		ProcedureCriticality: &ngapType.Criticality{
+			Value: procedureCriticality,
+		},
+		IEsCriticalityDiagnostics: iesCriticalityDiagnostics,
 	}
-
-	if triggeringMessage != nil {
-		criticalityDiagnostics.TriggeringMessage = new(ngapType.TriggeringMessage)
-		criticalityDiagnostics.TriggeringMessage.Value = *triggeringMessage
-	}
-
-	if procedureCriticality != nil {
-		criticalityDiagnostics.ProcedureCriticality = new(ngapType.Criticality)
-		criticalityDiagnostics.ProcedureCriticality.Value = *procedureCriticality
-	}
-
-	if iesCriticalityDiagnostics != nil {
-		criticalityDiagnostics.IEsCriticalityDiagnostics = iesCriticalityDiagnostics
-	}
-
-	return criticalityDiagnostics
 }
 
-func buildCriticalityDiagnosticsIEItem(ieID int64) (
-	item ngapType.CriticalityDiagnosticsIEItem,
-) {
-	ieCriticality := ngapType.CriticalityPresentReject
-	typeOfErr := ngapType.TypeOfErrorPresentMissing
-	item = ngapType.CriticalityDiagnosticsIEItem{
+func buildCriticalityDiagnosticsIEItem(ieID int64) ngapType.CriticalityDiagnosticsIEItem {
+	return ngapType.CriticalityDiagnosticsIEItem{
 		IECriticality: ngapType.Criticality{
-			Value: ieCriticality,
+			Value: ngapType.CriticalityPresentReject,
 		},
 		IEID: ngapType.ProtocolIEID{
 			Value: ieID,
 		},
 		TypeOfError: ngapType.TypeOfError{
-			Value: typeOfErr,
+			Value: ngapType.TypeOfErrorPresentMissing,
 		},
 	}
-
-	return item
 }
