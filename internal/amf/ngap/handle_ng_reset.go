@@ -9,33 +9,16 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleNGReset(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandleNGReset(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGReset) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	initiatingMessage := msg.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
-		return
-	}
-
-	nGReset := initiatingMessage.Value.NGReset
-	if nGReset == nil {
-		ran.Log.Error("NGReset is nil")
 		return
 	}
 
 	var cause *ngapType.Cause
 	var resetType *ngapType.ResetType
 
-	for _, ie := range nGReset.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDCause:
 			cause = ie.Value.Cause

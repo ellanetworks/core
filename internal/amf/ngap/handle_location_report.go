@@ -4,31 +4,13 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleLocationReport(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandleLocationReport(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.LocationReport) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	initiatingMessage := msg.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("InitiatingMessage is nil")
-		return
-	}
-
-	locationReport := initiatingMessage.Value.LocationReport
-	if locationReport == nil {
-		ran.Log.Error("LocationReport is nil")
 		return
 	}
 
@@ -38,7 +20,7 @@ func HandleLocationReport(ctx context.Context, ran *amfContext.AmfRan, msg *ngap
 	var uEPresenceInAreaOfInterestList *ngapType.UEPresenceInAreaOfInterestList
 	var locationReportingRequestType *ngapType.LocationReportingRequestType
 
-	for _, ie := range locationReport.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // reject
 			aMFUENGAPID = ie.Value.AMFUENGAPID

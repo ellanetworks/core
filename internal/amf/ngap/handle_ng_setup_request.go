@@ -6,31 +6,13 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMFContext, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMFContext, ran *amfContext.AmfRan, msg *ngapType.NGSetupRequest) {
 	if msg == nil {
-		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	initiatingMessage := msg.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Fatal("Initiating Message is nil")
-		return
-	}
-
-	nGSetupRequest := initiatingMessage.Value.NGSetupRequest
-	if nGSetupRequest == nil {
-		ran.Log.Fatal("NGSetupRequest is nil")
+		ran.Log.Error("NG Setup Request Message is nil")
 		return
 	}
 
@@ -39,8 +21,8 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMFContext, ran *
 	var supportedTAList *ngapType.SupportedTAList
 	var pagingDRX *ngapType.PagingDRX
 
-	for i := 0; i < len(nGSetupRequest.ProtocolIEs.List); i++ {
-		ie := nGSetupRequest.ProtocolIEs.List[i]
+	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
+		ie := msg.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDGlobalRANNodeID:
 			globalRANNodeID = ie.Value.GlobalRANNodeID

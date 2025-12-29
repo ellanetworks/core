@@ -4,31 +4,13 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverNotify(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandleHandoverNotify(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.HandoverNotify) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	initiatingMessage := message.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
-		return
-	}
-
-	handoverNotify := initiatingMessage.Value.HandoverNotify
-	if handoverNotify == nil {
-		ran.Log.Error("HandoverNotify is nil")
 		return
 	}
 
@@ -36,8 +18,8 @@ func HandleHandoverNotify(ctx context.Context, ran *amfContext.AmfRan, message *
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var userLocationInformation *ngapType.UserLocationInformation
 
-	for i := 0; i < len(handoverNotify.ProtocolIEs.List); i++ {
-		ie := handoverNotify.ProtocolIEs.List[i]
+	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
+		ie := msg.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID

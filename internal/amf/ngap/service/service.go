@@ -15,15 +15,16 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
 
-type NGAPHandler struct {
-	HandleMessage      func(ctx context.Context, conn *sctp.SCTPConn, msg []byte)
-	HandleNotification func(conn *sctp.SCTPConn, notification sctp.Notification)
-}
+// type NGAPHandler struct {
+// 	HandleMessage      func(ctx context.Context, conn *sctp.SCTPConn, msg []byte)
+// 	HandleNotification func(conn *sctp.SCTPConn, notification sctp.Notification)
+// }
 
 const readBufSize uint32 = 131072
 
@@ -41,24 +42,23 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 	AssocInfo: &sctp.AssocInfo{AsocMaxRxt: 4},
 }
 
-func Run(address string, port int, handler NGAPHandler) error {
-	ips := []net.IPAddr{}
+func Run(address string, port int) error {
 	netAddr, err := net.ResolveIPAddr("ip", address)
 	if err != nil {
 		return fmt.Errorf("error resolving address '%s': %v", address, err)
 	}
-	ips = append(ips, *netAddr)
 
 	addr := &sctp.SCTPAddr{
-		IPAddrs: ips,
+		IPAddrs: []net.IPAddr{*netAddr},
 		Port:    port,
 	}
 
-	go listenAndServe(addr, handler)
+	go listenAndServe(addr)
+
 	return nil
 }
 
-func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
+func listenAndServe(addr *sctp.SCTPAddr) {
 	listener, err := sctpConfig.Listen("sctp", addr)
 	if err != nil {
 		logger.AmfLog.Error("Failed to listen", zap.Error(err))
@@ -121,7 +121,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 		logger.AmfLog.Info("New SCTP connection", zap.String("remote_address", remoteAddress.String()))
 		connections.Store(newConn, newConn)
 
-		go handleConnection(newConn, readBufSize, handler)
+		go handleConnection(newConn, readBufSize)
 	}
 }
 
@@ -141,7 +141,7 @@ func Stop() {
 	logger.AmfLog.Info("SCTP server closed")
 }
 
-func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler NGAPHandler) {
+func handleConnection(conn *sctp.SCTPConn, bufsize uint32) {
 	defer func() {
 		// if AMF call Stop(), then conn.Close() will return EBADF because conn has been closed inside Stop()
 		if err := conn.Close(); err != nil && err != syscall.EBADF {
@@ -173,18 +173,14 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler NGAPHandler) 
 		}
 
 		if notification != nil {
-			if handler.HandleNotification != nil {
-				handler.HandleNotification(conn, notification)
-			} else {
-				logger.AmfLog.Warn("Received sctp notification but not handled", zap.Any("type", notification.Type()))
-			}
+			ngap.HandleSCTPNotification(conn, notification)
 		} else {
 			if info == nil || networkToNativeEndianness32(info.PPID) != sctp.NGAPPPID {
 				logger.AmfLog.Warn("Received SCTP PPID != 60, discard this packet")
 				continue
 			}
 
-			handler.HandleMessage(context.Background(), conn, buf[:n])
+			ngap.Dispatch(context.Background(), conn, buf[:n])
 		}
 	}
 }

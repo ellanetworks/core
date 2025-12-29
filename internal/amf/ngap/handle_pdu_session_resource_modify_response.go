@@ -4,29 +4,13 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceModifyResponse(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandlePDUSessionResourceModifyResponse(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.PDUSessionResourceModifyResponse) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-	successfulOutcome := message.SuccessfulOutcome
-	if successfulOutcome == nil {
-		ran.Log.Error("SuccessfulOutcome is nil")
-		return
-	}
-	pDUSessionResourceModifyResponse := successfulOutcome.Value.PDUSessionResourceModifyResponse
-	if pDUSessionResourceModifyResponse == nil {
-		ran.Log.Error("PDUSessionResourceModifyResponse is nil")
 		return
 	}
 
@@ -34,7 +18,7 @@ func HandlePDUSessionResourceModifyResponse(ctx context.Context, ran *amfContext
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var userLocationInformation *ngapType.UserLocationInformation
 
-	for _, ie := range pDUSessionResourceModifyResponse.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID

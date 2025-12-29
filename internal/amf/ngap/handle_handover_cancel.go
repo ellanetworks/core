@@ -4,40 +4,22 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverCancel(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
+func HandleHandoverCancel(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.HandoverCancel) {
 	var aMFUENGAPID *ngapType.AMFUENGAPID
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var cause *ngapType.Cause
-
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
 
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
 
-	initiatingMessage := msg.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
-		return
-	}
-
-	HandoverCancel := initiatingMessage.Value.HandoverCancel
-	if HandoverCancel == nil {
-		ran.Log.Error("Handover Cancel is nil")
-		return
-	}
-
-	for i := 0; i < len(HandoverCancel.ProtocolIEs.List); i++ {
-		ie := HandoverCancel.ProtocolIEs.List[i]
+	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
+		ie := msg.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID

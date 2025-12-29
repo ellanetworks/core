@@ -5,7 +5,6 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapConvert"
@@ -13,26 +12,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.UEContextReleaseComplete) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	successfulOutcome := msg.SuccessfulOutcome
-	if successfulOutcome == nil {
-		ran.Log.Error("SuccessfulOutcome is nil")
-		return
-	}
-
-	uEContextReleaseComplete := successfulOutcome.Value.UEContextReleaseComplete
-	if uEContextReleaseComplete == nil {
-		ran.Log.Error("NGResetAcknowledge is nil")
 		return
 	}
 
@@ -42,7 +24,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.AmfRan,
 	var infoOnRecommendedCellsAndRANNodesForPaging *ngapType.InfoOnRecommendedCellsAndRANNodesForPaging
 	var pDUSessionResourceList *ngapType.PDUSessionResourceListCxtRelCpl
 
-	for _, ie := range uEContextReleaseComplete.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID

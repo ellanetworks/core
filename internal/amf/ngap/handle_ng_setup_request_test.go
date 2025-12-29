@@ -45,7 +45,7 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 		},
 	}
 
-	ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg)
+	ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg.InitiatingMessage.Value.NGSetupRequest)
 
 	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(fakeNGAPSender.SentNGSetupFailures))
@@ -101,7 +101,7 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 		},
 	}
 
-	ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg)
+	ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg.InitiatingMessage.Value.NGSetupRequest)
 
 	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(fakeNGAPSender.SentNGSetupFailures))
@@ -159,7 +159,7 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 		},
 	}
 
-	ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg)
+	ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg.InitiatingMessage.Value.NGSetupRequest)
 
 	if len(fakeNGAPSender.SentNGSetupResponses) != 1 {
 		t.Fatalf("expected 1 NGSetupResponse to be sent, but got %d", len(fakeNGAPSender.SentNGSetupResponses))

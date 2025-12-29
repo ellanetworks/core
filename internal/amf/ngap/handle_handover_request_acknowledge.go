@@ -4,32 +4,14 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverRequestAcknowledge(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandleHandoverRequestAcknowledge(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.HandoverRequestAcknowledge) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	successfulOutcome := msg.SuccessfulOutcome
-	if successfulOutcome == nil {
-		ran.Log.Error("SuccessfulOutcome is nil")
-		return
-	}
-
-	handoverRequestAcknowledge := successfulOutcome.Value.HandoverRequestAcknowledge // reject
-	if handoverRequestAcknowledge == nil {
-		ran.Log.Error("HandoverRequestAcknowledge is nil")
 		return
 	}
 
@@ -40,7 +22,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, ran *amfContext.AmfRa
 	var targetToSourceTransparentContainer *ngapType.TargetToSourceTransparentContainer
 	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
-	for _, ie := range handoverRequestAcknowledge.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID

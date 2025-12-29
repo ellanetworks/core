@@ -6,32 +6,14 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleRanConfigurationUpdate(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandleRanConfigurationUpdate(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.RANConfigurationUpdate) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	initiatingMessage := msg.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
-		return
-	}
-
-	rANConfigurationUpdate := initiatingMessage.Value.RANConfigurationUpdate
-	if rANConfigurationUpdate == nil {
-		ran.Log.Error("RAN Configuration is nil")
 		return
 	}
 
@@ -40,8 +22,8 @@ func HandleRanConfigurationUpdate(ctx context.Context, ran *amfContext.AmfRan, m
 	var pagingDRX *ngapType.PagingDRX
 	var cause ngapType.Cause
 
-	for i := 0; i < len(rANConfigurationUpdate.ProtocolIEs.List); i++ {
-		ie := rANConfigurationUpdate.ProtocolIEs.List[i]
+	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
+		ie := msg.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDRANNodeName:
 			rANNodeName = ie.Value.RANNodeName

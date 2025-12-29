@@ -96,39 +96,39 @@ func DispatchNgapMsg(ran *amfContext.AmfRan, pdu *ngapType.NGAPPDU) {
 
 		switch initiatingMessage.ProcedureCode.Value {
 		case ngapType.ProcedureCodeNGSetup:
-			HandleNGSetupRequest(ctx, amf, ran, pdu)
+			HandleNGSetupRequest(ctx, amf, ran, pdu.InitiatingMessage.Value.NGSetupRequest)
 		case ngapType.ProcedureCodeInitialUEMessage:
-			HandleInitialUEMessage(ctx, ran, pdu)
+			HandleInitialUEMessage(ctx, ran, pdu.InitiatingMessage.Value.InitialUEMessage)
 		case ngapType.ProcedureCodeUplinkNASTransport:
-			HandleUplinkNasTransport(ctx, ran, pdu)
+			HandleUplinkNasTransport(ctx, ran, pdu.InitiatingMessage.Value.UplinkNASTransport)
 		case ngapType.ProcedureCodeNGReset:
-			HandleNGReset(ctx, ran, pdu)
+			HandleNGReset(ctx, ran, pdu.InitiatingMessage.Value.NGReset)
 		case ngapType.ProcedureCodeHandoverCancel:
-			HandleHandoverCancel(ctx, ran, pdu)
+			HandleHandoverCancel(ctx, ran, pdu.InitiatingMessage.Value.HandoverCancel)
 		case ngapType.ProcedureCodeUEContextReleaseRequest:
-			HandleUEContextReleaseRequest(ctx, ran, pdu)
+			HandleUEContextReleaseRequest(ctx, ran, pdu.InitiatingMessage.Value.UEContextReleaseRequest)
 		case ngapType.ProcedureCodeNASNonDeliveryIndication:
-			HandleNasNonDeliveryIndication(ctx, ran, pdu)
+			HandleNasNonDeliveryIndication(ctx, ran, pdu.InitiatingMessage.Value.NASNonDeliveryIndication)
 		case ngapType.ProcedureCodeErrorIndication:
-			HandleErrorIndication(ran, pdu)
+			HandleErrorIndication(ran, pdu.InitiatingMessage.Value.ErrorIndication)
 		case ngapType.ProcedureCodeUERadioCapabilityInfoIndication:
-			HandleUERadioCapabilityInfoIndication(ran, pdu)
+			HandleUERadioCapabilityInfoIndication(ran, pdu.InitiatingMessage.Value.UERadioCapabilityInfoIndication)
 		case ngapType.ProcedureCodeHandoverNotification:
-			HandleHandoverNotify(ctx, ran, pdu)
+			HandleHandoverNotify(ctx, ran, pdu.InitiatingMessage.Value.HandoverNotify)
 		case ngapType.ProcedureCodeHandoverPreparation:
-			HandleHandoverRequired(ctx, ran, pdu)
+			HandleHandoverRequired(ctx, ran, pdu.InitiatingMessage.Value.HandoverRequired)
 		case ngapType.ProcedureCodeRANConfigurationUpdate:
-			HandleRanConfigurationUpdate(ctx, ran, pdu)
+			HandleRanConfigurationUpdate(ctx, ran, pdu.InitiatingMessage.Value.RANConfigurationUpdate)
 		case ngapType.ProcedureCodePDUSessionResourceNotify:
-			HandlePDUSessionResourceNotify(ctx, ran, pdu)
+			HandlePDUSessionResourceNotify(ctx, ran, pdu.InitiatingMessage.Value.PDUSessionResourceNotify)
 		case ngapType.ProcedureCodePathSwitchRequest:
-			HandlePathSwitchRequest(ctx, ran, pdu)
+			HandlePathSwitchRequest(ctx, ran, pdu.InitiatingMessage.Value.PathSwitchRequest)
 		case ngapType.ProcedureCodeLocationReport:
-			HandleLocationReport(ctx, ran, pdu)
+			HandleLocationReport(ctx, ran, pdu.InitiatingMessage.Value.LocationReport)
 		case ngapType.ProcedureCodeUplinkRANConfigurationTransfer:
-			HandleUplinkRanConfigurationTransfer(ctx, ran, pdu)
+			HandleUplinkRanConfigurationTransfer(ctx, ran, pdu.InitiatingMessage.Value.UplinkRANConfigurationTransfer)
 		case ngapType.ProcedureCodePDUSessionResourceModifyIndication:
-			HandlePDUSessionResourceModifyIndication(ctx, ran, pdu)
+			HandlePDUSessionResourceModifyIndication(ctx, ran, pdu.InitiatingMessage.Value.PDUSessionResourceModifyIndication)
 		default:
 			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
 		}
@@ -141,19 +141,19 @@ func DispatchNgapMsg(ran *amfContext.AmfRan, pdu *ngapType.NGAPPDU) {
 
 		switch successfulOutcome.ProcedureCode.Value {
 		case ngapType.ProcedureCodeUEContextRelease:
-			HandleUEContextReleaseComplete(ctx, ran, pdu)
+			HandleUEContextReleaseComplete(ctx, ran, pdu.SuccessfulOutcome.Value.UEContextReleaseComplete)
 		case ngapType.ProcedureCodePDUSessionResourceRelease:
-			HandlePDUSessionResourceReleaseResponse(ctx, ran, pdu)
+			HandlePDUSessionResourceReleaseResponse(ctx, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceReleaseResponse)
 		case ngapType.ProcedureCodeInitialContextSetup:
-			HandleInitialContextSetupResponse(ctx, ran, pdu)
+			HandleInitialContextSetupResponse(ctx, ran, pdu.SuccessfulOutcome.Value.InitialContextSetupResponse)
 		case ngapType.ProcedureCodeUEContextModification:
-			HandleUEContextModificationResponse(ctx, ran, pdu)
+			HandleUEContextModificationResponse(ctx, ran, pdu.SuccessfulOutcome.Value.UEContextModificationResponse)
 		case ngapType.ProcedureCodePDUSessionResourceSetup:
-			HandlePDUSessionResourceSetupResponse(ctx, ran, pdu)
+			HandlePDUSessionResourceSetupResponse(ctx, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse)
 		case ngapType.ProcedureCodePDUSessionResourceModify:
-			HandlePDUSessionResourceModifyResponse(ctx, ran, pdu)
+			HandlePDUSessionResourceModifyResponse(ctx, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceModifyResponse)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
-			HandleHandoverRequestAcknowledge(ctx, ran, pdu)
+			HandleHandoverRequestAcknowledge(ctx, ran, pdu.SuccessfulOutcome.Value.HandoverRequestAcknowledge)
 		default:
 			ran.Log.Warn("NGAP Message handler not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", successfulOutcome.ProcedureCode.Value))
 		}
@@ -166,11 +166,11 @@ func DispatchNgapMsg(ran *amfContext.AmfRan, pdu *ngapType.NGAPPDU) {
 
 		switch unsuccessfulOutcome.ProcedureCode.Value {
 		case ngapType.ProcedureCodeInitialContextSetup:
-			HandleInitialContextSetupFailure(ctx, ran, pdu)
+			HandleInitialContextSetupFailure(ctx, ran, pdu.UnsuccessfulOutcome.Value.InitialContextSetupFailure)
 		case ngapType.ProcedureCodeUEContextModification:
-			HandleUEContextModificationFailure(ran, pdu)
+			HandleUEContextModificationFailure(ran, pdu.UnsuccessfulOutcome.Value.UEContextModificationFailure)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
-			HandleHandoverFailure(ctx, ran, pdu)
+			HandleHandoverFailure(ctx, ran, pdu.UnsuccessfulOutcome.Value.HandoverFailure)
 		default:
 			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", unsuccessfulOutcome.ProcedureCode.Value))
 		}

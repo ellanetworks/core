@@ -4,32 +4,14 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleInitialContextSetupResponse(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandleInitialContextSetupResponse(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.InitialContextSetupResponse) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	successfulOutcome := message.SuccessfulOutcome
-	if successfulOutcome == nil {
-		ran.Log.Error("SuccessfulOutcome is nil")
-		return
-	}
-
-	initialContextSetupResponse := successfulOutcome.Value.InitialContextSetupResponse
-	if initialContextSetupResponse == nil {
-		ran.Log.Error("InitialContextSetupResponse is nil")
 		return
 	}
 
@@ -39,7 +21,7 @@ func HandleInitialContextSetupResponse(ctx context.Context, ran *amfContext.AmfR
 	var pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListCxtRes
 	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
-	for _, ie := range initialContextSetupResponse.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID

@@ -4,32 +4,14 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceReleaseResponse(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandlePDUSessionResourceReleaseResponse(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.PDUSessionResourceReleaseResponse) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	successfulOutcome := message.SuccessfulOutcome
-	if successfulOutcome == nil {
-		ran.Log.Error("SuccessfulOutcome is nil")
-		return
-	}
-
-	pDUSessionResourceReleaseResponse := successfulOutcome.Value.PDUSessionResourceReleaseResponse
-	if pDUSessionResourceReleaseResponse == nil {
-		ran.Log.Error("PDUSessionResourceReleaseResponse is nil")
 		return
 	}
 
@@ -38,7 +20,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, ran *amfContex
 	var pDUSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListRelRes
 	var userLocationInformation *ngapType.UserLocationInformation
 
-	for _, ie := range pDUSessionResourceReleaseResponse.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID

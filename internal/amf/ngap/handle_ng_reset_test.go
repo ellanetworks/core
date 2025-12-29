@@ -34,7 +34,7 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 		t.Fatalf("failed to build NGSetupRequest: %v", err)
 	}
 
-	ngap.HandleNGReset(context.Background(), ran, msg)
+	ngap.HandleNGReset(context.Background(), ran, msg.InitiatingMessage.Value.NGReset)
 
 	if len(fakeNGAPSender.SentNGResetAcknowledges) != 1 {
 		t.Fatalf("expected 1 NGResetAcknowledge to be sent, but got %d", len(fakeNGAPSender.SentNGResetAcknowledges))
@@ -75,7 +75,7 @@ func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 		t.Fatalf("failed to build NGSetupRequest: %v", err)
 	}
 
-	ngap.HandleNGReset(context.Background(), ran, msg)
+	ngap.HandleNGReset(context.Background(), ran, msg.InitiatingMessage.Value.NGReset)
 
 	if len(fakeNGAPSender.SentNGResetAcknowledges) != 1 {
 		t.Fatalf("expected 1 NGResetAcknowledge to be sent, but got %d", len(fakeNGAPSender.SentNGResetAcknowledges))

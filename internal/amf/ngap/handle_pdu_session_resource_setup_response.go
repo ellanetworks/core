@@ -4,32 +4,14 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceSetupResponse(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandlePDUSessionResourceSetupResponse(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.PDUSessionResourceSetupResponse) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	successfulOutcome := message.SuccessfulOutcome
-	if successfulOutcome == nil {
-		ran.Log.Error("SuccessfulOutcome is nil")
-		return
-	}
-
-	pDUSessionResourceSetupResponse := successfulOutcome.Value.PDUSessionResourceSetupResponse
-	if pDUSessionResourceSetupResponse == nil {
-		ran.Log.Error("PDUSessionResourceSetupResponse is nil")
 		return
 	}
 
@@ -38,7 +20,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, ran *amfContext.
 	var pDUSessionResourceSetupResponseList *ngapType.PDUSessionResourceSetupListSURes
 	var pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListSURes
 
-	for _, ie := range pDUSessionResourceSetupResponse.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID

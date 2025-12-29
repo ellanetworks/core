@@ -10,26 +10,14 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleNasNonDeliveryIndication(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
+func HandleNasNonDeliveryIndication(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NASNonDeliveryIndication) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
 
-	if message == nil {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	initiatingMessage := message.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("InitiatingMessage is nil")
-		return
-	}
-
-	nASNonDeliveryIndication := initiatingMessage.Value.NASNonDeliveryIndication
-	if nASNonDeliveryIndication == nil {
-		ran.Log.Error("NASNonDeliveryIndication is nil")
 		return
 	}
 
@@ -38,7 +26,7 @@ func HandleNasNonDeliveryIndication(ctx context.Context, ran *amfContext.AmfRan,
 	var nASPDU *ngapType.NASPDU
 	var cause *ngapType.Cause
 
-	for _, ie := range nASNonDeliveryIndication.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID

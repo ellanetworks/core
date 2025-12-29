@@ -4,33 +4,15 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
 // TS 23.502 4.9.1
-func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.PathSwitchRequest) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	initiatingMessage := msg.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("InitiatingMessage is nil")
-		return
-	}
-
-	pathSwitchRequest := initiatingMessage.Value.PathSwitchRequest
-	if pathSwitchRequest == nil {
-		ran.Log.Error("PathSwitchRequest is nil")
 		return
 	}
 
@@ -41,7 +23,7 @@ func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.AmfRan, msg *n
 	var pduSessionResourceToBeSwitchedInDLList *ngapType.PDUSessionResourceToBeSwitchedDLList
 	var pduSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListPSReq
 
-	for _, ie := range pathSwitchRequest.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject
 			rANUENGAPID = ie.Value.RANUENGAPID

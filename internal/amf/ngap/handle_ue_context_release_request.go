@@ -4,32 +4,14 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUEContextReleaseRequest(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandleUEContextReleaseRequest(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.UEContextReleaseRequest) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	initiatingMessage := msg.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("InitiatingMessage is nil")
-		return
-	}
-
-	uEContextReleaseRequest := initiatingMessage.Value.UEContextReleaseRequest
-	if uEContextReleaseRequest == nil {
-		ran.Log.Error("UEContextReleaseRequest is nil")
 		return
 	}
 
@@ -38,7 +20,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, ran *amfContext.AmfRan, 
 	var pDUSessionResourceList *ngapType.PDUSessionResourceListCxtRelReq
 	var cause *ngapType.Cause
 
-	for _, ie := range uEContextReleaseRequest.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID

@@ -13,26 +13,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleHandoverRequired(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandleHandoverRequired(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.HandoverRequired) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	initiatingMessage := msg.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
-		return
-	}
-
-	HandoverRequired := initiatingMessage.Value.HandoverRequired
-	if HandoverRequired == nil {
-		ran.Log.Error("HandoverRequired is nil")
 		return
 	}
 
@@ -45,8 +28,8 @@ func HandleHandoverRequired(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 	var sourceToTargetTransparentContainer *ngapType.SourceToTargetTransparentContainer
 	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
-	for i := 0; i < len(HandoverRequired.ProtocolIEs.List); i++ {
-		ie := HandoverRequired.ProtocolIEs.List[i]
+	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
+		ie := msg.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID // reject

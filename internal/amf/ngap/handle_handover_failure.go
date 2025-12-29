@@ -4,31 +4,13 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverFailure(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandleHandoverFailure(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.HandoverFailure) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	unsuccessfulOutcome := message.UnsuccessfulOutcome // reject
-	if unsuccessfulOutcome == nil {
-		ran.Log.Error("Unsuccessful Message is nil")
-		return
-	}
-
-	handoverFailure := unsuccessfulOutcome.Value.HandoverFailure
-	if handoverFailure == nil {
-		ran.Log.Error("HandoverFailure is nil")
 		return
 	}
 
@@ -37,7 +19,7 @@ func HandleHandoverFailure(ctx context.Context, ran *amfContext.AmfRan, message 
 	var targetUe *amfContext.RanUe
 	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
-	for _, ie := range handoverFailure.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID

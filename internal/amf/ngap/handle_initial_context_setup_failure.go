@@ -4,32 +4,14 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.InitialContextSetupFailure) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	unsuccessfulOutcome := message.UnsuccessfulOutcome
-	if unsuccessfulOutcome == nil {
-		ran.Log.Error("UnsuccessfulOutcome is nil")
-		return
-	}
-
-	initialContextSetupFailure := unsuccessfulOutcome.Value.InitialContextSetupFailure
-	if initialContextSetupFailure == nil {
-		ran.Log.Error("InitialContextSetupFailure is nil")
 		return
 	}
 
@@ -38,7 +20,7 @@ func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.AmfRa
 	var pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListCxtFail
 	var cause *ngapType.Cause
 
-	for _, ie := range initialContextSetupFailure.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID

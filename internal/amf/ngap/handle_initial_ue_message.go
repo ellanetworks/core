@@ -12,21 +12,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleInitialUEMessage(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGAPPDU) {
+func HandleInitialUEMessage(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.InitialUEMessage) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	initiatingMessage := msg.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
-		return
-	}
-
-	initialUEMessage := initiatingMessage.Value.InitialUEMessage
-	if initialUEMessage == nil {
-		ran.Log.Error("InitialUEMessage is nil")
 		return
 	}
 
@@ -56,7 +44,7 @@ func HandleInitialUEMessage(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 	var uEContextRequest *ngapType.UEContextRequest
 	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
-	for _, ie := range initialUEMessage.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject
 			rANUENGAPID = ie.Value.RANUENGAPID

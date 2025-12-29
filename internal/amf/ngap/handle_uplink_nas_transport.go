@@ -10,26 +10,14 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUplinkNasTransport(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
+func HandleUplinkNasTransport(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.UplinkNASTransport) {
 	if ran == nil {
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
 
-	if message == nil {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	initiatingMessage := message.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
-		return
-	}
-
-	uplinkNasTransport := initiatingMessage.Value.UplinkNASTransport
-	if uplinkNasTransport == nil {
-		ran.Log.Error("UplinkNasTransport is nil")
 		return
 	}
 
@@ -38,8 +26,8 @@ func HandleUplinkNasTransport(ctx context.Context, ran *amfContext.AmfRan, messa
 	var nASPDU *ngapType.NASPDU
 	var userLocationInformation *ngapType.UserLocationInformation
 
-	for i := 0; i < len(uplinkNasTransport.ProtocolIEs.List); i++ {
-		ie := uplinkNasTransport.ProtocolIEs.List[i]
+	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
+		ie := msg.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID

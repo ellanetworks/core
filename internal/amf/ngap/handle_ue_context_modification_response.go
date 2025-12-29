@@ -4,31 +4,13 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUEContextModificationResponse(ctx context.Context, ran *amfContext.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandleUEContextModificationResponse(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.UEContextModificationResponse) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-
-	successfulOutcome := message.SuccessfulOutcome
-	if successfulOutcome == nil {
-		ran.Log.Error("SuccessfulOutcome is nil")
-		return
-	}
-
-	uEContextModificationResponse := successfulOutcome.Value.UEContextModificationResponse
-	if uEContextModificationResponse == nil {
-		ran.Log.Error("UEContextModificationResponse is nil")
 		return
 	}
 
@@ -37,7 +19,7 @@ func HandleUEContextModificationResponse(ctx context.Context, ran *amfContext.Am
 	var rRCState *ngapType.RRCState
 	var userLocationInformation *ngapType.UserLocationInformation
 
-	for _, ie := range uEContextModificationResponse.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID

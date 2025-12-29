@@ -2,29 +2,13 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandleUEContextModificationFailure(ran *context.AmfRan, msg *ngapType.UEContextModificationFailure) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-	unsuccessfulOutcome := message.UnsuccessfulOutcome
-	if unsuccessfulOutcome == nil {
-		ran.Log.Error("UnsuccessfulOutcome is nil")
-		return
-	}
-	uEContextModificationFailure := unsuccessfulOutcome.Value.UEContextModificationFailure
-	if uEContextModificationFailure == nil {
-		ran.Log.Error("UEContextModificationFailure is nil")
 		return
 	}
 
@@ -32,7 +16,7 @@ func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.N
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var cause *ngapType.Cause
 
-	for _, ie := range uEContextModificationFailure.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID
@@ -74,6 +58,6 @@ func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.N
 	}
 
 	if cause != nil {
-		logger.AmfLog.Debug("UE Context Modification Failure Cause", zap.String("Cause", causeToString(*cause)))
+		ran.Log.Debug("UE Context Modification Failure Cause", zap.String("Cause", causeToString(*cause)))
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/ngap/service"
 	"github.com/ellanetworks/core/internal/db"
@@ -83,20 +82,7 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	self.Name = "amf"
 	self.RelativeCapacity = 0xff
 
-	err := StartNGAPService(n2Address, n2Port)
-	if err != nil {
-		return fmt.Errorf("failed to start NGAP service: %+v", err)
-	}
-	return nil
-}
-
-func StartNGAPService(ngapAddress string, ngapPort int) error {
-	ngapHandler := service.NGAPHandler{
-		HandleMessage:      ngap.Dispatch,
-		HandleNotification: ngap.HandleSCTPNotification,
-	}
-
-	err := service.Run(ngapAddress, ngapPort, ngapHandler)
+	err := service.Run(n2Address, n2Port)
 	if err != nil {
 		return fmt.Errorf("failed to start NGAP service: %+v", err)
 	}
