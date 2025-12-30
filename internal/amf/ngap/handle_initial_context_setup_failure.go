@@ -62,7 +62,7 @@ func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.AmfRa
 	if amfUe.T3550 != nil {
 		amfUe.T3550.Stop()
 		amfUe.T3550 = nil
-		amfUe.State.Set(amfContext.Deregistered)
+		amfUe.State = amfContext.Deregistered
 		amfUe.ClearRegistrationRequestData()
 	}
 

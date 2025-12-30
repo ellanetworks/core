@@ -135,12 +135,12 @@ func handleServiceRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.Gm
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleServiceRequest")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State.Current())),
+		attribute.String("state", string(ue.State)),
 	)
 	defer span.End()
 
-	if ue.State.Current() != amfContext.Deregistered && ue.State.Current() != amfContext.Registered {
-		return fmt.Errorf("state mismatch: receive Service Request message in state %s", ue.State.Current())
+	if ue.State != amfContext.Deregistered && ue.State != amfContext.Registered {
+		return fmt.Errorf("state mismatch: receive Service Request message in state %s", ue.State)
 	}
 
 	if ue == nil {
@@ -167,7 +167,7 @@ func handleServiceRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.Gm
 
 	// Send Authtication / Security Procedure not support
 	// Rejecting ServiceRequest if it is received in Deregistered State
-	if !ue.SecurityContextIsValid() || ue.State.Current() == amfContext.Deregistered {
+	if !ue.SecurityContextIsValid() || ue.State == amfContext.Deregistered {
 		ue.Log.Warn("No security context", zap.String("supi", ue.Supi))
 		err := message.SendServiceReject(ctx, ue.RanUe, nil, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {

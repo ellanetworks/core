@@ -40,7 +40,8 @@ const (
 	RecommendRanNodePresentTAI     int32 = 1
 )
 
-// GMM state for UE
+type StateType string
+
 const (
 	Deregistered   StateType = "Deregistered"
 	Authentication StateType = "Authentication"
@@ -59,7 +60,7 @@ type AmfUe struct {
 	Mutex sync.Mutex
 
 	/* Gmm State */
-	State *State
+	State StateType
 	/* Registration procedure related context */
 	RegistrationType5GS             uint8
 	IdentityTypeUsedForRegistration uint8
@@ -156,7 +157,7 @@ type ConfigurationUpdateCommandFlags struct {
 }
 
 func (ue *AmfUe) init() {
-	ue.State = NewState(Deregistered)
+	ue.State = Deregistered
 	ue.RegistrationArea = make([]models.Tai, 0)
 	ue.OnGoing = new(OnGoingProcedureWithPrio)
 	ue.OnGoing.Procedure = OnGoingProcedureNothing

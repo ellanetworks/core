@@ -16,12 +16,12 @@ func handleConfigurationUpdateComplete(ctx context.Context, ue *amfContext.AmfUe
 	_, span := tracer.Start(ctx, "AMF NAS HandleConfigurationUpdateComplete")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State.Current())),
+		attribute.String("state", string(ue.State)),
 	)
 	defer span.End()
 
-	if ue.State.Current() != amfContext.Registered {
-		return fmt.Errorf("state mismatch: receive Configuration Update Complete message in state %s", ue.State.Current())
+	if ue.State != amfContext.Registered {
+		return fmt.Errorf("state mismatch: receive Configuration Update Complete message in state %s", ue.State)
 	}
 
 	if ue.MacFailed {

@@ -21,12 +21,12 @@ func handleAuthenticationFailure(ctx context.Context, ue *amfContext.AmfUe, msg 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleAuthenticationFailure")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State.Current())),
+		attribute.String("state", string(ue.State)),
 	)
 	defer span.End()
 
-	if ue.State.Current() != amfContext.Authentication {
-		return fmt.Errorf("state mismatch: receive Authentication Failure message in state %s", ue.State.Current())
+	if ue.State != amfContext.Authentication {
+		return fmt.Errorf("state mismatch: receive Authentication Failure message in state %s", ue.State)
 	}
 
 	if ue.T3560 != nil {
@@ -39,7 +39,7 @@ func handleAuthenticationFailure(ctx context.Context, ue *amfContext.AmfUe, msg 
 	switch cause5GMM {
 	case nasMessage.Cause5GMMMACFailure:
 		ue.Log.Warn("Authentication Failure Cause: Mac Failure")
-		ue.State.Set(amfContext.Deregistered)
+		ue.State = amfContext.Deregistered
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
@@ -48,7 +48,7 @@ func handleAuthenticationFailure(ctx context.Context, ue *amfContext.AmfUe, msg 
 		return nil
 	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
 		ue.Log.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
-		ue.State.Set(amfContext.Deregistered)
+		ue.State = amfContext.Deregistered
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
@@ -78,7 +78,7 @@ func handleAuthenticationFailure(ctx context.Context, ue *amfContext.AmfUe, msg 
 		ue.AuthFailureCauseSynchFailureTimes++
 		if ue.AuthFailureCauseSynchFailureTimes >= 2 {
 			ue.Log.Warn("2 consecutive Synch Failure, terminate authentication procedure")
-			ue.State.Set(amfContext.Deregistered)
+			ue.State = amfContext.Deregistered
 			err := message.SendAuthenticationReject(ctx, ue.RanUe)
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)

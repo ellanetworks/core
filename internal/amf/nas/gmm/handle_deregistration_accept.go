@@ -22,7 +22,7 @@ func handleDeregistrationAccept(ctx context.Context, ue *amfContext.AmfUe) error
 		ue.T3522 = nil // clear the timer
 	}
 
-	ue.State.Set(amfContext.Deregistered)
+	ue.State = amfContext.Deregistered
 
 	if ue.RanUe != nil {
 		ue.RanUe.ReleaseAction = amfContext.UeContextReleaseDueToNwInitiatedDeregistraion

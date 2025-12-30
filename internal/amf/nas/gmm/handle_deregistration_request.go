@@ -22,19 +22,19 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleDeregistrationRequestUEOriginatingDeregistration")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State.Current())),
+		attribute.String("state", string(ue.State)),
 	)
 	defer span.End()
 
-	if ue.State.Current() != amfContext.Registered {
-		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", ue.State.Current())
+	if ue.State != amfContext.Registered {
+		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", ue.State)
 	}
 
 	if msg == nil {
 		return fmt.Errorf("gmm message is nil")
 	}
 
-	ue.State.Set(amfContext.Deregistered)
+	ue.State = amfContext.Deregistered
 
 	targetDeregistrationAccessType := msg.DeregistrationRequestUEOriginatingDeregistration.GetAccessType()
 

@@ -67,11 +67,11 @@ func handleIdentityResponse(ctx context.Context, ue *amfContext.AmfUe, msg *nas.
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleIdentityResponse")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State.Current())),
+		attribute.String("state", string(ue.State)),
 	)
 	defer span.End()
 
-	switch ue.State.Current() {
+	switch ue.State {
 	case amfContext.Authentication:
 		mobileIdentityContents := msg.IdentityResponse.MobileIdentity.GetMobileIdentityContents()
 
@@ -79,14 +79,14 @@ func handleIdentityResponse(ctx context.Context, ue *amfContext.AmfUe, msg *nas.
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 
-		ue.State.Set(amfContext.Authentication)
+		ue.State = amfContext.Authentication
 		pass, err := AuthenticationProcedure(ctx, ue)
 		if err != nil {
-			ue.State.Set(amfContext.Deregistered)
+			ue.State = amfContext.Deregistered
 			return fmt.Errorf("error in authentication procedure: %v", err)
 		}
 		if pass {
-			ue.State.Set(amfContext.SecurityMode)
+			ue.State = amfContext.SecurityMode
 			return securityMode(ctx, ue)
 		}
 
@@ -101,19 +101,19 @@ func handleIdentityResponse(ctx context.Context, ue *amfContext.AmfUe, msg *nas.
 		switch ue.RegistrationType5GS {
 		case nasMessage.RegistrationType5GSInitialRegistration:
 			if err := HandleInitialRegistration(ctx, ue); err != nil {
-				ue.State.Set(amfContext.Deregistered)
+				ue.State = amfContext.Deregistered
 				return fmt.Errorf("error handling initial registration: %v", err)
 			}
 		case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
 			fallthrough
 		case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
 			if err := HandleMobilityAndPeriodicRegistrationUpdating(ctx, ue); err != nil {
-				ue.State.Set(amfContext.Deregistered)
+				ue.State = amfContext.Deregistered
 				return fmt.Errorf("error handling mobility and periodic registration updating: %v", err)
 			}
 		}
 	default:
-		return fmt.Errorf("state mismatch: receive Identity Response message in state %s", ue.State.Current())
+		return fmt.Errorf("state mismatch: receive Identity Response message in state %s", ue.State)
 	}
 	return nil
 }

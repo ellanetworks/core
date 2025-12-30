@@ -18,11 +18,11 @@ func handleSecurityModeReject(ctx context.Context, ue *amfContext.AmfUe, msg *na
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleSecurityModeReject")
 	defer span.End()
 
-	if ue.State.Current() != amfContext.SecurityMode {
-		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", ue.State.Current())
+	if ue.State != amfContext.SecurityMode {
+		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", ue.State)
 	}
 
-	ue.State.Set(amfContext.Deregistered)
+	ue.State = amfContext.Deregistered
 
 	if ue.T3560 != nil {
 		ue.T3560.Stop()

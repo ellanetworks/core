@@ -20,12 +20,12 @@ func handleNotificationResponse(ctx context.Context, ue *amfContext.AmfUe, msg *
 	_, span := tracer.Start(ctx, "AMF NAS HandleNotificationResponse")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State.Current())),
+		attribute.String("state", string(ue.State)),
 	)
 	defer span.End()
 
-	if ue.State.Current() != amfContext.Registered {
-		return fmt.Errorf("state mismatch: receive Notification Response message in state %s", ue.State.Current())
+	if ue.State != amfContext.Registered {
+		return fmt.Errorf("state mismatch: receive Notification Response message in state %s", ue.State)
 	}
 
 	if ue.MacFailed {

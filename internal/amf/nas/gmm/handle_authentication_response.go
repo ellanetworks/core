@@ -23,12 +23,12 @@ func handleAuthenticationResponse(ctx context.Context, ue *amfContext.AmfUe, msg
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleAuthenticationResponse")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State.Current())),
+		attribute.String("state", string(ue.State)),
 	)
 	defer span.End()
 
-	if ue.State.Current() != amfContext.Authentication {
-		return fmt.Errorf("state mismatch: receive Authentication Response message in state %s", ue.State.Current())
+	if ue.State != amfContext.Authentication {
+		return fmt.Errorf("state mismatch: receive Authentication Response message in state %s", ue.State)
 	}
 
 	if ue.T3560 != nil {
@@ -65,7 +65,7 @@ func handleAuthenticationResponse(ctx context.Context, ue *amfContext.AmfUe, msg
 			return nil
 		}
 
-		ue.State.Set(amfContext.Deregistered)
+		ue.State = amfContext.Deregistered
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
@@ -87,7 +87,8 @@ func handleAuthenticationResponse(ctx context.Context, ue *amfContext.AmfUe, msg
 			return nil
 		}
 
-		ue.State.Set(amfContext.Deregistered)
+		ue.State = amfContext.Deregistered
+
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
@@ -104,7 +105,7 @@ func handleAuthenticationResponse(ctx context.Context, ue *amfContext.AmfUe, msg
 		return fmt.Errorf("couldn't derive Kamf: %v", err)
 	}
 
-	ue.State.Set(amfContext.SecurityMode)
+	ue.State = amfContext.SecurityMode
 
 	return securityMode(ctx, ue)
 }

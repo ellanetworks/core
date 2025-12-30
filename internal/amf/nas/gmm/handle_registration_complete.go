@@ -17,11 +17,11 @@ func handleRegistrationComplete(ctx context.Context, ue *amfContext.AmfUe) error
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleRegistrationComplete")
 	defer span.End()
 
-	if ue.State.Current() != amfContext.ContextSetup {
-		return fmt.Errorf("state mismatch: receive Registration Complete message in state %s", ue.State.Current())
+	if ue.State != amfContext.ContextSetup {
+		return fmt.Errorf("state mismatch: receive Registration Complete message in state %s", ue.State)
 	}
 
-	ue.State.Set(amfContext.Registered)
+	ue.State = amfContext.Registered
 
 	if ue.T3550 != nil {
 		ue.T3550.Stop()

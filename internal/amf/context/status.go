@@ -10,11 +10,5 @@ func IsSubscriberRegistered(imsi string) bool {
 		return false
 	}
 
-	if amfUE.State == nil {
-		return false
-	}
-
-	currentState := amfUE.State.Current()
-
-	return currentState == Registered
+	return amfUE.State == Registered
 }

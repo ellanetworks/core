@@ -19,12 +19,12 @@ func handleSecurityModeComplete(ctx context.Context, ue *amfContext.AmfUe, msg *
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleSecurityModeComplete")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State.Current())),
+		attribute.String("state", string(ue.State)),
 	)
 	defer span.End()
 
-	if ue.State.Current() != amfContext.SecurityMode {
-		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", ue.State.Current())
+	if ue.State != amfContext.SecurityMode {
+		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", ue.State)
 	}
 
 	if ue.MacFailed {
@@ -60,12 +60,12 @@ func handleSecurityModeComplete(ctx context.Context, ue *amfContext.AmfUe, msg *
 			return fmt.Errorf("nas message container Iei type error")
 		}
 
-		ue.State.Set(amfContext.ContextSetup)
+		ue.State = amfContext.ContextSetup
 
 		return contextSetup(ctx, ue, m.GmmMessage.RegistrationRequest)
 	}
 
-	ue.State.Set(amfContext.ContextSetup)
+	ue.State = amfContext.ContextSetup
 
 	err := contextSetup(ctx, ue, ue.RegistrationRequest)
 	if err != nil {

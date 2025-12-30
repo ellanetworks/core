@@ -243,12 +243,12 @@ func handleULNASTransport(ctx context.Context, ue *amfContext.AmfUe, msg *nas.Gm
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleULNASTransport")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State.Current())),
+		attribute.String("state", string(ue.State)),
 	)
 	defer span.End()
 
-	if ue.State.Current() != amfContext.Registered {
-		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amfContext.Registered, ue.State.Current())
+	if ue.State != amfContext.Registered {
+		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amfContext.Registered, ue.State)
 	}
 
 	if ue.MacFailed {

@@ -18,11 +18,11 @@ func handleStatus5GMM(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMes
 	_, span := tracer.Start(ctx, "AMF NAS HandleStatus5GMM")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State.Current())),
+		attribute.String("state", string(ue.State)),
 	)
 	defer span.End()
 
-	switch ue.State.Current() {
+	switch ue.State {
 	case amfContext.Registered, amfContext.Authentication, amfContext.SecurityMode, amfContext.ContextSetup:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")
@@ -32,6 +32,6 @@ func handleStatus5GMM(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMes
 		ue.Log.Error("Received Status 5GMM with cause", zap.String("Cause", nasMessage.Cause5GMMToString(cause)))
 		return nil
 	default:
-		return fmt.Errorf("state mismatch: receive Status 5GMM message in state %s", ue.State.Current())
+		return fmt.Errorf("state mismatch: receive Status 5GMM message in state %s", ue.State)
 	}
 }

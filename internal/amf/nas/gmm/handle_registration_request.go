@@ -194,20 +194,20 @@ func handleRegistrationRequest(ctx context.Context, ue *amfContext.AmfUe, msg *n
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleRegistrationRequest")
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State.Current())),
+		attribute.String("state", string(ue.State)),
 	)
 	defer span.End()
 
-	switch ue.State.Current() {
+	switch ue.State {
 	case amfContext.Deregistered, amfContext.Registered:
 		if err := HandleRegistrationRequest(ctx, ue, msg.RegistrationRequest); err != nil {
 			return fmt.Errorf("failed handling registration request: %v", err)
 		}
 
-		ue.State.Set(amfContext.Authentication)
+		ue.State = amfContext.Authentication
 		pass, err := AuthenticationProcedure(ctx, ue)
 		if err != nil {
-			ue.State.Set(amfContext.Deregistered)
+			ue.State = amfContext.Deregistered
 			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
@@ -215,7 +215,7 @@ func handleRegistrationRequest(ctx context.Context, ue *amfContext.AmfUe, msg *n
 			return nil
 		}
 		if pass {
-			ue.State.Set(amfContext.SecurityMode)
+			ue.State = amfContext.SecurityMode
 			return securityMode(ctx, ue)
 		}
 
@@ -223,15 +223,15 @@ func handleRegistrationRequest(ctx context.Context, ue *amfContext.AmfUe, msg *n
 		ue.SecurityContextAvailable = false
 		ue.T3560.Stop()
 		ue.T3560 = nil
-		ue.State.Set(amfContext.Deregistered)
+		ue.State = amfContext.Deregistered
 
 		return HandleGmmMessage(ctx, ue, msg)
 	case amfContext.ContextSetup:
-		ue.State.Set(amfContext.Deregistered)
+		ue.State = amfContext.Deregistered
 		ue.Log.Info("state reset to Deregistered")
 		return nil
 	default:
-		return fmt.Errorf("state mismatch: receive Registration Request message in state %s", ue.State.Current())
+		return fmt.Errorf("state mismatch: receive Registration Request message in state %s", ue.State)
 	}
 
 	return nil
