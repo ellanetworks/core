@@ -91,11 +91,11 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 }
 
 func Close() {
-	amfSelf := amfContext.AMFSelf()
-
 	ctx := context.Background()
 
-	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
+	amf := amfContext.AMFSelf()
+
+	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
 		logger.AmfLog.Error("Could not get operator info", zap.Error(err))
 		return
@@ -103,7 +103,7 @@ func Close() {
 
 	unavailableGuamiList := send.BuildUnavailableGUAMIList(operatorInfo.Guami)
 
-	for _, ran := range amfSelf.AmfRanPool {
+	for _, ran := range amf.Radios {
 		err := ran.NGAPSender.SendAMFStatusIndication(ctx, unavailableGuamiList)
 		if err != nil {
 			logger.AmfLog.Error("failed to send AMF Status Indication to RAN", zap.Error(err))

@@ -14,18 +14,18 @@ import (
 func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &amfContext.AmfRan{
+	ran := &amfContext.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
 		RanUePool: map[int64]*amfContext.RanUe{
-			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Ran: &amfContext.AmfRan{}},
-			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Ran: &amfContext.AmfRan{}},
+			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Radio: &amfContext.Radio{}},
+			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Radio: &amfContext.Radio{}},
 		},
 		SupportedTAList: make([]amfContext.SupportedTAI, 0),
 	}
 
-	ran.RanUePool[0].Ran = ran
-	ran.RanUePool[1].Ran = ran
+	ran.RanUePool[0].Radio = ran
+	ran.RanUePool[1].Radio = ran
 
 	msg, err := buildNGReset(&NGResetOpts{
 		ResetType: ResetTypePresentNGInterface,
@@ -52,18 +52,18 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &amfContext.AmfRan{
+	ran := &amfContext.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
 		RanUePool: map[int64]*amfContext.RanUe{
-			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Ran: &amfContext.AmfRan{}},
-			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Ran: &amfContext.AmfRan{}},
+			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Radio: &amfContext.Radio{}},
+			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Radio: &amfContext.Radio{}},
 		},
 		SupportedTAList: make([]amfContext.SupportedTAI, 0),
 	}
 
-	ran.RanUePool[0].Ran = ran
-	ran.RanUePool[1].Ran = ran
+	ran.RanUePool[0].Radio = ran
+	ran.RanUePool[1].Radio = ran
 
 	msg, err := buildNGReset(&NGResetOpts{
 		ResetType: ResetTypePresentPartOfNGInterface,

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"strconv"
 	"sync"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -167,26 +168,8 @@ func NewAmfUe() *AmfUe {
 	}
 }
 
-func (ue *AmfUe) Remove() {
-	if ue.RanUe != nil {
-		err := ue.RanUe.Remove()
-		if err != nil {
-			logger.AmfLog.Error("failed to remove RAN UE", zap.Error(err))
-		}
-	}
-
-	tmsiGenerator.FreeID(int64(ue.Tmsi))
-
-	if len(ue.Supi) > 0 {
-		amfCtxt := AMFSelf()
-		amfCtxt.Mutex.Lock()
-		delete(amfCtxt.UePool, ue.Supi)
-		amfCtxt.Mutex.Unlock()
-	}
-}
-
 func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
-	if ranUe == nil || ranUe.Ran == nil {
+	if ranUe == nil || ranUe.Radio == nil {
 		return
 	}
 
@@ -207,6 +190,51 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	}
 
 	ue.Log = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
+}
+
+func (ue *AmfUe) ReAllocateGuti(supportedGuami *models.Guami) error {
+	ue.OldTmsi = ue.Tmsi
+
+	tmsi, err := allocateTMSI()
+	if err != nil {
+		return fmt.Errorf("failed to allocate TMSI: %v", err)
+	}
+
+	ue.Tmsi = tmsi
+	plmnID := supportedGuami.PlmnID.Mcc + supportedGuami.PlmnID.Mnc
+	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
+	ue.OldGuti = ue.Guti
+	ue.Guti = plmnID + supportedGuami.AmfID + tmsiStr
+
+	return nil
+}
+
+func (ue *AmfUe) FreeOldGuti() {
+	tmsiGenerator.FreeID(int64(ue.OldTmsi))
+	ue.OldGuti = ""
+}
+
+func (ue *AmfUe) AllocateRegistrationArea(supportedTais []models.Tai) {
+	// clear the previous registration area if need
+	if len(ue.RegistrationArea) > 0 {
+		ue.RegistrationArea = nil
+	}
+
+	taiList := make([]models.Tai, len(supportedTais))
+	copy(taiList, supportedTais)
+	for i := range taiList {
+		tmp, err := strconv.ParseUint(taiList[i].Tac, 10, 32)
+		if err != nil {
+			logger.AmfLog.Error("Could not convert TAC to int", zap.Error(err))
+		}
+		taiList[i].Tac = fmt.Sprintf("%06x", tmp)
+	}
+	for _, supportTai := range taiList {
+		if reflect.DeepEqual(supportTai, ue.Tai) {
+			ue.RegistrationArea = append(ue.RegistrationArea, supportTai)
+			break
+		}
+	}
 }
 
 func (ue *AmfUe) IsAllowedNssai(targetSNssai *models.Snssai) bool {

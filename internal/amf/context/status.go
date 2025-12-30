@@ -5,7 +5,7 @@ func IsSubscriberRegistered(imsi string) bool {
 	amfCtx.Mutex.Lock()
 	defer amfCtx.Mutex.Unlock()
 
-	amfUE, ok := amfCtx.UePool[imsi]
+	amfUE, ok := amfCtx.UEs[imsi]
 	if !ok {
 		return false
 	}

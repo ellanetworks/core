@@ -38,17 +38,22 @@ func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 		return
 	}
 
-	amfSelf := amfContext.AMFSelf()
+	amf := amfContext.AMFSelf()
 
-	ran, ok := amfSelf.AmfRanFindByConn(conn)
+	ran, ok := amf.FindRadioByConn(conn)
 	if !ok {
-		ran = amfSelf.NewAmfRan(conn)
+		var err error
+		ran, err = amf.NewRadio(conn)
+		if err != nil {
+			logger.AmfLog.Error("Failed to add a new radio", zap.Error(err))
+			return
+		}
 		logger.AmfLog.Info("Added a new radio", zap.String("address", remoteAddress.String()))
 	}
 
 	if len(msg) == 0 {
 		ran.Log.Info("RAN close the connection.")
-		ran.Remove()
+		amf.RemoveRadio(ran)
 		return
 	}
 
@@ -71,7 +76,7 @@ func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 	DispatchNgapMsg(ran, pdu)
 }
 
-func DispatchNgapMsg(ran *amfContext.AmfRan, pdu *ngapType.NGAPPDU) {
+func DispatchNgapMsg(ran *amfContext.Radio, pdu *ngapType.NGAPPDU) {
 	messageType := getMessageType(pdu)
 
 	spanName := fmt.Sprintf("AMF NGAP %s", messageType)
@@ -178,23 +183,23 @@ func DispatchNgapMsg(ran *amfContext.AmfRan, pdu *ngapType.NGAPPDU) {
 }
 
 func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification) {
-	amfSelf := amfContext.AMFSelf()
+	amf := amfContext.AMFSelf()
 
-	ran, ok := amfSelf.AmfRanFindByConn(conn)
+	ran, ok := amf.FindRadioByConn(conn)
 	if !ok {
 		logger.AmfLog.Debug("couldn't find RAN context", zap.Any("address", conn.RemoteAddr()))
 		return
 	}
 
-	amfSelf.Mutex.Lock()
-	for _, amfRan := range amfSelf.AmfRanPool {
+	amf.Mutex.Lock()
+	for _, amfRan := range amf.Radios {
 		errorConn := sctp.NewSCTPConn(-1, nil)
 		if reflect.DeepEqual(amfRan.Conn, errorConn) {
-			amfRan.Remove()
+			amf.RemoveRadio(ran)
 			ran.Log.Info("removed stale entry in AmfRan pool")
 		}
 	}
-	amfSelf.Mutex.Unlock()
+	amf.Mutex.Unlock()
 
 	switch notification.Type() {
 	case sctp.SCTPAssocChange:
@@ -202,16 +207,16 @@ func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification)
 		event := notification.(*sctp.SCTPAssocChangeEvent)
 		switch event.State() {
 		case sctp.SCTPCommLost:
-			ran.Remove()
+			amf.RemoveRadio(ran)
 			ran.Log.Info("Closed connection with radio after SCTP Communication Lost")
 		case sctp.SCTPShutdownComp:
-			ran.Remove()
+			amf.RemoveRadio(ran)
 			ran.Log.Info("Closed connection with radio after SCTP Shutdown Complete")
 		default:
 			ran.Log.Info("SCTP state is not handled", zap.Int("state", int(event.State())))
 		}
 	case sctp.SCTPShutdownEvent:
-		ran.Remove()
+		amf.RemoveRadio(ran)
 		ran.Log.Info("Closed connection with radio after SCTP Shutdown Event")
 	default:
 		ran.Log.Warn("Unhandled SCTP notification type", zap.Any("type", notification.Type()))

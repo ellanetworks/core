@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUEContextReleaseRequest(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.UEContextReleaseRequest) {
+func HandleUEContextReleaseRequest(ctx context.Context, ran *amfContext.Radio, msg *ngapType.UEContextReleaseRequest) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -44,9 +44,9 @@ func HandleUEContextReleaseRequest(ctx context.Context, ran *amfContext.AmfRan, 
 		}
 	}
 
-	ranUe := amfContext.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+	ranUe := amfContext.AMFSelf().FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if ranUe == nil {
-		ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+		ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	}
 
 	if ranUe == nil {
@@ -66,7 +66,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, ran *amfContext.AmfRan, 
 		return
 	}
 
-	ranUe.Ran = ran
+	ranUe.Radio = ran
 	ranUe.Log.Debug("Handle UE Context Release Request", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 	causeGroup := ngapType.CausePresentRadioNetwork

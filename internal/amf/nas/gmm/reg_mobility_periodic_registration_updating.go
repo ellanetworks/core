@@ -22,7 +22,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 		return fmt.Errorf("error deriving AnKey: %v", err)
 	}
 
-	amfSelf := amfContext.AMFSelf()
+	amf := amfContext.AMFSelf()
 
 	if ue.RegistrationRequest.UpdateType5GS != nil {
 		if ue.RegistrationRequest.UpdateType5GS.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
@@ -31,7 +31,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 		}
 	}
 
-	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
+	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
@@ -66,10 +66,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 		return nil
 	}
 
-	err = getAndSetSubscriberData(ctx, ue)
+	bitRate, dnn, err := amf.GetSubscriberData(ctx, ue.Supi)
 	if err != nil {
-		return fmt.Errorf("failed to get and set subscriber data: %v", err)
+		return fmt.Errorf("failed to get subscriber data: %v", err)
 	}
+
+	ue.Dnn = dnn
+	ue.Ambr = bitRate
 
 	var reactivationResult *[16]bool
 	var errPduSessionID, errCause []uint8
@@ -158,7 +161,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 					if err != nil {
 						return err
 					}
-					err = ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(
+					err = ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
 						ctx,
 						ue.RanUe.AmfUeNgapID,
 						ue.RanUe.RanUeNgapID,
@@ -222,7 +225,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 			return fmt.Errorf("error building registration accept: %v", err)
 		}
 		if len(suList.List) != 0 {
-			err := ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(
+			err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
 				ctx,
 				ue.RanUe.AmfUeNgapID,
 				ue.RanUe.RanUeNgapID,
@@ -236,7 +239,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 			}
 			ue.Log.Info("Sent NGAP pdu session resource setup request")
 		} else {
-			err := ue.RanUe.Ran.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasPdu, nil)
+			err := ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasPdu, nil)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %v", err)
 			}

@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceSetupResponse(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.PDUSessionResourceSetupResponse) {
+func HandlePDUSessionResourceSetupResponse(ctx context.Context, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceSetupResponse) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -36,14 +36,14 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, ran *amfContext.
 	var ranUe *amfContext.RanUe
 
 	if rANUENGAPID != nil {
-		ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+		ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 		if ranUe == nil {
 			ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		}
 	}
 
 	if aMFUENGAPID != nil {
-		ranUe = amfContext.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+		ranUe = amfContext.AMFSelf().FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 		if ranUe == nil {
 			ran.Log.Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 			return
@@ -51,7 +51,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, ran *amfContext.
 	}
 
 	if ranUe != nil {
-		ranUe.Ran = ran
+		ranUe.Radio = ran
 
 		amfUe := ranUe.AmfUe
 		if amfUe == nil {

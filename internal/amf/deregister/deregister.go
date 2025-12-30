@@ -10,9 +10,9 @@ import (
 )
 
 func DeregisterSubscriber(ctx context.Context, supi string) error {
-	amfSelf := amfContext.AMFSelf()
+	amf := amfContext.AMFSelf()
 
-	ue, ok := amfSelf.AmfUeFindBySupi(supi)
+	ue, ok := amf.FindAMFUEBySupi(supi)
 	if !ok {
 		logger.AmfLog.Debug("UE with SUPI not found", zap.String("supi", supi))
 		return nil
@@ -30,7 +30,7 @@ func DeregisterSubscriber(ctx context.Context, supi string) error {
 		}
 	}
 
-	ue.Remove()
+	amf.RemoveAMFUE(ue)
 
 	logger.AmfLog.Info("removed ue context", zap.String("supi", supi))
 

@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.UEContextReleaseComplete) {
+func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.Radio, msg *ngapType.UEContextReleaseComplete) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -50,7 +50,8 @@ func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.AmfRan,
 		}
 	}
 
-	ranUe := amfContext.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+	amf := amfContext.AMFSelf()
+	ranUe := amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No RanUe Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		cause := ngapType.Cause{
@@ -72,7 +73,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.AmfRan,
 		ranUe.UpdateLocation(ctx, userLocationInformation)
 	}
 
-	ranUe.Ran = ran
+	ranUe.Radio = ran
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
 		ran.Log.Info("Release UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
@@ -159,7 +160,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.AmfRan,
 		// Valid Security is not exist for this UE then only delete AMfUe Context
 		if !amfUe.SecurityContextAvailable {
 			ran.Log.Info("Valid Security is not exist for the UE, so deleting AmfUe Context", zap.String("supi", amfUe.Supi))
-			amfUe.Remove()
+			amf.RemoveAMFUE(amfUe)
 		}
 	case amfContext.UeContextReleaseDueToNwInitiatedDeregistraion:
 		ran.Log.Info("Release UE Context Due to Nw Initiated: Release Ue Context", zap.String("supi", amfUe.Supi))
@@ -167,12 +168,12 @@ func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.AmfRan,
 		if err != nil {
 			ran.Log.Error(err.Error())
 		}
-		amfUe.Remove()
+		amf.RemoveAMFUE(amfUe)
 	case amfContext.UeContextReleaseHandover:
 		ran.Log.Info("Release UE Context : Release for Handover", zap.String("supi", amfUe.Supi))
-		targetRanUe := amfContext.AMFSelf().RanUeFindByAmfUeNgapID(ranUe.TargetUe.AmfUeNgapID)
+		targetRanUe := amf.FindRanUeByAmfUeNgapID(ranUe.TargetUe.AmfUeNgapID)
 
-		targetRanUe.Ran = ran
+		targetRanUe.Radio = ran
 		amfContext.DetachSourceUeTargetUe(ranUe)
 		err := ranUe.Remove()
 		if err != nil {

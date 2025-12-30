@@ -10,7 +10,7 @@ import (
 )
 
 // TS 23.502 4.9.1
-func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.PathSwitchRequest) {
+func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.Radio, msg *ngapType.PathSwitchRequest) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -57,9 +57,9 @@ func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.AmfRan, msg *n
 		return
 	}
 
-	amfSelf := amfContext.AMFSelf()
+	amf := amfContext.AMFSelf()
 
-	ranUe := amfSelf.RanUeFindByAmfUeNgapID(sourceAMFUENGAPID.Value)
+	ranUe := amf.FindRanUeByAmfUeNgapID(sourceAMFUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", sourceAMFUENGAPID.Value))
 		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
@@ -71,7 +71,7 @@ func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.AmfRan, msg *n
 		return
 	}
 
-	ranUe.Ran = ran
+	ranUe.Radio = ran
 	ranUe.Log.Debug("Handle Path Switch Request", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 	amfUe := ranUe.AmfUe
@@ -166,12 +166,12 @@ func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.AmfRan, msg *n
 			ranUe.Log.Error(err.Error())
 			return
 		}
-		operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
+		operatorInfo, err := amf.GetOperatorInfo(ctx)
 		if err != nil {
 			ranUe.Log.Error("Get Operator Info Error", zap.Error(err))
 			return
 		}
-		err = ranUe.Ran.NGAPSender.SendPathSwitchRequestAcknowledge(
+		err = ranUe.Radio.NGAPSender.SendPathSwitchRequestAcknowledge(
 			ctx,
 			ranUe.AmfUeNgapID,
 			ranUe.RanUeNgapID,

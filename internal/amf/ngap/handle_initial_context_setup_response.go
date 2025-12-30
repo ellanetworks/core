@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleInitialContextSetupResponse(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.InitialContextSetupResponse) {
+func HandleInitialContextSetupResponse(ctx context.Context, ran *amfContext.Radio, msg *ngapType.InitialContextSetupResponse) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -61,7 +61,7 @@ func HandleInitialContextSetupResponse(ctx context.Context, ran *amfContext.AmfR
 		return
 	}
 
-	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value), zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 		return

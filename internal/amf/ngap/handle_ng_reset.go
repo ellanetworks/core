@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleNGReset(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NGReset) {
+func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGReset) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -74,7 +74,7 @@ func HandleNGReset(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.NG
 				}
 			} else if ueAssociatedLogicalNGConnectionItem.RANUENGAPID != nil {
 				ran.Log.Debug("NG Reset with RANUENGAPID", zap.Int64("RanUeNgapID", ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value))
-				ranUe = ran.RanUeFindByRanUeNgapID(ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value)
+				ranUe = ran.FindUEByRanUeNgapID(ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value)
 			}
 
 			if ranUe == nil {

@@ -53,7 +53,7 @@ type NGAPSender interface {
 	SendHandoverRequest(ctx context.Context, amfUeNgapID int64, handOverType ngapType.HandoverType, uplinkAmbr string, downlinkAmbr string, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer, supportedPLMN *models.PlmnSupportItem, supportedGUAMI *models.Guami) error
 }
 
-type AmfRan struct {
+type Radio struct {
 	RanPresent      int
 	RanID           *models.GlobalRanNodeID
 	NGAPSender      NGAPSender
@@ -70,35 +70,26 @@ type SupportedTAI struct {
 	SNssaiList []models.Snssai
 }
 
-func (ran *AmfRan) Remove() {
-	ran.RemoveAllUeInRan()
-	AMFSelf().DeleteAmfRan(ran.Conn)
-}
-
-func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {
-	self := AMFSelf()
-
-	amfUeNgapID, err := AllocateAmfUeNgapID()
+func (r *Radio) NewUe(ranUeNgapID int64) (*RanUe, error) {
+	amfUeNgapID, err := allocateAmfUeNgapID()
 	if err != nil {
 		return nil, fmt.Errorf("error allocating amf ue ngap id: %+v", err)
 	}
 
-	ranUe := RanUe{}
-	ranUe.AmfUeNgapID = amfUeNgapID
-	ranUe.RanUeNgapID = ranUeNgapID
-	ranUe.Ran = ran
-	ranUe.Log = ran.Log.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("%d", ranUe.AmfUeNgapID)))
+	ranUE := &RanUe{
+		AmfUeNgapID: amfUeNgapID,
+		RanUeNgapID: ranUeNgapID,
+		Radio:       r,
+		Log:         r.Log.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("%d", amfUeNgapID))),
+	}
 
-	ran.RanUePool[ranUe.RanUeNgapID] = &ranUe
+	r.RanUePool[ranUeNgapID] = ranUE
 
-	self.Mutex.Lock()
-	defer self.Mutex.Unlock()
-
-	return &ranUe, nil
+	return ranUE, nil
 }
 
-func (ran *AmfRan) RemoveAllUeInRan() {
-	for _, ranUe := range ran.RanUePool {
+func (r *Radio) RemoveAllUeInRan() {
+	for _, ranUe := range r.RanUePool {
 		err := ranUe.Remove()
 		if err != nil {
 			logger.AmfLog.Error("error removing ran ue", zap.Error(err))
@@ -106,19 +97,17 @@ func (ran *AmfRan) RemoveAllUeInRan() {
 	}
 }
 
-func (ran *AmfRan) RanUeFindByRanUeNgapID(ranUeNgapID int64) *RanUe {
-	ranUe, ok := ran.RanUePool[ranUeNgapID]
+func (r *Radio) FindUEByRanUeNgapID(ranUeNgapID int64) *RanUe {
+	ranUe, ok := r.RanUePool[ranUeNgapID]
 	if ok {
 		return ranUe
 	}
 
-	ran.Log.Debug("Ran UE not found", zap.Int64("ranUeNgapID", ranUeNgapID))
-
 	return nil
 }
 
-func (ran *AmfRan) SetRanID(ranNodeID *ngapType.GlobalRANNodeID) {
+func (r *Radio) SetRanID(ranNodeID *ngapType.GlobalRANNodeID) {
 	ranID := util.RanIDToModels(*ranNodeID)
-	ran.RanPresent = ranNodeID.Present
-	ran.RanID = &ranID
+	r.RanPresent = ranNodeID.Present
+	r.RanID = &ranID
 }

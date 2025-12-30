@@ -258,8 +258,8 @@ func buildUESecurityCapability(ueSecurityCapability nasType.UESecurityCapability
 }
 
 func plmnIDStringToModels(plmnIDStr string) PLMNID {
-	var plmnID PLMNID
-	plmnID.Mcc = plmnIDStr[:3]
-	plmnID.Mnc = plmnIDStr[3:]
-	return plmnID
+	return PLMNID{
+		Mcc: plmnIDStr[:3],
+		Mnc: plmnIDStr[3:],
+	}
 }

@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleRanConfigurationUpdate(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.RANConfigurationUpdate) {
+func HandleRanConfigurationUpdate(ctx context.Context, ran *amfContext.Radio, msg *ngapType.RANConfigurationUpdate) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -82,10 +82,9 @@ func HandleRanConfigurationUpdate(ctx context.Context, ran *amfContext.AmfRan, m
 			Value: ngapType.CauseMiscPresentUnspecified,
 		}
 	} else {
-		var found bool
-		amfSelf := amfContext.AMFSelf()
+		amf := amfContext.AMFSelf()
 
-		operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
+		operatorInfo, err := amf.GetOperatorInfo(ctx)
 		if err != nil {
 			ran.Log.Error("Could not get operator info", zap.Error(err))
 			cause.Present = ngapType.CausePresentMisc
@@ -94,6 +93,8 @@ func HandleRanConfigurationUpdate(ctx context.Context, ran *amfContext.AmfRan, m
 			}
 			return
 		}
+
+		var found bool
 
 		for i, tai := range ran.SupportedTAList {
 			if amfContext.InTaiList(tai.Tai, operatorInfo.Tais) {

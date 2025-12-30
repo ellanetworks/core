@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleHandoverCancel(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.HandoverCancel) {
+func HandleHandoverCancel(ctx context.Context, ran *amfContext.Radio, msg *ngapType.HandoverCancel) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -42,7 +42,7 @@ func HandleHandoverCancel(ctx context.Context, ran *amfContext.AmfRan, msg *ngap
 		}
 	}
 
-	sourceUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	sourceUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if sourceUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		cause := ngapType.Cause{
@@ -86,13 +86,13 @@ func HandleHandoverCancel(ctx context.Context, ran *amfContext.AmfRan, msg *ngap
 
 	targetUe.ReleaseAction = amfContext.UeContextReleaseHandover
 
-	err = targetUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, targetUe.AmfUeNgapID, targetUe.RanUeNgapID, causePresent, causeValue)
+	err = targetUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, targetUe.AmfUeNgapID, targetUe.RanUeNgapID, causePresent, causeValue)
 	if err != nil {
 		ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		return
 	}
 
-	err = sourceUe.Ran.NGAPSender.SendHandoverCancelAcknowledge(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID)
+	err = sourceUe.Radio.NGAPSender.SendHandoverCancelAcknowledge(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID)
 	if err != nil {
 		ran.Log.Error("error sending handover cancel acknowledge to source UE", zap.Error(err))
 		return

@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleHandoverRequired(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.HandoverRequired) {
+func HandleHandoverRequired(ctx context.Context, ran *amfContext.Radio, msg *ngapType.HandoverRequired) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -91,7 +91,7 @@ func HandleHandoverRequired(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 		return
 	}
 
-	sourceUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	sourceUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if sourceUe == nil {
 		ran.Log.Error("Cannot find UE", zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
 		cause := ngapType.Cause{
@@ -135,7 +135,7 @@ func HandleHandoverRequired(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 		sourceUe.AmfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
 			Procedure: amfContext.OnGoingProcedureNothing,
 		})
-		err := sourceUe.Ran.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
+		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {
 			sourceUe.Log.Error("error sending handover preparation failure", zap.Error(err))
 			return
@@ -145,7 +145,7 @@ func HandleHandoverRequired(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 	}
 	aMFSelf := amfContext.AMFSelf()
 	targetRanNodeID := util.RanIDToModels(targetID.TargetRANNodeID.GlobalRANNodeID)
-	targetRan, ok := aMFSelf.AmfRanFindByRanID(targetRanNodeID)
+	targetRan, ok := aMFSelf.FindRadioByRanID(targetRanNodeID)
 	if !ok {
 		// handover between different AMF
 		sourceUe.Log.Warn("Handover required : cannot find target Ran Node Id in this AMF. Handover between different AMF has not been implemented yet", zap.Any("targetRanNodeID", targetRanNodeID))
@@ -179,7 +179,7 @@ func HandleHandoverRequired(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 		sourceUe.AmfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
 			Procedure: amfContext.OnGoingProcedureNothing,
 		})
-		err := sourceUe.Ran.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
+		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {
 			sourceUe.Log.Error("error sending handover preparation failure", zap.Error(err))
 			return
@@ -194,15 +194,15 @@ func HandleHandoverRequired(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 		return
 	}
 
-	amfSelf := amfContext.AMFSelf()
+	amf := amfContext.AMFSelf()
 
-	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
+	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
 		sourceUe.Log.Error("Could not get operator info", zap.Error(err))
 		return
 	}
 
-	targetUe, err := targetRan.NewRanUe(models.RanUeNgapIDUnspecified)
+	targetUe, err := targetRan.NewUe(models.RanUeNgapIDUnspecified)
 	if err != nil {
 		logger.AmfLog.Error("error creating target ue", zap.Error(err))
 		return
@@ -214,7 +214,7 @@ func HandleHandoverRequired(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 		return
 	}
 
-	err = targetUe.Ran.NGAPSender.SendHandoverRequest(
+	err = targetUe.Radio.NGAPSender.SendHandoverRequest(
 		ctx,
 		targetUe.AmfUeNgapID,
 		targetUe.HandOverType,

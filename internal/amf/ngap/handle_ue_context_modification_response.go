@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUEContextModificationResponse(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.UEContextModificationResponse) {
+func HandleUEContextModificationResponse(ctx context.Context, ran *amfContext.Radio, msg *ngapType.UEContextModificationResponse) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -40,14 +40,14 @@ func HandleUEContextModificationResponse(ctx context.Context, ran *amfContext.Am
 
 	var ranUe *amfContext.RanUe
 	if rANUENGAPID != nil {
-		ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+		ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 		if ranUe == nil {
 			ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value), zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 		}
 	}
 
 	if aMFUENGAPID != nil {
-		ranUe = amfContext.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+		ranUe = amfContext.AMFSelf().FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 		if ranUe == nil {
 			ran.Log.Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 			return
@@ -55,7 +55,7 @@ func HandleUEContextModificationResponse(ctx context.Context, ran *amfContext.Am
 	}
 
 	if ranUe != nil {
-		ranUe.Ran = ran
+		ranUe.Radio = ran
 		ranUe.Log.Debug("Handle UE Context Modification Response", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 		if rRCState != nil {

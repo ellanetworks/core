@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUplinkNasTransport(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.UplinkNASTransport) {
+func HandleUplinkNasTransport(ctx context.Context, ran *amfContext.Radio, msg *ngapType.UplinkNASTransport) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -50,13 +50,13 @@ func HandleUplinkNasTransport(ctx context.Context, ran *amfContext.AmfRan, msg *
 		}
 	}
 
-	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("ran ue is nil", zap.Int64("ranUeNgapID", rANUENGAPID.Value))
 		return
 	}
 
-	ranUe.Ran = ran
+	ranUe.Radio = ran
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
 		err := ranUe.Remove()

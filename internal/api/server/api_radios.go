@@ -84,7 +84,9 @@ func ListRadios() http.HandlerFunc {
 			return
 		}
 
-		total, ranList := context.ListAmfRan(page, perPage)
+		amf := context.AMFSelf()
+
+		total, ranList := amf.ListAmfRan(page, perPage)
 
 		items := make([]Radio, 0, len(ranList))
 
@@ -119,7 +121,9 @@ func GetRadio() http.HandlerFunc {
 			return
 		}
 
-		_, ranList := context.ListAmfRan(1, 1000)
+		amf := context.AMFSelf()
+
+		_, ranList := amf.ListAmfRan(1, 1000)
 
 		for _, radio := range ranList {
 			if radio.Name == radioName {

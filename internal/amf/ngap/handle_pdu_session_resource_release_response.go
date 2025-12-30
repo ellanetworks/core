@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceReleaseResponse(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.PDUSessionResourceReleaseResponse) {
+func HandlePDUSessionResourceReleaseResponse(ctx context.Context, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceReleaseResponse) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -45,7 +45,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, ran *amfContex
 		}
 	}
 
-	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		return

@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMFContext, ran *amfContext.AmfRan, msg *ngapType.NGSetupRequest) {
+func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.NGSetupRequest) {
 	if msg == nil {
 		ran.Log.Error("NG Setup Request Message is nil")
 		return

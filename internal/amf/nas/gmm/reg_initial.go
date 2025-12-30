@@ -11,7 +11,7 @@ import (
 )
 
 func HandleInitialRegistration(ctx context.Context, ue *amfContext.AmfUe) error {
-	amfSelf := amfContext.AMFSelf()
+	amf := amfContext.AMFSelf()
 
 	ue.ClearRegistrationData()
 
@@ -21,7 +21,7 @@ func HandleInitialRegistration(ctx context.Context, ue *amfContext.AmfUe) error 
 		return fmt.Errorf("error updating security context: %v", err)
 	}
 
-	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
+	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
@@ -37,11 +37,15 @@ func HandleInitialRegistration(ctx context.Context, ue *amfContext.AmfUe) error 
 		ue.UESpecificDRX = ue.RegistrationRequest.RequestedDRXParameters.GetDRXValue()
 	}
 
-	if err := getAndSetSubscriberData(ctx, ue); err != nil {
-		return fmt.Errorf("failed to get and set subscriber data: %v", err)
+	bitRate, dnn, err := amf.GetSubscriberData(ctx, ue.Supi)
+	if err != nil {
+		return fmt.Errorf("failed to get subscriber data: %v", err)
 	}
 
-	if !amfContext.SubscriberExists(ctx, ue.Supi) {
+	ue.Dnn = dnn
+	ue.Ambr = bitRate
+
+	if !amf.SubscriberExists(ctx, ue.Supi) {
 		ue.Log.Error("Subscriber does not exist", zap.Error(err))
 		err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 		if err != nil {
@@ -55,13 +59,13 @@ func HandleInitialRegistration(ctx context.Context, ue *amfContext.AmfUe) error 
 
 	ue.Log.Debug("use original GUTI", zap.String("guti", ue.Guti))
 
-	err = amfSelf.AddAmfUeToUePool(ue)
+	err = amf.AddAmfUeToUePool(ue)
 	if err != nil {
 		return fmt.Errorf("error adding AMF UE to UE pool: %v", err)
 	}
 
-	ue.T3502Value = amfSelf.T3502Value
-	ue.T3512Value = amfSelf.T3512Value
+	ue.T3502Value = amf.T3502Value
+	ue.T3512Value = amf.T3512Value
 
 	err = ue.ReAllocateGuti(operatorInfo.Guami)
 	if err != nil {

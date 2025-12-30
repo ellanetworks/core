@@ -56,16 +56,12 @@ func handleSecurityModeComplete(ctx context.Context, ue *amfContext.AmfUe, msg *
 		}
 
 		messageType := m.GmmMessage.GmmHeader.GetMessageType()
-		if messageType != nas.MsgTypeRegistrationRequest && messageType != nas.MsgTypeServiceRequest {
+		if messageType != nas.MsgTypeRegistrationRequest {
 			return fmt.Errorf("nas message container Iei type error")
 		}
 
-		ue.State = amfContext.ContextSetup
-
 		return contextSetup(ctx, ue, m.GmmMessage.RegistrationRequest)
 	}
-
-	ue.State = amfContext.ContextSetup
 
 	err := contextSetup(ctx, ue, ue.RegistrationRequest)
 	if err != nil {

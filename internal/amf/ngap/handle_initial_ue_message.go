@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleInitialUEMessage(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.InitialUEMessage) {
+func HandleInitialUEMessage(ctx context.Context, ran *amfContext.Radio, msg *ngapType.InitialUEMessage) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -91,7 +91,7 @@ func HandleInitialUEMessage(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 		ran.Log.Info("sent error indication")
 	}
 
-	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe != nil && ranUe.AmfUe == nil {
 		err := ranUe.Remove()
 		if err != nil {
@@ -102,7 +102,7 @@ func HandleInitialUEMessage(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 
 	if ranUe == nil {
 		var err error
-		ranUe, err = ran.NewRanUe(rANUENGAPID.Value)
+		ranUe, err = ran.NewUe(rANUENGAPID.Value)
 		if err != nil {
 			ran.Log.Error("Failed to add Ran UE to the pool", zap.Error(err))
 		}
@@ -110,9 +110,9 @@ func HandleInitialUEMessage(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 
 		if fiveGSTMSI != nil {
 			ranUe.Log.Debug("Receive 5G-S-TMSI")
-			amfSelf := amfContext.AMFSelf()
+			amf := amfContext.AMFSelf()
 
-			operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
+			operatorInfo, err := amf.GetOperatorInfo(ctx)
 			if err != nil {
 				ranUe.Log.Error("Could not get operator info", zap.Error(err))
 				return
@@ -127,7 +127,7 @@ func HandleInitialUEMessage(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 			tmsi := hex.EncodeToString(fiveGSTMSI.FiveGTMSI.Value)
 
 			guti := operatorInfo.Guami.PlmnID.Mcc + operatorInfo.Guami.PlmnID.Mnc + amfID + tmsi
-			if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); !ok {
+			if amfUe, ok := amf.FindAmfUeByGuti(guti); !ok {
 				ranUe.Log.Warn("Unknown UE", zap.String("GUTI", guti))
 			} else {
 				ranUe.Log.Debug("find AmfUe", zap.String("GUTI", guti))
@@ -142,7 +142,7 @@ func HandleInitialUEMessage(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 			}
 		}
 	} else {
-		ranUe.Ran = ran
+		ranUe.Radio = ran
 		ranUe.AmfUe.AttachRanUe(ranUe)
 	}
 

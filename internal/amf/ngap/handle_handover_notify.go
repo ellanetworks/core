@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleHandoverNotify(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.HandoverNotify) {
+func HandleHandoverNotify(ctx context.Context, ran *amfContext.Radio, msg *ngapType.HandoverNotify) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -42,7 +42,7 @@ func HandleHandoverNotify(ctx context.Context, ran *amfContext.AmfRan, msg *ngap
 		}
 	}
 
-	targetUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	targetUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 
 	if targetUe == nil {
 		ran.Log.Error("No RanUe Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
@@ -83,7 +83,7 @@ func HandleHandoverNotify(ctx context.Context, ran *amfContext.AmfRan, msg *ngap
 
 	sourceUe.ReleaseAction = amfContext.UeContextReleaseHandover
 
-	err := sourceUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+	err := sourceUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {
 		ran.Log.Error("error sending ue context release command", zap.Error(err))
 		return

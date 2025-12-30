@@ -361,17 +361,17 @@ func BuildRegistrationAccept(
 	}
 
 	// 5gs network feature support
-	amfSelf := amfContext.AMFSelf()
-	if amfSelf.Get5gsNwFeatSuppEnable() {
+	amf := amfContext.AMFSelf()
+	if amf.Get5gsNwFeatSuppEnable() {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
-		registrationAccept.SetIMSVoPS3GPP(amfSelf.Get5gsNwFeatSuppImsVoPS())
-		registrationAccept.SetEMC(amfSelf.Get5gsNwFeatSuppEmc())
-		registrationAccept.SetEMF(amfSelf.Get5gsNwFeatSuppEmf())
-		registrationAccept.SetIWKN26(amfSelf.Get5gsNwFeatSuppIwkN26())
-		registrationAccept.SetMPSI(amfSelf.Get5gsNwFeatSuppMpsi())
-		registrationAccept.SetEMCN(amfSelf.Get5gsNwFeatSuppEmcN3())
-		registrationAccept.SetMCSI(amfSelf.Get5gsNwFeatSuppMcsi())
+		registrationAccept.SetIMSVoPS3GPP(amf.Get5gsNwFeatSuppImsVoPS())
+		registrationAccept.SetEMC(amf.Get5gsNwFeatSuppEmc())
+		registrationAccept.SetEMF(amf.Get5gsNwFeatSuppEmf())
+		registrationAccept.SetIWKN26(amf.Get5gsNwFeatSuppIwkN26())
+		registrationAccept.SetMPSI(amf.Get5gsNwFeatSuppMpsi())
+		registrationAccept.SetEMCN(amf.Get5gsNwFeatSuppEmcN3())
+		registrationAccept.SetMCSI(amf.Get5gsNwFeatSuppMcsi())
 	}
 
 	if pDUSessionStatus != nil {
@@ -518,20 +518,20 @@ func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe, flags *amfContext.Con
 		ue.Log.Warn("Require LADN Information, but got nothing.")
 	}
 
-	amfSelf := amfContext.AMFSelf()
+	amf := amfContext.AMFSelf()
 
 	if flags.NeedNITZ {
 		// Full network name
-		if amfSelf.NetworkName.Full != "" {
-			fullNetworkName := nasConvert.FullNetworkNameToNas(amfSelf.NetworkName.Full)
+		if amf.NetworkName.Full != "" {
+			fullNetworkName := nasConvert.FullNetworkNameToNas(amf.NetworkName.Full)
 			configurationUpdateCommand.FullNameForNetwork = &fullNetworkName
 			configurationUpdateCommand.FullNameForNetwork.SetIei(nasMessage.ConfigurationUpdateCommandFullNameForNetworkType)
 		} else {
 			ue.Log.Warn("Require Full Network Name, but got nothing.")
 		}
 		// Short network name
-		if amfSelf.NetworkName.Short != "" {
-			shortNetworkName := nasConvert.ShortNetworkNameToNas(amfSelf.NetworkName.Short)
+		if amf.NetworkName.Short != "" {
+			shortNetworkName := nasConvert.ShortNetworkNameToNas(amf.NetworkName.Short)
 			configurationUpdateCommand.ShortNameForNetwork = &shortNetworkName
 			configurationUpdateCommand.ShortNameForNetwork.SetIei(nasMessage.ConfigurationUpdateCommandShortNameForNetworkType)
 		} else {
@@ -543,8 +543,8 @@ func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe, flags *amfContext.Con
 		universalTimeAndLocalTimeZone.SetIei(nasMessage.ConfigurationUpdateCommandUniversalTimeAndLocalTimeZoneType)
 		configurationUpdateCommand.UniversalTimeAndLocalTimeZone = &universalTimeAndLocalTimeZone
 
-		if ue.TimeZone != amfSelf.TimeZone {
-			ue.TimeZone = amfSelf.TimeZone
+		if ue.TimeZone != amf.TimeZone {
+			ue.TimeZone = amf.TimeZone
 			// Local Time Zone
 			localTimeZone := nasConvert.EncodeLocalTimeZoneToNas(ue.TimeZone)
 			localTimeZone.SetIei(nasMessage.ConfigurationUpdateCommandLocalTimeZoneType)

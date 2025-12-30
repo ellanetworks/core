@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleLocationReport(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.LocationReport) {
+func HandleLocationReport(ctx context.Context, ran *amfContext.Radio, msg *ngapType.LocationReport) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -50,7 +50,7 @@ func HandleLocationReport(ctx context.Context, ran *amfContext.AmfRan, msg *ngap
 		}
 	}
 
-	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		return
@@ -82,7 +82,7 @@ func HandleLocationReport(ctx context.Context, ran *amfContext.AmfRan, msg *ngap
 		}
 
 	case ngapType.EventTypePresentStopChangeOfServeCell:
-		err := ranUe.Ran.NGAPSender.SendLocationReportingControl(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, locationReportingRequestType.EventType)
+		err := ranUe.Radio.NGAPSender.SendLocationReportingControl(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, locationReportingRequestType.EventType)
 		if err != nil {
 			ranUe.Log.Error("error sending location reporting control", zap.Error(err))
 		}

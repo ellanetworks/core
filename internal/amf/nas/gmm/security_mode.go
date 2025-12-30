@@ -20,12 +20,12 @@ func securityMode(ctx context.Context, ue *amfContext.AmfUe) error {
 
 	if ue.SecurityContextIsValid() {
 		ue.Log.Debug("UE has a valid security context - skip security mode control procedure")
-		ue.State = amfContext.ContextSetup
 		return contextSetup(ctx, ue, ue.RegistrationRequest)
 	}
 
-	amfSelf := amfContext.AMFSelf()
-	ue.SelectSecurityAlg(amfSelf.SecurityAlgorithm.IntegrityOrder, amfSelf.SecurityAlgorithm.CipheringOrder)
+	amf := amfContext.AMFSelf()
+
+	ue.SelectSecurityAlg(amf.SecurityAlgorithm.IntegrityOrder, amf.SecurityAlgorithm.CipheringOrder)
 
 	err := ue.DerivateAlgKey()
 	if err != nil {

@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUERadioCapabilityInfoIndication(ran *context.AmfRan, msg *ngapType.UERadioCapabilityInfoIndication) {
+func HandleUERadioCapabilityInfoIndication(ran *context.Radio, msg *ngapType.UERadioCapabilityInfoIndication) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -50,7 +50,7 @@ func HandleUERadioCapabilityInfoIndication(ran *context.AmfRan, msg *ngapType.UE
 		}
 	}
 
-	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		return

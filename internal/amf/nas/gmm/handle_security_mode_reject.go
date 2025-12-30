@@ -36,7 +36,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amfContext.AmfUe, msg *na
 	ue.SecurityContextAvailable = false
 	ue.RanUe.ReleaseAction = amfContext.UeContextReleaseUeContext
 
-	err := ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+	err := ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {
 		return fmt.Errorf("error sending ue context release command: %v", err)
 	}

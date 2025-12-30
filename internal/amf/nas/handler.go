@@ -117,6 +117,8 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, payload []byte) (*amf
 		return nil, fmt.Errorf("unsupported security header type: 0x%0x", msg.SecurityHeaderType)
 	}
 
+	amf := amfContext.AMFSelf()
+
 	var guti string
 
 	switch msg.GmmHeader.GetMessageType() {
@@ -133,7 +135,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, payload []byte) (*amf
 			/* UeContext found based on SUCI which means context is exist in Network(AMF) but not
 			   present in UE. Hence, AMF clear the existing context
 			*/
-			ue, _ := amfContext.AMFSelf().AmfUeFindBySuci(suci)
+			ue, _ := amf.FindAMFUEBySuci(suci)
 			if ue != nil {
 				ue.Log.Info("UE Context derived from Suci", zap.String("suci", suci))
 				ue.SecurityContextAvailable = false
@@ -146,9 +148,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, payload []byte) (*amf
 			return nil, fmt.Errorf("mobile identity 5GS is empty")
 		}
 		if nasMessage.MobileIdentity5GSType5gSTmsi == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			amfSelf := amfContext.AMFSelf()
-
-			guti, err := amfSelf.StmsiToGuti(ctx, mobileIdentity5GSContents)
+			guti, err := amf.StmsiToGuti(ctx, mobileIdentity5GSContents)
 			if err != nil {
 				return nil, fmt.Errorf("error converting 5G-S-TMSI to GUTI: %+v", err)
 			}
@@ -167,7 +167,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, payload []byte) (*amf
 		return nil, nil
 	}
 
-	ue, _ := amfContext.AMFSelf().AmfUeFindByGuti(guti)
+	ue, _ := amf.FindAmfUeByGuti(guti)
 	if ue == nil {
 		logger.AmfLog.Warn("UE Context not found", zap.String("guti", guti))
 		return nil, nil

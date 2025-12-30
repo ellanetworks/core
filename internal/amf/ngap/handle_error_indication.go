@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleErrorIndication(ran *context.AmfRan, msg *ngapType.ErrorIndication) {
+func HandleErrorIndication(ran *context.Radio, msg *ngapType.ErrorIndication) {
 	if msg == nil {
 		ran.Log.Error("ErrorIndication is nil")
 		return

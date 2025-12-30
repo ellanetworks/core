@@ -40,7 +40,7 @@ type RanUe struct {
 	Tai                              models.Tai
 	Location                         models.UserLocation
 	AmfUe                            *AmfUe
-	Ran                              *AmfRan
+	Radio                            *Radio
 	ReleaseAction                    RelAction
 	RRCEstablishmentCause            string // Received from initial ue message; pattern: ^[0-9a-fA-F]+$
 	UeContextRequest                 bool
@@ -59,7 +59,7 @@ func (ranUe *RanUe) Remove() error {
 		ranUe.AmfUe = nil
 	}
 
-	ran := ranUe.Ran
+	ran := ranUe.Radio
 	if ran == nil {
 		return fmt.Errorf("ran not found in ranUe")
 	}
@@ -70,12 +70,13 @@ func (ranUe *RanUe) Remove() error {
 			break
 		}
 	}
+
 	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapID)
 	logger.AmfLog.Info("ran ue removed", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 	return nil
 }
 
-func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
+func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
 	if ranUe == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
@@ -84,7 +85,7 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
 		return fmt.Errorf("new ran is nil")
 	}
 
-	oldRan := ranUe.Ran
+	oldRan := ranUe.Radio
 
 	// remove ranUe from oldRan
 	for _, ranUe1 := range oldRan.RanUePool {
@@ -98,10 +99,11 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
 	newRan.RanUePool[ranUeNgapID] = ranUe
 
 	// switch to newRan
-	ranUe.Ran = newRan
+	ranUe.Radio = newRan
 	ranUe.RanUeNgapID = ranUeNgapID
 
 	logger.AmfLog.Info("ran ue switch to new Ran", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+
 	return nil
 }
 
@@ -196,22 +198,24 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation 
 		ranUe.Location.N3gaLocation.UeIpv6Addr = ipv6Addr
 		ranUe.Location.N3gaLocation.PortNumber = ngapConvert.PortNumberToInt(port)
 
-		amfSelf := AMFSelf()
+		amf := AMFSelf()
 
-		operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
+		operatorInfo, err := amf.GetOperatorInfo(ctx)
 		if err != nil {
 			logger.AmfLog.Error("Error getting supported TAI list", zap.Error(err))
 			return
 		}
+
 		tmp, err := strconv.ParseUint(operatorInfo.Tais[0].Tac, 10, 32)
 		if err != nil {
 			logger.AmfLog.Error("Error parsing TAC", zap.String("Tac", operatorInfo.Tais[0].Tac), zap.Error(err))
 		}
-		tac := fmt.Sprintf("%06x", tmp)
+
 		ranUe.Location.N3gaLocation.N3gppTai = &models.Tai{
 			PlmnID: operatorInfo.Tais[0].PlmnID,
-			Tac:    tac,
+			Tac:    fmt.Sprintf("%06x", tmp),
 		}
+
 		ranUe.Tai = *ranUe.Location.N3gaLocation.N3gppTai
 
 		if ranUe.AmfUe != nil {

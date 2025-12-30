@@ -114,9 +114,9 @@ func HandleRegistrationRequest(ctx context.Context, ue *amfContext.AmfUe, regist
 		return errors.New("mobile identity 5GS is empty")
 	}
 
-	amfSelf := amfContext.AMFSelf()
+	amf := amfContext.AMFSelf()
 
-	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
+	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}

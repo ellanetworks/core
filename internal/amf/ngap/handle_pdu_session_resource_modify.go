@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceNotify(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.PDUSessionResourceNotify) {
+func HandlePDUSessionResourceNotify(ctx context.Context, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceNotify) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -46,18 +46,18 @@ func HandlePDUSessionResourceNotify(ctx context.Context, ran *amfContext.AmfRan,
 
 	var ranUe *amfContext.RanUe
 
-	ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 	}
 
-	ranUe = amfContext.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+	ranUe = amfContext.AMFSelf().FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 		return
 	}
 
-	ranUe.Ran = ran
+	ranUe.Radio = ran
 	ranUe.Log.Debug("Handle PDUSessionResourceNotify", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
 
 	if userLocationInformation != nil {

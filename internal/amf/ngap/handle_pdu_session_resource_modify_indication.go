@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.PDUSessionResourceModifyIndication) {
+func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceModifyIndication) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -57,7 +57,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 		return
 	}
 
-	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		cause := ngapType.Cause{
@@ -80,7 +80,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 	pduSessionResourceModifyListModCfm := ngapType.PDUSessionResourceModifyListModCfm{}
 	pduSessionResourceFailedToModifyListModCfm := ngapType.PDUSessionResourceFailedToModifyListModCfm{}
 
-	err := ranUe.Ran.NGAPSender.SendPDUSessionResourceModifyConfirm(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, pduSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyListModCfm)
+	err := ranUe.Radio.NGAPSender.SendPDUSessionResourceModifyConfirm(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, pduSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyListModCfm)
 	if err != nil {
 		ranUe.Log.Error("error sending pdu session resource modify confirm", zap.Error(err))
 		return

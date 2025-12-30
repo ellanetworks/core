@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleHandoverRequestAcknowledge(ctx context.Context, ran *amfContext.AmfRan, msg *ngapType.HandoverRequestAcknowledge) {
+func HandleHandoverRequestAcknowledge(ctx context.Context, ran *amfContext.Radio, msg *ngapType.HandoverRequestAcknowledge) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -54,7 +54,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, ran *amfContext.AmfRa
 		ran.Log.Info("sent error indication")
 	}
 
-	targetUe := amfContext.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+	targetUe := amfContext.AMFSelf().FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if targetUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		return
@@ -64,7 +64,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, ran *amfContext.AmfRa
 		targetUe.RanUeNgapID = rANUENGAPID.Value
 	}
 
-	targetUe.Ran = ran
+	targetUe.Radio = ran
 	ran.Log.Debug("Handle Handover Request Acknowledge", zap.Any("RanUeNgapID", targetUe.RanUeNgapID), zap.Any("AmfUeNgapID", targetUe.AmfUeNgapID))
 
 	amfUe := targetUe.AmfUe
@@ -127,14 +127,14 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, ran *amfContext.AmfRa
 			sourceUe.AmfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
 				Procedure: amfContext.OnGoingProcedureNothing,
 			})
-			err := sourceUe.Ran.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
+			err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 			if err != nil {
 				ran.Log.Error("error sending handover preparation failure", zap.Error(err))
 			}
 			ran.Log.Info("sent handover preparation failure to source UE")
 			return
 		}
-		err := sourceUe.Ran.NGAPSender.SendHandoverCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, *targetToSourceTransparentContainer)
+		err := sourceUe.Radio.NGAPSender.SendHandoverCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, *targetToSourceTransparentContainer)
 		if err != nil {
 			ran.Log.Error("error sending handover command to source UE", zap.Error(err))
 		}

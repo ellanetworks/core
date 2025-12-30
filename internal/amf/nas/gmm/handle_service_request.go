@@ -56,7 +56,7 @@ func sendServiceAccept(ctx context.Context, ue *amfContext.AmfUe, ctxList ngapTy
 		}
 		if len(ctxList.List) != 0 {
 			ue.RanUe.SentInitialContextSetupRequest = true
-			err := ue.RanUe.Ran.NGAPSender.SendInitialContextSetupRequest(
+			err := ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
 				ctx,
 				ue.RanUe.AmfUeNgapID,
 				ue.RanUe.RanUeNgapID,
@@ -77,7 +77,7 @@ func sendServiceAccept(ctx context.Context, ue *amfContext.AmfUe, ctxList ngapTy
 			}
 			ue.Log.Info("sent service accept with context list", zap.Int("len", len(ctxList.List)))
 		} else {
-			err := ue.RanUe.Ran.NGAPSender.SendInitialContextSetupRequest(
+			err := ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
 				ctx,
 				ue.RanUe.AmfUeNgapID,
 				ue.RanUe.RanUeNgapID,
@@ -105,7 +105,7 @@ func sendServiceAccept(ctx context.Context, ue *amfContext.AmfUe, ctxList ngapTy
 		if err != nil {
 			return err
 		}
-		err = ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(
+		err = ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
 			ctx,
 			ue.RanUe.AmfUeNgapID,
 			ue.RanUe.RanUeNgapID,
@@ -175,7 +175,7 @@ func handleServiceRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.Gm
 		}
 		ue.Log.Info("sent service reject")
 		ue.RanUe.ReleaseAction = amfContext.UeContextN2NormalRelease
-		err = ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		err = ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
@@ -240,7 +240,7 @@ func handleServiceRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.Gm
 		ue.Log.Info("sent service reject")
 		ue.RanUe.ReleaseAction = amfContext.UeContextN2NormalRelease
 
-		err = ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		err = ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
@@ -248,9 +248,9 @@ func handleServiceRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.Gm
 		return nil
 	}
 
-	amfSelf := amfContext.AMFSelf()
+	amf := amfContext.AMFSelf()
 
-	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
+	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}

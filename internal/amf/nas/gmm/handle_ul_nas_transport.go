@@ -55,7 +55,7 @@ func forward5GSMMessageToSMF(
 
 		list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 		send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, response.BinaryDataN2SmInformation)
-		err := ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, n1Msg, list)
+		err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, n1Msg, list)
 		if err != nil {
 			return fmt.Errorf("error sending pdu session resource release command: %s", err)
 		}
@@ -66,7 +66,7 @@ func forward5GSMMessageToSMF(
 	}
 
 	if n1Msg != nil {
-		err := ue.RanUe.Ran.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, n1Msg, nil)
+		err := ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, n1Msg, nil)
 		if err != nil {
 			return fmt.Errorf("error sending downlink nas transport: %s", err)
 		}
@@ -147,7 +147,7 @@ func transport5GSMMessage(ctx context.Context, ue *amfContext.AmfUe, ulNasTransp
 			ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 			list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 			send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2Rsp)
-			err = ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nil, list)
+			err = ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nil, list)
 			if err != nil {
 				return fmt.Errorf("error sending pdu session resource release command: %s", err)
 			}
@@ -197,8 +197,8 @@ func transport5GSMMessage(ctx context.Context, ue *amfContext.AmfUe, ulNasTransp
 			} else {
 				// if user's subscription context obtained from UDM does not contain the default DNN for the,
 				// S-NSSAI, the AMF shall use a locally configured DNN as the DNN
-
-				_, dnnResp, err := amfContext.GetSubscriberData(ctx, ue.Supi)
+				amf := amfContext.AMFSelf()
+				_, dnnResp, err := amf.GetSubscriberData(ctx, ue.Supi)
 				if err != nil {
 					return fmt.Errorf("failed to get subscriber data: %v", err)
 				}
