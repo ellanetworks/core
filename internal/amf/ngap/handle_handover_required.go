@@ -160,12 +160,12 @@ func HandleHandoverRequired(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 	for _, pDUSessionResourceHoItem := range pDUSessionResourceListHORqd.List {
 		pduSessionIDUint8 := uint8(pDUSessionResourceHoItem.PDUSessionID.Value)
 		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-			n2Rsp, err := pdusession.UpdateSmContextN2HandoverPreparing(smContext.SmContextRef(), pDUSessionResourceHoItem.HandoverRequiredTransfer)
+			n2Rsp, err := pdusession.UpdateSmContextN2HandoverPreparing(smContext.Ref, pDUSessionResourceHoItem.HandoverRequiredTransfer)
 			if err != nil {
 				sourceUe.Log.Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
 				continue
 			}
-			send.AppendPDUSessionResourceSetupListHOReq(&pduSessionReqList, pduSessionIDUint8, smContext.Snssai(), n2Rsp)
+			send.AppendPDUSessionResourceSetupListHOReq(&pduSessionReqList, pduSessionIDUint8, smContext.Snssai, n2Rsp)
 		}
 	}
 	if len(pduSessionReqList.List) == 0 {
@@ -187,13 +187,19 @@ func HandleHandoverRequired(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 		sourceUe.Log.Info("sent handover preparation failure to source UE")
 		return
 	}
-	amfUe.UpdateNH()
+
+	err := amfUe.UpdateNH()
+	if err != nil {
+		sourceUe.Log.Error("error updating NH", zap.Error(err))
+		return
+	}
 
 	amfSelf := amfContext.AMFSelf()
 
 	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 	if err != nil {
 		sourceUe.Log.Error("Could not get operator info", zap.Error(err))
+		return
 	}
 
 	targetUe, err := targetRan.NewRanUe(models.RanUeNgapIDUnspecified)

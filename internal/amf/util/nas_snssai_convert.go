@@ -9,7 +9,7 @@ import (
 	"github.com/free5gc/nas/nasType"
 )
 
-func SnssaiToModels(n *nasType.SNSSAI) models.Snssai {
+func SnssaiToModels(n *nasType.SNSSAI) *models.Snssai {
 	var out models.Snssai
 	out.Sst = int32(n.GetSST())
 
@@ -20,7 +20,7 @@ func SnssaiToModels(n *nasType.SNSSAI) models.Snssai {
 		out.Sd = ""
 	}
 
-	return out
+	return &out
 }
 
 func SnssaiToNas(snssai models.Snssai) ([]uint8, error) {

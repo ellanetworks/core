@@ -44,7 +44,10 @@ func sendServiceAccept(ctx context.Context, ue *amfContext.AmfUe, ctxList ngapTy
 ) error {
 	if ue.RanUe.UeContextRequest {
 		// update Kgnb/Kn3iwf
-		ue.UpdateSecurityContext()
+		err := ue.UpdateSecurityContext()
+		if err != nil {
+			return fmt.Errorf("error updating security context: %v", err)
+		}
 
 		nasPdu, err := message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult,
 			errPduSessionID, errCause)
@@ -270,7 +273,7 @@ func handleServiceRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.Gm
 		for pduSessionID, smContext := range ue.SmContextList {
 			if pduSessionID != targetPduSessionID {
 				if uplinkDataPsi[pduSessionID] {
-					binaryDataN2SmInformation, err := pdusession.ActivateSmContext(smContext.SmContextRef())
+					binaryDataN2SmInformation, err := pdusession.ActivateSmContext(smContext.Ref)
 					if err != nil {
 						ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 						reactivationResult[pduSessionID] = true
@@ -278,9 +281,9 @@ func handleServiceRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.Gm
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
 					} else if ue.RanUe.UeContextRequest {
-						send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID, smContext.Snssai(), nil, binaryDataN2SmInformation)
+						send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
 					} else {
-						send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID, smContext.Snssai(), nil, binaryDataN2SmInformation)
+						send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
 					}
 				}
 			}
@@ -292,7 +295,7 @@ func handleServiceRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.Gm
 		psiArray := nasConvert.PSIToBooleanArray(msg.ServiceRequest.PDUSessionStatus.Buffer)
 		for pduSessionID, smContext := range ue.SmContextList {
 			if !psiArray[pduSessionID] {
-				err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
+				err := pdusession.ReleaseSmContext(ctx, smContext.Ref)
 				if err != nil {
 					ue.Log.Error("Release SmContext Error", zap.Error(err))
 				}

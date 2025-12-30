@@ -39,7 +39,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	targetDeregistrationAccessType := msg.DeregistrationRequestUEOriginatingDeregistration.GetAccessType()
 
 	for _, smContext := range ue.SmContextList {
-		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
+		err := pdusession.ReleaseSmContext(ctx, smContext.Ref)
 		if err != nil {
 			ue.Log.Error("Release SmContext Error", zap.Error(err))
 		}

@@ -77,7 +77,7 @@ func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.AmfRa
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				continue
 			}
-			err := pdusession.UpdateSmContextN2InfoPduResSetupFail(smContext.SmContextRef(), transfer)
+			err := pdusession.UpdateSmContextN2InfoPduResSetupFail(smContext.Ref, transfer)
 			if err != nil {
 				ranUe.Log.Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err))
 			}

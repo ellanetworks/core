@@ -86,10 +86,7 @@ func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.AmfRan, msg *n
 		return
 	}
 
-	if amfUe.SecurityContextIsValid() {
-		// Update NH
-		amfUe.UpdateNH()
-	} else {
+	if !amfUe.SecurityContextIsValid() {
 		ranUe.Log.Error("No Security Context", zap.String("supi", amfUe.Supi))
 		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
@@ -97,6 +94,12 @@ func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.AmfRan, msg *n
 			return
 		}
 		ranUe.Log.Info("sent path switch request failure", zap.String("supi", amfUe.Supi))
+		return
+	}
+
+	err := amfUe.UpdateNH()
+	if err != nil {
+		ranUe.Log.Error("error updating NH", zap.Error(err))
 		return
 	}
 
@@ -128,7 +131,7 @@ func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.AmfRan, msg *n
 			if !ok {
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			}
-			n2Rsp, err := pdusession.UpdateSmContextXnHandoverPathSwitchReq(ctx, smContext.SmContextRef(), transfer)
+			n2Rsp, err := pdusession.UpdateSmContextXnHandoverPathSwitchReq(ctx, smContext.Ref, transfer)
 			if err != nil {
 				ranUe.Log.Error("SendUpdateSmContextXnHandover[PathSwitchRequestTransfer] Error", zap.Error(err))
 				continue
@@ -148,7 +151,7 @@ func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.AmfRan, msg *n
 			if !ok {
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			}
-			err := pdusession.UpdateSmContextHandoverFailed(smContext.SmContextRef(), transfer)
+			err := pdusession.UpdateSmContextHandoverFailed(smContext.Ref, transfer)
 			if err != nil {
 				ranUe.Log.Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err))
 			}

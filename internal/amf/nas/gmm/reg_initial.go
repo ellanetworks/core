@@ -7,7 +7,6 @@ import (
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
@@ -17,7 +16,10 @@ func HandleInitialRegistration(ctx context.Context, ue *amfContext.AmfUe) error 
 	ue.ClearRegistrationData()
 
 	// update Kgnb/Kn3iwf
-	ue.UpdateSecurityContext()
+	err := ue.UpdateSecurityContext()
+	if err != nil {
+		return fmt.Errorf("error updating security context: %v", err)
+	}
 
 	operatorInfo, err := amfSelf.GetOperatorInfo(ctx)
 	if err != nil {
@@ -25,26 +27,7 @@ func HandleInitialRegistration(ctx context.Context, ue *amfContext.AmfUe) error 
 	}
 
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
-	if err := handleRequestedNssai(ue, operatorInfo.SupportedPLMN.SNssai); err != nil {
-		return err
-	}
-
-	if ue.AllowedNssai == nil {
-		err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
-		if err != nil {
-			ue.Log.Error("error sending registration reject", zap.Error(err))
-		}
-
-		ue.RanUe.ReleaseAction = amfContext.UeContextN2NormalRelease
-
-		err = ue.RanUe.Ran.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
-		if err != nil {
-			ue.Log.Error("error sending ue context release command", zap.Error(err))
-		}
-
-		ue.Remove()
-		return fmt.Errorf("no allowed nssai")
-	}
+	ue.AllowedNssai = operatorInfo.SupportedPLMN.SNssai
 
 	if ue.RegistrationRequest.MICOIndication != nil {
 		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.MICOIndication.GetRAAI()))

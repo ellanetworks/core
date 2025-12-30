@@ -37,7 +37,10 @@ func handleSecurityModeComplete(ctx context.Context, ue *amfContext.AmfUe, msg *
 	}
 
 	if ue.SecurityContextIsValid() {
-		ue.UpdateSecurityContext()
+		err := ue.UpdateSecurityContext()
+		if err != nil {
+			return fmt.Errorf("error updating security context: %v", err)
+		}
 	}
 
 	if msg.SecurityModeComplete.IMEISV != nil {

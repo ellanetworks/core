@@ -83,7 +83,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, ran *amfContext.AmfRa
 			transfer := item.HandoverRequestAcknowledgeTransfer
 			pduSessionIDUint8 := uint8(pduSessionID)
 			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-				n2Rsp, err := pdusession.UpdateSmContextN2HandoverPrepared(smContext.SmContextRef(), transfer)
+				n2Rsp, err := pdusession.UpdateSmContextN2HandoverPrepared(smContext.Ref, transfer)
 				if err != nil {
 					targetUe.Log.Error("Send HandoverRequestAcknowledgeTransfer error", zap.Error(err))
 					continue
@@ -102,7 +102,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, ran *amfContext.AmfRa
 			transfer := item.HandoverResourceAllocationUnsuccessfulTransfer
 			pduSessionIDUint8 := uint8(pduSessionID)
 			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-				_, err := pdusession.UpdateSmContextN2HandoverPrepared(smContext.SmContextRef(), transfer)
+				_, err := pdusession.UpdateSmContextN2HandoverPrepared(smContext.Ref, transfer)
 				if err != nil {
 					targetUe.Log.Error("Send HandoverResourceAllocationUnsuccessfulTransfer error", zap.Error(err))
 				}

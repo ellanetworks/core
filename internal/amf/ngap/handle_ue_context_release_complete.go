@@ -124,7 +124,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.AmfRan,
 				if !ok {
 					ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				}
-				err := pdusession.DeactivateSmContext(ctx, smContext.SmContextRef())
+				err := pdusession.DeactivateSmContext(ctx, smContext.Ref)
 				if err != nil {
 					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 				}
@@ -133,7 +133,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.AmfRan,
 			ranUe.Log.Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
 			amfUe.Mutex.Lock()
 			for _, smContext := range amfUe.SmContextList {
-				err := pdusession.DeactivateSmContext(ctx, smContext.SmContextRef())
+				err := pdusession.DeactivateSmContext(ctx, smContext.Ref)
 				if err != nil {
 					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 				}

@@ -22,11 +22,11 @@ func DeregisterSubscriber(ctx context.Context, supi string) error {
 	defer ue.Mutex.Unlock()
 
 	for _, smContext := range ue.SmContextList {
-		err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
+		err := pdusession.ReleaseSmContext(ctx, smContext.Ref)
 		if err != nil {
 			ue.Log.Debug("Error releasing SM context", zap.Error(err))
 		} else {
-			ue.Log.Debug("Released SM context", zap.String("smContextRef", smContext.SmContextRef()))
+			ue.Log.Debug("Released SM context", zap.String("smContextRef", smContext.Ref))
 		}
 	}
 

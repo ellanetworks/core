@@ -43,7 +43,7 @@ func handleNotificationResponse(ctx context.Context, ue *amfContext.AmfUe, msg *
 			pduSessionID := uint8(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] {
-					err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
+					err := pdusession.ReleaseSmContext(ctx, smContext.Ref)
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
 					}

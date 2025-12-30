@@ -49,6 +49,12 @@ const (
 	Registered     StateType = "Registered"
 )
 
+type SmContext struct {
+	Ref                string
+	Snssai             *models.Snssai
+	PduSessionInactive bool
+}
+
 type AmfUe struct {
 	Mutex sync.Mutex
 
@@ -202,7 +208,7 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	ue.Log = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
 }
 
-func (ue *AmfUe) InAllowedNssai(targetSNssai *models.Snssai) bool {
+func (ue *AmfUe) IsAllowedNssai(targetSNssai *models.Snssai) bool {
 	return reflect.DeepEqual(*ue.AllowedNssai, *targetSNssai)
 }
 
@@ -211,16 +217,15 @@ func (ue *AmfUe) SecurityContextIsValid() bool {
 }
 
 // Kamf Derivation function defined in TS 33.501 Annex A.7
-func (ue *AmfUe) DerivateKamf() {
+func (ue *AmfUe) DerivateKamf() error {
 	supiRegexp, err := regexp.Compile("([0-9]{5,15})")
 	if err != nil {
-		logger.AmfLog.Error("compile supi regexp error", zap.Error(err))
-		return
+		return fmt.Errorf("could not compile supi regexp: %v", err)
 	}
+
 	groups := supiRegexp.FindStringSubmatch(ue.Supi)
 	if groups == nil {
-		logger.AmfLog.Error("supi is not correct")
-		return
+		return fmt.Errorf("supi is not correct")
 	}
 
 	P0 := []byte(groups[1])
@@ -228,17 +233,19 @@ func (ue *AmfUe) DerivateKamf() {
 	P1 := ue.ABBA
 	L1 := ueauth.KDFLen(P1)
 
-	KseafDecode, err := hex.DecodeString(ue.Kseaf)
+	kSeafDecode, err := hex.DecodeString(ue.Kseaf)
 	if err != nil {
-		logger.AmfLog.Error("decode kseaf error", zap.Error(err))
-		return
+		return fmt.Errorf("could not decode kseaf: %v", err)
 	}
-	KamfBytes, err := ueauth.GetKDFValue(KseafDecode, ueauth.FCForKamfDerivation, P0, L0, P1, L1)
+
+	kAmfBytes, err := ueauth.GetKDFValue(kSeafDecode, ueauth.FCForKamfDerivation, P0, L0, P1, L1)
 	if err != nil {
-		logger.AmfLog.Error("get kdf value error", zap.Error(err))
-		return
+		return fmt.Errorf("could not get kdf value: %v", err)
 	}
-	ue.Kamf = hex.EncodeToString(KamfBytes)
+
+	ue.Kamf = hex.EncodeToString(kAmfBytes)
+
+	return nil
 }
 
 // Algorithm key Derivation function defined in TS 33.501 Annex A.9
@@ -249,12 +256,12 @@ func (ue *AmfUe) DerivateAlgKey() error {
 	P1 := []byte{ue.CipheringAlg}
 	L1 := ueauth.KDFLen(P1)
 
-	KamfBytes, err := hex.DecodeString(ue.Kamf)
+	kAmfBytes, err := hex.DecodeString(ue.Kamf)
 	if err != nil {
 		return fmt.Errorf("decode kamf error: %v", err)
 	}
 
-	kenc, err := ueauth.GetKDFValue(KamfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
+	kenc, err := ueauth.GetKDFValue(kAmfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		return fmt.Errorf("get kdf value error: %v", err)
 	}
@@ -267,7 +274,7 @@ func (ue *AmfUe) DerivateAlgKey() error {
 	P1 = []byte{ue.IntegrityAlg}
 	L1 = ueauth.KDFLen(P1)
 
-	kint, err := ueauth.GetKDFValue(KamfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
+	kint, err := ueauth.GetKDFValue(kAmfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		return fmt.Errorf("get kdf value error: %v", err)
 	}
@@ -278,54 +285,71 @@ func (ue *AmfUe) DerivateAlgKey() error {
 }
 
 // Access Network key Derivation function defined in TS 33.501 Annex A.9
-func (ue *AmfUe) DerivateAnKey() {
+func (ue *AmfUe) DerivateAnKey() error {
 	P0 := make([]byte, 4)
 	binary.BigEndian.PutUint32(P0, ue.ULCount.Get())
 	L0 := ueauth.KDFLen(P0)
 	P1 := []byte{security.AccessType3GPP}
 	L1 := ueauth.KDFLen(P1)
 
-	KamfBytes, err := hex.DecodeString(ue.Kamf)
+	kAmfBytes, err := hex.DecodeString(ue.Kamf)
 	if err != nil {
-		logger.AmfLog.Error("decode kamf error", zap.Error(err))
-		return
+		return fmt.Errorf("could not decode kamf: %v", err)
 	}
 
-	key, err := ueauth.GetKDFValue(KamfBytes, ueauth.FCForKgnbKn3iwfDerivation, P0, L0, P1, L1)
+	key, err := ueauth.GetKDFValue(kAmfBytes, ueauth.FCForKgnbKn3iwfDerivation, P0, L0, P1, L1)
 	if err != nil {
-		logger.AmfLog.Error("get kdf value error", zap.Error(err))
-		return
+		return fmt.Errorf("could not get kdf value: %v", err)
 	}
 
 	ue.Kgnb = key
+
+	return nil
 }
 
 // NH Derivation function defined in TS 33.501 Annex A.10
-func (ue *AmfUe) DerivateNH(syncInput []byte) {
+func (ue *AmfUe) DerivateNH(syncInput []byte) error {
 	P0 := syncInput
 	L0 := ueauth.KDFLen(P0)
 
-	KamfBytes, err := hex.DecodeString(ue.Kamf)
+	kAmfBytes, err := hex.DecodeString(ue.Kamf)
 	if err != nil {
-		logger.AmfLog.Error("decode kamf error", zap.Error(err))
-		return
+		return fmt.Errorf("could not decode kamf: %v", err)
 	}
-	ue.NH, err = ueauth.GetKDFValue(KamfBytes, ueauth.FCForNhDerivation, P0, L0)
+
+	ue.NH, err = ueauth.GetKDFValue(kAmfBytes, ueauth.FCForNhDerivation, P0, L0)
 	if err != nil {
-		logger.AmfLog.Error("get kdf value error", zap.Error(err))
-		return
+		return fmt.Errorf("could not get kdf value: %v", err)
 	}
+
+	return nil
 }
 
-func (ue *AmfUe) UpdateSecurityContext() {
-	ue.DerivateAnKey()
-	ue.DerivateNH(ue.Kgnb)
+func (ue *AmfUe) UpdateSecurityContext() error {
+	err := ue.DerivateAnKey()
+	if err != nil {
+		return fmt.Errorf("error deriving AnKey: %v", err)
+	}
+
+	err = ue.DerivateNH(ue.Kgnb)
+	if err != nil {
+		return fmt.Errorf("error deriving NH: %v", err)
+	}
+
 	ue.NCC = 1
+
+	return nil
 }
 
-func (ue *AmfUe) UpdateNH() {
+func (ue *AmfUe) UpdateNH() error {
 	ue.NCC++
-	ue.DerivateNH(ue.NH)
+
+	err := ue.DerivateNH(ue.NH)
+	if err != nil {
+		return fmt.Errorf("error deriving NH: %v", err)
+	}
+
+	return nil
 }
 
 func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) {
@@ -403,8 +427,11 @@ func (ue *AmfUe) GetOnGoing() OnGoingProcedureWithPrio {
 	return *ue.OnGoing
 }
 
-func (ue *AmfUe) StoreSmContext(pduSessionID uint8, smContext *SmContext) {
-	ue.SmContextList[pduSessionID] = smContext
+func (ue *AmfUe) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai) {
+	ue.SmContextList[pduSessionID] = &SmContext{
+		Ref:    ref,
+		Snssai: snssai,
+	}
 }
 
 func (ue *AmfUe) SmContextFindByPDUSessionID(pduSessionID uint8) (*SmContext, bool) {
@@ -414,7 +441,7 @@ func (ue *AmfUe) SmContextFindByPDUSessionID(pduSessionID uint8) (*SmContext, bo
 
 func (ue *AmfUe) HasActivePduSessions() bool {
 	for _, smContext := range ue.SmContextList {
-		if smContext.IsPduSessionActive() {
+		if !smContext.PduSessionInactive {
 			return true
 		}
 	}

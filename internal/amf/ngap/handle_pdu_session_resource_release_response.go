@@ -71,12 +71,12 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, ran *amfContex
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				continue
 			}
-			err := pdusession.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.SmContextRef())
+			err := pdusession.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
 			if err != nil {
 				ranUe.Log.Error("SendUpdateSmContextN2InfoPduResRelRsp failed", zap.Error(err))
 				continue
 			}
-			smContext.SetPduSessionInActive(true)
+			smContext.PduSessionInactive = true
 		}
 	}
 }

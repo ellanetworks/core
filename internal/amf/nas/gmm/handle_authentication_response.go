@@ -99,7 +99,10 @@ func handleAuthenticationResponse(ctx context.Context, ue *amfContext.AmfUe, msg
 	ue.Kseaf = kseaf
 	ue.Supi = supi
 
-	ue.DerivateKamf()
+	err = ue.DerivateKamf()
+	if err != nil {
+		return fmt.Errorf("couldn't derive Kamf: %v", err)
+	}
 
 	ue.State.Set(amfContext.SecurityMode)
 

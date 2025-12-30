@@ -17,7 +17,10 @@ import (
 func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfContext.AmfUe) error {
 	ue.Log.Debug("Handle MobilityAndPeriodicRegistrationUpdating")
 
-	ue.DerivateAnKey()
+	err := ue.DerivateAnKey()
+	if err != nil {
+		return fmt.Errorf("error deriving AnKey: %v", err)
+	}
 
 	amfSelf := amfContext.AMFSelf()
 
@@ -33,10 +36,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
-	if err := handleRequestedNssai(ue, operatorInfo.SupportedPLMN.SNssai); err != nil {
-		return err
-	}
+	ue.AllowedNssai = operatorInfo.SupportedPLMN.SNssai
 
 	if ue.RegistrationRequest.Capability5GMM == nil {
 		if ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
@@ -94,7 +94,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 					// uplink data are pending for the corresponding PDU session identity
 					if hasUplinkData {
-						binaryDataN2SmInformation, err := pdusession.ActivateSmContext(smContext.SmContextRef())
+						binaryDataN2SmInformation, err := pdusession.ActivateSmContext(smContext.Ref)
 						if err != nil {
 							ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 							reactivationResult[pduSessionID] = true
@@ -104,10 +104,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 						} else {
 							if ue.RanUe.UeContextRequest {
 								send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID,
-									smContext.Snssai(), nil, binaryDataN2SmInformation)
+									smContext.Snssai, nil, binaryDataN2SmInformation)
 							} else {
 								send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID,
-									smContext.Snssai(), nil, binaryDataN2SmInformation)
+									smContext.Snssai, nil, binaryDataN2SmInformation)
 							}
 						}
 					}
@@ -124,7 +124,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 			pduSessionID := uint8(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] {
-					err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
+					err := pdusession.ReleaseSmContext(ctx, smContext.Ref)
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
 					} else {
