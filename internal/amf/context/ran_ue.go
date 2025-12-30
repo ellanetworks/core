@@ -55,8 +55,8 @@ func (ranUe *RanUe) Remove() error {
 	}
 
 	if ranUe.AmfUe != nil {
-		ranUe.AmfUe.DetachRanUe()
-		ranUe.DetachAmfUe()
+		ranUe.AmfUe.RanUe = nil
+		ranUe.AmfUe = nil
 	}
 
 	ran := ranUe.Ran
@@ -73,10 +73,6 @@ func (ranUe *RanUe) Remove() error {
 	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapID)
 	logger.AmfLog.Info("ran ue removed", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 	return nil
-}
-
-func (ranUe *RanUe) DetachAmfUe() {
-	ranUe.AmfUe = nil
 }
 
 func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {

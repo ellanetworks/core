@@ -44,9 +44,7 @@ func HandleNAS(ctx context.Context, ue *amfContext.RanUe, nasPdu []byte) error {
 
 		ue.AmfUe = amfUe
 		if ue.AmfUe == nil {
-			amfSelf := amfContext.AMFSelf()
-
-			ue.AmfUe = amfSelf.NewAmfUe(ctx, "")
+			ue.AmfUe = amfContext.NewAmfUe()
 		}
 
 		ue.AmfUe.AttachRanUe(ue)

@@ -135,7 +135,7 @@ func HandleInitialUEMessage(ctx context.Context, ran *amfContext.AmfRan, msg *ng
 
 				if amfUe.RanUe != nil {
 					ranUe.Log.Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
-					amfUe.DetachRanUe()
+					amfUe.RanUe = nil
 				}
 				ranUe.Log.Debug("AmfUe Attach RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 				amfUe.AttachRanUe(ranUe)

@@ -156,12 +156,15 @@ type ConfigurationUpdateCommandFlags struct {
 	NeedOperatordefinedAccessCategoryDefinitions bool
 }
 
-func (ue *AmfUe) init() {
-	ue.State = Deregistered
-	ue.RegistrationArea = make([]models.Tai, 0)
-	ue.OnGoing = new(OnGoingProcedureWithPrio)
-	ue.OnGoing.Procedure = OnGoingProcedureNothing
-	ue.SmContextList = make(map[uint8]*SmContext)
+func NewAmfUe() *AmfUe {
+	return &AmfUe{
+		State:            Deregistered,
+		RegistrationArea: make([]models.Tai, 0),
+		OnGoing: &OnGoingProcedureWithPrio{
+			Procedure: OnGoingProcedureNothing,
+		},
+		SmContextList: make(map[uint8]*SmContext),
+	}
 }
 
 func (ue *AmfUe) Remove() {
@@ -182,14 +185,11 @@ func (ue *AmfUe) Remove() {
 	}
 }
 
-func (ue *AmfUe) DetachRanUe() {
-	ue.RanUe = nil
-}
-
 func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	if ranUe == nil || ranUe.Ran == nil {
 		return
 	}
+
 	ue.Mutex.Lock()
 	defer ue.Mutex.Unlock()
 
@@ -318,10 +318,12 @@ func (ue *AmfUe) DerivateNH(syncInput []byte) error {
 		return fmt.Errorf("could not decode kamf: %v", err)
 	}
 
-	ue.NH, err = ueauth.GetKDFValue(kAmfBytes, ueauth.FCForNhDerivation, P0, L0)
+	nh, err := ueauth.GetKDFValue(kAmfBytes, ueauth.FCForNhDerivation, P0, L0)
 	if err != nil {
 		return fmt.Errorf("could not get kdf value: %v", err)
 	}
+
+	ue.NH = nh
 
 	return nil
 }
@@ -413,7 +415,6 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 	ue.OnGoing.Procedure = OnGoingProcedureNothing
 }
 
-// this method called when we are reusing the same uecontext during the registration procedure
 func (ue *AmfUe) ClearRegistrationData() {
 	ue.SmContextList = make(map[uint8]*SmContext)
 }
@@ -485,8 +486,7 @@ func (ue *AmfUe) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	}
 
 	if needCiphering {
-		if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.DLCount.Get(), security.Bearer3GPP,
-			security.DirectionDownlink, payload); err != nil {
+		if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.DLCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 			return nil, fmt.Errorf("error encrypting: %+v", err)
 		}
 	}

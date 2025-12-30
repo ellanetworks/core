@@ -361,8 +361,11 @@ func handleServiceRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.Gm
 			}
 		}
 
-		amfSelf := amfContext.AMFSelf()
-		amfSelf.ReAllocateGutiToUe(ctx, ue, operatorInfo.Guami)
+		err := ue.ReAllocateGuti(operatorInfo.Guami)
+		if err != nil {
+			return fmt.Errorf("error reallocating GUTI to UE: %v", err)
+		}
+
 		message.SendConfigurationUpdateCommand(ctx, ue, &amfContext.ConfigurationUpdateCommandFlags{NeedGUTI: true})
 
 	case nasMessage.ServiceTypeData:

@@ -101,16 +101,16 @@ type SecurityAlgorithm struct {
 	CipheringOrder []uint8 // slice of security.AlgCipheringXXX
 }
 
-func (context *AMFContext) TmsiAllocate() int32 {
+func allocateTMSI() (int32, error) {
 	val, err := tmsiGenerator.Allocate()
 	if err != nil {
-		logger.AmfLog.Warn("could not allocate TMSI", zap.Error(err))
-		return -1
+		return -1, fmt.Errorf("could not allocate TMSI: %v", err)
 	}
-	return int32(val)
+
+	return int32(val), nil
 }
 
-func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
+func AllocateAmfUeNgapID() (int64, error) {
 	val, err := amfUeNGAPIDGenerator.Allocate()
 	if err != nil {
 		return -1, fmt.Errorf("could not allocate AmfUeNgapID: %v", err)
@@ -119,21 +119,29 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 	return val, nil
 }
 
-func (context *AMFContext) ReAllocateGutiToUe(ctx context.Context, ue *AmfUe, supportedGuami *models.Guami) {
+func (ue *AmfUe) ReAllocateGuti(supportedGuami *models.Guami) error {
 	ue.OldTmsi = ue.Tmsi
-	ue.Tmsi = context.TmsiAllocate()
+
+	tmsi, err := allocateTMSI()
+	if err != nil {
+		return fmt.Errorf("failed to allocate TMSI: %v", err)
+	}
+
+	ue.Tmsi = tmsi
 	plmnID := supportedGuami.PlmnID.Mcc + supportedGuami.PlmnID.Mnc
 	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
 	ue.OldGuti = ue.Guti
 	ue.Guti = plmnID + supportedGuami.AmfID + tmsiStr
+
+	return nil
 }
 
-func (context *AMFContext) FreeOldGuti(ue *AmfUe) {
+func (ue *AmfUe) FreeOldGuti() {
 	tmsiGenerator.FreeID(int64(ue.OldTmsi))
 	ue.OldGuti = ""
 }
 
-func (context *AMFContext) AllocateRegistrationArea(ctx context.Context, ue *AmfUe, supportedTais []models.Tai) {
+func (ue *AmfUe) AllocateRegistrationArea(supportedTais []models.Tai) {
 	// clear the previous registration area if need
 	if len(ue.RegistrationArea) > 0 {
 		ue.RegistrationArea = nil
@@ -156,34 +164,24 @@ func (context *AMFContext) AllocateRegistrationArea(ctx context.Context, ue *Amf
 	}
 }
 
-func (context *AMFContext) AddAmfUeToUePool(ue *AmfUe, supi string) {
-	if len(supi) == 0 {
-		logger.AmfLog.Error("Supi is nil")
-	}
-	ue.Supi = supi
-
-	context.Mutex.Lock()
-	defer context.Mutex.Unlock()
-
-	context.UePool[ue.Supi] = ue
-}
-
-func (context *AMFContext) NewAmfUe(ctx context.Context, supi string) *AmfUe {
-	ue := AmfUe{}
-	ue.init()
-
-	if supi != "" {
-		context.AddAmfUeToUePool(&ue, supi)
+func (amf *AMFContext) AddAmfUeToUePool(ue *AmfUe) error {
+	if len(ue.Supi) == 0 {
+		return fmt.Errorf("supi is empty")
 	}
 
-	return &ue
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
+
+	amf.UePool[ue.Supi] = ue
+
+	return nil
 }
 
-func (context *AMFContext) AmfUeFindBySupi(supi string) (*AmfUe, bool) {
-	context.Mutex.Lock()
-	defer context.Mutex.Unlock()
+func (amf *AMFContext) AmfUeFindBySupi(supi string) (*AmfUe, bool) {
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
 
-	value, ok := context.UePool[supi]
+	value, ok := amf.UePool[supi]
 	if !ok {
 		return nil, false
 	}
@@ -191,11 +189,11 @@ func (context *AMFContext) AmfUeFindBySupi(supi string) (*AmfUe, bool) {
 	return value, true
 }
 
-func (context *AMFContext) AmfUeFindBySuci(suci string) (*AmfUe, bool) {
-	context.Mutex.Lock()
-	defer context.Mutex.Unlock()
+func (amf *AMFContext) AmfUeFindBySuci(suci string) (*AmfUe, bool) {
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
 
-	for _, ue := range context.UePool {
+	for _, ue := range amf.UePool {
 		if ue.Suci == suci {
 			return ue, true
 		}
@@ -204,7 +202,7 @@ func (context *AMFContext) AmfUeFindBySuci(suci string) (*AmfUe, bool) {
 	return nil, false
 }
 
-func (context *AMFContext) NewAmfRan(conn *sctp.SCTPConn) *AmfRan {
+func (amf *AMFContext) NewAmfRan(conn *sctp.SCTPConn) *AmfRan {
 	if conn == nil {
 		logger.AmfLog.Warn("SCTP connection is not available")
 		return nil
@@ -227,17 +225,17 @@ func (context *AMFContext) NewAmfRan(conn *sctp.SCTPConn) *AmfRan {
 	ran.Conn = conn
 	ran.GnbIP = remoteAddr.String()
 	ran.Log = logger.AmfLog.With(zap.String("ran_addr", remoteAddr.String()))
-	context.Mutex.Lock()
-	defer context.Mutex.Unlock()
-	context.AmfRanPool[conn] = &ran
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
+	amf.AmfRanPool[conn] = &ran
 	return &ran
 }
 
-func (context *AMFContext) AmfRanFindByConn(conn *sctp.SCTPConn) (*AmfRan, bool) {
-	context.Mutex.Lock()
-	defer context.Mutex.Unlock()
+func (amf *AMFContext) AmfRanFindByConn(conn *sctp.SCTPConn) (*AmfRan, bool) {
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
 
-	ran, ok := context.AmfRanPool[conn]
+	ran, ok := amf.AmfRanPool[conn]
 	if !ok {
 		return nil, false
 	}
@@ -246,11 +244,11 @@ func (context *AMFContext) AmfRanFindByConn(conn *sctp.SCTPConn) (*AmfRan, bool)
 }
 
 // use ranNodeID to find RAN context, return *AmfRan and ok bit
-func (context *AMFContext) AmfRanFindByRanID(ranNodeID models.GlobalRanNodeID) (*AmfRan, bool) {
-	context.Mutex.Lock()
-	defer context.Mutex.Unlock()
+func (amf *AMFContext) AmfRanFindByRanID(ranNodeID models.GlobalRanNodeID) (*AmfRan, bool) {
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
 
-	for _, amfRan := range context.AmfRanPool {
+	for _, amfRan := range amf.AmfRanPool {
 		switch amfRan.RanPresent {
 		case RanPresentGNbID:
 			if amfRan.RanID.GNbID.GNBValue == ranNodeID.GNbID.GNBValue {
@@ -270,36 +268,35 @@ func (context *AMFContext) AmfRanFindByRanID(ranNodeID models.GlobalRanNodeID) (
 	return nil, false
 }
 
-func (context *AMFContext) ListAmfRan() []AmfRan {
+func (amf *AMFContext) ListAmfRan() []AmfRan {
 	ranList := make([]AmfRan, 0)
 
-	context.Mutex.Lock()
-	defer context.Mutex.Unlock()
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
 
-	for _, ran := range context.AmfRanPool {
+	for _, ran := range amf.AmfRanPool {
 		ranList = append(ranList, *ran)
 	}
 
 	return ranList
 }
 
-func (context *AMFContext) DeleteAmfRan(conn *sctp.SCTPConn) {
-	context.Mutex.Lock()
-	defer context.Mutex.Unlock()
+func (amf *AMFContext) DeleteAmfRan(conn *sctp.SCTPConn) {
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
 
-	delete(context.AmfRanPool, conn)
+	delete(amf.AmfRanPool, conn)
 }
 
-// Looks up a UE by the provided GUTI.
-func (context *AMFContext) AmfUeFindByGuti(guti string) (*AmfUe, bool) {
+func (amf *AMFContext) AmfUeFindByGuti(guti string) (*AmfUe, bool) {
 	if guti == "" {
 		return nil, false
 	}
 
-	context.Mutex.Lock()
-	defer context.Mutex.Unlock()
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
 
-	for _, ue := range context.UePool {
+	for _, ue := range amf.UePool {
 		if ue.Guti == guti || ue.OldGuti == guti {
 			return ue, true
 		}
@@ -308,11 +305,11 @@ func (context *AMFContext) AmfUeFindByGuti(guti string) (*AmfUe, bool) {
 	return nil, false
 }
 
-func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
-	context.Mutex.Lock()
-	defer context.Mutex.Unlock()
+func (amf *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
 
-	for _, ran := range context.AmfRanPool {
+	for _, ran := range amf.AmfRanPool {
 		for _, ranUe := range ran.RanUePool {
 			if ranUe.AmfUeNgapID == amfUeNgapID {
 				return ranUe
@@ -323,58 +320,58 @@ func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	return nil
 }
 
-func (context *AMFContext) Get5gsNwFeatSuppImsVoPS() uint8 {
-	if context.NetworkFeatureSupport5GS != nil {
-		return context.NetworkFeatureSupport5GS.ImsVoPS
+func (amf *AMFContext) Get5gsNwFeatSuppImsVoPS() uint8 {
+	if amf.NetworkFeatureSupport5GS != nil {
+		return amf.NetworkFeatureSupport5GS.ImsVoPS
 	}
 	return 0
 }
 
-func (context *AMFContext) Get5gsNwFeatSuppEnable() bool {
-	if context.NetworkFeatureSupport5GS != nil {
-		return context.NetworkFeatureSupport5GS.Enable
+func (amf *AMFContext) Get5gsNwFeatSuppEnable() bool {
+	if amf.NetworkFeatureSupport5GS != nil {
+		return amf.NetworkFeatureSupport5GS.Enable
 	}
 	return true
 }
 
-func (context *AMFContext) Get5gsNwFeatSuppEmcN3() uint8 {
-	if context.NetworkFeatureSupport5GS != nil {
-		return context.NetworkFeatureSupport5GS.EmcN3
+func (amf *AMFContext) Get5gsNwFeatSuppEmcN3() uint8 {
+	if amf.NetworkFeatureSupport5GS != nil {
+		return amf.NetworkFeatureSupport5GS.EmcN3
 	}
 	return 0
 }
 
-func (context *AMFContext) Get5gsNwFeatSuppEmc() uint8 {
-	if context.NetworkFeatureSupport5GS != nil {
-		return context.NetworkFeatureSupport5GS.Emc
+func (amf *AMFContext) Get5gsNwFeatSuppEmc() uint8 {
+	if amf.NetworkFeatureSupport5GS != nil {
+		return amf.NetworkFeatureSupport5GS.Emc
 	}
 	return 0
 }
 
-func (context *AMFContext) Get5gsNwFeatSuppEmf() uint8 {
-	if context.NetworkFeatureSupport5GS != nil {
-		return context.NetworkFeatureSupport5GS.Emf
+func (amf *AMFContext) Get5gsNwFeatSuppEmf() uint8 {
+	if amf.NetworkFeatureSupport5GS != nil {
+		return amf.NetworkFeatureSupport5GS.Emf
 	}
 	return 0
 }
 
-func (context *AMFContext) Get5gsNwFeatSuppIwkN26() uint8 {
-	if context.NetworkFeatureSupport5GS != nil {
-		return context.NetworkFeatureSupport5GS.IwkN26
+func (amf *AMFContext) Get5gsNwFeatSuppIwkN26() uint8 {
+	if amf.NetworkFeatureSupport5GS != nil {
+		return amf.NetworkFeatureSupport5GS.IwkN26
 	}
 	return 0
 }
 
-func (context *AMFContext) Get5gsNwFeatSuppMpsi() uint8 {
-	if context.NetworkFeatureSupport5GS != nil {
-		return context.NetworkFeatureSupport5GS.Mpsi
+func (amf *AMFContext) Get5gsNwFeatSuppMpsi() uint8 {
+	if amf.NetworkFeatureSupport5GS != nil {
+		return amf.NetworkFeatureSupport5GS.Mpsi
 	}
 	return 0
 }
 
-func (context *AMFContext) Get5gsNwFeatSuppMcsi() uint8 {
-	if context.NetworkFeatureSupport5GS != nil {
-		return context.NetworkFeatureSupport5GS.Mcsi
+func (amf *AMFContext) Get5gsNwFeatSuppMcsi() uint8 {
+	if amf.NetworkFeatureSupport5GS != nil {
+		return amf.NetworkFeatureSupport5GS.Mcsi
 	}
 	return 0
 }

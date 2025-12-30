@@ -137,9 +137,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 		}
 	}
 
-	amfSelf.ReAllocateGutiToUe(ctx, ue, operatorInfo.Guami)
+	err = ue.ReAllocateGuti(operatorInfo.Guami)
+	if err != nil {
+		return fmt.Errorf("error reallocating GUTI to UE: %v", err)
+	}
+
 	// check in specs if we need to wait for confirmation before freeing old GUTI
-	amfSelf.FreeOldGuti(ue)
+	ue.FreeOldGuti()
 
 	if ue.RegistrationRequest.AllowedPDUSessionStatus != nil {
 		if ue.N1N2Message != nil {
@@ -203,7 +207,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 		}
 	}
 
-	amfSelf.AllocateRegistrationArea(ctx, ue, operatorInfo.Tais)
+	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
 	if ue.RanUe.UeContextRequest {
 		err := message.SendRegistrationAccept(ctx, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)

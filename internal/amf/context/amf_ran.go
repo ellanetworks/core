@@ -78,7 +78,7 @@ func (ran *AmfRan) Remove() {
 func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {
 	self := AMFSelf()
 
-	amfUeNgapID, err := self.AllocateAmfUeNgapID()
+	amfUeNgapID, err := AllocateAmfUeNgapID()
 	if err != nil {
 		return nil, fmt.Errorf("error allocating amf ue ngap id: %+v", err)
 	}

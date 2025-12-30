@@ -33,8 +33,7 @@ func handleConfigurationUpdateComplete(ctx context.Context, ue *amfContext.AmfUe
 		ue.T3555 = nil // clear the timer
 	}
 
-	amfSelf := amfContext.AMFSelf()
-	amfSelf.FreeOldGuti(ue)
+	ue.FreeOldGuti()
 
 	return nil
 }

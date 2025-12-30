@@ -51,16 +51,25 @@ func HandleInitialRegistration(ctx context.Context, ue *amfContext.AmfUe) error 
 		return fmt.Errorf("ue not found in database: %s", ue.Supi)
 	}
 
-	amfSelf.AllocateRegistrationArea(ctx, ue, operatorInfo.Tais)
+	ue.AllocateRegistrationArea(operatorInfo.Tais)
+
 	ue.Log.Debug("use original GUTI", zap.String("guti", ue.Guti))
 
-	amfSelf.AddAmfUeToUePool(ue, ue.Supi)
+	err = amfSelf.AddAmfUeToUePool(ue)
+	if err != nil {
+		return fmt.Errorf("error adding AMF UE to UE pool: %v", err)
+	}
+
 	ue.T3502Value = amfSelf.T3502Value
 	ue.T3512Value = amfSelf.T3512Value
 
-	amfSelf.ReAllocateGutiToUe(ctx, ue, operatorInfo.Guami)
+	err = ue.ReAllocateGuti(operatorInfo.Guami)
+	if err != nil {
+		return fmt.Errorf("error reallocating GUTI to UE: %v", err)
+	}
+
 	// check in specs if we need to wait for confirmation before freeing old GUTI
-	amfSelf.FreeOldGuti(ue)
+	ue.FreeOldGuti()
 
 	err = message.SendRegistrationAccept(ctx, ue, nil, nil, nil, nil, nil, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 	if err != nil {
