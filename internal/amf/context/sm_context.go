@@ -14,7 +14,7 @@ import (
 )
 
 type SmContext struct {
-	Mu *sync.RWMutex
+	Mu sync.RWMutex
 
 	SmContextRefVal       string
 	SnssaiVal             models.Snssai
@@ -22,10 +22,7 @@ type SmContext struct {
 }
 
 func NewSmContext() *SmContext {
-	c := &SmContext{
-		Mu: new(sync.RWMutex),
-	}
-	return c
+	return &SmContext{}
 }
 
 func (c *SmContext) IsPduSessionActive() bool {

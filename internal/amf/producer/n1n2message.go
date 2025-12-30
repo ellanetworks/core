@@ -54,7 +54,7 @@ func TransferN1N2Message(ctx context.Context, supi string, req models.N1N2Messag
 
 		send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-		err := ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ue.RanUe.AmfUe.Ambr.Uplink, ue.RanUe.AmfUe.Ambr.Downlink, nil, list)
+		err := ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 		if err != nil {
 			return fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}
@@ -76,14 +76,14 @@ func TransferN1N2Message(ctx context.Context, supi string, req models.N1N2Messag
 		ctx,
 		ue.RanUe.AmfUeNgapID,
 		ue.RanUe.RanUeNgapID,
-		ue.RanUe.AmfUe.Ambr.Uplink,
-		ue.RanUe.AmfUe.Ambr.Downlink,
-		ue.RanUe.AmfUe.AllowedNssai,
-		ue.RanUe.AmfUe.Kgnb,
-		ue.RanUe.AmfUe.PlmnID,
-		ue.RanUe.AmfUe.UeRadioCapability,
-		ue.RanUe.AmfUe.UeRadioCapabilityForPaging,
-		ue.RanUe.AmfUe.UESecurityCapability,
+		ue.Ambr.Uplink,
+		ue.Ambr.Downlink,
+		ue.AllowedNssai,
+		ue.Kgnb,
+		ue.PlmnID,
+		ue.UeRadioCapability,
+		ue.UeRadioCapabilityForPaging,
+		ue.UESecurityCapability,
 		nil,
 		&list,
 		operatorInfo.Guami,
@@ -129,7 +129,7 @@ func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2Me
 		if ue.RanUe.SentInitialContextSetupRequest {
 			list := ngapType.PDUSessionResourceSetupListSUReq{}
 			send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
-			err := ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ue.RanUe.AmfUe.Ambr.Uplink, ue.RanUe.AmfUe.Ambr.Downlink, nil, list)
+			err := ue.RanUe.Ran.NGAPSender.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 			if err != nil {
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
 			}
@@ -149,14 +149,14 @@ func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2Me
 			ctx,
 			ue.RanUe.AmfUeNgapID,
 			ue.RanUe.RanUeNgapID,
-			ue.RanUe.AmfUe.Ambr.Uplink,
-			ue.RanUe.AmfUe.Ambr.Downlink,
-			ue.RanUe.AmfUe.AllowedNssai,
-			ue.RanUe.AmfUe.Kgnb,
-			ue.RanUe.AmfUe.PlmnID,
-			ue.RanUe.AmfUe.UeRadioCapability,
-			ue.RanUe.AmfUe.UeRadioCapabilityForPaging,
-			ue.RanUe.AmfUe.UESecurityCapability,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			ue.AllowedNssai,
+			ue.Kgnb,
+			ue.PlmnID,
+			ue.UeRadioCapability,
+			ue.UeRadioCapabilityForPaging,
+			ue.UESecurityCapability,
 			nil,
 			&list,
 			operatorInfo.Guami,

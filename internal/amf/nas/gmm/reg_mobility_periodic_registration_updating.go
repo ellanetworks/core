@@ -158,8 +158,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 						ctx,
 						ue.RanUe.AmfUeNgapID,
 						ue.RanUe.RanUeNgapID,
-						ue.RanUe.AmfUe.Ambr.Uplink,
-						ue.RanUe.AmfUe.Ambr.Downlink,
+						ue.Ambr.Uplink,
+						ue.Ambr.Downlink,
 						nasPdu,
 						suList,
 					)
@@ -222,8 +222,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 				ctx,
 				ue.RanUe.AmfUeNgapID,
 				ue.RanUe.RanUeNgapID,
-				ue.RanUe.AmfUe.Ambr.Uplink,
-				ue.RanUe.AmfUe.Ambr.Downlink,
+				ue.Ambr.Uplink,
+				ue.Ambr.Downlink,
 				nasPdu,
 				suList,
 			)
