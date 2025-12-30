@@ -40,7 +40,7 @@ func identityVerification(ue *amfContext.AmfUe) bool {
 	return ue.Supi != "" || len(ue.Suci) != 0
 }
 
-func AuthenticationProcedure(ctx context.Context, ue *amfContext.AmfUe) (bool, error) {
+func AuthenticationProcedure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) (bool, error) {
 	ctx, span := tracer.Start(ctx, "AuthenticationProcedure")
 	defer span.End()
 
@@ -76,7 +76,7 @@ func AuthenticationProcedure(ctx context.Context, ue *amfContext.AmfUe) (bool, e
 
 	ue.ABBA = []uint8{0x00, 0x00} // set ABBA value as described at TS 33.501 Annex A.7.1
 
-	err = message.SendAuthenticationRequest(ctx, ue.RanUe)
+	err = message.SendAuthenticationRequest(ctx, amf, ue.RanUe)
 	if err != nil {
 		return false, fmt.Errorf("error sending authentication request: %v", err)
 	}

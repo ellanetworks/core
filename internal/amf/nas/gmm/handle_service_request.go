@@ -129,7 +129,7 @@ func sendServiceAccept(ctx context.Context, ue *amfContext.AmfUe, ctxList ngapTy
 }
 
 // TS 24501 5.6.1
-func handleServiceRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Service Request", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleServiceRequest")
@@ -248,8 +248,6 @@ func handleServiceRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.Gm
 		return nil
 	}
 
-	amf := amfContext.AMFSelf()
-
 	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
@@ -366,7 +364,7 @@ func handleServiceRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.Gm
 			return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 		}
 
-		message.SendConfigurationUpdateCommand(ctx, ue, &amfContext.ConfigurationUpdateCommandFlags{NeedGUTI: true})
+		message.SendConfigurationUpdateCommand(ctx, amf, ue, &amfContext.ConfigurationUpdateCommandFlags{NeedGUTI: true})
 
 	case nasMessage.ServiceTypeData:
 		err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)

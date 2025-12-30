@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceModifyResponse(ctx context.Context, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceModifyResponse) {
+func HandlePDUSessionResourceModifyResponse(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceModifyResponse) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -41,7 +41,7 @@ func HandlePDUSessionResourceModifyResponse(ctx context.Context, ran *amfContext
 	}
 
 	if aMFUENGAPID != nil {
-		ranUe = amfContext.AMFSelf().FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
+		ranUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 		if ranUe == nil {
 			ran.Log.Warn("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 			return
@@ -53,7 +53,7 @@ func HandlePDUSessionResourceModifyResponse(ctx context.Context, ran *amfContext
 		ranUe.Log.Debug("Handle PDUSessionResourceModifyResponse", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
 
 		if userLocationInformation != nil {
-			ranUe.UpdateLocation(ctx, userLocationInformation)
+			ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 		}
 	}
 }

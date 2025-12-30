@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleInitialUEMessage(ctx context.Context, ran *amfContext.Radio, msg *ngapType.InitialUEMessage) {
+func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.InitialUEMessage) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -110,7 +110,6 @@ func HandleInitialUEMessage(ctx context.Context, ran *amfContext.Radio, msg *nga
 
 		if fiveGSTMSI != nil {
 			ranUe.Log.Debug("Receive 5G-S-TMSI")
-			amf := amfContext.AMFSelf()
 
 			operatorInfo, err := amf.GetOperatorInfo(ctx)
 			if err != nil {
@@ -147,7 +146,7 @@ func HandleInitialUEMessage(ctx context.Context, ran *amfContext.Radio, msg *nga
 	}
 
 	if userLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, userLocationInformation)
+		ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 	}
 
 	if rRCEstablishmentCause != nil {
@@ -162,7 +161,7 @@ func HandleInitialUEMessage(ctx context.Context, ran *amfContext.Radio, msg *nga
 		ranUe.UeContextRequest = false
 	}
 
-	err := nas.HandleNAS(ctx, ranUe, nASPDU.Value)
+	err := nas.HandleNAS(ctx, amf, ranUe, nASPDU.Value)
 	if err != nil {
 		ran.Log.Error("error handling NAS Message", zap.Error(err))
 		return

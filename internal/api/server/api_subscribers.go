@@ -147,8 +147,10 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 				ipAddress = *dbSubscriber.IPAddress
 			}
 
+			amf := amfContext.AMFSelf()
+
 			subscriberStatus := SubscriberStatus{
-				Registered: amfContext.IsSubscriberRegistered(dbSubscriber.Imsi),
+				Registered: amf.IsSubscriberRegistered(dbSubscriber.Imsi),
 				IPAddress:  ipAddress,
 			}
 
@@ -202,8 +204,10 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			ipAddress = *dbSubscriber.IPAddress
 		}
 
+		amf := amfContext.AMFSelf()
+
 		subscriberStatus := SubscriberStatus{
-			Registered: amfContext.IsSubscriberRegistered(dbSubscriber.Imsi),
+			Registered: amf.IsSubscriberRegistered(dbSubscriber.Imsi),
 			IPAddress:  ipAddress,
 		}
 
@@ -393,7 +397,9 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		err := deregister.DeregisterSubscriber(r.Context(), imsi)
+		amf := amfContext.AMFSelf()
+
+		err := deregister.DeregisterSubscriber(r.Context(), amf, imsi)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to deregister subscriber", err, logger.APILog)
 			return

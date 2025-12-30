@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceReleaseResponse(ctx context.Context, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceReleaseResponse) {
+func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceReleaseResponse) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -52,7 +52,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, ran *amfContex
 	}
 
 	if userLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, userLocationInformation)
+		ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 	}
 
 	amfUe := ranUe.AmfUe

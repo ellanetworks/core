@@ -17,7 +17,7 @@ import (
 )
 
 // TS 24.501 5.4.1
-func handleAuthenticationResponse(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Authentication Response", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleAuthenticationResponse")
@@ -107,5 +107,5 @@ func handleAuthenticationResponse(ctx context.Context, ue *amfContext.AmfUe, msg
 
 	ue.State = amfContext.SecurityMode
 
-	return securityMode(ctx, ue)
+	return securityMode(ctx, amf, ue)
 }

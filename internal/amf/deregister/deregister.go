@@ -9,9 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func DeregisterSubscriber(ctx context.Context, supi string) error {
-	amf := amfContext.AMFSelf()
-
+func DeregisterSubscriber(ctx context.Context, amf *amfContext.AMF, supi string) error {
 	ue, ok := amf.FindAMFUEBySupi(supi)
 	if !ok {
 		logger.AmfLog.Debug("UE with SUPI not found", zap.String("supi", supi))

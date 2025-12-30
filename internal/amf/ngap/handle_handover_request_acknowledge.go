@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleHandoverRequestAcknowledge(ctx context.Context, ran *amfContext.Radio, msg *ngapType.HandoverRequestAcknowledge) {
+func HandleHandoverRequestAcknowledge(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.HandoverRequestAcknowledge) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -54,7 +54,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, ran *amfContext.Radio
 		ran.Log.Info("sent error indication")
 	}
 
-	targetUe := amfContext.AMFSelf().FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
+	targetUe := amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if targetUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		return

@@ -13,7 +13,7 @@ import (
 )
 
 // TS 33.501 6.7.2
-func handleSecurityModeComplete(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleSecurityModeComplete(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Security Mode Complete", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleSecurityModeComplete")
@@ -60,10 +60,10 @@ func handleSecurityModeComplete(ctx context.Context, ue *amfContext.AmfUe, msg *
 			return fmt.Errorf("nas message container Iei type error")
 		}
 
-		return contextSetup(ctx, ue, m.GmmMessage.RegistrationRequest)
+		return contextSetup(ctx, amf, ue, m.GmmMessage.RegistrationRequest)
 	}
 
-	err := contextSetup(ctx, ue, ue.RegistrationRequest)
+	err := contextSetup(ctx, amf, ue, ue.RegistrationRequest)
 	if err != nil {
 		return fmt.Errorf("error in context setup: %v", err)
 	}

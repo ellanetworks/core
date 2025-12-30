@@ -54,15 +54,15 @@ type NGAPSender interface {
 }
 
 type Radio struct {
-	RanPresent      int
-	RanID           *models.GlobalRanNodeID
-	NGAPSender      NGAPSender
-	Name            string
-	GnbIP           string
-	Conn            *sctp.SCTPConn
-	SupportedTAList []SupportedTAI
-	RanUePool       map[int64]*RanUe // Key: RanUeNgapID
-	Log             *zap.Logger
+	RanPresent    int
+	RanID         *models.GlobalRanNodeID
+	NGAPSender    NGAPSender
+	Name          string
+	GnbIP         string
+	Conn          *sctp.SCTPConn
+	SupportedTAIs []SupportedTAI
+	RanUEs        map[int64]*RanUe // Key: RanUeNgapID
+	Log           *zap.Logger
 }
 
 type SupportedTAI struct {
@@ -83,13 +83,13 @@ func (r *Radio) NewUe(ranUeNgapID int64) (*RanUe, error) {
 		Log:         r.Log.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("%d", amfUeNgapID))),
 	}
 
-	r.RanUePool[ranUeNgapID] = ranUE
+	r.RanUEs[ranUeNgapID] = ranUE
 
 	return ranUE, nil
 }
 
 func (r *Radio) RemoveAllUeInRan() {
-	for _, ranUe := range r.RanUePool {
+	for _, ranUe := range r.RanUEs {
 		err := ranUe.Remove()
 		if err != nil {
 			logger.AmfLog.Error("error removing ran ue", zap.Error(err))
@@ -98,7 +98,7 @@ func (r *Radio) RemoveAllUeInRan() {
 }
 
 func (r *Radio) FindUEByRanUeNgapID(ranUeNgapID int64) *RanUe {
-	ranUe, ok := r.RanUePool[ranUeNgapID]
+	ranUe, ok := r.RanUEs[ranUeNgapID]
 	if ok {
 		return ranUe
 	}

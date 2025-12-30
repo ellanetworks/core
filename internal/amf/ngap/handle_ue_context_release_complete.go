@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.Radio, msg *ngapType.UEContextReleaseComplete) {
+func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.UEContextReleaseComplete) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -50,7 +50,6 @@ func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.Radio, 
 		}
 	}
 
-	amf := amfContext.AMFSelf()
 	ranUe := amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No RanUe Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
@@ -70,7 +69,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, ran *amfContext.Radio, 
 	}
 
 	if userLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, userLocationInformation)
+		ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 	}
 
 	ranUe.Radio = ran

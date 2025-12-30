@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUplinkRanConfigurationTransfer(ctx context.Context, ran *amfContext.Radio, msg *ngapType.UplinkRANConfigurationTransfer) {
+func HandleUplinkRanConfigurationTransfer(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.UplinkRANConfigurationTransfer) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -37,8 +37,6 @@ func HandleUplinkRanConfigurationTransfer(ctx context.Context, ran *amfContext.R
 	if targetRanNodeID.GNbID.GNBValue != "" {
 		ran.Log.Debug("targetRanID", zap.String("targetRanID", targetRanNodeID.GNbID.GNBValue))
 	}
-
-	amf := amfContext.AMFSelf()
 
 	targetRan, ok := amf.FindRadioByRanID(targetRanNodeID)
 	if !ok {

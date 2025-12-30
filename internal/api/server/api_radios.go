@@ -91,7 +91,7 @@ func ListRadios() http.HandlerFunc {
 		items := make([]Radio, 0, len(ranList))
 
 		for _, radio := range ranList {
-			supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAList)
+			supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAIs)
 			newRadio := Radio{
 				Name:          radio.Name,
 				ID:            radio.RanID.GNbID.GNBValue,
@@ -127,7 +127,7 @@ func GetRadio() http.HandlerFunc {
 
 		for _, radio := range ranList {
 			if radio.Name == radioName {
-				supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAList)
+				supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAIs)
 				result := Radio{
 					Name:          radio.Name,
 					ID:            radio.RanID.GNbID.GNBValue,

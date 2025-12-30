@@ -1,11 +1,10 @@
 package context
 
-func IsSubscriberRegistered(imsi string) bool {
-	amfCtx := AMFSelf()
-	amfCtx.Mutex.Lock()
-	defer amfCtx.Mutex.Unlock()
+func (amf *AMF) IsSubscriberRegistered(imsi string) bool {
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
 
-	amfUE, ok := amfCtx.UEs[imsi]
+	amfUE, ok := amf.UEs[imsi]
 	if !ok {
 		return false
 	}

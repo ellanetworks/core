@@ -10,9 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleInitialRegistration(ctx context.Context, ue *amfContext.AmfUe) error {
-	amf := amfContext.AMFSelf()
-
+func HandleInitialRegistration(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) error {
 	ue.ClearRegistrationData()
 
 	// update Kgnb/Kn3iwf
@@ -75,7 +73,7 @@ func HandleInitialRegistration(ctx context.Context, ue *amfContext.AmfUe) error 
 	// check in specs if we need to wait for confirmation before freeing old GUTI
 	ue.FreeOldGuti()
 
-	err = message.SendRegistrationAccept(ctx, ue, nil, nil, nil, nil, nil, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+	err = message.SendRegistrationAccept(ctx, amf, ue, nil, nil, nil, nil, nil, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 	if err != nil {
 		return fmt.Errorf("error sending GMM registration accept: %v", err)
 	}

@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleHandoverNotify(ctx context.Context, ran *amfContext.Radio, msg *ngapType.HandoverNotify) {
+func HandleHandoverNotify(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.HandoverNotify) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -62,7 +62,7 @@ func HandleHandoverNotify(ctx context.Context, ran *amfContext.Radio, msg *ngapT
 	}
 
 	if userLocationInformation != nil {
-		targetUe.UpdateLocation(ctx, userLocationInformation)
+		targetUe.UpdateLocation(ctx, amf, userLocationInformation)
 	}
 
 	amfUe := targetUe.AmfUe

@@ -35,7 +35,7 @@ func getRegistrationType5GSName(regType5Gs uint8) string {
 }
 
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
-func HandleRegistrationRequest(ctx context.Context, ue *amfContext.AmfUe, registrationRequest *nasMessage.RegistrationRequest) error {
+func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, registrationRequest *nasMessage.RegistrationRequest) error {
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
 	}
@@ -114,8 +114,6 @@ func HandleRegistrationRequest(ctx context.Context, ue *amfContext.AmfUe, regist
 		return errors.New("mobile identity 5GS is empty")
 	}
 
-	amf := amfContext.AMFSelf()
-
 	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
@@ -188,7 +186,7 @@ func HandleRegistrationRequest(ctx context.Context, ue *amfContext.AmfUe, regist
 	return nil
 }
 
-func handleRegistrationRequest(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Registration Request", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleRegistrationRequest")
@@ -200,12 +198,12 @@ func handleRegistrationRequest(ctx context.Context, ue *amfContext.AmfUe, msg *n
 
 	switch ue.State {
 	case amfContext.Deregistered, amfContext.Registered:
-		if err := HandleRegistrationRequest(ctx, ue, msg.RegistrationRequest); err != nil {
+		if err := HandleRegistrationRequest(ctx, amf, ue, msg.RegistrationRequest); err != nil {
 			return fmt.Errorf("failed handling registration request: %v", err)
 		}
 
 		ue.State = amfContext.Authentication
-		pass, err := AuthenticationProcedure(ctx, ue)
+		pass, err := AuthenticationProcedure(ctx, amf, ue)
 		if err != nil {
 			ue.State = amfContext.Deregistered
 			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
@@ -216,7 +214,7 @@ func handleRegistrationRequest(ctx context.Context, ue *amfContext.AmfUe, msg *n
 		}
 		if pass {
 			ue.State = amfContext.SecurityMode
-			return securityMode(ctx, ue)
+			return securityMode(ctx, amf, ue)
 		}
 
 	case amfContext.SecurityMode:
@@ -225,7 +223,7 @@ func handleRegistrationRequest(ctx context.Context, ue *amfContext.AmfUe, msg *n
 		ue.T3560 = nil
 		ue.State = amfContext.Deregistered
 
-		return HandleGmmMessage(ctx, ue, msg)
+		return HandleGmmMessage(ctx, amf, ue, msg)
 	case amfContext.ContextSetup:
 		ue.State = amfContext.Deregistered
 		ue.Log.Info("state reset to Deregistered")

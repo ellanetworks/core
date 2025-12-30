@@ -293,6 +293,7 @@ func BuildDeregistrationAccept() ([]byte, error) {
 }
 
 func BuildRegistrationAccept(
+	amf *amfContext.AMF,
 	ue *amfContext.AmfUe,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
@@ -361,7 +362,6 @@ func BuildRegistrationAccept(
 	}
 
 	// 5gs network feature support
-	amf := amfContext.AMFSelf()
 	if amf.Get5gsNwFeatSuppEnable() {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
@@ -419,7 +419,7 @@ func BuildRegistrationAccept(
 }
 
 // TS 24.501 - 5.4.4 Generic UE configuration update procedure - 5.4.4.1 General
-func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe, flags *amfContext.ConfigurationUpdateCommandFlags) ([]byte, error, bool) {
+func BuildConfigurationUpdateCommand(amf *amfContext.AMF, ue *amfContext.AmfUe, flags *amfContext.ConfigurationUpdateCommandFlags) ([]byte, error, bool) {
 	needTimer := false
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -517,8 +517,6 @@ func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe, flags *amfContext.Con
 	if flags.NeedLadnInformation {
 		ue.Log.Warn("Require LADN Information, but got nothing.")
 	}
-
-	amf := amfContext.AMFSelf()
 
 	if flags.NeedNITZ {
 		// Full network name

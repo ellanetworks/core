@@ -194,7 +194,7 @@ func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2Me
 		return fmt.Errorf("build paging error: %v", err)
 	}
 
-	err = SendPaging(ctx, ue, pkg)
+	err = SendPaging(ctx, amf, ue, pkg)
 	if err != nil {
 		return fmt.Errorf("send paging error: %v", err)
 	}
@@ -236,12 +236,10 @@ func TransferN1Msg(ctx context.Context, supi string, n1Msg []byte, pduSessionID 
 	return nil
 }
 
-func SendPaging(ctx context.Context, ue *amfContext.AmfUe, ngapBuf []byte) error {
+func SendPaging(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, ngapBuf []byte) error {
 	if ue == nil {
 		return fmt.Errorf("amf ue is nil")
 	}
-
-	amf := amfContext.AMFSelf()
 
 	amf.Mutex.Lock()
 	defer amf.Mutex.Unlock()
@@ -249,7 +247,7 @@ func SendPaging(ctx context.Context, ue *amfContext.AmfUe, ngapBuf []byte) error
 	taiList := ue.RegistrationArea
 
 	for _, ran := range amf.Radios {
-		for _, item := range ran.SupportedTAList {
+		for _, item := range ran.SupportedTAIs {
 			if amfContext.InTaiList(item.Tai, taiList) {
 				err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
 				if err != nil {
@@ -267,7 +265,7 @@ func SendPaging(ctx context.Context, ue *amfContext.AmfUe, ngapBuf []byte) error
 		ue.T3513 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			ue.Log.Warn("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
 			for _, ran := range amf.Radios {
-				for _, item := range ran.SupportedTAList {
+				for _, item := range ran.SupportedTAIs {
 					if amfContext.InTaiList(item.Tai, taiList) {
 						err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
 						if err != nil {

@@ -187,11 +187,11 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 		NGAPSender: &send.RealNGAPSender{
 			Conn: conn,
 		},
-		RanUePool:       make(map[int64]*RanUe),
-		SupportedTAList: make([]SupportedTAI, 0),
-		Conn:            conn,
-		GnbIP:           remoteAddr.String(),
-		Log:             logger.AmfLog.With(zap.String("ran_addr", remoteAddr.String())),
+		RanUEs:        make(map[int64]*RanUe),
+		SupportedTAIs: make([]SupportedTAI, 0),
+		Conn:          conn,
+		GnbIP:         remoteAddr.String(),
+		Log:           logger.AmfLog.With(zap.String("ran_addr", remoteAddr.String())),
 	}
 
 	amf.Mutex.Lock()
@@ -281,7 +281,7 @@ func (amf *AMF) FindRanUeByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	defer amf.Mutex.Unlock()
 
 	for _, ran := range amf.Radios {
-		for _, ranUe := range ran.RanUePool {
+		for _, ranUe := range ran.RanUEs {
 			if ranUe.AmfUeNgapID == amfUeNgapID {
 				return ranUe
 			}
@@ -347,7 +347,6 @@ func (amf *AMF) Get5gsNwFeatSuppMcsi() uint8 {
 	return 0
 }
 
-// Returns the AMF
 func AMFSelf() *AMF {
 	return &amfContext
 }

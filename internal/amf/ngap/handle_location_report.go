@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleLocationReport(ctx context.Context, ran *amfContext.Radio, msg *ngapType.LocationReport) {
+func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.LocationReport) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -56,7 +56,7 @@ func HandleLocationReport(ctx context.Context, ran *amfContext.Radio, msg *ngapT
 		return
 	}
 
-	ranUe.UpdateLocation(ctx, userLocationInformation)
+	ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 
 	// ranUe.Log.Debugf("Report Area[%d]", locationReportingRequestType.ReportArea.Value)
 	ranUe.Log.Debug("Handle Location Report", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Any("ReportArea", locationReportingRequestType.ReportArea))

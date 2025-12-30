@@ -101,7 +101,7 @@ func TestListRadios(t *testing.T) {
 	amf := amfContext.AMFSelf()
 	ran1 := amfContext.Radio{}
 	ran1.Name = "gnb-001"
-	ran1.SupportedTAList = []amfContext.SupportedTAI{
+	ran1.SupportedTAIs = []amfContext.SupportedTAI{
 		{
 			Tai: models.Tai{
 				PlmnID: &models.PlmnID{
@@ -129,7 +129,7 @@ func TestListRadios(t *testing.T) {
 	amf.Radios[conn1] = &ran1
 	ran2 := amfContext.Radio{}
 	ran2.Name = "gnb-002"
-	ran2.SupportedTAList = []amfContext.SupportedTAI{
+	ran2.SupportedTAIs = []amfContext.SupportedTAI{
 		{
 			Tai: models.Tai{
 				PlmnID: &models.PlmnID{

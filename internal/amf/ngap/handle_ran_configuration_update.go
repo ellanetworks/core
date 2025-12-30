@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleRanConfigurationUpdate(ctx context.Context, ran *amfContext.Radio, msg *ngapType.RANConfigurationUpdate) {
+func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.RANConfigurationUpdate) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -49,7 +49,7 @@ func HandleRanConfigurationUpdate(ctx context.Context, ran *amfContext.Radio, ms
 	for i := 0; i < len(supportedTAList.List); i++ {
 		supportedTAItem := supportedTAList.List[i]
 		tac := hex.EncodeToString(supportedTAItem.TAC.Value)
-		capOfSupportTai := cap(ran.SupportedTAList)
+		capOfSupportTai := cap(ran.SupportedTAIs)
 		for j := 0; j < len(supportedTAItem.BroadcastPLMNList.List); j++ {
 			supportedTAI := amfContext.SupportedTAI{}
 			supportedTAI.SNssaiList = make([]models.Snssai, 0)
@@ -67,23 +67,21 @@ func HandleRanConfigurationUpdate(ctx context.Context, ran *amfContext.Radio, ms
 				}
 			}
 			ran.Log.Debug("handle ran configuration update", zap.Any("PLMN_ID", plmnID), zap.String("TAC", tac))
-			if len(ran.SupportedTAList) < capOfSupportTai {
-				ran.SupportedTAList = append(ran.SupportedTAList, supportedTAI)
+			if len(ran.SupportedTAIs) < capOfSupportTai {
+				ran.SupportedTAIs = append(ran.SupportedTAIs, supportedTAI)
 			} else {
 				break
 			}
 		}
 	}
 
-	if len(ran.SupportedTAList) == 0 {
+	if len(ran.SupportedTAIs) == 0 {
 		ran.Log.Warn("RanConfigurationUpdate failure: No supported TA exist in RanConfigurationUpdate")
 		cause.Present = ngapType.CausePresentMisc
 		cause.Misc = &ngapType.CauseMisc{
 			Value: ngapType.CauseMiscPresentUnspecified,
 		}
 	} else {
-		amf := amfContext.AMFSelf()
-
 		operatorInfo, err := amf.GetOperatorInfo(ctx)
 		if err != nil {
 			ran.Log.Error("Could not get operator info", zap.Error(err))
@@ -96,7 +94,7 @@ func HandleRanConfigurationUpdate(ctx context.Context, ran *amfContext.Radio, ms
 
 		var found bool
 
-		for i, tai := range ran.SupportedTAList {
+		for i, tai := range ran.SupportedTAIs {
 			if amfContext.InTaiList(tai.Tai, operatorInfo.Tais) {
 				ran.Log.Debug("handle ran configuration update", zap.Any("SERVED_TAI_INDEX", i))
 				found = true

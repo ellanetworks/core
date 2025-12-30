@@ -10,7 +10,7 @@ import (
 )
 
 // TS 23.502 4.9.1
-func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.Radio, msg *ngapType.PathSwitchRequest) {
+func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.PathSwitchRequest) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -56,8 +56,6 @@ func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.Radio, msg *ng
 		ran.Log.Error("SourceAmfUeNgapID is nil")
 		return
 	}
-
-	amf := amfContext.AMFSelf()
 
 	ranUe := amf.FindRanUeByAmfUeNgapID(sourceAMFUENGAPID.Value)
 	if ranUe == nil {
@@ -117,7 +115,7 @@ func HandlePathSwitchRequest(ctx context.Context, ran *amfContext.Radio, msg *ng
 		ranUe.RanUeNgapID = rANUENGAPID.Value
 	}
 
-	ranUe.UpdateLocation(ctx, userLocationInformation)
+	ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 
 	var pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList
 	var pduSessionResourceReleasedListPSAck ngapType.PDUSessionResourceReleasedListPSAck

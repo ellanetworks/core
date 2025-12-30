@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleHandoverRequired(ctx context.Context, ran *amfContext.Radio, msg *ngapType.HandoverRequired) {
+func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.HandoverRequired) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -143,9 +143,10 @@ func HandleHandoverRequired(ctx context.Context, ran *amfContext.Radio, msg *nga
 		sourceUe.Log.Info("sent handover preparation failure to source UE")
 		return
 	}
-	aMFSelf := amfContext.AMFSelf()
+
 	targetRanNodeID := util.RanIDToModels(targetID.TargetRANNodeID.GlobalRANNodeID)
-	targetRan, ok := aMFSelf.FindRadioByRanID(targetRanNodeID)
+
+	targetRan, ok := amf.FindRadioByRanID(targetRanNodeID)
 	if !ok {
 		// handover between different AMF
 		sourceUe.Log.Warn("Handover required : cannot find target Ran Node Id in this AMF. Handover between different AMF has not been implemented yet", zap.Any("targetRanNodeID", targetRanNodeID))
@@ -193,8 +194,6 @@ func HandleHandoverRequired(ctx context.Context, ran *amfContext.Radio, msg *nga
 		sourceUe.Log.Error("error updating NH", zap.Error(err))
 		return
 	}
-
-	amf := amfContext.AMFSelf()
 
 	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {

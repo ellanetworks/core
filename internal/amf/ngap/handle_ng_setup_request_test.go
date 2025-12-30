@@ -17,9 +17,9 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 	fakeNGAPSender := &FakeNGAPSender{}
 
 	ran := &amfContext.Radio{
-		Log:             logger.AmfLog,
-		NGAPSender:      fakeNGAPSender,
-		SupportedTAList: make([]amfContext.SupportedTAI, 0),
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
 	}
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
@@ -65,9 +65,9 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 	fakeNGAPSender := &FakeNGAPSender{}
 
 	ran := &amfContext.Radio{
-		Log:             logger.AmfLog,
-		NGAPSender:      fakeNGAPSender,
-		SupportedTAList: make([]amfContext.SupportedTAI, 0),
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
 	}
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
@@ -121,9 +121,9 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
 	ran := &amfContext.Radio{
-		Log:             logger.AmfLog,
-		NGAPSender:      fakeNGAPSender,
-		SupportedTAList: make([]amfContext.SupportedTAI, 0),
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
 	}
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{

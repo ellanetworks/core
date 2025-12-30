@@ -59,8 +59,8 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 	}
 
 	// Clearing any existing contents of ran.SupportedTAList
-	if len(ran.SupportedTAList) != 0 {
-		ran.SupportedTAList = make([]amfContext.SupportedTAI, 0)
+	if len(ran.SupportedTAIs) != 0 {
+		ran.SupportedTAIs = make([]amfContext.SupportedTAI, 0)
 	}
 
 	if supportedTAList == nil || len(supportedTAList.List) == 0 {
@@ -92,7 +92,7 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 				supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, util.SNssaiToModels(tAISliceSupportItem.SNSSAI))
 			}
 
-			ran.SupportedTAList = append(ran.SupportedTAList, supportedTAI)
+			ran.SupportedTAIs = append(ran.SupportedTAIs, supportedTAI)
 		}
 	}
 
@@ -104,7 +104,7 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 
 	var found bool
 
-	for i, tai := range ran.SupportedTAList {
+	for i, tai := range ran.SupportedTAIs {
 		if amfContext.InTaiList(tai.Tai, operatorInfo.Tais) {
 			ran.Log.Debug("Found served TAI in Core", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
 			found = true
@@ -123,7 +123,7 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 			ran.Log.Error("error sending NG Setup Failure", zap.Error(err))
 			return
 		}
-		ran.Log.Warn("Could not find Served TAI in Core", zap.Any("gnb_tai_list", ran.SupportedTAList), zap.Any("core_tai_list", operatorInfo.Tais))
+		ran.Log.Warn("Could not find Served TAI in Core", zap.Any("gnb_tai_list", ran.SupportedTAIs), zap.Any("core_tai_list", operatorInfo.Tais))
 		return
 	}
 

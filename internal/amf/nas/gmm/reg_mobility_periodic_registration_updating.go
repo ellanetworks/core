@@ -14,15 +14,13 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfContext.AmfUe) error {
+func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) error {
 	ue.Log.Debug("Handle MobilityAndPeriodicRegistrationUpdating")
 
 	err := ue.DerivateAnKey()
 	if err != nil {
 		return fmt.Errorf("error deriving AnKey: %v", err)
 	}
-
-	amf := amfContext.AMFSelf()
 
 	if ue.RegistrationRequest.UpdateType5GS != nil {
 		if ue.RegistrationRequest.UpdateType5GS.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
@@ -157,7 +155,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 			// downlink signalling
 			if n2Info == nil {
 				if len(suList.List) != 0 {
-					nasPdu, err := message.BuildRegistrationAccept(ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
+					nasPdu, err := message.BuildRegistrationAccept(amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
 					if err != nil {
 						return err
 					}
@@ -175,7 +173,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 					}
 					ue.Log.Info("Sent NGAP pdu session resource setup request")
 				} else {
-					err := message.SendRegistrationAccept(ctx, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+					err := message.SendRegistrationAccept(ctx, amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 					if err != nil {
 						return fmt.Errorf("error sending GMM registration accept: %v", err)
 					}
@@ -213,14 +211,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, ue *amfC
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
 	if ue.RanUe.UeContextRequest {
-		err := message.SendRegistrationAccept(ctx, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+		err := message.SendRegistrationAccept(ctx, amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 		if err != nil {
 			return fmt.Errorf("error sending GMM registration accept: %v", err)
 		}
 		ue.Log.Info("Sent GMM registration accept")
 		return nil
 	} else {
-		nasPdu, err := message.BuildRegistrationAccept(ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
+		nasPdu, err := message.BuildRegistrationAccept(amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
 		if err != nil {
 			return fmt.Errorf("error building registration accept: %v", err)
 		}

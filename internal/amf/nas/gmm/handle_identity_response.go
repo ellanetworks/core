@@ -61,7 +61,7 @@ func updateUEIdentity(ue *amfContext.AmfUe, mobileIdentityContents []uint8) erro
 	return nil
 }
 
-func handleIdentityResponse(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Identity Response", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleIdentityResponse")
@@ -80,14 +80,14 @@ func handleIdentityResponse(ctx context.Context, ue *amfContext.AmfUe, msg *nas.
 		}
 
 		ue.State = amfContext.Authentication
-		pass, err := AuthenticationProcedure(ctx, ue)
+		pass, err := AuthenticationProcedure(ctx, amf, ue)
 		if err != nil {
 			ue.State = amfContext.Deregistered
 			return fmt.Errorf("error in authentication procedure: %v", err)
 		}
 		if pass {
 			ue.State = amfContext.SecurityMode
-			return securityMode(ctx, ue)
+			return securityMode(ctx, amf, ue)
 		}
 
 		return nil
@@ -100,14 +100,14 @@ func handleIdentityResponse(ctx context.Context, ue *amfContext.AmfUe, msg *nas.
 		}
 		switch ue.RegistrationType5GS {
 		case nasMessage.RegistrationType5GSInitialRegistration:
-			if err := HandleInitialRegistration(ctx, ue); err != nil {
+			if err := HandleInitialRegistration(ctx, amf, ue); err != nil {
 				ue.State = amfContext.Deregistered
 				return fmt.Errorf("error handling initial registration: %v", err)
 			}
 		case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
 			fallthrough
 		case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-			if err := HandleMobilityAndPeriodicRegistrationUpdating(ctx, ue); err != nil {
+			if err := HandleMobilityAndPeriodicRegistrationUpdating(ctx, amf, ue); err != nil {
 				ue.State = amfContext.Deregistered
 				return fmt.Errorf("error handling mobility and periodic registration updating: %v", err)
 			}

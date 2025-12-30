@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleAuthenticationFailure(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Authentication Failure", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleAuthenticationFailure")
@@ -66,7 +66,7 @@ func handleAuthenticationFailure(ctx context.Context, ue *amfContext.AmfUe, msg 
 			ue.NgKsi.Ksi = 0
 		}
 
-		err := message.SendAuthenticationRequest(ctx, ue.RanUe)
+		err := message.SendAuthenticationRequest(ctx, amf, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("send authentication request error: %s", err)
 		}
@@ -100,7 +100,7 @@ func handleAuthenticationFailure(ctx context.Context, ue *amfContext.AmfUe, msg 
 		ue.AuthenticationCtx = response
 		ue.ABBA = []uint8{0x00, 0x00}
 
-		err = message.SendAuthenticationRequest(ctx, ue.RanUe)
+		err = message.SendAuthenticationRequest(ctx, amf, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("send authentication request error: %s", err)
 		}

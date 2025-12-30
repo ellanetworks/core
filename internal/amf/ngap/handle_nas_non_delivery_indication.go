@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleNasNonDeliveryIndication(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NASNonDeliveryIndication) {
+func HandleNasNonDeliveryIndication(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.NASNonDeliveryIndication) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -57,7 +57,7 @@ func HandleNasNonDeliveryIndication(ctx context.Context, ran *amfContext.Radio, 
 
 	ran.Log.Debug("Handle NAS Non Delivery Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.String("cause", causeToString(*cause)))
 
-	err := nas.HandleNAS(ctx, ranUe, nASPDU.Value)
+	err := nas.HandleNAS(ctx, amf, ranUe, nASPDU.Value)
 	if err != nil {
 		ranUe.Log.Error("error handling NAS", zap.Error(err))
 	}

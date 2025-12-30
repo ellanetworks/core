@@ -17,15 +17,15 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 	ran := &amfContext.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
-		RanUePool: map[int64]*amfContext.RanUe{
+		RanUEs: map[int64]*amfContext.RanUe{
 			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Radio: &amfContext.Radio{}},
 			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Radio: &amfContext.Radio{}},
 		},
-		SupportedTAList: make([]amfContext.SupportedTAI, 0),
+		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
 	}
 
-	ran.RanUePool[0].Radio = ran
-	ran.RanUePool[1].Radio = ran
+	ran.RanUEs[0].Radio = ran
+	ran.RanUEs[1].Radio = ran
 
 	msg, err := buildNGReset(&NGResetOpts{
 		ResetType: ResetTypePresentNGInterface,
@@ -44,8 +44,8 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 		t.Fatalf("expected PartOfNGInterface to be nil, but got %v", fakeNGAPSender.SentNGResetAcknowledges[0].PartOfNGInterface)
 	}
 
-	if len(ran.RanUePool) != 0 {
-		t.Fatalf("expected all UEs to be removed from the RAN, but got %d", len(ran.RanUePool))
+	if len(ran.RanUEs) != 0 {
+		t.Fatalf("expected all UEs to be removed from the RAN, but got %d", len(ran.RanUEs))
 	}
 }
 
@@ -55,15 +55,15 @@ func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 	ran := &amfContext.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
-		RanUePool: map[int64]*amfContext.RanUe{
+		RanUEs: map[int64]*amfContext.RanUe{
 			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Radio: &amfContext.Radio{}},
 			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Radio: &amfContext.Radio{}},
 		},
-		SupportedTAList: make([]amfContext.SupportedTAI, 0),
+		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
 	}
 
-	ran.RanUePool[0].Radio = ran
-	ran.RanUePool[1].Radio = ran
+	ran.RanUEs[0].Radio = ran
+	ran.RanUEs[1].Radio = ran
 
 	msg, err := buildNGReset(&NGResetOpts{
 		ResetType: ResetTypePresentPartOfNGInterface,
@@ -93,7 +93,7 @@ func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 		t.Fatalf("expected RANUENGAPID to be 0, but got %d", fakeNGAPSender.SentNGResetAcknowledges[0].PartOfNGInterface.List[0].RANUENGAPID.Value)
 	}
 
-	if len(ran.RanUePool) != 1 {
-		t.Fatalf("expected 1 UE to remain in the RAN, but got %d", len(ran.RanUePool))
+	if len(ran.RanUEs) != 1 {
+		t.Fatalf("expected 1 UE to remain in the RAN, but got %d", len(ran.RanUEs))
 	}
 }

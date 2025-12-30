@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUplinkNasTransport(ctx context.Context, ran *amfContext.Radio, msg *ngapType.UplinkNASTransport) {
+func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.UplinkNASTransport) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -68,10 +68,10 @@ func HandleUplinkNasTransport(ctx context.Context, ran *amfContext.Radio, msg *n
 	}
 
 	if userLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, userLocationInformation)
+		ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 	}
 
-	err := nas.HandleNAS(ctx, ranUe, nASPDU.Value)
+	err := nas.HandleNAS(ctx, amf, ranUe, nASPDU.Value)
 	if err != nil {
 		ranUe.Log.Error("error handling NAS message", zap.Error(err))
 	}

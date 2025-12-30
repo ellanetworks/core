@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUEContextReleaseRequest(ctx context.Context, ran *amfContext.Radio, msg *ngapType.UEContextReleaseRequest) {
+func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.UEContextReleaseRequest) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -44,7 +44,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, ran *amfContext.Radio, m
 		}
 	}
 
-	ranUe := amfContext.AMFSelf().FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
+	ranUe := amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if ranUe == nil {
 		ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	}

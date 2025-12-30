@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func securityMode(ctx context.Context, ue *amfContext.AmfUe) error {
+func securityMode(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) error {
 	logger.AmfLog.Debug("Security Mode Procedure", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "securityMode")
@@ -20,10 +20,8 @@ func securityMode(ctx context.Context, ue *amfContext.AmfUe) error {
 
 	if ue.SecurityContextIsValid() {
 		ue.Log.Debug("UE has a valid security context - skip security mode control procedure")
-		return contextSetup(ctx, ue, ue.RegistrationRequest)
+		return contextSetup(ctx, amf, ue, ue.RegistrationRequest)
 	}
-
-	amf := amfContext.AMFSelf()
 
 	ue.SelectSecurityAlg(amf.SecurityAlgorithm.IntegrityOrder, amf.SecurityAlgorithm.CipheringOrder)
 
@@ -32,7 +30,7 @@ func securityMode(ctx context.Context, ue *amfContext.AmfUe) error {
 		return fmt.Errorf("error deriving algorithm key: %v", err)
 	}
 
-	err = message.SendSecurityModeCommand(ctx, ue.RanUe)
+	err = message.SendSecurityModeCommand(ctx, amf, ue.RanUe)
 	if err != nil {
 		return fmt.Errorf("error sending security mode command: %v", err)
 	}

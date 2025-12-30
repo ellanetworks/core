@@ -77,7 +77,7 @@ func forward5GSMMessageToSMF(
 	return nil
 }
 
-func transport5GSMMessage(ctx context.Context, ue *amfContext.AmfUe, ulNasTransport *nasMessage.ULNASTransport) error {
+func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, ulNasTransport *nasMessage.ULNASTransport) error {
 	smMessage := ulNasTransport.PayloadContainer.GetPayloadContainerContents()
 
 	id := ulNasTransport.PduSessionID2Value
@@ -197,7 +197,6 @@ func transport5GSMMessage(ctx context.Context, ue *amfContext.AmfUe, ulNasTransp
 			} else {
 				// if user's subscription context obtained from UDM does not contain the default DNN for the,
 				// S-NSSAI, the AMF shall use a locally configured DNN as the DNN
-				amf := amfContext.AMFSelf()
 				_, dnnResp, err := amf.GetSubscriberData(ctx, ue.Supi)
 				if err != nil {
 					return fmt.Errorf("failed to get subscriber data: %v", err)
@@ -237,7 +236,7 @@ func transport5GSMMessage(ctx context.Context, ue *amfContext.AmfUe, ulNasTransp
 	return nil
 }
 
-func handleULNASTransport(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleULNASTransport(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle UL NAS Transport", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleULNASTransport")
@@ -258,7 +257,7 @@ func handleULNASTransport(ctx context.Context, ue *amfContext.AmfUe, msg *nas.Gm
 	switch msg.ULNASTransport.GetPayloadContainerType() {
 	// TS 24.501 5.4.5.2.3 case a)
 	case nasMessage.PayloadContainerTypeN1SMInfo:
-		return transport5GSMMessage(ctx, ue, msg.ULNASTransport)
+		return transport5GSMMessage(ctx, amf, ue, msg.ULNASTransport)
 	case nasMessage.PayloadContainerTypeSMS:
 		return fmt.Errorf("PayloadContainerTypeSMS has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeLPP:

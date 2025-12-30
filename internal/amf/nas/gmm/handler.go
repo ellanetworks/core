@@ -11,16 +11,16 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/nas/handler")
 
-func HandleGmmMessage(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func HandleGmmMessage(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	msgType := msg.GetMessageType()
 
 	switch msgType {
 	case nas.MsgTypeRegistrationRequest:
-		return handleRegistrationRequest(ctx, ue, msg)
+		return handleRegistrationRequest(ctx, amf, ue, msg)
 	case nas.MsgTypeServiceRequest:
-		return handleServiceRequest(ctx, ue, msg)
+		return handleServiceRequest(ctx, amf, ue, msg)
 	case nas.MsgTypeULNASTransport:
-		return handleULNASTransport(ctx, ue, msg)
+		return handleULNASTransport(ctx, amf, ue, msg)
 	case nas.MsgTypeConfigurationUpdateComplete:
 		return handleConfigurationUpdateComplete(ctx, ue)
 	case nas.MsgTypeNotificationResponse:
@@ -30,13 +30,13 @@ func HandleGmmMessage(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMes
 	case nas.MsgTypeStatus5GMM:
 		return handleStatus5GMM(ctx, ue, msg)
 	case nas.MsgTypeIdentityResponse:
-		return handleIdentityResponse(ctx, ue, msg)
+		return handleIdentityResponse(ctx, amf, ue, msg)
 	case nas.MsgTypeAuthenticationResponse:
-		return handleAuthenticationResponse(ctx, ue, msg)
+		return handleAuthenticationResponse(ctx, amf, ue, msg)
 	case nas.MsgTypeAuthenticationFailure:
-		return handleAuthenticationFailure(ctx, ue, msg)
+		return handleAuthenticationFailure(ctx, amf, ue, msg)
 	case nas.MsgTypeSecurityModeComplete:
-		return handleSecurityModeComplete(ctx, ue, msg)
+		return handleSecurityModeComplete(ctx, amf, ue, msg)
 	case nas.MsgTypeSecurityModeReject:
 		return handleSecurityModeReject(ctx, ue, msg)
 	case nas.MsgTypeRegistrationComplete:

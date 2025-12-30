@@ -26,7 +26,7 @@ import (
 var tracer = otel.Tracer("ella-core/amf/nas")
 
 // HandleNAS processes an uplink NAS PDU and emits a span around the entire operation.
-func HandleNAS(ctx context.Context, ue *amfContext.RanUe, nasPdu []byte) error {
+func HandleNAS(ctx context.Context, amf *amfContext.AMF, ue *amfContext.RanUe, nasPdu []byte) error {
 	if ue == nil {
 		return fmt.Errorf("ue is nil")
 	}
@@ -37,7 +37,7 @@ func HandleNAS(ctx context.Context, ue *amfContext.RanUe, nasPdu []byte) error {
 
 	// First-time UE attach: fetch or create AMF context
 	if ue.AmfUe == nil {
-		amfUe, err := fetchUeContextWithMobileIdentity(ctx, nasPdu)
+		amfUe, err := fetchUeContextWithMobileIdentity(ctx, amf, nasPdu)
 		if err != nil {
 			return fmt.Errorf("error fetching UE context: %v", err)
 		}
@@ -81,7 +81,7 @@ func HandleNAS(ctx context.Context, ue *amfContext.RanUe, nasPdu []byte) error {
 		zap.String("SUPI", ue.AmfUe.Supi),
 	)
 
-	err = gmm.HandleGmmMessage(ctx, ue.AmfUe, msg.GmmMessage)
+	err = gmm.HandleGmmMessage(ctx, amf, ue.AmfUe, msg.GmmMessage)
 	if err != nil {
 		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.AmfUe.Supi, err)
 	}
@@ -92,7 +92,7 @@ func HandleNAS(ctx context.Context, ue *amfContext.RanUe, nasPdu []byte) error {
 /*
 fetch Guti if present incase of integrity protected Nas Message
 */
-func fetchUeContextWithMobileIdentity(ctx context.Context, payload []byte) (*amfContext.AmfUe, error) {
+func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, payload []byte) (*amfContext.AmfUe, error) {
 	if payload == nil {
 		return nil, fmt.Errorf("nas payload is empty")
 	}
@@ -116,8 +116,6 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, payload []byte) (*amf
 	default:
 		return nil, fmt.Errorf("unsupported security header type: 0x%0x", msg.SecurityHeaderType)
 	}
-
-	amf := amfContext.AMFSelf()
 
 	var guti string
 

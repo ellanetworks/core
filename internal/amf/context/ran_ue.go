@@ -64,9 +64,9 @@ func (ranUe *RanUe) Remove() error {
 		return fmt.Errorf("ran not found in ranUe")
 	}
 
-	for _, ranUe1 := range ran.RanUePool {
+	for _, ranUe1 := range ran.RanUEs {
 		if ranUe1 == ranUe {
-			delete(ran.RanUePool, ranUe.RanUeNgapID)
+			delete(ran.RanUEs, ranUe.RanUeNgapID)
 			break
 		}
 	}
@@ -88,15 +88,15 @@ func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
 	oldRan := ranUe.Radio
 
 	// remove ranUe from oldRan
-	for _, ranUe1 := range oldRan.RanUePool {
+	for _, ranUe1 := range oldRan.RanUEs {
 		if ranUe1 == ranUe {
-			delete(oldRan.RanUePool, ranUe.RanUeNgapID)
+			delete(oldRan.RanUEs, ranUe.RanUeNgapID)
 			break
 		}
 	}
 
 	// add ranUe to newRan
-	newRan.RanUePool[ranUeNgapID] = ranUe
+	newRan.RanUEs[ranUeNgapID] = ranUe
 
 	// switch to newRan
 	ranUe.Radio = newRan
@@ -107,7 +107,7 @@ func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
 	return nil
 }
 
-func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation *ngapType.UserLocationInformation) {
+func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationInformation *ngapType.UserLocationInformation) {
 	if userLocationInformation == nil {
 		return
 	}
@@ -197,8 +197,6 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation 
 		ranUe.Location.N3gaLocation.UeIpv4Addr = ipv4Addr
 		ranUe.Location.N3gaLocation.UeIpv6Addr = ipv6Addr
 		ranUe.Location.N3gaLocation.PortNumber = ngapConvert.PortNumberToInt(port)
-
-		amf := AMFSelf()
 
 		operatorInfo, err := amf.GetOperatorInfo(ctx)
 		if err != nil {

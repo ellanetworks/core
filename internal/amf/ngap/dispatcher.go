@@ -73,10 +73,10 @@ func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 		msg,
 	)
 
-	DispatchNgapMsg(ran, pdu)
+	DispatchNgapMsg(amf, ran, pdu)
 }
 
-func DispatchNgapMsg(ran *amfContext.Radio, pdu *ngapType.NGAPPDU) {
+func DispatchNgapMsg(amf *amfContext.AMF, ran *amfContext.Radio, pdu *ngapType.NGAPPDU) {
 	messageType := getMessageType(pdu)
 
 	spanName := fmt.Sprintf("AMF NGAP %s", messageType)
@@ -88,8 +88,6 @@ func DispatchNgapMsg(ran *amfContext.Radio, pdu *ngapType.NGAPPDU) {
 		trace.WithSpanKind(trace.SpanKindServer),
 	)
 	defer span.End()
-
-	amf := amfContext.AMFSelf()
 
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
@@ -103,35 +101,35 @@ func DispatchNgapMsg(ran *amfContext.Radio, pdu *ngapType.NGAPPDU) {
 		case ngapType.ProcedureCodeNGSetup:
 			HandleNGSetupRequest(ctx, amf, ran, pdu.InitiatingMessage.Value.NGSetupRequest)
 		case ngapType.ProcedureCodeInitialUEMessage:
-			HandleInitialUEMessage(ctx, ran, pdu.InitiatingMessage.Value.InitialUEMessage)
+			HandleInitialUEMessage(ctx, amf, ran, pdu.InitiatingMessage.Value.InitialUEMessage)
 		case ngapType.ProcedureCodeUplinkNASTransport:
-			HandleUplinkNasTransport(ctx, ran, pdu.InitiatingMessage.Value.UplinkNASTransport)
+			HandleUplinkNasTransport(ctx, amf, ran, pdu.InitiatingMessage.Value.UplinkNASTransport)
 		case ngapType.ProcedureCodeNGReset:
 			HandleNGReset(ctx, ran, pdu.InitiatingMessage.Value.NGReset)
 		case ngapType.ProcedureCodeHandoverCancel:
 			HandleHandoverCancel(ctx, ran, pdu.InitiatingMessage.Value.HandoverCancel)
 		case ngapType.ProcedureCodeUEContextReleaseRequest:
-			HandleUEContextReleaseRequest(ctx, ran, pdu.InitiatingMessage.Value.UEContextReleaseRequest)
+			HandleUEContextReleaseRequest(ctx, amf, ran, pdu.InitiatingMessage.Value.UEContextReleaseRequest)
 		case ngapType.ProcedureCodeNASNonDeliveryIndication:
-			HandleNasNonDeliveryIndication(ctx, ran, pdu.InitiatingMessage.Value.NASNonDeliveryIndication)
+			HandleNasNonDeliveryIndication(ctx, amf, ran, pdu.InitiatingMessage.Value.NASNonDeliveryIndication)
 		case ngapType.ProcedureCodeErrorIndication:
 			HandleErrorIndication(ran, pdu.InitiatingMessage.Value.ErrorIndication)
 		case ngapType.ProcedureCodeUERadioCapabilityInfoIndication:
 			HandleUERadioCapabilityInfoIndication(ran, pdu.InitiatingMessage.Value.UERadioCapabilityInfoIndication)
 		case ngapType.ProcedureCodeHandoverNotification:
-			HandleHandoverNotify(ctx, ran, pdu.InitiatingMessage.Value.HandoverNotify)
+			HandleHandoverNotify(ctx, amf, ran, pdu.InitiatingMessage.Value.HandoverNotify)
 		case ngapType.ProcedureCodeHandoverPreparation:
-			HandleHandoverRequired(ctx, ran, pdu.InitiatingMessage.Value.HandoverRequired)
+			HandleHandoverRequired(ctx, amf, ran, pdu.InitiatingMessage.Value.HandoverRequired)
 		case ngapType.ProcedureCodeRANConfigurationUpdate:
-			HandleRanConfigurationUpdate(ctx, ran, pdu.InitiatingMessage.Value.RANConfigurationUpdate)
+			HandleRanConfigurationUpdate(ctx, amf, ran, pdu.InitiatingMessage.Value.RANConfigurationUpdate)
 		case ngapType.ProcedureCodePDUSessionResourceNotify:
-			HandlePDUSessionResourceNotify(ctx, ran, pdu.InitiatingMessage.Value.PDUSessionResourceNotify)
+			HandlePDUSessionResourceNotify(ctx, amf, ran, pdu.InitiatingMessage.Value.PDUSessionResourceNotify)
 		case ngapType.ProcedureCodePathSwitchRequest:
-			HandlePathSwitchRequest(ctx, ran, pdu.InitiatingMessage.Value.PathSwitchRequest)
+			HandlePathSwitchRequest(ctx, amf, ran, pdu.InitiatingMessage.Value.PathSwitchRequest)
 		case ngapType.ProcedureCodeLocationReport:
-			HandleLocationReport(ctx, ran, pdu.InitiatingMessage.Value.LocationReport)
+			HandleLocationReport(ctx, amf, ran, pdu.InitiatingMessage.Value.LocationReport)
 		case ngapType.ProcedureCodeUplinkRANConfigurationTransfer:
-			HandleUplinkRanConfigurationTransfer(ctx, ran, pdu.InitiatingMessage.Value.UplinkRANConfigurationTransfer)
+			HandleUplinkRanConfigurationTransfer(ctx, amf, ran, pdu.InitiatingMessage.Value.UplinkRANConfigurationTransfer)
 		case ngapType.ProcedureCodePDUSessionResourceModifyIndication:
 			HandlePDUSessionResourceModifyIndication(ctx, ran, pdu.InitiatingMessage.Value.PDUSessionResourceModifyIndication)
 		default:
@@ -146,19 +144,19 @@ func DispatchNgapMsg(ran *amfContext.Radio, pdu *ngapType.NGAPPDU) {
 
 		switch successfulOutcome.ProcedureCode.Value {
 		case ngapType.ProcedureCodeUEContextRelease:
-			HandleUEContextReleaseComplete(ctx, ran, pdu.SuccessfulOutcome.Value.UEContextReleaseComplete)
+			HandleUEContextReleaseComplete(ctx, amf, ran, pdu.SuccessfulOutcome.Value.UEContextReleaseComplete)
 		case ngapType.ProcedureCodePDUSessionResourceRelease:
-			HandlePDUSessionResourceReleaseResponse(ctx, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceReleaseResponse)
+			HandlePDUSessionResourceReleaseResponse(ctx, amf, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceReleaseResponse)
 		case ngapType.ProcedureCodeInitialContextSetup:
 			HandleInitialContextSetupResponse(ctx, ran, pdu.SuccessfulOutcome.Value.InitialContextSetupResponse)
 		case ngapType.ProcedureCodeUEContextModification:
-			HandleUEContextModificationResponse(ctx, ran, pdu.SuccessfulOutcome.Value.UEContextModificationResponse)
+			HandleUEContextModificationResponse(ctx, amf, ran, pdu.SuccessfulOutcome.Value.UEContextModificationResponse)
 		case ngapType.ProcedureCodePDUSessionResourceSetup:
-			HandlePDUSessionResourceSetupResponse(ctx, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse)
+			HandlePDUSessionResourceSetupResponse(ctx, amf, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse)
 		case ngapType.ProcedureCodePDUSessionResourceModify:
-			HandlePDUSessionResourceModifyResponse(ctx, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceModifyResponse)
+			HandlePDUSessionResourceModifyResponse(ctx, amf, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceModifyResponse)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
-			HandleHandoverRequestAcknowledge(ctx, ran, pdu.SuccessfulOutcome.Value.HandoverRequestAcknowledge)
+			HandleHandoverRequestAcknowledge(ctx, amf, ran, pdu.SuccessfulOutcome.Value.HandoverRequestAcknowledge)
 		default:
 			ran.Log.Warn("NGAP Message handler not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", successfulOutcome.ProcedureCode.Value))
 		}
@@ -173,9 +171,9 @@ func DispatchNgapMsg(ran *amfContext.Radio, pdu *ngapType.NGAPPDU) {
 		case ngapType.ProcedureCodeInitialContextSetup:
 			HandleInitialContextSetupFailure(ctx, ran, pdu.UnsuccessfulOutcome.Value.InitialContextSetupFailure)
 		case ngapType.ProcedureCodeUEContextModification:
-			HandleUEContextModificationFailure(ran, pdu.UnsuccessfulOutcome.Value.UEContextModificationFailure)
+			HandleUEContextModificationFailure(amf, ran, pdu.UnsuccessfulOutcome.Value.UEContextModificationFailure)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
-			HandleHandoverFailure(ctx, ran, pdu.UnsuccessfulOutcome.Value.HandoverFailure)
+			HandleHandoverFailure(ctx, amf, ran, pdu.UnsuccessfulOutcome.Value.HandoverFailure)
 		default:
 			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", unsuccessfulOutcome.ProcedureCode.Value))
 		}
