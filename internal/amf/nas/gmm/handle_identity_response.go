@@ -7,11 +7,9 @@ import (
 	"strconv"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
-	"go.uber.org/zap"
 )
 
 func updateUEIdentity(ue *amfContext.AmfUe, mobileIdentityContents []uint8) error {
@@ -69,8 +67,6 @@ func updateUEIdentity(ue *amfContext.AmfUe, mobileIdentityContents []uint8) erro
 }
 
 func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
-	logger.AmfLog.Debug("Handle Identity Response", zap.String("supi", ue.Supi))
-
 	switch ue.State {
 	case amfContext.Authentication:
 		mobileIdentityContents := msg.GetMobileIdentityContents()

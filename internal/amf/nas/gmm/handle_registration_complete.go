@@ -5,15 +5,11 @@ import (
 	"fmt"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 func handleRegistrationComplete(ctx context.Context, ue *amfContext.AmfUe) error {
-	logger.AmfLog.Debug("Handle Registration Complete", zap.String("supi", ue.Supi))
-
 	if ue.State != amfContext.ContextSetup {
 		return fmt.Errorf("state mismatch: receive Registration Complete message in state %s", ue.State)
 	}

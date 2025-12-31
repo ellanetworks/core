@@ -4,15 +4,12 @@ import (
 	"fmt"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
 func handleStatus5GMM(ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
-	logger.AmfLog.Debug("Handle Status 5GMM", zap.String("supi", ue.Supi))
-
 	if ue.State == amfContext.Deregistered {
 		return fmt.Errorf("UE is in Deregistered state, ignore Status 5GMM message")
 	}

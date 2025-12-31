@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
@@ -13,7 +12,6 @@ import (
 )
 
 func handleSecurityModeReject(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
-	logger.AmfLog.Debug("Handle Security Mode Reject", zap.String("supi", ue.Supi))
 
 	if ue.State != amfContext.SecurityMode {
 		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", ue.State)

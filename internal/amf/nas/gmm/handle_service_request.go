@@ -136,8 +136,6 @@ func sendServiceAccept(ctx context.Context, ue *amfContext.AmfUe, ctxList ngapTy
 
 // TS 24501 5.6.1
 func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
-	logger.AmfLog.Debug("Handle Service Request", zap.String("supi", ue.Supi))
-
 	if ue.State != amfContext.Deregistered && ue.State != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Service Request message in state %s", ue.State)
 	}

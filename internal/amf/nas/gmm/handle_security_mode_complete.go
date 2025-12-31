@@ -5,16 +5,12 @@ import (
 	"fmt"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
-	"go.uber.org/zap"
 )
 
 // TS 33.501 6.7.2
 func handleSecurityModeComplete(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
-	logger.AmfLog.Debug("Handle Security Mode Complete", zap.String("supi", ue.Supi))
-
 	if ue.State != amfContext.SecurityMode {
 		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", ue.State)
 	}

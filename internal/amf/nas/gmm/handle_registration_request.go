@@ -7,7 +7,6 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
@@ -189,8 +188,6 @@ func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 }
 
 func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
-	logger.AmfLog.Debug("Handle Registration Request", zap.String("supi", ue.Supi))
-
 	switch ue.State {
 	case amfContext.Deregistered, amfContext.Registered:
 		if err := HandleRegistrationRequest(ctx, amf, ue, msg.RegistrationRequest); err != nil {

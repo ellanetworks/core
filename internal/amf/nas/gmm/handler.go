@@ -22,7 +22,7 @@ func HandleGmmMessage(ctx context.Context, amf *amfContext.AMF, ue *amfContext.A
 	case nas.MsgTypeULNASTransport:
 		return handleULNASTransport(ctx, amf, ue, msg)
 	case nas.MsgTypeConfigurationUpdateComplete:
-		return handleConfigurationUpdateComplete(ctx, ue)
+		return handleConfigurationUpdateComplete(ue)
 	case nas.MsgTypeNotificationResponse:
 		return handleNotificationResponse(ctx, ue, msg)
 	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:

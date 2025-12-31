@@ -17,8 +17,6 @@ import (
 
 // TS 24.501 5.4.1
 func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
-	logger.AmfLog.Debug("Handle Authentication Response", zap.String("supi", ue.Supi))
-
 	if ue.State != amfContext.Authentication {
 		return fmt.Errorf("state mismatch: receive Authentication Response message in state %s", ue.State)
 	}

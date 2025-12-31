@@ -8,7 +8,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/nas"
@@ -254,8 +253,6 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 }
 
 func handleULNASTransport(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
-	logger.AmfLog.Debug("Handle UL NAS Transport", zap.String("supi", ue.Supi))
-
 	if ue.State != amfContext.Registered {
 		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amfContext.Registered, ue.State)
 	}

@@ -7,16 +7,12 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
-	"go.uber.org/zap"
 )
 
 func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
-	logger.AmfLog.Debug("Handle Authentication Failure", zap.String("supi", ue.Supi))
-
 	if ue.State != amfContext.Authentication {
 		return fmt.Errorf("state mismatch: receive Authentication Failure message in state %s", ue.State)
 	}

@@ -16,8 +16,6 @@ import (
 
 // TS 23.502 4.2.2.3
 func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
-	logger.AmfLog.Debug("Handle Deregistration Request", zap.String("supi", ue.Supi))
-
 	if ue.State != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", ue.State)
 	}

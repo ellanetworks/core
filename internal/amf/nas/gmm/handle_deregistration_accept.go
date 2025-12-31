@@ -12,8 +12,6 @@ import (
 
 // TS 23.502 4.2.2.3
 func handleDeregistrationAccept(ctx context.Context, ue *amfContext.AmfUe) error {
-	logger.AmfLog.Debug("Handle Deregistration Accept", zap.String("supi", ue.Supi))
-
 	if ue.T3522 != nil {
 		ue.T3522.Stop()
 		ue.T3522 = nil // clear the timer
