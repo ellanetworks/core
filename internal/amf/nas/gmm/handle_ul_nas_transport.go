@@ -16,6 +16,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -257,11 +258,13 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 func handleULNASTransport(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle UL NAS Transport", zap.String("supi", ue.Supi))
 
-	ctx, span := tracer.Start(ctx, "AMF NAS HandleULNASTransport")
-
-	span.SetAttributes(
-		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State)),
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF NAS HandleULNASTransport",
+		trace.WithAttributes(
+			attribute.String("supi", ue.Supi),
+			attribute.String("state", string(ue.State)),
+		),
 	)
 	defer span.End()
 

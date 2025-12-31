@@ -19,18 +19,21 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/amf/producer")
 
 func TransferN1N2Message(ctx context.Context, supi string, req models.N1N2MessageTransferRequest) error {
-	ctx, span := tracer.Start(ctx, "AMF N1N2 MessageTransfer")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("supi", supi),
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF N1N2 MessageTransfer",
+		trace.WithAttributes(
+			attribute.String("supi", supi),
+		),
 	)
+	defer span.End()
 
 	amf := amfContext.AMFSelf()
 
@@ -101,12 +104,14 @@ func TransferN1N2Message(ctx context.Context, supi string, req models.N1N2Messag
 }
 
 func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2MessageTransferRequest) error {
-	ctx, span := tracer.Start(ctx, "AMF N1N2 MessageTransfer")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("supi", supi),
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF N1N2 MessageTransfer",
+		trace.WithAttributes(
+			attribute.String("supi", supi),
+		),
 	)
+	defer span.End()
 
 	amf := amfContext.AMFSelf()
 
@@ -116,7 +121,7 @@ func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2Me
 	}
 
 	onGoing := ue.GetOnGoing()
-	switch onGoing.Procedure {
+	switch onGoing {
 	case amfContext.OnGoingProcedurePaging:
 		return fmt.Errorf("higher priority request ongoing")
 	case amfContext.OnGoingProcedureRegistration:
@@ -187,9 +192,7 @@ func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2Me
 	// in subclause 5.2.2.3.1.2 of TS29518
 
 	ue.N1N2Message = &req
-	ue.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
-		Procedure: amfContext.OnGoingProcedurePaging,
-	})
+	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 
 	pkg, err := send.BuildPaging(
 		ue.Guti,
@@ -211,12 +214,14 @@ func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2Me
 }
 
 func TransferN1Msg(ctx context.Context, supi string, n1Msg []byte, pduSessionID uint8) error {
-	ctx, span := tracer.Start(ctx, "AMF N1N2 MessageTransfer")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("supi", supi),
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF N1N2 MessageTransfer",
+		trace.WithAttributes(
+			attribute.String("supi", supi),
+		),
 	)
+	defer span.End()
 
 	amf := amfContext.AMFSelf()
 

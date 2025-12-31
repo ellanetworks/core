@@ -21,6 +21,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -93,12 +94,14 @@ func SMFSelf() *SMFContext {
 }
 
 func (smf *SMFContext) GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
-	ctx, span := tracer.Start(ctx, "SMF GetSnssaiInfo")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("dnn", dnn),
+	ctx, span := tracer.Start(
+		ctx,
+		"SMF GetSnssaiInfo",
+		trace.WithAttributes(
+			attribute.String("dnn", dnn),
+		),
 	)
+	defer span.End()
 
 	operator, err := smf.DBInstance.GetOperator(ctx)
 	if err != nil {
@@ -133,12 +136,14 @@ func GetAllowedSessionType() uint8 {
 }
 
 func (smf *SMFContext) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyDecision, error) {
-	ctx, span := tracer.Start(ctx, "SMF GetSubscriberPolicy")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("ue.supi", ueID),
+	ctx, span := tracer.Start(
+		ctx,
+		"SMF GetSubscriberPolicy",
+		trace.WithAttributes(
+			attribute.String("ue.supi", ueID),
+		),
 	)
+	defer span.End()
 
 	subscriber, err := smf.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {

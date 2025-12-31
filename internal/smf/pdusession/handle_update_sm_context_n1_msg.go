@@ -9,16 +9,19 @@ import (
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/free5gc/nas"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 func UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error) {
-	ctx, span := tracer.Start(ctx, "SMF Update SmContext N1 Msg")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("smf.smContextRef", smContextRef),
+	ctx, span := tracer.Start(
+		ctx,
+		"SMF Update SmContext N1 Msg",
+		trace.WithAttributes(
+			attribute.String("smf.smContextRef", smContextRef),
+		),
 	)
+	defer span.End()
 
 	if smContextRef == "" {
 		return nil, fmt.Errorf("SM Context reference is missing")

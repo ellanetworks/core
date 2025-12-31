@@ -13,6 +13,7 @@ import (
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -20,11 +21,13 @@ import (
 func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Authentication Response", zap.String("supi", ue.Supi))
 
-	ctx, span := tracer.Start(ctx, "AMF NAS HandleAuthenticationResponse")
-
-	span.SetAttributes(
-		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State)),
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF NAS HandleAuthenticationResponse",
+		trace.WithAttributes(
+			attribute.String("supi", ue.Supi),
+			attribute.String("state", string(ue.State)),
+		),
 	)
 	defer span.End()
 
@@ -110,8 +113,6 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 	if err != nil {
 		return fmt.Errorf("couldn't derive Kamf: %v", err)
 	}
-
-	ue.State = amfContext.SecurityMode
 
 	return securityMode(ctx, amf, ue)
 }

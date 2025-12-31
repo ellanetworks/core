@@ -8,16 +8,19 @@ import (
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 func UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef string, n2Data []byte) error {
-	ctx, span := tracer.Start(ctx, "SMF Update SmContext PDU Resource Setup Response")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("smf.smContextRef", smContextRef),
+	ctx, span := tracer.Start(
+		ctx,
+		"SMF Update SmContext PDU Resource Setup Response",
+		trace.WithAttributes(
+			attribute.String("smf.smContextRef", smContextRef),
+		),
 	)
+	defer span.End()
 
 	if smContextRef == "" {
 		return fmt.Errorf("SM Context reference is missing")

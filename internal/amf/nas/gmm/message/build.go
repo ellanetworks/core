@@ -267,8 +267,7 @@ func BuildSecurityModeCommand(ue *amfContext.AmfUe) ([]byte, error) {
 		securityModeCommand.SetRINMR(0)
 	}
 
-	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSPeriodicRegistrationUpdating ||
-		ue.RegistrationType5GS == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
+	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSPeriodicRegistrationUpdating || ue.RegistrationType5GS == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
 		securityModeCommand.SetHDP(1)
 	} else {
 		securityModeCommand.SetHDP(0)

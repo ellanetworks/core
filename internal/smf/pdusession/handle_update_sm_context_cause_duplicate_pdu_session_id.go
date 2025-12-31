@@ -6,15 +6,18 @@ import (
 
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error) {
-	ctx, span := tracer.Start(ctx, "SMF Update SmContext Cause Duplicate PDU Session ID")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("smf.smContextRef", smContextRef),
+	ctx, span := tracer.Start(
+		ctx,
+		"SMF Update SmContext Cause Duplicate PDU Session ID",
+		trace.WithAttributes(
+			attribute.String("smf.smContextRef", smContextRef),
+		),
 	)
+	defer span.End()
 
 	if smContextRef == "" {
 		return nil, fmt.Errorf("SM Context reference is missing")

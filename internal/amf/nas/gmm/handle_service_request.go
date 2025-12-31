@@ -16,6 +16,7 @@ import (
 	"github.com/free5gc/nas/security"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -104,10 +105,9 @@ func sendServiceAccept(ctx context.Context, ue *amfContext.AmfUe, ctxList ngapTy
 			ue.Log.Info("sent service accept")
 		}
 	} else if len(suList.List) != 0 {
-		nasPdu, err := message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult,
-			errPduSessionID, errCause)
+		nasPdu, err := message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
-			return err
+			return fmt.Errorf("error building service accept message: %v", err)
 		}
 
 		err = ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
@@ -140,11 +140,13 @@ func sendServiceAccept(ctx context.Context, ue *amfContext.AmfUe, ctxList ngapTy
 func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Service Request", zap.String("supi", ue.Supi))
 
-	ctx, span := tracer.Start(ctx, "AMF NAS HandleServiceRequest")
-
-	span.SetAttributes(
-		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State)),
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF NAS HandleServiceRequest",
+		trace.WithAttributes(
+			attribute.String("ue", ue.Supi),
+			attribute.String("state", string(ue.State)),
+		),
 	)
 	defer span.End()
 
@@ -167,10 +169,8 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	}
 
 	// Set No ongoing
-	if procedure := ue.GetOnGoing().Procedure; procedure == amfContext.OnGoingProcedurePaging {
-		ue.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
-			Procedure: amfContext.OnGoingProcedureNothing,
-		})
+	if procedure := ue.GetOnGoing(); procedure == amfContext.OnGoingProcedurePaging {
+		ue.SetOnGoing(amfContext.OnGoingProcedureNothing)
 	} else if procedure != amfContext.OnGoingProcedureNothing {
 		ue.Log.Warn("UE should not in OnGoing", zap.Any("procedure", procedure))
 	}

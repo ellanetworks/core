@@ -12,6 +12,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -19,11 +20,13 @@ import (
 func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Deregistration Request", zap.String("supi", ue.Supi))
 
-	ctx, span := tracer.Start(ctx, "AMF NAS HandleDeregistrationRequestUEOriginatingDeregistration")
-
-	span.SetAttributes(
-		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State)),
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF NAS HandleDeregistrationRequestUEOriginatingDeregistration",
+		trace.WithAttributes(
+			attribute.String("supi", ue.Supi),
+			attribute.String("state", string(ue.State)),
+		),
 	)
 	defer span.End()
 
@@ -46,8 +49,13 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 		}
 	}
 
+	if ue.RanUe == nil {
+		logger.AmfLog.Warn("RanUe is nil, cannot send UE Context Release Command", zap.String("supi", ue.Supi))
+		return nil
+	}
+
 	// if Deregistration type is not switch-off, send Deregistration Accept
-	if msg.DeregistrationRequestUEOriginatingDeregistration.GetSwitchOff() == 0 && ue.RanUe != nil {
+	if msg.DeregistrationRequestUEOriginatingDeregistration.GetSwitchOff() == 0 {
 		err := message.SendDeregistrationAccept(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending deregistration accept: %v", err)
@@ -61,13 +69,11 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 		return fmt.Errorf("only 3gpp access type is supported")
 	}
 
-	if ue.RanUe != nil {
-		ue.RanUe.ReleaseAction = amfContext.UeContextReleaseUeContext
+	ue.RanUe.ReleaseAction = amfContext.UeContextReleaseUeContext
 
-		err := ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
-		if err != nil {
-			return fmt.Errorf("error sending ue context release command: %v", err)
-		}
+	err := ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
+	if err != nil {
+		return fmt.Errorf("error sending ue context release command: %v", err)
 	}
 
 	return nil

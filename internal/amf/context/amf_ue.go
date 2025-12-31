@@ -33,12 +33,6 @@ const (
 	OnGoingProcedurePaging       OnGoingProcedure = "Paging"
 	OnGoingProcedureN2Handover   OnGoingProcedure = "N2Handover"
 	OnGoingProcedureRegistration OnGoingProcedure = "Registration"
-	OnGoingProcedureAbort        OnGoingProcedure = "Abort"
-)
-
-const (
-	RecommendRanNodePresentRanNode int32 = 0
-	RecommendRanNodePresentTAI     int32 = 1
 )
 
 type StateType string
@@ -91,7 +85,7 @@ type AmfUe struct {
 	N1N2Message                       *models.N1N2MessageTransferRequest
 	SmContextList                     map[uint8]*SmContext // Key: pdu session id
 	RanUe                             *RanUe
-	OnGoing                           *OnGoingProcedureWithPrio
+	OnGoing                           OnGoingProcedure
 	UeRadioCapability                 string // OCTET string
 
 	/* context related to Paging */
@@ -137,10 +131,6 @@ type AmfUe struct {
 	Log *zap.Logger
 }
 
-type OnGoingProcedureWithPrio struct {
-	Procedure OnGoingProcedure
-}
-
 // TS 24.501 8.2.19
 type ConfigurationUpdateCommandFlags struct {
 	NeedGUTI                                     bool
@@ -161,10 +151,8 @@ func NewAmfUe() *AmfUe {
 	return &AmfUe{
 		State:            Deregistered,
 		RegistrationArea: make([]models.Tai, 0),
-		OnGoing: &OnGoingProcedureWithPrio{
-			Procedure: OnGoingProcedureNothing,
-		},
-		SmContextList: make(map[uint8]*SmContext),
+		OnGoing:          OnGoingProcedureNothing,
+		SmContextList:    make(map[uint8]*SmContext),
 	}
 }
 
@@ -449,21 +437,21 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 	}
 
 	ue.RetransmissionOfInitialNASMsg = false
-	ue.OnGoing.Procedure = OnGoingProcedureNothing
+	ue.OnGoing = OnGoingProcedureNothing
 }
 
 func (ue *AmfUe) ClearRegistrationData() {
 	ue.SmContextList = make(map[uint8]*SmContext)
 }
 
-func (ue *AmfUe) SetOnGoing(onGoing *OnGoingProcedureWithPrio) {
+func (ue *AmfUe) SetOnGoing(onGoing OnGoingProcedure) {
 	prevOnGoing := ue.OnGoing
 	ue.OnGoing = onGoing
-	ue.Log.Debug("set ongoing procedure", zap.Any("ongoingProcedure", onGoing.Procedure), zap.Any("previousOnGoingProcedure", prevOnGoing.Procedure))
+	ue.Log.Debug("set ongoing procedure", zap.Any("ongoingProcedure", onGoing), zap.Any("previousOnGoingProcedure", prevOnGoing))
 }
 
-func (ue *AmfUe) GetOnGoing() OnGoingProcedureWithPrio {
-	return *ue.OnGoing
+func (ue *AmfUe) GetOnGoing() OnGoingProcedure {
+	return ue.OnGoing
 }
 
 func (ue *AmfUe) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai) {

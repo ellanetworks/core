@@ -139,9 +139,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amf *amfContext.AMF, 
 				},
 			}
 
-			sourceUe.AmfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
-				Procedure: amfContext.OnGoingProcedureNothing,
-			})
+			sourceUe.AmfUe.SetOnGoing(amfContext.OnGoingProcedureNothing)
 
 			err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 			if err != nil {

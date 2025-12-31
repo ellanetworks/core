@@ -14,6 +14,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/security"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -50,9 +51,7 @@ func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 		ue.SecurityContextAvailable = false
 	}
 
-	ue.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
-		Procedure: amfContext.OnGoingProcedureRegistration,
-	})
+	ue.SetOnGoing(amfContext.OnGoingProcedureRegistration)
 
 	if ue.T3513 != nil {
 		ue.T3513.Stop()
@@ -194,11 +193,13 @@ func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Registration Request", zap.String("supi", ue.Supi))
 
-	ctx, span := tracer.Start(ctx, "AMF NAS HandleRegistrationRequest")
-
-	span.SetAttributes(
-		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State)),
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF NAS HandleRegistrationRequest",
+		trace.WithAttributes(
+			attribute.String("supi", ue.Supi),
+			attribute.String("state", string(ue.State)),
+		),
 	)
 	defer span.End()
 
@@ -223,7 +224,6 @@ func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 		}
 
 		if pass {
-			ue.State = amfContext.SecurityMode
 			return securityMode(ctx, amf, ue)
 		}
 

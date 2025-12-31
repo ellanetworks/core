@@ -8,16 +8,19 @@ import (
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 func DeactivateSmContext(ctx context.Context, smContextRef string) error {
-	ctx, span := tracer.Start(ctx, "SMF Deactivate SmContext")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("smf.smContextRef", smContextRef),
+	ctx, span := tracer.Start(
+		ctx,
+		"SMF Deactivate SmContext",
+		trace.WithAttributes(
+			attribute.String("smf.smContextRef", smContextRef),
+		),
 	)
+	defer span.End()
 
 	if smContextRef == "" {
 		return fmt.Errorf("SM Context reference is missing")

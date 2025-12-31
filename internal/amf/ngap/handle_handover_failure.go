@@ -75,9 +75,7 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 	if sourceUe == nil {
 		ran.Log.Error("N2 Handover between AMF has not been implemented yet")
 	} else {
-		sourceUe.AmfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
-			Procedure: amfContext.OnGoingProcedureNothing,
-		})
+		sourceUe.AmfUe.SetOnGoing(amfContext.OnGoingProcedureNothing)
 
 		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, criticalityDiagnostics)
 		if err != nil {

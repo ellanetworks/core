@@ -15,17 +15,20 @@ import (
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var tracer = otel.Tracer("ella-core/ausf")
 
 func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo models.AuthenticationInfo) (*models.Av5gAka, error) {
-	ctx, span := tracer.Start(ctx, "AUSF UEAuthentication PostRequest")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("ue.suci", updateAuthenticationInfo.Suci),
+	ctx, span := tracer.Start(
+		ctx,
+		"AUSF UEAuthentication PostRequest",
+		trace.WithAttributes(
+			attribute.String("ue.suci", updateAuthenticationInfo.Suci),
+		),
 	)
+	defer span.End()
 
 	suci := updateAuthenticationInfo.Suci
 

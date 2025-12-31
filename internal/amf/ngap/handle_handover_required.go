@@ -138,9 +138,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		return
 	}
 
-	amfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
-		Procedure: amfContext.OnGoingProcedureN2Handover,
-	})
+	amfUe.SetOnGoing(amfContext.OnGoingProcedureN2Handover)
 
 	if !amfUe.SecurityContextIsValid() {
 		sourceUe.Log.Info("handle Handover Preparation Failure [Authentication Failure]")
@@ -152,9 +150,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 			},
 		}
 
-		sourceUe.AmfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
-			Procedure: amfContext.OnGoingProcedureNothing,
-		})
+		sourceUe.AmfUe.SetOnGoing(amfContext.OnGoingProcedureNothing)
 
 		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {
@@ -205,9 +201,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 			},
 		}
 
-		sourceUe.AmfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
-			Procedure: amfContext.OnGoingProcedureNothing,
-		})
+		sourceUe.AmfUe.SetOnGoing(amfContext.OnGoingProcedureNothing)
 
 		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {

@@ -7,16 +7,19 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 func ReleaseSmContext(ctx context.Context, smContextRef string) error {
-	ctx, span := tracer.Start(ctx, "SMF Release SmContext")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("smf.smContextRef", smContextRef),
+	ctx, span := tracer.Start(
+		ctx,
+		"SMF Release SmContext",
+		trace.WithAttributes(
+			attribute.String("smf.smContextRef", smContextRef),
+		),
 	)
+	defer span.End()
 
 	smf := smfContext.SMFSelf()
 

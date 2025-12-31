@@ -10,6 +10,7 @@ import (
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -17,11 +18,13 @@ import (
 func handleNotificationResponse(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Notification Response", zap.String("supi", ue.Supi))
 
-	_, span := tracer.Start(ctx, "AMF NAS HandleNotificationResponse")
-
-	span.SetAttributes(
-		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State)),
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF NAS HandleNotificationResponse",
+		trace.WithAttributes(
+			attribute.String("supi", ue.Supi),
+			attribute.String("state", string(ue.State)),
+		),
 	)
 	defer span.End()
 

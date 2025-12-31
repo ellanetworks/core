@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -57,12 +58,14 @@ func strictHex(s string, n int) string {
 }
 
 func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationInfoRequest, suci string) (*models.AuthenticationInfoResult, error) {
-	ctx, span := tracer.Start(ctx, "AUSF CreateAuthData")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("suci", suci),
+	ctx, span := tracer.Start(
+		ctx,
+		"AUSF CreateAuthData",
+		trace.WithAttributes(
+			attribute.String("suci", suci),
+		),
 	)
+	defer span.End()
 
 	if ausfContext.DBInstance == nil {
 		return nil, fmt.Errorf("db instance is nil")

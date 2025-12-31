@@ -24,13 +24,16 @@ func handleDeregistrationAccept(ctx context.Context, ue *amfContext.AmfUe) error
 
 	ue.State = amfContext.Deregistered
 
-	if ue.RanUe != nil {
-		ue.RanUe.ReleaseAction = amfContext.UeContextReleaseDueToNwInitiatedDeregistraion
+	if ue.RanUe == nil {
+		logger.AmfLog.Warn("RanUe is nil, cannot send UE Context Release Command", zap.String("supi", ue.Supi))
+		return nil
+	}
 
-		err := ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
-		if err != nil {
-			return fmt.Errorf("error sending ue context release command: %v", err)
-		}
+	ue.RanUe.ReleaseAction = amfContext.UeContextReleaseDueToNwInitiatedDeregistraion
+
+	err := ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
+	if err != nil {
+		return fmt.Errorf("error sending ue context release command: %v", err)
 	}
 
 	return nil
