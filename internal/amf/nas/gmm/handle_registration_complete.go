@@ -14,9 +14,6 @@ import (
 func handleRegistrationComplete(ctx context.Context, ue *amfContext.AmfUe) error {
 	logger.AmfLog.Debug("Handle Registration Complete", zap.String("supi", ue.Supi))
 
-	ctx, span := tracer.Start(ctx, "AMF NAS HandleRegistrationComplete")
-	defer span.End()
-
 	if ue.State != amfContext.ContextSetup {
 		return fmt.Errorf("state mismatch: receive Registration Complete message in state %s", ue.State)
 	}

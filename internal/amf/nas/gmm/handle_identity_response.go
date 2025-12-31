@@ -11,8 +11,6 @@ import (
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -72,16 +70,6 @@ func updateUEIdentity(ue *amfContext.AmfUe, mobileIdentityContents []uint8) erro
 
 func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Identity Response", zap.String("supi", ue.Supi))
-
-	ctx, span := tracer.Start(
-		ctx,
-		"AMF NAS HandleIdentityResponse",
-		trace.WithAttributes(
-			attribute.String("supi", ue.Supi),
-			attribute.String("state", string(ue.State)),
-		),
-	)
-	defer span.End()
 
 	switch ue.State {
 	case amfContext.Authentication:

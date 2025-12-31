@@ -14,9 +14,6 @@ import (
 func handleDeregistrationAccept(ctx context.Context, ue *amfContext.AmfUe) error {
 	logger.AmfLog.Debug("Handle Deregistration Accept", zap.String("supi", ue.Supi))
 
-	ctx, span := tracer.Start(ctx, "AMF NAS HandleDeregistrationAccept")
-	defer span.End()
-
 	if ue.T3522 != nil {
 		ue.T3522.Stop()
 		ue.T3522 = nil // clear the timer

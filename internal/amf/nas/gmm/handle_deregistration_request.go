@@ -11,24 +11,12 @@ import (
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 // TS 23.502 4.2.2.3
 func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Deregistration Request", zap.String("supi", ue.Supi))
-
-	ctx, span := tracer.Start(
-		ctx,
-		"AMF NAS HandleDeregistrationRequestUEOriginatingDeregistration",
-		trace.WithAttributes(
-			attribute.String("supi", ue.Supi),
-			attribute.String("state", string(ue.State)),
-		),
-	)
-	defer span.End()
 
 	if ue.State != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", ue.State)

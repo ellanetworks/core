@@ -8,24 +8,12 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 // TS 33.501 6.7.2
 func handleSecurityModeComplete(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Security Mode Complete", zap.String("supi", ue.Supi))
-
-	ctx, span := tracer.Start(
-		ctx,
-		"AMF NAS HandleSecurityModeComplete",
-		trace.WithAttributes(
-			attribute.String("supi", ue.Supi),
-			attribute.String("state", string(ue.State)),
-		),
-	)
-	defer span.End()
 
 	if ue.State != amfContext.SecurityMode {
 		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", ue.State)

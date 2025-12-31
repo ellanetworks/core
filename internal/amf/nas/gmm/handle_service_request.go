@@ -15,8 +15,6 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/security"
 	"github.com/free5gc/ngap/ngapType"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -139,16 +137,6 @@ func sendServiceAccept(ctx context.Context, ue *amfContext.AmfUe, ctxList ngapTy
 // TS 24501 5.6.1
 func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Service Request", zap.String("supi", ue.Supi))
-
-	ctx, span := tracer.Start(
-		ctx,
-		"AMF NAS HandleServiceRequest",
-		trace.WithAttributes(
-			attribute.String("ue", ue.Supi),
-			attribute.String("state", string(ue.State)),
-		),
-	)
-	defer span.End()
 
 	if ue.State != amfContext.Deregistered && ue.State != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Service Request message in state %s", ue.State)

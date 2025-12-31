@@ -15,9 +15,6 @@ import (
 func handleSecurityModeReject(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Security Mode Reject", zap.String("supi", ue.Supi))
 
-	ctx, span := tracer.Start(ctx, "AMF NAS HandleSecurityModeReject")
-	defer span.End()
-
 	if ue.State != amfContext.SecurityMode {
 		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", ue.State)
 	}

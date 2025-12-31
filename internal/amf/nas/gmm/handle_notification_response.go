@@ -9,24 +9,12 @@ import (
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 // TS 24501 5.6.3.2
 func handleNotificationResponse(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	logger.AmfLog.Debug("Handle Notification Response", zap.String("supi", ue.Supi))
-
-	ctx, span := tracer.Start(
-		ctx,
-		"AMF NAS HandleNotificationResponse",
-		trace.WithAttributes(
-			attribute.String("supi", ue.Supi),
-			attribute.String("state", string(ue.State)),
-		),
-	)
-	defer span.End()
 
 	if ue.State != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Notification Response message in state %s", ue.State)

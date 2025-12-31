@@ -6,23 +6,11 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 func handleConfigurationUpdateComplete(ctx context.Context, ue *amfContext.AmfUe) error {
 	logger.AmfLog.Debug("Handle Configuration Update Complete", zap.String("supi", ue.Supi))
-
-	_, span := tracer.Start(
-		ctx,
-		"AMF NAS HandleConfigurationUpdateComplete",
-		trace.WithAttributes(
-			attribute.String("supi", ue.Supi),
-			attribute.String("state", string(ue.State)),
-		),
-	)
-	defer span.End()
 
 	if ue.State != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Configuration Update Complete message in state %s", ue.State)

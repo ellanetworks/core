@@ -28,7 +28,7 @@ func HandleGmmMessage(ctx context.Context, amf *amfContext.AMF, ue *amfContext.A
 	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
 		return handleDeregistrationRequestUEOriginatingDeregistration(ctx, ue, msg)
 	case nas.MsgTypeStatus5GMM:
-		return handleStatus5GMM(ctx, ue, msg)
+		return handleStatus5GMM(ue, msg)
 	case nas.MsgTypeIdentityResponse:
 		return handleIdentityResponse(ctx, amf, ue, msg)
 	case nas.MsgTypeAuthenticationResponse:
@@ -44,6 +44,6 @@ func HandleGmmMessage(ctx context.Context, amf *amfContext.AMF, ue *amfContext.A
 	case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
 		return handleDeregistrationAccept(ctx, ue)
 	default:
-		return fmt.Errorf("message type %d handling not implemented", msg.GetMessageType())
+		return fmt.Errorf("message type %d handling not implemented", msgType)
 	}
 }
