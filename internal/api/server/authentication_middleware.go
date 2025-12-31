@@ -41,11 +41,14 @@ func parseAPIToken(presented string) (tokenID, secret string, ok bool) {
 	if !strings.HasPrefix(presented, "ellacore_") {
 		return "", "", false
 	}
+
 	rest := strings.TrimPrefix(presented, "ellacore_")
+
 	parts := strings.SplitN(rest, "_", 2)
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return "", "", false
 	}
+
 	return parts[0], parts[1], true
 }
 
@@ -61,10 +64,12 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 	if authHeader == "" {
 		return 0, "", 0, errors.New("missing Authorization header")
 	}
+
 	parts := strings.SplitN(authHeader, " ", 2)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 		return 0, "", 0, errors.New("invalid Authorization scheme")
 	}
+
 	token := strings.TrimSpace(parts[1])
 	if token == "" {
 		return 0, "", 0, errors.New("empty token")
@@ -76,10 +81,12 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 		if !ok {
 			return 0, "", 0, errors.New("invalid API token format")
 		}
+
 		tok, err := store.GetAPITokenByTokenID(r.Context(), tokenID)
 		if err != nil || tok == nil {
 			return 0, "", 0, errors.New("invalid API token")
 		}
+
 		if tok.ExpiresAt != nil && time.Now().After(*tok.ExpiresAt) {
 			return 0, "", 0, errors.New("API token expired")
 		}
@@ -88,10 +95,12 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 		if err := bcrypt.CompareHashAndPassword([]byte(tok.TokenHash), []byte(token)); err != nil {
 			return 0, "", 0, errors.New("invalid API token")
 		}
+
 		u, err := store.GetUserByID(ctx, tok.UserID)
 		if err != nil || u == nil {
 			return 0, "", 0, errors.New("user not found")
 		}
+
 		return u.ID, u.Email, RoleID(u.RoleID), nil
 	}
 
@@ -100,6 +109,7 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 	if err != nil {
 		return 0, "", 0, err
 	}
+
 	return cl.ID, cl.Email, cl.RoleID, nil
 }
 
@@ -108,6 +118,7 @@ func putIdentity(ctx context.Context, id int64, email string, role RoleID) conte
 	ctx = context.WithValue(ctx, contextKeyUserID, id)
 	ctx = context.WithValue(ctx, contextKeyEmail, email)
 	ctx = context.WithValue(ctx, contextKeyRoleID, role)
+
 	return ctx
 }
 
@@ -117,8 +128,10 @@ func Authenticate(jwtSecret []byte, store *db.Database, next http.Handler) http.
 		if err != nil {
 			logger.LogAuditEvent(r.Context(), AuthenticationAction, "", getClientIP(r), "Unauthorized: "+err.Error())
 			writeError(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
+
 			return
 		}
+
 		ctx := putIdentity(r.Context(), uid, email, role)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -126,17 +139,21 @@ func Authenticate(jwtSecret []byte, store *db.Database, next http.Handler) http.
 
 func getClaimsFromJWT(bearerToken string, jwtSecret []byte) (*claims, error) {
 	claims := claims{}
+
 	token, err := jwt.ParseWithClaims(bearerToken, &claims, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
+
 		return jwtSecret, nil
 	})
 	if err != nil {
 		return nil, err
 	}
+
 	if !token.Valid {
 		return nil, errors.New("invalid token")
 	}
+
 	return &claims, nil
 }

@@ -87,10 +87,12 @@ func buildNGSetupResponse(guami *models.Guami, plmnSupported *models.PlmnSupport
 	pLMNSupportList := ie.Value.PLMNSupportList
 
 	pLMNSupportItem := ngapType.PLMNSupportItem{}
+
 	plmnID, err = util.PlmnIDToNgap(plmnSupported.PlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("error converting PLMN ID to NGAP: %+v", err)
 	}
+
 	pLMNSupportItem.PLMNIdentity = *plmnID
 
 	snssaiNgap, err := util.SNssaiToNgap(plmnSupported.SNssai)
@@ -112,6 +114,7 @@ func buildNGSetupResponse(guami *models.Guami, plmnSupported *models.PlmnSupport
 
 func buildNGSetupFailure(cause *ngapType.Cause) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
+
 	pdu.Present = ngapType.NGAPPDUPresentUnsuccessfulOutcome
 	pdu.UnsuccessfulOutcome = new(ngapType.UnsuccessfulOutcome)
 
@@ -174,6 +177,7 @@ func buildNGResetAcknowledge(partOfNGInterface *ngapType.UEAssociatedLogicalNGCo
 				uEAssociatedLogicalNGConnectionItem.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 				uEAssociatedLogicalNGConnectionItem.AMFUENGAPID = item.AMFUENGAPID
 			}
+
 			if item.RANUENGAPID != nil {
 				uEAssociatedLogicalNGConnectionItem.RANUENGAPID = new(ngapType.RANUENGAPID)
 				uEAssociatedLogicalNGConnectionItem.RANUENGAPID = item.RANUENGAPID
@@ -238,8 +242,8 @@ func buildErrorIndication(cause *ngapType.Cause, criticalityDiagnostics *ngapTyp
 
 func buildRanConfigurationUpdateAcknowledge(criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
 	// criticality ->from received node when received node can't comprehend the IE or missing IE
-
 	var pdu ngapType.NGAPPDU
+
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
 	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
 
@@ -273,8 +277,8 @@ func buildRanConfigurationUpdateFailure(
 	// criticality ->from received node when received node can't comprehend the IE or missing IE
 	// If the AMF cannot accept the update,
 	// it shall respond with a RAN CONFIGURATION UPDATE FAILURE message and appropriate cause value.
-
 	var pdu ngapType.NGAPPDU
+
 	pdu.Present = ngapType.NGAPPDUPresentUnsuccessfulOutcome
 	pdu.UnsuccessfulOutcome = new(ngapType.UnsuccessfulOutcome)
 
@@ -327,8 +331,8 @@ func buildDownlinkRanConfigurationTransfer(
 	sONConfigurationTransfer *ngapType.SONConfigurationTransfer,
 ) ([]byte, error) {
 	// sONConfigurationTransfer = sONConfigurationTransfer from uplink Ran Configuration Transfer
-
 	var pdu ngapType.NGAPPDU
+
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
 	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
 
@@ -366,6 +370,7 @@ func buildPathSwitchRequestFailure(
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
+
 	pdu.Present = ngapType.NGAPPDUPresentUnsuccessfulOutcome
 	pdu.UnsuccessfulOutcome = new(ngapType.UnsuccessfulOutcome)
 
@@ -463,6 +468,7 @@ func buildAMFStatusIndication(unavailableGUAMIList ngapType.UnavailableGUAMIList
 
 func buildPDUSessionResourceReleaseCommand(amfUENgapID int64, ranUENgapID int64, nasPdu []byte, pduSessionResourceReleasedList ngapType.PDUSessionResourceToReleaseListRelCmd) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
+
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
 	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
 
@@ -568,6 +574,7 @@ func buildUEContextReleaseCommand(amfUENGAPID int64, ranUENGAPID int64, causePre
 	ie.Id.Value = ngapType.ProtocolIEIDCause
 	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
 	ie.Value.Present = ngapType.UEContextReleaseCommandIEsPresentCause
+
 	ngapCause := ngapType.Cause{
 		Present: causePresent,
 	}
@@ -592,6 +599,7 @@ func buildUEContextReleaseCommand(amfUENGAPID int64, ranUENGAPID int64, causePre
 	default:
 		return nil, fmt.Errorf("invalid cause present")
 	}
+
 	ie.Value.Cause = &ngapCause
 
 	ueContextReleaseCommandIEs.List = append(ueContextReleaseCommandIEs.List, ie)
@@ -669,6 +677,7 @@ func buildDownlinkNasTransport(amfUENGAPID int64, ranUENGAPID int64, nasPdu []by
 
 func buildHandoverCancelAcknowledge(amfUENGAPID int64, ranUENGAPID int64) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
+
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
 	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
 
@@ -717,6 +726,7 @@ func buildPDUSessionResourceModifyConfirm(
 	pduSessionResourceFailedToModifyList ngapType.PDUSessionResourceFailedToModifyListModCfm,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
+
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
 	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
 
@@ -779,6 +789,7 @@ func buildPDUSessionResourceModifyConfirm(
 // pduSessionResourceSetupRequestList: provided by AMF, and transfer data is from SMF
 func buildPDUSessionResourceSetupRequest(amfUENGAPID int64, ranUENGAPID int64, bitrateUplink string, bitrateDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
+
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
 	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
 
@@ -859,8 +870,8 @@ func buildHandoverPreparationFailure(amfUENgapID int64, ranUENGAPID int64, cause
 
 	// criticalityDiagnostics = criticalityDiagonstics IE in receiver node's error indication
 	// when received node can't comprehend the IE or missing IE
-
 	var pdu ngapType.NGAPPDU
+
 	pdu.Present = ngapType.NGAPPDUPresentUnsuccessfulOutcome
 	pdu.UnsuccessfulOutcome = new(ngapType.UnsuccessfulOutcome)
 
@@ -1018,6 +1029,7 @@ func buildHandoverCommand(
 	container ngapType.TargetToSourceTransparentContainer,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
+
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
 	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
 
@@ -1140,7 +1152,6 @@ func buildInitialContextSetupRequest(
 	// the UE, e.g., handover, or for SCG selection during dual connectivity operation or for
 	// assigning proper RNAs. If the NG-RAN receives the Mobility Restriction List IE, it shall
 	// overwrite previously received mobility restriction information.
-
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -1215,6 +1226,7 @@ func buildInitialContextSetupRequest(
 	if err != nil {
 		return nil, fmt.Errorf("cannot convert PlmnID to ngap PlmnID: %+v", err)
 	}
+
 	*plmnID = *ngapPlmnID
 	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(supportedGUAMI.AmfID)
 
@@ -1329,10 +1341,12 @@ func buildInitialContextSetupRequest(
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
 		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentUERadioCapability
 		ie.Value.UERadioCapability = new(ngapType.UERadioCapability)
+
 		uecapa, err := hex.DecodeString(radioCapability)
 		if err != nil {
 			return nil, fmt.Errorf("cannot decode UeRadioCapability: %+v", err)
 		}
+
 		ie.Value.UERadioCapability.Value = uecapa
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 	}
@@ -1387,6 +1401,7 @@ func buildInitialContextSetupRequest(
 		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentUERadioCapabilityForPaging
 		ie.Value.UERadioCapabilityForPaging = new(ngapType.UERadioCapabilityForPaging)
 		uERadioCapabilityForPaging := ie.Value.UERadioCapabilityForPaging
+
 		var err error
 		if ueRadioCapabilityForPaging.NR != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value, err = hex.DecodeString(ueRadioCapabilityForPaging.NR)
@@ -1394,12 +1409,14 @@ func buildInitialContextSetupRequest(
 				return nil, fmt.Errorf("DecodeString amfUe.UeRadioCapabilityForPaging.NR error: %+v", err)
 			}
 		}
+
 		if ueRadioCapabilityForPaging.EUTRA != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value, err = hex.DecodeString(ueRadioCapabilityForPaging.EUTRA)
 			if err != nil {
 				return nil, fmt.Errorf("DecodeString amfUe.UeRadioCapabilityForPaging.EUTRA error: %+v", err)
 			}
 		}
+
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 	}
 
@@ -1431,6 +1448,7 @@ func buildPathSwitchRequestAcknowledge(
 	supportedPLMN *models.PlmnSupportItem,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
+
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
 	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
 
@@ -1737,6 +1755,7 @@ func buildHandoverRequest(
 	if err != nil {
 		return nil, fmt.Errorf("error converting plmn id to ngap: %s", err)
 	}
+
 	*plmnID = *ngapPlmnID
 	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(supportedGUAMI.AmfID)
 
@@ -1767,6 +1786,7 @@ func BuildPaging(
 	pagingPriority *ngapType.PagingPriority,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
+
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
 	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
 
@@ -1791,8 +1811,11 @@ func BuildPaging(
 	uePagingIdentity.Present = ngapType.UEPagingIdentityPresentFiveGSTMSI
 	uePagingIdentity.FiveGSTMSI = new(ngapType.FiveGSTMSI)
 
-	var amfID string
-	var tmsi string
+	var (
+		amfID string
+		tmsi  string
+	)
+
 	if len(guti) == 19 {
 		amfID = guti[5:11]
 		tmsi = guti[11:]
@@ -1800,11 +1823,14 @@ func BuildPaging(
 		amfID = guti[6:12]
 		tmsi = guti[12:]
 	}
+
 	_, amfSetID, amfPointer := ngapConvert.AmfIdToNgap(amfID)
 
 	var err error
+
 	uePagingIdentity.FiveGSTMSI.AMFSetID.Value = amfSetID
 	uePagingIdentity.FiveGSTMSI.AMFPointer.Value = amfPointer
+
 	uePagingIdentity.FiveGSTMSI.FiveGTMSI.Value, err = hex.DecodeString(tmsi)
 	if err != nil {
 		return nil, fmt.Errorf("could not decode tmsi: %s", err)
@@ -1829,16 +1855,21 @@ func BuildPaging(
 
 	for _, tai := range registrationArea {
 		var tac []byte
+
 		taiListforPagingItem := ngapType.TAIListForPagingItem{}
+
 		plmnID, err := util.PlmnIDToNgap(*tai.PlmnID)
 		if err != nil {
 			return nil, fmt.Errorf("error converting plmn id to ngap: %s", err)
 		}
+
 		taiListforPagingItem.TAI.PLMNIdentity = *plmnID
+
 		tac, err = hex.DecodeString(tai.Tac)
 		if err != nil {
 			return nil, fmt.Errorf("could not decode tac: %s", err)
 		}
+
 		taiListforPagingItem.TAI.TAC.Value = tac
 		taiListForPaging.List = append(taiListForPaging.List, taiListforPagingItem)
 	}
@@ -1862,6 +1893,7 @@ func BuildPaging(
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
 		ie.Value.Present = ngapType.PagingIEsPresentUERadioCapabilityForPaging
 		ie.Value.UERadioCapabilityForPaging = new(ngapType.UERadioCapabilityForPaging)
+
 		uERadioCapabilityForPaging := ie.Value.UERadioCapabilityForPaging
 		if ueRadioCapabilityForPaging.NR != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value, err = hex.DecodeString(ueRadioCapabilityForPaging.NR)
@@ -1869,12 +1901,14 @@ func BuildPaging(
 				return nil, fmt.Errorf("DecodeString ue.UeRadioCapabilityForPaging.NR error: %s", err)
 			}
 		}
+
 		if ueRadioCapabilityForPaging.EUTRA != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value, err = hex.DecodeString(ueRadioCapabilityForPaging.EUTRA)
 			if err != nil {
 				return nil, fmt.Errorf("DecodeString ue.UeRadioCapabilityForPaging.EUTRA error: %s", err)
 			}
 		}
+
 		pagingIEs.List = append(pagingIEs.List, ie)
 	}
 
@@ -1893,25 +1927,30 @@ func BuildPaging(
 
 		for _, recommendedCell := range ueInfoOnRecommendedCellsAndRanNodesForPaging.RecommendedCells {
 			recommendedCellItem := ngapType.RecommendedCellItem{}
+
 			switch recommendedCell.NgRanCGI.Present {
 			case models.NgRanCgiPresentNRCGI:
 				recommendedCellItem.NGRANCGI.Present = ngapType.NGRANCGIPresentNRCGI
 				recommendedCellItem.NGRANCGI.NRCGI = new(ngapType.NRCGI)
 				nrCGI := recommendedCellItem.NGRANCGI.NRCGI
+
 				plmnID, err := util.PlmnIDToNgap(*recommendedCell.NgRanCGI.NRCGI.PlmnID)
 				if err != nil {
 					return nil, fmt.Errorf("error converting plmn id to ngap: %s", err)
 				}
+
 				nrCGI.PLMNIdentity = *plmnID
 				nrCGI.NRCellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.NRCGI.NrCellID, 36)
 			case models.NgRanCgiPresentEUTRACGI:
 				recommendedCellItem.NGRANCGI.Present = ngapType.NGRANCGIPresentEUTRACGI
 				recommendedCellItem.NGRANCGI.EUTRACGI = new(ngapType.EUTRACGI)
 				eutraCGI := recommendedCellItem.NGRANCGI.EUTRACGI
+
 				plmnID, err := util.PlmnIDToNgap(*recommendedCell.NgRanCGI.NRCGI.PlmnID)
 				if err != nil {
 					return nil, fmt.Errorf("error converting plmn id to ngap: %s", err)
 				}
+
 				eutraCGI.PLMNIdentity = *plmnID
 				eutraCGI.EUTRACellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.EUTRACGI.EutraCellID, 28)
 			}
@@ -1919,6 +1958,7 @@ func BuildPaging(
 			if recommendedCell.TimeStayedInCell != nil {
 				recommendedCellItem.TimeStayedInCell = recommendedCell.TimeStayedInCell
 			}
+
 			recommendedCellList.List = append(recommendedCellList.List, recommendedCellItem)
 		}
 
@@ -1943,6 +1983,7 @@ func BuildUnavailableGUAMIList(guami *models.Guami) (unavailableGUAMIList ngapTy
 	item.GUAMI.AMFSetID.Value = setID
 	item.GUAMI.AMFPointer.Value = ptrID
 	unavailableGUAMIList.List = append(unavailableGUAMIList.List, item)
+
 	return
 }
 
@@ -1950,6 +1991,7 @@ func AppendPDUSessionResourceToReleaseListRelCmd(list *ngapType.PDUSessionResour
 	pduSessionID uint8, transfer []byte,
 ) {
 	var item ngapType.PDUSessionResourceToReleaseItemRelCmd
+
 	item.PDUSessionID.Value = int64(pduSessionID)
 	item.PDUSessionResourceReleaseCommandTransfer = transfer
 	list.List = append(list.List, item)
@@ -1959,29 +2001,37 @@ func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSet
 	pduSessionID uint8, snssai *models.Snssai, nasPDU []byte, transfer []byte,
 ) {
 	var item ngapType.PDUSessionResourceSetupItemSUReq
+
 	item.PDUSessionID.Value = int64(pduSessionID)
+
 	snssaiNgap, err := util.SNssaiToNgap(snssai)
 	if err != nil {
 		logger.AmfLog.Error("Convert SNssai to NGAP failed", zap.Error(err))
 		return
 	}
+
 	item.SNSSAI = snssaiNgap
+
 	item.PDUSessionResourceSetupRequestTransfer = transfer
 	if nasPDU != nil {
 		item.PDUSessionNASPDU = new(ngapType.NASPDU)
 		item.PDUSessionNASPDU.Value = nasPDU
 	}
+
 	list.List = append(list.List, item)
 }
 
 func AppendPDUSessionResourceSetupListHOReq(list *ngapType.PDUSessionResourceSetupListHOReq, pduSessionID uint8, snssai *models.Snssai, transfer []byte) {
 	var item ngapType.PDUSessionResourceSetupItemHOReq
+
 	item.PDUSessionID.Value = int64(pduSessionID)
+
 	snssaiNgap, err := util.SNssaiToNgap(snssai)
 	if err != nil {
 		logger.AmfLog.Error("Convert SNssai to NGAP failed", zap.Error(err))
 		return
 	}
+
 	item.SNSSAI = snssaiNgap
 	item.HandoverRequestTransfer = transfer
 	list.List = append(list.List, item)
@@ -1989,17 +2039,21 @@ func AppendPDUSessionResourceSetupListHOReq(list *ngapType.PDUSessionResourceSet
 
 func AppendPDUSessionResourceSetupListCxtReq(list *ngapType.PDUSessionResourceSetupListCxtReq, pduSessionID uint8, snssai *models.Snssai, nasPDU []byte, transfer []byte) {
 	var item ngapType.PDUSessionResourceSetupItemCxtReq
+
 	item.PDUSessionID.Value = int64(pduSessionID)
+
 	snssaiNgap, err := util.SNssaiToNgap(snssai)
 	if err != nil {
 		logger.AmfLog.Error("Convert SNssai to NGAP failed", zap.Error(err))
 		return
 	}
+
 	item.SNSSAI = snssaiNgap
 	if nasPDU != nil {
 		item.NASPDU = new(ngapType.NASPDU)
 		item.NASPDU.Value = nasPDU
 	}
+
 	item.PDUSessionResourceSetupRequestTransfer = transfer
 	list.List = append(list.List, item)
 }

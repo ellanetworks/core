@@ -54,6 +54,7 @@ func AuthenticationProcedure(ctx context.Context, amf *amfContext.AMF, ue *amfCo
 		}
 
 		ue.Log.Info("sent identity request")
+
 		return false, nil
 	}
 

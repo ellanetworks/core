@@ -164,12 +164,14 @@ func (bpfObjects *BpfObjects) NewUrr(id uint32) error {
 
 func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 	var pdrToStore N3N6EntrypointPdrInfo
+
 	pdrToStore.LocalSeid = defaultPdr.SEID
 	pdrToStore.OuterHeaderRemoval = defaultPdr.OuterHeaderRemoval
 	pdrToStore.PdrId = defaultPdr.PdrID
 	pdrToStore.FarId = defaultPdr.FarID
 	pdrToStore.QerId = defaultPdr.QerID
 	pdrToStore.UrrId = defaultPdr.UrrID
+
 	return pdrToStore
 }
 

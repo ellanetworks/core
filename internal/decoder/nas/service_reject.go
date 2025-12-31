@@ -28,6 +28,7 @@ func buildServiceReject(msg *nasMessage.ServiceReject) *ServiceReject {
 
 	if msg.PDUSessionStatus != nil {
 		pduSessionStatus := []PDUSessionStatusPDU{}
+
 		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
 		for pduSessionID, isActive := range psiArray {
 			pduSessionStatus = append(pduSessionStatus, PDUSessionStatusPDU{
@@ -35,6 +36,7 @@ func buildServiceReject(msg *nasMessage.ServiceReject) *ServiceReject {
 				Active:       isActive,
 			})
 		}
+
 		serviceReject.PDUSessionStatus = pduSessionStatus
 	}
 

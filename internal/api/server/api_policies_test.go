@@ -76,20 +76,25 @@ func listPolicies(url string, client *http.Client, token string) (int, *ListPoli
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var policyResponse ListPolicyResponse
 	if err := json.NewDecoder(res.Body).Decode(&policyResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &policyResponse, nil
 }
 
@@ -98,20 +103,25 @@ func getPolicy(url string, client *http.Client, token string, name string) (int,
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var policyResponse GetPolicyResponse
 	if err := json.NewDecoder(res.Body).Decode(&policyResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &policyResponse, nil
 }
 
@@ -120,24 +130,30 @@ func createPolicy(url string, client *http.Client, token string, data *CreatePol
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/policies", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var createResponse CreatePolicyResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &createResponse, nil
 }
 
@@ -146,24 +162,30 @@ func editPolicy(url string, client *http.Client, name string, token string, data
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/policies/"+name, strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var createResponse CreatePolicyResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &createResponse, nil
 }
 
@@ -172,20 +194,25 @@ func deletePolicy(url string, client *http.Client, token, name string) (int, *De
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var deletePolicyResponse DeletePolicyResponse
 	if err := json.NewDecoder(res.Body).Decode(&deletePolicyResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &deletePolicyResponse, nil
 }
 
@@ -195,11 +222,13 @@ func deletePolicy(url string, client *http.Client, token, name string) (int, *De
 func TestAPIPoliciesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -212,12 +241,15 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't list policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if len(response.Result.Items) != 1 {
 			t.Fatalf("expected 1 policy, got %d", len(response.Result.Items))
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -230,13 +262,16 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			IPPool: IPPool,
 			DNS:    DNS,
 		}
+
 		statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -251,16 +286,20 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			Arp:             1,
 			DataNetworkName: DataNetworkName,
 		}
+
 		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't create policy: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if response.Result.Message != "Policy created successfully" {
 			t.Fatalf("expected message 'Policy created successfully', got %q", response.Result.Message)
 		}
@@ -271,12 +310,15 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't list policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if len(response.Result.Items) != 2 {
 			t.Fatalf("expected 2 policy, got %d", len(response.Result.Items))
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -287,9 +329,11 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.Name != PolicyName {
 			t.Fatalf("expected name %s, got %s", PolicyName, response.Result.Name)
 		}
@@ -297,18 +341,23 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if response.Result.BitrateUplink != "100 Mbps" {
 			t.Fatalf("expected bitrate_uplink 100 Mbps got %s", response.Result.BitrateUplink)
 		}
+
 		if response.Result.BitrateDownlink != "200 Mbps" {
 			t.Fatalf("expected bitrate_downlink 200 Mbps got %s", response.Result.BitrateDownlink)
 		}
+
 		if response.Result.Var5qi != 9 {
 			t.Fatalf("expected var5qi 9 got %d", response.Result.Var5qi)
 		}
+
 		if response.Result.Arp != 1 {
 			t.Fatalf("expected arp 1 got %d", response.Result.Arp)
 		}
+
 		if response.Result.DataNetworkName != "not-internet" {
 			t.Fatalf("expected data_network_name 'not-internet', got %s", response.Result.DataNetworkName)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -319,9 +368,11 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get policy: %s", err)
 		}
+
 		if statusCode != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 		}
+
 		if response.Error != "Policy not found" {
 			t.Fatalf("expected error %q, got %q", "Policy not found", response.Error)
 		}
@@ -329,13 +380,16 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 
 	t.Run("7. Create policy - no name", func(t *testing.T) {
 		createPolicyParams := &CreatePolicyParams{}
+
 		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't create policy: %s", err)
 		}
+
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
+
 		if response.Error != "name is missing" {
 			t.Fatalf("expected error %q, got %q", "name is missing", response.Error)
 		}
@@ -350,13 +404,16 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			Arp:             3,
 			DataNetworkName: DataNetworkName,
 		}
+
 		statusCode, response, err := editPolicy(ts.URL, client, PolicyName, token, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't edit policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -369,13 +426,16 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			SequenceNumber: SequenceNumber,
 			PolicyName:     PolicyName,
 		}
+
 		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't edit policy: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -386,9 +446,11 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete policy: %s", err)
 		}
+
 		if statusCode != http.StatusConflict {
 			t.Fatalf("expected status %d, got %d", http.StatusConflict, statusCode)
 		}
+
 		if response.Error != "Policy has subscribers" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -399,9 +461,11 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't edit policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -412,9 +476,11 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -425,9 +491,11 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete policy: %s", err)
 		}
+
 		if statusCode != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 		}
+
 		if response.Error != "Policy not found" {
 			t.Fatalf("expected error %q, got %q", "Policy not found", response.Error)
 		}
@@ -437,11 +505,13 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 func TestCreatePolicyInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -611,13 +681,16 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 				Arp:             tt.arp,
 				DataNetworkName: tt.DataNetworkName,
 			}
+
 			statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
 			if err != nil {
 				t.Fatalf("couldn't create policy: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
@@ -628,11 +701,13 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 func TestCreateTooManyPolicies(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -672,13 +747,16 @@ func TestCreateTooManyPolicies(t *testing.T) {
 		Arp:             Arp,
 		DataNetworkName: "internet",
 	}
+
 	statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
 	if err != nil {
 		t.Fatalf("couldn't create policy: %s", err)
 	}
+
 	if statusCode != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 	}
+
 	if response.Error != "Maximum number of policies reached (12)" {
 		t.Fatalf("expected error %q, got %q", "Maximum number of policies reached (12)", response.Error)
 	}

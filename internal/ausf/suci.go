@@ -73,6 +73,7 @@ func aes128ctr(input, encKey, icb []byte) ([]byte, error) {
 
 func ansiX963KDF(sharedKey, publicKey []byte, profileEncKeyLen, profileMacKeyLen, profileHashLen int) []byte {
 	var counter uint32 = 0x00000001
+
 	var kdfKey []byte
 
 	kdfRounds := int(math.Ceil(float64(profileEncKeyLen+profileMacKeyLen) / float64(profileHashLen)))

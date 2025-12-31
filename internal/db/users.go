@@ -75,6 +75,7 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
+
 		return nil, 0, err
 	}
 
@@ -86,8 +87,10 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, count, nil
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, 0, err
 	}
 
@@ -118,8 +121,10 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, err
 	}
 
@@ -150,8 +155,10 @@ func (db *Database) GetUserByID(ctx context.Context, id int64) (*User, error) {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, err
 	}
 
@@ -180,10 +187,13 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
 			span.SetStatus(codes.Error, "unique constraint failed")
+
 			return 0, ErrAlreadyExists
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return 0, err
 	}
 
@@ -191,6 +201,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving insert ID failed")
+
 		return 0, err
 	}
 
@@ -224,6 +235,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -231,12 +243,14 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
+
 		return err
 	}
 
 	if rowsAffected == 0 {
 		span.RecordError(ErrNotFound)
 		span.SetStatus(codes.Error, "not found")
+
 		return ErrNotFound
 	}
 
@@ -270,6 +284,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -277,12 +292,14 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
+
 		return err
 	}
 
 	if rowsAffected == 0 {
 		span.RecordError(ErrNotFound)
 		span.SetStatus(codes.Error, "not found")
+
 		return ErrNotFound
 	}
 
@@ -311,6 +328,7 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -318,12 +336,14 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
+
 		return err
 	}
 
 	if rowsAffected == 0 {
 		span.RecordError(ErrNotFound)
 		span.SetStatus(codes.Error, "not found")
+
 		return ErrNotFound
 	}
 
@@ -352,6 +372,7 @@ func (db *Database) CountUsers(ctx context.Context) (int, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return 0, err
 	}
 

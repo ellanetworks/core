@@ -11,6 +11,7 @@ import (
 func UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error) {
 	ctx, span := tracer.Start(ctx, "SMF Update SmContext Cause Duplicate PDU Session ID")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("smf.smContextRef", smContextRef),
 	)

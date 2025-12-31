@@ -100,5 +100,6 @@ func (c *Client) UpdateAuditLogRetentionPolicy(ctx context.Context, opts *Update
 	if err != nil {
 		return err
 	}
+
 	return nil
 }

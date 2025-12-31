@@ -40,6 +40,7 @@ func setsockopt(fd int, optname, optval, optlen uintptr) error {
 	if errno != 0 {
 		return errno
 	}
+
 	return nil
 }
 
@@ -54,6 +55,7 @@ func getsockopt(fd int, optname, optval, optlen uintptr) error {
 	if errno != 0 {
 		return errno
 	}
+
 	return nil
 }
 
@@ -76,6 +78,7 @@ func (r rawConn) Write(f func(fd uintptr) (done bool)) error {
 
 func (c *SCTPConn) SCTPWrite(b []byte, info *SndRcvInfo) (int, error) {
 	var cbuf []byte
+
 	if info != nil {
 		cmsgBuf := toBuf(info)
 		hdr := &syscall.Cmsghdr{
@@ -88,6 +91,7 @@ func (c *SCTPConn) SCTPWrite(b []byte, info *SndRcvInfo) (int, error) {
 		hdr.SetLen(syscall.CmsgSpace(len(cmsgBuf)))
 		cbuf = append(toBuf(hdr), cmsgBuf...)
 	}
+
 	return syscall.SendmsgN(c.fd(), b, cbuf, nil, 0)
 }
 
@@ -96,6 +100,7 @@ func parseSndRcvInfo(b []byte) (*SndRcvInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	for _, m := range msgs {
 		if m.Header.Level == syscall.IPPROTO_SCTP {
 			switch m.Header.Type {
@@ -104,6 +109,7 @@ func parseSndRcvInfo(b []byte) (*SndRcvInfo, error) {
 			}
 		}
 	}
+
 	return nil, nil
 }
 
@@ -118,6 +124,7 @@ func parseNotification(b []byte) Notification {
 			sseLength:  nativeEndian.Uint32(b[4:8]),
 			sseAssocID: SCTPAssocID(nativeEndian.Uint32(b[8:])),
 		}
+
 		return &notification
 	case SCTPAssocChange:
 		notification := SCTPAssocChangeEvent{
@@ -131,6 +138,7 @@ func parseNotification(b []byte) Notification {
 			sacAssocID:         SCTPAssocID(nativeEndian.Uint32(b[16:20])),
 			sacInfo:            b[20:],
 		}
+
 		return &notification
 	default:
 		return nil
@@ -140,6 +148,7 @@ func parseNotification(b []byte) Notification {
 // SCTPRead use syscall.Recvmsg to receive SCTP message and return sctp sndrcvinfo/notification if need
 func (c *SCTPConn) SCTPRead(b []byte) (int, *SndRcvInfo, Notification, error) {
 	oob := make([]byte, 254)
+
 	n, oobn, recvflags, _, err := syscall.Recvmsg(c.fd(), b, oob, 0)
 	if err != nil {
 		return n, nil, nil, err
@@ -157,6 +166,7 @@ func (c *SCTPConn) SCTPRead(b []byte) (int, *SndRcvInfo, Notification, error) {
 		if oobn > 0 {
 			info, err = parseSndRcvInfo(oob[:oobn])
 		}
+
 		return n, info, nil, err
 	}
 }
@@ -168,17 +178,21 @@ func (c *SCTPConn) Close() error {
 			info := &SndRcvInfo{
 				Flags: SCTPEof,
 			}
+
 			_, err := c.SCTPWrite(nil, info)
 			if err != nil {
 				return err
 			}
+
 			err = syscall.Shutdown(int(fd), syscall.SHUT_RDWR)
 			if err != nil {
 				return err
 			}
+
 			return syscall.Close(int(fd))
 		}
 	}
+
 	return syscall.EBADF
 }
 
@@ -229,6 +243,7 @@ func (c *SCTPConn) SetAssocInfo(info AssocInfo) error {
 // listenSCTPExtConfig - start listener on specified address/port with given SCTP options and socket configuration
 func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo, control func(network, address string, c syscall.RawConn) error) (*SCTPListener, error) {
 	af, ipv6only := favoriteAddrFamily(network, laddr, nil, "listen")
+
 	sock, err := syscall.Socket(
 		af,
 		syscall.SOCK_STREAM|syscall.SOCK_NONBLOCK|syscall.SOCK_CLOEXEC,
@@ -247,6 +262,7 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 			}
 		}
 	}()
+
 	if err = setDefaultSockopts(sock, af, ipv6only); err != nil {
 		return nil, err
 	}
@@ -293,11 +309,13 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 				laddr.IPAddrs = append(laddr.IPAddrs, net.IPAddr{IP: net.IPv6zero})
 			}
 		}
+
 		err := SCTPBind(sock, laddr, SCTPBindxAddAddr)
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	err = syscall.Listen(sock, syscall.SOMAXCONN)
 	if err != nil {
 		return nil, err
@@ -336,10 +354,12 @@ func createEpollForSock(sock int) (int, error) {
 		Events: syscall.EPOLLIN,
 		Fd:     int32(sock),
 	}
+
 	err = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, sock, &event)
 	if err != nil {
 		return -1, err
 	}
+
 	return epfd, nil
 }
 
@@ -347,6 +367,7 @@ func createEpollForSock(sock int) (int, error) {
 // it will use EpollWait to wait for a incoming connection then call syscall.Accept4 to accept
 func (ln *SCTPListener) AcceptSCTP() (*SCTPConn, error) {
 	var events [1]syscall.EpollEvent
+
 	n, err := syscall.EpollWait(ln.epfd, events[:], -1)
 	if err != nil {
 		return nil, err
@@ -369,9 +390,11 @@ func (ln *SCTPListener) Close() error {
 	if err != nil {
 		return err
 	}
+
 	err = syscall.Close(ln.epfd)
 	if err != nil {
 		return err
 	}
+
 	return syscall.Close(ln.fd)
 }

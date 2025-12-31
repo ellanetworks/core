@@ -20,6 +20,7 @@ import (
 
 func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	nasLogger.SetLogLevel(0) // Panic level to avoid NAS log output
+
 	self := amfContext.AMFSelf()
 	self.NetworkFeatureSupport5GS = &amfContext.NetworkFeatureSupport5GS{
 		Emc:     0,

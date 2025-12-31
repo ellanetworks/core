@@ -15,10 +15,12 @@ func HandleUERadioCapabilityInfoIndication(ran *context.Radio, msg *ngapType.UER
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var uERadioCapability *ngapType.UERadioCapability
-	var uERadioCapabilityForPaging *ngapType.UERadioCapabilityForPaging
+	var (
+		aMFUENGAPID                *ngapType.AMFUENGAPID
+		rANUENGAPID                *ngapType.RANUENGAPID
+		uERadioCapability          *ngapType.UERadioCapability
+		uERadioCapabilityForPaging *ngapType.UERadioCapabilityForPaging
+	)
 
 	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
 		ie := msg.ProtocolIEs.List[i]
@@ -74,6 +76,7 @@ func HandleUERadioCapabilityInfoIndication(ran *context.Radio, msg *ngapType.UER
 			amfUe.UeRadioCapabilityForPaging.NR = hex.EncodeToString(
 				uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value)
 		}
+
 		if uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA != nil {
 			amfUe.UeRadioCapabilityForPaging.EUTRA = hex.EncodeToString(
 				uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value)

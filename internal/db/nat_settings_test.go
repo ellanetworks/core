@@ -17,6 +17,7 @@ func TestGetNATSettings_Default(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -40,6 +41,7 @@ func TestUpdateAndGetNATSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -97,6 +99,7 @@ func TestUpdateNATSettings_RestartDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)

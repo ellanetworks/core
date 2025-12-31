@@ -46,6 +46,7 @@ func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 	returnedTais := make([]SupportedTAI, 0)
 	for _, tai := range tais {
 		snssais := make([]Snssai, 0)
+
 		for _, snssai := range tai.SNssaiList {
 			newSnssai := Snssai{
 				Sst: snssai.Sst,
@@ -53,6 +54,7 @@ func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 			}
 			snssais = append(snssais, newSnssai)
 		}
+
 		newTai := SupportedTAI{
 			Tai: Tai{
 				PlmnID: PlmnID{
@@ -65,6 +67,7 @@ func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 		}
 		returnedTais = append(returnedTais, newTai)
 	}
+
 	return returnedTais
 }
 
@@ -135,6 +138,7 @@ func GetRadio() http.HandlerFunc {
 					SupportedTAIs: supportedTais,
 				}
 				writeResponse(w, result, http.StatusOK, logger.APILog)
+
 				return
 			}
 		}

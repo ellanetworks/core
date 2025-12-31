@@ -224,10 +224,12 @@ func init() {
 
 func toBuf(v any) []byte {
 	var buf bytes.Buffer
+
 	err := binary.Write(&buf, nativeEndian, v)
 	if err != nil {
 		logger.AmfLog.Warn("failed to write binary", zap.Error(err))
 	}
+
 	return buf.Bytes()
 }
 
@@ -235,6 +237,7 @@ func htons(h uint16) uint16 {
 	if nativeEndian == binary.LittleEndian {
 		return (h << 8 & 0xff00) | (h >> 8 & 0xff)
 	}
+
 	return h
 }
 
@@ -245,12 +248,14 @@ var ntohs = htons
 func setInitOpts(fd int, options InitMsg) error {
 	optlen := unsafe.Sizeof(options)
 	err := setsockopt(fd, SCTPInitMsg, uintptr(unsafe.Pointer(&options)), optlen)
+
 	return err
 }
 
 func getRtoInfo(fd int) (*RtoInfo, error) {
 	rtoInfo := RtoInfo{}
 	rtolen := unsafe.Sizeof(rtoInfo)
+
 	err := getsockopt(fd, SCTPRtoInfo, uintptr(unsafe.Pointer(&rtoInfo)), uintptr(unsafe.Pointer(&rtolen)))
 	if err != nil {
 		return nil, err
@@ -262,22 +267,26 @@ func getRtoInfo(fd int) (*RtoInfo, error) {
 func setRtoInfo(fd int, rtoInfo RtoInfo) error {
 	rtolen := unsafe.Sizeof(rtoInfo)
 	err := setsockopt(fd, SCTPRtoInfo, uintptr(unsafe.Pointer(&rtoInfo)), rtolen)
+
 	return err
 }
 
 func getAssocInfo(fd int) (*AssocInfo, error) {
 	info := AssocInfo{}
 	optlen := unsafe.Sizeof(info)
+
 	err := getsockopt(fd, SCTPAssocInfo, uintptr(unsafe.Pointer(&info)), uintptr(unsafe.Pointer(&optlen)))
 	if err != nil {
 		return nil, err
 	}
+
 	return &info, nil
 }
 
 func setAssocInfo(fd int, info AssocInfo) error {
 	optlen := unsafe.Sizeof(info)
 	err := setsockopt(fd, SCTPAssocInfo, uintptr(unsafe.Pointer(&info)), optlen)
+
 	return err
 }
 
@@ -294,14 +303,18 @@ func (a *SCTPAddr) ToRawSockAddrBuf() []byte {
 			Port:   p,
 		}
 		copy(s.Addr[:], net.IPv4zero)
+
 		return toBuf(s)
 	}
+
 	buf := []byte{}
+
 	for _, ip := range a.IPAddrs {
 		ipBytes := ip.IP
 		if len(ipBytes) == 0 {
 			ipBytes = net.IPv4zero
 		}
+
 		if ip4 := ipBytes.To4(); ip4 != nil {
 			s := syscall.RawSockaddrInet4{
 				Family: syscall.AF_INET,
@@ -311,10 +324,12 @@ func (a *SCTPAddr) ToRawSockAddrBuf() []byte {
 			buf = append(buf, toBuf(s)...)
 		} else {
 			var scopeid uint32
+
 			ifi, err := net.InterfaceByName(ip.Zone)
 			if err == nil {
 				scopeid = uint32(ifi.Index)
 			}
+
 			s := syscall.RawSockaddrInet6{
 				Family:   syscall.AF_INET6,
 				Port:     p,
@@ -324,6 +339,7 @@ func (a *SCTPAddr) ToRawSockAddrBuf() []byte {
 			buf = append(buf, toBuf(s)...)
 		}
 	}
+
 	return buf
 }
 
@@ -338,12 +354,15 @@ func (a *SCTPAddr) String() string {
 			b.WriteString(i.String())
 			b.WriteRune(']')
 		}
+
 		if n < len(a.IPAddrs)-1 {
 			b.WriteRune('/')
 		}
 	}
+
 	b.WriteRune(':')
 	b.WriteString(strconv.Itoa(a.Port))
+
 	return b.String()
 }
 
@@ -351,6 +370,7 @@ func (a *SCTPAddr) Network() string { return "sctp" }
 
 func SCTPBind(fd int, addr *SCTPAddr, flags int) error {
 	var option uintptr
+
 	switch flags {
 	case SCTPBindxAddAddr:
 		option = SCTPSockOptBindxAdd
@@ -362,6 +382,7 @@ func SCTPBind(fd int, addr *SCTPAddr, flags int) error {
 
 	buf := addr.ToRawSockAddrBuf()
 	err := setsockopt(fd, option, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+
 	return err
 }
 
@@ -379,6 +400,7 @@ func NewSCTPConn(fd int, handler NotificationHandler) *SCTPConn {
 		_fd:                 int32(fd),
 		notificationHandler: handler,
 	}
+
 	return conn
 }
 
@@ -387,33 +409,43 @@ func (c *SCTPConn) SubscribeEvents(flags int) error {
 	if flags&SCTPEventDataIO > 0 {
 		d = 1
 	}
+
 	if flags&SCTPEventAssociation > 0 {
 		a = 1
 	}
+
 	if flags&SCTPEventAddress > 0 {
 		ad = 1
 	}
+
 	if flags&SCTPEventSendFailure > 0 {
 		sf = 1
 	}
+
 	if flags&SCTPEventSendPeerError > 0 {
 		p = 1
 	}
+
 	if flags&SCTPEventShutdown > 0 {
 		sh = 1
 	}
+
 	if flags&SCTPEventPartialDelivery > 0 {
 		pa = 1
 	}
+
 	if flags&SCTPEventAdaptationLayer > 0 {
 		ada = 1
 	}
+
 	if flags&SCTPEventAuthentication > 0 {
 		au = 1
 	}
+
 	if flags&SCTPEventSenderDry > 0 {
 		se = 1
 	}
+
 	param := EventSubscribe{
 		DataIO:          d,
 		Association:     a,
@@ -428,53 +460,67 @@ func (c *SCTPConn) SubscribeEvents(flags int) error {
 	}
 	optlen := unsafe.Sizeof(param)
 	err := setsockopt(c.fd(), SCTPEvents, uintptr(unsafe.Pointer(&param)), optlen)
+
 	return err
 }
 
 func (c *SCTPConn) SubscribedEvents() (int, error) {
 	param := EventSubscribe{}
 	optlen := unsafe.Sizeof(param)
+
 	err := getsockopt(c.fd(), SCTPEvents, uintptr(unsafe.Pointer(&param)), uintptr(unsafe.Pointer(&optlen)))
 	if err != nil {
 		return 0, err
 	}
+
 	var flags int
 	if param.DataIO > 0 {
 		flags |= SCTPEventDataIO
 	}
+
 	if param.Association > 0 {
 		flags |= SCTPEventAssociation
 	}
+
 	if param.Address > 0 {
 		flags |= SCTPEventAddress
 	}
+
 	if param.SendFailure > 0 {
 		flags |= SCTPEventSendFailure
 	}
+
 	if param.PeerError > 0 {
 		flags |= SCTPEventSendPeerError
 	}
+
 	if param.Shutdown > 0 {
 		flags |= SCTPEventShutdown
 	}
+
 	if param.PartialDelivery > 0 {
 		flags |= SCTPEventPartialDelivery
 	}
+
 	if param.AdaptationLayer > 0 {
 		flags |= SCTPEventAdaptationLayer
 	}
+
 	if param.Authentication > 0 {
 		flags |= SCTPEventAuthentication
 	}
+
 	if param.SenderDry > 0 {
 		flags |= SCTPEventSenderDry
 	}
+
 	return flags, nil
 }
 
 func (c *SCTPConn) SetDefaultSentParam(info *SndRcvInfo) error {
 	optlen := unsafe.Sizeof(*info)
 	err := setsockopt(c.fd(), SCTPDefaultSentParam, uintptr(unsafe.Pointer(info)), optlen)
+
 	return err
 }
 
@@ -482,6 +528,7 @@ func (c *SCTPConn) GetDefaultSentParam() (*SndRcvInfo, error) {
 	info := &SndRcvInfo{}
 	optlen := unsafe.Sizeof(*info)
 	err := getsockopt(c.fd(), SCTPDefaultSentParam, uintptr(unsafe.Pointer(info)), uintptr(unsafe.Pointer(&optlen)))
+
 	return info, err
 }
 
@@ -493,6 +540,7 @@ func resolveFromRawAddr(ptr unsafe.Pointer, n int) (*SCTPAddr, error) {
 	switch family := (*(*syscall.RawSockaddrAny)(ptr)).Addr.Family; family {
 	case syscall.AF_INET:
 		addr.Port = int(ntohs((*(*syscall.RawSockaddrInet4)(ptr)).Port))
+
 		size := unsafe.Sizeof(syscall.RawSockaddrInet4{})
 		for i := 0; i < n; i++ {
 			a := *(*syscall.RawSockaddrInet4)(unsafe.Pointer(
@@ -501,20 +549,25 @@ func resolveFromRawAddr(ptr unsafe.Pointer, n int) (*SCTPAddr, error) {
 		}
 	case syscall.AF_INET6:
 		addr.Port = int(ntohs((*(*syscall.RawSockaddrInet4)(ptr)).Port))
+
 		size := unsafe.Sizeof(syscall.RawSockaddrInet6{})
 		for i := 0; i < n; i++ {
 			a := *(*syscall.RawSockaddrInet6)(unsafe.Pointer(
 				uintptr(ptr) + size*uintptr(i)))
+
 			var zone string
+
 			ifi, err := net.InterfaceByIndex(int(a.Scope_id))
 			if err == nil {
 				zone = ifi.Name
 			}
+
 			addr.IPAddrs[i] = net.IPAddr{IP: a.Addr[:], Zone: zone}
 		}
 	default:
 		return nil, fmt.Errorf("unknown address family: %d", family)
 	}
+
 	return addr, nil
 }
 
@@ -524,14 +577,17 @@ func sctpGetAddrs(fd, id, optname int) (*SCTPAddr, error) {
 		addrNum uint32
 		addrs   [4096]byte
 	}
+
 	param := getaddrs{
 		assocID: int32(id),
 	}
 	optlen := unsafe.Sizeof(param)
+
 	err := getsockopt(fd, uintptr(optname), uintptr(unsafe.Pointer(&param)), uintptr(unsafe.Pointer(&optlen)))
 	if err != nil {
 		return nil, err
 	}
+
 	return resolveFromRawAddr(unsafe.Pointer(&param.addrs), int(param.addrNum))
 }
 
@@ -540,6 +596,7 @@ func (c *SCTPConn) LocalAddr() net.Addr {
 	if err != nil {
 		return nil
 	}
+
 	return addr
 }
 
@@ -548,6 +605,7 @@ func (c *SCTPConn) RemoteAddr() net.Addr {
 	if err != nil {
 		return nil
 	}
+
 	return addr
 }
 

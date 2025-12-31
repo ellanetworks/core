@@ -38,16 +38,14 @@ type SMFContext struct {
 	CPNodeID       net.IP
 	LocalSEIDCount uint64
 
-	smContextPool    map[string]*SMContext // key: canonicalName(identifier, pduSessID)
-	seidSMContextMap map[uint64]*SMContext // key: PFCP SEID
+	smContextPool map[string]*SMContext // key: canonicalName(identifier, pduSessID)
 }
 
 func InitializeSMF(dbInstance *db.Database) {
 	smfContext = SMFContext{
-		smContextPool:    make(map[string]*SMContext),
-		seidSMContextMap: make(map[uint64]*SMContext),
-		DBInstance:       dbInstance,
-		CPNodeID:         net.ParseIP("0.0.0.0"),
+		smContextPool: make(map[string]*SMContext),
+		DBInstance:    dbInstance,
+		CPNodeID:      net.ParseIP("0.0.0.0"),
 		UPF: &UPF{
 			pdrIDGenerator: idgenerator.NewGenerator(1, math.MaxUint16),
 			farIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
@@ -87,8 +85,7 @@ func (smf *SMFContext) RetrieveDnnInformation(ctx context.Context, ueSnssai mode
 }
 
 func (smf *SMFContext) AllocateLocalSEID() uint64 {
-	atomic.AddUint64(&smf.LocalSEIDCount, 1)
-	return smf.LocalSEIDCount
+	return atomic.AddUint64(&smf.LocalSEIDCount, 1)
 }
 
 func SMFSelf() *SMFContext {
@@ -98,6 +95,7 @@ func SMFSelf() *SMFContext {
 func (smf *SMFContext) GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
 	ctx, span := tracer.Start(ctx, "SMF GetSnssaiInfo")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("dnn", dnn),
 	)
@@ -137,6 +135,7 @@ func GetAllowedSessionType() uint8 {
 func (smf *SMFContext) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyDecision, error) {
 	ctx, span := tracer.Start(ctx, "SMF GetSubscriberPolicy")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("ue.supi", ueID),
 	)
@@ -190,15 +189,16 @@ func (smf *SMFContext) GetSMContextBySEID(seid uint64) *SMContext {
 	smf.Mutex.Lock()
 	defer smf.Mutex.Unlock()
 
-	value, ok := smf.seidSMContextMap[seid]
-	if !ok {
-		return nil
+	for _, smContext := range smf.smContextPool {
+		if smContext.PFCPContext != nil && smContext.PFCPContext.LocalSEID == seid {
+			return smContext
+		}
 	}
 
-	return value
+	return nil
 }
 
-func (smf *SMFContext) AllocateLocalSEIDForDataPath(smContext *SMContext) {
+func (smContext *SMContext) AllocateLocalSEIDForDataPath(smf *SMFContext) {
 	if smContext.PFCPContext != nil {
 		return
 	}
@@ -208,11 +208,6 @@ func (smf *SMFContext) AllocateLocalSEIDForDataPath(smContext *SMContext) {
 	smContext.PFCPContext = &PFCPSessionContext{
 		LocalSEID: allocatedSEID,
 	}
-
-	smf.Mutex.Lock()
-	defer smf.Mutex.Unlock()
-
-	smf.seidSMContextMap[allocatedSEID] = smContext
 }
 
 func (smf *SMFContext) NewSMContext(supi string, pduSessID uint8) *SMContext {
@@ -255,8 +250,6 @@ func (smf *SMFContext) RemoveSMContext(ctx context.Context, ref string) {
 	if !ok {
 		return
 	}
-
-	delete(smf.seidSMContextMap, smContext.PFCPContext.LocalSEID)
 
 	err := smf.ReleaseUeIPAddr(ctx, smContext.Supi)
 	if err != nil {

@@ -15,10 +15,12 @@ func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amf
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var nASPDU *ngapType.NASPDU
-	var userLocationInformation *ngapType.UserLocationInformation
+	var (
+		aMFUENGAPID             *ngapType.AMFUENGAPID
+		rANUENGAPID             *ngapType.RANUENGAPID
+		nASPDU                  *ngapType.NASPDU
+		userLocationInformation *ngapType.UserLocationInformation
+	)
 
 	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
 		ie := msg.ProtocolIEs.List[i]
@@ -57,13 +59,16 @@ func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amf
 	}
 
 	ranUe.Radio = ran
+
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
 		err := ranUe.Remove()
 		if err != nil {
 			ran.Log.Error("error removing ran ue context", zap.Error(err))
 		}
+
 		ran.Log.Error("No UE Context of RanUe", zap.Int64("ranUeNgapID", rANUENGAPID.Value), zap.Int64("amfUeNgapID", aMFUENGAPID.Value))
+
 		return
 	}
 

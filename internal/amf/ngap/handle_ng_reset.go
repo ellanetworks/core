@@ -15,8 +15,10 @@ func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGR
 		return
 	}
 
-	var cause *ngapType.Cause
-	var resetType *ngapType.ResetType
+	var (
+		cause     *ngapType.Cause
+		resetType *ngapType.ResetType
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -47,6 +49,7 @@ func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGR
 		ran.Log.Debug("ResetType Present: NG Interface")
 		ran.RemoveAllUeInRan()
 		ran.Log.Debug("All UE Context in RAN have been removed")
+
 		err := ran.NGAPSender.SendNGResetAcknowledge(ctx, nil)
 		if err != nil {
 			ran.Log.Error("error sending NG Reset Acknowledge", zap.Error(err))
@@ -66,6 +69,7 @@ func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGR
 		for _, ueAssociatedLogicalNGConnectionItem := range partOfNGInterface.List {
 			if ueAssociatedLogicalNGConnectionItem.AMFUENGAPID != nil {
 				ran.Log.Debug("NG Reset with AMFUENGAPID", zap.Int64("AmfUeNgapID", ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value))
+
 				for _, ue := range ran.RanUEs {
 					if ue.AmfUeNgapID == ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value {
 						ranUe = ue
@@ -79,9 +83,11 @@ func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGR
 
 			if ranUe == nil {
 				ran.Log.Warn("Cannot not find UE Context")
+
 				if ueAssociatedLogicalNGConnectionItem.AMFUENGAPID != nil {
 					ran.Log.Warn("AMFUENGAPID is not empty", zap.Int64("AmfUeNgapID", ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value))
 				}
+
 				if ueAssociatedLogicalNGConnectionItem.RANUENGAPID != nil {
 					ran.Log.Warn("RANUENGAPID is not empty", zap.Int64("RanUeNgapID", ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value))
 				}

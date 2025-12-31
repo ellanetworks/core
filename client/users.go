@@ -111,6 +111,7 @@ func (c *Client) CreateUser(ctx context.Context, opts *CreateUserOptions) error 
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -123,6 +124,7 @@ func (c *Client) DeleteUser(ctx context.Context, opts *DeleteUserOptions) error 
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -195,5 +197,6 @@ func (c *Client) DeleteMyAPIToken(ctx context.Context, tokenID string) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }

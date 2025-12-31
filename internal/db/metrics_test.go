@@ -23,6 +23,7 @@ func TestDatabaseMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't initialize NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't close database: %s", err)
@@ -130,6 +131,8 @@ func countIPsInCIDR(cidr string) int {
 	if err != nil {
 		panic(err)
 	}
+
 	ones, bits := ipNet.Mask.Size()
+
 	return 1 << (bits - ones)
 }

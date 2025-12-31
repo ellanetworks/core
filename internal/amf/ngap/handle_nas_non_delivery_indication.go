@@ -15,10 +15,12 @@ func HandleNasNonDeliveryIndication(ctx context.Context, amf *amfContext.AMF, ra
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var nASPDU *ngapType.NASPDU
-	var cause *ngapType.Cause
+	var (
+		aMFUENGAPID *ngapType.AMFUENGAPID
+		rANUENGAPID *ngapType.RANUENGAPID
+		nASPDU      *ngapType.NASPDU
+		cause       *ngapType.Cause
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {

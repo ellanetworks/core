@@ -15,6 +15,7 @@ import (
 func UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error) {
 	ctx, span := tracer.Start(ctx, "SMF Update SmContext N1 Msg")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("smf.smContextRef", smContextRef),
 	)

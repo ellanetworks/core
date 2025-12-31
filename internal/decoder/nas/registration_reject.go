@@ -19,6 +19,7 @@ func buildRegistrationReject(msg *nasMessage.RegistrationReject) *RegistrationRe
 	if msg == nil {
 		return nil
 	}
+
 	regRej := &RegistrationReject{
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,

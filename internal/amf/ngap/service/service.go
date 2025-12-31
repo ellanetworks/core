@@ -64,8 +64,11 @@ func listenAndServe(addr *sctp.SCTPAddr) {
 		logger.AmfLog.Error("Failed to listen", zap.Error(err))
 		return
 	}
+
 	sctpListener = listener
+
 	logger.AmfLog.Info("NGAP server started", zap.String("address", addr.String()))
+
 	for {
 		newConn, err := sctpListener.AcceptSCTP()
 		if err != nil {
@@ -75,15 +78,18 @@ func listenAndServe(addr *sctp.SCTPAddr) {
 			default:
 				logger.AmfLog.Error("Failed to accept", zap.Error(err))
 			}
+
 			continue
 		}
 
 		events := sctp.SCTPEventDataIO | sctp.SCTPEventShutdown | sctp.SCTPEventAssociation
 		if err := newConn.SubscribeEvents(events); err != nil {
 			logger.AmfLog.Error("Failed to accept", zap.Error(err))
+
 			if err = newConn.Close(); err != nil {
 				logger.AmfLog.Error("Close error", zap.Error(err))
 			}
+
 			continue
 		} else {
 			logger.AmfLog.Debug("Subscribe SCTP event[DATA_IO, SHUTDOWN_EVENT, ASSOCIATION_CHANGE]")
@@ -91,9 +97,11 @@ func listenAndServe(addr *sctp.SCTPAddr) {
 
 		if err := newConn.SetReadBuffer(int(readBufSize)); err != nil {
 			logger.AmfLog.Error("Set read buffer error", zap.Error(err))
+
 			if err = newConn.Close(); err != nil {
 				logger.AmfLog.Error("Close error", zap.Error(err))
 			}
+
 			continue
 		} else {
 			logger.AmfLog.Debug("Set read buffer", zap.Any("size", readBufSize))
@@ -101,9 +109,11 @@ func listenAndServe(addr *sctp.SCTPAddr) {
 
 		if err := newConn.SetReadTimeout(readTimeout); err != nil {
 			logger.AmfLog.Error("Set read timeout error", zap.Error(err))
+
 			if err = newConn.Close(); err != nil {
 				logger.AmfLog.Error("Close error", zap.Error(err))
 			}
+
 			continue
 		} else {
 			logger.AmfLog.Debug("Set read timeout", zap.Any("timeout", readTimeout))
@@ -112,9 +122,11 @@ func listenAndServe(addr *sctp.SCTPAddr) {
 		remoteAddress := newConn.RemoteAddr()
 		if remoteAddress == nil {
 			logger.AmfLog.Error("Remote address is nil")
+
 			if err = newConn.Close(); err != nil {
 				logger.AmfLog.Error("Close error", zap.Error(err))
 			}
+
 			continue
 		}
 
@@ -135,6 +147,7 @@ func Stop() {
 		if err := conn.Close(); err != nil {
 			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
+
 		return true
 	})
 
@@ -147,6 +160,7 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32) {
 		if err := conn.Close(); err != nil && err != syscall.EBADF {
 			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
+
 		connections.Delete(conn)
 	}()
 
@@ -190,5 +204,6 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32) {
 func networkToNativeEndianness32(value uint32) uint32 {
 	var b [4]byte
 	binary.BigEndian.PutUint32(b[:], value)
+
 	return binary.NativeEndian.Uint32(b[:])
 }

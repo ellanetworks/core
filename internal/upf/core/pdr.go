@@ -16,6 +16,7 @@ func applyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
 		if err := bpfObjects.PutPdrDownlink(spdrInfo.Ipv4, spdrInfo.PdrInfo); err != nil {
 			return fmt.Errorf("can't apply IPv4 PDR: %w", err)
 		}
+
 		return nil
 	}
 
@@ -23,6 +24,7 @@ func applyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
 		if err := bpfObjects.PutDownlinkPdrIP6(spdrInfo.Ipv6, spdrInfo.PdrInfo); err != nil {
 			return fmt.Errorf("can't apply IPv6 PDR: %w", err)
 		}
+
 		return nil
 	}
 
@@ -35,6 +37,7 @@ func applyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
 
 func processCreatedPDRs(createdPDRs []SPDRInfo, n3Address net.IP) []*ie.IE {
 	var additionalIEs []*ie.IE
+
 	for _, pdr := range createdPDRs {
 		if pdr.Allocated {
 			if pdr.Ipv4 != nil {
@@ -45,5 +48,6 @@ func processCreatedPDRs(createdPDRs []SPDRInfo, n3Address net.IP) []*ie.IE {
 			}
 		}
 	}
+
 	return additionalIEs
 }

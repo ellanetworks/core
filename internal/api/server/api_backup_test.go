@@ -14,26 +14,32 @@ func backup(url string, client *http.Client, token string) (int, []byte, error) 
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, body, nil
 }
 
 func TestBackupEndpoint(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
@@ -41,6 +47,7 @@ func TestBackupEndpoint(t *testing.T) {
 	defer ts.Close()
 
 	client := ts.Client()
+
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
@@ -51,12 +58,14 @@ func TestBackupEndpoint(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't trigger backup: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
 
 		// Check that the backup file was created and returned
 		backupFilePath := filepath.Join(tempDir, "backup_test.db")
+
 		err = os.WriteFile(backupFilePath, body, 0o600)
 		if err != nil {
 			t.Fatalf("couldn't write backup file: %s", err)
@@ -74,6 +83,7 @@ func TestBackupEndpoint(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't trigger backup: %s", err)
 		}
+
 		if statusCode != http.StatusUnauthorized {
 			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
 		}

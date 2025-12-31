@@ -56,6 +56,7 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	if err != nil {
 		return fmt.Errorf("system logger: %w", err)
 	}
+
 	sysLogger := zap.New(zapcore.NewTee(sysCores...), zap.AddCaller())
 
 	auditCores, err := makeCores(auditOutput, auditFilePath, consoleEnc, jsonEnc)
@@ -91,6 +92,7 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	UdmLog = log.With(zap.String("component", "UDM"))
 	UpfLog = log.With(zap.String("component", "UPF"))
 	SessionsLog = log.With(zap.String("component", "Sessions"))
+
 	return nil
 }
 
@@ -103,6 +105,7 @@ func makeCores(mode, filePath string, consoleEnc, jsonEnc zapcore.Encoder) ([]za
 	cores := []zapcore.Core{
 		zapcore.NewCore(consoleEnc, zapcore.Lock(os.Stdout), atomicLevel),
 	}
+
 	switch mode {
 	case "stdout":
 		// nothing else
@@ -110,23 +113,27 @@ func makeCores(mode, filePath string, consoleEnc, jsonEnc zapcore.Encoder) ([]za
 		if filePath == "" {
 			return nil, fmt.Errorf("file output selected but file path is empty")
 		}
+
 		ws, err := openFileSync(filePath)
 		if err != nil {
 			return nil, err
 		}
+
 		cores = append(cores, zapcore.NewCore(jsonEnc, ws, atomicLevel))
 	case "both":
 		if filePath == "" {
 			return nil, fmt.Errorf("both output selected but file path is empty")
 		}
+
 		ws, err := openFileSync(filePath)
 		if err != nil {
 			return nil, err
 		}
+
 		cores = append(cores, zapcore.NewCore(jsonEnc, ws, atomicLevel))
 	default:
-		// default to stdout only
 	}
+
 	return cores, nil
 }
 
@@ -150,6 +157,7 @@ func devConsoleEncoderConfig() zapcore.EncoderConfig {
 	enc.EncodeCaller = zapcore.ShortCallerEncoder
 	enc.MessageKey = "message"
 	enc.StacktraceKey = ""
+
 	return enc
 }
 
@@ -163,12 +171,14 @@ func prodJSONEncoderConfig() zapcore.EncoderConfig {
 	enc.EncodeCaller = zapcore.ShortCallerEncoder
 	enc.MessageKey = "message"
 	enc.StacktraceKey = ""
+
 	return enc
 }
 
 // CapitalColorLevelEncoder encodes the log level in color.
 func CapitalColorLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
 	var color string
+
 	switch l {
 	case zapcore.DebugLevel:
 		color = "\033[37m" // White
@@ -183,6 +193,7 @@ func CapitalColorLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder
 	default:
 		color = "\033[0m" // Reset
 	}
+
 	enc.AppendString(fmt.Sprintf("%s%s\033[0m", color, l.CapitalString()))
 }
 
@@ -248,6 +259,7 @@ func LogNetworkEvent(
 			zap.String("local_address", localAddress),
 			zap.String("remote_address", remoteAddress),
 		)
+
 		return
 	}
 

@@ -124,7 +124,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	// pDUSessionEstablishmentAccept.SetQoSFlowDescriptions([]uint8{uint8(authDefQos.Var5qi), 0x20, 0x41, 0x01, 0x01, 0x09})
 
 	pDUSessionEstablishmentAccept.SNSSAI = nasType.NewSNSSAI(nasMessage.ULNASTransportSNSSAIType)
-	pDUSessionEstablishmentAccept.SNSSAI.SetSST(uint8(snssai.Sst))
+	pDUSessionEstablishmentAccept.SetSST(uint8(snssai.Sst))
 	pDUSessionEstablishmentAccept.SNSSAI.SetLen(1)
 
 	if snssai.Sd != "" {
@@ -180,6 +180,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 			ExtendedProtocolConfigurationOptions.
 			SetExtendedProtocolConfigurationOptionsContents(pcoContents)
 	}
+
 	return m.PlainNasEncode()
 }
 
@@ -219,6 +220,7 @@ func BuildGSMPDUSessionReleaseCommand(pduSessionID uint8, pti uint8) ([]byte, er
 
 func modelsToSessionAMBR(ambr *models.Ambr) (nasType.SessionAMBR, error) {
 	var sessAmbr nasType.SessionAMBR
+
 	uplink := strings.Split(ambr.Uplink, " ")
 	if bitRate, err := strconv.ParseUint(uplink[0], 10, 16); err != nil {
 		return sessAmbr, fmt.Errorf("failed to parse uplink bitrate: %v", err)
@@ -227,6 +229,7 @@ func modelsToSessionAMBR(ambr *models.Ambr) (nasType.SessionAMBR, error) {
 		binary.BigEndian.PutUint16(bitRateBytes[:], uint16(bitRate))
 		sessAmbr.SetSessionAMBRForUplink(bitRateBytes)
 	}
+
 	sessAmbr.SetUnitForSessionAMBRForUplink(strToAMBRUnit(uplink[1]))
 
 	downlink := strings.Split(ambr.Downlink, " ")
@@ -237,7 +240,9 @@ func modelsToSessionAMBR(ambr *models.Ambr) (nasType.SessionAMBR, error) {
 		binary.BigEndian.PutUint16(bitRateBytes[:], uint16(bitRate))
 		sessAmbr.SetSessionAMBRForDownlink(bitRateBytes)
 	}
+
 	sessAmbr.SetUnitForSessionAMBRForDownlink(strToAMBRUnit(downlink[1]))
+
 	return sessAmbr, nil
 }
 
@@ -256,5 +261,6 @@ func strToAMBRUnit(unit string) uint8 {
 	case "Pbps":
 		return nasMessage.SessionAMBRUnit1Pbps
 	}
+
 	return nasMessage.SessionAMBRUnitNotUsed
 }

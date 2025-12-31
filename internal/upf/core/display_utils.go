@@ -23,6 +23,7 @@ func printSessionEstablishmentRequest(req *message.SessionEstablishmentRequest) 
 	var sb strings.Builder
 	sb.WriteString("\n")
 	writeLineTabbed(&sb, "Session Establishment Request:", 0)
+
 	for _, pdr := range req.CreatePDR {
 		sb.WriteString("  Create")
 		displayPdr(&sb, pdr)
@@ -51,6 +52,7 @@ func printSessionModificationRequest(req *message.SessionModificationRequest) {
 	var sb strings.Builder
 	sb.WriteString("\n")
 	writeLineTabbed(&sb, "Session Modification Request:", 0)
+
 	for _, pdr := range req.CreatePDR {
 		sb.WriteString("  Create")
 		displayPdr(&sb, pdr)
@@ -130,14 +132,17 @@ func displayUrr(sb *strings.Builder, urr *ie.IE) {
 	if err == nil {
 		writeLineTabbed(sb, fmt.Sprintf("Measurement Method: %d ", measurementMethod), 2)
 	}
+
 	volumeThreshold, err := urr.VolumeThreshold()
 	if err == nil {
 		writeLineTabbed(sb, fmt.Sprintf("Volume Threshold: %+v ", volumeThreshold), 2)
 	}
+
 	timeThreshold, err := urr.TimeThreshold()
 	if err == nil {
 		writeLineTabbed(sb, fmt.Sprintf("Time Threshold: %d ", timeThreshold), 2)
 	}
+
 	monitoringTime, err := urr.MonitoringTime()
 	if err == nil {
 		writeLineTabbed(sb, fmt.Sprintf("Monitoring Time: %s ", monitoringTime.Format(time.RFC3339)), 2)
@@ -152,18 +157,22 @@ func displayQer(sb *strings.Builder, qer *ie.IE) {
 	if err == nil {
 		writeLineTabbed(sb, fmt.Sprintf("Gate Status DL: %d ", gateStatusDL), 2)
 	}
+
 	gateStatusUL, err := qer.GateStatusUL()
 	if err == nil {
 		writeLineTabbed(sb, fmt.Sprintf("Gate Status UL: %d ", gateStatusUL), 2)
 	}
+
 	maxBitrateDL, err := qer.MBRDL()
 	if err == nil {
 		writeLineTabbed(sb, fmt.Sprintf("Max Bitrate DL: %d ", uint32(maxBitrateDL)), 2)
 	}
+
 	maxBitrateUL, err := qer.MBRUL()
 	if err == nil {
 		writeLineTabbed(sb, fmt.Sprintf("Max Bitrate UL: %d ", uint32(maxBitrateUL)), 2)
 	}
+
 	qfi, err := qer.QFI()
 	if err == nil {
 		writeLineTabbed(sb, fmt.Sprintf("QFI: %d ", qfi), 2)
@@ -178,44 +187,54 @@ func displayFar(sb *strings.Builder, far *ie.IE) {
 	if err == nil {
 		writeLineTabbed(sb, fmt.Sprintf("Apply Action: %+v ", applyAction), 2)
 	}
+
 	if forwardingParameters, err := far.ForwardingParameters(); err == nil {
 		writeLineTabbed(sb, "Forwarding Parameters:", 2)
+
 		for _, forwardingParameter := range forwardingParameters {
 			networkInstance, err := forwardingParameter.NetworkInstance()
 			if err == nil {
 				writeLineTabbed(sb, fmt.Sprintf("Network Instance: %s ", networkInstance), 3)
 			}
+
 			outerHeaderCreation, err := forwardingParameter.OuterHeaderCreation()
 			if err == nil {
 				writeLineTabbed(sb, fmt.Sprintf("Outer Header Creation: %+v ", outerHeaderCreation), 3)
 			}
+
 			redirectInformation, err := forwardingParameter.RedirectInformation()
 			if err == nil {
 				writeLineTabbed(sb, fmt.Sprintf("Redirect Information, server address: %s ", redirectInformation.RedirectServerAddress), 3)
 				writeLineTabbed(sb, fmt.Sprintf("Redirect Information, other server address: %s ", redirectInformation.OtherRedirectServerAddress), 3)
 			}
+
 			headerEnrichment, err := forwardingParameter.HeaderEnrichment()
 			if err == nil {
 				writeLineTabbed(sb, fmt.Sprintf("Header Enrichment: %s : %s ", headerEnrichment.HeaderFieldName, headerEnrichment.HeaderFieldValue), 3)
 			}
 		}
 	}
+
 	if updateForwardingParameters, err := far.UpdateForwardingParameters(); err == nil {
 		writeLineTabbed(sb, "Update forwarding Parameters:", 2)
+
 		for _, updateForwardingParameter := range updateForwardingParameters {
 			networkInstance, err := updateForwardingParameter.NetworkInstance()
 			if err == nil {
 				writeLineTabbed(sb, fmt.Sprintf("Network Instance: %s ", networkInstance), 3)
 			}
+
 			outerHeaderCreation, err := updateForwardingParameter.OuterHeaderCreation()
 			if err == nil {
 				writeLineTabbed(sb, fmt.Sprintf("Outer Header Creation: %+v ", outerHeaderCreation), 3)
 			}
+
 			redirectInformation, err := updateForwardingParameter.RedirectInformation()
 			if err == nil {
 				writeLineTabbed(sb, fmt.Sprintf("Redirect Information, server address: %s ", redirectInformation.RedirectServerAddress), 3)
 				writeLineTabbed(sb, fmt.Sprintf("Redirect Information, other server address: %s ", redirectInformation.OtherRedirectServerAddress), 3)
 			}
+
 			headerEnrichment, err := updateForwardingParameter.HeaderEnrichment()
 			if err == nil {
 				writeLineTabbed(sb, fmt.Sprintf("Header Enrichment: %s : %s ", headerEnrichment.HeaderFieldName, headerEnrichment.HeaderFieldValue), 3)
@@ -273,6 +292,7 @@ func displayPdr(sb *strings.Builder, pdr *ie.IE) {
 				if ueIP.IPv4Address != nil {
 					writeLineTabbed(sb, fmt.Sprintf("UE IPv4 Address: %s ", ueIP.IPv4Address), 2)
 				}
+
 				if ueIP.IPv6Address != nil {
 					writeLineTabbed(sb, fmt.Sprintf("UE IPv6 Address: %s ", ueIP.IPv6Address), 2)
 				}

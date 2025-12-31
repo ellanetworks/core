@@ -56,7 +56,9 @@ func isValidBitrate(bitrate string) bool {
 	if len(s) != 2 {
 		return false
 	}
+
 	value := s[0]
+
 	unit := s[1]
 	if unit != "Mbps" && unit != "Gbps" {
 		return false
@@ -105,6 +107,7 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 		}
 
 		policyList := make([]Policy, 0)
+
 		for _, dbPolicy := range dbPolicies {
 			dataNetwork, err := dbInstance.GetDataNetworkByID(ctx, dbPolicy.DataNetworkID)
 			if err != nil {
@@ -140,16 +143,19 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
 		}
+
 		dbPolicy, err := dbInstance.GetPolicy(r.Context(), name)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 			return
 		}
+
 		dataNetwork, err := dbInstance.GetDataNetworkByID(r.Context(), dbPolicy.DataNetworkID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 			return
 		}
+
 		policy := Policy{
 			Name:            dbPolicy.Name,
 			BitrateDownlink: dbPolicy.BitrateDownlink,
@@ -188,7 +194,9 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to check subscribers", err, logger.APILog)
+
 			return
 		}
 
@@ -202,7 +210,9 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to delete policy", err, logger.APILog)
+
 			return
 		}
 
@@ -264,6 +274,7 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			}
 
 			writeError(w, http.StatusInternalServerError, "Failed to create policy", err, logger.APILog)
+
 			return
 		}
 
@@ -353,5 +364,6 @@ func validatePolicyParams(p CreatePolicyParams) error {
 	case !isValidArp(p.Arp):
 		return errors.New("Invalid arp format. Must be an integer between 1 and 255")
 	}
+
 	return nil
 }

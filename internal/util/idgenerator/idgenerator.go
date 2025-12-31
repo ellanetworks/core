@@ -25,6 +25,7 @@ type IDGenerator struct {
 func NewGenerator(minValue, maxValue int64) *IDGenerator {
 	idGenerator := &IDGenerator{}
 	idGenerator.init(minValue, maxValue)
+
 	return idGenerator
 }
 
@@ -53,9 +54,11 @@ func (idGenerator *IDGenerator) Allocate() (int64, error) {
 			break
 		}
 	}
+
 	idGenerator.usedMap[idGenerator.offset] = true
 	id := idGenerator.offset + idGenerator.minValue
 	idGenerator.updateOffset()
+
 	return id, nil
 }
 
@@ -63,8 +66,10 @@ func (idGenerator *IDGenerator) FreeID(id int64) {
 	if id < idGenerator.minValue || id > idGenerator.maxValue {
 		return
 	}
+
 	idGenerator.lock.Lock()
 	defer idGenerator.lock.Unlock()
+
 	delete(idGenerator.usedMap, id-idGenerator.minValue)
 }
 

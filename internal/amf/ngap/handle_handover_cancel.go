@@ -14,9 +14,11 @@ func HandleHandoverCancel(ctx context.Context, ran *amfContext.Radio, msg *ngapT
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var cause *ngapType.Cause
+	var (
+		aMFUENGAPID *ngapType.AMFUENGAPID
+		rANUENGAPID *ngapType.RANUENGAPID
+		cause       *ngapType.Cause
+	)
 
 	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
 		ie := msg.ProtocolIEs.List[i]
@@ -51,12 +53,15 @@ func HandleHandoverCancel(ctx context.Context, ran *amfContext.Radio, msg *ngapT
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
+
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err), zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
 			return
 		}
+
 		ran.Log.Info("sent error indication to source UE")
+
 		return
 	}
 
@@ -65,12 +70,15 @@ func HandleHandoverCancel(ctx context.Context, ran *amfContext.Radio, msg *ngapT
 	}
 
 	ran.Log.Debug("Handle Handover Cancel", zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID))
+
 	causePresent := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem
+
 	var err error
 
 	if cause != nil {
 		ran.Log.Debug("Handover Cancel Cause", zap.String("Cause", causeToString(*cause)))
+
 		causePresent, causeValue, err = getCause(cause)
 		if err != nil {
 			ran.Log.Error("Get Cause from Handover Failure Error", zap.Error(err))

@@ -13,6 +13,7 @@ import (
 func ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "SMF Release SmContext")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("smf.smContextRef", smContextRef),
 	)

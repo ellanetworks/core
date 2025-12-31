@@ -14,10 +14,12 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var cause *ngapType.Cause
-	var targetUe *amfContext.RanUe
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
+	var (
+		aMFUENGAPID            *ngapType.AMFUENGAPID
+		cause                  *ngapType.Cause
+		targetUe               *amfContext.RanUe
+		criticalityDiagnostics *ngapType.CriticalityDiagnostics
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -32,9 +34,12 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 
 	causePresent := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem
+
 	var err error
+
 	if cause != nil {
 		ran.Log.Debug("Handover Failure Cause", zap.String("Cause", causeToString(*cause)))
+
 		causePresent, causeValue, err = getCause(cause)
 		if err != nil {
 			ran.Log.Error("Get Cause from Handover Failure Error", zap.Error(err))
@@ -52,16 +57,20 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
+
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent error indication")
+
 		return
 	}
 
 	targetUe.Radio = ran
+
 	sourceUe := targetUe.SourceUe
 	if sourceUe == nil {
 		ran.Log.Error("N2 Handover between AMF has not been implemented yet")
@@ -69,11 +78,13 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 		sourceUe.AmfUe.SetOnGoing(&amfContext.OnGoingProcedureWithPrio{
 			Procedure: amfContext.OnGoingProcedureNothing,
 		})
+
 		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending handover preparation failure", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent handover preparation failure to source UE")
 	}
 

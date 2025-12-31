@@ -8,6 +8,7 @@ import (
 
 func SpareHalfOctetAndNgksiToNas(ngKsiModels models.NgKsi) nasType.SpareHalfOctetAndNgksi {
 	var ngKsiNas nasType.SpareHalfOctetAndNgksi
+
 	switch ngKsiModels.Tsc {
 	case models.ScTypeNative:
 		ngKsiNas.SetTSC(nasMessage.TypeOfSecurityContextFlagNative)
@@ -17,5 +18,6 @@ func SpareHalfOctetAndNgksiToNas(ngKsiModels models.NgKsi) nasType.SpareHalfOcte
 
 	ngKsiNas.SetSpareHalfOctet(0)
 	ngKsiNas.SetNasKeySetIdentifiler(uint8(ngKsiModels.Ksi))
+
 	return ngKsiNas
 }

@@ -154,7 +154,9 @@ func DeleteDataNetwork(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to check policies", err, logger.APILog)
+
 			return
 		}
 
@@ -168,7 +170,9 @@ func DeleteDataNetwork(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to delete data network", err, logger.APILog)
+
 			return
 		}
 
@@ -221,6 +225,7 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 			}
 
 			writeError(w, http.StatusInternalServerError, "Failed to create data network", err, logger.APILog)
+
 			return
 		}
 
@@ -267,7 +272,9 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to update data network", err, logger.APILog)
+
 			return
 		}
 
@@ -314,5 +321,6 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 	case !isValidMTU(p.MTU):
 		return errors.New("invalid mtu format, must be an integer between 0 and 65535")
 	}
+
 	return nil
 }

@@ -222,13 +222,16 @@ func (ue *AmfUe) AllocateRegistrationArea(supportedTais []models.Tai) {
 
 	taiList := make([]models.Tai, len(supportedTais))
 	copy(taiList, supportedTais)
+
 	for i := range taiList {
 		tmp, err := strconv.ParseUint(taiList[i].Tac, 10, 32)
 		if err != nil {
 			logger.AmfLog.Error("Could not convert TAC to int", zap.Error(err))
 		}
+
 		taiList[i].Tac = fmt.Sprintf("%06x", tmp)
 	}
+
 	for _, supportTai := range taiList {
 		if reflect.DeepEqual(supportTai, ue.Tai) {
 			ue.RegistrationArea = append(ue.RegistrationArea, supportTai)
@@ -393,6 +396,7 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) {
 	}
 
 	ueSupported := uint8(0)
+
 	for _, intAlg := range intOrder {
 		switch intAlg {
 		case security.AlgIntegrity128NIA0:
@@ -404,6 +408,7 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) {
 		case security.AlgIntegrity128NIA3:
 			ueSupported = ue.UESecurityCapability.GetIA3_128_5G()
 		}
+
 		if ueSupported == 1 {
 			ue.IntegrityAlg = intAlg
 			break
@@ -411,6 +416,7 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) {
 	}
 
 	ueSupported = uint8(0)
+
 	for _, encAlg := range encOrder {
 		switch encAlg {
 		case security.AlgCiphering128NEA0:
@@ -422,6 +428,7 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) {
 		case security.AlgCiphering128NEA3:
 			ueSupported = ue.UESecurityCapability.GetEA3_128_5G()
 		}
+
 		if ueSupported == 1 {
 			ue.CipheringAlg = encAlg
 			break
@@ -434,11 +441,13 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 	ue.RegistrationRequest = nil
 	ue.RegistrationType5GS = 0
 	ue.IdentityTypeUsedForRegistration = 0
+
 	ue.AuthFailureCauseSynchFailureTimes = 0
 	if ue.RanUe != nil {
 		ue.RanUe.UeContextRequest = false
 		ue.RanUe.RecvdInitialContextSetupResponse = false
 	}
+
 	ue.RetransmissionOfInitialNASMsg = false
 	ue.OnGoing.Procedure = OnGoingProcedureNothing
 }
@@ -496,6 +505,7 @@ func (ue *AmfUe) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	// Security protected NAS Message
 	// a security protected NAS message must be integrity protected, and ciphering is optional
 	needCiphering := false
+
 	switch msg.SecurityHeader.SecurityHeaderType {
 	case nas.SecurityHeaderTypeIntegrityProtected:
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
@@ -554,6 +564,7 @@ func (ue *AmfUe) DecodeNASMessage(payload []byte) (*nas.Message, error) {
 	}
 
 	msg := new(nas.Message)
+
 	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
 		// RRCEstablishmentCause 0 is for emergency service
@@ -561,6 +572,7 @@ func (ue *AmfUe) DecodeNASMessage(payload []byte) (*nas.Message, error) {
 			ue.Log.Warn("Received Plain NAS message")
 			ue.MacFailed = false
 			ue.SecurityContextAvailable = false
+
 			if err := msg.PlainNasDecode(&payload); err != nil {
 				return nil, err
 			}
@@ -594,12 +606,14 @@ func (ue *AmfUe) DecodeNASMessage(payload []byte) (*nas.Message, error) {
 		} else {
 			ue.MacFailed = false
 			err := msg.PlainNasDecode(&payload)
+
 			return msg, err
 		}
 	} else { // Security protected NAS message
 		if len(payload) < 7 {
 			return nil, fmt.Errorf("nas payload is too short")
 		}
+
 		securityHeader := payload[0:6]
 		sequenceNumber := payload[6]
 
@@ -609,12 +623,14 @@ func (ue *AmfUe) DecodeNASMessage(payload []byte) (*nas.Message, error) {
 
 		// a security protected NAS message must be integrity protected, and ciphering is optional
 		ciphered := false
+
 		switch msg.SecurityHeaderType {
 		case nas.SecurityHeaderTypeIntegrityProtected:
 		case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
 			ciphered = true
 		case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
 			ciphered = true
+
 			ue.ULCount.Set(0, 0)
 		default:
 			return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
@@ -624,6 +640,7 @@ func (ue *AmfUe) DecodeNASMessage(payload []byte) (*nas.Message, error) {
 			ue.Log.Debug("set ULCount overflow")
 			ue.ULCount.SetOverflow(ue.ULCount.Overflow() + 1)
 		}
+
 		ue.ULCount.SetSQN(sequenceNumber)
 
 		mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ue.ULCount.Get(), security.Bearer3GPP,

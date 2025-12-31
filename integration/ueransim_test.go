@@ -52,6 +52,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			clientConfig := &client.Config{
 				BaseURL: "http://127.0.0.1:5002",
 			}
+
 			ellaClient, err := client.New(clientConfig)
 			if err != nil {
 				t.Fatalf("failed to create ella client: %v", err)

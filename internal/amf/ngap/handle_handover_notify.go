@@ -14,9 +14,11 @@ func HandleHandoverNotify(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var userLocationInformation *ngapType.UserLocationInformation
+	var (
+		aMFUENGAPID             *ngapType.AMFUENGAPID
+		rANUENGAPID             *ngapType.RANUENGAPID
+		userLocationInformation *ngapType.UserLocationInformation
+	)
 
 	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
 		ie := msg.ProtocolIEs.List[i]
@@ -52,12 +54,15 @@ func HandleHandoverNotify(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
+
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent error indication", zap.Int64("AMFUENGAPID", aMFUENGAPID.Value))
+
 		return
 	}
 

@@ -12,9 +12,11 @@ func HandleUEContextModificationFailure(amf *context.AMF, ran *context.Radio, ms
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var cause *ngapType.Cause
+	var (
+		aMFUENGAPID *ngapType.AMFUENGAPID
+		rANUENGAPID *ngapType.RANUENGAPID
+		cause       *ngapType.Cause
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {

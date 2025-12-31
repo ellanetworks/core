@@ -27,22 +27,27 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 				Value: ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState,
 			},
 		}
+
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent error indication")
+
 		return
 	}
 
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var nASPDU *ngapType.NASPDU
-	var userLocationInformation *ngapType.UserLocationInformation
-	var rRCEstablishmentCause *ngapType.RRCEstablishmentCause
-	var fiveGSTMSI *ngapType.FiveGSTMSI
-	var uEContextRequest *ngapType.UEContextRequest
-	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
+	var (
+		rANUENGAPID               *ngapType.RANUENGAPID
+		nASPDU                    *ngapType.NASPDU
+		userLocationInformation   *ngapType.UserLocationInformation
+		rRCEstablishmentCause     *ngapType.RRCEstablishmentCause
+		fiveGSTMSI                *ngapType.FiveGSTMSI
+		uEContextRequest          *ngapType.UEContextRequest
+		iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -50,6 +55,7 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 			rANUENGAPID = ie.Value.RANUENGAPID
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
+
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDRANUENGAPID)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
@@ -57,6 +63,7 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 			nASPDU = ie.Value.NASPDU
 			if nASPDU == nil {
 				ran.Log.Error("NasPdu is nil")
+
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDNASPDU)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
@@ -64,6 +71,7 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 			userLocationInformation = ie.Value.UserLocationInformation
 			if userLocationInformation == nil {
 				ran.Log.Error("UserLocationInformation is nil")
+
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDUserLocationInformation)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
@@ -82,12 +90,15 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 	if len(iesCriticalityDiagnostics.List) > 0 {
 		ran.Log.Debug("has missing reject IE(s)")
+
 		criticalityDiagnostics := buildCriticalityDiagnostics(ngapType.ProcedureCodeInitialUEMessage, ngapType.TriggeringMessagePresentInitiatingMessage, ngapType.CriticalityPresentIgnore, &iesCriticalityDiagnostics)
+
 		err := ran.NGAPSender.SendErrorIndication(ctx, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent error indication")
 	}
 
@@ -97,15 +108,18 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		if err != nil {
 			ran.Log.Error(err.Error())
 		}
+
 		ranUe = nil
 	}
 
 	if ranUe == nil {
 		var err error
+
 		ranUe, err = ran.NewUe(rANUENGAPID.Value)
 		if err != nil {
 			ran.Log.Error("Failed to add Ran UE to the pool", zap.Error(err))
 		}
+
 		ran.Log.Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 		if fiveGSTMSI != nil {
@@ -134,8 +148,10 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 				if amfUe.RanUe != nil {
 					ranUe.Log.Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+
 					amfUe.RanUe = nil
 				}
+
 				ranUe.Log.Debug("AmfUe Attach RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 				amfUe.AttachRanUe(ranUe)
 			}
@@ -156,6 +172,7 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 	if uEContextRequest != nil {
 		ran.Log.Debug("Trigger initial Context Setup procedure")
+
 		ranUe.UeContextRequest = true
 	} else {
 		ranUe.UeContextRequest = false

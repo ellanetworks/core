@@ -16,12 +16,14 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 		return
 	}
 
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var sourceAMFUENGAPID *ngapType.AMFUENGAPID
-	var userLocationInformation *ngapType.UserLocationInformation
-	var uESecurityCapabilities *ngapType.UESecurityCapabilities
-	var pduSessionResourceToBeSwitchedInDLList *ngapType.PDUSessionResourceToBeSwitchedDLList
-	var pduSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListPSReq
+	var (
+		rANUENGAPID                            *ngapType.RANUENGAPID
+		sourceAMFUENGAPID                      *ngapType.AMFUENGAPID
+		userLocationInformation                *ngapType.UserLocationInformation
+		uESecurityCapabilities                 *ngapType.UESecurityCapabilities
+		pduSessionResourceToBeSwitchedInDLList *ngapType.PDUSessionResourceToBeSwitchedDLList
+		pduSessionResourceFailedToSetupList    *ngapType.PDUSessionResourceFailedToSetupListPSReq
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -60,12 +62,15 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 	ranUe := amf.FindRanUeByAmfUeNgapID(sourceAMFUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", sourceAMFUENGAPID.Value))
+
 		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
 			ran.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent path switch request failure", zap.Int64("sourceAMFUENGAPID", sourceAMFUENGAPID.Value))
+
 		return
 	}
 
@@ -75,23 +80,29 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
 		ranUe.Log.Error("AmfUe is nil")
+
 		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
 			ranUe.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
 		}
+
 		ranUe.Log.Info("sent path switch request failure")
+
 		return
 	}
 
 	if !amfUe.SecurityContextIsValid() {
 		ranUe.Log.Error("No Security Context", zap.String("supi", amfUe.Supi))
+
 		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
 			ranUe.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
 		}
+
 		ranUe.Log.Info("sent path switch request failure", zap.String("supi", amfUe.Supi))
+
 		return
 	}
 
@@ -117,23 +128,28 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 
 	ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 
-	var pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList
-	var pduSessionResourceReleasedListPSAck ngapType.PDUSessionResourceReleasedListPSAck
-	var pduSessionResourceReleasedListPSFail ngapType.PDUSessionResourceReleasedListPSFail
+	var (
+		pduSessionResourceSwitchedList       ngapType.PDUSessionResourceSwitchedList
+		pduSessionResourceReleasedListPSAck  ngapType.PDUSessionResourceReleasedListPSAck
+		pduSessionResourceReleasedListPSFail ngapType.PDUSessionResourceReleasedListPSFail
+	)
 
 	if pduSessionResourceToBeSwitchedInDLList != nil {
 		for _, item := range pduSessionResourceToBeSwitchedInDLList.List {
 			pduSessionID := uint8(item.PDUSessionID.Value)
 			transfer := item.PathSwitchRequestTransfer
+
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			}
+
 			n2Rsp, err := pdusession.UpdateSmContextXnHandoverPathSwitchReq(ctx, smContext.Ref, transfer)
 			if err != nil {
 				ranUe.Log.Error("SendUpdateSmContextXnHandover[PathSwitchRequestTransfer] Error", zap.Error(err))
 				continue
 			}
+
 			pduSessionResourceSwitchedItem := ngapType.PDUSessionResourceSwitchedItem{}
 			pduSessionResourceSwitchedItem.PDUSessionID.Value = int64(pduSessionID)
 			pduSessionResourceSwitchedItem.PathSwitchRequestAcknowledgeTransfer = n2Rsp
@@ -145,10 +161,12 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 		for _, item := range pduSessionResourceFailedToSetupList.List {
 			pduSessionID := uint8(item.PDUSessionID.Value)
 			transfer := item.PathSwitchRequestSetupFailedTransfer
+
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			}
+
 			err := pdusession.UpdateSmContextHandoverFailed(smContext.Ref, transfer)
 			if err != nil {
 				ranUe.Log.Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err))
@@ -164,11 +182,13 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 			ranUe.Log.Error(err.Error())
 			return
 		}
+
 		operatorInfo, err := amf.GetOperatorInfo(ctx)
 		if err != nil {
 			ranUe.Log.Error("Get Operator Info Error", zap.Error(err))
 			return
 		}
+
 		err = ranUe.Radio.NGAPSender.SendPathSwitchRequestAcknowledge(
 			ctx,
 			ranUe.AmfUeNgapID,
@@ -184,6 +204,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 			ranUe.Log.Error("error sending path switch request acknowledge", zap.Error(err))
 			return
 		}
+
 		ranUe.Log.Info("sent path switch request acknowledge")
 	} else if len(pduSessionResourceReleasedListPSFail.List) > 0 {
 		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, &pduSessionResourceReleasedListPSFail, nil)
@@ -191,6 +212,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 			ranUe.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
 		}
+
 		ranUe.Log.Info("sent path switch request failure")
 	} else {
 		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
@@ -198,6 +220,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 			ranUe.Log.Error("error sending path switch request failure", zap.Error(err))
 			return
 		}
+
 		ranUe.Log.Info("sent path switch request failure")
 	}
 }

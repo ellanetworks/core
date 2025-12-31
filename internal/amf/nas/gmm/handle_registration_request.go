@@ -75,6 +75,7 @@ func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 			if err1 != nil {
 				return fmt.Errorf("error sending registration reject after error decrypting: %v", err1)
 			}
+
 			return fmt.Errorf("failed to decrypt NAS message - sent registration reject: %v", err)
 		}
 
@@ -85,6 +86,7 @@ func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 			if err1 != nil {
 				return fmt.Errorf("error sending registration reject after error decoding: %v", err1)
 			}
+
 			return fmt.Errorf("failed to decode NAS message - sent registration reject: %v", err)
 		}
 
@@ -125,7 +127,9 @@ func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 		ue.Log.Debug("No Identity used for registration")
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		ue.Log.Debug("UE used SUCI identity for registration")
+
 		var plmnID string
+
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
 		ue.PlmnID = plmnIDStringToModels(plmnID)
 	case nasMessage.MobileIdentity5GSType5gGuti:
@@ -149,6 +153,7 @@ func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 	case nasMessage.TypeOfSecurityContextFlagMapped:
 		ue.NgKsi.Tsc = models.ScTypeMapped
 	}
+
 	ue.NgKsi.Ksi = int32(registrationRequest.NgksiAndRegistrationType5GS.GetNasKeySetIdentifiler())
 	if ue.NgKsi.Tsc == models.ScTypeNative && ue.NgKsi.Ksi != 7 {
 	} else {
@@ -190,6 +195,7 @@ func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 	logger.AmfLog.Debug("Handle Registration Request", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleRegistrationRequest")
+
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State)),
@@ -203,15 +209,19 @@ func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 		}
 
 		ue.State = amfContext.Authentication
+
 		pass, err := AuthenticationProcedure(ctx, amf, ue)
 		if err != nil {
 			ue.State = amfContext.Deregistered
+
 			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
 			}
+
 			return nil
 		}
+
 		if pass {
 			ue.State = amfContext.SecurityMode
 			return securityMode(ctx, amf, ue)
@@ -227,6 +237,7 @@ func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 	case amfContext.ContextSetup:
 		ue.State = amfContext.Deregistered
 		ue.Log.Info("state reset to Deregistered")
+
 		return nil
 	default:
 		return fmt.Errorf("state mismatch: receive Registration Request message in state %s", ue.State)

@@ -21,6 +21,7 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 	logger.AmfLog.Debug("Handle Authentication Response", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleAuthenticationResponse")
+
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State)),
@@ -61,11 +62,14 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 			if err != nil {
 				return fmt.Errorf("send identity request error: %s", err)
 			}
+
 			ue.Log.Info("sent identity request")
+
 			return nil
 		}
 
 		ue.State = amfContext.Deregistered
+
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
@@ -83,7 +87,9 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 			if err != nil {
 				return fmt.Errorf("send identity request error: %s", err)
 			}
+
 			ue.Log.Info("sent identity request")
+
 			return nil
 		}
 

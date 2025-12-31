@@ -97,6 +97,7 @@ func hashPassword(password string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return string(pw), nil
 }
 
@@ -117,6 +118,7 @@ func ListUsers(dbInstance *db.Database) http.Handler {
 		}
 
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
@@ -163,7 +165,9 @@ func GetUser(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
+
 			return
 		}
 
@@ -179,6 +183,7 @@ func GetUser(dbInstance *db.Database) http.Handler {
 func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
 			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
@@ -191,7 +196,9 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
+
 			return
 		}
 
@@ -260,7 +267,9 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusBadRequest, "User already exists", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to create user", err, logger.APILog)
+
 			return
 		}
 
@@ -279,6 +288,7 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 func UpdateUser(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		requester, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
@@ -310,7 +320,9 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to update user", err, logger.APILog)
+
 			return
 		}
 
@@ -323,6 +335,7 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		requester, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
@@ -359,7 +372,9 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to update password", err, logger.APILog)
+
 			return
 		}
 
@@ -372,6 +387,7 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 func UpdateMyUserPassword(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
 			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
@@ -412,6 +428,7 @@ func UpdateMyUserPassword(dbInstance *db.Database) http.Handler {
 func DeleteUser(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		requester, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
@@ -430,7 +447,9 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to delete user", err, logger.APILog)
+
 			return
 		}
 
@@ -484,6 +503,7 @@ func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 			if token.ExpiresAt != nil {
 				expiresAt = token.ExpiresAt.Format(time.RFC3339)
 			}
+
 			items = append(items, APIToken{
 				ID:        token.TokenID,
 				Name:      token.Name,
@@ -509,8 +529,10 @@ func randAlphaNum(n int) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		b[i] = lettersAndDigits[x.Int64()]
 	}
+
 	return string(b), nil
 }
 
@@ -527,6 +549,7 @@ func hashAPIToken(token string) string {
 func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
 			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
@@ -558,6 +581,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 		}
 
 		var expiresAt *time.Time
+
 		if params.ExpiresAt != "" {
 			t, err := time.Parse(time.RFC3339, params.ExpiresAt)
 			if err != nil {
@@ -588,6 +612,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 		if err != nil {
 			logger.APILog.Error("Failed to generate token ID", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Failed to generate token ID", err, logger.APILog)
+
 			return
 		}
 
@@ -595,6 +620,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 		if err != nil {
 			logger.APILog.Error("Failed to generate secret", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Failed to generate secret", err, logger.APILog)
+
 			return
 		}
 
@@ -616,7 +642,9 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusConflict, "API token already exists", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to create API token", err, logger.APILog)
+
 			return
 		}
 
@@ -639,6 +667,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
 			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
@@ -673,6 +702,7 @@ func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 		if err := dbInstance.DeleteAPIToken(r.Context(), token.ID); err != nil {
 			logger.APILog.Warn("Failed to delete API token", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Failed to delete API token", err, logger.APILog)
+
 			return
 		}
 

@@ -35,6 +35,7 @@ func (c *Client) GetMetrics(ctx context.Context) (map[string]float64, error) {
 // a map of metric names to their float values.
 func parsePrometheusMetrics(data string) (map[string]float64, error) {
 	metrics := make(map[string]float64)
+
 	lines := strings.Split(data, "\n")
 	for _, line := range lines {
 		// Trim spaces and skip empty lines or comments.
@@ -47,11 +48,14 @@ func parsePrometheusMetrics(data string) (map[string]float64, error) {
 		if len(parts) < 2 {
 			continue
 		}
+
 		value, err := strconv.ParseFloat(parts[1], 64)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse metric %s: %w", parts[0], err)
 		}
+
 		metrics[parts[0]] = value
 	}
+
 	return metrics, nil
 }

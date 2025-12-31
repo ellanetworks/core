@@ -31,6 +31,7 @@ func writeResponse(w http.ResponseWriter, v any, status int, logger *zap.Logger)
 	if err != nil {
 		logger.Error("Error marshalling response", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
 
@@ -41,6 +42,7 @@ func writeResponse(w http.ResponseWriter, v any, status int, logger *zap.Logger)
 	if _, err := w.Write(respBytes); err != nil {
 		logger.Error("Error writing response", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
 }
@@ -55,6 +57,7 @@ func writeError(w http.ResponseWriter, status int, message string, err error, lo
 	if err != nil {
 		logger.Error("Error marshalling error response", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
 

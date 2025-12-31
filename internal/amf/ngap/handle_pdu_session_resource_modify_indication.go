@@ -14,10 +14,12 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pduSessionResourceModifyIndicationList *ngapType.PDUSessionResourceModifyListModInd
-	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
+	var (
+		aMFUENGAPID                            *ngapType.AMFUENGAPID
+		rANUENGAPID                            *ngapType.RANUENGAPID
+		pduSessionResourceModifyIndicationList *ngapType.PDUSessionResourceModifyListModInd
+		iesCriticalityDiagnostics              ngapType.CriticalityDiagnosticsIEList
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -25,6 +27,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 			aMFUENGAPID = ie.Value.AMFUENGAPID
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
+
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDAMFUENGAPID)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
@@ -32,6 +35,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 			rANUENGAPID = ie.Value.RANUENGAPID
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
+
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDRANUENGAPID)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
@@ -39,6 +43,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 			pduSessionResourceModifyIndicationList = ie.Value.PDUSessionResourceModifyListModInd
 			if pduSessionResourceModifyIndicationList == nil {
 				ran.Log.Error("PDUSessionResourceModifyListModInd is nil")
+
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDPDUSessionResourceModifyListModInd)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
@@ -47,13 +52,17 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 
 	if len(iesCriticalityDiagnostics.List) > 0 {
 		ran.Log.Error("Has missing reject IE(s)")
+
 		criticalityDiagnostics := buildCriticalityDiagnostics(ngapType.ProcedureCodePDUSessionResourceModifyIndication, ngapType.TriggeringMessagePresentInitiatingMessage, ngapType.CriticalityPresentReject, &iesCriticalityDiagnostics)
+
 		err := ran.NGAPSender.SendErrorIndication(ctx, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent error indication")
+
 		return
 	}
 
@@ -66,12 +75,15 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
+
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent error indication")
+
 		return
 	}
 

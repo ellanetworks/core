@@ -254,8 +254,10 @@ func (amf *AMF) ListRadios() []Radio {
 
 func (amf *AMF) RemoveRadio(ran *Radio) {
 	ran.RemoveAllUeInRan()
+
 	amf.Mutex.Lock()
 	defer amf.Mutex.Unlock()
+
 	delete(amf.Radios, ran.Conn)
 }
 
@@ -295,6 +297,7 @@ func (amf *AMF) Get5gsNwFeatSuppImsVoPS() uint8 {
 	if amf.NetworkFeatureSupport5GS != nil {
 		return amf.NetworkFeatureSupport5GS.ImsVoPS
 	}
+
 	return 0
 }
 
@@ -302,6 +305,7 @@ func (amf *AMF) Get5gsNwFeatSuppEnable() bool {
 	if amf.NetworkFeatureSupport5GS != nil {
 		return amf.NetworkFeatureSupport5GS.Enable
 	}
+
 	return true
 }
 
@@ -309,6 +313,7 @@ func (amf *AMF) Get5gsNwFeatSuppEmcN3() uint8 {
 	if amf.NetworkFeatureSupport5GS != nil {
 		return amf.NetworkFeatureSupport5GS.EmcN3
 	}
+
 	return 0
 }
 
@@ -316,6 +321,7 @@ func (amf *AMF) Get5gsNwFeatSuppEmc() uint8 {
 	if amf.NetworkFeatureSupport5GS != nil {
 		return amf.NetworkFeatureSupport5GS.Emc
 	}
+
 	return 0
 }
 
@@ -323,6 +329,7 @@ func (amf *AMF) Get5gsNwFeatSuppEmf() uint8 {
 	if amf.NetworkFeatureSupport5GS != nil {
 		return amf.NetworkFeatureSupport5GS.Emf
 	}
+
 	return 0
 }
 
@@ -330,6 +337,7 @@ func (amf *AMF) Get5gsNwFeatSuppIwkN26() uint8 {
 	if amf.NetworkFeatureSupport5GS != nil {
 		return amf.NetworkFeatureSupport5GS.IwkN26
 	}
+
 	return 0
 }
 
@@ -337,6 +345,7 @@ func (amf *AMF) Get5gsNwFeatSuppMpsi() uint8 {
 	if amf.NetworkFeatureSupport5GS != nil {
 		return amf.NetworkFeatureSupport5GS.Mpsi
 	}
+
 	return 0
 }
 
@@ -344,6 +353,7 @@ func (amf *AMF) Get5gsNwFeatSuppMcsi() uint8 {
 	if amf.NetworkFeatureSupport5GS != nil {
 		return amf.NetworkFeatureSupport5GS.Mcsi
 	}
+
 	return 0
 }
 
@@ -362,5 +372,6 @@ func (amf *AMF) StmsiToGuti(ctx context.Context, buf [7]byte) (string, error) {
 	tmsi5G := hex.EncodeToString(buf[3:])
 
 	guti := operatorInfo.Guami.PlmnID.Mcc + operatorInfo.Guami.PlmnID.Mnc + tmpReginID + amfID + tmsi5G
+
 	return guti, nil
 }

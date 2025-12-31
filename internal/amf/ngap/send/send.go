@@ -515,5 +515,6 @@ func (s *RealNGAPSender) SendHandoverRequest(
 func nativeToNetworkEndianness32(value uint32) uint32 {
 	var b [4]byte
 	binary.NativeEndian.PutUint32(b[:], value)
+
 	return binary.BigEndian.Uint32(b[:])
 }

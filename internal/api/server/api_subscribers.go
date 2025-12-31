@@ -106,6 +106,7 @@ func isSequenceNumberValid(sequenceNumber string) bool {
 	if err != nil {
 		return false
 	}
+
 	return len(bytes) == 6
 }
 
@@ -189,7 +190,9 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber", err, logger.APILog)
+
 			return
 		}
 
@@ -227,6 +230,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 func CreateSubscriber(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
+
 		var params CreateSubscriberParams
 
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
@@ -270,6 +274,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		keyBytes, _ := hex.DecodeString(params.Key)
+
 		opcHex := params.Opc
 		if opcHex == "" {
 			operatorCode, err := dbInstance.GetOperatorCode(r.Context())
@@ -277,6 +282,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusInternalServerError, "Failed to get operator code", err, logger.APILog)
 				return
 			}
+
 			opBytes, _ := hex.DecodeString(operatorCode)
 			derivedOPC, _ := deriveOPc(keyBytes, opBytes)
 			opcHex = hex.EncodeToString(derivedOPC)
@@ -314,6 +320,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			}
 
 			writeError(w, http.StatusInternalServerError, "Failed to create subscriber", err, logger.APILog)
+
 			return
 		}
 
@@ -326,6 +333,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
+
 		imsi := r.PathValue("imsi")
 		if imsi == "" {
 			writeError(w, http.StatusBadRequest, "Missing imsi parameter", errors.New("imsi required"), logger.APILog)
@@ -369,7 +377,9 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to update subscriber", err, logger.APILog)
+
 			return
 		}
 
@@ -393,7 +403,9 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber", err, logger.APILog)
+
 			return
 		}
 
@@ -410,7 +422,9 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to delete subscriber", err, logger.APILog)
+
 			return
 		}
 

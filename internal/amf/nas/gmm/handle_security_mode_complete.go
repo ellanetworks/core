@@ -17,6 +17,7 @@ func handleSecurityModeComplete(ctx context.Context, amf *amfContext.AMF, ue *am
 	logger.AmfLog.Debug("Handle Security Mode Complete", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleSecurityModeComplete")
+
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State)),

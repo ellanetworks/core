@@ -138,9 +138,11 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 			span.SetStatus(codes.Ok, "operator not initialized")
 			return false
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 		logger.DBLog.Error("Failed to get operator", zap.Error(err))
+
 		return false
 	}
 
@@ -166,6 +168,7 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return fmt.Errorf("failed to initialize operator configuration: %w", err)
 	}
 
@@ -194,6 +197,7 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, fmt.Errorf("failed to get operator: %w", err)
 	}
 
@@ -222,6 +226,7 @@ func (db *Database) UpdateOperatorSlice(ctx context.Context, sst int32, sd []byt
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return fmt.Errorf("failed to update operator slice: %w", err)
 	}
 
@@ -250,6 +255,7 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to set supported TACs")
+
 		return fmt.Errorf("failed to set supported TACs: %w", err)
 	}
 
@@ -257,6 +263,7 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return fmt.Errorf("failed to update operator tracking area code: %w", err)
 	}
 
@@ -285,6 +292,7 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return fmt.Errorf("failed to update operator ID: %w", err)
 	}
 
@@ -313,6 +321,7 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return "", err
 	}
 
@@ -341,6 +350,7 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return fmt.Errorf("failed to update operator code: %w", err)
 	}
 
@@ -369,6 +379,7 @@ func (db *Database) UpdateHomeNetworkPrivateKey(ctx context.Context, privateKey 
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return fmt.Errorf("failed to update operator home network private key: %w", err)
 	}
 
@@ -397,6 +408,7 @@ func (db *Database) GetHomeNetworkPrivateKey(ctx context.Context) (string, error
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return "", err
 	}
 

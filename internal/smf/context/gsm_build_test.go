@@ -62,8 +62,8 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 		t.Errorf("SNSSAI IE is missing")
 	}
 
-	if nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetLen() != 4 {
-		t.Errorf("expected SNSSAI length 1, got %d", nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetLen())
+	if nasMsg.PDUSessionEstablishmentAccept.SNSSAI.GetLen() != 4 {
+		t.Errorf("expected SNSSAI length 1, got %d", nasMsg.PDUSessionEstablishmentAccept.SNSSAI.GetLen())
 	}
 
 	if nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetSST() != 1 {

@@ -14,6 +14,7 @@ import (
 func UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef string, n2Data []byte) error {
 	ctx, span := tracer.Start(ctx, "SMF Update SmContext PDU Resource Setup Response")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("smf.smContextRef", smContextRef),
 	)
@@ -56,6 +57,7 @@ func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smC
 
 	pdrList := []*smfContext.PDR{}
 	farList := []*smfContext.FAR{}
+
 	dataPath := smContext.Tunnel.DataPath
 	if dataPath.Activated {
 		ANUPF := dataPath.DPNode

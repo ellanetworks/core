@@ -27,37 +27,45 @@ func updateUEIdentity(ue *amfContext.AmfUe, mobileIdentityContents []uint8) erro
 	switch nasConvert.GetTypeOfIdentity(mobileIdentityContents[0]) {
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		var plmnID string
+
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentityContents)
 		ue.PlmnID = plmnIDStringToModels(plmnID)
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
+
 		_, guti := nasConvert.GutiToString(mobileIdentityContents)
 		ue.Guti = guti
 	case nasMessage.MobileIdentity5GSType5gSTmsi:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
+
 		sTmsi := hex.EncodeToString(mobileIdentityContents[1:])
+
 		tmp, err := strconv.ParseInt(sTmsi[4:], 10, 32)
 		if err != nil {
 			return fmt.Errorf("could not parse 5G-S-TMSI: %v", err)
 		}
+
 		ue.Tmsi = int32(tmp)
 	case nasMessage.MobileIdentity5GSTypeImei:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
+
 		imei := nasConvert.PeiToString(mobileIdentityContents)
 		ue.Pei = imei
 	case nasMessage.MobileIdentity5GSTypeImeisv:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
+
 		imeisv := nasConvert.PeiToString(mobileIdentityContents)
 		ue.Pei = imeisv
 	}
+
 	return nil
 }
 
@@ -65,6 +73,7 @@ func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfCon
 	logger.AmfLog.Debug("Handle Identity Response", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleIdentityResponse")
+
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State)),
@@ -80,11 +89,13 @@ func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfCon
 		}
 
 		ue.State = amfContext.Authentication
+
 		pass, err := AuthenticationProcedure(ctx, amf, ue)
 		if err != nil {
 			ue.State = amfContext.Deregistered
 			return fmt.Errorf("error in authentication procedure: %v", err)
 		}
+
 		if pass {
 			ue.State = amfContext.SecurityMode
 			return securityMode(ctx, amf, ue)
@@ -98,6 +109,7 @@ func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfCon
 		if err := updateUEIdentity(ue, mobileIdentityContents); err != nil {
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
+
 		switch ue.RegistrationType5GS {
 		case nasMessage.RegistrationType5GSInitialRegistration:
 			if err := HandleInitialRegistration(ctx, amf, ue); err != nil {
@@ -115,5 +127,6 @@ func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfCon
 	default:
 		return fmt.Errorf("state mismatch: receive Identity Response message in state %s", ue.State)
 	}
+
 	return nil
 }

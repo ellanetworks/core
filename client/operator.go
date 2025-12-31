@@ -65,6 +65,7 @@ func (c *Client) GetOperator(ctx context.Context) (*Operator, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &operatorResponse, nil
 }
 
@@ -93,6 +94,7 @@ func (c *Client) UpdateOperatorID(ctx context.Context, opts *UpdateOperatorIDOpt
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -121,6 +123,7 @@ func (c *Client) UpdateOperatorSlice(ctx context.Context, opts *UpdateOperatorSl
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -147,6 +150,7 @@ func (c *Client) UpdateOperatorTracking(ctx context.Context, opts *UpdateOperato
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -173,5 +177,6 @@ func (c *Client) UpdateOperatorHomeNetwork(ctx context.Context, opts *UpdateOper
 	if err != nil {
 		return err
 	}
+
 	return nil
 }

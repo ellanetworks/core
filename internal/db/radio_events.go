@@ -101,6 +101,7 @@ func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.R
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -140,6 +141,7 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 	if err != nil && err != sql.ErrNoRows {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
+
 		return nil, 0, err
 	}
 
@@ -152,8 +154,10 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, total.Count, nil
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, 0, err
 	}
 
@@ -186,6 +190,7 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -211,6 +216,7 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -240,8 +246,10 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, err
 	}
 

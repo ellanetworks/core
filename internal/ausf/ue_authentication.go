@@ -22,6 +22,7 @@ var tracer = otel.Tracer("ella-core/ausf")
 func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo models.AuthenticationInfo) (*models.Av5gAka, error) {
 	ctx, span := tracer.Start(ctx, "AUSF UEAuthentication PostRequest")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("ue.suci", updateAuthenticationInfo.Suci),
 	)
@@ -30,6 +31,7 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 
 	snName := updateAuthenticationInfo.ServingNetworkName
 	servingNetworkAuthorized := isServingNetworkAuthorized(snName)
+
 	if !servingNetworkAuthorized {
 		return nil, fmt.Errorf("serving network not authorized: %s", snName)
 	}
@@ -43,6 +45,7 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 		if ausfCurrentContext == nil {
 			return nil, fmt.Errorf("ue context not found for suci: %v", suci)
 		}
+
 		updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 	}

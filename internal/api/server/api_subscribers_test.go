@@ -105,20 +105,25 @@ func getSubscriber(url string, client *http.Client, token string, imsi string) (
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var subscriberResponse GetSubscriberResponse
 	if err := json.NewDecoder(res.Body).Decode(&subscriberResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &subscriberResponse, nil
 }
 
@@ -127,24 +132,30 @@ func createSubscriber(url string, client *http.Client, token string, data *Creat
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/subscribers", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var createResponse CreateSubscriberResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &createResponse, nil
 }
 
@@ -153,20 +164,25 @@ func deleteSubscriber(url string, client *http.Client, token string, imsi string
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var deleteResponse DeleteSubscriberResponse
 	if err := json.NewDecoder(res.Body).Decode(&deleteResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &deleteResponse, nil
 }
 
@@ -176,11 +192,13 @@ func deleteSubscriber(url string, client *http.Client, token string, imsi string
 func TestSubscribersApiEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -195,13 +213,16 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			IPPool: IPPool,
 			DNS:    DNS,
 		}
+
 		statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -216,13 +237,16 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			Arp:             1,
 			DataNetworkName: "whatever",
 		}
+
 		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -236,16 +260,20 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			SequenceNumber: SequenceNumber,
 			PolicyName:     PolicyName,
 		}
+
 		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if response.Result.Message != "Subscriber created successfully" {
 			t.Fatalf("expected message 'Subscriber created successfully', got %q", response.Result.Message)
 		}
@@ -256,24 +284,31 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.Imsi != Imsi {
 			t.Fatalf("expected imsi %s, got %s", Imsi, response.Result.Imsi)
 		}
+
 		if response.Result.OPc != Opc {
 			t.Fatalf("expected opc %s, got %s", Opc, response.Result.OPc)
 		}
+
 		if response.Result.Key != Key {
 			t.Fatalf("expected key %s, got %s", Key, response.Result.Key)
 		}
+
 		if response.Result.SequenceNumber != SequenceNumber {
 			t.Fatalf("expected sequenceNumber %s, got %s", SequenceNumber, response.Result.SequenceNumber)
 		}
+
 		if response.Result.PolicyName != PolicyName {
 			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -284,9 +319,11 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 		}
+
 		if response.Error != "Subscriber not found" {
 			t.Fatalf("expected error %q, got %q", "Subscriber not found", response.Error)
 		}
@@ -294,13 +331,16 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 	t.Run("5. Create subscriber - no Imsi", func(t *testing.T) {
 		createSubscriberParams := &CreateSubscriberParams{}
+
 		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
+
 		if response.Error != "Missing imsi parameter" {
 			t.Fatalf("expected error %q, got %q", "Missing imsi parameter", response.Error)
 		}
@@ -311,12 +351,15 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if response.Result.Message != "Subscriber deleted successfully" {
 			t.Fatalf("expected message 'Subscriber deleted successfully', got %q", response.Result.Message)
 		}
@@ -327,9 +370,11 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 		}
+
 		if response.Error != "Subscriber not found" {
 			t.Fatalf("expected error %q, got %q", "Subscriber not found", response.Error)
 		}
@@ -343,16 +388,20 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			SequenceNumber: SequenceNumber,
 			PolicyName:     PolicyName,
 		}
+
 		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if response.Result.Message != "Subscriber created successfully" {
 			t.Fatalf("expected message 'Subscriber created successfully', got %q", response.Result.Message)
 		}
@@ -363,24 +412,31 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.Imsi != Imsi {
 			t.Fatalf("expected imsi %s, got %s", Imsi, response.Result.Imsi)
 		}
+
 		if response.Result.OPc != Opc {
 			t.Fatalf("expected opc %s, got %s", Opc, response.Result.OPc)
 		}
+
 		if response.Result.Key != Key {
 			t.Fatalf("expected key %s, got %s", Key, response.Result.Key)
 		}
+
 		if response.Result.SequenceNumber != SequenceNumber {
 			t.Fatalf("expected sequenceNumber %s, got %s", SequenceNumber, response.Result.SequenceNumber)
 		}
+
 		if response.Result.PolicyName != PolicyName {
 			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -390,11 +446,13 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 func TestCreateSubscriberInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -465,13 +523,16 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 				SequenceNumber: tt.sequenceNumber,
 				PolicyName:     PolicyName,
 			}
+
 			statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
 			if err != nil {
 				t.Fatalf("couldn't create subscriber: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
@@ -482,11 +543,13 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 func TestCreateSubscriberValidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -557,11 +620,13 @@ func TestCreateSubscriberValidInput(t *testing.T) {
 func TestCreateTooManySubscribers(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -575,13 +640,16 @@ func TestCreateTooManySubscribers(t *testing.T) {
 		IPPool: IPPool,
 		DNS:    DNS,
 	}
+
 	statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
 	if err != nil {
 		t.Fatalf("couldn't create data network: %s", err)
 	}
+
 	if statusCode != http.StatusCreated {
 		t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 	}
+
 	if response.Error != "" {
 		t.Fatalf("unexpected error :%q", response.Error)
 	}
@@ -594,13 +662,16 @@ func TestCreateTooManySubscribers(t *testing.T) {
 		Arp:             1,
 		DataNetworkName: "whatever",
 	}
+
 	statusCode, createPolicyResponse, err := createPolicy(ts.URL, client, token, createPolicyParams)
 	if err != nil {
 		t.Fatalf("couldn't create policy: %s", err)
 	}
+
 	if statusCode != http.StatusCreated {
 		t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 	}
+
 	if createPolicyResponse.Error != "" {
 		t.Fatalf("unexpected error :%q", createPolicyResponse.Error)
 	}
@@ -616,13 +687,16 @@ func TestCreateTooManySubscribers(t *testing.T) {
 			PolicyName:     PolicyName,
 		}
 		t.Log("Creating subscriber:", createSubscriberParams.Imsi)
+
 		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -635,13 +709,16 @@ func TestCreateTooManySubscribers(t *testing.T) {
 		SequenceNumber: SequenceNumber,
 		PolicyName:     PolicyName,
 	}
+
 	statusCode, createSubscriberResponse, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
 	if err != nil {
 		t.Fatalf("couldn't create subscriber: %s", err)
 	}
+
 	if statusCode != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 	}
+
 	if createSubscriberResponse.Error != "Maximum number of subscribers reached (1000)" {
 		t.Fatalf("expected error %q, got %q", "Maximum number of subscribers reached (1000)", createSubscriberResponse.Error)
 	}

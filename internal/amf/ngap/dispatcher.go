@@ -43,17 +43,20 @@ func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 	ran, ok := amf.FindRadioByConn(conn)
 	if !ok {
 		var err error
+
 		ran, err = amf.NewRadio(conn)
 		if err != nil {
 			logger.AmfLog.Error("Failed to add a new radio", zap.Error(err))
 			return
 		}
+
 		logger.AmfLog.Info("Added a new radio", zap.String("address", remoteAddress.String()))
 	}
 
 	if len(msg) == 0 {
 		ran.Log.Info("RAN close the connection.")
 		amf.RemoveRadio(ran)
+
 		return
 	}
 
@@ -80,6 +83,7 @@ func DispatchNgapMsg(amf *amfContext.AMF, ran *amfContext.Radio, pdu *ngapType.N
 	messageType := getMessageType(pdu)
 
 	spanName := fmt.Sprintf("AMF NGAP %s", messageType)
+
 	ctx, span := tracer.Start(context.Background(), spanName,
 		trace.WithAttributes(
 			attribute.String("ngap.pdu_present", fmt.Sprintf("%d", pdu.Present)),
@@ -190,6 +194,7 @@ func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification)
 	}
 
 	amf.Mutex.Lock()
+
 	for _, amfRan := range amf.Radios {
 		errorConn := sctp.NewSCTPConn(-1, nil)
 		if reflect.DeepEqual(amfRan.Conn, errorConn) {
@@ -197,11 +202,13 @@ func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification)
 			ran.Log.Info("removed stale entry in AmfRan pool")
 		}
 	}
+
 	amf.Mutex.Unlock()
 
 	switch notification.Type() {
 	case sctp.SCTPAssocChange:
 		ran.Log.Info("SCTPAssocChange notification")
+
 		event := notification.(*sctp.SCTPAssocChangeEvent)
 		switch event.State() {
 		case sctp.SCTPCommLost:

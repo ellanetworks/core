@@ -14,10 +14,12 @@ func HandleUEContextModificationResponse(ctx context.Context, amf *amfContext.AM
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var rRCState *ngapType.RRCState
-	var userLocationInformation *ngapType.UserLocationInformation
+	var (
+		aMFUENGAPID             *ngapType.AMFUENGAPID
+		rANUENGAPID             *ngapType.RANUENGAPID
+		rRCState                *ngapType.RRCState
+		userLocationInformation *ngapType.UserLocationInformation
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {

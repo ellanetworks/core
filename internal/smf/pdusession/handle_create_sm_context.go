@@ -62,6 +62,7 @@ func CreateSmContext(ctx context.Context, supi string, pduSessionID uint8, dnn s
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to send pdu session establishment reject n1 message: %v", err)
 		}
+
 		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
 	}
 
@@ -134,16 +135,19 @@ func handlePDUSessionSMContextCreate(
 		if err != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
+
 		return "", nil, 0, nil, nil, 0, rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
 	}
 
 	dnnInfo, err := smf.RetrieveDnnInformation(ctx, *snssai, dnn)
 	if err != nil {
 		logger.SmfLog.Warn("error retrieving DNN information", zap.String("SST", fmt.Sprintf("%d", snssai.Sst)), zap.String("SD", snssai.Sd), zap.String("DNN", dnn), zap.Error(err))
+
 		rsp, err := smfContext.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
 		if err != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
+
 		return "", nil, 0, nil, nil, 0, rsp, nil
 	}
 
@@ -153,20 +157,23 @@ func handlePDUSessionSMContextCreate(
 		if err != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
+
 		return "", nil, 0, nil, nil, 0, rsp, nil
 	}
 
 	logger.SmfLog.Info("Successfully allocated IP address", zap.String("IP", pduAddress.String()), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-	smContext.PDUSessionID = m.PDUSessionEstablishmentRequest.PDUSessionID.GetPDUSessionID()
+	smContext.PDUSessionID = m.PDUSessionEstablishmentRequest.GetPDUSessionID()
 
 	pco, err := handlePDUSessionEstablishmentRequest(m.PDUSessionEstablishmentRequest)
 	if err != nil {
 		logger.SmfLog.Error("failed to handle PDU Session Establishment Request", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+
 		response, err := smfContext.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
+
 		return "", nil, 0, nil, nil, 0, response, err
 	}
 
@@ -192,6 +199,7 @@ func handlePDUSessionSMContextCreate(
 		if err != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
+
 		return "", nil, 0, nil, nil, 0, response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
 
@@ -215,6 +223,7 @@ func handlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmen
 	if req.ExtendedProtocolConfigurationOptions != nil {
 		EPCOContents := req.ExtendedProtocolConfigurationOptions.GetExtendedProtocolConfigurationOptionsContents()
 		protocolConfigurationOptions := nasConvert.NewProtocolConfigurationOptions()
+
 		unmarshalErr := protocolConfigurationOptions.UnMarshal(EPCOContents)
 		if unmarshalErr != nil {
 			return nil, fmt.Errorf("parsing PCO failed: %v", unmarshalErr)
@@ -257,10 +266,12 @@ func sendPFCPRules(ctx context.Context, smf *smfContext.SMFContext, smContext *s
 
 	if curDataPathNode.UpLinkTunnel != nil && curDataPathNode.UpLinkTunnel.PDR != nil {
 		pdrList = append(pdrList, curDataPathNode.UpLinkTunnel.PDR)
+
 		farList = append(farList, curDataPathNode.UpLinkTunnel.PDR.FAR)
 		if curDataPathNode.UpLinkTunnel.PDR.QER != nil {
 			qerList = append(qerList, curDataPathNode.UpLinkTunnel.PDR.QER)
 		}
+
 		if curDataPathNode.UpLinkTunnel.PDR.URR != nil {
 			urrList = append(urrList, curDataPathNode.UpLinkTunnel.PDR.URR)
 		}
@@ -273,6 +284,7 @@ func sendPFCPRules(ctx context.Context, smf *smfContext.SMFContext, smContext *s
 		if curDataPathNode.DownLinkTunnel.PDR.QER != nil {
 			qerList = append(qerList, curDataPathNode.DownLinkTunnel.PDR.QER)
 		}
+
 		if curDataPathNode.DownLinkTunnel.PDR.URR != nil {
 			urrList = append(urrList, curDataPathNode.DownLinkTunnel.PDR.URR)
 		}

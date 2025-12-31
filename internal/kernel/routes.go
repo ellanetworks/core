@@ -70,6 +70,7 @@ func (rk *RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priori
 	if err := netlink.RouteAdd(&nlRoute); err != nil {
 		return fmt.Errorf("failed to add route: %v", err)
 	}
+
 	logger.EllaLog.Debug("Added route", zap.String("destination", destination.String()), zap.String("gateway", gateway.String()), zap.Int("priority", priority), zap.String("interface", interfaceName))
 
 	// Tells the kernel that the gateway is in use, and ARP requests should be sent out
@@ -99,6 +100,7 @@ func (rk *RealKernel) DeleteRoute(destination *net.IPNet, gateway net.IP, priori
 	if err := netlink.RouteDel(&nlRoute); err != nil {
 		return fmt.Errorf("failed to delete route: %v", err)
 	}
+
 	return nil
 }
 
@@ -114,8 +116,10 @@ func (rk *RealKernel) InterfaceExists(ifKey NetworkInterface) (bool, error) {
 		if _, ok := err.(netlink.LinkNotFoundError); ok {
 			return false, nil
 		}
+
 		return false, fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
 	}
+
 	return true, nil
 }
 
@@ -153,25 +157,30 @@ func (rk *RealKernel) filterForwarding() error {
 	if err != nil {
 		return fmt.Errorf("failed to access nftables: %v", err)
 	}
+
 	t := nftables.Table{
 		Name:   "filter",
 		Family: nftables.TableFamilyINet,
 	}
+
 	conn.AddTable(&t)
+
 	polDrop := nftables.ChainPolicyDrop
-	c := nftables.Chain{
+
+	conn.AddChain(&nftables.Chain{
 		Name:     "forward",
 		Priority: nftables.ChainPriorityFilter,
 		Table:    &t,
 		Hooknum:  nftables.ChainHookForward,
 		Type:     nftables.ChainTypeFilter,
 		Policy:   &polDrop,
-	}
-	conn.AddChain(&c)
+	})
+
 	err = conn.Flush()
 	if err != nil {
 		return fmt.Errorf("failed to install nftables rules: %v", err)
 	}
+
 	return nil
 }
 
@@ -192,11 +201,14 @@ func (rk *RealKernel) EnableIPForwarding() error {
 			return fmt.Errorf("failed to add firewall rules: %v", err)
 		}
 	}
+
 	err := os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to enable ip_forward: %v", err)
 	}
+
 	logger.EllaLog.Debug("Enabled IP forwarding")
+
 	return nil
 }
 
@@ -206,6 +218,7 @@ func (rk *RealKernel) IsIPForwardingEnabled() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to read ip_forward: %v", err)
 	}
+
 	return string(data) == "1", nil
 }
 
@@ -221,6 +234,7 @@ func (rk *RealKernel) EnsureGatewaysOnInterfaceInNeighTable(ifKey NetworkInterfa
 	}
 
 	nlRoute := netlink.Route{LinkIndex: link.Attrs().Index}
+
 	routes, err := netlink.RouteListFiltered(unix.AF_INET, &nlRoute, netlink.RT_FILTER_OIF)
 	if err != nil {
 		return fmt.Errorf("failed to list routes: %v", err)

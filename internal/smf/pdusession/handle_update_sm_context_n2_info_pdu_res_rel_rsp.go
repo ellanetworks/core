@@ -11,6 +11,7 @@ import (
 func UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "SMF Update SmContext PDU Resource Release Response")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("smf.smContextRef", smContextRef),
 	)

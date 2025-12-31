@@ -66,6 +66,7 @@ func (c *Client) CreateDataNetwork(ctx context.Context, opts *CreateDataNetworkO
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -85,6 +86,7 @@ func (c *Client) GetDataNetwork(ctx context.Context, opts *GetDataNetworkOptions
 	if err != nil {
 		return nil, err
 	}
+
 	return &dataNetworkResponse, nil
 }
 
@@ -97,6 +99,7 @@ func (c *Client) DeleteDataNetwork(ctx context.Context, opts *DeleteDataNetworkO
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 

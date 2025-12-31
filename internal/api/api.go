@@ -41,6 +41,7 @@ func GenerateJWTSecret() ([]byte, error) {
 	if _, err := rand.Read(bytes); err != nil {
 		return bytes, fmt.Errorf("failed to generate JWT secret: %w", err)
 	}
+
 	return bytes, nil
 }
 
@@ -67,6 +68,7 @@ func Start(dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, em
 		h2Server := &http2.Server{
 			IdleTimeout: 1 * time.Millisecond,
 		}
+
 		srv := &http.Server{
 			Addr:              httpAddr,
 			ReadHeaderTimeout: 5 * time.Second,
@@ -92,9 +94,11 @@ func Start(dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, em
 			if err != nil {
 				logger.APILog.Error("couldn't reconcile routes", zap.Error(err))
 			}
+
 			time.Sleep(5 * time.Minute)
 		}
 	}()
+
 	return nil
 }
 
@@ -103,34 +107,42 @@ func ReconcileKernelRouting(dbInstance *db.Database, kernelInt kernel.Kernel) er
 	if err != nil {
 		return fmt.Errorf("couldn't list routes: %v", err)
 	}
+
 	ipForwardingEnabled, err := kernelInt.IsIPForwardingEnabled()
 	if err != nil {
 		return fmt.Errorf("couldn't check if IP forwarding is enabled: %v", err)
 	}
+
 	if !ipForwardingEnabled {
 		err := kernelInt.EnableIPForwarding()
 		if err != nil {
 			return fmt.Errorf("couldn't enable IP forwarding: %v", err)
 		}
 	}
+
 	for _, route := range expectedRoutes {
 		_, ipNetwork, err := net.ParseCIDR(route.Destination)
 		if err != nil {
 			return fmt.Errorf("couldn't parse destination: %v", err)
 		}
+
 		ipGateway := net.ParseIP(route.Gateway)
 		if ipGateway == nil || ipGateway.To4() == nil {
 			return fmt.Errorf("invalid gateway: %v", route.Gateway)
 		}
+
 		ipGateway = ipGateway.To4()
+
 		kernelNetworkInterface, ok := interfaceDBKernelMap[route.Interface]
 		if !ok {
 			return fmt.Errorf("invalid interface: %v", route.Interface)
 		}
+
 		routeExists, err := kernelInt.RouteExists(ipNetwork, ipGateway, route.Metric, kernelNetworkInterface)
 		if err != nil {
 			return fmt.Errorf("couldn't check if route exists: %v", err)
 		}
+
 		if !routeExists {
 			err := kernelInt.CreateRoute(ipNetwork, ipGateway, route.Metric, kernelNetworkInterface)
 			if err != nil {
@@ -138,12 +150,15 @@ func ReconcileKernelRouting(dbInstance *db.Database, kernelInt kernel.Kernel) er
 			}
 		}
 	}
+
 	for _, netIf := range interfaceDBKernelMap {
 		err := kernelInt.EnsureGatewaysOnInterfaceInNeighTable(netIf)
 		if err != nil {
 			logger.APILog.Warn("failed to ensure gateways are in neighbour table for interface", zap.Any("interface", netIf), zap.Error(err))
 		}
 	}
+
 	logger.APILog.Debug("Routes reconciled")
+
 	return nil
 }

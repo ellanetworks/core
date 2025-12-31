@@ -221,6 +221,7 @@ func (rsp *response) err() error {
 	if rsp.Error != "" {
 		return fmt.Errorf("server error: %s", rsp.Error)
 	}
+
 	return nil
 }
 

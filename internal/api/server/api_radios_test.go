@@ -66,31 +66,38 @@ func listRadios(url string, client *http.Client, token string, page int, perPage
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var response ListRadiosResponse
 	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &response, nil
 }
 
 func TestListRadios(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -160,6 +167,7 @@ func TestListRadios(t *testing.T) {
 	if err != nil {
 		t.Fatalf("couldn't list radios: %s", err)
 	}
+
 	if statusCode != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 	}
@@ -177,27 +185,35 @@ func TestListRadios(t *testing.T) {
 			if radio.Address != "1.2.3.4" {
 				t.Fatalf("expected radio address %q, got %q", "1.2.3.4", radio.Address)
 			}
+
 			if radio.ID != "mcc:001:mnc:01:gnb-001" {
 				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-001", radio.ID)
 			}
+
 			if len(radio.SupportedTAIs) != 1 {
 				t.Fatalf("expected 1 supported TAI, got %d", len(radio.SupportedTAIs))
 			}
+
 			if radio.SupportedTAIs[0].Tai.PlmnID.Mcc != "123" {
 				t.Fatalf("expected mcc %q, got %q", "123", radio.SupportedTAIs[0].Tai.PlmnID.Mcc)
 			}
+
 			if radio.SupportedTAIs[0].Tai.PlmnID.Mnc != "12" {
 				t.Fatalf("expected mnc %q, got %q", "12", radio.SupportedTAIs[0].Tai.PlmnID.Mnc)
 			}
+
 			if radio.SupportedTAIs[0].Tai.Tac != "0002" {
 				t.Fatalf("expected tac %q, got %q", "0002", radio.SupportedTAIs[0].Tai.Tac)
 			}
+
 			if len(radio.SupportedTAIs[0].SNssais) != 1 {
 				t.Fatalf("expected 1 supported SNssai, got %d", len(radio.SupportedTAIs[0].SNssais))
 			}
+
 			if radio.SupportedTAIs[0].SNssais[0].Sst != 2 {
 				t.Fatalf("expected sst %d, got %d", 2, radio.SupportedTAIs[0].SNssais[0].Sst)
 			}
+
 			if radio.SupportedTAIs[0].SNssais[0].Sd != "010204" {
 				t.Fatalf("expected sd %q, got %q", "010204", radio.SupportedTAIs[0].SNssais[0].Sd)
 			}
@@ -205,21 +221,27 @@ func TestListRadios(t *testing.T) {
 			if radio.Address != "2.3.4.5" {
 				t.Fatalf("expected radio address %q, got %q", "2.3.4.5", radio.Address)
 			}
+
 			if radio.ID != "mcc:001:mnc:01:gnb-002" {
 				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-002", radio.ID)
 			}
+
 			if len(radio.SupportedTAIs) != 1 {
 				t.Fatalf("expected 1 supported TAI, got %d", len(radio.SupportedTAIs))
 			}
+
 			if radio.SupportedTAIs[0].Tai.PlmnID.Mcc != "001" {
 				t.Fatalf("expected mcc %q, got %q", "001", radio.SupportedTAIs[0].Tai.PlmnID.Mcc)
 			}
+
 			if radio.SupportedTAIs[0].Tai.PlmnID.Mnc != "01" {
 				t.Fatalf("expected mnc %q, got %q", "01", radio.SupportedTAIs[0].Tai.PlmnID.Mnc)
 			}
+
 			if radio.SupportedTAIs[0].Tai.Tac != "0001" {
 				t.Fatalf("expected tac %q, got %q", "0001", radio.SupportedTAIs[0].Tai.Tac)
 			}
+
 			if len(radio.SupportedTAIs[0].SNssais) != 1 {
 				t.Fatalf("expected 1 supported SNssai, got %d", len(radio.SupportedTAIs[0].SNssais))
 			}

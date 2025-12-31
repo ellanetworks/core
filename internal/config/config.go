@@ -287,6 +287,7 @@ func Validate(filePath string) (Config, error) {
 		if _, err := os.Stat(c.Interfaces.API.TLS.Cert); os.IsNotExist(err) {
 			return Config{}, fmt.Errorf("cert file %s does not exist", c.Interfaces.API.TLS.Cert)
 		}
+
 		config.Interfaces.API.TLS.Cert = c.Interfaces.API.TLS.Cert
 	}
 
@@ -294,6 +295,7 @@ func Validate(filePath string) (Config, error) {
 		if _, err := os.Stat(c.Interfaces.API.TLS.Key); os.IsNotExist(err) {
 			return Config{}, fmt.Errorf("key file %s does not exist", c.Interfaces.API.TLS.Key)
 		}
+
 		config.Interfaces.API.TLS.Key = c.Interfaces.API.TLS.Key
 	}
 
@@ -310,6 +312,7 @@ func Validate(filePath string) (Config, error) {
 		if err != nil {
 			return Config{}, fmt.Errorf("cannot get vlan config for interface %s: %w", n3InterfaceName, err)
 		}
+
 		config.Interfaces.N6.VlanConfig, err = GetVLANConfigForInterfaceFunc(c.Interfaces.N6.Name)
 		if err != nil {
 			return Config{}, fmt.Errorf("cannot get vlan config for interface %s: %w", c.Interfaces.N6.Name, err)
@@ -336,6 +339,7 @@ func Validate(filePath string) (Config, error) {
 	config.XDP.AttachMode = c.XDP.AttachMode
 	config.Telemetry.OTLPEndpoint = c.Telemetry.OTLPEndpoint
 	config.Telemetry.Enabled = c.Telemetry.Enabled
+
 	return config, nil
 }
 

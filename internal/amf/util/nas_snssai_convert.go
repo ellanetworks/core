@@ -11,6 +11,7 @@ import (
 
 func SnssaiToModels(n *nasType.SNSSAI) *models.Snssai {
 	var out models.Snssai
+
 	out.Sst = int32(n.GetSST())
 
 	if n.Len >= 4 {
@@ -32,11 +33,14 @@ func SnssaiToNas(snssai models.Snssai) ([]uint8, error) {
 	} else {
 		buf = append(buf, 0x04)
 		buf = append(buf, uint8(snssai.Sst))
+
 		byteArray, err := hex.DecodeString(snssai.Sd)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding snssai sd: %+v", err)
 		}
+
 		buf = append(buf, byteArray...)
 	}
+
 	return buf, nil
 }

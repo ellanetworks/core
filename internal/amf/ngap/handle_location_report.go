@@ -14,11 +14,13 @@ func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var userLocationInformation *ngapType.UserLocationInformation
-	var uEPresenceInAreaOfInterestList *ngapType.UEPresenceInAreaOfInterestList
-	var locationReportingRequestType *ngapType.LocationReportingRequestType
+	var (
+		aMFUENGAPID                    *ngapType.AMFUENGAPID
+		rANUENGAPID                    *ngapType.RANUENGAPID
+		userLocationInformation        *ngapType.UserLocationInformation
+		uEPresenceInAreaOfInterestList *ngapType.UEPresenceInAreaOfInterestList
+		locationReportingRequestType   *ngapType.LocationReportingRequestType
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -70,6 +72,7 @@ func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 
 	case ngapType.EventTypePresentUePresenceInAreaOfInterest:
 		ranUe.Log.Debug("To report UE presence in the area of interest")
+
 		for _, uEPresenceInAreaOfInterestItem := range uEPresenceInAreaOfInterestList.List {
 			uEPresence := uEPresenceInAreaOfInterestItem.UEPresence.Value
 			referenceID := uEPresenceInAreaOfInterestItem.LocationReportingReferenceID.Value
@@ -86,6 +89,7 @@ func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 		if err != nil {
 			ranUe.Log.Error("error sending location reporting control", zap.Error(err))
 		}
+
 		ranUe.Log.Info("sent location reporting control ngap message")
 	case ngapType.EventTypePresentStopUePresenceInAreaOfInterest:
 		ranUe.Log.Debug("To stop reporting UE presence in the area of interest", zap.Int64("ReferenceID", locationReportingRequestType.LocationReportingReferenceIDToBeCancelled.Value))

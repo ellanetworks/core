@@ -40,14 +40,17 @@ func SendPfcpSessionReportRequestForDownlinkData(ctx context.Context, localSeid 
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Report Request: %v", err)
 	}
+
 	rsp, err := dispatcher.SMF.HandlePfcpSessionReportRequest(ctx, pfcpMsg)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP Session Report Request to smf: %v", err)
 	}
+
 	err = HandlePfcpSessionReportResponse(ctx, rsp)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Report Response: %v", err)
 	}
+
 	return nil
 }
 
@@ -63,14 +66,17 @@ func SendPfcpSessionReportRequestForUsage(ctx context.Context, localSeid uint64,
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Report Request: %v", err)
 	}
+
 	rsp, err := dispatcher.SMF.HandlePfcpSessionReportRequest(ctx, pfcpMsg)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP Session Report Request to smf: %v", err)
 	}
+
 	err = HandlePfcpSessionReportResponse(ctx, rsp)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Report Response: %v", err)
 	}
+
 	return nil
 }
 
@@ -79,8 +85,10 @@ func HandlePfcpSessionReportResponse(ctx context.Context, rsp *message.SessionRe
 	if err != nil {
 		return fmt.Errorf("SMF returned invalid response: %v", err)
 	}
+
 	if cause != ie.CauseRequestAccepted {
 		return fmt.Errorf("SMF did not accept Session Report Request, cause: %s", causeToString(cause))
 	}
+
 	return nil
 }

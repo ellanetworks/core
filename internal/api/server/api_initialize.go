@@ -72,7 +72,9 @@ func Initialize(dbInstance *db.Database, secureCookie bool) http.Handler {
 				writeError(w, http.StatusConflict, "User already exists", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to create user", err, logger.APILog)
+
 			return
 		}
 

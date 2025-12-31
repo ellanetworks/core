@@ -18,6 +18,7 @@ func handleNotificationResponse(ctx context.Context, ue *amfContext.AmfUe, msg *
 	logger.AmfLog.Debug("Handle Notification Response", zap.String("supi", ue.Supi))
 
 	_, span := tracer.Start(ctx, "AMF NAS HandleNotificationResponse")
+
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State)),
@@ -39,6 +40,7 @@ func handleNotificationResponse(ctx context.Context, ue *amfContext.AmfUe, msg *
 
 	if msg.NotificationResponse != nil && msg.NotificationResponse.PDUSessionStatus != nil {
 		psiArray := nasConvert.PSIToBooleanArray(msg.NotificationResponse.PDUSessionStatus.Buffer)
+
 		for psi := 1; psi <= 15; psi++ {
 			pduSessionID := uint8(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {

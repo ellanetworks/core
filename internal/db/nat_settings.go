@@ -58,6 +58,7 @@ func (db *Database) InitializeNATSettings(ctx context.Context) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return fmt.Errorf("failed to insert default NAT settings: %w", err)
 	}
 
@@ -85,6 +86,7 @@ func (db *Database) IsNATEnabled(ctx context.Context) (bool, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return false, fmt.Errorf("failed to get NAT settings: %w", err)
 	}
 
@@ -112,6 +114,7 @@ func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return fmt.Errorf("failed to upsert NAT settings: %w", err)
 	}
 

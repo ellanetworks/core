@@ -64,6 +64,7 @@ func F1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
 	for i := 0; i < 16; i++ {
 		tmp1[i] ^= opc[i]
 	}
+
 	if macA != nil {
 		copy(macA[0:], tmp1[0:8])
 	}
@@ -113,6 +114,7 @@ func F2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
 	for i := range 16 {
 		tmp1[i] = tmp2[i] ^ opc[i]
 	}
+
 	tmp1[15] ^= 1 // XOR c2 (= ..01)
 	/*
 		for (i = 0; i < 16; i++)
@@ -152,6 +154,7 @@ func F2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
 		for i := range 16 {
 			tmp1[(i+12)%16] = tmp2[i] ^ opc[i]
 		}
+
 		tmp1[15] ^= 2 // XOR c3 (= ..02)
 
 		block.Encrypt(ck, tmp1)
@@ -179,6 +182,7 @@ func F2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
 		for i := range 16 {
 			tmp1[(i+8)%16] = tmp2[i] ^ opc[i]
 		}
+
 		tmp1[15] ^= 4 // XOR c4 (= ..04)
 
 		block.Encrypt(ik, tmp1)
@@ -206,6 +210,7 @@ func F2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
 		for i := range 16 {
 			tmp1[(i+4)%16] = tmp2[i] ^ opc[i]
 		}
+
 		tmp1[15] ^= 8 // XOR c5 (= ..08)
 
 		block.Encrypt(tmp1, tmp1)

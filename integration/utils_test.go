@@ -42,10 +42,12 @@ type logWriter struct{ t *testing.T }
 func (w logWriter) Write(p []byte) (int, error) {
 	// log line-by-line to keep test output readable
 	s := string(p)
+
 	sc := bufio.NewScanner(strings.NewReader(s))
 	for sc.Scan() {
 		w.t.Log(sc.Text())
 	}
+
 	return len(p), nil
 }
 
@@ -69,6 +71,7 @@ func configureEllaCore(ctx context.Context, cl *client.Client, c EllaCoreConfig)
 		Name:   "integration-test-token",
 		Expiry: "",
 	}
+
 	resp, err := cl.CreateMyAPIToken(ctx, createAPITokenOpts)
 	if err != nil {
 		return fmt.Errorf("failed to create API token: %v", err)
@@ -104,6 +107,7 @@ func createRoutes(ctx context.Context, cl *client.Client, routes []RouteConfig) 
 			Interface:   r.Interface,
 			Metric:      r.Metric,
 		}
+
 		err := cl.CreateRoute(ctx, createRouteOpts)
 		if err != nil {
 			return fmt.Errorf("failed to create n6 route: %v", err)
@@ -143,6 +147,7 @@ func waitForEllaCoreReady(ctx context.Context, cl *client.Client) error {
 				time.Sleep(2 * time.Second)
 				continue
 			}
+
 			return nil
 		}
 	}
@@ -171,6 +176,7 @@ func waitForPatternInContainer(
 			tail, _ := dc.Exec(context.Background(), container,
 				[]string{"sh", "-lc", fmt.Sprintf("tail -n 50 %s || true", logPath)},
 				false, 3*time.Second, nil)
+
 			return fmt.Errorf("timeout waiting for %q. last lines:\n%s", regex, tail)
 		case <-ticker.C:
 			out, err := dc.Exec(ctx, container,
@@ -179,6 +185,7 @@ func waitForPatternInContainer(
 			if err != nil {
 				continue // transient; try again until timeout
 			}
+
 			if re.MatchString(out) {
 				return nil
 			}

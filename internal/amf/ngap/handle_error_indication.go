@@ -13,10 +13,12 @@ func HandleErrorIndication(ran *context.Radio, msg *ngapType.ErrorIndication) {
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var cause *ngapType.Cause
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
+	var (
+		aMFUENGAPID            *ngapType.AMFUENGAPID
+		rANUENGAPID            *ngapType.RANUENGAPID
+		cause                  *ngapType.Cause
+		criticalityDiagnostics *ngapType.CriticalityDiagnostics
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {

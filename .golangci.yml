@@ -15,6 +15,7 @@ linters:
     - unparam
     - whitespace
     - govet
+    - wsl_v5
   disable:
     - staticcheck
     - goconst

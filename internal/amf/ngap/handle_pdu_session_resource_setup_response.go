@@ -15,10 +15,12 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pDUSessionResourceSetupResponseList *ngapType.PDUSessionResourceSetupListSURes
-	var pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListSURes
+	var (
+		aMFUENGAPID                         *ngapType.AMFUENGAPID
+		rANUENGAPID                         *ngapType.RANUENGAPID
+		pDUSessionResourceSetupResponseList *ngapType.PDUSessionResourceSetupListSURes
+		pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListSURes
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -65,11 +67,13 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 			for _, item := range pDUSessionResourceSetupResponseList.List {
 				pduSessionID := uint8(item.PDUSessionID.Value)
 				transfer := item.PDUSessionResourceSetupResponseTransfer
+
 				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 				if !ok {
 					ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 					continue
 				}
+
 				err := pdusession.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
 				if err != nil {
 					ranUe.Log.Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err))
@@ -83,11 +87,13 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 			for _, item := range pDUSessionResourceFailedToSetupList.List {
 				pduSessionID := uint8(item.PDUSessionID.Value)
 				transfer := item.PDUSessionResourceSetupUnsuccessfulTransfer
+
 				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 				if !ok {
 					ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 					continue
 				}
+
 				err := pdusession.UpdateSmContextN2InfoPduResSetupFail(smContext.Ref, transfer)
 				if err != nil {
 					ranUe.Log.Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err))

@@ -14,6 +14,7 @@ func handleConfigurationUpdateComplete(ctx context.Context, ue *amfContext.AmfUe
 	logger.AmfLog.Debug("Handle Configuration Update Complete", zap.String("supi", ue.Supi))
 
 	_, span := tracer.Start(ctx, "AMF NAS HandleConfigurationUpdateComplete")
+
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State)),

@@ -102,7 +102,9 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 				writeError(w, http.StatusUnauthorized, "Invalid session user", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+
 			return
 		}
 
@@ -147,6 +149,7 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 				"User failed to log in",
 			)
 			writeError(w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", err, logger.APILog)
+
 			return
 		}
 
@@ -159,6 +162,7 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 				"User failed to log in",
 			)
 			writeError(w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", fmt.Errorf("password mismatch"), logger.APILog)
+
 			return
 		}
 
@@ -222,6 +226,7 @@ func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 		if r.Header.Get("Authorization") == "" {
 			writeError(w, http.StatusBadRequest, "Authorization header is required",
 				errors.New("missing Authorization header"), logger.APILog)
+
 			return
 		}
 

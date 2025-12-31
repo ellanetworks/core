@@ -73,6 +73,7 @@ func (ranUe *RanUe) Remove() error {
 
 	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapID)
 	logger.AmfLog.Info("ran ue removed", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+
 	return nil
 }
 
@@ -113,9 +114,11 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 	}
 
 	curTime := time.Now().UTC()
+
 	switch userLocationInformation.Present {
 	case ngapType.UserLocationInformationPresentUserLocationInformationEUTRA:
 		locationInfoEUTRA := userLocationInformation.UserLocationInformationEUTRA
+
 		if ranUe.Location.EutraLocation == nil {
 			ranUe.Location.EutraLocation = new(models.EutraLocation)
 		}
@@ -127,6 +130,7 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 		if ranUe.Location.EutraLocation.Tai == nil {
 			ranUe.Location.EutraLocation.Tai = new(models.Tai)
 		}
+
 		ranUe.Location.EutraLocation.Tai.PlmnID = &plmnID
 		ranUe.Location.EutraLocation.Tai.Tac = tac
 		ranUe.Tai = *ranUe.Location.EutraLocation.Tai
@@ -138,19 +142,23 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 		if ranUe.Location.EutraLocation.Ecgi == nil {
 			ranUe.Location.EutraLocation.Ecgi = new(models.Ecgi)
 		}
+
 		ranUe.Location.EutraLocation.Ecgi.PlmnID = &ePlmnID
 		ranUe.Location.EutraLocation.Ecgi.EutraCellID = eutraCellID
+
 		ranUe.Location.EutraLocation.UeLocationTimestamp = &curTime
 		if locationInfoEUTRA.TimeStamp != nil {
 			ranUe.Location.EutraLocation.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(
 				locationInfoEUTRA.TimeStamp.Value)
 		}
+
 		if ranUe.AmfUe != nil {
 			ranUe.AmfUe.Location = ranUe.Location
 			ranUe.AmfUe.Tai = *ranUe.AmfUe.Location.NrLocation.Tai
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationNR:
 		locationInfoNR := userLocationInformation.UserLocationInformationNR
+
 		if ranUe.Location.NrLocation == nil {
 			ranUe.Location.NrLocation = new(models.NrLocation)
 		}
@@ -162,6 +170,7 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 		if ranUe.Location.NrLocation.Tai == nil {
 			ranUe.Location.NrLocation.Tai = new(models.Tai)
 		}
+
 		ranUe.Location.NrLocation.Tai.PlmnID = &plmnID
 		ranUe.Location.NrLocation.Tai.Tac = tac
 		ranUe.Tai = *ranUe.Location.NrLocation.Tai
@@ -173,18 +182,22 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 		if ranUe.Location.NrLocation.Ncgi == nil {
 			ranUe.Location.NrLocation.Ncgi = new(models.Ncgi)
 		}
+
 		ranUe.Location.NrLocation.Ncgi.PlmnID = &nRPlmnID
 		ranUe.Location.NrLocation.Ncgi.NrCellID = nRCellID
+
 		ranUe.Location.NrLocation.UeLocationTimestamp = &curTime
 		if locationInfoNR.TimeStamp != nil {
 			ranUe.Location.NrLocation.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(locationInfoNR.TimeStamp.Value)
 		}
+
 		if ranUe.AmfUe != nil {
 			ranUe.AmfUe.Location = ranUe.Location
 			ranUe.AmfUe.Tai = *ranUe.AmfUe.Location.NrLocation.Tai
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationN3IWF:
 		locationInfoN3IWF := userLocationInformation.UserLocationInformationN3IWF
+
 		if ranUe.Location.N3gaLocation == nil {
 			ranUe.Location.N3gaLocation = new(models.N3gaLocation)
 		}

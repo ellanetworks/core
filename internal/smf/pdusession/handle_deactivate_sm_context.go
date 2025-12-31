@@ -14,6 +14,7 @@ import (
 func DeactivateSmContext(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "SMF Deactivate SmContext")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("smf.smContextRef", smContextRef),
 	)

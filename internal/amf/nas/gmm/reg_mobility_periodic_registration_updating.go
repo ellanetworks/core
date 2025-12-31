@@ -42,6 +42,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
 			}
+
 			return fmt.Errorf("Capability5GMM is nil")
 		}
 	}
@@ -51,16 +52,19 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 	}
 
 	if ue.RegistrationRequest.RequestedDRXParameters != nil {
-		ue.UESpecificDRX = ue.RegistrationRequest.RequestedDRXParameters.GetDRXValue()
+		ue.UESpecificDRX = ue.RegistrationRequest.GetDRXValue()
 	}
 
 	if len(ue.Pei) == 0 {
 		ue.Log.Debug("The UE did not provide PEI")
+
 		err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeImei)
 		if err != nil {
 			return fmt.Errorf("error sending identity request: %v", err)
 		}
+
 		ue.Log.Info("sent identity request to UE")
+
 		return nil
 	}
 
@@ -72,8 +76,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 	ue.Dnn = dnn
 	ue.Ambr = bitRate
 
-	var reactivationResult *[16]bool
-	var errPduSessionID, errCause []uint8
+	var (
+		reactivationResult        *[16]bool
+		errPduSessionID, errCause []uint8
+	)
+
 	ctxList := ngapType.PDUSessionResourceSetupListCxtReq{}
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
 
@@ -121,6 +128,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 	if ue.RegistrationRequest.PDUSessionStatus != nil {
 		pduSessionStatus = new([16]bool)
 		psiArray := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.PDUSessionStatus.Buffer)
+
 		for psi := 1; psi <= 15; psi++ {
 			pduSessionID := uint8(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
@@ -159,6 +167,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 					if err != nil {
 						return err
 					}
+
 					err = ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
 						ctx,
 						ue.RanUe.AmfUeNgapID,
@@ -171,12 +180,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 					if err != nil {
 						return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 					}
+
 					ue.Log.Info("Sent NGAP pdu session resource setup request")
 				} else {
 					err := message.SendRegistrationAccept(ctx, amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 					if err != nil {
 						return fmt.Errorf("error sending GMM registration accept: %v", err)
 					}
+
 					ue.Log.Info("Sent GMM registration accept")
 				}
 
@@ -186,6 +197,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 				}
 
 				ue.N1N2Message = nil
+
 				return nil
 			}
 
@@ -195,8 +207,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 				return fmt.Errorf("pdu Session Id does not Exists")
 			}
 
-			var nasPdu []byte
-			var err error
+			var (
+				nasPdu []byte
+				err    error
+			)
+
 			if n1Msg != nil {
 				nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
 				if err != nil {
@@ -215,13 +230,16 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 		if err != nil {
 			return fmt.Errorf("error sending GMM registration accept: %v", err)
 		}
+
 		ue.Log.Info("Sent GMM registration accept")
+
 		return nil
 	} else {
 		nasPdu, err := message.BuildRegistrationAccept(amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
 		if err != nil {
 			return fmt.Errorf("error building registration accept: %v", err)
 		}
+
 		if len(suList.List) != 0 {
 			err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
 				ctx,
@@ -235,14 +253,17 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 			if err != nil {
 				return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 			}
+
 			ue.Log.Info("Sent NGAP pdu session resource setup request")
 		} else {
 			err := ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasPdu, nil)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %v", err)
 			}
+
 			ue.Log.Info("sent downlink nas transport message")
 		}
+
 		return nil
 	}
 }

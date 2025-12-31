@@ -19,6 +19,7 @@ func InTaiList(servedTai models.Tai, taiList []models.Tai) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -26,16 +27,20 @@ func AttachSourceUeTargetUe(sourceUe, targetUe *RanUe) error {
 	if sourceUe == nil {
 		return fmt.Errorf("source ue is nil")
 	}
+
 	if targetUe == nil {
 		return fmt.Errorf("target ue is nil")
 	}
+
 	amfUe := sourceUe.AmfUe
 	if amfUe == nil {
 		return fmt.Errorf("amf ue is nil")
 	}
+
 	targetUe.AmfUe = amfUe
 	targetUe.SourceUe = sourceUe
 	sourceUe.TargetUe = targetUe
+
 	return nil
 }
 
@@ -44,6 +49,7 @@ func DetachSourceUeTargetUe(ranUe *RanUe) {
 		logger.AmfLog.Error("ranUe is Nil")
 		return
 	}
+
 	if ranUe.TargetUe != nil {
 		targetUe := ranUe.TargetUe
 

@@ -15,10 +15,12 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amf *amfContex
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pDUSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListRelRes
-	var userLocationInformation *ngapType.UserLocationInformation
+	var (
+		aMFUENGAPID                    *ngapType.AMFUENGAPID
+		rANUENGAPID                    *ngapType.RANUENGAPID
+		pDUSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListRelRes
+		userLocationInformation        *ngapType.UserLocationInformation
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -66,16 +68,19 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amf *amfContex
 
 		for _, item := range pDUSessionResourceReleasedList.List {
 			pduSessionID := uint8(item.PDUSessionID.Value)
+
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				continue
 			}
+
 			err := pdusession.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
 			if err != nil {
 				ranUe.Log.Error("SendUpdateSmContextN2InfoPduResRelRsp failed", zap.Error(err))
 				continue
 			}
+
 			smContext.PduSessionInactive = true
 		}
 	}

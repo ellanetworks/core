@@ -36,6 +36,7 @@ func RegisterDatabaseMetrics(db *db.Database) {
 			logger.MetricsLog.Warn("Failed to get database storage used", zap.Error(err))
 			return 0
 		}
+
 		return float64(dbSize)
 	})
 
@@ -48,6 +49,7 @@ func RegisterDatabaseMetrics(db *db.Database) {
 			logger.MetricsLog.Warn("Failed to get total IP addresses", zap.Error(err))
 			return 0
 		}
+
 		return float64(total)
 	})
 
@@ -60,6 +62,7 @@ func RegisterDatabaseMetrics(db *db.Database) {
 			logger.MetricsLog.Warn("Failed to get allocated IP addresses", zap.Error(err))
 			return 0
 		}
+
 		return float64(allocated)
 	})
 

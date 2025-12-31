@@ -102,6 +102,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 	}
 
 	msg := new(nas.Message)
+
 	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
 	switch msg.SecurityHeaderType {
 	case nas.SecurityHeaderTypeIntegrityProtected:
@@ -121,10 +122,11 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 
 	switch msg.GmmHeader.GetMessageType() {
 	case nas.MsgTypeRegistrationRequest:
-		mobileIdentity5GSContents := msg.RegistrationRequest.MobileIdentity5GS.GetMobileIdentity5GSContents()
+		mobileIdentity5GSContents := msg.RegistrationRequest.GetMobileIdentity5GSContents()
 		if len(mobileIdentity5GSContents) == 0 {
 			return nil, fmt.Errorf("mobile identity 5GS is empty")
 		}
+
 		if nasMessage.MobileIdentity5GSType5gGuti == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
 			_, guti = nasConvert.GutiToString(mobileIdentity5GSContents)
 			logger.AmfLog.Debug("Guti received in Registration Request Message", zap.String("guti", guti))
@@ -138,13 +140,15 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 				ue.Log.Info("UE Context derived from Suci", zap.String("suci", suci))
 				ue.SecurityContextAvailable = false
 			}
+
 			return ue, nil
 		}
 	case nas.MsgTypeServiceRequest:
-		mobileIdentity5GSContents := msg.ServiceRequest.TMSI5GS.Octet
+		mobileIdentity5GSContents := msg.TMSI5GS.Octet
 		if len(mobileIdentity5GSContents) == 0 {
 			return nil, fmt.Errorf("mobile identity 5GS is empty")
 		}
+
 		if nasMessage.MobileIdentity5GSType5gSTmsi == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
 			guti, err := amf.StmsiToGuti(ctx, mobileIdentity5GSContents)
 			if err != nil {
@@ -154,7 +158,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 			logger.AmfLog.Debug("Guti derived from Service Request Message", zap.String("guti", guti))
 		}
 	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
-		mobileIdentity5GSContents := msg.DeregistrationRequestUEOriginatingDeregistration.MobileIdentity5GS.GetMobileIdentity5GSContents()
+		mobileIdentity5GSContents := msg.DeregistrationRequestUEOriginatingDeregistration.GetMobileIdentity5GSContents()
 		if nasMessage.MobileIdentity5GSType5gGuti == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
 			_, guti = nasConvert.GutiToString(mobileIdentity5GSContents)
 			logger.AmfLog.Debug("Guti received in Deregistraion Request Message", zap.String("guti", guti))

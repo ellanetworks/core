@@ -38,6 +38,7 @@ func buildServiceAccept(msg *nasMessage.ServiceAccept) *ServiceAccept {
 
 	if msg.PDUSessionStatus != nil {
 		pduSessionStatus := []PDUSessionStatusPDU{}
+
 		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
 		for pduSessionID, isActive := range psiArray {
 			pduSessionStatus = append(pduSessionStatus, PDUSessionStatusPDU{
@@ -45,11 +46,13 @@ func buildServiceAccept(msg *nasMessage.ServiceAccept) *ServiceAccept {
 				Active:       isActive,
 			})
 		}
+
 		serviceAccept.PDUSessionStatus = pduSessionStatus
 	}
 
 	if msg.PDUSessionReactivationResult != nil {
 		pduSessionReactivationResult := []PDUSessionReactivateResultPDU{}
+
 		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionReactivationResult.Buffer)
 		for pduSessionID, isActive := range psiArray {
 			pduSessionReactivationResult = append(pduSessionReactivationResult, PDUSessionReactivateResultPDU{
@@ -57,11 +60,13 @@ func buildServiceAccept(msg *nasMessage.ServiceAccept) *ServiceAccept {
 				Active:       isActive,
 			})
 		}
+
 		serviceAccept.PDUSessionReactivationResult = pduSessionReactivationResult
 	}
 
 	if msg.PDUSessionReactivationResultErrorCause != nil {
 		pduSessionIDAndCause := msg.PDUSessionReactivationResultErrorCause.GetPDUSessionIDAndCauseValue()
+
 		pduSessionIDs, causes := bufToPDUSessionReactivationResultErrorCause(pduSessionIDAndCause)
 		if len(pduSessionIDs) != len(causes) {
 			logger.EllaLog.Warn("PDUSessionReactivationResultErrorCause: invalid length")
@@ -73,6 +78,7 @@ func buildServiceAccept(msg *nasMessage.ServiceAccept) *ServiceAccept {
 					Cause:        cause5GMMToEnum(causes[i]),
 				})
 			}
+
 			serviceAccept.PDUSessionReactivationResultErrorCause = pduSessionCauses
 		}
 	}
@@ -97,5 +103,6 @@ func bufToPDUSessionReactivationResultErrorCause(buf []uint8) (errPduSessionId, 
 		errPduSessionId = append(errPduSessionId, buf[i])
 		errCause = append(errCause, buf[i+1])
 	}
+
 	return
 }

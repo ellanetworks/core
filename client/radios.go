@@ -103,6 +103,7 @@ func (c *Client) GetRadio(ctx context.Context, opts *GetRadioOptions) (*Radio, e
 	if err != nil {
 		return nil, err
 	}
+
 	return &radioResponse, nil
 }
 
@@ -236,6 +237,7 @@ func (c *Client) UpdateRadioEventRetentionPolicy(ctx context.Context, opts *Upda
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 

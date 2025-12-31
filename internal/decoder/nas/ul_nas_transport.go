@@ -123,6 +123,7 @@ func buildULNASPayloadContainer(msg *nasMessage.ULNASTransport) PayloadContainer
 
 func buildNSSAI(n *nasType.SNSSAI) SNSSAI {
 	var out SNSSAI
+
 	out.SST = int32(n.GetSST())
 
 	if n.Len >= 4 {

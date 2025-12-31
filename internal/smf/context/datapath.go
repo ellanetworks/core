@@ -217,6 +217,7 @@ func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, pduAddress net
 
 	curDLTunnel.PDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceCore}
 	curDLTunnel.PDR.PDI.UEIPAddress = &ueIPAddr
+
 	if anIP := smContext.Tunnel.ANInformation.IPAddress; anIP != nil {
 		ANUPF := dataPath.DPNode
 		DefaultDLPDR := ANUPF.DownLinkTunnel.PDR
@@ -234,7 +235,7 @@ func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, pduAddress net
 }
 
 func (dataPath *DataPath) ActivateTunnelAndPDR(smf *SMFContext, smContext *SMContext, pduAddress net.IP, precedence uint32) error {
-	smf.AllocateLocalSEIDForDataPath(smContext)
+	smContext.AllocateLocalSEIDForDataPath(smf)
 
 	err := dataPath.ActivateUlDlTunnel()
 	if err != nil {
@@ -277,6 +278,7 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smf *SMFContext, smContext *SMCon
 	}
 
 	dataPath.Activated = true
+
 	return nil
 }
 
@@ -284,11 +286,13 @@ func (dataPath *DataPath) DeactivateTunnelAndPDR() {
 	DPNode := dataPath.DPNode
 	DPNode.DeactivateUpLinkTunnel()
 	DPNode.DeactivateDownLinkTunnel()
+
 	dataPath.Activated = false
 }
 
 func BitRateTokbps(bitrate string) uint64 {
 	s := strings.Split(bitrate, " ")
+
 	var kbps uint64
 
 	var digit int
@@ -311,5 +315,6 @@ func BitRateTokbps(bitrate string) uint64 {
 	case "Tbps":
 		kbps = uint64(digit * 1000000000)
 	}
+
 	return kbps
 }

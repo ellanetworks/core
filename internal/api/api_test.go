@@ -43,6 +43,7 @@ func TestStartServerStandup(t *testing.T) {
 	routeReconciler = func(dbInstance *db.Database, kernelInt kernel.Kernel) error {
 		return nil
 	}
+
 	defer func() { routeReconciler = origReconciler }()
 
 	// Use HTTP scheme for testing.
@@ -81,26 +82,37 @@ func TestStartServerStandup(t *testing.T) {
 	// Poll the server until it responds or timeout occurs.
 	baseURL := "http://127.0.0.1:" + strconv.Itoa(port)
 	client := &http.Client{}
-	var resp *http.Response
-	var lastErr error
+
+	var (
+		resp    *http.Response
+		lastErr error
+	)
+
 	timeout := time.Now().Add(5 * time.Second)
 	for time.Now().Before(timeout) {
 		req, reqErr := http.NewRequestWithContext(context.Background(), "GET", baseURL+"/", nil)
 		if reqErr != nil {
 			lastErr = reqErr
+
 			time.Sleep(100 * time.Millisecond)
+
 			continue
 		}
+
 		resp, err = client.Do(req)
 		if err == nil {
 			break
 		}
+
 		lastErr = err
+
 		time.Sleep(100 * time.Millisecond)
 	}
+
 	if err != nil {
 		t.Fatalf("failed to reach server: %v", lastErr)
 	}
+
 	defer resp.Body.Close()
 
 	// Read and log the response.
@@ -108,5 +120,6 @@ func TestStartServerStandup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read response body: %v", err)
 	}
+
 	t.Logf("Server is up. Response status: %s, body: %s", resp.Status, string(body))
 }

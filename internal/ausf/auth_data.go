@@ -59,6 +59,7 @@ func strictHex(s string, n int) string {
 func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationInfoRequest, suci string) (*models.AuthenticationInfoResult, error) {
 	ctx, span := tracer.Start(ctx, "AUSF CreateAuthData")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("suci", suci),
 	)

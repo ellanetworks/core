@@ -362,6 +362,7 @@ func (fng *FakeNGAPSender) SendNGSetupResponse(ctx context.Context, guami *model
 		AmfName:             amfName,
 		AmfRelativeCapacity: amfRelativeCapacity,
 	})
+
 	return nil
 }
 
@@ -369,6 +370,7 @@ func (fng *FakeNGAPSender) SendNGResetAcknowledge(ctx context.Context, partOfNGI
 	fng.SentNGResetAcknowledges = append(fng.SentNGResetAcknowledges, &NGResetAcknowledge{
 		PartOfNGInterface: partOfNGInterface,
 	})
+
 	return nil
 }
 

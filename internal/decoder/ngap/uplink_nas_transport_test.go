@@ -123,6 +123,7 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 	}
 
 	expectedNASPDU := "fgLpGbfKA34AZwEABS4BANZREgE="
+
 	expectedNASPDUraw, err := decodeB64(expectedNASPDU)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)

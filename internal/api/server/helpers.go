@@ -11,6 +11,7 @@ func getEmailFromContext(r *http.Request) string {
 	if email, ok := r.Context().Value(contextKeyEmail).(string); ok {
 		return email
 	}
+
 	return ""
 }
 
@@ -38,6 +39,7 @@ func getClientIP(r *http.Request) string {
 	if err != nil {
 		return r.RemoteAddr // as a fallback (may include port)
 	}
+
 	return ip
 }
 

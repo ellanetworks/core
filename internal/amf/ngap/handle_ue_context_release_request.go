@@ -15,10 +15,12 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pDUSessionResourceList *ngapType.PDUSessionResourceListCxtRelReq
-	var cause *ngapType.Cause
+	var (
+		aMFUENGAPID            *ngapType.AMFUENGAPID
+		rANUENGAPID            *ngapType.RANUENGAPID
+		pDUSessionResourceList *ngapType.PDUSessionResourceListCxtRelReq
+		cause                  *ngapType.Cause
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -57,12 +59,15 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
+
 		err := ran.NGAPSender.SendErrorIndication(ctx, cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent error indication")
+
 		return
 	}
 
@@ -71,10 +76,12 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 
 	causeGroup := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentUnspecified
+
 	var err error
 
 	if cause != nil {
 		ranUe.Log.Info("UE Context Release Cause", zap.String("Cause", causeToString(*cause)))
+
 		causeGroup, causeValue, err = getCause(cause)
 		if err != nil {
 			ranUe.Log.Error("could not get cause group and value", zap.Error(err))
@@ -85,14 +92,17 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 	if amfUe != nil {
 		if amfUe.State == amfContext.Registered {
 			ranUe.Log.Info("Ue Context in GMM-Registered")
+
 			if pDUSessionResourceList != nil {
 				for _, pduSessionReourceItem := range pDUSessionResourceList.List {
 					pduSessionID := uint8(pduSessionReourceItem.PDUSessionID.Value)
+
 					smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 					if !ok {
 						ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 						continue
 					}
+
 					err := pdusession.DeactivateSmContext(ctx, smContext.Ref)
 					if err != nil {
 						ranUe.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
@@ -102,27 +112,32 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 				ranUe.Log.Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
 
 				amfUe.Mutex.Lock()
+
 				for _, smContext := range amfUe.SmContextList {
 					if smContext.PduSessionInactive {
 						ranUe.Log.Info("Pdu Session is inactive so not sending deactivate to SMF")
 						break
 					}
+
 					err := pdusession.DeactivateSmContext(ctx, smContext.Ref)
 					if err != nil {
 						ranUe.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 					}
 				}
+
 				amfUe.Mutex.Unlock()
 			}
 		} else {
 			ranUe.Log.Info("Ue Context in Non GMM-Registered")
 			amfUe.Mutex.Lock()
+
 			for _, smContext := range amfUe.SmContextList {
 				err := pdusession.ReleaseSmContext(ctx, smContext.Ref)
 				if err != nil {
 					ranUe.Log.Error("error sending release sm context request", zap.Error(err))
 				}
 			}
+
 			amfUe.Mutex.Unlock()
 
 			ranUe.ReleaseAction = amfContext.UeContextReleaseUeContext

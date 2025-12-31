@@ -17,10 +17,12 @@ func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran 
 		return
 	}
 
-	var rANNodeName *ngapType.RANNodeName
-	var supportedTAList *ngapType.SupportedTAList
-	var pagingDRX *ngapType.PagingDRX
-	var cause ngapType.Cause
+	var (
+		rANNodeName     *ngapType.RANNodeName
+		supportedTAList *ngapType.SupportedTAList
+		pagingDRX       *ngapType.PagingDRX
+		cause           ngapType.Cause
+	)
 
 	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
 		ie := msg.ProtocolIEs.List[i]
@@ -50,6 +52,7 @@ func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran 
 		supportedTAItem := supportedTAList.List[i]
 		tac := hex.EncodeToString(supportedTAItem.TAC.Value)
 		capOfSupportTai := cap(ran.SupportedTAIs)
+
 		for j := 0; j < len(supportedTAItem.BroadcastPLMNList.List); j++ {
 			supportedTAI := amfContext.SupportedTAI{}
 			supportedTAI.SNssaiList = make([]models.Snssai, 0)
@@ -58,6 +61,7 @@ func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran 
 			plmnID := util.PlmnIDToModels(broadcastPLMNItem.PLMNIdentity)
 			supportedTAI.Tai.PlmnID = &plmnID
 			capOfSNssaiList := cap(supportedTAI.SNssaiList)
+
 			for k := 0; k < len(broadcastPLMNItem.TAISliceSupportList.List); k++ {
 				tAISliceSupportItem := broadcastPLMNItem.TAISliceSupportList.List[k]
 				if len(supportedTAI.SNssaiList) < capOfSNssaiList {
@@ -66,7 +70,9 @@ func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran 
 					break
 				}
 			}
+
 			ran.Log.Debug("handle ran configuration update", zap.Any("PLMN_ID", plmnID), zap.String("TAC", tac))
+
 			if len(ran.SupportedTAIs) < capOfSupportTai {
 				ran.SupportedTAIs = append(ran.SupportedTAIs, supportedTAI)
 			} else {
@@ -77,6 +83,7 @@ func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran 
 
 	if len(ran.SupportedTAIs) == 0 {
 		ran.Log.Warn("RanConfigurationUpdate failure: No supported TA exist in RanConfigurationUpdate")
+
 		cause.Present = ngapType.CausePresentMisc
 		cause.Misc = &ngapType.CauseMisc{
 			Value: ngapType.CauseMiscPresentUnspecified,
@@ -85,10 +92,12 @@ func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran 
 		operatorInfo, err := amf.GetOperatorInfo(ctx)
 		if err != nil {
 			ran.Log.Error("Could not get operator info", zap.Error(err))
+
 			cause.Present = ngapType.CausePresentMisc
 			cause.Misc = &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnspecified,
 			}
+
 			return
 		}
 
@@ -97,12 +106,16 @@ func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran 
 		for i, tai := range ran.SupportedTAIs {
 			if amfContext.InTaiList(tai.Tai, operatorInfo.Tais) {
 				ran.Log.Debug("handle ran configuration update", zap.Any("SERVED_TAI_INDEX", i))
+
 				found = true
+
 				break
 			}
 		}
+
 		if !found {
 			ran.Log.Warn("Cannot find Served TAI in Core")
+
 			cause.Present = ngapType.CausePresentMisc
 			cause.Misc = &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnknownPLMN,
@@ -115,12 +128,14 @@ func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran 
 		if err != nil {
 			ran.Log.Error("error sending ran configuration update acknowledge", zap.Error(err))
 		}
+
 		ran.Log.Info("sent ran configuration update acknowledge to target ran", zap.Any("RAN ID", ran.RanID))
 	} else {
 		err := ran.NGAPSender.SendRanConfigurationUpdateFailure(ctx, cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending ran configuration update failure", zap.Error(err))
 		}
+
 		ran.Log.Info("sent ran configuration update failure to target ran", zap.Any("RAN ID", ran.RanID))
 	}
 }

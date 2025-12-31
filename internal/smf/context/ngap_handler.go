@@ -18,6 +18,7 @@ import (
 
 func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) error {
 	resourceSetupResponseTransfer := ngapType.PDUSessionResourceSetupResponseTransfer{}
+
 	err := aper.UnmarshalWithParams(b, &resourceSetupResponseTransfer, "valueExt")
 	if err != nil {
 		return fmt.Errorf("failed to unmarshall resource setup response transfer: %s", err.Error())
@@ -93,6 +94,7 @@ func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
 
 	ctx.Tunnel.ANInformation.IPAddress = gtpTunnel.TransportLayerAddress.Value.Bytes
 	ctx.Tunnel.ANInformation.TEID = teid
+
 	dataPath := ctx.Tunnel.DataPath
 	if dataPath.Activated {
 		ANUPF := dataPath.DPNode
@@ -111,19 +113,23 @@ func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
 
 func HandlePathSwitchRequestSetupFailedTransfer(b []byte) error {
 	pathSwitchRequestSetupFailedTransfer := ngapType.PathSwitchRequestSetupFailedTransfer{}
+
 	err := aper.UnmarshalWithParams(b, &pathSwitchRequestSetupFailedTransfer, "valueExt")
 	if err != nil {
 		return fmt.Errorf("failed to unmarshall path switch request setup failed transfer: %s", err.Error())
 	}
+
 	return nil
 }
 
 func HandleHandoverRequiredTransfer(b []byte) error {
 	handoverRequiredTransfer := ngapType.HandoverRequiredTransfer{}
+
 	err := aper.UnmarshalWithParams(b, &handoverRequiredTransfer, "valueExt")
 	if err != nil {
 		return fmt.Errorf("failed to unmarshall handover required transfer: %s", err.Error())
 	}
+
 	return nil
 }
 
@@ -134,6 +140,7 @@ func HandleHandoverRequestAcknowledgeTransfer(b []byte, ctx *SMContext) error {
 	if err != nil {
 		return fmt.Errorf("failed to unmarshall handover request acknowledge transfer: %s", err.Error())
 	}
+
 	DLNGUUPTNLInformation := handoverRequestAcknowledgeTransfer.DLNGUUPTNLInformation
 	GTPTunnel := DLNGUUPTNLInformation.GTPTunnel
 	TEIDReader := bytes.NewBuffer(GTPTunnel.GTPTEID.Value)

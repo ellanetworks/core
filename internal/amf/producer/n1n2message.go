@@ -49,6 +49,7 @@ func TransferN1N2Message(ctx context.Context, supi string, req models.N1N2Messag
 	}
 
 	ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
+
 	if ue.RanUe.SentInitialContextSetupRequest {
 		list := ngapType.PDUSessionResourceSetupListSUReq{}
 
@@ -60,6 +61,7 @@ func TransferN1N2Message(ctx context.Context, supi string, req models.N1N2Messag
 		}
 
 		ue.Log.Info("Sent NGAP pdu session resource setup request to UE")
+
 		return nil
 	}
 
@@ -94,6 +96,7 @@ func TransferN1N2Message(ctx context.Context, supi string, req models.N1N2Messag
 
 	ue.Log.Info("Sent NGAP initial context setup request to UE")
 	ue.RanUe.SentInitialContextSetupRequest = true
+
 	return nil
 }
 
@@ -124,14 +127,18 @@ func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2Me
 
 	if ue.RanUe != nil {
 		ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
+
 		if ue.RanUe.SentInitialContextSetupRequest {
 			list := ngapType.PDUSessionResourceSetupListSUReq{}
 			send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
+
 			err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 			if err != nil {
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
 			}
+
 			ue.Log.Info("Sent NGAP pdu session resource setup request to UE")
+
 			return nil
 		}
 
@@ -165,6 +172,7 @@ func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2Me
 
 		ue.Log.Info("Sent NGAP initial context setup request to UE")
 		ue.RanUe.SentInitialContextSetupRequest = true
+
 		return nil
 	}
 
@@ -254,7 +262,9 @@ func SendPaging(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, 
 					ue.Log.Error("failed to send paging", zap.Error(err))
 					continue
 				}
+
 				ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
+
 				break
 			}
 		}
@@ -264,6 +274,7 @@ func SendPaging(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, 
 		cfg := amf.T3513Cfg
 		ue.T3513 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			ue.Log.Warn("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
+
 			for _, ran := range amf.Radios {
 				for _, item := range ran.SupportedTAIs {
 					if amfContext.InTaiList(item.Tai, taiList) {
@@ -272,7 +283,9 @@ func SendPaging(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, 
 							ue.Log.Error("failed to send paging", zap.Error(err))
 							continue
 						}
+
 						ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
+
 						break
 					}
 				}

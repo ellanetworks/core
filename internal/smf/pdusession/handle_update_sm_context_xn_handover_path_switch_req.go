@@ -14,6 +14,7 @@ import (
 func UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
 	ctx, span := tracer.Start(ctx, "SMF Update SmContext Handover Path Switch Request")
 	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("smf.smContextRef", smContextRef),
 	)
@@ -65,6 +66,7 @@ func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *smfConte
 
 	pdrList := []*smfContext.PDR{}
 	farList := []*smfContext.FAR{}
+
 	dataPath := smContext.Tunnel.DataPath
 	if dataPath.Activated {
 		ANUPF := dataPath.DPNode

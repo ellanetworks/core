@@ -64,6 +64,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		if err != nil {
 			return fmt.Errorf("couldn't initialize tracer: %w", err)
 		}
+
 		defer func() {
 			if err := tp.Shutdown(ctx); err != nil {
 				logger.EllaLog.Error("could not shutdown tracer", zap.Error(err))
@@ -90,6 +91,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	n3Address := cfg.Interfaces.N3.Address
+
 	n3Settings, err := dbInstance.GetN3Settings(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't get N3 external address: %w", err)
@@ -129,6 +131,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	defer func() {
 		amf.Close()
 		upfInstance.Close()
+
 		err := dbInstance.Close()
 		if err != nil {
 			logger.EllaLog.Error("couldn't close database", zap.Error(err))
@@ -137,5 +140,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	<-ctx.Done()
 	logger.EllaLog.Info("Shutdown signal received, exiting.")
+
 	return nil
 }

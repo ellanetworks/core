@@ -20,6 +20,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	logger.AmfLog.Debug("Handle Deregistration Request", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleDeregistrationRequestUEOriginatingDeregistration")
+
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State)),
@@ -51,6 +52,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 		if err != nil {
 			return fmt.Errorf("error sending deregistration accept: %v", err)
 		}
+
 		ue.Log.Info("sent deregistration accept")
 	}
 
@@ -61,6 +63,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 
 	if ue.RanUe != nil {
 		ue.RanUe.ReleaseAction = amfContext.UeContextReleaseUeContext
+
 		err := ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)

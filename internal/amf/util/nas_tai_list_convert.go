@@ -11,6 +11,7 @@ import (
 // TS 24.501 9.11.3.9
 func TaiListToNas(taiList []models.Tai) ([]uint8, error) {
 	var taiListNas []uint8
+
 	typeOfList := 0x00
 
 	plmnID := taiList[0].PlmnID
@@ -30,6 +31,7 @@ func TaiListToNas(taiList []models.Tai) ([]uint8, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert plmnID to nas: %s", err)
 		}
+
 		taiListNas = append(taiListNas, plmnNas...)
 
 		for _, tai := range taiList {
@@ -37,6 +39,7 @@ func TaiListToNas(taiList []models.Tai) ([]uint8, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to decode tac: %s", err)
 			}
+
 			taiListNas = append(taiListNas, tacBytes...)
 		}
 	case 0x02:
@@ -45,10 +48,12 @@ func TaiListToNas(taiList []models.Tai) ([]uint8, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert plmnID to nas: %s", err)
 			}
+
 			tacBytes, err := hex.DecodeString(tai.Tac)
 			if err != nil {
 				return nil, fmt.Errorf("failed to decode tac: %s", err)
 			}
+
 			taiListNas = append(taiListNas, plmnNas...)
 			taiListNas = append(taiListNas, tacBytes...)
 		}

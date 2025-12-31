@@ -65,6 +65,7 @@ func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCa
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return 0, err
 	}
 
@@ -96,8 +97,10 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 			span.SetStatus(codes.Ok, "no rows")
 			return false
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return false
 	}
 
@@ -126,6 +129,7 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 

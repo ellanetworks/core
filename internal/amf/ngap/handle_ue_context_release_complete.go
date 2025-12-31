@@ -18,11 +18,13 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var userLocationInformation *ngapType.UserLocationInformation
-	var infoOnRecommendedCellsAndRANNodesForPaging *ngapType.InfoOnRecommendedCellsAndRANNodesForPaging
-	var pDUSessionResourceList *ngapType.PDUSessionResourceListCxtRelCpl
+	var (
+		aMFUENGAPID                                *ngapType.AMFUENGAPID
+		rANUENGAPID                                *ngapType.RANUENGAPID
+		userLocationInformation                    *ngapType.UserLocationInformation
+		infoOnRecommendedCellsAndRANNodesForPaging *ngapType.InfoOnRecommendedCellsAndRANNodesForPaging
+		pDUSessionResourceList                     *ngapType.PDUSessionResourceListCxtRelCpl
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -59,12 +61,15 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
+
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent error indication")
+
 		return
 	}
 
@@ -73,13 +78,16 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 	}
 
 	ranUe.Radio = ran
+
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
 		ran.Log.Info("Release UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+
 		err := ranUe.Remove()
 		if err != nil {
 			ran.Log.Error(err.Error())
 		}
+
 		return
 	}
 
@@ -87,6 +95,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 		amfUe.InfoOnRecommendedCellsAndRanNodesForPaging = new(models.InfoOnRecommendedCellsAndRanNodesForPaging)
 
 		recommendedCells := &amfUe.InfoOnRecommendedCellsAndRanNodesForPaging.RecommendedCells
+
 		for _, item := range infoOnRecommendedCellsAndRANNodesForPaging.RecommendedCellsForPaging.RecommendedCellList.List {
 			recommendedCell := models.RecommendedCell{}
 
@@ -117,13 +126,16 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 
 	if amfUe.State == amfContext.Registered {
 		ranUe.Log.Warn("Rel Ue Context in GMM-Registered", zap.String("supi", amfUe.Supi))
+
 		if pDUSessionResourceList != nil {
 			for _, pduSessionReourceItem := range pDUSessionResourceList.List {
 				pduSessionID := uint8(pduSessionReourceItem.PDUSessionID.Value)
+
 				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 				if !ok {
 					ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				}
+
 				err := pdusession.DeactivateSmContext(ctx, smContext.Ref)
 				if err != nil {
 					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
@@ -132,12 +144,14 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 		} else {
 			ranUe.Log.Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
 			amfUe.Mutex.Lock()
+
 			for _, smContext := range amfUe.SmContextList {
 				err := pdusession.DeactivateSmContext(ctx, smContext.Ref)
 				if err != nil {
 					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 				}
 			}
+
 			amfUe.Mutex.Unlock()
 		}
 	}
@@ -145,12 +159,14 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 	switch ranUe.ReleaseAction {
 	case amfContext.UeContextN2NormalRelease:
 		ran.Log.Info("Release UE Context: N2 Connection Release", zap.String("supi", amfUe.Supi))
+
 		err := ranUe.Remove()
 		if err != nil {
 			ran.Log.Error(err.Error())
 		}
 	case amfContext.UeContextReleaseUeContext:
 		ran.Log.Info("Release UE Context: Release Ue Context", zap.String("supi", amfUe.Supi))
+
 		err := ranUe.Remove()
 		if err != nil {
 			ran.Log.Error(err.Error())
@@ -163,21 +179,27 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 		}
 	case amfContext.UeContextReleaseDueToNwInitiatedDeregistraion:
 		ran.Log.Info("Release UE Context Due to Nw Initiated: Release Ue Context", zap.String("supi", amfUe.Supi))
+
 		err := ranUe.Remove()
 		if err != nil {
 			ran.Log.Error(err.Error())
 		}
+
 		amf.RemoveAMFUE(amfUe)
 	case amfContext.UeContextReleaseHandover:
 		ran.Log.Info("Release UE Context : Release for Handover", zap.String("supi", amfUe.Supi))
+
 		targetRanUe := amf.FindRanUeByAmfUeNgapID(ranUe.TargetUe.AmfUeNgapID)
 
 		targetRanUe.Radio = ran
+
 		amfContext.DetachSourceUeTargetUe(ranUe)
+
 		err := ranUe.Remove()
 		if err != nil {
 			ran.Log.Error(err.Error())
 		}
+
 		amfUe.AttachRanUe(targetRanUe)
 	default:
 		ran.Log.Error("Invalid Release Action", zap.Any("ReleaseAction", ranUe.ReleaseAction))

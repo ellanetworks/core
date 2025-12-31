@@ -114,6 +114,7 @@ func buildDownlinkNASTransport(downlinkNASTransport ngapType.DownlinkNASTranspor
 			})
 		}
 	}
+
 	return NGAPMessageValue{
 		IEs: ies,
 	}
@@ -136,6 +137,7 @@ func buildMobilityRestrictionListIE(mrl ngapType.MobilityRestrictionList) Mobili
 		for i := 0; i < len(mrl.EquivalentPLMNs.List); i++ {
 			eqPlmns = append(eqPlmns, plmnIDToModels(mrl.EquivalentPLMNs.List[i]))
 		}
+
 		mobilityRestrictionList.EquivalentPLMNs = eqPlmns
 	}
 
@@ -147,6 +149,7 @@ func buildMobilityRestrictionListIE(mrl ngapType.MobilityRestrictionList) Mobili
 				RATRestrictionInformation: ratRestrictionInfoToString(mrl.RATRestrictions.List[i].RATRestrictionInformation),
 			})
 		}
+
 		mobilityRestrictionList.RATRestrictions = ratRestrictions
 	}
 
@@ -157,11 +160,13 @@ func buildMobilityRestrictionListIE(mrl ngapType.MobilityRestrictionList) Mobili
 			for j := 0; j < len(mrl.ForbiddenAreaInformation.List[i].ForbiddenTACs.List); j++ {
 				tacList = append(tacList, hex.EncodeToString(mrl.ForbiddenAreaInformation.List[i].ForbiddenTACs.List[j].Value))
 			}
+
 			faiList = append(faiList, ForbiddenAreaInformation{
 				PLMNID:        plmnIDToModels(mrl.ForbiddenAreaInformation.List[i].PLMNIdentity),
 				ForbiddenTACs: tacList,
 			})
 		}
+
 		mobilityRestrictionList.ForbiddenAreaInformation = faiList
 	}
 
@@ -172,18 +177,22 @@ func buildMobilityRestrictionListIE(mrl ngapType.MobilityRestrictionList) Mobili
 			for j := 0; j < len(mrl.ServiceAreaInformation.List[i].AllowedTACs.List); j++ {
 				allowedTACs = append(allowedTACs, hex.EncodeToString(mrl.ServiceAreaInformation.List[i].AllowedTACs.List[j].Value))
 			}
+
 			notAllowedTACs := make([]string, 0)
 			for j := 0; j < len(mrl.ServiceAreaInformation.List[i].NotAllowedTACs.List); j++ {
 				notAllowedTACs = append(notAllowedTACs, hex.EncodeToString(mrl.ServiceAreaInformation.List[i].NotAllowedTACs.List[j].Value))
 			}
+
 			saiList = append(saiList, ServiceAreaInformation{
 				PLMNID:         plmnIDToModels(mrl.ServiceAreaInformation.List[i].PLMNIdentity),
 				AllowedTACs:    allowedTACs,
 				NotAllowedTACs: notAllowedTACs,
 			})
 		}
+
 		mobilityRestrictionList.ServiceAreaInformation = saiList
 	}
+
 	return mobilityRestrictionList
 }
 

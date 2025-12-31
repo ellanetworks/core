@@ -20,6 +20,7 @@ func TestRestore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("failed to close database: %v", err)
@@ -35,6 +36,7 @@ func TestRestore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temporary backup file: %v", err)
 	}
+
 	defer func() {
 		backupFile.Close()
 		os.Remove(backupFile.Name()) // Ensure cleanup

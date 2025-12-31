@@ -53,26 +53,31 @@ func TestConcurrency(t *testing.T) {
 	wg := sync.WaitGroup{}
 	for routineID := 1; routineID <= 10; routineID++ {
 		wg.Add(1)
+
 		go func(routineID int) {
-			for i := 0; i < 1000; i++ {
+			for range 1000 {
 				id, err := idGenerator.Allocate()
 				if err != nil {
 					t.Errorf("idGenerator.Allocate fail: %+v", err)
 				}
+
 				if value, ok := usedMap.Load(id); ok {
 					t.Errorf("ID %d has been allocated at routine[%d], concurrent test failed", id, value)
 				} else {
 					usedMap.Store(id, routineID)
 				}
 			}
+
 			usedMap.Range(func(key, value any) bool {
 				id := key.(int64)
 				idGenerator.FreeID(id)
+
 				return true
 			})
 			wg.Done()
 		}(routineID)
 	}
+
 	wg.Wait()
 }
 
@@ -93,7 +98,7 @@ func TestUnique(t *testing.T) {
 			testRange := int(valueRange * 3)
 			idGenerator := idgenerator.NewGenerator(testCase.minValue, testCase.maxValue)
 
-			for i := 0; i < testRange; i++ {
+			for i := range testRange {
 				id, err := idGenerator.Allocate()
 				if err != nil {
 					t.Error(err)
@@ -138,7 +143,7 @@ func TestTriggerNoSpaceToAllocateError(t *testing.T) {
 			valueRange := int(testCase.maxValue - testCase.minValue + 1)
 			idGenerator := idgenerator.NewGenerator(testCase.minValue, testCase.maxValue)
 
-			for i := 0; i < valueRange; i++ {
+			for range valueRange {
 				_, err := idGenerator.Allocate()
 				if err != nil {
 					t.Error(err)

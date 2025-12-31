@@ -19,6 +19,7 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 	logger.AmfLog.Debug("Handle Authentication Failure", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "AMF NAS HandleAuthenticationFailure")
+
 	span.SetAttributes(
 		attribute.String("ue", ue.Supi),
 		attribute.String("state", string(ue.State)),
@@ -40,6 +41,7 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 	case nasMessage.Cause5GMMMACFailure:
 		ue.Log.Warn("Authentication Failure Cause: Mac Failure")
 		ue.State = amfContext.Deregistered
+
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
@@ -49,6 +51,7 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
 		ue.Log.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
 		ue.State = amfContext.Deregistered
+
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
@@ -79,6 +82,7 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 		if ue.AuthFailureCauseSynchFailureTimes >= 2 {
 			ue.Log.Warn("2 consecutive Synch Failure, terminate authentication procedure")
 			ue.State = amfContext.Deregistered
+
 			err := message.SendAuthenticationReject(ctx, ue.RanUe)
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)

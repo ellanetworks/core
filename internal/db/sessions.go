@@ -57,6 +57,7 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) (int64,
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return 0, err
 	}
 
@@ -64,6 +65,7 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) (int64,
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving insert ID failed")
+
 		return 0, err
 	}
 
@@ -91,6 +93,7 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, err
 	}
 
@@ -118,6 +121,7 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -145,6 +149,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return 0, err
 	}
 
@@ -152,6 +157,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
+
 		return 0, err
 	}
 

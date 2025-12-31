@@ -14,11 +14,13 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amf *amfContext.AMF, ra
 		return
 	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pDUSessionResourceNotifyList *ngapType.PDUSessionResourceNotifyList
-	var pDUSessionResourceReleasedListNot *ngapType.PDUSessionResourceReleasedListNot
-	var userLocationInformation *ngapType.UserLocationInformation
+	var (
+		aMFUENGAPID                       *ngapType.AMFUENGAPID
+		rANUENGAPID                       *ngapType.RANUENGAPID
+		pDUSessionResourceNotifyList      *ngapType.PDUSessionResourceNotifyList
+		pDUSessionResourceReleasedListNot *ngapType.PDUSessionResourceReleasedListNot
+		userLocationInformation           *ngapType.UserLocationInformation
+	)
 
 	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {

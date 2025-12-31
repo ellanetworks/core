@@ -94,6 +94,7 @@ func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionRep
 					ie.NewCause(ie.CauseRequestRejected),
 				), fmt.Errorf("failed to get URR ID from Usage Report IE: %v", err)
 			}
+
 			volumeMeasurement, err := urrReport.VolumeMeasurement()
 			if err != nil {
 				return message.NewSessionReportResponse(
@@ -124,6 +125,7 @@ func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionRep
 					ie.NewCause(ie.CauseRequestRejected),
 				), fmt.Errorf("failed to update uplink data volume in db for imsi %s: %v", smContext.Supi, err)
 			}
+
 			logger.SmfLog.Debug(
 				"Processed usage report",
 				zap.String("supi", smContext.Supi),

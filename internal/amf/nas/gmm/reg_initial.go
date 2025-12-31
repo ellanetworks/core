@@ -45,11 +45,14 @@ func HandleInitialRegistration(ctx context.Context, amf *amfContext.AMF, ue *amf
 
 	if !amf.SubscriberExists(ctx, ue.Supi) {
 		ue.Log.Error("Subscriber does not exist", zap.Error(err))
+
 		err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
+
 		ue.Log.Info("sent registration reject to UE")
+
 		return fmt.Errorf("ue not found in database: %s", ue.Supi)
 	}
 
