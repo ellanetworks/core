@@ -17,7 +17,9 @@ func ReleaseSmContext(ctx context.Context, smContextRef string) error {
 		attribute.String("smf.smContextRef", smContextRef),
 	)
 
-	smContext := smfContext.GetSMContext(smContextRef)
+	smf := smfContext.SMFSelf()
+
+	smContext := smf.GetSMContext(smContextRef)
 	if smContext == nil {
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
@@ -25,20 +27,18 @@ func ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	smf := smfContext.SMFSelf()
-
-	err := smfContext.ReleaseUeIPAddr(ctx, smf.DBInstance, smContext.Supi)
+	err := smf.ReleaseUeIPAddr(ctx, smContext.Supi)
 	if err != nil {
 		logger.SmfLog.Error("release UE IP address failed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 	}
 
 	err = releaseTunnel(ctx, smf, smContext)
 	if err != nil {
-		smfContext.RemoveSMContext(ctx, smf.DBInstance, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
+		smf.RemoveSMContext(ctx, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
 		return fmt.Errorf("release tunnel failed: %v", err)
 	}
 
-	smfContext.RemoveSMContext(ctx, smf.DBInstance, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
+	smf.RemoveSMContext(ctx, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
 
 	return nil
 }

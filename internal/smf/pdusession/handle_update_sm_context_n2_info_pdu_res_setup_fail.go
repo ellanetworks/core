@@ -11,7 +11,9 @@ func UpdateSmContextN2InfoPduResSetupFail(smContextRef string, n2Data []byte) er
 		return fmt.Errorf("SM Context reference is missing")
 	}
 
-	smContext := context.GetSMContext(smContextRef)
+	smf := context.SMFSelf()
+
+	smContext := smf.GetSMContext(smContextRef)
 	if smContext == nil {
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}

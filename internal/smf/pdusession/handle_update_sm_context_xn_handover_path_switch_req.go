@@ -22,7 +22,9 @@ func UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef st
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
 
-	smContext := smfContext.GetSMContext(smContextRef)
+	smf := smfContext.SMFSelf()
+
+	smContext := smf.GetSMContext(smContextRef)
 	if smContext == nil {
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
@@ -35,14 +37,11 @@ func UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef st
 		return nil, fmt.Errorf("error handling N2 message: %v", err)
 	}
 
-	sessionContext, exist := smContext.PFCPContext[smContext.Tunnel.DataPath.DPNode.UPF.NodeID.String()]
-	if !exist {
-		return nil, fmt.Errorf("pfcp session context not found for upf: %s", smContext.Tunnel.DataPath.DPNode.UPF.NodeID.String())
+	if smContext.PFCPContext == nil {
+		return nil, fmt.Errorf("pfcp session context not found for upf")
 	}
 
-	smf := smfContext.SMFSelf()
-
-	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf, sessionContext.LocalSEID, sessionContext.RemoteSEID, pdrList, farList, nil)
+	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}

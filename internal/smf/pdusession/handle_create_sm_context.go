@@ -37,7 +37,7 @@ func CreateSmContext(ctx context.Context, supi string, pduSessionID uint8, dnn s
 
 	smf := smfContext.SMFSelf()
 
-	smContext := smfContext.GetSMContext(smfContext.CanonicalName(supi, pduSessionID))
+	smContext := smf.GetSMContext(smfContext.CanonicalName(supi, pduSessionID))
 	if smContext != nil {
 		err := handlePduSessionContextReplacement(ctx, smf, smContext)
 		if err != nil {
@@ -45,7 +45,7 @@ func CreateSmContext(ctx context.Context, supi string, pduSessionID uint8, dnn s
 		}
 	}
 
-	smContext = smfContext.NewSMContext(supi, pduSessionID)
+	smContext = smf.NewSMContext(supi, pduSessionID)
 
 	smContextRef, pco, pduSessionType, dnnInfo, pduAddress, pti, errRsp, err := handlePDUSessionSMContextCreate(ctx, smf, supi, dnn, snssai, n1Msg, smContext)
 	if err != nil {
@@ -77,7 +77,7 @@ func handlePduSessionContextReplacement(ctx context.Context, smf *smfContext.SMF
 	smCtxt.Mutex.Lock()
 	defer smCtxt.Mutex.Unlock()
 
-	smfContext.RemoveSMContext(ctx, smf.DBInstance, smfContext.CanonicalName(smCtxt.Supi, smCtxt.PDUSessionID))
+	smf.RemoveSMContext(ctx, smfContext.CanonicalName(smCtxt.Supi, smCtxt.PDUSessionID))
 
 	// Check if UPF session set, send release
 	if smCtxt.Tunnel != nil {
@@ -186,7 +186,7 @@ func handlePDUSessionSMContextCreate(
 		DataPath: defaultPath,
 	}
 
-	err = defaultPath.ActivateTunnelAndPDR(smContext, pduAddress, 255)
+	err = defaultPath.ActivateTunnelAndPDR(smf, smContext, pduAddress, 255)
 	if err != nil {
 		response, err := smfContext.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {
@@ -278,26 +278,23 @@ func sendPFCPRules(ctx context.Context, smf *smfContext.SMFContext, smContext *s
 		}
 	}
 
-	nodeID := curDataPathNode.UPF.NodeID
-
-	sessionContext, exist := smContext.PFCPContext[curDataPathNode.GetNodeIP()]
-	if !exist || sessionContext.RemoteSEID == 0 {
-		err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, smf, sessionContext.LocalSEID, pdrList, farList, qerList, urrList)
+	if smContext.PFCPContext == nil || smContext.PFCPContext.RemoteSEID == 0 {
+		err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, smf, smContext.PFCPContext.LocalSEID, pdrList, farList, qerList, urrList)
 		if err != nil {
 			return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 		}
 
-		logger.SmfLog.Info("Sent PFCP session establishment request to upf", zap.String("nodeID", nodeID.String()))
+		logger.SmfLog.Info("Sent PFCP session establishment request to upf")
 
 		return nil
 	}
 
-	err := pfcp.SendPfcpSessionModificationRequest(ctx, smf, sessionContext.LocalSEID, sessionContext.RemoteSEID, pdrList, farList, qerList)
+	err := pfcp.SendPfcpSessionModificationRequest(ctx, smf, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, qerList)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
-	logger.SmfLog.Info("Sent PFCP session modification request to upf", zap.String("nodeID", nodeID.String()))
+	logger.SmfLog.Info("Sent PFCP session modification request to upf")
 
 	return nil
 }

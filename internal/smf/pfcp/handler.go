@@ -27,7 +27,9 @@ func (s SmfPfcpHandler) HandlePfcpSessionReportRequest(ctx context.Context, msg 
 func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionReportRequest) (*message.SessionReportResponse, error) {
 	seid := msg.SEID()
 
-	smContext := smfContext.GetSMContextBySEID(seid)
+	smf := smfContext.SMFSelf()
+
+	smContext := smf.GetSMContextBySEID(seid)
 
 	if smContext == nil || smContext.Supi == "" {
 		return message.NewSessionReportResponse(
@@ -79,8 +81,6 @@ func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionRep
 
 	// Usage Report
 	if msg.ReportType.HasUSAR() {
-		smfSelf := smfContext.SMFSelf()
-
 		for _, urrReport := range msg.UsageReport {
 			// Read Volume Measurement
 			urrId, err := urrReport.URRID()
@@ -113,7 +113,7 @@ func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionRep
 			}
 			dailyUsage.SetDay(time.Now().UTC())
 
-			err = smfSelf.DBInstance.IncrementDailyUsage(ctx, dailyUsage)
+			err = smf.DBInstance.IncrementDailyUsage(ctx, dailyUsage)
 			if err != nil {
 				return message.NewSessionReportResponse(
 					1,

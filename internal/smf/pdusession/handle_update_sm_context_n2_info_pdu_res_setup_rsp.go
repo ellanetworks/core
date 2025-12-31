@@ -22,7 +22,9 @@ func UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef strin
 		return fmt.Errorf("SM Context reference is missing")
 	}
 
-	smContext := smfContext.GetSMContext(smContextRef)
+	smf := smfContext.SMFSelf()
+
+	smContext := smf.GetSMContext(smContextRef)
 	if smContext == nil {
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
@@ -35,14 +37,11 @@ func UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef strin
 		return fmt.Errorf("error handling N2 message: %v", err)
 	}
 
-	sessionContext, exist := smContext.PFCPContext[smContext.Tunnel.DataPath.DPNode.UPF.NodeID.String()]
-	if !exist {
-		return fmt.Errorf("pfcp session context not found for upf: %s", smContext.Tunnel.DataPath.DPNode.UPF.NodeID.String())
+	if smContext.PFCPContext == nil {
+		return fmt.Errorf("pfcp session context not found")
 	}
 
-	smf := smfContext.SMFSelf()
-
-	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf, sessionContext.LocalSEID, sessionContext.RemoteSEID, pdrList, farList, nil)
+	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}

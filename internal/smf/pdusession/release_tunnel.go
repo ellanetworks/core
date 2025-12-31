@@ -15,7 +15,7 @@ func releaseTunnel(ctx context.Context, smf *smfContext.SMFContext, smContext *s
 
 	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR()
 
-	err := pfcp.SendPfcpSessionDeletionRequest(ctx, smf, smContext.Tunnel.DataPath.DPNode.UPF.NodeID, smContext)
+	err := pfcp.SendPfcpSessionDeletionRequest(ctx, smf, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID)
 	if err != nil {
 		return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 	}

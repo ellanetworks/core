@@ -109,19 +109,13 @@ func (node *DataPathNode) DeactivateDownLinkTunnel() {
 	node.DownLinkTunnel = &GTPTunnel{}
 }
 
-func (node *DataPathNode) GetNodeIP() string {
-	return node.UPF.NodeID.String()
-}
-
 func (dataPath *DataPath) ActivateUlDlTunnel() error {
-	DPNode := dataPath.DPNode
-
-	err := DPNode.ActivateUpLinkTunnel()
+	err := dataPath.DPNode.ActivateUpLinkTunnel()
 	if err != nil {
 		return fmt.Errorf("couldn't activate UpLinkTunnel: %s", err)
 	}
 
-	err = DPNode.ActivateDownLinkTunnel()
+	err = dataPath.DPNode.ActivateDownLinkTunnel()
 	if err != nil {
 		return fmt.Errorf("couldn't activate DownLinkTunnel: %s", err)
 	}
@@ -239,13 +233,10 @@ func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, pduAddress net
 	}
 }
 
-func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, pduAddress net.IP, precedence uint32) error {
-	err := smContext.AllocateLocalSEIDForDataPath(dataPath)
-	if err != nil {
-		return fmt.Errorf("could not allocate local SEID for DataPath: %s", err)
-	}
+func (dataPath *DataPath) ActivateTunnelAndPDR(smf *SMFContext, smContext *SMContext, pduAddress net.IP, precedence uint32) error {
+	smf.AllocateLocalSEIDForDataPath(smContext)
 
-	err = dataPath.ActivateUlDlTunnel()
+	err := dataPath.ActivateUlDlTunnel()
 	if err != nil {
 		return fmt.Errorf("could not activate UL/DL Tunnel: %s", err)
 	}

@@ -23,7 +23,9 @@ func UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
 
-	smContext := smfContext.GetSMContext(smContextRef)
+	smf := smfContext.SMFSelf()
+
+	smContext := smf.GetSMContext(smContextRef)
 	if smContext == nil {
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
@@ -37,8 +39,6 @@ func UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte
 	}
 
 	if sendPfcpDelete {
-		smf := smfContext.SMFSelf()
-
 		err := releaseTunnel(ctx, smf, smContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to release tunnel: %v", err)
@@ -68,7 +68,7 @@ func handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *smfContext.
 
 		smf := smfContext.SMFSelf()
 
-		err := smfContext.ReleaseUeIPAddr(ctx, smf.DBInstance, smContext.Supi)
+		err := smf.ReleaseUeIPAddr(ctx, smContext.Supi)
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to release UE IP Addr: %v", err)
 		}

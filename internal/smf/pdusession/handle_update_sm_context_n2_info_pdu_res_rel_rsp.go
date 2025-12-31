@@ -19,7 +19,9 @@ func UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string)
 		return fmt.Errorf("SM Context reference is missing")
 	}
 
-	smContext := smfContext.GetSMContext(smContextRef)
+	smf := smfContext.SMFSelf()
+
+	smContext := smf.GetSMContext(smContextRef)
 	if smContext == nil {
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
@@ -33,9 +35,7 @@ func UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string)
 
 	smContext.PDUSessionReleaseDueToDupPduID = false
 
-	smf := smfContext.SMFSelf()
-
-	smfContext.RemoveSMContext(ctx, smf.DBInstance, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
+	smf.RemoveSMContext(ctx, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
 
 	return nil
 }

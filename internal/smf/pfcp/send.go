@@ -9,7 +9,6 @@ package pfcp
 import (
 	"context"
 	"fmt"
-	"net"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -67,7 +66,7 @@ func SendPfcpSessionEstablishmentRequest(
 func HandlePfcpSessionEstablishmentResponse(ctx context.Context, smf *smfContext.SMFContext, msg *message.SessionEstablishmentResponse) error {
 	seid := msg.SEID()
 
-	smContext := smfContext.GetSMContextBySEID(seid)
+	smContext := smf.GetSMContextBySEID(seid)
 	if smContext == nil {
 		return fmt.Errorf("failed to find SM Context for SEID: %d", seid)
 	}
@@ -85,13 +84,12 @@ func HandlePfcpSessionEstablishmentResponse(ctx context.Context, smf *smfContext
 	}
 
 	if msg.UPFSEID != nil {
-		pfcpSessionCtx := smContext.PFCPContext[nodeID]
 		rspUPFseid, err := msg.UPFSEID.FSEID()
 		if err != nil {
 			return fmt.Errorf("failed to parse FSEID IE: %+v", err)
 		}
 
-		pfcpSessionCtx.RemoteSEID = rspUPFseid.SEID
+		smContext.PFCPContext.RemoteSEID = rspUPFseid.SEID
 	}
 
 	// UE IP-Addr(only v4 supported)
@@ -194,16 +192,10 @@ func HandlePfcpSessionDeletionResponse(msg *message.SessionDeletionResponse) err
 	return nil
 }
 
-func SendPfcpSessionDeletionRequest(ctx context.Context, smf *smfContext.SMFContext, upNodeID net.IP, smCtx *smfContext.SMContext) error {
+func SendPfcpSessionDeletionRequest(ctx context.Context, smf *smfContext.SMFContext, localSEID uint64, remoteSEID uint64) error {
 	seqNum := getSeqNumber()
-	upNodeIDStr := upNodeID.String()
 
-	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
-	if !ok {
-		return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
-	}
-
-	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, smf.CPNodeID)
+	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, localSEID, remoteSEID, smf.CPNodeID)
 
 	rsp, err := dispatcher.UPF.HandlePfcpSessionDeletionRequest(ctx, pfcpMsg)
 	if err != nil {

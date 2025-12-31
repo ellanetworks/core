@@ -15,11 +15,13 @@ import (
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.uber.org/zap"
 )
 
 var smfContext SMFContext
@@ -47,7 +49,6 @@ func InitializeSMF(dbInstance *db.Database) {
 		DBInstance:       dbInstance,
 		CPNodeID:         net.ParseIP("0.0.0.0"),
 		UPF: &UPF{
-			NodeID:         net.ParseIP("0.0.0.0"),
 			pdrIDGenerator: idgenerator.NewGenerator(1, math.MaxUint16),
 			farIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
 			qerIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
@@ -85,9 +86,9 @@ func (smf *SMFContext) RetrieveDnnInformation(ctx context.Context, ueSnssai mode
 	return supportedSnssai.DnnInfos, nil
 }
 
-func AllocateLocalSEID() uint64 {
-	atomic.AddUint64(&smfContext.LocalSEIDCount, 1)
-	return smfContext.LocalSEIDCount
+func (smf *SMFContext) AllocateLocalSEID() uint64 {
+	atomic.AddUint64(&smf.LocalSEIDCount, 1)
+	return smf.LocalSEIDCount
 }
 
 func SMFSelf() *SMFContext {
@@ -168,4 +169,112 @@ func (smf *SMFContext) GetSubscriberPolicy(ctx context.Context, ueID string) (*m
 	}
 
 	return subscriberPolicy, nil
+}
+
+func (smf *SMFContext) PDUSessionsByDNN(dnn string) []*SMContext {
+	smf.Mutex.Lock()
+	defer smf.Mutex.Unlock()
+
+	var out []*SMContext
+
+	for _, smContext := range smf.smContextPool {
+		if smContext.Dnn == dnn {
+			out = append(out, smContext)
+		}
+	}
+
+	return out
+}
+
+func (smf *SMFContext) GetSMContextBySEID(seid uint64) *SMContext {
+	smf.Mutex.Lock()
+	defer smf.Mutex.Unlock()
+
+	value, ok := smf.seidSMContextMap[seid]
+	if !ok {
+		return nil
+	}
+
+	return value
+}
+
+func (smf *SMFContext) AllocateLocalSEIDForDataPath(smContext *SMContext) {
+	if smContext.PFCPContext != nil {
+		return
+	}
+
+	allocatedSEID := smf.AllocateLocalSEID()
+
+	smContext.PFCPContext = &PFCPSessionContext{
+		LocalSEID: allocatedSEID,
+	}
+
+	smf.Mutex.Lock()
+	defer smf.Mutex.Unlock()
+
+	smf.seidSMContextMap[allocatedSEID] = smContext
+}
+
+func (smf *SMFContext) NewSMContext(supi string, pduSessID uint8) *SMContext {
+	smf.Mutex.Lock()
+	defer smf.Mutex.Unlock()
+
+	smContext := new(SMContext)
+
+	ref := CanonicalName(supi, pduSessID)
+	smf.smContextPool[ref] = smContext
+	smContext.PDUSessionID = pduSessID
+
+	return smContext
+}
+
+func (smf *SMFContext) GetSMContext(ref string) *SMContext {
+	smf.Mutex.Lock()
+	defer smf.Mutex.Unlock()
+
+	value, ok := smf.smContextPool[ref]
+	if !ok {
+		return nil
+	}
+
+	return value
+}
+
+func (smf *SMFContext) GetPDUSessionCount() int {
+	smf.Mutex.Lock()
+	defer smf.Mutex.Unlock()
+
+	return len(smf.smContextPool)
+}
+
+func (smf *SMFContext) RemoveSMContext(ctx context.Context, ref string) {
+	smf.Mutex.Lock()
+	defer smf.Mutex.Unlock()
+
+	smContext, ok := smf.smContextPool[ref]
+	if !ok {
+		return
+	}
+
+	delete(smf.seidSMContextMap, smContext.PFCPContext.LocalSEID)
+
+	err := smf.ReleaseUeIPAddr(ctx, smContext.Supi)
+	if err != nil {
+		logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
+	}
+
+	delete(smf.smContextPool, ref)
+
+	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
+}
+
+func (smf *SMFContext) ReleaseUeIPAddr(ctx context.Context, supi string) error {
+	err := smf.DBInstance.ReleaseIP(ctx, supi)
+	if err != nil {
+		return fmt.Errorf("failed to release IP Address, %v", err)
+	}
+
+	logger.SmfLog.Info("Released IP Address", zap.String("supi", supi))
+
+	return nil
 }

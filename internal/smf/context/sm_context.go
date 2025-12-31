@@ -7,12 +7,10 @@
 package context
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"sync"
 
-	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
@@ -42,92 +40,13 @@ type SMContext struct {
 	Tunnel                         *UPTunnel
 	SmPolicyUpdates                *qos.PolicyUpdate
 	SmPolicyData                   qos.SmCtxtPolicyData
-	PFCPContext                    map[string]*PFCPSessionContext // key: UPF NodeID
+	PFCPContext                    *PFCPSessionContext
 	PDUSessionID                   uint8
 	PDUSessionReleaseDueToDupPduID bool
 }
 
 func CanonicalName(identifier string, pduSessID uint8) string {
 	return fmt.Sprintf("%s-%d", identifier, pduSessID)
-}
-
-func NewSMContext(supi string, pduSessID uint8) *SMContext {
-	smfContext.Mutex.Lock()
-	defer smfContext.Mutex.Unlock()
-
-	smContext := new(SMContext)
-
-	ref := CanonicalName(supi, pduSessID)
-	smfContext.smContextPool[ref] = smContext
-	smContext.PDUSessionID = pduSessID
-	smContext.PFCPContext = make(map[string]*PFCPSessionContext)
-
-	return smContext
-}
-
-func GetSMContext(ref string) *SMContext {
-	smfContext.Mutex.Lock()
-	defer smfContext.Mutex.Unlock()
-
-	value, ok := smfContext.smContextPool[ref]
-	if !ok {
-		return nil
-	}
-
-	return value
-}
-
-func GetPDUSessionCount() int {
-	smfContext.Mutex.Lock()
-	defer smfContext.Mutex.Unlock()
-
-	return len(smfContext.smContextPool)
-}
-
-func RemoveSMContext(ctx context.Context, dbInstance *db.Database, ref string) {
-	smfContext.Mutex.Lock()
-	defer smfContext.Mutex.Unlock()
-
-	smContext, ok := smfContext.smContextPool[ref]
-	if !ok {
-		return
-	}
-
-	for _, pfcpSessionContext := range smContext.PFCPContext {
-		delete(smfContext.seidSMContextMap, pfcpSessionContext.LocalSEID)
-	}
-
-	err := ReleaseUeIPAddr(ctx, dbInstance, smContext.Supi)
-	if err != nil {
-		logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
-	}
-
-	delete(smfContext.smContextPool, ref)
-
-	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
-}
-
-func GetSMContextBySEID(seid uint64) *SMContext {
-	smfContext.Mutex.Lock()
-	defer smfContext.Mutex.Unlock()
-
-	value, ok := smfContext.seidSMContextMap[seid]
-	if !ok {
-		return nil
-	}
-
-	return value
-}
-
-func ReleaseUeIPAddr(ctx context.Context, dbInstance *db.Database, supi string) error {
-	err := dbInstance.ReleaseIP(ctx, supi)
-	if err != nil {
-		return fmt.Errorf("failed to release IP Address, %v", err)
-	}
-
-	logger.SmfLog.Info("Released IP Address", zap.String("supi", supi))
-
-	return nil
 }
 
 func PDUAddressToNAS(pduAddress net.IP, pduSessionType uint8) ([12]byte, uint8) {
@@ -143,28 +62,6 @@ func PDUAddressToNAS(pduAddress net.IP, pduSessionType uint8) ([12]byte, uint8) 
 	default:
 		return addr, 0
 	}
-}
-
-func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) error {
-	curDataPathNode := dataPath.DPNode
-	NodeIDtoIP := curDataPathNode.UPF.NodeID.String()
-
-	_, exist := smContext.PFCPContext[NodeIDtoIP]
-	if exist {
-		return nil
-	}
-
-	allocatedSEID := AllocateLocalSEID()
-
-	smContext.PFCPContext[NodeIDtoIP] = &PFCPSessionContext{
-		LocalSEID: allocatedSEID,
-	}
-
-	smfContext.Mutex.Lock()
-	defer smfContext.Mutex.Unlock()
-	smfContext.seidSMContextMap[allocatedSEID] = smContext
-
-	return nil
 }
 
 // SelectedSessionRule - return the SMF selected session rule for this SM Context
@@ -190,19 +87,4 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 	smContext.SmPolicyUpdates = nil
 
 	return nil
-}
-
-func PDUSessionsByDNN(dnn string) []*SMContext {
-	smfContext.Mutex.Lock()
-	defer smfContext.Mutex.Unlock()
-
-	var out []*SMContext
-
-	for _, smContext := range smfContext.smContextPool {
-		if smContext.Dnn == dnn {
-			out = append(out, smContext)
-		}
-	}
-
-	return out
 }

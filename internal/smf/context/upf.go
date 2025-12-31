@@ -21,8 +21,6 @@ type UPF struct {
 	farIDGenerator *idgenerator.IDGenerator
 	qerIDGenerator *idgenerator.IDGenerator
 	urrIDGenerator *idgenerator.IDGenerator
-
-	NodeID net.IP
 }
 
 func (upf *UPF) pdrID() (uint16, error) {

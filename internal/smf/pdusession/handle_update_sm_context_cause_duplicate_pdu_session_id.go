@@ -19,7 +19,9 @@ func UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
 
-	smContext := smfContext.GetSMContext(smContextRef)
+	smf := smfContext.SMFSelf()
+
+	smContext := smf.GetSMContext(smContextRef)
 	if smContext == nil {
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
@@ -33,8 +35,6 @@ func UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef
 	if err != nil {
 		return nil, fmt.Errorf("build PDUSession Resource Release Command Transfer Error: %v", err)
 	}
-
-	smf := smfContext.SMFSelf()
 
 	err = releaseTunnel(ctx, smf, smContext)
 	if err != nil {
