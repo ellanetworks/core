@@ -6,9 +6,6 @@ import (
 	"io"
 	"strconv"
 	"strings"
-
-	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 )
 
 // GetMetrics retrieves the metrics from the server and returns a map
@@ -24,11 +21,7 @@ func (c *Client) GetMetrics(ctx context.Context) (map[string]float64, error) {
 	}
 
 	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			logger.EllaLog.Error("could not close metrics response body", zap.Error(err))
-			return
-		}
+		_ = resp.Body.Close()
 	}()
 
 	// Read the entire metrics output.

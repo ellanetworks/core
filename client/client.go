@@ -13,8 +13,6 @@ import (
 	"path"
 	"time"
 
-	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -181,11 +179,7 @@ func (rq *defaultRequester) Do(ctx context.Context, opts *RequestOptions) (*Requ
 	}
 
 	defer func() {
-		err := httpResp.Body.Close()
-		if err != nil {
-			logger.EllaLog.Error("could not close response body", zap.Error(err))
-			return
-		}
+		_ = httpResp.Body.Close()
 	}()
 
 	var serverResp response
