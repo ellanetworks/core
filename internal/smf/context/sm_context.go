@@ -12,6 +12,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
@@ -83,7 +84,7 @@ func GetPDUSessionCount() int {
 	return len(smfContext.smContextPool)
 }
 
-func RemoveSMContext(ctx context.Context, ref string) {
+func RemoveSMContext(ctx context.Context, dbInstance *db.Database, ref string) {
 	smfContext.Mutex.Lock()
 	defer smfContext.Mutex.Unlock()
 
@@ -96,7 +97,7 @@ func RemoveSMContext(ctx context.Context, ref string) {
 		delete(smfContext.seidSMContextMap, pfcpSessionContext.LocalSEID)
 	}
 
-	err := ReleaseUeIPAddr(ctx, smContext.Supi)
+	err := ReleaseUeIPAddr(ctx, dbInstance, smContext.Supi)
 	if err != nil {
 		logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
 	}
@@ -106,11 +107,11 @@ func RemoveSMContext(ctx context.Context, ref string) {
 	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
 }
 
-func GetSMContextBySEID(SEID uint64) *SMContext {
+func GetSMContextBySEID(seid uint64) *SMContext {
 	smfContext.Mutex.Lock()
 	defer smfContext.Mutex.Unlock()
 
-	value, ok := smfContext.seidSMContextMap[SEID]
+	value, ok := smfContext.seidSMContextMap[seid]
 	if !ok {
 		return nil
 	}
@@ -118,10 +119,8 @@ func GetSMContextBySEID(SEID uint64) *SMContext {
 	return value
 }
 
-func ReleaseUeIPAddr(ctx context.Context, supi string) error {
-	smfSelf := SMFSelf()
-
-	err := smfSelf.DBInstance.ReleaseIP(ctx, supi)
+func ReleaseUeIPAddr(ctx context.Context, dbInstance *db.Database, supi string) error {
+	err := dbInstance.ReleaseIP(ctx, supi)
 	if err != nil {
 		return fmt.Errorf("failed to release IP Address, %v", err)
 	}

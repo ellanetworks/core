@@ -8,7 +8,6 @@ package context
 
 import (
 	"fmt"
-	"math"
 	"net"
 	"time"
 
@@ -24,18 +23,6 @@ type UPF struct {
 	urrIDGenerator *idgenerator.IDGenerator
 
 	NodeID net.IP
-}
-
-func NewUPF(nodeID net.IP) *UPF {
-	upf := new(UPF)
-	upf.NodeID = nodeID
-	upf.pdrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint16)
-	upf.farIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
-	upf.qerIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
-	upf.urrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
-	upf.N3Interface = nil
-
-	return upf
 }
 
 func (upf *UPF) pdrID() (uint16, error) {

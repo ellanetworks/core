@@ -33,7 +33,9 @@ func UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string)
 
 	smContext.PDUSessionReleaseDueToDupPduID = false
 
-	smfContext.RemoveSMContext(ctx, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
+	smf := smfContext.SMFSelf()
+
+	smfContext.RemoveSMContext(ctx, smf.DBInstance, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
 
 	return nil
 }

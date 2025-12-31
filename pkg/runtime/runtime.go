@@ -118,15 +118,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start API: %w", err)
 	}
 
-	if err := smf.Start(dbInstance); err != nil {
-		return fmt.Errorf("couldn't start SMF: %w", err)
-	}
+	smf.Start(dbInstance)
+
 	if err := amf.Start(dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port); err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}
-	if err := ausf.Start(dbInstance); err != nil {
-		return fmt.Errorf("couldn't start AUSF: %w", err)
-	}
+
+	ausf.Start(dbInstance)
 
 	defer func() {
 		amf.Close()

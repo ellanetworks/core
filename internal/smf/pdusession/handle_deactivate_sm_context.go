@@ -40,7 +40,9 @@ func DeactivateSmContext(ctx context.Context, smContextRef string) error {
 		return fmt.Errorf("pfcp session context not found for upf: %s", smContext.Tunnel.DataPath.DPNode.UPF.NodeID.String())
 	}
 
-	err = pfcp.SendPfcpSessionModificationRequest(ctx, sessionContext.LocalSEID, sessionContext.RemoteSEID, nil, farList, nil)
+	smf := smfContext.SMFSelf()
+
+	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf, sessionContext.LocalSEID, sessionContext.RemoteSEID, nil, farList, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
@@ -55,21 +57,20 @@ func handleUpCnxStateDeactivate(smContext *smfContext.SMContext) ([]*smfContext.
 		return nil, nil
 	}
 
-	ANUPF := smContext.Tunnel.DataPath.DPNode
-	if ANUPF.DownLinkTunnel.PDR == nil {
+	if smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR == nil {
 		return nil, fmt.Errorf("AN Release Error, PDR is nil")
 	}
 
-	ANUPF.DownLinkTunnel.PDR.FAR.State = smfContext.RuleUpdate
-	ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction.Forw = false
-	ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction.Buff = true
-	ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction.Nocp = true
+	smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR.State = smfContext.RuleUpdate
+	smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR.ApplyAction.Forw = false
+	smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR.ApplyAction.Buff = true
+	smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR.ApplyAction.Nocp = true
 
-	if ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters != nil {
-		ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
+	if smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR.ForwardingParameters != nil {
+		smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
 	}
 
-	farList := []*smfContext.FAR{ANUPF.DownLinkTunnel.PDR.FAR}
+	farList := []*smfContext.FAR{smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR}
 
 	return farList, nil
 }

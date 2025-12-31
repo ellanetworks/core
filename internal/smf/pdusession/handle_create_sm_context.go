@@ -35,9 +35,11 @@ func CreateSmContext(ctx context.Context, supi string, pduSessionID uint8, dnn s
 	)
 	defer span.End()
 
+	smf := smfContext.SMFSelf()
+
 	smContext := smfContext.GetSMContext(smfContext.CanonicalName(supi, pduSessionID))
 	if smContext != nil {
-		err := handlePduSessionContextReplacement(ctx, smContext)
+		err := handlePduSessionContextReplacement(ctx, smf, smContext)
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to replace existing context")
 		}
@@ -45,7 +47,7 @@ func CreateSmContext(ctx context.Context, supi string, pduSessionID uint8, dnn s
 
 	smContext = smfContext.NewSMContext(supi, pduSessionID)
 
-	smContextRef, pco, pduSessionType, dnnInfo, pduAddress, pti, errRsp, err := handlePDUSessionSMContextCreate(ctx, supi, dnn, snssai, n1Msg, smContext)
+	smContextRef, pco, pduSessionType, dnnInfo, pduAddress, pti, errRsp, err := handlePDUSessionSMContextCreate(ctx, smf, supi, dnn, snssai, n1Msg, smContext)
 	if err != nil {
 		return "", errRsp, fmt.Errorf("failed to create SM Context: %v", err)
 	}
@@ -54,7 +56,7 @@ func CreateSmContext(ctx context.Context, supi string, pduSessionID uint8, dnn s
 		return "", errRsp, nil
 	}
 
-	err = sendPFCPRules(ctx, smContext)
+	err = sendPFCPRules(ctx, smf, smContext)
 	if err != nil {
 		err := sendPduSessionEstablishmentReject(ctx, smContext, pti)
 		if err != nil {
@@ -71,15 +73,15 @@ func CreateSmContext(ctx context.Context, supi string, pduSessionID uint8, dnn s
 	return smContextRef, nil, nil
 }
 
-func handlePduSessionContextReplacement(ctx context.Context, smCtxt *smfContext.SMContext) error {
+func handlePduSessionContextReplacement(ctx context.Context, smf *smfContext.SMFContext, smCtxt *smfContext.SMContext) error {
 	smCtxt.Mutex.Lock()
 	defer smCtxt.Mutex.Unlock()
 
-	smfContext.RemoveSMContext(ctx, smfContext.CanonicalName(smCtxt.Supi, smCtxt.PDUSessionID))
+	smfContext.RemoveSMContext(ctx, smf.DBInstance, smfContext.CanonicalName(smCtxt.Supi, smCtxt.PDUSessionID))
 
 	// Check if UPF session set, send release
 	if smCtxt.Tunnel != nil {
-		err := releaseTunnel(ctx, smCtxt)
+		err := releaseTunnel(ctx, smf, smCtxt)
 		if err != nil {
 			logger.SmfLog.Error("release tunnel failed", zap.Error(err), zap.String("supi", smCtxt.Supi), zap.Uint8("pduSessionID", smCtxt.PDUSessionID))
 		}
@@ -90,6 +92,7 @@ func handlePduSessionContextReplacement(ctx context.Context, smCtxt *smfContext.
 
 func handlePDUSessionSMContextCreate(
 	ctx context.Context,
+	smf *smfContext.SMFContext,
 	supi string,
 	dnn string,
 	snssai *models.Snssai,
@@ -125,7 +128,7 @@ func handlePDUSessionSMContextCreate(
 	smContext.Dnn = dnn
 	smContext.Snssai = snssai
 
-	subscriberPolicy, err := smfContext.GetSubscriberPolicy(ctx, smContext.Supi)
+	subscriberPolicy, err := smf.GetSubscriberPolicy(ctx, smContext.Supi)
 	if err != nil {
 		rsp, err := smfContext.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {
@@ -134,7 +137,7 @@ func handlePDUSessionSMContextCreate(
 		return "", nil, 0, nil, nil, 0, rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
 	}
 
-	dnnInfo, err := smfContext.RetrieveDnnInformation(ctx, *snssai, dnn)
+	dnnInfo, err := smf.RetrieveDnnInformation(ctx, *snssai, dnn)
 	if err != nil {
 		logger.SmfLog.Warn("error retrieving DNN information", zap.String("SST", fmt.Sprintf("%d", snssai.Sst)), zap.String("SD", snssai.Sd), zap.String("DNN", dnn), zap.Error(err))
 		rsp, err := smfContext.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
@@ -144,9 +147,7 @@ func handlePDUSessionSMContextCreate(
 		return "", nil, 0, nil, nil, 0, rsp, nil
 	}
 
-	smfSelf := smfContext.SMFSelf()
-
-	pduAddress, err := smfSelf.DBInstance.AllocateIP(ctx, smContext.Supi)
+	pduAddress, err := smf.DBInstance.AllocateIP(ctx, smContext.Supi)
 	if err != nil {
 		rsp, err := smfContext.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMInsufficientResources)
 		if err != nil {
@@ -177,7 +178,7 @@ func handlePDUSessionSMContextCreate(
 		DPNode: &smfContext.DataPathNode{
 			UpLinkTunnel:   &smfContext.GTPTunnel{},
 			DownLinkTunnel: &smfContext.GTPTunnel{},
-			UPF:            smfSelf.UPF,
+			UPF:            smf.UPF,
 		},
 	}
 
@@ -240,7 +241,7 @@ func handlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmen
 }
 
 // SendPFCPRules send all datapaths to UPFs
-func sendPFCPRules(ctx context.Context, smContext *smfContext.SMContext) error {
+func sendPFCPRules(ctx context.Context, smf *smfContext.SMFContext, smContext *smfContext.SMContext) error {
 	dataPath := smContext.Tunnel.DataPath
 	if !dataPath.Activated {
 		logger.SmfLog.Debug("DataPath is not activated, skip sending PFCP rules")
@@ -281,7 +282,7 @@ func sendPFCPRules(ctx context.Context, smContext *smfContext.SMContext) error {
 
 	sessionContext, exist := smContext.PFCPContext[curDataPathNode.GetNodeIP()]
 	if !exist || sessionContext.RemoteSEID == 0 {
-		err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, sessionContext.LocalSEID, pdrList, farList, qerList, urrList)
+		err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, smf, sessionContext.LocalSEID, pdrList, farList, qerList, urrList)
 		if err != nil {
 			return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 		}
@@ -291,7 +292,7 @@ func sendPFCPRules(ctx context.Context, smContext *smfContext.SMContext) error {
 		return nil
 	}
 
-	err := pfcp.SendPfcpSessionModificationRequest(ctx, sessionContext.LocalSEID, sessionContext.RemoteSEID, pdrList, farList, qerList)
+	err := pfcp.SendPfcpSessionModificationRequest(ctx, smf, sessionContext.LocalSEID, sessionContext.RemoteSEID, pdrList, farList, qerList)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}

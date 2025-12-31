@@ -25,18 +25,20 @@ func ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	err := smfContext.ReleaseUeIPAddr(ctx, smContext.Supi)
+	smf := smfContext.SMFSelf()
+
+	err := smfContext.ReleaseUeIPAddr(ctx, smf.DBInstance, smContext.Supi)
 	if err != nil {
 		logger.SmfLog.Error("release UE IP address failed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 	}
 
-	err = releaseTunnel(ctx, smContext)
+	err = releaseTunnel(ctx, smf, smContext)
 	if err != nil {
-		smfContext.RemoveSMContext(ctx, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
+		smfContext.RemoveSMContext(ctx, smf.DBInstance, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
 		return fmt.Errorf("release tunnel failed: %v", err)
 	}
 
-	smfContext.RemoveSMContext(ctx, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
+	smfContext.RemoveSMContext(ctx, smf.DBInstance, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
 
 	return nil
 }

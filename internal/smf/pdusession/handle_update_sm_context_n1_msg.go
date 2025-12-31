@@ -37,7 +37,9 @@ func UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte
 	}
 
 	if sendPfcpDelete {
-		err := releaseTunnel(ctx, smContext)
+		smf := smfContext.SMFSelf()
+
+		err := releaseTunnel(ctx, smf, smContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to release tunnel: %v", err)
 		}
@@ -64,7 +66,9 @@ func handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *smfContext.
 	case nas.MsgTypePDUSessionReleaseRequest:
 		logger.SmfLog.Info("N1 Msg PDU Session Release Request received", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-		err := smfContext.ReleaseUeIPAddr(ctx, smContext.Supi)
+		smf := smfContext.SMFSelf()
+
+		err := smfContext.ReleaseUeIPAddr(ctx, smf.DBInstance, smContext.Supi)
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to release UE IP Addr: %v", err)
 		}

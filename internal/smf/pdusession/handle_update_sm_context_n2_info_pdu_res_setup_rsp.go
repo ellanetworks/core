@@ -40,7 +40,9 @@ func UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef strin
 		return fmt.Errorf("pfcp session context not found for upf: %s", smContext.Tunnel.DataPath.DPNode.UPF.NodeID.String())
 	}
 
-	err = pfcp.SendPfcpSessionModificationRequest(ctx, sessionContext.LocalSEID, sessionContext.RemoteSEID, pdrList, farList, nil)
+	smf := smfContext.SMFSelf()
+
+	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf, sessionContext.LocalSEID, sessionContext.RemoteSEID, pdrList, farList, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}

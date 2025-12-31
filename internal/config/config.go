@@ -13,10 +13,6 @@ import (
 )
 
 const (
-	UpfNodeID = "0.0.0.0"
-)
-
-const (
 	AttachModeNative  = "native"
 	AttachModeGeneric = "generic"
 )

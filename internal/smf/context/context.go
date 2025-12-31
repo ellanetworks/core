@@ -9,12 +9,14 @@ package context
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"sync"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -38,28 +40,36 @@ type SMFContext struct {
 	seidSMContextMap map[uint64]*SMContext // key: PFCP SEID
 }
 
-func init() {
+func InitializeSMF(dbInstance *db.Database) {
 	smfContext = SMFContext{
 		smContextPool:    make(map[string]*SMContext),
 		seidSMContextMap: make(map[uint64]*SMContext),
+		DBInstance:       dbInstance,
+		CPNodeID:         net.ParseIP("0.0.0.0"),
+		UPF: &UPF{
+			NodeID:         net.ParseIP("0.0.0.0"),
+			pdrIDGenerator: idgenerator.NewGenerator(1, math.MaxUint16),
+			farIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
+			qerIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
+			urrIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
+			N3Interface:    nil,
+		},
 	}
 }
 
-// SnssaiSmfDnnInfo records the SMF per S-NSSAI DNN information
 type SnssaiSmfDnnInfo struct {
 	DNS net.IP
 	MTU uint16
 }
 
-// SnssaiSmfInfo records the SMF S-NSSAI related information
 type SnssaiSmfInfo struct {
 	DnnInfos *SnssaiSmfDnnInfo
 	Snssai   models.Snssai
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
-func RetrieveDnnInformation(ctx context.Context, ueSnssai models.Snssai, dnn string) (*SnssaiSmfDnnInfo, error) {
-	supportedSnssai, err := GetSnssaiInfo(ctx, dnn)
+func (smf *SMFContext) RetrieveDnnInformation(ctx context.Context, ueSnssai models.Snssai, dnn string) (*SnssaiSmfDnnInfo, error) {
+	supportedSnssai, err := smf.GetSnssaiInfo(ctx, dnn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get snssai information: %v", err)
 	}
@@ -84,21 +94,19 @@ func SMFSelf() *SMFContext {
 	return &smfContext
 }
 
-func GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
+func (smf *SMFContext) GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
 	ctx, span := tracer.Start(ctx, "SMF GetSnssaiInfo")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("dnn", dnn),
 	)
 
-	self := SMFSelf()
-
-	operator, err := self.DBInstance.GetOperator(ctx)
+	operator, err := smf.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
 	}
 
-	dataNetwork, err := self.DBInstance.GetDataNetwork(ctx, dnn)
+	dataNetwork, err := smf.DBInstance.GetDataNetwork(ctx, dnn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list policies from db: %v", err)
 	}
@@ -125,21 +133,19 @@ func GetAllowedSessionType() uint8 {
 	return AllowedSessionType
 }
 
-func GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyDecision, error) {
+func (smf *SMFContext) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyDecision, error) {
 	ctx, span := tracer.Start(ctx, "SMF GetSubscriberPolicy")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", ueID),
 	)
 
-	self := SMFSelf()
-
-	subscriber, err := self.DBInstance.GetSubscriber(ctx, ueID)
+	subscriber, err := smf.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 
-	policy, err := self.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
+	policy, err := smf.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
