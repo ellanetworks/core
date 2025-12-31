@@ -23,7 +23,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 	}
 
 	if ue.RegistrationRequest.UpdateType5GS != nil {
-		if ue.RegistrationRequest.UpdateType5GS.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
+		if ue.RegistrationRequest.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
 			ue.UeRadioCapability = ""
 			ue.UeRadioCapabilityForPaging = nil
 		}
@@ -48,7 +48,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 	}
 
 	if ue.RegistrationRequest.MICOIndication != nil {
-		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.MICOIndication.GetRAAI()))
+		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.GetRAAI()))
 	}
 
 	if ue.RegistrationRequest.RequestedDRXParameters != nil {

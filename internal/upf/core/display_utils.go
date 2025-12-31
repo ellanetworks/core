@@ -93,7 +93,6 @@ func printSessionModificationRequest(req *message.SessionModificationRequest) {
 		displayUrr(&sb, urr)
 	}
 
-	// log.Println("------ Remove:")
 	for _, pdr := range req.RemovePDR {
 		sb.WriteString("  Remove")
 		displayPdr(&sb, pdr)
@@ -126,7 +125,7 @@ func printSessionDeleteRequest(req *message.SessionDeletionRequest) {
 
 func displayUrr(sb *strings.Builder, urr *ie.IE) {
 	urrID, _ := urr.URRID()
-	sb.WriteString(fmt.Sprintf("URR ID: %d \n", urrID))
+	fmt.Fprintf(sb, "URR ID: %d \n", urrID)
 
 	measurementMethod, err := urr.MeasurementMethod()
 	if err == nil {
@@ -151,7 +150,7 @@ func displayUrr(sb *strings.Builder, urr *ie.IE) {
 
 func displayQer(sb *strings.Builder, qer *ie.IE) {
 	qerID, _ := qer.QERID()
-	sb.WriteString(fmt.Sprintf("QER ID: %d \n", qerID))
+	fmt.Fprintf(sb, "QER ID: %d \n", qerID)
 
 	gateStatusDL, err := qer.GateStatusDL()
 	if err == nil {
@@ -181,7 +180,7 @@ func displayQer(sb *strings.Builder, qer *ie.IE) {
 
 func displayFar(sb *strings.Builder, far *ie.IE) {
 	farID, _ := far.FARID()
-	sb.WriteString(fmt.Sprintf("FAR ID: %d \n", farID))
+	fmt.Fprintf(sb, "FAR ID: %d \n", farID)
 
 	applyAction, err := far.ApplyAction()
 	if err == nil {
@@ -250,7 +249,7 @@ func displayFar(sb *strings.Builder, far *ie.IE) {
 
 func displayPdr(sb *strings.Builder, pdr *ie.IE) {
 	pdrID, _ := pdr.PDRID()
-	sb.WriteString(fmt.Sprintf("PDR ID: %d \n", pdrID))
+	fmt.Fprintf(sb, "PDR ID: %d \n", pdrID)
 
 	if outerHeaderRemoval, err := pdr.OuterHeaderRemovalDescription(); err == nil {
 		writeLineTabbed(sb, fmt.Sprintf("Outer Header Removal: %d ", outerHeaderRemoval), 2)

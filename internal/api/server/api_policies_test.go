@@ -537,7 +537,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			arp:             Arp,
 			DataNetworkName: "internet",
-			error:           "Invalid name format. Must be less than 256 characters",
+			error:           "invalid name format - must be less than 256 characters",
 		},
 
 		{
@@ -548,7 +548,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			arp:             Arp,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Uplink Bitrate - Invalid unit",
@@ -558,7 +558,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			arp:             Arp,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Uplink Bitrate - Zero value",
@@ -568,7 +568,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			arp:             Arp,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Uplink Bitrate - Negative value",
@@ -578,7 +578,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			arp:             Arp,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Uplink Bitrate - Too large value",
@@ -588,7 +588,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			arp:             Arp,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Downlink Bitrate - Missing unit",
@@ -598,7 +598,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			arp:             Arp,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Downlink Bitrate - Invalid unit",
@@ -608,7 +608,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			arp:             Arp,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Downlink Bitrate - Zero value",
@@ -618,7 +618,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			arp:             Arp,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Downlink Bitrate - Negative value",
@@ -628,7 +628,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			arp:             Arp,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid Downlink Bitrate - Too large value",
@@ -638,7 +638,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			arp:             Arp,
 			DataNetworkName: "internet",
-			error:           "Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps",
+			error:           "invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
 			testName:        "Invalid 5QI - GBR",
@@ -648,7 +648,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          1,
 			arp:             Arp,
 			DataNetworkName: "internet",
-			error:           "Invalid Var5qi format. Must be an integer associated with a non-GBR 5QI",
+			error:           "invalid Var5qi format - must be an integer associated with a non-GBR 5QI",
 		},
 		{
 			testName:        "Invalid 5QI - Delay Critical GBR",
@@ -658,7 +658,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          82,
 			arp:             Arp,
 			DataNetworkName: "internet",
-			error:           "Invalid Var5qi format. Must be an integer associated with a non-GBR 5QI",
+			error:           "invalid Var5qi format - must be an integer associated with a non-GBR 5QI",
 		},
 		{
 			testName:        "Invalid Priority Level - Too large value",
@@ -668,7 +668,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 			var5qi:          Var5qi,
 			arp:             256,
 			DataNetworkName: "internet",
-			error:           "Invalid arp format. Must be an integer between 1 and 255",
+			error:           "invalid arp format - must be an integer between 1 and 255",
 		},
 	}
 	for _, tt := range tests {

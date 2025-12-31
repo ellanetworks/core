@@ -38,8 +38,15 @@ func TestRestore(t *testing.T) {
 	}
 
 	defer func() {
-		backupFile.Close()
-		os.Remove(backupFile.Name()) // Ensure cleanup
+		err := backupFile.Close()
+		if err != nil {
+			t.Fatalf("failed to close backup file: %v", err)
+		}
+
+		err = os.Remove(backupFile.Name()) // Ensure cleanup
+		if err != nil {
+			t.Fatalf("failed to remove backup file: %v", err)
+		}
 	}()
 
 	backupData := []byte("backup data")

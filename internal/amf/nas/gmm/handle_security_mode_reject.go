@@ -29,7 +29,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amfContext.AmfUe, msg *na
 		ue.T3560 = nil // clear the timer
 	}
 
-	cause := msg.SecurityModeReject.Cause5GMM.GetCauseValue()
+	cause := msg.SecurityModeReject.GetCauseValue()
 
 	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", zap.String("Cause", nasMessage.Cause5GMMToString(cause)), zap.String("supi", ue.Supi))
 

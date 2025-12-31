@@ -98,14 +98,14 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	}
 
 	pDUSessionEstablishmentAccept.AuthorizedQosRules.SetLen(uint16(len(qosRulesBytes)))
-	pDUSessionEstablishmentAccept.AuthorizedQosRules.SetQosRule(qosRulesBytes)
+	pDUSessionEstablishmentAccept.SetQosRule(qosRulesBytes)
 
 	if pduAddress != nil {
 		addr, addrLen := PDUAddressToNAS(pduAddress, pduSessionType)
 		pDUSessionEstablishmentAccept.PDUAddress = nasType.NewPDUAddress(nasMessage.PDUSessionEstablishmentAcceptPDUAddressType)
 		pDUSessionEstablishmentAccept.PDUAddress.SetLen(addrLen)
-		pDUSessionEstablishmentAccept.PDUAddress.SetPDUSessionTypeValue(pduSessionType)
-		pDUSessionEstablishmentAccept.PDUAddress.SetPDUAddressInformation(addr)
+		pDUSessionEstablishmentAccept.SetPDUSessionTypeValue(pduSessionType)
+		pDUSessionEstablishmentAccept.SetPDUAddressInformation(addr)
 	}
 
 	// Get Authorized QoS Flow Descriptions
@@ -137,12 +137,12 @@ func BuildGSMPDUSessionEstablishmentAccept(
 
 		copy(sd[:], byteArray)
 
-		pDUSessionEstablishmentAccept.SNSSAI.SetSD(sd)
+		pDUSessionEstablishmentAccept.SetSD(sd)
 		pDUSessionEstablishmentAccept.SNSSAI.SetLen(4)
 	}
 
 	pDUSessionEstablishmentAccept.DNN = nasType.NewDNN(nasMessage.ULNASTransportDNNType)
-	pDUSessionEstablishmentAccept.DNN.SetDNN(dnn)
+	pDUSessionEstablishmentAccept.SetDNN(dnn)
 
 	if pco.DNSIPv4Request || pco.DNSIPv6Request || pco.IPv4LinkMTURequest {
 		pDUSessionEstablishmentAccept.ExtendedProtocolConfigurationOptions = nasType.NewExtendedProtocolConfigurationOptions(
@@ -176,9 +176,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		pDUSessionEstablishmentAccept.
 			ExtendedProtocolConfigurationOptions.
 			SetLen(uint16(pcoContentsLength))
-		pDUSessionEstablishmentAccept.
-			ExtendedProtocolConfigurationOptions.
-			SetExtendedProtocolConfigurationOptionsContents(pcoContents)
+		pDUSessionEstablishmentAccept.SetExtendedProtocolConfigurationOptionsContents(pcoContents)
 	}
 
 	return m.PlainNasEncode()

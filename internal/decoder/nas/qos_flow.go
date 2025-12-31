@@ -189,8 +189,6 @@ func ParseAuthorizedQosFlowDescriptions(content []byte) ([]QoSFlowDescription, e
 					case QFDParamIDMfbrDl:
 						param.MfbrDlKbps = &kbps
 					}
-				} else {
-					// unknown unit → keep Raw, mark len ok but unit unknown is implicit from missing decoded field
 				}
 
 			case QFDParamIDAvgWnd:

@@ -24,7 +24,7 @@ func buildAuthenticationFailure(msg *nasMessage.AuthenticationFailure) *Authenti
 	authFailure := &AuthenticationFailure{
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		Cause5GMM:                           cause5GMMToEnum(msg.Cause5GMM.GetCauseValue()),
+		Cause5GMM:                           cause5GMMToEnum(msg.GetCauseValue()),
 	}
 
 	if msg.AuthenticationFailureParameter != nil {

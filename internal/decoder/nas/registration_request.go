@@ -139,7 +139,7 @@ func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *Registration
 	}
 
 	if msg.NASMessageContainer != nil {
-		registrationRequest.NASMessageContainer = msg.NASMessageContainer.GetNASMessageContainerContents()
+		registrationRequest.NASMessageContainer = msg.GetNASMessageContainerContents()
 	}
 
 	return registrationRequest

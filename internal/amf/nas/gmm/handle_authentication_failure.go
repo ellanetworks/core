@@ -35,7 +35,7 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 		ue.T3560 = nil // clear the timer
 	}
 
-	cause5GMM := msg.AuthenticationFailure.Cause5GMM.GetCauseValue()
+	cause5GMM := msg.AuthenticationFailure.GetCauseValue()
 
 	switch cause5GMM {
 	case nasMessage.Cause5GMMMACFailure:
@@ -91,7 +91,7 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 			return nil
 		}
 
-		auts := msg.AuthenticationFailure.AuthenticationFailureParameter.GetAuthenticationFailureParameter()
+		auts := msg.GetAuthenticationFailureParameter()
 		resynchronizationInfo := &models.ResynchronizationInfo{
 			Auts: hex.EncodeToString(auts[:]),
 		}

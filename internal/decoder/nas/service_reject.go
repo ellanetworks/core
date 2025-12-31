@@ -23,7 +23,7 @@ func buildServiceReject(msg *nasMessage.ServiceReject) *ServiceReject {
 	serviceReject := &ServiceReject{
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		Cause5GMM:                           cause5GMMToEnum(msg.Cause5GMM.GetCauseValue()),
+		Cause5GMM:                           cause5GMMToEnum(msg.GetCauseValue()),
 	}
 
 	if msg.PDUSessionStatus != nil {
@@ -41,12 +41,12 @@ func buildServiceReject(msg *nasMessage.ServiceReject) *ServiceReject {
 	}
 
 	if msg.T3346Value != nil {
-		t3346Value := msg.T3346Value.GetGPRSTimer2Value()
+		t3346Value := msg.GetGPRSTimer2Value()
 		serviceReject.T3346Value = &t3346Value
 	}
 
 	if msg.EAPMessage != nil {
-		serviceReject.EAPMessage = msg.EAPMessage.GetEAPMessage()
+		serviceReject.EAPMessage = msg.GetEAPMessage()
 	}
 
 	return serviceReject

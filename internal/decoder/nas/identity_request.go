@@ -19,6 +19,6 @@ func buildIdentityRequest(msg *nasMessage.IdentityRequest) *IdentityRequest {
 	return &IdentityRequest{
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
-		TypeOfIdentity:                      buildTypeOfIdentityEnum(msg.SpareHalfOctetAndIdentityType.GetTypeOfIdentity()),
+		TypeOfIdentity:                      buildTypeOfIdentityEnum(msg.GetTypeOfIdentity()),
 	}
 }

@@ -66,7 +66,7 @@ func HandleNAS(ctx context.Context, amf *amfContext.AMF, ue *amfContext.RanUe, n
 		return errors.New("gsm message is not nil")
 	}
 
-	msgTypeName := messageName(msg.GmmMessage.GmmHeader.GetMessageType())
+	msgTypeName := messageName(msg.GmmHeader.GetMessageType())
 
 	ctx, span := tracer.Start(ctx, fmt.Sprintf("AMF NAS %s", msgTypeName),
 		trace.WithAttributes(

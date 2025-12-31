@@ -44,24 +44,24 @@ func handleSecurityModeComplete(ctx context.Context, amf *amfContext.AMF, ue *am
 		}
 	}
 
-	if msg.SecurityModeComplete.IMEISV != nil {
-		ue.Pei = nasConvert.PeiToString(msg.SecurityModeComplete.IMEISV.Octet[:])
+	if msg.IMEISV != nil {
+		ue.Pei = nasConvert.PeiToString(msg.IMEISV.Octet[:])
 	}
 
 	if msg.SecurityModeComplete.NASMessageContainer != nil {
-		contents := msg.SecurityModeComplete.NASMessageContainer.GetNASMessageContainerContents()
+		contents := msg.SecurityModeComplete.GetNASMessageContainerContents()
 
 		m := nas.NewMessage()
 		if err := m.GmmMessageDecode(&contents); err != nil {
 			return fmt.Errorf("failed to decode nas message container: %v", err)
 		}
 
-		messageType := m.GmmMessage.GmmHeader.GetMessageType()
+		messageType := m.GmmHeader.GetMessageType()
 		if messageType != nas.MsgTypeRegistrationRequest {
 			return fmt.Errorf("nas message container Iei type error")
 		}
 
-		return contextSetup(ctx, amf, ue, m.GmmMessage.RegistrationRequest)
+		return contextSetup(ctx, amf, ue, m.RegistrationRequest)
 	}
 
 	err := contextSetup(ctx, amf, ue, ue.RegistrationRequest)

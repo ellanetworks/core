@@ -30,13 +30,11 @@ func handleRegistrationComplete(ctx context.Context, ue *amfContext.AmfUe) error
 
 	forPending := ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestPending
 
-	uds := ue.RegistrationRequest.UplinkDataStatus
-
-	udsHasPending := uds != nil
+	udsHasPending := ue.RegistrationRequest.UplinkDataStatus != nil
 
 	hasActiveSessions := ue.HasActivePduSessions()
 
-	shouldRelease := !(forPending || udsHasPending || hasActiveSessions)
+	shouldRelease := !forPending && !udsHasPending && !hasActiveSessions
 
 	if shouldRelease {
 		ue.RanUe.ReleaseAction = amfContext.UeContextN2NormalRelease

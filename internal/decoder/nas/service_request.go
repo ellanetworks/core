@@ -129,7 +129,7 @@ func buildServiceRequest(msg *nasMessage.ServiceRequest) *ServiceRequest {
 	}
 
 	if msg.NASMessageContainer != nil {
-		serviceRequest.NASMessageContainer = msg.NASMessageContainer.GetNASMessageContainerContents()
+		serviceRequest.NASMessageContainer = msg.GetNASMessageContainerContents()
 	}
 
 	return serviceRequest

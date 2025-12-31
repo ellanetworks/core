@@ -21,7 +21,7 @@ func buildRegistrationComplete(msg *nasMessage.RegistrationComplete) *Registrati
 	}
 
 	if msg.SORTransparentContainer != nil {
-		regComplete.GetSORContent = msg.SORTransparentContainer.GetSORContent()
+		regComplete.GetSORContent = msg.GetSORContent()
 	}
 
 	return regComplete

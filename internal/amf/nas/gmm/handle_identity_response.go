@@ -82,7 +82,7 @@ func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfCon
 
 	switch ue.State {
 	case amfContext.Authentication:
-		mobileIdentityContents := msg.IdentityResponse.MobileIdentity.GetMobileIdentityContents()
+		mobileIdentityContents := msg.GetMobileIdentityContents()
 
 		if err := updateUEIdentity(ue, mobileIdentityContents); err != nil {
 			return fmt.Errorf("error handling identity response: %v", err)
@@ -104,7 +104,7 @@ func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfCon
 		return nil
 
 	case amfContext.ContextSetup:
-		mobileIdentityContents := msg.IdentityResponse.MobileIdentity.GetMobileIdentityContents()
+		mobileIdentityContents := msg.GetMobileIdentityContents()
 
 		if err := updateUEIdentity(ue, mobileIdentityContents); err != nil {
 			return fmt.Errorf("error handling identity response: %v", err)

@@ -67,7 +67,7 @@ func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 	// TS 24.501 4.4.6: If NASMessageContainer is present, it contains a ciphered inner Registration Request
 	// carrying non-cleartext IEs, which must be decrypted and processed instead of the outer message.
 	if registrationRequest.NASMessageContainer != nil {
-		contents := registrationRequest.NASMessageContainer.GetNASMessageContainerContents()
+		contents := registrationRequest.GetNASMessageContainerContents()
 
 		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
 		if err != nil {
@@ -90,7 +90,7 @@ func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 			return fmt.Errorf("failed to decode NAS message - sent registration reject: %v", err)
 		}
 
-		messageType := m.GmmMessage.GmmHeader.GetMessageType()
+		messageType := m.GmmHeader.GetMessageType()
 		if messageType != nas.MsgTypeRegistrationRequest {
 			return fmt.Errorf("expected registration request, got %d", messageType)
 		}
@@ -101,7 +101,7 @@ func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 	}
 
 	ue.RegistrationRequest = registrationRequest
-	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
+	ue.RegistrationType5GS = registrationRequest.GetRegistrationType5GS()
 
 	regName := getRegistrationType5GSName(ue.RegistrationType5GS)
 
@@ -111,7 +111,7 @@ func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 		ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 	}
 
-	mobileIdentity5GSContents := registrationRequest.MobileIdentity5GS.GetMobileIdentity5GSContents()
+	mobileIdentity5GSContents := registrationRequest.GetMobileIdentity5GSContents()
 	if len(mobileIdentity5GSContents) == 0 {
 		return errors.New("mobile identity 5GS is empty")
 	}
@@ -147,7 +147,7 @@ func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 	}
 
 	// NgKsi: TS 24.501 9.11.3.32
-	switch registrationRequest.NgksiAndRegistrationType5GS.GetTSC() {
+	switch registrationRequest.GetTSC() {
 	case nasMessage.TypeOfSecurityContextFlagNative:
 		ue.NgKsi.Tsc = models.ScTypeNative
 	case nasMessage.TypeOfSecurityContextFlagMapped:

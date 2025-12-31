@@ -81,7 +81,7 @@ func forward5GSMMessageToSMF(
 }
 
 func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, ulNasTransport *nasMessage.ULNASTransport) error {
-	smMessage := ulNasTransport.PayloadContainer.GetPayloadContainerContents()
+	smMessage := ulNasTransport.GetPayloadContainerContents()
 
 	id := ulNasTransport.PduSessionID2Value
 	if id == nil {
@@ -131,8 +131,8 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			ue.Log.Error("Could not decode Nas message", zap.Error(err))
 		}
 
-		if msg.GsmMessage != nil && msg.GsmMessage.Status5GSM != nil {
-			ue.Log.Warn("SmContext doesn't exist, 5GSM Status message received from UE", zap.Any("cause", msg.GsmMessage.Status5GSM.Cause5GSM))
+		if msg.GsmMessage != nil && msg.Status5GSM != nil {
+			ue.Log.Warn("SmContext doesn't exist, 5GSM Status message received from UE", zap.Any("cause", msg.Status5GSM.Cause5GSM))
 			return nil
 		}
 	}
@@ -209,7 +209,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			}
 
 			if ulNasTransport.DNN != nil && ulNasTransport.DNN.GetLen() > 0 {
-				dnn = ulNasTransport.DNN.GetDNN()
+				dnn = ulNasTransport.GetDNN()
 			} else {
 				// if user's subscription context obtained from UDM does not contain the default DNN for the,
 				// S-NSSAI, the AMF shall use a locally configured DNN as the DNN
@@ -288,7 +288,7 @@ func handleULNASTransport(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	case nasMessage.PayloadContainerTypeUEParameterUpdate:
 		ue.Log.Info("AMF Transfer UEParameterUpdate To UDM")
 
-		upuMac, err := nasConvert.UpuAckToModels(msg.ULNASTransport.PayloadContainer.GetPayloadContainerContents())
+		upuMac, err := nasConvert.UpuAckToModels(msg.ULNASTransport.GetPayloadContainerContents())
 		if err != nil {
 			return fmt.Errorf("failed to convert UPU ACK to models: %v", err)
 		}

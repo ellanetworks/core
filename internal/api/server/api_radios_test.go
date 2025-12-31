@@ -181,7 +181,8 @@ func TestListRadios(t *testing.T) {
 	}
 
 	for _, radio := range response.Result.Items {
-		if radio.Name == "gnb-001" {
+		switch radio.Name {
+		case "gnb-001":
 			if radio.Address != "1.2.3.4" {
 				t.Fatalf("expected radio address %q, got %q", "1.2.3.4", radio.Address)
 			}
@@ -217,7 +218,7 @@ func TestListRadios(t *testing.T) {
 			if radio.SupportedTAIs[0].SNssais[0].Sd != "010204" {
 				t.Fatalf("expected sd %q, got %q", "010204", radio.SupportedTAIs[0].SNssais[0].Sd)
 			}
-		} else if radio.Name == "gnb-002" {
+		case "gnb-002":
 			if radio.Address != "2.3.4.5" {
 				t.Fatalf("expected radio address %q, got %q", "2.3.4.5", radio.Address)
 			}
@@ -245,7 +246,7 @@ func TestListRadios(t *testing.T) {
 			if len(radio.SupportedTAIs[0].SNssais) != 1 {
 				t.Fatalf("expected 1 supported SNssai, got %d", len(radio.SupportedTAIs[0].SNssais))
 			}
-		} else {
+		default:
 			t.Fatalf("unexpected radio name %q", radio.Name)
 		}
 	}

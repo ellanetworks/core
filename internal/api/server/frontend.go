@@ -8,6 +8,9 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 func newFrontendFileServer(embedFS fs.FS) (http.Handler, error) {
@@ -107,7 +110,12 @@ func serveBytes(w http.ResponseWriter, fsys fs.FS, p string) {
 		return
 	}
 
-	defer f.Close()
+	defer func() {
+		err := f.Close()
+		if err != nil {
+			logger.EllaLog.Error("could not close file", zap.String("path", p), zap.Error(err))
+		}
+	}()
 
 	ct := mime.TypeByExtension(filepath.Ext(p))
 	if ct == "" {

@@ -41,7 +41,7 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 		return fmt.Errorf("ue Authentication Context is nil")
 	}
 
-	resStar := msg.AuthenticationResponse.AuthenticationResponseParameter.GetRES()
+	resStar := msg.GetRES()
 
 	// Calculate HRES* (TS 33.501 Annex A.5)
 	p0, err := hex.DecodeString(ue.AuthenticationCtx.Rand)

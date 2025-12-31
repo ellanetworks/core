@@ -28,11 +28,11 @@ func HandleInitialRegistration(ctx context.Context, amf *amfContext.AMF, ue *amf
 	ue.AllowedNssai = operatorInfo.SupportedPLMN.SNssai
 
 	if ue.RegistrationRequest.MICOIndication != nil {
-		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.MICOIndication.GetRAAI()))
+		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.GetRAAI()))
 	}
 
 	if ue.RegistrationRequest.RequestedDRXParameters != nil {
-		ue.UESpecificDRX = ue.RegistrationRequest.RequestedDRXParameters.GetDRXValue()
+		ue.UESpecificDRX = ue.RegistrationRequest.GetDRXValue()
 	}
 
 	bitRate, dnn, err := amf.GetSubscriberData(ctx, ue.Supi)

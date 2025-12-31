@@ -212,7 +212,7 @@ func handlePDUSessionSMContextCreate(
 
 func handlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmentRequest) (*smfContext.ProtocolConfigurationOptions, error) {
 	if req.PDUSessionType != nil {
-		requestedPDUSessionType := req.PDUSessionType.GetPDUSessionTypeValue()
+		requestedPDUSessionType := req.GetPDUSessionTypeValue()
 		if requestedPDUSessionType != nasMessage.PDUSessionTypeIPv4 && requestedPDUSessionType != nasMessage.PDUSessionTypeIPv4IPv6 {
 			return nil, fmt.Errorf("requested PDUSessionType is invalid: %d", requestedPDUSessionType)
 		}
@@ -221,7 +221,7 @@ func handlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmen
 	pco := &smfContext.ProtocolConfigurationOptions{}
 
 	if req.ExtendedProtocolConfigurationOptions != nil {
-		EPCOContents := req.ExtendedProtocolConfigurationOptions.GetExtendedProtocolConfigurationOptionsContents()
+		EPCOContents := req.GetExtendedProtocolConfigurationOptionsContents()
 		protocolConfigurationOptions := nasConvert.NewProtocolConfigurationOptions()
 
 		unmarshalErr := protocolConfigurationOptions.UnMarshal(EPCOContents)

@@ -26,7 +26,12 @@ func freePort(t *testing.T) int {
 		t.Fatalf("failed to get free port: %v", err)
 	}
 
-	defer l.Close()
+	defer func() {
+		err := l.Close()
+		if err != nil {
+			t.Fatalf("failed to close listener: %v", err)
+		}
+	}()
 
 	return l.Addr().(*net.TCPAddr).Port
 }
@@ -113,7 +118,12 @@ func TestStartServerStandup(t *testing.T) {
 		t.Fatalf("failed to reach server: %v", lastErr)
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			t.Fatalf("failed to close response body: %v", err)
+		}
+	}()
 
 	// Read and log the response.
 	body, err := io.ReadAll(resp.Body)

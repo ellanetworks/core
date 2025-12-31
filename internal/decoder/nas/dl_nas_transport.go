@@ -31,7 +31,7 @@ func buildDLNASTransport(msg *nasMessage.DLNASTransport) *DLNASTransport {
 	dlNasTransport.PayloadContainer = buildDLNASPayloadContainer(msg)
 
 	if msg.PduSessionID2Value != nil {
-		value := msg.PduSessionID2Value.GetPduSessionID2Value()
+		value := msg.GetPduSessionID2Value()
 		dlNasTransport.PduSessionID2Value = &value
 	}
 
@@ -40,12 +40,12 @@ func buildDLNASTransport(msg *nasMessage.DLNASTransport) *DLNASTransport {
 	}
 
 	if msg.BackoffTimerValue != nil {
-		backoffTimerValue := msg.BackoffTimerValue.GetUnitTimerValue()
+		backoffTimerValue := msg.GetUnitTimerValue()
 		dlNasTransport.BackoffTimerValue = &backoffTimerValue
 	}
 
 	if msg.Cause5GMM != nil {
-		cause := cause5GMMToEnum(msg.Cause5GMM.GetCauseValue())
+		cause := cause5GMMToEnum(msg.GetCauseValue())
 		dlNasTransport.Cause5GMM = &cause
 	}
 

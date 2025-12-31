@@ -303,9 +303,10 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 	if laddr != nil {
 		// If IP address and/or port was not provided so far, let's use the unspecified IPv4 or IPv6 address
 		if len(laddr.IPAddrs) == 0 {
-			if af == syscall.AF_INET {
+			switch af {
+			case syscall.AF_INET:
 				laddr.IPAddrs = append(laddr.IPAddrs, net.IPAddr{IP: net.IPv4zero})
-			} else if af == syscall.AF_INET6 {
+			case syscall.AF_INET6:
 				laddr.IPAddrs = append(laddr.IPAddrs, net.IPAddr{IP: net.IPv6zero})
 			}
 		}

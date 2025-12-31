@@ -46,17 +46,17 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	ulNasTransport.PayloadContainer = buildULNASPayloadContainer(msg)
 
 	if msg.PduSessionID2Value != nil {
-		value := msg.PduSessionID2Value.GetPduSessionID2Value()
+		value := msg.GetPduSessionID2Value()
 		ulNasTransport.PduSessionID2Value = &value
 	}
 
 	if msg.OldPDUSessionID != nil {
-		value := msg.OldPDUSessionID.GetOldPDUSessionID()
+		value := msg.GetOldPDUSessionID()
 		ulNasTransport.OldPDUSessionID = &value
 	}
 
 	if msg.RequestType != nil {
-		value := buildRequestTypeEnum(msg.RequestType.GetRequestTypeValue())
+		value := buildRequestTypeEnum(msg.GetRequestTypeValue())
 		ulNasTransport.RequestType = &value
 	}
 
@@ -66,7 +66,7 @@ func buildULNASTransport(msg *nasMessage.ULNASTransport) *ULNASTransport {
 	}
 
 	if msg.DNN != nil && msg.DNN.GetLen() > 0 {
-		dnn := msg.DNN.GetDNN()
+		dnn := msg.GetDNN()
 		ulNasTransport.DNN = &dnn
 	}
 
@@ -153,9 +153,9 @@ func decodeGSMMessage(raw []byte) (*GsmMessage, error) {
 
 	switch m.GsmMessage.GetMessageType() {
 	case nas.MsgTypePDUSessionEstablishmentRequest:
-		gsmMessage.PDUSessionEstablishmentRequest = buildPDUSessionEstablishmentRequest(m.GsmMessage.PDUSessionEstablishmentRequest)
+		gsmMessage.PDUSessionEstablishmentRequest = buildPDUSessionEstablishmentRequest(m.PDUSessionEstablishmentRequest)
 	case nas.MsgTypePDUSessionEstablishmentAccept:
-		gsmMessage.PDUSessionEstablishmentAccept = buildPDUSessionEstablishmentAccept(m.GsmMessage.PDUSessionEstablishmentAccept)
+		gsmMessage.PDUSessionEstablishmentAccept = buildPDUSessionEstablishmentAccept(m.PDUSessionEstablishmentAccept)
 	default:
 		gsmMessage.Error = fmt.Sprintf("GSM message type %d not yet implemented", m.GsmMessage.GetMessageType())
 	}

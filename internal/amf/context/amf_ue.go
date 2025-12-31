@@ -506,7 +506,7 @@ func (ue *AmfUe) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	// a security protected NAS message must be integrity protected, and ciphering is optional
 	needCiphering := false
 
-	switch msg.SecurityHeader.SecurityHeaderType {
+	switch msg.SecurityHeaderType {
 	case nas.SecurityHeaderTypeIntegrityProtected:
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered:
 		needCiphering = true
@@ -514,7 +514,7 @@ func (ue *AmfUe) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 		ue.ULCount.Set(0, 0)
 		ue.DLCount.Set(0, 0)
 	default:
-		return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
+		return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeaderType)
 	}
 
 	// encode plain nas first
@@ -541,7 +541,7 @@ func (ue *AmfUe) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	payload = append(mac32, payload[:]...)
 
 	// Add EPD and Security Type
-	msgSecurityHeader := []byte{msg.SecurityHeader.ProtocolDiscriminator, msg.SecurityHeader.SecurityHeaderType}
+	msgSecurityHeader := []byte{msg.ProtocolDiscriminator, msg.SecurityHeaderType}
 	payload = append(msgSecurityHeader, payload[:]...)
 
 	// Increase DL Count
@@ -633,7 +633,7 @@ func (ue *AmfUe) DecodeNASMessage(payload []byte) (*nas.Message, error) {
 
 			ue.ULCount.Set(0, 0)
 		default:
-			return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
+			return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeaderType)
 		}
 
 		if ue.ULCount.SQN() > sequenceNumber {

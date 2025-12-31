@@ -65,7 +65,7 @@ func buildServiceAccept(msg *nasMessage.ServiceAccept) *ServiceAccept {
 	}
 
 	if msg.PDUSessionReactivationResultErrorCause != nil {
-		pduSessionIDAndCause := msg.PDUSessionReactivationResultErrorCause.GetPDUSessionIDAndCauseValue()
+		pduSessionIDAndCause := msg.GetPDUSessionIDAndCauseValue()
 
 		pduSessionIDs, causes := bufToPDUSessionReactivationResultErrorCause(pduSessionIDAndCause)
 		if len(pduSessionIDs) != len(causes) {
@@ -84,7 +84,7 @@ func buildServiceAccept(msg *nasMessage.ServiceAccept) *ServiceAccept {
 	}
 
 	if msg.EAPMessage != nil {
-		serviceAccept.EAPMessage = msg.EAPMessage.GetEAPMessage()
+		serviceAccept.EAPMessage = msg.GetEAPMessage()
 	}
 
 	return serviceAccept

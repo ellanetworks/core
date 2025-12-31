@@ -280,7 +280,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
 		expiryThreshold := nsSinceBoot - ConnTrackTimeout.Nanoseconds()
 
-		ct_entries := u.pfcpConn.BpfObjects.N3N6EntrypointMaps.NatCt.Iterate()
+		ct_entries := u.pfcpConn.BpfObjects.NatCt.Iterate()
 		for ct_entries.Next(&key, &value) {
 			if value.RefreshTs < uint64(expiryThreshold) {
 				expiredKeys = append(expiredKeys, key)
@@ -291,7 +291,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 			logger.UpfLog.Debug("Error while iterating over conntrack entries", zap.Error(err))
 		}
 
-		count, err := u.pfcpConn.BpfObjects.N3N6EntrypointMaps.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
+		count, err := u.pfcpConn.BpfObjects.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
 		if err != nil {
 			logger.UpfLog.Warn("Failed to delete expired conntrack entries", zap.Error(err))
 		}
@@ -360,12 +360,12 @@ func (u *UPF) getAndResetUsageForURR(urrID uint32) (uint64, error) {
 	ncpu := runtime.NumCPU()
 	zeroes := make([]uint64, ncpu)
 
-	err := u.pfcpConn.BpfObjects.N3N6EntrypointMaps.UrrMap.Lookup(&urrID, &perCPU)
+	err := u.pfcpConn.BpfObjects.UrrMap.Lookup(&urrID, &perCPU)
 	if err != nil {
 		return 0, fmt.Errorf("failed to lookup URR: %w", err)
 	}
 
-	err = u.pfcpConn.BpfObjects.N3N6EntrypointMaps.UrrMap.Update(&urrID, zeroes, bpf.UpdateAny)
+	err = u.pfcpConn.BpfObjects.UrrMap.Update(&urrID, zeroes, bpf.UpdateAny)
 	if err != nil {
 		return 0, fmt.Errorf("failed to reset URR: %w", err)
 	}

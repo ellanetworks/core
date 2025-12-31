@@ -354,15 +354,15 @@ func validatePolicyParams(p CreatePolicyParams) error {
 	case p.Arp == 0:
 		return errors.New("arp is missing")
 	case !isPolicyNameValid(p.Name):
-		return errors.New("Invalid name format. Must be less than 256 characters")
+		return errors.New("invalid name format - must be less than 256 characters")
 	case !isValidBitrate(p.BitrateUplink):
-		return errors.New("Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+		return errors.New("invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
 	case !isValidBitrate(p.BitrateDownlink):
-		return errors.New("Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+		return errors.New("invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
 	case !isValid5Qi(p.Var5qi):
-		return errors.New("Invalid Var5qi format. Must be an integer associated with a non-GBR 5QI")
+		return errors.New("invalid Var5qi format - must be an integer associated with a non-GBR 5QI")
 	case !isValidArp(p.Arp):
-		return errors.New("Invalid arp format. Must be an integer between 1 and 255")
+		return errors.New("invalid arp format - must be an integer between 1 and 255")
 	}
 
 	return nil
