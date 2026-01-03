@@ -147,10 +147,12 @@ func (bpfObjects *BpfObjects) unpinMaps() {
 	if err := bpfObjects.PdrsDownlinkIp6.Unpin(); err != nil {
 		logger.UpfLog.Warn("failed to unpin pdrs_downlink_ip6 map, state could be left behind: %v", zap.Error(err))
 	}
-	if err := bpfObjects.N3N6EntrypointMaps.DownlinkStatistics.Unpin(); err != nil {
+
+	if err := bpfObjects.DownlinkStatistics.Unpin(); err != nil {
 		logger.UpfLog.Warn("failed to unpin downlink_statistics map, state could be left behind: %v", zap.Error(err))
 	}
-	if err := bpfObjects.N3N6EntrypointMaps.UplinkStatistics.Unpin(); err != nil {
+
+	if err := bpfObjects.UplinkStatistics.Unpin(); err != nil {
 		logger.UpfLog.Warn("failed to unpin uplink_statistics map, state could be left behind: %v", zap.Error(err))
 	}
 }
