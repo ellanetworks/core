@@ -51,7 +51,7 @@ go test ./...
 Install pre-requisites:
 
 ```shell
-sudo snap install node --channel=22/stable --classic
+sudo snap install node --channel=24/stable --classic
 ```
 
 ```shell
