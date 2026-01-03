@@ -25,7 +25,7 @@ parts:
       - git
     build-snaps:
       - go/1.25/stable
-      - node/22/stable
+      - node/24/stable
     stage-packages:
       - libc6_libs
     override-build: |

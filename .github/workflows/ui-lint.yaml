@@ -12,8 +12,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
       - name: use npm
         uses: actions/setup-node@v6
+        with:
+          node-version: 24
 
       - name: Install dependencies
         run: |
