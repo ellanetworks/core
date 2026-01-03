@@ -76,6 +76,7 @@ func TestGetRoute_Success(t *testing.T) {
 	clientObj := &client.Client{
 		Requester: fake,
 	}
+
 	var id int64 = 123
 
 	getRouteOpts := &client.GetRouteOptions{
@@ -106,6 +107,7 @@ func TestGetRoute_Failure(t *testing.T) {
 	clientObj := &client.Client{
 		Requester: fake,
 	}
+
 	var id int64 = 123
 
 	getRouteOpts := &client.GetRouteOptions{
@@ -132,6 +134,7 @@ func TestDeleteRoute_Success(t *testing.T) {
 	clientObj := &client.Client{
 		Requester: fake,
 	}
+
 	var id int64 = 132
 
 	deleteRouteOpts := &client.DeleteRouteOptions{
@@ -158,6 +161,7 @@ func TestDeleteRoute_Failure(t *testing.T) {
 	clientObj := &client.Client{
 		Requester: fake,
 	}
+
 	var id int64 = 123
 
 	deleteRouteOpts := &client.DeleteRouteOptions{

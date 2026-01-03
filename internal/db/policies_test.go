@@ -17,6 +17,7 @@ func TestPoliciesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -40,6 +41,7 @@ func TestPoliciesEndToEnd(t *testing.T) {
 		Name:   "not-internet",
 		IPPool: "1.2.3.0/24",
 	}
+
 	err = database.CreateDataNetwork(context.Background(), newDataNetwork)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateDataNetwork: %s", err)
@@ -58,6 +60,7 @@ func TestPoliciesEndToEnd(t *testing.T) {
 		Arp:             1,
 		DataNetworkID:   createdNetwork.ID,
 	}
+
 	err = database.CreatePolicy(context.Background(), policy)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
@@ -80,18 +83,23 @@ func TestPoliciesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
+
 	if retrievedPolicy.Name != policy.Name {
 		t.Fatalf("The policy name from the database doesn't match the policy name that was given")
 	}
+
 	if retrievedPolicy.BitrateUplink != policy.BitrateUplink {
 		t.Fatalf("The bitrate uplink from the database doesn't match the bitrate uplink that was given")
 	}
+
 	if retrievedPolicy.BitrateDownlink != policy.BitrateDownlink {
 		t.Fatalf("The bitrate downlink from the database doesn't match the bitrate downlink that was given")
 	}
+
 	if retrievedPolicy.Var5qi != policy.Var5qi {
 		t.Fatalf("The Var5qi from the database doesn't match the Var5qi that was given")
 	}
+
 	if retrievedPolicy.Arp != policy.Arp {
 		t.Fatalf("The ARP from the database doesn't match the ARP that was given")
 	}
@@ -108,12 +116,15 @@ func TestPoliciesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
+
 	if retrievedPolicy.Name != policy.Name {
 		t.Fatalf("The policy name from the database doesn't match the policy name that was given")
 	}
+
 	if retrievedPolicy.Var5qi != policy.Var5qi {
 		t.Fatalf("The 5qi from the database doesn't match the 5qi that was given")
 	}
+
 	if retrievedPolicy.Arp != policy.Arp {
 		t.Fatalf("The ARP from the database doesn't match the ARP that was given")
 	}

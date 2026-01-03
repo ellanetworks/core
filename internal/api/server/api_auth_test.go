@@ -49,14 +49,17 @@ func login(url string, client *http.Client, data *LoginParams) (int, *LoginRespo
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/auth/login", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
@@ -102,33 +105,40 @@ func lookupToken(url string, client *http.Client, token string) (int, *LoookupTo
 	if err != nil {
 		return 0, nil, err
 	}
+
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var lookupResponse LoookupTokenResponse
 	if err := json.NewDecoder(res.Body).Decode(&lookupResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &lookupResponse, nil
 }
 
 func TestLoginEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, jwtSecret, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	t.Run("1. Initialize", func(t *testing.T) {
@@ -136,10 +146,12 @@ func TestLoginEndToEnd(t *testing.T) {
 			Email:    FirstUserEmail,
 			Password: "password123",
 		}
+
 		statusCode, _, err := initialize(ts.URL, client, initParams)
 		if err != nil {
 			t.Fatalf("couldn't create admin user: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
@@ -150,6 +162,7 @@ func TestLoginEndToEnd(t *testing.T) {
 			Email:    FirstUserEmail,
 			Password: "password123",
 		}
+
 		statusCode, _, err := login(ts.URL, client, user)
 		if err != nil {
 			t.Fatalf("couldn't login admin user: %s", err)
@@ -171,15 +184,18 @@ func TestLoginEndToEnd(t *testing.T) {
 		if refreshResponse.Result.Token == "" {
 			t.Fatalf("expected token, got empty string")
 		}
+
 		token, err := jwt.Parse(refreshResponse.Result.Token, func(token *jwt.Token) (any, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 			}
+
 			return jwtSecret, nil
 		})
 		if err != nil {
 			t.Fatalf("couldn't parse token: %s", err)
 		}
+
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 			if claims["email"] != FirstUserEmail {
 				t.Fatalf("expected email %q, got %q", "testuser", claims["email"])
@@ -194,13 +210,16 @@ func TestLoginEndToEnd(t *testing.T) {
 			Email:    "",
 			Password: "Admin123",
 		}
+
 		statusCode, loginResponse, err := login(ts.URL, client, invalidUser)
 		if err != nil {
 			t.Fatalf("couldn't login admin user: %s", err)
 		}
+
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
+
 		if loginResponse.Error != "Email is required" {
 			t.Fatalf("expected error %q, got %q", "Email is required", loginResponse.Error)
 		}
@@ -211,13 +230,16 @@ func TestLoginEndToEnd(t *testing.T) {
 			Email:    FirstUserEmail,
 			Password: "",
 		}
+
 		statusCode, loginResponse, err := login(ts.URL, client, invalidUser)
 		if err != nil {
 			t.Fatalf("couldn't login admin user: %s", err)
 		}
+
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
+
 		if loginResponse.Error != "Password is required" {
 			t.Fatalf("expected error %q, got %q", "Password is required", loginResponse.Error)
 		}
@@ -228,10 +250,12 @@ func TestLoginEndToEnd(t *testing.T) {
 			Email:    FirstUserEmail,
 			Password: "a-wrong-password",
 		}
+
 		statusCode, loginResponse, err := login(ts.URL, client, invalidUser)
 		if err != nil {
 			t.Fatalf("couldn't login admin user: %s", err)
 		}
+
 		if statusCode != http.StatusUnauthorized {
 			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
 		}
@@ -246,10 +270,12 @@ func TestLoginEndToEnd(t *testing.T) {
 			Email:    "not-existing-user",
 			Password: "Admin123",
 		}
+
 		statusCode, loginResponse, err := login(ts.URL, client, invalidUser)
 		if err != nil {
 			t.Fatalf("couldn't login admin user: %s", err)
 		}
+
 		if statusCode != http.StatusUnauthorized {
 			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
 		}
@@ -263,11 +289,13 @@ func TestLoginEndToEnd(t *testing.T) {
 func TestAuthAPITokenEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	adminToken, err := initializeAndRefresh(ts.URL, client)
@@ -275,20 +303,26 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	var APIToken string
-	var APITokenID string
+	var (
+		APIToken   string
+		APITokenID string
+	)
+
 	t.Run("1. Create API token", func(t *testing.T) {
 		createAPITokenParams := &CreateAPITokenParams{
 			Name:      "TestAPIToken",
 			ExpiresAt: "",
 		}
+
 		statusCode, response, err := createAPIToken(ts.URL, client, adminToken, createAPITokenParams)
 		if err != nil {
 			t.Fatalf("couldn't create API token: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("expected empty error, got %q", response.Error)
 		}
@@ -327,6 +361,7 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 
 	t.Run("3. Try to perform API request with invalid token - should fail", func(t *testing.T) {
 		invalidToken := APIToken[:len(APIToken)-3] + "xyz"
+
 		statusCode, response, err := listUsers(ts.URL, client, invalidToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list users with invalid token: %s", err)
@@ -346,6 +381,7 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete API token: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -370,11 +406,13 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 func TestRefreshAfterUserDeletion(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	adminToken, err := initializeAndRefresh(ts.URL, client)
@@ -412,11 +450,13 @@ func TestRefreshAfterUserDeletion(t *testing.T) {
 func TestRolesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	adminToken, err := initializeAndRefresh(ts.URL, client)
@@ -440,10 +480,12 @@ func TestRolesEndToEnd(t *testing.T) {
 			Password: "password123",
 			RoleID:   RoleReadOnly,
 		}
+
 		statusCode, response, _ := createUser(ts.URL, client, readOnlyToken, newUser)
 		if statusCode != http.StatusForbidden {
 			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
 		}
+
 		if response.Error != "Forbidden" {
 			t.Fatalf("expected error %s, got %q", "Forbidden", response.Error)
 		}
@@ -456,12 +498,15 @@ func TestRolesEndToEnd(t *testing.T) {
 			RoleID:   RoleReadOnly,
 		}
 		statusCode, response, _ := createUser(ts.URL, client, networkManagerToken, user)
+
 		if err != nil {
 			t.Fatalf("couldn't create user: %s", err)
 		}
+
 		if statusCode != http.StatusForbidden {
 			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
 		}
+
 		if response.Error != "Forbidden" {
 			t.Fatalf("expected error %s, got %q", "Forbidden", response.Error)
 		}
@@ -473,13 +518,16 @@ func TestRolesEndToEnd(t *testing.T) {
 			Password: "password123",
 			RoleID:   RoleReadOnly,
 		}
+
 		statusCode, response, err := createUser(ts.URL, client, adminToken, user)
 		if err != nil {
 			t.Fatalf("couldn't create user: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("expected empty error, got %q", response.Error)
 		}
@@ -505,9 +553,11 @@ func TestRolesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't list subscribers: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if len(response.Result.Items) != 0 {
 			t.Fatalf("expected 0 subscriber, got %d", len(response.Result.Items))
 		}
@@ -518,9 +568,11 @@ func TestRolesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
+
 		if statusCode != http.StatusForbidden {
 			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
 		}
+
 		if response.Error != "Forbidden" {
 			t.Fatalf("expected error %q, got %q", "Forbidden", response.Error)
 		}
@@ -531,9 +583,11 @@ func TestRolesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
+
 		if statusCode != http.StatusForbidden {
 			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
 		}
+
 		if response.Error != "Forbidden" {
 			t.Fatalf("expected error %q, got %q", "Forbidden", response.Error)
 		}
@@ -546,13 +600,16 @@ func TestRolesEndToEnd(t *testing.T) {
 			MTU:    1500,
 			DNS:    "3.2.2.1",
 		}
+
 		statusCode, response, err := createDataNetwork(ts.URL, client, networkManagerToken, createDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("expected empty error, got %q", response.Error)
 		}
@@ -567,13 +624,16 @@ func TestRolesEndToEnd(t *testing.T) {
 			Arp:             1,
 			DataNetworkName: DataNetworkName,
 		}
+
 		statusCode, response, err := createPolicy(ts.URL, client, networkManagerToken, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't create policy: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("expected empty error, got %q", response.Error)
 		}
@@ -583,11 +643,13 @@ func TestRolesEndToEnd(t *testing.T) {
 func TestLookupToken(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	t.Run("Lookup valid token", func(t *testing.T) {
@@ -595,21 +657,26 @@ func TestLookupToken(t *testing.T) {
 			Email:    FirstUserEmail,
 			Password: "password123",
 		}
+
 		statusCode, _, err := initialize(ts.URL, client, initializeParams)
 		if err != nil {
 			t.Fatalf("couldn't create admin user: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		loginParams := &LoginParams{
 			Email:    FirstUserEmail,
 			Password: "password123",
 		}
+
 		statusCode, _, err = login(ts.URL, client, loginParams)
 		if err != nil {
 			t.Fatalf("couldn't login user: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -618,9 +685,11 @@ func TestLookupToken(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't refresh: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if refreshResponse.Result.Token == "" {
 			t.Fatalf("expected non-empty token from refresh")
 		}
@@ -629,9 +698,11 @@ func TestLookupToken(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't lookup token: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if !response.Result.Valid {
 			t.Fatalf("expected token to be valid")
 		}
@@ -639,13 +710,16 @@ func TestLookupToken(t *testing.T) {
 
 	t.Run("Invalid token - Bad format", func(t *testing.T) {
 		invalidToken := "invalid token format"
+
 		statusCode, response, err := lookupToken(ts.URL, client, invalidToken)
 		if err != nil {
 			t.Fatalf("couldn't lookup token: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.Valid {
 			t.Fatalf("expected token to be invalid")
 		}
@@ -659,9 +733,11 @@ func TestLookupToken(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't lookup token: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.Valid {
 			t.Fatalf("expected token to be invalid")
 		}
@@ -672,9 +748,11 @@ func TestLookupToken(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't lookup token: %s", err)
 		}
+
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
+
 		if response.Error != "Authorization header is required" {
 			t.Fatalf("expected error %q, got %q", "Authorization header is required", response.Error)
 		}

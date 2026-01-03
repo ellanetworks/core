@@ -12,18 +12,22 @@ import (
 func PlmnIDToModels(ngapPlmnID ngapType.PLMNIdentity) models.PlmnID {
 	value := ngapPlmnID.Value
 	hexString := strings.Split(hex.EncodeToString(value), "")
+
 	var modelsPlmnid models.PlmnID
+
 	modelsPlmnid.Mcc = hexString[1] + hexString[0] + hexString[3]
 	if hexString[2] == "f" {
 		modelsPlmnid.Mnc = hexString[5] + hexString[4]
 	} else {
 		modelsPlmnid.Mnc = hexString[2] + hexString[5] + hexString[4]
 	}
+
 	return modelsPlmnid
 }
 
 func PlmnIDToNgap(modelsPlmnid models.PlmnID) (*ngapType.PLMNIdentity, error) {
 	var hexString string
+
 	mcc := strings.Split(modelsPlmnid.Mcc, "")
 	mnc := strings.Split(modelsPlmnid.Mnc, "")
 

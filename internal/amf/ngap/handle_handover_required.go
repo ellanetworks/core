@@ -1,51 +1,37 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.HandoverRequired) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
 
-	initiatingMessage := msg.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
-		return
-	}
+	var (
+		aMFUENGAPID                        *ngapType.AMFUENGAPID
+		rANUENGAPID                        *ngapType.RANUENGAPID
+		handoverType                       *ngapType.HandoverType
+		cause                              *ngapType.Cause
+		targetID                           *ngapType.TargetID
+		pDUSessionResourceListHORqd        *ngapType.PDUSessionResourceListHORqd
+		sourceToTargetTransparentContainer *ngapType.SourceToTargetTransparentContainer
+		iesCriticalityDiagnostics          ngapType.CriticalityDiagnosticsIEList
+	)
 
-	HandoverRequired := initiatingMessage.Value.HandoverRequired
-	if HandoverRequired == nil {
-		ran.Log.Error("HandoverRequired is nil")
-		return
-	}
-
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var handoverType *ngapType.HandoverType
-	var cause *ngapType.Cause
-	var targetID *ngapType.TargetID
-	var pDUSessionResourceListHORqd *ngapType.PDUSessionResourceListHORqd
-	var sourceToTargetTransparentContainer *ngapType.SourceToTargetTransparentContainer
-	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
-
-	for i := 0; i < len(HandoverRequired.ProtocolIEs.List); i++ {
-		ie := HandoverRequired.ProtocolIEs.List[i]
+	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
+		ie := msg.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID // reject
@@ -66,52 +52,61 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 
 	if aMFUENGAPID == nil {
 		ran.Log.Error("AmfUeNgapID is nil")
+
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDAMFUENGAPID)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
+
 	if rANUENGAPID == nil {
 		ran.Log.Error("RanUeNgapID is nil")
+
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDRANUENGAPID)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 
 	if handoverType == nil {
 		ran.Log.Error("handoverType is nil")
+
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDHandoverType)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
+
 	if targetID == nil {
 		ran.Log.Error("targetID is nil")
+
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDTargetID)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
+
 	if pDUSessionResourceListHORqd == nil {
 		ran.Log.Error("pDUSessionResourceListHORqd is nil")
+
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDPDUSessionResourceListHORqd)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
+
 	if sourceToTargetTransparentContainer == nil {
 		ran.Log.Error("sourceToTargetTransparentContainer is nil")
+
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDSourceToTargetTransparentContainer)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 
 	if len(iesCriticalityDiagnostics.List) > 0 {
-		procedureCode := ngapType.ProcedureCodeHandoverPreparation
-		triggeringMessage := ngapType.TriggeringMessagePresentInitiatingMessage
-		procedureCriticality := ngapType.CriticalityPresentReject
-		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage,
-			&procedureCriticality, &iesCriticalityDiagnostics)
-		err := message.SendErrorIndication(ctx, ran, nil, nil, nil, &criticalityDiagnostics)
+		criticalityDiagnostics := buildCriticalityDiagnostics(ngapType.ProcedureCodeHandoverPreparation, ngapType.TriggeringMessagePresentInitiatingMessage, ngapType.CriticalityPresentReject, &iesCriticalityDiagnostics)
+
+		err := ran.NGAPSender.SendErrorIndication(ctx, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent error indication")
+
 		return
 	}
 
-	sourceUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	sourceUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if sourceUe == nil {
 		ran.Log.Error("Cannot find UE", zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
 		cause := ngapType.Cause{
@@ -120,12 +115,15 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
+
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err), zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
 			return
 		}
+
 		ran.Log.Info("sent error indication to source UE")
+
 		return
 	}
 
@@ -140,29 +138,34 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 		return
 	}
 
-	amfUe.SetOnGoing(&context.OnGoingProcedureWithPrio{
-		Procedure: context.OnGoingProcedureN2Handover,
-	})
+	amfUe.SetOnGoing(amfContext.OnGoingProcedureN2Handover)
 
 	if !amfUe.SecurityContextIsValid() {
 		sourceUe.Log.Info("handle Handover Preparation Failure [Authentication Failure]")
+
 		cause = &ngapType.Cause{
 			Present: ngapType.CausePresentNas,
 			Nas: &ngapType.CauseNas{
 				Value: ngapType.CauseNasPresentAuthenticationFailure,
 			},
 		}
-		err := message.SendHandoverPreparationFailure(ctx, sourceUe, *cause, nil)
+
+		sourceUe.AmfUe.SetOnGoing(amfContext.OnGoingProcedureNothing)
+
+		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {
 			sourceUe.Log.Error("error sending handover preparation failure", zap.Error(err))
 			return
 		}
+
 		sourceUe.Log.Info("sent handover preparation failure to source UE")
+
 		return
 	}
-	aMFSelf := context.AMFSelf()
+
 	targetRanNodeID := util.RanIDToModels(targetID.TargetRANNodeID.GlobalRANNodeID)
-	targetRan, ok := aMFSelf.AmfRanFindByRanID(targetRanNodeID)
+
+	targetRan, ok := amf.FindRadioByRanID(targetRanNodeID)
 	if !ok {
 		// handover between different AMF
 		sourceUe.Log.Warn("Handover required : cannot find target Ran Node Id in this AMF. Handover between different AMF has not been implemented yet", zap.Any("targetRanNodeID", targetRanNodeID))
@@ -174,42 +177,86 @@ func HandleHandoverRequired(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType
 	sourceUe.HandOverType.Value = handoverType.Value
 
 	var pduSessionReqList ngapType.PDUSessionResourceSetupListHOReq
+
 	for _, pDUSessionResourceHoItem := range pDUSessionResourceListHORqd.List {
 		pduSessionIDUint8 := uint8(pDUSessionResourceHoItem.PDUSessionID.Value)
 		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-			n2Rsp, err := pdusession.UpdateSmContextN2HandoverPreparing(smContext.SmContextRef(), pDUSessionResourceHoItem.HandoverRequiredTransfer)
+			n2Rsp, err := pdusession.UpdateSmContextN2HandoverPreparing(smContext.Ref, pDUSessionResourceHoItem.HandoverRequiredTransfer)
 			if err != nil {
 				sourceUe.Log.Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
 				continue
 			}
-			message.AppendPDUSessionResourceSetupListHOReq(&pduSessionReqList, pduSessionIDUint8, smContext.Snssai(), n2Rsp)
+
+			send.AppendPDUSessionResourceSetupListHOReq(&pduSessionReqList, pduSessionIDUint8, smContext.Snssai, n2Rsp)
 		}
 	}
+
 	if len(pduSessionReqList.List) == 0 {
 		sourceUe.Log.Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
+
 		cause = &ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
 				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
 			},
 		}
-		err := message.SendHandoverPreparationFailure(ctx, sourceUe, *cause, nil)
+
+		sourceUe.AmfUe.SetOnGoing(amfContext.OnGoingProcedureNothing)
+
+		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {
 			sourceUe.Log.Error("error sending handover preparation failure", zap.Error(err))
 			return
 		}
+
 		sourceUe.Log.Info("sent handover preparation failure to source UE")
+
 		return
 	}
-	amfUe.UpdateNH()
-	operatorInfo, err := context.GetOperatorInfo(ctx)
+
+	err := amfUe.UpdateNH()
+	if err != nil {
+		sourceUe.Log.Error("error updating NH", zap.Error(err))
+		return
+	}
+
+	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
 		sourceUe.Log.Error("Could not get operator info", zap.Error(err))
+		return
 	}
-	err = message.SendHandoverRequest(ctx, sourceUe, targetRan, *cause, pduSessionReqList, *sourceToTargetTransparentContainer, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+
+	targetUe, err := targetRan.NewUe(models.RanUeNgapIDUnspecified)
+	if err != nil {
+		logger.AmfLog.Error("error creating target ue", zap.Error(err))
+		return
+	}
+
+	err = amfContext.AttachSourceUeTargetUe(sourceUe, targetUe)
+	if err != nil {
+		logger.AmfLog.Error("attach source ue target ue error", zap.Error(err))
+		return
+	}
+
+	err = targetUe.Radio.NGAPSender.SendHandoverRequest(
+		ctx,
+		targetUe.AmfUeNgapID,
+		targetUe.HandOverType,
+		targetUe.AmfUe.Ambr.Uplink,
+		targetUe.AmfUe.Ambr.Downlink,
+		targetUe.AmfUe.UESecurityCapability,
+		targetUe.AmfUe.NCC,
+		targetUe.AmfUe.NH,
+		*cause,
+		pduSessionReqList,
+		*sourceToTargetTransparentContainer,
+		operatorInfo.SupportedPLMN,
+		operatorInfo.Guami,
+	)
 	if err != nil {
 		sourceUe.Log.Error("error sending handover request to target UE", zap.Error(err))
 		return
 	}
+
 	sourceUe.Log.Info("sent handover request to target UE")
 }

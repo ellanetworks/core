@@ -1,19 +1,17 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"errors"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/security"
-	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
@@ -35,7 +33,7 @@ func getRegistrationType5GSName(regType5Gs uint8) string {
 }
 
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
-func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registrationRequest *nasMessage.RegistrationRequest) error {
+func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, registrationRequest *nasMessage.RegistrationRequest) error {
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
 	}
@@ -50,9 +48,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		ue.SecurityContextAvailable = false
 	}
 
-	ue.SetOnGoing(&context.OnGoingProcedureWithPrio{
-		Procedure: context.OnGoingProcedureRegistration,
-	})
+	ue.SetOnGoing(amfContext.OnGoingProcedureRegistration)
 
 	if ue.T3513 != nil {
 		ue.T3513.Stop()
@@ -67,7 +63,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 	// TS 24.501 4.4.6: If NASMessageContainer is present, it contains a ciphered inner Registration Request
 	// carrying non-cleartext IEs, which must be decrypted and processed instead of the outer message.
 	if registrationRequest.NASMessageContainer != nil {
-		contents := registrationRequest.NASMessageContainer.GetNASMessageContainerContents()
+		contents := registrationRequest.GetNASMessageContainerContents()
 
 		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
 		if err != nil {
@@ -75,6 +71,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 			if err1 != nil {
 				return fmt.Errorf("error sending registration reject after error decrypting: %v", err1)
 			}
+
 			return fmt.Errorf("failed to decrypt NAS message - sent registration reject: %v", err)
 		}
 
@@ -85,10 +82,11 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 			if err1 != nil {
 				return fmt.Errorf("error sending registration reject after error decoding: %v", err1)
 			}
+
 			return fmt.Errorf("failed to decode NAS message - sent registration reject: %v", err)
 		}
 
-		messageType := m.GmmMessage.GmmHeader.GetMessageType()
+		messageType := m.GmmHeader.GetMessageType()
 		if messageType != nas.MsgTypeRegistrationRequest {
 			return fmt.Errorf("expected registration request, got %d", messageType)
 		}
@@ -99,7 +97,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 	}
 
 	ue.RegistrationRequest = registrationRequest
-	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
+	ue.RegistrationType5GS = registrationRequest.GetRegistrationType5GS()
 
 	regName := getRegistrationType5GSName(ue.RegistrationType5GS)
 
@@ -109,12 +107,12 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 	}
 
-	mobileIdentity5GSContents := registrationRequest.MobileIdentity5GS.GetMobileIdentity5GSContents()
+	mobileIdentity5GSContents := registrationRequest.GetMobileIdentity5GSContents()
 	if len(mobileIdentity5GSContents) == 0 {
 		return errors.New("mobile identity 5GS is empty")
 	}
 
-	operatorInfo, err := context.GetOperatorInfo(ctx)
+	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
@@ -125,7 +123,9 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 		ue.Log.Debug("No Identity used for registration")
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		ue.Log.Debug("UE used SUCI identity for registration")
+
 		var plmnID string
+
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
 		ue.PlmnID = plmnIDStringToModels(plmnID)
 	case nasMessage.MobileIdentity5GSType5gGuti:
@@ -143,12 +143,13 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 	}
 
 	// NgKsi: TS 24.501 9.11.3.32
-	switch registrationRequest.NgksiAndRegistrationType5GS.GetTSC() {
+	switch registrationRequest.GetTSC() {
 	case nasMessage.TypeOfSecurityContextFlagNative:
 		ue.NgKsi.Tsc = models.ScTypeNative
 	case nasMessage.TypeOfSecurityContextFlagMapped:
 		ue.NgKsi.Tsc = models.ScTypeMapped
 	}
+
 	ue.NgKsi.Ksi = int32(registrationRequest.NgksiAndRegistrationType5GS.GetNasKeySetIdentifiler())
 	if ue.NgKsi.Tsc == models.ScTypeNative && ue.NgKsi.Ksi != 7 {
 	} else {
@@ -161,7 +162,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 	ue.Tai = ue.RanUe.Tai
 
 	// Check TAI
-	if !context.InTaiList(ue.Tai, operatorInfo.Tais) {
+	if !amfContext.InTaiList(ue.Tai, operatorInfo.Tais) {
 		err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMTrackingAreaNotAllowed)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
@@ -186,50 +187,45 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, registration
 	return nil
 }
 
-func handleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
-	logger.AmfLog.Debug("Handle Registration Request", zap.String("supi", ue.Supi))
-
-	ctx, span := tracer.Start(ctx, "AMF NAS HandleRegistrationRequest")
-	span.SetAttributes(
-		attribute.String("ue", ue.Supi),
-		attribute.String("state", string(ue.State.Current())),
-	)
-	defer span.End()
-
-	switch ue.State.Current() {
-	case context.Deregistered, context.Registered:
-		if err := HandleRegistrationRequest(ctx, ue, msg.RegistrationRequest); err != nil {
+func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+	switch ue.State {
+	case amfContext.Deregistered, amfContext.Registered:
+		if err := HandleRegistrationRequest(ctx, amf, ue, msg.RegistrationRequest); err != nil {
 			return fmt.Errorf("failed handling registration request: %v", err)
 		}
 
-		ue.State.Set(context.Authentication)
-		pass, err := AuthenticationProcedure(ctx, ue)
+		ue.State = amfContext.Authentication
+
+		pass, err := AuthenticationProcedure(ctx, amf, ue)
 		if err != nil {
-			ue.State.Set(context.Deregistered)
+			ue.State = amfContext.Deregistered
+
 			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
 			}
+
 			return nil
 		}
+
 		if pass {
-			ue.State.Set(context.SecurityMode)
-			return securityMode(ctx, ue)
+			return securityMode(ctx, amf, ue)
 		}
 
-	case context.SecurityMode:
+	case amfContext.SecurityMode:
 		ue.SecurityContextAvailable = false
 		ue.T3560.Stop()
 		ue.T3560 = nil
-		ue.State.Set(context.Deregistered)
+		ue.State = amfContext.Deregistered
 
-		return HandleGmmMessage(ctx, ue, msg)
-	case context.ContextSetup:
-		ue.State.Set(context.Deregistered)
+		return HandleGmmMessage(ctx, amf, ue, msg)
+	case amfContext.ContextSetup:
+		ue.State = amfContext.Deregistered
 		ue.Log.Info("state reset to Deregistered")
+
 		return nil
 	default:
-		return fmt.Errorf("state mismatch: receive Registration Request message in state %s", ue.State.Current())
+		return fmt.Errorf("state mismatch: receive Registration Request message in state %s", ue.State)
 	}
 
 	return nil

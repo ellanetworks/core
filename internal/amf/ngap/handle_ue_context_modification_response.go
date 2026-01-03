@@ -1,43 +1,27 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandleUEContextModificationResponse(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.UEContextModificationResponse) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
 
-	successfulOutcome := message.SuccessfulOutcome
-	if successfulOutcome == nil {
-		ran.Log.Error("SuccessfulOutcome is nil")
-		return
-	}
+	var (
+		aMFUENGAPID             *ngapType.AMFUENGAPID
+		rANUENGAPID             *ngapType.RANUENGAPID
+		rRCState                *ngapType.RRCState
+		userLocationInformation *ngapType.UserLocationInformation
+	)
 
-	uEContextModificationResponse := successfulOutcome.Value.UEContextModificationResponse
-	if uEContextModificationResponse == nil {
-		ran.Log.Error("UEContextModificationResponse is nil")
-		return
-	}
-
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var rRCState *ngapType.RRCState
-	var userLocationInformation *ngapType.UserLocationInformation
-
-	for _, ie := range uEContextModificationResponse.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID
@@ -56,16 +40,16 @@ func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, 
 		}
 	}
 
-	var ranUe *context.RanUe
+	var ranUe *amfContext.RanUe
 	if rANUENGAPID != nil {
-		ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+		ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 		if ranUe == nil {
 			ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value), zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 		}
 	}
 
 	if aMFUENGAPID != nil {
-		ranUe = context.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+		ranUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 		if ranUe == nil {
 			ran.Log.Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 			return
@@ -73,7 +57,7 @@ func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, 
 	}
 
 	if ranUe != nil {
-		ranUe.Ran = ran
+		ranUe.Radio = ran
 		ranUe.Log.Debug("Handle UE Context Modification Response", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 		if rRCState != nil {
@@ -86,7 +70,7 @@ func HandleUEContextModificationResponse(ctx ctxt.Context, ran *context.AmfRan, 
 		}
 
 		if userLocationInformation != nil {
-			ranUe.UpdateLocation(ctx, userLocationInformation)
+			ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 		}
 	}
 }

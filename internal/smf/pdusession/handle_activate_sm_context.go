@@ -11,7 +11,9 @@ func ActivateSmContext(smContextRef string) ([]byte, error) {
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
 
-	smContext := context.GetSMContext(smContextRef)
+	smf := context.SMFSelf()
+
+	smContext := smf.GetSMContext(smContextRef)
 	if smContext == nil {
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}

@@ -8,11 +8,11 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 	"reflect"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap"
@@ -25,7 +25,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/ngap")
 
-func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
+func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 	remoteAddress := conn.RemoteAddr()
 	if remoteAddress == nil {
 		logger.AmfLog.Debug("Remote address is nil")
@@ -38,17 +38,25 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 		return
 	}
 
-	amfSelf := context.AMFSelf()
+	amf := amfContext.AMFSelf()
 
-	ran, ok := amfSelf.AmfRanFindByConn(conn)
+	ran, ok := amf.FindRadioByConn(conn)
 	if !ok {
-		ran = amfSelf.NewAmfRan(conn)
+		var err error
+
+		ran, err = amf.NewRadio(conn)
+		if err != nil {
+			logger.AmfLog.Error("Failed to add a new radio", zap.Error(err))
+			return
+		}
+
 		logger.AmfLog.Info("Added a new radio", zap.String("address", remoteAddress.String()))
 	}
 
 	if len(msg) == 0 {
 		ran.Log.Info("RAN close the connection.")
-		ran.Remove()
+		amf.RemoveRadio(ran)
+
 		return
 	}
 
@@ -68,14 +76,15 @@ func Dispatch(ctx ctxt.Context, conn *sctp.SCTPConn, msg []byte) {
 		msg,
 	)
 
-	DispatchNgapMsg(ran, pdu)
+	DispatchNgapMsg(amf, ran, pdu)
 }
 
-func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
+func DispatchNgapMsg(amf *amfContext.AMF, ran *amfContext.Radio, pdu *ngapType.NGAPPDU) {
 	messageType := getMessageType(pdu)
 
 	spanName := fmt.Sprintf("AMF NGAP %s", messageType)
-	ctx, span := tracer.Start(ctxt.Background(), spanName,
+
+	ctx, span := tracer.Start(context.Background(), spanName,
 		trace.WithAttributes(
 			attribute.String("ngap.pdu_present", fmt.Sprintf("%d", pdu.Present)),
 			attribute.String("ngap.messageType", messageType),
@@ -94,39 +103,39 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 
 		switch initiatingMessage.ProcedureCode.Value {
 		case ngapType.ProcedureCodeNGSetup:
-			HandleNGSetupRequest(ctx, ran, pdu)
+			HandleNGSetupRequest(ctx, amf, ran, pdu.InitiatingMessage.Value.NGSetupRequest)
 		case ngapType.ProcedureCodeInitialUEMessage:
-			HandleInitialUEMessage(ctx, ran, pdu)
+			HandleInitialUEMessage(ctx, amf, ran, pdu.InitiatingMessage.Value.InitialUEMessage)
 		case ngapType.ProcedureCodeUplinkNASTransport:
-			HandleUplinkNasTransport(ctx, ran, pdu)
+			HandleUplinkNasTransport(ctx, amf, ran, pdu.InitiatingMessage.Value.UplinkNASTransport)
 		case ngapType.ProcedureCodeNGReset:
-			HandleNGReset(ctx, ran, pdu)
+			HandleNGReset(ctx, ran, pdu.InitiatingMessage.Value.NGReset)
 		case ngapType.ProcedureCodeHandoverCancel:
-			HandleHandoverCancel(ctx, ran, pdu)
+			HandleHandoverCancel(ctx, ran, pdu.InitiatingMessage.Value.HandoverCancel)
 		case ngapType.ProcedureCodeUEContextReleaseRequest:
-			HandleUEContextReleaseRequest(ctx, ran, pdu)
+			HandleUEContextReleaseRequest(ctx, amf, ran, pdu.InitiatingMessage.Value.UEContextReleaseRequest)
 		case ngapType.ProcedureCodeNASNonDeliveryIndication:
-			HandleNasNonDeliveryIndication(ctx, ran, pdu)
+			HandleNasNonDeliveryIndication(ctx, amf, ran, pdu.InitiatingMessage.Value.NASNonDeliveryIndication)
 		case ngapType.ProcedureCodeErrorIndication:
-			HandleErrorIndication(ran, pdu)
+			HandleErrorIndication(ran, pdu.InitiatingMessage.Value.ErrorIndication)
 		case ngapType.ProcedureCodeUERadioCapabilityInfoIndication:
-			HandleUERadioCapabilityInfoIndication(ran, pdu)
+			HandleUERadioCapabilityInfoIndication(ran, pdu.InitiatingMessage.Value.UERadioCapabilityInfoIndication)
 		case ngapType.ProcedureCodeHandoverNotification:
-			HandleHandoverNotify(ctx, ran, pdu)
+			HandleHandoverNotify(ctx, amf, ran, pdu.InitiatingMessage.Value.HandoverNotify)
 		case ngapType.ProcedureCodeHandoverPreparation:
-			HandleHandoverRequired(ctx, ran, pdu)
+			HandleHandoverRequired(ctx, amf, ran, pdu.InitiatingMessage.Value.HandoverRequired)
 		case ngapType.ProcedureCodeRANConfigurationUpdate:
-			HandleRanConfigurationUpdate(ctx, ran, pdu)
+			HandleRanConfigurationUpdate(ctx, amf, ran, pdu.InitiatingMessage.Value.RANConfigurationUpdate)
 		case ngapType.ProcedureCodePDUSessionResourceNotify:
-			HandlePDUSessionResourceNotify(ctx, ran, pdu)
+			HandlePDUSessionResourceNotify(ctx, amf, ran, pdu.InitiatingMessage.Value.PDUSessionResourceNotify)
 		case ngapType.ProcedureCodePathSwitchRequest:
-			HandlePathSwitchRequest(ctx, ran, pdu)
+			HandlePathSwitchRequest(ctx, amf, ran, pdu.InitiatingMessage.Value.PathSwitchRequest)
 		case ngapType.ProcedureCodeLocationReport:
-			HandleLocationReport(ctx, ran, pdu)
+			HandleLocationReport(ctx, amf, ran, pdu.InitiatingMessage.Value.LocationReport)
 		case ngapType.ProcedureCodeUplinkRANConfigurationTransfer:
-			HandleUplinkRanConfigurationTransfer(ctx, ran, pdu)
+			HandleUplinkRanConfigurationTransfer(ctx, amf, ran, pdu.InitiatingMessage.Value.UplinkRANConfigurationTransfer)
 		case ngapType.ProcedureCodePDUSessionResourceModifyIndication:
-			HandlePDUSessionResourceModifyIndication(ctx, ran, pdu)
+			HandlePDUSessionResourceModifyIndication(ctx, ran, pdu.InitiatingMessage.Value.PDUSessionResourceModifyIndication)
 		default:
 			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
 		}
@@ -139,19 +148,19 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 
 		switch successfulOutcome.ProcedureCode.Value {
 		case ngapType.ProcedureCodeUEContextRelease:
-			HandleUEContextReleaseComplete(ctx, ran, pdu)
+			HandleUEContextReleaseComplete(ctx, amf, ran, pdu.SuccessfulOutcome.Value.UEContextReleaseComplete)
 		case ngapType.ProcedureCodePDUSessionResourceRelease:
-			HandlePDUSessionResourceReleaseResponse(ctx, ran, pdu)
+			HandlePDUSessionResourceReleaseResponse(ctx, amf, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceReleaseResponse)
 		case ngapType.ProcedureCodeInitialContextSetup:
-			HandleInitialContextSetupResponse(ctx, ran, pdu)
+			HandleInitialContextSetupResponse(ctx, ran, pdu.SuccessfulOutcome.Value.InitialContextSetupResponse)
 		case ngapType.ProcedureCodeUEContextModification:
-			HandleUEContextModificationResponse(ctx, ran, pdu)
+			HandleUEContextModificationResponse(ctx, amf, ran, pdu.SuccessfulOutcome.Value.UEContextModificationResponse)
 		case ngapType.ProcedureCodePDUSessionResourceSetup:
-			HandlePDUSessionResourceSetupResponse(ctx, ran, pdu)
+			HandlePDUSessionResourceSetupResponse(ctx, amf, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse)
 		case ngapType.ProcedureCodePDUSessionResourceModify:
-			HandlePDUSessionResourceModifyResponse(ctx, ran, pdu)
+			HandlePDUSessionResourceModifyResponse(ctx, amf, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceModifyResponse)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
-			HandleHandoverRequestAcknowledge(ctx, ran, pdu)
+			HandleHandoverRequestAcknowledge(ctx, amf, ran, pdu.SuccessfulOutcome.Value.HandoverRequestAcknowledge)
 		default:
 			ran.Log.Warn("NGAP Message handler not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", successfulOutcome.ProcedureCode.Value))
 		}
@@ -164,11 +173,11 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 
 		switch unsuccessfulOutcome.ProcedureCode.Value {
 		case ngapType.ProcedureCodeInitialContextSetup:
-			HandleInitialContextSetupFailure(ctx, ran, pdu)
+			HandleInitialContextSetupFailure(ctx, ran, pdu.UnsuccessfulOutcome.Value.InitialContextSetupFailure)
 		case ngapType.ProcedureCodeUEContextModification:
-			HandleUEContextModificationFailure(ran, pdu)
+			HandleUEContextModificationFailure(amf, ran, pdu.UnsuccessfulOutcome.Value.UEContextModificationFailure)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
-			HandleHandoverFailure(ctx, ran, pdu)
+			HandleHandoverFailure(ctx, amf, ran, pdu.UnsuccessfulOutcome.Value.HandoverFailure)
 		default:
 			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", unsuccessfulOutcome.ProcedureCode.Value))
 		}
@@ -176,40 +185,43 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 }
 
 func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification) {
-	amfSelf := context.AMFSelf()
+	amf := amfContext.AMFSelf()
 
-	ran, ok := amfSelf.AmfRanFindByConn(conn)
+	ran, ok := amf.FindRadioByConn(conn)
 	if !ok {
 		logger.AmfLog.Debug("couldn't find RAN context", zap.Any("address", conn.RemoteAddr()))
 		return
 	}
 
-	amfSelf.Mutex.Lock()
-	for _, amfRan := range amfSelf.AmfRanPool {
+	amf.Mutex.Lock()
+
+	for _, amfRan := range amf.Radios {
 		errorConn := sctp.NewSCTPConn(-1, nil)
 		if reflect.DeepEqual(amfRan.Conn, errorConn) {
-			amfRan.Remove()
+			amf.RemoveRadio(ran)
 			ran.Log.Info("removed stale entry in AmfRan pool")
 		}
 	}
-	amfSelf.Mutex.Unlock()
+
+	amf.Mutex.Unlock()
 
 	switch notification.Type() {
 	case sctp.SCTPAssocChange:
 		ran.Log.Info("SCTPAssocChange notification")
+
 		event := notification.(*sctp.SCTPAssocChangeEvent)
 		switch event.State() {
 		case sctp.SCTPCommLost:
-			ran.Remove()
+			amf.RemoveRadio(ran)
 			ran.Log.Info("Closed connection with radio after SCTP Communication Lost")
 		case sctp.SCTPShutdownComp:
-			ran.Remove()
+			amf.RemoveRadio(ran)
 			ran.Log.Info("Closed connection with radio after SCTP Shutdown Complete")
 		default:
 			ran.Log.Info("SCTP state is not handled", zap.Int("state", int(event.State())))
 		}
 	case sctp.SCTPShutdownEvent:
-		ran.Remove()
+		amf.RemoveRadio(ran)
 		ran.Log.Info("Closed connection with radio after SCTP Shutdown Event")
 	default:
 		ran.Log.Warn("Unhandled SCTP notification type", zap.Any("type", notification.Type()))

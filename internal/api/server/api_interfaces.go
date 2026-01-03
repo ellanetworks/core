@@ -102,6 +102,7 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 func UpdateN3Interface(dbInstance *db.Database, upf UPFUpdater, cfg config.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)

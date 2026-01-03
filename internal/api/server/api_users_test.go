@@ -444,11 +444,13 @@ func listAPITokens(url string, client *http.Client, token string, page int, perP
 func TestAPIUsersEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -462,16 +464,20 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 			Password: Password,
 			RoleID:   RoleAdmin,
 		}
+
 		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 		if err != nil {
 			t.Fatalf("couldn't create user: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if response.Result.Message != "User created successfully" {
 			t.Fatalf("expected message %q, got %q", "User created successfully", response.Result.Message)
 		}
@@ -482,12 +488,15 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get user: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.Email != Email {
 			t.Fatalf("expected email %s, got %s", Email, response.Result.Email)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -498,9 +507,11 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get user: %s", err)
 		}
+
 		if statusCode != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 		}
+
 		if response.Error != "User not found" {
 			t.Fatalf("expected error %q, got %q", "User not found", response.Error)
 		}
@@ -511,13 +522,16 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 			Password: Password,
 			RoleID:   RoleAdmin,
 		}
+
 		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 		if err != nil {
 			t.Fatalf("couldn't create user: %s", err)
 		}
+
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
+
 		if response.Error != "email is missing" {
 			t.Fatalf("expected error %q, got %q", "email is missing", response.Error)
 		}
@@ -528,16 +542,20 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 			Email:    Email,
 			Password: "password1234",
 		}
+
 		statusCode, response, err := editUserPassword(ts.URL, client, token, Email, updateUserPasswordParams)
 		if err != nil {
 			t.Fatalf("couldn't edit user: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if response.Result.Message != "User password updated successfully" {
 			t.Fatalf("expected message %q, got %q", "User password updated successfully", response.Result.Message)
 		}
@@ -548,16 +566,20 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 			Email:  Email,
 			RoleID: RoleReadOnly,
 		}
+
 		statusCode, response, err := editUser(ts.URL, client, token, Email, updateUserParams)
 		if err != nil {
 			t.Fatalf("couldn't edit user: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if response.Result.Message != "User updated successfully" {
 			t.Fatalf("expected message %q, got %q", "User updated successfully", response.Result.Message)
 		}
@@ -568,15 +590,19 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get user: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.Email != Email {
 			t.Fatalf("expected email %s, got %s", Email, response.Result.Email)
 		}
+
 		if response.Result.RoleID != RoleReadOnly {
 			t.Fatalf("expected role %v, got %v", RoleReadOnly, response.Result.RoleID)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -587,12 +613,15 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete user: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if response.Result.Message != "User deleted successfully" {
 			t.Fatalf("expected message %q, got %q", "User deleted successfully", response.Result.Message)
 		}
@@ -602,9 +631,11 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete user: %s", err)
 		}
+
 		if statusCode != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 		}
+
 		if response.Error != "User not found" {
 			t.Fatalf("expected error %q, got %q", "User not found", response.Error)
 		}
@@ -614,11 +645,13 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 func TestNonAdminUpdateUserPassword(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	adminToken, err := initializeAndRefresh(ts.URL, client)
@@ -699,11 +732,13 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 func TestCreateUserInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -749,13 +784,16 @@ func TestCreateUserInvalidInput(t *testing.T) {
 				Email:    tt.email,
 				Password: tt.password,
 			}
+
 			statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 			if err != nil {
 				t.Fatalf("couldn't create user: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
@@ -766,11 +804,13 @@ func TestCreateUserInvalidInput(t *testing.T) {
 func TestEditUnexistentUser(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -782,13 +822,16 @@ func TestEditUnexistentUser(t *testing.T) {
 		Email:  "nonexistent@ellanetworks.com",
 		RoleID: RoleReadOnly,
 	}
+
 	statusCode, response, err := editUser(ts.URL, client, token, "nonexistent@ellanetworks.com", updateUserParams)
 	if err != nil {
 		t.Fatalf("couldn't edit user: %s", err)
 	}
+
 	if statusCode != http.StatusNotFound {
 		t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 	}
+
 	if response.Error == "" {
 		t.Fatalf("expected error, got none")
 	}
@@ -797,11 +840,13 @@ func TestEditUnexistentUser(t *testing.T) {
 func TestCreateTooManyUsers(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -815,13 +860,16 @@ func TestCreateTooManyUsers(t *testing.T) {
 			Password: Password,
 			RoleID:   RoleReadOnly,
 		}
+
 		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 		if err != nil {
 			t.Fatalf("couldn't create user: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -832,13 +880,16 @@ func TestCreateTooManyUsers(t *testing.T) {
 		Password: Password,
 		RoleID:   RoleReadOnly,
 	}
+
 	statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 	if err != nil {
 		t.Fatalf("couldn't create user: %s", err)
 	}
+
 	if statusCode != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 	}
+
 	if response.Error != "Maximum number of users reached (50)" {
 		t.Fatalf("expected error %q, got %q", "Maximum number of users reached (50)", response.Error)
 	}
@@ -923,11 +974,13 @@ func TestCreateAPIToken(t *testing.T) {
 func TestCreateAPITokenInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -963,13 +1016,16 @@ func TestCreateAPITokenInvalidInput(t *testing.T) {
 				Name:      tt.name,
 				ExpiresAt: tt.expiresAt,
 			}
+
 			statusCode, response, err := createAPIToken(ts.URL, client, token, createAPITokenParams)
 			if err != nil {
 				t.Fatalf("couldn't create API token: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
@@ -980,11 +1036,13 @@ func TestCreateAPITokenInvalidInput(t *testing.T) {
 func TestListUsersPagination(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -998,10 +1056,12 @@ func TestListUsersPagination(t *testing.T) {
 			Password: "password123",
 			RoleID:   RoleReadOnly,
 		}
+
 		statusCode, _, err := createUser(ts.URL, client, token, createUserParams)
 		if err != nil {
 			t.Fatalf("couldn't create user %q: %s", createUserParams.Email, err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
@@ -1012,21 +1072,27 @@ func TestListUsersPagination(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if len(response.Result.Items) != 5 {
 			t.Fatalf("expected 5 users, got %d", len(response.Result.Items))
 		}
+
 		if response.Result.Page != 1 {
 			t.Fatalf("expected page 1, got %d", response.Result.Page)
 		}
+
 		if response.Result.PerPage != 5 {
 			t.Fatalf("expected per_page 5, got %d", response.Result.PerPage)
 		}
+
 		if response.Result.TotalCount != 11 { // 10 created + 1 admin
 			t.Fatalf("expected total_count 11, got %d", response.Result.TotalCount)
 		}
@@ -1037,21 +1103,27 @@ func TestListUsersPagination(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if len(response.Result.Items) != 3 {
 			t.Fatalf("expected 3 users, got %d", len(response.Result.Items))
 		}
+
 		if response.Result.Page != 3 {
 			t.Fatalf("expected page 3, got %d", response.Result.Page)
 		}
+
 		if response.Result.PerPage != 4 {
 			t.Fatalf("expected per_page 4, got %d", response.Result.PerPage)
 		}
+
 		if response.Result.TotalCount != 11 {
 			t.Fatalf("expected total_count 11, got %d", response.Result.TotalCount)
 		}
@@ -1062,21 +1134,27 @@ func TestListUsersPagination(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if len(response.Result.Items) != 1 {
 			t.Fatalf("expected 1 user, got %d", len(response.Result.Items))
 		}
+
 		if response.Result.Page != 6 {
 			t.Fatalf("expected page 6, got %d", response.Result.Page)
 		}
+
 		if response.Result.PerPage != 2 {
 			t.Fatalf("expected per_page 2, got %d", response.Result.PerPage)
 		}
+
 		if response.Result.TotalCount != 11 {
 			t.Fatalf("expected total_count 11, got %d", response.Result.TotalCount)
 		}
@@ -1087,21 +1165,27 @@ func TestListUsersPagination(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if len(response.Result.Items) != 0 {
 			t.Fatalf("expected 0 users, got %d", len(response.Result.Items))
 		}
+
 		if response.Result.Page != 7 {
 			t.Fatalf("expected page 7, got %d", response.Result.Page)
 		}
+
 		if response.Result.PerPage != 2 {
 			t.Fatalf("expected per_page 2, got %d", response.Result.PerPage)
 		}
+
 		if response.Result.TotalCount != 11 {
 			t.Fatalf("expected total_count 11, got %d", response.Result.TotalCount)
 		}

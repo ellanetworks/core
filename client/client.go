@@ -178,7 +178,9 @@ func (rq *defaultRequester) Do(ctx context.Context, opts *RequestOptions) (*Requ
 		}, nil
 	}
 
-	defer httpResp.Body.Close()
+	defer func() {
+		_ = httpResp.Body.Close()
+	}()
 
 	var serverResp response
 	if err := decodeInto(httpResp.Body, &serverResp); err != nil {
@@ -221,6 +223,7 @@ func (rsp *response) err() error {
 	if rsp.Error != "" {
 		return fmt.Errorf("server error: %s", rsp.Error)
 	}
+
 	return nil
 }
 

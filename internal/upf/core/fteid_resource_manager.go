@@ -65,6 +65,7 @@ func (fteidm *FteIDResourceManager) ReleaseTEID(seID uint64) {
 		for _, t := range teid {
 			fteidm.freeTEIDs = append(fteidm.freeTEIDs, t)
 		}
+
 		delete(fteidm.busyTEIDs, seID)
 	}
 }

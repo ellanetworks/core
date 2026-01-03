@@ -48,6 +48,7 @@ func TestGetHexSd(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			op := &db.Operator{Sd: tc.input}
+
 			result := op.GetHexSd()
 			if result != tc.expected {
 				t.Errorf("expected %q but got %q (input=%v)", tc.expected, result, tc.input)
@@ -63,6 +64,7 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -73,9 +75,11 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
+
 	if retrievedOperator.Mcc != "001" {
 		t.Fatalf("The mcc from the database doesn't match the expected default")
 	}
+
 	if retrievedOperator.Mnc != "01" {
 		t.Fatalf("The mnc from the database doesn't match the expected default")
 	}
@@ -98,9 +102,11 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
+
 	if retrievedOperator.Sst != 1 {
 		t.Fatalf("The sst from the database doesn't match the expected value")
 	}
+
 	expectedSd := []byte{0x10, 0x20, 0x30}
 
 	if !bytes.Equal(retrievedOperator.Sd, expectedSd) {
@@ -115,12 +121,14 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
+
 	if retrievedOperatorCode == "" {
 		t.Fatalf("The operator code from the database doesn't match the expected default")
 	}
 
 	mcc := "002"
 	mnc := "02"
+
 	err = database.UpdateOperatorID(context.Background(), mcc, mnc)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
@@ -130,12 +138,15 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
+
 	if operator.Mcc != mcc {
 		t.Fatalf("The mcc from the database doesn't match the expected value")
 	}
+
 	if operator.Mnc != mnc {
 		t.Fatalf("The mnc from the database doesn't match the expected value")
 	}
+
 	if operator.Sst != 1 {
 		t.Fatalf("The sst from the database doesn't match the expected value")
 	}

@@ -58,14 +58,14 @@ func hmacSha256(input, macKey []byte, macLen int) ([]byte, error) {
 }
 
 func aes128ctr(input, encKey, icb []byte) ([]byte, error) {
-	output := make([]byte, len(input))
-
 	block, err := aes.NewCipher(encKey)
 	if err != nil {
 		return nil, fmt.Errorf("error creating AES cipher: %w", err)
 	}
 
 	stream := cipher.NewCTR(block, icb)
+
+	output := make([]byte, len(input))
 	stream.XORKeyStream(output, input)
 
 	return output, nil
@@ -73,6 +73,7 @@ func aes128ctr(input, encKey, icb []byte) ([]byte, error) {
 
 func ansiX963KDF(sharedKey, publicKey []byte, profileEncKeyLen, profileMacKeyLen, profileHashLen int) []byte {
 	var counter uint32 = 0x00000001
+
 	var kdfKey []byte
 
 	kdfRounds := int(math.Ceil(float64(profileEncKeyLen+profileMacKeyLen) / float64(profileHashLen)))
@@ -100,15 +101,13 @@ func swapNibbles(input []byte) []byte {
 }
 
 func calcSchemeResult(decryptPlainText []byte, supiType string) string {
-	var schemeResult string
+	if supiType != typeIMSI {
+		return hex.EncodeToString(decryptPlainText)
+	}
 
-	if supiType == typeIMSI {
-		schemeResult = hex.EncodeToString(swapNibbles(decryptPlainText))
-		if schemeResult[len(schemeResult)-1] == 'f' {
-			schemeResult = schemeResult[:len(schemeResult)-1]
-		}
-	} else {
-		schemeResult = hex.EncodeToString(decryptPlainText)
+	schemeResult := hex.EncodeToString(swapNibbles(decryptPlainText))
+	if schemeResult[len(schemeResult)-1] == 'f' {
+		schemeResult = schemeResult[:len(schemeResult)-1]
 	}
 
 	return schemeResult
@@ -133,21 +132,16 @@ func profileA(input, supiType, privateKey string) (string, error) {
 
 	// test data from TS33.501 Annex C.4
 
-	var aHNPriv []byte
-
-	aHNPrivTmp, err := hex.DecodeString(privateKey)
+	aHNPriv, err := hex.DecodeString(privateKey)
 	if err != nil {
 		return "", fmt.Errorf("decode error: %w", err)
 	}
 
-	aHNPriv = aHNPrivTmp
-
-	decryptSharedKeyTmp, err := curve25519.X25519(aHNPriv, decryptPublicKey)
+	decryptSharedKey, err := curve25519.X25519(aHNPriv, decryptPublicKey)
 	if err != nil {
 		return "", fmt.Errorf("could not calculate shared key: %w", err)
 	}
 
-	decryptSharedKey := decryptSharedKeyTmp
 	kdfKey := ansiX963KDF(decryptSharedKey, decryptPublicKey, ProfileAEncKeyLen, ProfileAMacKeyLen, ProfileAHashLen)
 	decryptEncKey := kdfKey[:ProfileAEncKeyLen]
 	decryptIcb := kdfKey[ProfileAEncKeyLen : ProfileAEncKeyLen+ProfileAIcbLen]

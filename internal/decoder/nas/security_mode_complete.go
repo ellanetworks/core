@@ -28,7 +28,7 @@ func buildSecurityModeComplete(msg *nasMessage.SecurityModeComplete) *SecurityMo
 	}
 
 	if msg.NASMessageContainer != nil {
-		securityModeComplete.NASMessageContainer = msg.NASMessageContainer.GetNASMessageContainerContents()
+		securityModeComplete.NASMessageContainer = msg.GetNASMessageContainerContents()
 	}
 
 	return securityModeComplete

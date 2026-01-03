@@ -11,6 +11,7 @@ func TestResourceManagerEmptyRange(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected error, got nil")
 	}
+
 	if resourceManager != nil {
 		t.Fatalf("Expected nil, got %v", resourceManager)
 	}
@@ -18,10 +19,12 @@ func TestResourceManagerEmptyRange(t *testing.T) {
 
 func TestResourceManagerNonEmptyRange(t *testing.T) {
 	teIDRange := uint32(100)
+
 	resourceManager, err := core.NewFteIDResourceManager(teIDRange)
 	if err != nil {
 		t.Fatalf("Expected nil, got %v", err)
 	}
+
 	if resourceManager == nil {
 		t.Fatalf("Expected resource manager, got nil")
 	}
@@ -30,10 +33,12 @@ func TestResourceManagerNonEmptyRange(t *testing.T) {
 	for i := uint32(0); i < teIDRange; i++ {
 		seID := uint64(i)
 		pdrID := i
+
 		teID, err := resourceManager.AllocateTEID(seID, pdrID)
 		if err != nil {
 			t.Fatalf("Expected nil, got %v", err)
 		}
+
 		if teID != i+1 {
 			t.Fatalf("Expected %d, got %d", i+1, teID)
 		}
@@ -54,10 +59,12 @@ func TestResourceManagerNonEmptyRange(t *testing.T) {
 	for i := uint32(0); i < teIDRange; i++ {
 		seID := uint64(i)
 		pdrID := i
+
 		teID, err := resourceManager.AllocateTEID(seID, pdrID)
 		if err != nil {
 			t.Fatalf("Expected nil, got %v", err)
 		}
+
 		if teID != i+1 {
 			t.Fatalf("Expected %d, got %d", i+1, teID)
 		}

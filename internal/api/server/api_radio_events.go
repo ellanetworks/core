@@ -71,6 +71,7 @@ func parseRadioEventFilters(r *http.Request) (*db.RadioEventFilters, error) {
 		if v != "inbound" && v != "outbound" {
 			return f, fmt.Errorf("invalid direction")
 		}
+
 		f.Direction = &v
 	}
 
@@ -90,6 +91,7 @@ func parseRadioEventFilters(r *http.Request) (*db.RadioEventFilters, error) {
 		if !isRFC3339(v) {
 			return f, fmt.Errorf("invalid from timestamp")
 		}
+
 		f.TimestampFrom = &v
 	}
 
@@ -97,6 +99,7 @@ func parseRadioEventFilters(r *http.Request) (*db.RadioEventFilters, error) {
 		if !isRFC3339(v) {
 			return f, fmt.Errorf("invalid to timestamp")
 		}
+
 		f.TimestampTo = &v
 	}
 
@@ -214,6 +217,7 @@ func GetRadioEvent(dbInstance *db.Database) http.Handler {
 		ctx := r.Context()
 
 		networkIDStr := r.PathValue("id")
+
 		networkID, err := strconv.Atoi(networkIDStr)
 		if err != nil || networkID < 1 {
 			writeError(w, http.StatusBadRequest, "Invalid radio event ID", err, logger.APILog)

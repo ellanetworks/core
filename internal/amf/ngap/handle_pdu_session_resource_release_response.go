@@ -1,44 +1,28 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceReleaseResponse(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceReleaseResponse) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
 
-	successfulOutcome := message.SuccessfulOutcome
-	if successfulOutcome == nil {
-		ran.Log.Error("SuccessfulOutcome is nil")
-		return
-	}
+	var (
+		aMFUENGAPID                    *ngapType.AMFUENGAPID
+		rANUENGAPID                    *ngapType.RANUENGAPID
+		pDUSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListRelRes
+		userLocationInformation        *ngapType.UserLocationInformation
+	)
 
-	pDUSessionResourceReleaseResponse := successfulOutcome.Value.PDUSessionResourceReleaseResponse
-	if pDUSessionResourceReleaseResponse == nil {
-		ran.Log.Error("PDUSessionResourceReleaseResponse is nil")
-		return
-	}
-
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pDUSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListRelRes
-	var userLocationInformation *ngapType.UserLocationInformation
-
-	for _, ie := range pDUSessionResourceReleaseResponse.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
@@ -63,14 +47,14 @@ func HandlePDUSessionResourceReleaseResponse(ctx ctxt.Context, ran *context.AmfR
 		}
 	}
 
-	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		return
 	}
 
 	if userLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, userLocationInformation)
+		ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 	}
 
 	amfUe := ranUe.AmfUe
@@ -84,17 +68,20 @@ func HandlePDUSessionResourceReleaseResponse(ctx ctxt.Context, ran *context.AmfR
 
 		for _, item := range pDUSessionResourceReleasedList.List {
 			pduSessionID := uint8(item.PDUSessionID.Value)
+
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
 				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				continue
 			}
-			err := pdusession.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.SmContextRef())
+
+			err := pdusession.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
 			if err != nil {
 				ranUe.Log.Error("SendUpdateSmContextN2InfoPduResRelRsp failed", zap.Error(err))
 				continue
 			}
-			smContext.SetPduSessionInActive(true)
+
+			smContext.PduSessionInactive = true
 		}
 	}
 }

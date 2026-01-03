@@ -99,20 +99,25 @@ func getDataNetwork(url string, client *http.Client, token string, name string) 
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var dataNetworkResponse GetDataNetworkResponse
 	if err := json.NewDecoder(res.Body).Decode(&dataNetworkResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &dataNetworkResponse, nil
 }
 
@@ -121,24 +126,30 @@ func createDataNetwork(url string, client *http.Client, token string, data *Crea
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/networking/data-networks", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var createResponse CreateDataNetworkResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &createResponse, nil
 }
 
@@ -147,24 +158,30 @@ func editDataNetwork(url string, client *http.Client, name string, token string,
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/networking/data-networks/"+name, strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var createResponse CreateDataNetworkResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &createResponse, nil
 }
 
@@ -173,20 +190,25 @@ func deleteDataNetwork(url string, client *http.Client, token, name string) (int
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var deleteDataNetworkResponse DeleteDataNetworkResponse
 	if err := json.NewDecoder(res.Body).Decode(&deleteDataNetworkResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &deleteDataNetworkResponse, nil
 }
 
@@ -196,11 +218,13 @@ func deleteDataNetwork(url string, client *http.Client, token, name string) (int
 func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -213,12 +237,15 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't list data networks: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if len(response.Result.Items) != 1 {
 			t.Fatalf("expected 1 data networks, got %d", len(response.Result.Items))
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -231,13 +258,16 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 			IPPool: IPPool,
 			DNS:    DNS,
 		}
+
 		statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -248,12 +278,15 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't list data network: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if len(response.Result.Items) != 2 {
 			t.Fatalf("expected 2 data network, got %d", len(response.Result.Items))
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -264,9 +297,11 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get data network: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.Name != DataNetworkName {
 			t.Fatalf("expected name %s, got %s", DataNetworkName, response.Result.Name)
 		}
@@ -274,9 +309,11 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		if response.Result.IPPool != IPPool {
 			t.Fatalf("expected ip pool %s got %s", IPPool, response.Result.IPPool)
 		}
+
 		if response.Result.DNS != DNS {
 			t.Fatalf("expected DNS %s got %s", DNS, response.Result.DNS)
 		}
+
 		if response.Result.MTU != MTU {
 			t.Fatalf("expected MTU %v got %d", MTU, response.Result.MTU)
 		}
@@ -291,9 +328,11 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get data network: %s", err)
 		}
+
 		if statusCode != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 		}
+
 		if response.Error != "Data Network not found" {
 			t.Fatalf("expected error %q, got %q", "Data Network not found", response.Error)
 		}
@@ -301,13 +340,16 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 
 	t.Run("7. Create data network - no name", func(t *testing.T) {
 		createDataNetworkParams := &CreateDataNetworkParams{}
+
 		statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
 		}
+
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
+
 		if response.Error != "name is missing" {
 			t.Fatalf("expected error %q, got %q", "name is missing", response.Error)
 		}
@@ -320,13 +362,16 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 			IPPool: "1.1.1.0/29",
 			MTU:    1400,
 		}
+
 		statusCode, response, err := editDataNetwork(ts.URL, client, DataNetworkName, token, createDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't edit data network: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -341,13 +386,16 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 			Arp:             Arp,
 			DataNetworkName: DataNetworkName,
 		}
+
 		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't edit data network: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -358,9 +406,11 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete data network: %s", err)
 		}
+
 		if statusCode != http.StatusConflict {
 			t.Fatalf("expected status %d, got %d", http.StatusConflict, statusCode)
 		}
+
 		if response.Error != "Data Network has policies" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -371,9 +421,11 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -384,9 +436,11 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete data network: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -397,9 +451,11 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete data network: %s", err)
 		}
+
 		if statusCode != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 		}
+
 		if response.Error != "Data Network not found" {
 			t.Fatalf("expected error %q, got %q", "Data Network not found", response.Error)
 		}
@@ -409,11 +465,13 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 func TestEditInexistentDataNetwork(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -427,13 +485,16 @@ func TestEditInexistentDataNetwork(t *testing.T) {
 		DNS:    DNS,
 		MTU:    MTU,
 	}
+
 	statusCode, response, err := editDataNetwork(ts.URL, client, "inexistent-dn", token, editDataNetworkParams)
 	if err != nil {
 		t.Fatalf("couldn't edit data network: %s", err)
 	}
+
 	if statusCode != http.StatusNotFound {
 		t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 	}
+
 	if response.Error != "Data Network not found" {
 		t.Fatalf("expected error %q, got %q", "Data Network not found", response.Error)
 	}
@@ -442,11 +503,13 @@ func TestEditInexistentDataNetwork(t *testing.T) {
 func TestCreateDataNetworkInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -551,13 +614,16 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 				DNS:    tt.dns,
 				MTU:    tt.mtu,
 			}
+
 			statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
 			if err != nil {
 				t.Fatalf("couldn't create data network: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
@@ -568,11 +634,13 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 func TestCreateTooManyDataNetworks(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -608,6 +676,7 @@ func TestCreateTooManyDataNetworks(t *testing.T) {
 		DNS:    DNS,
 		MTU:    MTU,
 	}
+
 	statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
 	if err != nil {
 		t.Fatalf("couldn't create data network: %s", err)

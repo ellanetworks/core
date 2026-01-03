@@ -15,5 +15,6 @@ func FindFTEID(createdPDRIEs []*ie.IE) (*ie.FTEIDFields, error) {
 			return teid, nil
 		}
 	}
+
 	return nil, fmt.Errorf("FTEID not found in CreatedPDR")
 }

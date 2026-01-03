@@ -97,11 +97,14 @@ func getRadioEventRetentionPolicy(url string, client *http.Client, token string)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
@@ -121,35 +124,43 @@ func editRadioEventRetentionPolicy(url string, client *http.Client, token string
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/ran/events/retention", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var updateResponse UpdateRadioEventRetentionPolicyResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &updateResponse, nil
 }
 
 func TestAPIRadioEvents(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -191,11 +202,13 @@ func TestListRadioEventsWithFilter(t *testing.T) {
 	tempDir := t.TempDir()
 
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, testdb, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -260,11 +273,13 @@ func TestListRadioEventsWithFilter(t *testing.T) {
 func TestAPIRadioEventRetentionPolicyEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -277,6 +292,7 @@ func TestAPIRadioEventRetentionPolicyEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get networks log retention policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -294,10 +310,12 @@ func TestAPIRadioEventRetentionPolicyEndToEnd(t *testing.T) {
 		updateRadioEventRetentionPolicyParams := &UpdateRadioEventRetentionPolicyParams{
 			Days: 15,
 		}
+
 		statusCode, response, err := editRadioEventRetentionPolicy(ts.URL, client, token, updateRadioEventRetentionPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't get networks log retention policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -316,6 +334,7 @@ func TestAPIRadioEventRetentionPolicyEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get networks log retention policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -333,11 +352,13 @@ func TestAPIRadioEventRetentionPolicyEndToEnd(t *testing.T) {
 func TestUpdateRadioEventRetentionPolicyInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -366,13 +387,16 @@ func TestUpdateRadioEventRetentionPolicyInvalidInput(t *testing.T) {
 			updateParams := &UpdateRadioEventRetentionPolicyParams{
 				Days: tt.days,
 			}
+
 			statusCode, response, err := editRadioEventRetentionPolicy(ts.URL, client, token, updateParams)
 			if err != nil {
 				t.Fatalf("couldn't edit networks log retention policy: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}

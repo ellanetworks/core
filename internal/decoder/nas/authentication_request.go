@@ -23,19 +23,19 @@ func buildAuthenticationRequest(msg *nasMessage.AuthenticationRequest) *Authenti
 		ExtendedProtocolDiscriminator:       msg.ExtendedProtocolDiscriminator.Octet,
 		SpareHalfOctetAndSecurityHeaderType: msg.SpareHalfOctetAndSecurityHeaderType.Octet,
 		SpareHalfOctetAndNgksi:              msg.SpareHalfOctetAndNgksi.Octet,
-		ABBA:                                msg.ABBA.GetABBAContents(),
+		ABBA:                                msg.GetABBAContents(),
 	}
 
 	if msg.AuthenticationParameterRAND != nil {
-		authenticationRequest.AuthenticationParameterRAND = msg.AuthenticationParameterRAND.GetRANDValue()
+		authenticationRequest.AuthenticationParameterRAND = msg.GetRANDValue()
 	}
 
 	if msg.AuthenticationParameterAUTN != nil {
-		authenticationRequest.AuthenticationParameterAUTN = msg.AuthenticationParameterAUTN.GetAUTN()
+		authenticationRequest.AuthenticationParameterAUTN = msg.GetAUTN()
 	}
 
 	if msg.EAPMessage != nil {
-		authenticationRequest.EAPMessage = msg.EAPMessage.GetEAPMessage()
+		authenticationRequest.EAPMessage = msg.GetEAPMessage()
 	}
 
 	return authenticationRequest

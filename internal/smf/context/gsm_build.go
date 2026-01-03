@@ -98,14 +98,14 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	}
 
 	pDUSessionEstablishmentAccept.AuthorizedQosRules.SetLen(uint16(len(qosRulesBytes)))
-	pDUSessionEstablishmentAccept.AuthorizedQosRules.SetQosRule(qosRulesBytes)
+	pDUSessionEstablishmentAccept.SetQosRule(qosRulesBytes)
 
 	if pduAddress != nil {
 		addr, addrLen := PDUAddressToNAS(pduAddress, pduSessionType)
 		pDUSessionEstablishmentAccept.PDUAddress = nasType.NewPDUAddress(nasMessage.PDUSessionEstablishmentAcceptPDUAddressType)
 		pDUSessionEstablishmentAccept.PDUAddress.SetLen(addrLen)
-		pDUSessionEstablishmentAccept.PDUAddress.SetPDUSessionTypeValue(pduSessionType)
-		pDUSessionEstablishmentAccept.PDUAddress.SetPDUAddressInformation(addr)
+		pDUSessionEstablishmentAccept.SetPDUSessionTypeValue(pduSessionType)
+		pDUSessionEstablishmentAccept.SetPDUAddressInformation(addr)
 	}
 
 	// Get Authorized QoS Flow Descriptions
@@ -124,7 +124,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	// pDUSessionEstablishmentAccept.SetQoSFlowDescriptions([]uint8{uint8(authDefQos.Var5qi), 0x20, 0x41, 0x01, 0x01, 0x09})
 
 	pDUSessionEstablishmentAccept.SNSSAI = nasType.NewSNSSAI(nasMessage.ULNASTransportSNSSAIType)
-	pDUSessionEstablishmentAccept.SNSSAI.SetSST(uint8(snssai.Sst))
+	pDUSessionEstablishmentAccept.SetSST(uint8(snssai.Sst))
 	pDUSessionEstablishmentAccept.SNSSAI.SetLen(1)
 
 	if snssai.Sd != "" {
@@ -137,12 +137,12 @@ func BuildGSMPDUSessionEstablishmentAccept(
 
 		copy(sd[:], byteArray)
 
-		pDUSessionEstablishmentAccept.SNSSAI.SetSD(sd)
+		pDUSessionEstablishmentAccept.SetSD(sd)
 		pDUSessionEstablishmentAccept.SNSSAI.SetLen(4)
 	}
 
 	pDUSessionEstablishmentAccept.DNN = nasType.NewDNN(nasMessage.ULNASTransportDNNType)
-	pDUSessionEstablishmentAccept.DNN.SetDNN(dnn)
+	pDUSessionEstablishmentAccept.SetDNN(dnn)
 
 	if pco.DNSIPv4Request || pco.DNSIPv6Request || pco.IPv4LinkMTURequest {
 		pDUSessionEstablishmentAccept.ExtendedProtocolConfigurationOptions = nasType.NewExtendedProtocolConfigurationOptions(
@@ -176,10 +176,9 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		pDUSessionEstablishmentAccept.
 			ExtendedProtocolConfigurationOptions.
 			SetLen(uint16(pcoContentsLength))
-		pDUSessionEstablishmentAccept.
-			ExtendedProtocolConfigurationOptions.
-			SetExtendedProtocolConfigurationOptionsContents(pcoContents)
+		pDUSessionEstablishmentAccept.SetExtendedProtocolConfigurationOptionsContents(pcoContents)
 	}
+
 	return m.PlainNasEncode()
 }
 
@@ -219,6 +218,7 @@ func BuildGSMPDUSessionReleaseCommand(pduSessionID uint8, pti uint8) ([]byte, er
 
 func modelsToSessionAMBR(ambr *models.Ambr) (nasType.SessionAMBR, error) {
 	var sessAmbr nasType.SessionAMBR
+
 	uplink := strings.Split(ambr.Uplink, " ")
 	if bitRate, err := strconv.ParseUint(uplink[0], 10, 16); err != nil {
 		return sessAmbr, fmt.Errorf("failed to parse uplink bitrate: %v", err)
@@ -227,6 +227,7 @@ func modelsToSessionAMBR(ambr *models.Ambr) (nasType.SessionAMBR, error) {
 		binary.BigEndian.PutUint16(bitRateBytes[:], uint16(bitRate))
 		sessAmbr.SetSessionAMBRForUplink(bitRateBytes)
 	}
+
 	sessAmbr.SetUnitForSessionAMBRForUplink(strToAMBRUnit(uplink[1]))
 
 	downlink := strings.Split(ambr.Downlink, " ")
@@ -237,7 +238,9 @@ func modelsToSessionAMBR(ambr *models.Ambr) (nasType.SessionAMBR, error) {
 		binary.BigEndian.PutUint16(bitRateBytes[:], uint16(bitRate))
 		sessAmbr.SetSessionAMBRForDownlink(bitRateBytes)
 	}
+
 	sessAmbr.SetUnitForSessionAMBRForDownlink(strToAMBRUnit(downlink[1]))
+
 	return sessAmbr, nil
 }
 
@@ -256,5 +259,6 @@ func strToAMBRUnit(unit string) uint8 {
 	case "Pbps":
 		return nasMessage.SessionAMBRUnit1Pbps
 	}
+
 	return nasMessage.SessionAMBRUnitNotUsed
 }

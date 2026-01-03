@@ -145,10 +145,12 @@ func createUserAndLogin(url string, token string, email string, roleID RoleID, c
 		Password: "password123",
 		RoleID:   roleID,
 	}
+
 	statusCode, _, err := createUser(url, client, token, user)
 	if err != nil {
 		return "", fmt.Errorf("couldn't create user: %s", err)
 	}
+
 	if statusCode != http.StatusCreated {
 		return "", fmt.Errorf("expected status %d, got %d", http.StatusCreated, statusCode)
 	}

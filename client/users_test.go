@@ -113,6 +113,7 @@ func TestListUsers_Failure(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
+
 	if users != nil {
 		t.Fatalf("expected no users, got: %v", users)
 	}
@@ -190,6 +191,7 @@ func TestCreateMyAPIToken_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
+
 	if resp.Token != "my-api-token" {
 		t.Fatalf("expected token 'my-api-token', got: %s", resp.Token)
 	}

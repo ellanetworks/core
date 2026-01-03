@@ -137,6 +137,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 	}
 
 	expectedTransfer := "AAAEAIIACgwL68IAMAvrwgAAiwAKAfAhISHGAAAAAQCGAAEAAIgABwABAAAJAQA="
+
 	expectedTransferRaw, err := decodeB64(expectedTransfer)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)

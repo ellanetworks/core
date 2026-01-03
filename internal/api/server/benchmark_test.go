@@ -9,11 +9,13 @@ import (
 func BenchmarkLoginHandler(b *testing.B) {
 	tempDir := b.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		b.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	user := &CreateUserParams{
@@ -21,10 +23,12 @@ func BenchmarkLoginHandler(b *testing.B) {
 		Password: "password123",
 		RoleID:   RoleAdmin,
 	}
+
 	statusCode, _, err := createUser(ts.URL, client, "", user)
 	if err != nil {
 		b.Fatalf("couldn't create user: %s", err)
 	}
+
 	if statusCode != http.StatusCreated {
 		b.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 	}
@@ -41,6 +45,7 @@ func BenchmarkLoginHandler(b *testing.B) {
 		if err != nil {
 			b.Fatalf("login failed: %s", err)
 		}
+
 		if code != http.StatusOK {
 			b.Fatalf("unexpected status code: got %d, want %d", code, http.StatusOK)
 		}

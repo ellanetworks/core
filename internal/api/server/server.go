@@ -126,6 +126,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 		logger.APILog.Fatal("Failed to create frontend file server", zap.Error(err))
 		return nil
 	}
+
 	mux.Handle("/", frontendHandler)
 
 	if registerExtraRoutes != nil {

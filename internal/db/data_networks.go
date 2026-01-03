@@ -69,6 +69,7 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
+
 		return nil, 0, err
 	}
 
@@ -80,8 +81,10 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, count, nil
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, 0, err
 	}
 
@@ -110,10 +113,13 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 		if err == sql.ErrNoRows {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "not found")
+
 			return nil, ErrNotFound
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, err
 	}
 
@@ -142,10 +148,13 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwor
 		if err == sql.ErrNoRows {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "not found")
+
 			return nil, ErrNotFound
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, err
 	}
 
@@ -172,11 +181,13 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
 			span.SetStatus(codes.Error, "unique constraint failed")
+
 			return ErrAlreadyExists
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -204,6 +215,7 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -211,12 +223,14 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
+
 		return err
 	}
 
 	if rowsAffected == 0 {
 		span.RecordError(ErrNotFound)
 		span.SetStatus(codes.Error, "not found")
+
 		return ErrNotFound
 	}
 
@@ -244,6 +258,7 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -251,12 +266,14 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
+
 		return err
 	}
 
 	if rowsAffected == 0 {
 		span.RecordError(ErrNotFound)
 		span.SetStatus(codes.Error, "not found")
+
 		return ErrNotFound
 	}
 
@@ -284,6 +301,7 @@ func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return 0, err
 	}
 

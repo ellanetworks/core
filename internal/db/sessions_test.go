@@ -30,6 +30,7 @@ func TestSessionsEndToEnd(t *testing.T) {
 		Email:          "testuser@example.com",
 		HashedPassword: "afewfawe12321",
 	}
+
 	userID, err := database.CreateUser(context.Background(), user)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateUser: %s", err)
@@ -96,6 +97,7 @@ func TestDeleteSessionByTokenHash(t *testing.T) {
 		Email:          "testuser@example.com",
 		HashedPassword: "afewfawe12321",
 	}
+
 	userID, err := database.CreateUser(context.Background(), user)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateUser: %s", err)
@@ -147,6 +149,7 @@ func TestDeleteExpiredSessions(t *testing.T) {
 		Email:          "testuser1@example.com",
 		HashedPassword: "afewfawe12321",
 	}
+
 	userID1, err := database.CreateUser(context.Background(), user1)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateUser: %s", err)
@@ -156,6 +159,7 @@ func TestDeleteExpiredSessions(t *testing.T) {
 		Email:          "testuser2@example.com",
 		HashedPassword: "afewfawe12321",
 	}
+
 	userID2, err := database.CreateUser(context.Background(), user2)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateUser: %s", err)
@@ -276,6 +280,7 @@ func TestDeleteManyExpiredSessions(t *testing.T) {
 			if err == nil {
 				t.Fatalf("Expected error when retrieving deleted expired session %d, got nil", i)
 			}
+
 			if retrievedSession != nil {
 				t.Fatalf("Expected retrieved expired session %d to be nil after deletion", i)
 			}
@@ -283,6 +288,7 @@ func TestDeleteManyExpiredSessions(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Couldn't retrieve valid session %d after deleting expired sessions: %s", i, err)
 			}
+
 			if retrievedSession == nil {
 				t.Fatalf("Expected valid session %d to still exist after deleting expired sessions", i)
 			}

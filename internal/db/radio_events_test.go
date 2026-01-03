@@ -20,6 +20,7 @@ func TestRadioEventsEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -105,10 +106,12 @@ func TestGetRadioEventByID(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
+
 	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %v", err)
@@ -158,10 +161,12 @@ func TestRadioEventsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
+
 	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %v", err)
@@ -185,6 +190,7 @@ func TestRadioEventsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 
 	const policyDays = 7
+
 	cutoff := now.AddDate(0, 0, -policyDays)
 
 	veryOld := cutoff.Add(-48 * time.Hour)
@@ -248,10 +254,12 @@ func TestListRadioEventsProtocolFilter(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
+
 	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %v", err)
@@ -300,10 +308,12 @@ func TestListRadioEventsTimestampFilter(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
+
 	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %v", err)
@@ -370,10 +380,12 @@ func TestListRadioEventsTimestampAndProtocolFilters(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
+
 	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %v", err)

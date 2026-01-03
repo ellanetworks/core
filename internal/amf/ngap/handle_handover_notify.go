@@ -1,44 +1,27 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
-	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
-	"github.com/ellanetworks/core/internal/logger"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandleHandoverNotify(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.HandoverNotify) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
 
-	initiatingMessage := message.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
-		return
-	}
+	var (
+		aMFUENGAPID             *ngapType.AMFUENGAPID
+		rANUENGAPID             *ngapType.RANUENGAPID
+		userLocationInformation *ngapType.UserLocationInformation
+	)
 
-	handoverNotify := initiatingMessage.Value.HandoverNotify
-	if handoverNotify == nil {
-		ran.Log.Error("HandoverNotify is nil")
-		return
-	}
-
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var userLocationInformation *ngapType.UserLocationInformation
-
-	for i := 0; i < len(handoverNotify.ProtocolIEs.List); i++ {
-		ie := handoverNotify.ProtocolIEs.List[i]
+	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
+		ie := msg.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
@@ -61,7 +44,7 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 		}
 	}
 
-	targetUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	targetUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 
 	if targetUe == nil {
 		ran.Log.Error("No RanUe Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
@@ -71,17 +54,20 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
+
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent error indication", zap.Int64("AMFUENGAPID", aMFUENGAPID.Value))
+
 		return
 	}
 
 	if userLocationInformation != nil {
-		targetUe.UpdateLocation(ctx, userLocationInformation)
+		targetUe.UpdateLocation(ctx, amf, userLocationInformation)
 	}
 
 	amfUe := targetUe.AmfUe
@@ -99,7 +85,10 @@ func HandleHandoverNotify(ctx ctxt.Context, ran *context.AmfRan, message *ngapTy
 	ran.Log.Info("Handle Handover notification Finshed ")
 
 	amfUe.AttachRanUe(targetUe)
-	err := ngap_message.SendUEContextReleaseCommand(ctx, sourceUe, context.UeContextReleaseHandover, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+
+	sourceUe.ReleaseAction = amfContext.UeContextReleaseHandover
+
+	err := sourceUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {
 		ran.Log.Error("error sending ue context release command", zap.Error(err))
 		return

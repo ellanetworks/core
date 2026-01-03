@@ -162,6 +162,7 @@ func (ipfRule *IPFilterRule) IsMatchAllIPFilter() bool {
 	if ipfRule.sAddrv4.addr == "any" && ipfRule.dAddrv4.addr == "assigned" {
 		return true
 	}
+
 	return false
 }
 
@@ -220,6 +221,7 @@ func (pf *PacketFilter) GetPfContent(flowDesc string) {
 		pfcList = append(pfcList, *pfc)
 		pf.ContentLength += 1
 		pf.Content = pfcList
+
 		return
 	}
 
@@ -338,6 +340,7 @@ func buildPFCompPort(local bool, val string) (*PacketFilterComponent, uint8) {
 			return nil, 0
 		}
 	}
+
 	return pfc, 3
 }
 
@@ -375,6 +378,7 @@ func buildPFCompPortRange(local bool, val IPFilterRulePortRange) (*PacketFilterC
 			return nil, 0
 		}
 	}
+
 	return pfc, 5
 }
 
@@ -418,6 +422,7 @@ func (pf *PacketFilter) MarshalBinary() ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error writing packet filter component type: %v", err)
 		}
+
 		_, err = packetFilterBuffer.Write(content.ComponentValue)
 		if err != nil {
 			return nil, fmt.Errorf("error writing packet filter component value: %v", err)
@@ -435,8 +440,10 @@ func (r *QosRule) MarshalBinary() ([]byte, error) {
 	ruleContentBuffer.WriteByte(ruleContentHeader)
 
 	packetFilterListBuffer := &bytes.Buffer{}
+
 	for _, pf := range r.PacketFilterList {
 		var packetFilterBytes []byte
+
 		if retPacketFilterByte, err := pf.MarshalBinary(); err != nil {
 			return nil, err
 		} else {
@@ -489,6 +496,7 @@ func (rs QoSRules) MarshalBinary() (data []byte, err error) {
 
 	for _, rule := range rs {
 		var ruleBytes []byte
+
 		if retRuleBytes, err := rule.MarshalBinary(); err != nil {
 			return nil, err
 		} else {
@@ -499,5 +507,6 @@ func (rs QoSRules) MarshalBinary() (data []byte, err error) {
 			return nil, err
 		}
 	}
+
 	return qosRulesBuffer.Bytes(), nil
 }

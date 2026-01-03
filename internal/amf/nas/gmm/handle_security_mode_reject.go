@@ -1,42 +1,36 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/context"
-	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
-	"github.com/ellanetworks/core/internal/logger"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func handleSecurityModeReject(ctx ctxt.Context, ue *context.AmfUe, msg *nas.GmmMessage) error {
-	logger.AmfLog.Debug("Handle Security Mode Reject", zap.String("supi", ue.Supi))
-
-	ctx, span := tracer.Start(ctx, "AMF NAS HandleSecurityModeReject")
-	defer span.End()
-
-	if ue.State.Current() != context.SecurityMode {
-		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", ue.State.Current())
+func handleSecurityModeReject(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+	if ue.State != amfContext.SecurityMode {
+		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", ue.State)
 	}
 
-	ue.State.Set(context.Deregistered)
+	ue.State = amfContext.Deregistered
 
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
 		ue.T3560 = nil // clear the timer
 	}
 
-	cause := msg.SecurityModeReject.Cause5GMM.GetCauseValue()
+	cause := msg.SecurityModeReject.GetCauseValue()
 
 	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", zap.String("Cause", nasMessage.Cause5GMMToString(cause)), zap.String("supi", ue.Supi))
 
 	ue.SecurityContextAvailable = false
+	ue.RanUe.ReleaseAction = amfContext.UeContextReleaseUeContext
 
-	err := ngap_message.SendUEContextReleaseCommand(ctx, ue.RanUe, context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+	err := ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {
 		return fmt.Errorf("error sending ue context release command: %v", err)
 	}

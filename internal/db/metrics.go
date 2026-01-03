@@ -14,6 +14,7 @@ func (db *Database) GetSize() (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	return fileInfo.Size(), nil
 }
 
@@ -24,14 +25,18 @@ func (db *Database) GetIPAddressesTotal() (int, error) {
 	}
 
 	var total int
+
 	for _, dn := range dataNetworks {
 		ipPool := dn.IPPool
+
 		_, ipNet, err := net.ParseCIDR(ipPool)
 		if err != nil {
 			return 0, fmt.Errorf("invalid IP pool format '%s': %v", ipPool, err)
 		}
+
 		total += countIPsInCIDR(ipNet)
 	}
+
 	return total, nil
 }
 
@@ -40,6 +45,7 @@ func countIPsInCIDR(ipNet *net.IPNet) int {
 	if bits-ones > 30 {
 		return int(^uint32(0))
 	}
+
 	return 1 << (bits - ones)
 }
 

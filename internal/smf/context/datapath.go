@@ -109,19 +109,13 @@ func (node *DataPathNode) DeactivateDownLinkTunnel() {
 	node.DownLinkTunnel = &GTPTunnel{}
 }
 
-func (node *DataPathNode) GetNodeIP() string {
-	return node.UPF.NodeID.String()
-}
-
 func (dataPath *DataPath) ActivateUlDlTunnel() error {
-	DPNode := dataPath.DPNode
-
-	err := DPNode.ActivateUpLinkTunnel()
+	err := dataPath.DPNode.ActivateUpLinkTunnel()
 	if err != nil {
 		return fmt.Errorf("couldn't activate UpLinkTunnel: %s", err)
 	}
 
-	err = DPNode.ActivateDownLinkTunnel()
+	err = dataPath.DPNode.ActivateDownLinkTunnel()
 	if err != nil {
 		return fmt.Errorf("couldn't activate DownLinkTunnel: %s", err)
 	}
@@ -223,6 +217,7 @@ func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, pduAddress net
 
 	curDLTunnel.PDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceCore}
 	curDLTunnel.PDR.PDI.UEIPAddress = &ueIPAddr
+
 	if anIP := smContext.Tunnel.ANInformation.IPAddress; anIP != nil {
 		ANUPF := dataPath.DPNode
 		DefaultDLPDR := ANUPF.DownLinkTunnel.PDR
@@ -239,13 +234,10 @@ func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, pduAddress net
 	}
 }
 
-func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, pduAddress net.IP, precedence uint32) error {
-	err := smContext.AllocateLocalSEIDForDataPath(dataPath)
-	if err != nil {
-		return fmt.Errorf("could not allocate local SEID for DataPath: %s", err)
-	}
+func (dataPath *DataPath) ActivateTunnelAndPDR(smf *SMFContext, smContext *SMContext, pduAddress net.IP, precedence uint32) error {
+	smContext.AllocateLocalSEIDForDataPath(smf)
 
-	err = dataPath.ActivateUlDlTunnel()
+	err := dataPath.ActivateUlDlTunnel()
 	if err != nil {
 		return fmt.Errorf("could not activate UL/DL Tunnel: %s", err)
 	}
@@ -286,6 +278,7 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, pduAddress 
 	}
 
 	dataPath.Activated = true
+
 	return nil
 }
 
@@ -293,11 +286,13 @@ func (dataPath *DataPath) DeactivateTunnelAndPDR() {
 	DPNode := dataPath.DPNode
 	DPNode.DeactivateUpLinkTunnel()
 	DPNode.DeactivateDownLinkTunnel()
+
 	dataPath.Activated = false
 }
 
 func BitRateTokbps(bitrate string) uint64 {
 	s := strings.Split(bitrate, " ")
+
 	var kbps uint64
 
 	var digit int
@@ -320,5 +315,6 @@ func BitRateTokbps(bitrate string) uint64 {
 	case "Tbps":
 		kbps = uint64(digit * 1000000000)
 	}
+
 	return kbps
 }

@@ -27,12 +27,12 @@ func buildAuthenticationResponse(msg *nasMessage.AuthenticationResponse) *Authen
 
 	if msg.AuthenticationResponseParameter != nil {
 		authResp.AuthenticationResponseParameter = &AuthenticationResponseParameter{
-			ResStar: msg.AuthenticationResponseParameter.GetRES(),
+			ResStar: msg.GetRES(),
 		}
 	}
 
 	if msg.EAPMessage != nil {
-		authResp.EAPMessage = msg.EAPMessage.GetEAPMessage()
+		authResp.EAPMessage = msg.GetEAPMessage()
 	}
 
 	return authResp

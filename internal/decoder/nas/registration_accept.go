@@ -258,17 +258,21 @@ func nasToTaiList(nas *nasType.TAIList) []TAI {
 		if len(data) < minLen {
 			return nil
 		}
+
 		idx := 1
+
 		plmn, err := plmnFromNas3(data[idx], data[idx+1], data[idx+2])
 		if err != nil {
 			return nil
 		}
+
 		idx += 3
 
 		out := make([]TAI, 0, n)
 		for range n {
 			tacBytes := data[idx : idx+3]
 			idx += 3
+
 			out = append(out, TAI{
 				PLMNID: plmn,                         // same PLMN for all
 				TAC:    hex.EncodeToString(tacBytes), // 6 hex chars
@@ -278,6 +282,7 @@ func nasToTaiList(nas *nasType.TAIList) []TAI {
 		if idx != len(data) {
 			logger.EllaLog.Warn("TAIList has trailing bytes")
 		}
+
 		return out
 
 	case 0x02:
@@ -286,7 +291,9 @@ func nasToTaiList(nas *nasType.TAIList) []TAI {
 		if len(data) < minLen {
 			return nil
 		}
+
 		idx := 1
+
 		out := make([]TAI, 0, n)
 		for range n {
 			plmn, err := plmnFromNas3(data[idx], data[idx+1], data[idx+2])
@@ -294,17 +301,21 @@ func nasToTaiList(nas *nasType.TAIList) []TAI {
 				logger.EllaLog.Warn("TAIList invalid PLMN", zap.Error(err))
 				return nil
 			}
+
 			idx += 3
 			tacBytes := data[idx : idx+3]
 			idx += 3
+
 			out = append(out, TAI{
 				PLMNID: plmn,
 				TAC:    hex.EncodeToString(tacBytes),
 			})
 		}
+
 		if idx != len(data) {
 			logger.EllaLog.Warn("TAIList has trailing bytes")
 		}
+
 		return out
 
 	default:
@@ -333,6 +344,7 @@ func plmnFromNas3(b0, b1, b2 uint8) (PLMNID, error) {
 	} else {
 		plmn.Mnc = fmt.Sprintf("%d%d%d", mnc1, mnc2, mnc3) // 3-digit MNC
 	}
+
 	return plmn, nil
 }
 
@@ -359,11 +371,13 @@ func equivalentPlmnsToList(eq nasType.EquivalentPlmns) []PLMNID {
 
 	for i := range n {
 		base := i * 3
+
 		plmn, err := nasPlmn3ToID(eq.Octet[base], eq.Octet[base+1], eq.Octet[base+2])
 		if err != nil {
 			logger.EllaLog.Warn("EquivalentPlmns invalid PLMN", zap.Error(err))
 			return nil
 		}
+
 		out = append(out, plmn)
 	}
 
@@ -384,6 +398,7 @@ func nasPlmn3ToID(b0, b1, b2 uint8) (PLMNID, error) {
 	}
 
 	mcc := fmt.Sprintf("%d%d%d", mcc1, mcc2, mcc3)
+
 	var mnc string
 	if mnc3 == 0x0F {
 		// 2-digit MNC
@@ -405,6 +420,7 @@ func buildAllowedSNSSAI(msg nasType.AllowedNSSAI) []SNSSAI {
 			logger.EllaLog.Warn("AllowedNSSAI: unexpected end of buffer")
 			break
 		}
+
 		l := int(value[i])
 		i++
 
@@ -412,6 +428,7 @@ func buildAllowedSNSSAI(msg nasType.AllowedNSSAI) []SNSSAI {
 			logger.EllaLog.Warn("AllowedNSSAI: unsupported or malformed element length", zap.Int("length", l))
 			break
 		}
+
 		if i+l > len(value) {
 			logger.EllaLog.Warn("AllowedNSSAI: element length exceeds buffer", zap.Int("length", l), zap.Int("remaining", len(value)-i))
 			break
@@ -424,6 +441,7 @@ func buildAllowedSNSSAI(msg nasType.AllowedNSSAI) []SNSSAI {
 				SD:  nil,
 			})
 			i += 1
+
 			continue
 		}
 

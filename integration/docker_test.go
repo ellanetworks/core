@@ -98,6 +98,7 @@ func (dc *DockerClient) Exec(ctx context.Context, containerName string, argv []s
 		if _, err := dc.ExecStart(ctx, execResp.ID, client.ExecStartOptions{Detach: true}); err != nil {
 			return "", fmt.Errorf("exec start (detached): %w", err)
 		}
+
 		return "", nil
 	}
 
@@ -107,8 +108,11 @@ func (dc *DockerClient) Exec(ctx context.Context, containerName string, argv []s
 	}
 	defer attachResp.Close()
 
-	var buf bytes.Buffer
-	var writer io.Writer = &buf
+	var (
+		buf    bytes.Buffer
+		writer io.Writer = &buf
+	)
+
 	if mirror != nil {
 		writer = io.MultiWriter(&buf, mirror)
 	}
@@ -134,7 +138,13 @@ func (dc *DockerClient) CopyFileToContainer(ctx context.Context, containerName, 
 	if err != nil {
 		return fmt.Errorf("open %s: %w", srcPath, err)
 	}
-	defer f.Close()
+
+	defer func() {
+		err := f.Close()
+		if err != nil {
+			fmt.Printf("warning: could not close file %s: %v\n", srcPath, err)
+		}
+	}()
 
 	info, err := f.Stat()
 	if err != nil {
@@ -142,6 +152,7 @@ func (dc *DockerClient) CopyFileToContainer(ctx context.Context, containerName, 
 	}
 
 	var buf bytes.Buffer
+
 	tw := tar.NewWriter(&buf)
 
 	hdr := &tar.Header{

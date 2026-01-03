@@ -76,17 +76,17 @@ func buildSecurityModeCommand(msg *nasMessage.SecurityModeCommand) *SecurityMode
 
 	if msg.Additional5GSecurityInformation != nil {
 		securityModeCommand.Additional5GSecurityInformation = &Additional5GSecurityInformation{
-			RINMR: msg.Additional5GSecurityInformation.GetRINMR(),
-			HDP:   msg.Additional5GSecurityInformation.GetHDP(),
+			RINMR: msg.GetRINMR(),
+			HDP:   msg.GetHDP(),
 		}
 	}
 
 	if msg.EAPMessage != nil {
-		securityModeCommand.EAPMessage = msg.EAPMessage.GetEAPMessage()
+		securityModeCommand.EAPMessage = msg.GetEAPMessage()
 	}
 
 	if msg.ABBA != nil {
-		securityModeCommand.ABBA = msg.ABBA.GetABBAContents()
+		securityModeCommand.ABBA = msg.GetABBAContents()
 	}
 
 	if msg.ReplayedS1UESecurityCapabilities != nil {

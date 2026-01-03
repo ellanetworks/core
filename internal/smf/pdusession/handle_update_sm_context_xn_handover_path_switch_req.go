@@ -1,28 +1,34 @@
 package pdusession
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/smf/context"
+	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
-func UpdateSmContextXnHandoverPathSwitchReq(ctx ctxt.Context, smContextRef string, n2Data []byte) ([]byte, error) {
-	ctx, span := tracer.Start(ctx, "SMF Update SmContext Handover Path Switch Request")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("smf.smContextRef", smContextRef),
+func UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"SMF Update SmContext Handover Path Switch Request",
+		trace.WithAttributes(
+			attribute.String("smf.smContextRef", smContextRef),
+		),
 	)
+	defer span.End()
 
 	if smContextRef == "" {
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
 
-	smContext := context.GetSMContext(smContextRef)
+	smf := smfContext.SMFSelf()
+
+	smContext := smf.GetSMContext(smContextRef)
 	if smContext == nil {
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
@@ -35,12 +41,11 @@ func UpdateSmContextXnHandoverPathSwitchReq(ctx ctxt.Context, smContextRef strin
 		return nil, fmt.Errorf("error handling N2 message: %v", err)
 	}
 
-	sessionContext, exist := smContext.PFCPContext[smContext.Tunnel.DataPath.DPNode.UPF.NodeID.String()]
-	if !exist {
-		return nil, fmt.Errorf("pfcp session context not found for upf: %s", smContext.Tunnel.DataPath.DPNode.UPF.NodeID.String())
+	if smContext.PFCPContext == nil {
+		return nil, fmt.Errorf("pfcp session context not found for upf")
 	}
 
-	err = pfcp.SendPfcpSessionModificationRequest(ctx, sessionContext.LocalSEID, sessionContext.RemoteSEID, pdrList, farList, nil)
+	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
@@ -50,20 +55,21 @@ func UpdateSmContextXnHandoverPathSwitchReq(ctx ctxt.Context, smContextRef strin
 	return n2buf, nil
 }
 
-func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *context.SMContext) ([]*context.PDR, []*context.FAR, []byte, error) {
+func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *smfContext.SMContext) ([]*smfContext.PDR, []*smfContext.FAR, []byte, error) {
 	logger.SmfLog.Debug("handle Path Switch Request", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-	if err := context.HandlePathSwitchRequestTransfer(n2Data, smContext); err != nil {
+	if err := smfContext.HandlePathSwitchRequestTransfer(n2Data, smContext); err != nil {
 		return nil, nil, nil, fmt.Errorf("handle PathSwitchRequestTransfer failed: %v", err)
 	}
 
-	n2Buf, err := context.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.DataPath.DPNode)
+	n2Buf, err := smfContext.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.DataPath.DPNode)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("build Path Switch Transfer Error: %v", err)
 	}
 
-	pdrList := []*context.PDR{}
-	farList := []*context.FAR{}
+	pdrList := []*smfContext.PDR{}
+	farList := []*smfContext.FAR{}
+
 	dataPath := smContext.Tunnel.DataPath
 	if dataPath.Activated {
 		ANUPF := dataPath.DPNode

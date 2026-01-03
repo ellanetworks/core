@@ -1,45 +1,29 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUplinkNasTransport(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.UplinkNASTransport) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
 
-	initiatingMessage := message.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
-		return
-	}
+	var (
+		aMFUENGAPID             *ngapType.AMFUENGAPID
+		rANUENGAPID             *ngapType.RANUENGAPID
+		nASPDU                  *ngapType.NASPDU
+		userLocationInformation *ngapType.UserLocationInformation
+	)
 
-	uplinkNasTransport := initiatingMessage.Value.UplinkNASTransport
-	if uplinkNasTransport == nil {
-		ran.Log.Error("UplinkNasTransport is nil")
-		return
-	}
-
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var nASPDU *ngapType.NASPDU
-	var userLocationInformation *ngapType.UserLocationInformation
-
-	for i := 0; i < len(uplinkNasTransport.ProtocolIEs.List); i++ {
-		ie := uplinkNasTransport.ProtocolIEs.List[i]
+	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
+		ie := msg.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
@@ -68,28 +52,31 @@ func HandleUplinkNasTransport(ctx ctxt.Context, ran *context.AmfRan, message *ng
 		}
 	}
 
-	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("ran ue is nil", zap.Int64("ranUeNgapID", rANUENGAPID.Value))
 		return
 	}
 
-	ranUe.Ran = ran
+	ranUe.Radio = ran
+
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
 		err := ranUe.Remove()
 		if err != nil {
 			ran.Log.Error("error removing ran ue context", zap.Error(err))
 		}
+
 		ran.Log.Error("No UE Context of RanUe", zap.Int64("ranUeNgapID", rANUENGAPID.Value), zap.Int64("amfUeNgapID", aMFUENGAPID.Value))
+
 		return
 	}
 
 	if userLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, userLocationInformation)
+		ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 	}
 
-	err := nas.HandleNAS(ctx, ranUe, nASPDU.Value)
+	err := nas.HandleNAS(ctx, amf, ranUe, nASPDU.Value)
 	if err != nil {
 		ranUe.Log.Error("error handling NAS message", zap.Error(err))
 	}

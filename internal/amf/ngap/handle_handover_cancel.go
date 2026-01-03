@@ -1,43 +1,27 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
-	"github.com/ellanetworks/core/internal/logger"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var cause *ngapType.Cause
-
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandleHandoverCancel(ctx context.Context, ran *amfContext.Radio, msg *ngapType.HandoverCancel) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
 
-	initiatingMessage := msg.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
-		return
-	}
-	HandoverCancel := initiatingMessage.Value.HandoverCancel
-	if HandoverCancel == nil {
-		ran.Log.Error("Handover Cancel is nil")
-		return
-	}
+	var (
+		aMFUENGAPID *ngapType.AMFUENGAPID
+		rANUENGAPID *ngapType.RANUENGAPID
+		cause       *ngapType.Cause
+	)
 
-	for i := 0; i < len(HandoverCancel.ProtocolIEs.List); i++ {
-		ie := HandoverCancel.ProtocolIEs.List[i]
+	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
+		ie := msg.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
@@ -60,7 +44,7 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		}
 	}
 
-	sourceUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	sourceUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if sourceUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		cause := ngapType.Cause{
@@ -69,12 +53,15 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
+
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err), zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
 			return
 		}
+
 		ran.Log.Info("sent error indication to source UE")
+
 		return
 	}
 
@@ -83,12 +70,15 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 	}
 
 	ran.Log.Debug("Handle Handover Cancel", zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID))
+
 	causePresent := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem
+
 	var err error
 
 	if cause != nil {
 		ran.Log.Debug("Handover Cancel Cause", zap.String("Cause", causeToString(*cause)))
+
 		causePresent, causeValue, err = getCause(cause)
 		if err != nil {
 			ran.Log.Error("Get Cause from Handover Failure Error", zap.Error(err))
@@ -102,13 +92,15 @@ func HandleHandoverCancel(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		return
 	}
 
-	err = message.SendUEContextReleaseCommand(ctx, targetUe, context.UeContextReleaseHandover, causePresent, causeValue)
+	targetUe.ReleaseAction = amfContext.UeContextReleaseHandover
+
+	err = targetUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, targetUe.AmfUeNgapID, targetUe.RanUeNgapID, causePresent, causeValue)
 	if err != nil {
 		ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		return
 	}
 
-	err = message.SendHandoverCancelAcknowledge(ctx, sourceUe, nil)
+	err = sourceUe.Radio.NGAPSender.SendHandoverCancelAcknowledge(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID)
 	if err != nil {
 		ran.Log.Error("error sending handover cancel acknowledge to source UE", zap.Error(err))
 		return

@@ -26,6 +26,7 @@ func restore(url string, client *http.Client, token string, backupFilePath strin
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
 			panic(closeErr)
@@ -33,14 +34,18 @@ func restore(url string, client *http.Client, token string, backupFilePath strin
 	}()
 
 	var requestBody bytes.Buffer
+
 	writer := multipart.NewWriter(&requestBody)
+
 	part, err := writer.CreateFormFile("backup", filepath.Base(backupFilePath))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	if _, err := io.Copy(part, file); err != nil {
 		return 0, nil, err
 	}
+
 	if err := writer.Close(); err != nil {
 		return 0, nil, err
 	}
@@ -49,12 +54,15 @@ func restore(url string, client *http.Client, token string, backupFilePath strin
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if closeErr := res.Body.Close(); closeErr != nil {
 			panic(closeErr)
@@ -62,6 +70,7 @@ func restore(url string, client *http.Client, token string, backupFilePath strin
 	}()
 
 	var restoreResponse RestoreResponse
+
 	err = json.NewDecoder(res.Body).Decode(&restoreResponse)
 	if err != nil {
 		return res.StatusCode, nil, err
@@ -87,6 +96,7 @@ func TestRestoreEndpoint(t *testing.T) {
 	defer ts.Close()
 
 	client := ts.Client()
+
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
@@ -97,6 +107,7 @@ func TestRestoreEndpoint(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't trigger restore: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d: %s", http.StatusOK, statusCode, restoreResponse.Error)
 		}
@@ -126,6 +137,7 @@ func TestRestoreEndpoint(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't trigger restore: %s", err)
 		}
+
 		if statusCode != http.StatusUnauthorized {
 			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
 		}

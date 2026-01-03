@@ -139,7 +139,7 @@ func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *Registration
 	}
 
 	if msg.NASMessageContainer != nil {
-		registrationRequest.NASMessageContainer = msg.NASMessageContainer.GetNASMessageContainerContents()
+		registrationRequest.NASMessageContainer = msg.GetNASMessageContainerContents()
 	}
 
 	return registrationRequest
@@ -171,6 +171,7 @@ func getRegistrationType5GSName(regType5Gs uint8) utils.EnumField[uint8] {
 
 func getMobileIdentity5GS(mobileIdentity5GS nasType.MobileIdentity5GS) MobileIdentity5GS {
 	mobileIdentity5GSContents := mobileIdentity5GS.GetMobileIdentity5GSContents()
+
 	identityTypeUsedForRegistration := nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0])
 	switch identityTypeUsedForRegistration {
 	case nasMessage.MobileIdentity5GSTypeNoIdentity:
@@ -180,6 +181,7 @@ func getMobileIdentity5GS(mobileIdentity5GS nasType.MobileIdentity5GS) MobileIde
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		suci, plmnID := nasConvert.SuciToString(mobileIdentity5GSContents)
 		plmnIDModel := plmnIDStringToModels(plmnID)
+
 		return MobileIdentity5GS{
 			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "SUCI", false),
 			SUCI:     &suci,
@@ -187,24 +189,28 @@ func getMobileIdentity5GS(mobileIdentity5GS nasType.MobileIdentity5GS) MobileIde
 		}
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		_, guti := nasConvert.GutiToString(mobileIdentity5GSContents)
+
 		return MobileIdentity5GS{
 			GUTI:     &guti,
 			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "5G-GUTI", false),
 		}
 	case nasMessage.MobileIdentity5GSTypeImei:
 		imei := nasConvert.PeiToString(mobileIdentity5GSContents)
+
 		return MobileIdentity5GS{
 			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "IMEI", false),
 			IMEI:     &imei,
 		}
 	case nasMessage.MobileIdentity5GSType5gSTmsi:
 		sTmsi := hex.EncodeToString(mobileIdentity5GSContents[1:])
+
 		return MobileIdentity5GS{
 			STMSI:    &sTmsi,
 			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "5G-S-TMSI", false),
 		}
 	case nasMessage.MobileIdentity5GSTypeImeisv:
 		imeisv := nasConvert.PeiToString(mobileIdentity5GSContents)
+
 		return MobileIdentity5GS{
 			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "IMEISV", false),
 			IMEISV:   &imeisv,
@@ -258,8 +264,8 @@ func buildUESecurityCapability(ueSecurityCapability nasType.UESecurityCapability
 }
 
 func plmnIDStringToModels(plmnIDStr string) PLMNID {
-	var plmnID PLMNID
-	plmnID.Mcc = plmnIDStr[:3]
-	plmnID.Mnc = plmnIDStr[3:]
-	return plmnID
+	return PLMNID{
+		Mcc: plmnIDStr[:3],
+		Mnc: plmnIDStr[3:],
+	}
 }

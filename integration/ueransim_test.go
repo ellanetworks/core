@@ -37,7 +37,13 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to create docker client: %v", err)
 			}
-			defer dockerClient.Close()
+
+			defer func() {
+				err := dockerClient.Close()
+				if err != nil {
+					t.Fatalf("failed to close docker client: %v", err)
+				}
+			}()
 
 			dockerClient.ComposeDown(ctx, "compose/ueransim/")
 			dockerClient.ComposeDown(ctx, "compose/core-tester/")
@@ -52,6 +58,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			clientConfig := &client.Config{
 				BaseURL: "http://127.0.0.1:5002",
 			}
+
 			ellaClient, err := client.New(clientConfig)
 			if err != nil {
 				t.Fatalf("failed to create ella client: %v", err)

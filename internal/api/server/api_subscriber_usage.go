@@ -76,6 +76,7 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 			}
 
 			writeResponse(w, response, http.StatusOK, logger.APILog)
+
 			return
 		case "subscriber":
 			subscriberUsage, err := dbInstance.GetUsagePerSubscriber(ctx, subscriber, startDate, endDate)
@@ -97,6 +98,7 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 			}
 
 			writeResponse(w, response, http.StatusOK, logger.APILog)
+
 			return
 		default:
 			writeError(w, http.StatusBadRequest, "Invalid group_by parameter", errors.New("group_by must be either 'day' or 'subscriber'"), logger.APILog)
@@ -108,6 +110,7 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 func GetSubscriberUsageRetentionPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+
 		policyDays, err := dbInstance.GetRetentionPolicy(ctx, db.CategorySubscriberUsage)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber usage retention policy", err, logger.APILog)

@@ -32,6 +32,7 @@ func TestGetOperator_Success(t *testing.T) {
 	if operator.ID.Mcc != "001" {
 		t.Fatalf("expected ID %v, got %v", "001", operator.ID.Mcc)
 	}
+
 	if operator.ID.Mnc != "01" {
 		t.Fatalf("expected ID %v, got %v", "01", operator.ID.Mnc)
 	}

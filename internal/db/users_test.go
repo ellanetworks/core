@@ -17,6 +17,7 @@ func TestDBUsersEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			panic(err)
@@ -67,6 +68,7 @@ func TestDBUsersEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
+
 	if retrievedUser.Email != user.Email {
 		t.Fatalf("The user from the database doesn't match the user that was given")
 	}
@@ -74,6 +76,7 @@ func TestDBUsersEndToEnd(t *testing.T) {
 	if err = database.DeleteUser(context.Background(), user.Email); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
+
 	res, total, _ = database.ListUsersPage(context.Background(), 1, 10)
 
 	if total != 0 {

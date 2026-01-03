@@ -154,6 +154,7 @@ func GetBitRate(sBitRate string) (val uint16, unit uint8) {
 	default:
 		unit = QFBitRate1Mbps
 	}
+
 	return
 }
 
@@ -249,11 +250,13 @@ func GetQosFlowDescUpdate(pcfQosData, ctxtQosData *models.QosData) *QosFlowsUpda
 	if pcfQosData != nil && ctxtQosData == nil {
 		update.Add = pcfQosData
 		update.Add.QFI = DefaultQFI
+
 		return &update
 	}
 
 	// modified flow
 	update.mod = pcfQosData
+
 	return &update
 }
 

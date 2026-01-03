@@ -39,6 +39,7 @@ func buildIdentityResponse(msg *nasMessage.IdentityResponse) *IdentityResponse {
 
 func buildMobileIdentity(mobileIdentity5GS nasType.MobileIdentity) MobileIdentity {
 	mobileIdentity5GSContents := mobileIdentity5GS.GetMobileIdentityContents()
+
 	identityTypeUsedForRegistration := nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0])
 	switch identityTypeUsedForRegistration {
 	case nasMessage.MobileIdentity5GSTypeNoIdentity:
@@ -48,6 +49,7 @@ func buildMobileIdentity(mobileIdentity5GS nasType.MobileIdentity) MobileIdentit
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		suci, plmnID := nasConvert.SuciToString(mobileIdentity5GSContents)
 		plmnIDModel := plmnIDStringToModels(plmnID)
+
 		return MobileIdentity{
 			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "SUCI", false),
 			SUCI:     &suci,
@@ -55,24 +57,28 @@ func buildMobileIdentity(mobileIdentity5GS nasType.MobileIdentity) MobileIdentit
 		}
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		_, guti := nasConvert.GutiToString(mobileIdentity5GSContents)
+
 		return MobileIdentity{
 			GUTI:     &guti,
 			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "5G-GUTI", false),
 		}
 	case nasMessage.MobileIdentity5GSTypeImei:
 		imei := nasConvert.PeiToString(mobileIdentity5GSContents)
+
 		return MobileIdentity{
 			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "IMEI", false),
 			IMEI:     &imei,
 		}
 	case nasMessage.MobileIdentity5GSType5gSTmsi:
 		sTmsi := hex.EncodeToString(mobileIdentity5GSContents[1:])
+
 		return MobileIdentity{
 			STMSI:    &sTmsi,
 			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "5G-S-TMSI", false),
 		}
 	case nasMessage.MobileIdentity5GSTypeImeisv:
 		imeisv := nasConvert.PeiToString(mobileIdentity5GSContents)
+
 		return MobileIdentity{
 			Identity: utils.MakeEnum(identityTypeUsedForRegistration, "IMEISV", false),
 			IMEISV:   &imeisv,

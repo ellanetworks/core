@@ -77,7 +77,9 @@ func ListDataNetworks(dbInstance *db.Database) http.Handler {
 		items := make([]DataNetwork, 0, len(dbDataNetworks))
 
 		for _, dbDataNetwork := range dbDataNetworks {
-			smfSessions := smfContext.PDUSessionsByDNN(dbDataNetwork.Name)
+			smf := smfContext.SMFSelf()
+
+			smfSessions := smf.PDUSessionsByDNN(dbDataNetwork.Name)
 
 			items = append(items, DataNetwork{
 				Name:   dbDataNetwork.Name,
@@ -115,7 +117,9 @@ func GetDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		smfSessions := smfContext.PDUSessionsByDNN(dbDataNetwork.Name)
+		smf := smfContext.SMFSelf()
+
+		smfSessions := smf.PDUSessionsByDNN(dbDataNetwork.Name)
 
 		dataNetwork := DataNetwork{
 			Name:   dbDataNetwork.Name,
@@ -150,7 +154,9 @@ func DeleteDataNetwork(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to check policies", err, logger.APILog)
+
 			return
 		}
 
@@ -164,7 +170,9 @@ func DeleteDataNetwork(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to delete data network", err, logger.APILog)
+
 			return
 		}
 
@@ -217,6 +225,7 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 			}
 
 			writeError(w, http.StatusInternalServerError, "Failed to create data network", err, logger.APILog)
+
 			return
 		}
 
@@ -263,7 +272,9 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to update data network", err, logger.APILog)
+
 			return
 		}
 
@@ -310,5 +321,6 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 	case !isValidMTU(p.MTU):
 		return errors.New("invalid mtu format, must be an integer between 0 and 65535")
 	}
+
 	return nil
 }

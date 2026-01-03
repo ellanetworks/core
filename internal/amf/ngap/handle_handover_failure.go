@@ -1,44 +1,27 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
-	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
-	"github.com/ellanetworks/core/internal/logger"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.HandoverFailure) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
 
-	unsuccessfulOutcome := message.UnsuccessfulOutcome // reject
-	if unsuccessfulOutcome == nil {
-		ran.Log.Error("Unsuccessful Message is nil")
-		return
-	}
+	var (
+		aMFUENGAPID            *ngapType.AMFUENGAPID
+		cause                  *ngapType.Cause
+		targetUe               *amfContext.RanUe
+		criticalityDiagnostics *ngapType.CriticalityDiagnostics
+	)
 
-	handoverFailure := unsuccessfulOutcome.Value.HandoverFailure
-	if handoverFailure == nil {
-		ran.Log.Error("HandoverFailure is nil")
-		return
-	}
-
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var cause *ngapType.Cause
-	var targetUe *context.RanUe
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
-
-	for _, ie := range handoverFailure.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID
@@ -51,9 +34,12 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 
 	causePresent := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem
+
 	var err error
+
 	if cause != nil {
 		ran.Log.Debug("Handover Failure Cause", zap.String("Cause", causeToString(*cause)))
+
 		causePresent, causeValue, err = getCause(cause)
 		if err != nil {
 			ran.Log.Error("Get Cause from Handover Failure Error", zap.Error(err))
@@ -61,7 +47,7 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 		}
 	}
 
-	targetUe = context.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+	targetUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 
 	if targetUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
@@ -71,29 +57,38 @@ func HandleHandoverFailure(ctx ctxt.Context, ran *context.AmfRan, message *ngapT
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := ngap_message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
+
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent error indication")
+
 		return
 	}
 
-	targetUe.Ran = ran
+	targetUe.Radio = ran
+
 	sourceUe := targetUe.SourceUe
 	if sourceUe == nil {
 		ran.Log.Error("N2 Handover between AMF has not been implemented yet")
 	} else {
-		err := ngap_message.SendHandoverPreparationFailure(ctx, sourceUe, *cause, criticalityDiagnostics)
+		sourceUe.AmfUe.SetOnGoing(amfContext.OnGoingProcedureNothing)
+
+		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending handover preparation failure", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent handover preparation failure to source UE")
 	}
 
-	err = ngap_message.SendUEContextReleaseCommand(ctx, targetUe, context.UeContextReleaseHandover, causePresent, causeValue)
+	targetUe.ReleaseAction = amfContext.UeContextReleaseHandover
+
+	err = targetUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, targetUe.AmfUeNgapID, targetUe.RanUeNgapID, causePresent, causeValue)
 	if err != nil {
 		ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		return

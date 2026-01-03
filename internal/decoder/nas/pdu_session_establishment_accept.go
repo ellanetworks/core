@@ -49,16 +49,16 @@ func buildPDUSessionEstablishmentAccept(msg *nasMessage.PDUSessionEstablishmentA
 
 	estAcc := &PDUSessionEstablishmentAccept{
 		ExtendedProtocolDiscriminator: msg.ExtendedProtocolDiscriminator.Octet,
-		PDUSessionID:                  msg.PDUSessionID.GetPDUSessionID(),
-		PTI:                           msg.PTI.GetPTI(),
-		SelectedSSCMode:               msg.SelectedSSCModeAndSelectedPDUSessionType.GetSSCMode(),
-		SelectedPDUSessionType:        buildPDUSessionType(msg.SelectedSSCModeAndSelectedPDUSessionType.GetPDUSessionType()),
+		PDUSessionID:                  msg.GetPDUSessionID(),
+		PTI:                           msg.GetPTI(),
+		SelectedSSCMode:               msg.GetSSCMode(),
+		SelectedPDUSessionType:        buildPDUSessionType(msg.GetPDUSessionType()),
 		AuthorizedQosRules:            buildAuthorizedQosRules(msg.AuthorizedQosRules),
 		SessionAMBR:                   buildSessionAMBR(msg.SessionAMBR),
 	}
 
 	if msg.Cause5GSM != nil {
-		cause := cause5GSMToString(msg.Cause5GSM.GetCauseValue())
+		cause := cause5GSMToString(msg.GetCauseValue())
 		estAcc.Cause5GSM = &cause
 	}
 
@@ -97,7 +97,7 @@ func buildPDUSessionEstablishmentAccept(msg *nasMessage.PDUSessionEstablishmentA
 	}
 
 	if msg.DNN != nil && msg.DNN.GetLen() > 0 {
-		dnn := msg.DNN.GetDNN()
+		dnn := msg.GetDNN()
 		estAcc.DNN = &dnn
 	}
 

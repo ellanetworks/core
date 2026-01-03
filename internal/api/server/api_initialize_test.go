@@ -57,11 +57,13 @@ func initialize(url string, client *http.Client, data *InitializeParams) (int, *
 func TestInitializeInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	tests := []struct {
@@ -102,13 +104,16 @@ func TestInitializeInvalidInput(t *testing.T) {
 				Email:    tt.email,
 				Password: tt.password,
 			}
+
 			statusCode, response, err := initialize(ts.URL, client, initializeParams)
 			if err != nil {
 				t.Fatalf("couldn't create user: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}

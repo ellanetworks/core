@@ -1,20 +1,13 @@
 package context
 
-func IsSubscriberRegistered(imsi string) bool {
-	amfCtx := AMFSelf()
-	amfCtx.Mutex.Lock()
-	defer amfCtx.Mutex.Unlock()
+func (amf *AMF) IsSubscriberRegistered(imsi string) bool {
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
 
-	amfUE, ok := amfCtx.UePool[imsi]
+	amfUE, ok := amf.UEs[imsi]
 	if !ok {
 		return false
 	}
 
-	if amfUE.State == nil {
-		return false
-	}
-
-	currentState := amfUE.State.Current()
-
-	return currentState == Registered
+	return amfUE.State == Registered
 }

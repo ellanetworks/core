@@ -46,6 +46,7 @@ func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 	returnedTais := make([]SupportedTAI, 0)
 	for _, tai := range tais {
 		snssais := make([]Snssai, 0)
+
 		for _, snssai := range tai.SNssaiList {
 			newSnssai := Snssai{
 				Sst: snssai.Sst,
@@ -53,6 +54,7 @@ func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 			}
 			snssais = append(snssais, newSnssai)
 		}
+
 		newTai := SupportedTAI{
 			Tai: Tai{
 				PlmnID: PlmnID{
@@ -65,6 +67,7 @@ func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 		}
 		returnedTais = append(returnedTais, newTai)
 	}
+
 	return returnedTais
 }
 
@@ -84,12 +87,14 @@ func ListRadios() http.HandlerFunc {
 			return
 		}
 
-		total, ranList := context.ListAmfRan(page, perPage)
+		amf := context.AMFSelf()
+
+		total, ranList := amf.ListAmfRan(page, perPage)
 
 		items := make([]Radio, 0, len(ranList))
 
 		for _, radio := range ranList {
-			supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAList)
+			supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAIs)
 			newRadio := Radio{
 				Name:          radio.Name,
 				ID:            radio.RanID.GNbID.GNBValue,
@@ -119,11 +124,13 @@ func GetRadio() http.HandlerFunc {
 			return
 		}
 
-		_, ranList := context.ListAmfRan(1, 1000)
+		amf := context.AMFSelf()
+
+		_, ranList := amf.ListAmfRan(1, 1000)
 
 		for _, radio := range ranList {
 			if radio.Name == radioName {
-				supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAList)
+				supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAIs)
 				result := Radio{
 					Name:          radio.Name,
 					ID:            radio.RanID.GNbID.GNBValue,
@@ -131,6 +138,7 @@ func GetRadio() http.HandlerFunc {
 					SupportedTAIs: supportedTais,
 				}
 				writeResponse(w, result, http.StatusOK, logger.APILog)
+
 				return
 			}
 		}

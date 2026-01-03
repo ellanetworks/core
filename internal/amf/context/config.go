@@ -32,44 +32,40 @@ func getPaginateIndexes(page int, perPage int, total int) (int, int) {
 	return startIndex, endIndex
 }
 
-func ListAmfRan(page int, perPage int) (int, []AmfRan) {
-	amfSelf := AMFSelf()
+func (amf *AMF) ListAmfRan(page int, perPage int) (int, []Radio) {
+	radios := amf.ListRadios()
 
-	ranList := amfSelf.ListAmfRan()
-
-	total := len(ranList)
+	total := len(radios)
 
 	startIndex, endIndex := getPaginateIndexes(page, perPage, total)
 
-	ranListPage := ranList[startIndex:endIndex]
+	radioListPage := radios[startIndex:endIndex]
 
-	return total, ranListPage
-}
-
-type PlmnSupportItem struct {
-	PlmnID models.PlmnID
-	SNssai *models.Snssai
+	return total, radioListPage
 }
 
 type OperatorInfo struct {
 	Tais          []models.Tai
 	Guami         *models.Guami
-	SupportedPLMN *PlmnSupportItem
+	SupportedPLMN *models.PlmnSupportItem
 }
 
-func GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
+func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 	ctx, span := tracer.Start(ctx, "AMF GetOperatorInfo")
 	defer span.End()
 
-	amfSelf := AMFSelf()
-
-	operator, err := amfSelf.DBInstance.GetOperator(ctx)
+	operator, err := amf.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator: %s", err)
 	}
 
+	supportedTAIs, err := getSupportedTAIs(operator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get supported TAIs: %w", err)
+	}
+
 	operatorInfo := &OperatorInfo{
-		Tais: getSupportedTAIs(operator),
+		Tais: supportedTAIs,
 		Guami: &models.Guami{
 			PlmnID: &models.PlmnID{
 				Mcc: operator.Mcc,
@@ -77,7 +73,7 @@ func GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 			},
 			AmfID: "cafe00", // To edit
 		},
-		SupportedPLMN: &PlmnSupportItem{
+		SupportedPLMN: &models.PlmnSupportItem{
 			PlmnID: models.PlmnID{
 				Mcc: operator.Mcc,
 				Mnc: operator.Mnc,
@@ -92,10 +88,13 @@ func GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 	return operatorInfo, nil
 }
 
-func getSupportedTAIs(operator *db.Operator) []models.Tai {
-	tais := make([]models.Tai, 0)
+func getSupportedTAIs(operator *db.Operator) ([]models.Tai, error) {
+	supportedTacs, err := operator.GetSupportedTacs()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get supported TACs: %w", err)
+	}
 
-	supportedTacs := operator.GetSupportedTacs()
+	tais := make([]models.Tai, 0)
 
 	for _, tac := range supportedTacs {
 		tai := models.Tai{
@@ -108,10 +107,10 @@ func getSupportedTAIs(operator *db.Operator) []models.Tai {
 		tais = append(tais, tai)
 	}
 
-	return tais
+	return tais, nil
 }
 
-func SubscriberExists(ctx context.Context, ueID string) bool {
+func (amf *AMF) SubscriberExists(ctx context.Context, ueID string) bool {
 	ctx, span := tracer.Start(ctx, "AMF SubscriberExists",
 		trace.WithAttributes(
 			attribute.String("supi", ueID),
@@ -119,13 +118,12 @@ func SubscriberExists(ctx context.Context, ueID string) bool {
 	)
 	defer span.End()
 
-	amfSelf := AMFSelf()
+	_, err := amf.DBInstance.GetSubscriber(ctx, ueID)
 
-	_, err := amfSelf.DBInstance.GetSubscriber(ctx, ueID)
 	return err == nil
 }
 
-func GetSubscriberData(ctx context.Context, ueID string) (*models.Ambr, string, error) {
+func (amf *AMF) GetSubscriberData(ctx context.Context, ueID string) (*models.Ambr, string, error) {
 	ctx, span := tracer.Start(ctx, "AMF GetSubscriberData",
 		trace.WithAttributes(
 			attribute.String("supi", ueID),
@@ -133,19 +131,17 @@ func GetSubscriberData(ctx context.Context, ueID string) (*models.Ambr, string, 
 	)
 	defer span.End()
 
-	amfSelf := AMFSelf()
-
-	subscriber, err := amfSelf.DBInstance.GetSubscriber(ctx, ueID)
+	subscriber, err := amf.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return nil, "", fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 
-	policy, err := amfSelf.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
+	policy, err := amf.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
 	if err != nil {
 		return nil, "", fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
 
-	dataNetwork, err := amfSelf.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
+	dataNetwork, err := amf.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
 	if err != nil {
 		return nil, "", fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
 	}

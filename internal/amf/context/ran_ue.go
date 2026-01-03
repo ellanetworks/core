@@ -25,10 +25,6 @@ import (
 type RelAction int
 
 const (
-	RanUeNgapIDUnspecified int64 = 0xffffffff
-)
-
-const (
 	UeContextN2NormalRelease RelAction = iota
 	UeContextReleaseHandover
 	UeContextReleaseUeContext
@@ -39,13 +35,12 @@ type RanUe struct {
 	RanUeNgapID                      int64
 	AmfUeNgapID                      int64
 	HandOverType                     ngapType.HandoverType
-	SuccessPduSessionID              []uint8
 	SourceUe                         *RanUe
 	TargetUe                         *RanUe
 	Tai                              models.Tai
 	Location                         models.UserLocation
 	AmfUe                            *AmfUe
-	Ran                              *AmfRan
+	Radio                            *Radio
 	ReleaseAction                    RelAction
 	RRCEstablishmentCause            string // Received from initial ue message; pattern: ^[0-9a-fA-F]+$
 	UeContextRequest                 bool
@@ -59,32 +54,30 @@ func (ranUe *RanUe) Remove() error {
 		return fmt.Errorf("ran ue is nil")
 	}
 
-	ran := ranUe.Ran
-	if ran == nil {
-		return fmt.Errorf("ran not found in ranUe not found")
-	}
-
 	if ranUe.AmfUe != nil {
-		ranUe.AmfUe.DetachRanUe()
-		ranUe.DetachAmfUe()
+		ranUe.AmfUe.RanUe = nil
+		ranUe.AmfUe = nil
 	}
 
-	for _, ranUe1 := range ran.RanUePool {
+	ran := ranUe.Radio
+	if ran == nil {
+		return fmt.Errorf("ran not found in ranUe")
+	}
+
+	for _, ranUe1 := range ran.RanUEs {
 		if ranUe1 == ranUe {
-			delete(ran.RanUePool, ranUe.RanUeNgapID)
+			delete(ran.RanUEs, ranUe.RanUeNgapID)
 			break
 		}
 	}
+
 	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapID)
 	logger.AmfLog.Info("ran ue removed", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+
 	return nil
 }
 
-func (ranUe *RanUe) DetachAmfUe() {
-	ranUe.AmfUe = nil
-}
-
-func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
+func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
 	if ranUe == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
@@ -93,36 +86,39 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
 		return fmt.Errorf("new ran is nil")
 	}
 
-	oldRan := ranUe.Ran
+	oldRan := ranUe.Radio
 
 	// remove ranUe from oldRan
-	for _, ranUe1 := range oldRan.RanUePool {
+	for _, ranUe1 := range oldRan.RanUEs {
 		if ranUe1 == ranUe {
-			delete(oldRan.RanUePool, ranUe.RanUeNgapID)
+			delete(oldRan.RanUEs, ranUe.RanUeNgapID)
 			break
 		}
 	}
 
 	// add ranUe to newRan
-	newRan.RanUePool[ranUeNgapID] = ranUe
+	newRan.RanUEs[ranUeNgapID] = ranUe
 
 	// switch to newRan
-	ranUe.Ran = newRan
+	ranUe.Radio = newRan
 	ranUe.RanUeNgapID = ranUeNgapID
 
 	logger.AmfLog.Info("ran ue switch to new Ran", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+
 	return nil
 }
 
-func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation *ngapType.UserLocationInformation) {
+func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationInformation *ngapType.UserLocationInformation) {
 	if userLocationInformation == nil {
 		return
 	}
 
 	curTime := time.Now().UTC()
+
 	switch userLocationInformation.Present {
 	case ngapType.UserLocationInformationPresentUserLocationInformationEUTRA:
 		locationInfoEUTRA := userLocationInformation.UserLocationInformationEUTRA
+
 		if ranUe.Location.EutraLocation == nil {
 			ranUe.Location.EutraLocation = new(models.EutraLocation)
 		}
@@ -134,6 +130,7 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation 
 		if ranUe.Location.EutraLocation.Tai == nil {
 			ranUe.Location.EutraLocation.Tai = new(models.Tai)
 		}
+
 		ranUe.Location.EutraLocation.Tai.PlmnID = &plmnID
 		ranUe.Location.EutraLocation.Tai.Tac = tac
 		ranUe.Tai = *ranUe.Location.EutraLocation.Tai
@@ -145,19 +142,23 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation 
 		if ranUe.Location.EutraLocation.Ecgi == nil {
 			ranUe.Location.EutraLocation.Ecgi = new(models.Ecgi)
 		}
+
 		ranUe.Location.EutraLocation.Ecgi.PlmnID = &ePlmnID
 		ranUe.Location.EutraLocation.Ecgi.EutraCellID = eutraCellID
+
 		ranUe.Location.EutraLocation.UeLocationTimestamp = &curTime
 		if locationInfoEUTRA.TimeStamp != nil {
 			ranUe.Location.EutraLocation.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(
 				locationInfoEUTRA.TimeStamp.Value)
 		}
+
 		if ranUe.AmfUe != nil {
 			ranUe.AmfUe.Location = ranUe.Location
 			ranUe.AmfUe.Tai = *ranUe.AmfUe.Location.NrLocation.Tai
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationNR:
 		locationInfoNR := userLocationInformation.UserLocationInformationNR
+
 		if ranUe.Location.NrLocation == nil {
 			ranUe.Location.NrLocation = new(models.NrLocation)
 		}
@@ -169,6 +170,7 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation 
 		if ranUe.Location.NrLocation.Tai == nil {
 			ranUe.Location.NrLocation.Tai = new(models.Tai)
 		}
+
 		ranUe.Location.NrLocation.Tai.PlmnID = &plmnID
 		ranUe.Location.NrLocation.Tai.Tac = tac
 		ranUe.Tai = *ranUe.Location.NrLocation.Tai
@@ -180,18 +182,22 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation 
 		if ranUe.Location.NrLocation.Ncgi == nil {
 			ranUe.Location.NrLocation.Ncgi = new(models.Ncgi)
 		}
+
 		ranUe.Location.NrLocation.Ncgi.PlmnID = &nRPlmnID
 		ranUe.Location.NrLocation.Ncgi.NrCellID = nRCellID
+
 		ranUe.Location.NrLocation.UeLocationTimestamp = &curTime
 		if locationInfoNR.TimeStamp != nil {
 			ranUe.Location.NrLocation.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(locationInfoNR.TimeStamp.Value)
 		}
+
 		if ranUe.AmfUe != nil {
 			ranUe.AmfUe.Location = ranUe.Location
 			ranUe.AmfUe.Tai = *ranUe.AmfUe.Location.NrLocation.Tai
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationN3IWF:
 		locationInfoN3IWF := userLocationInformation.UserLocationInformationN3IWF
+
 		if ranUe.Location.N3gaLocation == nil {
 			ranUe.Location.N3gaLocation = new(models.N3gaLocation)
 		}
@@ -205,20 +211,22 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation 
 		ranUe.Location.N3gaLocation.UeIpv6Addr = ipv6Addr
 		ranUe.Location.N3gaLocation.PortNumber = ngapConvert.PortNumberToInt(port)
 
-		operatorInfo, err := GetOperatorInfo(ctx)
+		operatorInfo, err := amf.GetOperatorInfo(ctx)
 		if err != nil {
 			logger.AmfLog.Error("Error getting supported TAI list", zap.Error(err))
 			return
 		}
+
 		tmp, err := strconv.ParseUint(operatorInfo.Tais[0].Tac, 10, 32)
 		if err != nil {
 			logger.AmfLog.Error("Error parsing TAC", zap.String("Tac", operatorInfo.Tais[0].Tac), zap.Error(err))
 		}
-		tac := fmt.Sprintf("%06x", tmp)
+
 		ranUe.Location.N3gaLocation.N3gppTai = &models.Tai{
 			PlmnID: operatorInfo.Tais[0].PlmnID,
-			Tac:    tac,
+			Tac:    fmt.Sprintf("%06x", tmp),
 		}
+
 		ranUe.Tai = *ranUe.Location.N3gaLocation.N3gppTai
 
 		if ranUe.AmfUe != nil {

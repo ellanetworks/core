@@ -29,12 +29,15 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 	if outerHeaderRemoval, err := pdr.OuterHeaderRemovalDescription(); err == nil {
 		spdrInfo.PdrInfo.OuterHeaderRemoval = outerHeaderRemoval
 	}
+
 	if farid, err := pdr.FARID(); err == nil {
 		spdrInfo.PdrInfo.FarID = farid
 	}
+
 	if qerid, err := pdr.QERID(); err == nil {
 		spdrInfo.PdrInfo.QerID = qerid
 	}
+
 	if urrid, err := pdr.URRID(); err == nil {
 		spdrInfo.PdrInfo.UrrID = urrid
 	}
@@ -49,35 +52,44 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 			teid := fteid.TEID
 			if fteid.HasCh() {
 				allocate := true
+
 				if fteid.HasChID() {
 					if teidFromCache, ok := pdrContext.hasTEIDCache(fteid.ChooseID); ok {
 						allocate = false
 						teid = teidFromCache
 						spdrInfo.Allocated = true
+
 						logger.UpfLog.Info("retrieved TEID from cache", zap.Uint32("TEID", teid))
 					}
 				}
+
 				if allocate {
 					allocatedTeID, err := pdrContext.getFTEID(pdrContext.Session.SEID, spdrInfo.PdrID)
 					if err != nil {
 						return fmt.Errorf("can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
 					}
+
 					teid = allocatedTeID
 					spdrInfo.Allocated = true
+
 					if fteid.HasChID() {
 						pdrContext.setTEIDCache(fteid.ChooseID, teid)
 					}
 				}
 			}
+
 			spdrInfo.TeID = teid
+
 			return nil
 		}
+
 		return fmt.Errorf("F-TEID IE is missing")
 	} else if ueipPdiID := findIEindex(pdi, 93); ueipPdiID != -1 {
 		if ueIP, _ := pdi[ueipPdiID].UEIPAddress(); ueIP != nil {
 			if hasCHV4(ueIP.Flags) {
 				return fmt.Errorf("UE IP Allocation is not supported in the UPF")
 			}
+
 			if ueIP.IPv4Address != nil {
 				spdrInfo.Ipv4 = cloneIP(ueIP.IPv4Address)
 			} else if ueIP.IPv6Address != nil {
@@ -86,6 +98,7 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 				return fmt.Errorf("UE IP Address IE is missing")
 			}
 		}
+
 		return nil
 	} else {
 		return fmt.Errorf("both F-TEID IE and UE IP Address IE are missing: %s", err)
@@ -106,12 +119,15 @@ func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *e
 			if err := bpfObjects.DeletePdrUplink(spdrInfo.TeID); err != nil {
 				return fmt.Errorf("can't delete GTP PDR: %s", err.Error())
 			}
+
 			pdrContext.TEIDCache[uint8(spdrInfo.TeID)] = 0
 		}
 	}
+
 	if spdrInfo.TeID != 0 {
 		pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.SEID)
 	}
+
 	return nil
 }
 
@@ -124,6 +140,7 @@ func (pdrContext *PDRCreationContext) getFTEID(seID uint64, pdrID uint32) (uint3
 	if err != nil {
 		return 0, fmt.Errorf("can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
 	}
+
 	return allocatedTeID, nil
 }
 

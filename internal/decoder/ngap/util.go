@@ -43,6 +43,7 @@ func timeStampToRFC3339(timeStampNgap aper.OctetString) (string, error) {
 	ntpSeconds := binary.BigEndian.Uint32(timeStampNgap)
 	unixSeconds := int64(ntpSeconds) - ntpToUnixOffset
 	t := time.Unix(unixSeconds, 0).UTC()
+
 	return t.Format(time.RFC3339), nil
 }
 
@@ -50,6 +51,7 @@ func bitStringToHex(bitString *aper.BitString) string {
 	hexString := hex.EncodeToString(bitString.Bytes)
 	hexLen := (bitString.BitLength + 3) / 4
 	hexString = hexString[:hexLen]
+
 	return hexString
 }
 
