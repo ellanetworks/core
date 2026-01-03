@@ -133,11 +133,14 @@ func getSubscriberUsageRetentionPolicy(url string, client *http.Client, token st
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
@@ -157,24 +160,30 @@ func editSubscriberUsageRetentionPolicy(url string, client *http.Client, token s
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/subscriber-usage/retention", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var updateResponse UpdateSubscriberUsageRetentionPolicyResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &updateResponse, nil
 }
 
@@ -185,6 +194,7 @@ func createDataNetworkAndPolicy(url string, client *http.Client, token string) e
 		IPPool: IPPool,
 		DNS:    DNS,
 	}
+
 	_, _, err := createDataNetwork(url, client, token, createDataNetworkParams)
 	if err != nil {
 		return err
@@ -198,6 +208,7 @@ func createDataNetworkAndPolicy(url string, client *http.Client, token string) e
 		Arp:             1,
 		DataNetworkName: DataNetworkName,
 	}
+
 	_, _, err = createPolicy(url, client, token, createPolicyParams)
 	if err != nil {
 		return err
@@ -209,11 +220,13 @@ func createDataNetworkAndPolicy(url string, client *http.Client, token string) e
 func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, database, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -229,6 +242,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -255,6 +269,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 			SequenceNumber: SequenceNumber,
 			PolicyName:     PolicyName,
 		}
+
 		_, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
@@ -267,6 +282,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 			SequenceNumber: SequenceNumber,
 			PolicyName:     PolicyName,
 		}
+
 		_, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
@@ -313,6 +329,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -349,6 +366,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -376,6 +394,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't clear subscriber usage data: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -394,6 +413,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -411,11 +431,13 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, database, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	imsi1 := "001010100007487"
@@ -431,6 +453,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -457,6 +480,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			SequenceNumber: SequenceNumber,
 			PolicyName:     PolicyName,
 		}
+
 		_, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
@@ -469,6 +493,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			SequenceNumber: SequenceNumber,
 			PolicyName:     PolicyName,
 		}
+
 		_, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
@@ -515,6 +540,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -551,6 +577,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -578,6 +605,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't clear subscriber usage data: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -596,6 +624,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -613,11 +642,13 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 func TestAPISubscriberUsageRetentionPolicyEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -630,6 +661,7 @@ func TestAPISubscriberUsageRetentionPolicyEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage retention policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -647,10 +679,12 @@ func TestAPISubscriberUsageRetentionPolicyEndToEnd(t *testing.T) {
 		updateSubscriberUsageRetentionPolicyParams := &UpdateSubscriberUsageRetentionPolicyParams{
 			Days: 15,
 		}
+
 		statusCode, response, err := editSubscriberUsageRetentionPolicy(ts.URL, client, token, updateSubscriberUsageRetentionPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage retention policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -669,6 +703,7 @@ func TestAPISubscriberUsageRetentionPolicyEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage retention policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -686,11 +721,13 @@ func TestAPISubscriberUsageRetentionPolicyEndToEnd(t *testing.T) {
 func TestUpdateSubscriberUsageRetentionPolicyInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -719,13 +756,16 @@ func TestUpdateSubscriberUsageRetentionPolicyInvalidInput(t *testing.T) {
 			updateParams := &UpdateSubscriberUsageRetentionPolicyParams{
 				Days: tt.days,
 			}
+
 			statusCode, response, err := editSubscriberUsageRetentionPolicy(ts.URL, client, token, updateParams)
 			if err != nil {
 				t.Fatalf("couldn't edit subscriber usage retention policy: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}

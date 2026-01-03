@@ -80,6 +80,7 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
+
 		return nil, 0, err
 	}
 
@@ -96,8 +97,10 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, count, nil
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, 0, err
 	}
 
@@ -127,8 +130,10 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, err
 	}
 
@@ -156,6 +161,7 @@ func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, err
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return 0, err
 	}
 
@@ -163,6 +169,7 @@ func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, err
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving insert ID failed")
+
 		return 0, err
 	}
 
@@ -188,6 +195,7 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -216,6 +224,7 @@ func (db *Database) CountRoutes(ctx context.Context) (int, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return 0, err
 	}
 

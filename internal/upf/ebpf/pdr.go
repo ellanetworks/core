@@ -41,7 +41,7 @@ func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
 
 	pdrToStore := ToN3N6EntrypointPdrInfo(pdrInfo)
 
-	return bpfObjects.N3N6EntrypointMaps.PdrsUplink.Put(teid, unsafe.Pointer(&pdrToStore))
+	return bpfObjects.PdrsUplink.Put(teid, unsafe.Pointer(&pdrToStore))
 }
 
 func (bpfObjects *BpfObjects) PutPdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error {
@@ -49,17 +49,17 @@ func (bpfObjects *BpfObjects) PutPdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error
 
 	pdrToStore := ToN3N6EntrypointPdrInfo(pdrInfo)
 
-	return bpfObjects.N3N6EntrypointMaps.PdrsDownlinkIp4.Put(ipv4, unsafe.Pointer(&pdrToStore))
+	return bpfObjects.PdrsDownlinkIp4.Put(ipv4, unsafe.Pointer(&pdrToStore))
 }
 
 func (bpfObjects *BpfObjects) DeletePdrUplink(teid uint32) error {
 	logger.UpfLog.Debug("Delete PDR Uplink", zap.Uint32("teid", teid))
-	return bpfObjects.N3N6EntrypointMaps.PdrsUplink.Delete(teid)
+	return bpfObjects.PdrsUplink.Delete(teid)
 }
 
 func (bpfObjects *BpfObjects) DeletePdrDownlink(ipv4 net.IP) error {
 	logger.UpfLog.Debug("Delete PDR Downlink", zap.String("ipv4", ipv4.String()))
-	return bpfObjects.N3N6EntrypointMaps.PdrsDownlinkIp4.Delete(ipv4)
+	return bpfObjects.PdrsDownlinkIp4.Delete(ipv4)
 }
 
 func (bpfObjects *BpfObjects) PutDownlinkPdrIP6(ipv6 net.IP, pdrInfo PdrInfo) error {
@@ -67,12 +67,12 @@ func (bpfObjects *BpfObjects) PutDownlinkPdrIP6(ipv6 net.IP, pdrInfo PdrInfo) er
 
 	pdrToStore := ToN3N6EntrypointPdrInfo(pdrInfo)
 
-	return bpfObjects.N3N6EntrypointMaps.PdrsDownlinkIp6.Put(ipv6, unsafe.Pointer(&pdrToStore))
+	return bpfObjects.PdrsDownlinkIp6.Put(ipv6, unsafe.Pointer(&pdrToStore))
 }
 
 func (bpfObjects *BpfObjects) DeleteDownlinkPdrIP6(ipv6 net.IP) error {
 	logger.UpfLog.Debug("Delete PDR Ipv6 Downlink", zap.String("ipv6", ipv6.String()))
-	return bpfObjects.N3N6EntrypointMaps.PdrsDownlinkIp6.Delete(ipv6)
+	return bpfObjects.PdrsDownlinkIp6.Delete(ipv6)
 }
 
 type FarInfo struct {
@@ -86,7 +86,7 @@ type FarInfo struct {
 func (bpfObjects *BpfObjects) NewFar(ctx context.Context, farID uint32, farInfo FarInfo) error {
 	go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 
-	err := bpfObjects.N3N6EntrypointMaps.FarMap.Put(farID, unsafe.Pointer(&farInfo))
+	err := bpfObjects.FarMap.Put(farID, unsafe.Pointer(&farInfo))
 	if err != nil {
 		return fmt.Errorf("failed to put FAR: %w", err)
 	}
@@ -97,7 +97,7 @@ func (bpfObjects *BpfObjects) NewFar(ctx context.Context, farID uint32, farInfo 
 func (bpfObjects *BpfObjects) UpdateFar(ctx context.Context, id uint32, farInfo FarInfo) error {
 	go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 
-	err := bpfObjects.N3N6EntrypointMaps.FarMap.Update(id, unsafe.Pointer(&farInfo), ebpf.UpdateExist)
+	err := bpfObjects.FarMap.Update(id, unsafe.Pointer(&farInfo), ebpf.UpdateExist)
 	if err != nil {
 		return fmt.Errorf("failed to update FAR: %w", err)
 	}
@@ -106,7 +106,7 @@ func (bpfObjects *BpfObjects) UpdateFar(ctx context.Context, id uint32, farInfo 
 }
 
 func (bpfObjects *BpfObjects) DeleteFar(id uint32) error {
-	err := bpfObjects.N3N6EntrypointMaps.FarMap.Update(id, unsafe.Pointer(&FarInfo{}), ebpf.UpdateExist)
+	err := bpfObjects.FarMap.Update(id, unsafe.Pointer(&FarInfo{}), ebpf.UpdateExist)
 	if err != nil {
 		return fmt.Errorf("failed to delete FAR: %w", err)
 	}
@@ -125,7 +125,7 @@ type QerInfo struct {
 }
 
 func (bpfObjects *BpfObjects) NewQer(id uint32, qerInfo QerInfo) error {
-	err := bpfObjects.N3N6EntrypointMaps.QerMap.Put(id, unsafe.Pointer(&qerInfo))
+	err := bpfObjects.QerMap.Put(id, unsafe.Pointer(&qerInfo))
 	if err != nil {
 		return fmt.Errorf("failed to create QER: %w", err)
 	}
@@ -134,7 +134,7 @@ func (bpfObjects *BpfObjects) NewQer(id uint32, qerInfo QerInfo) error {
 }
 
 func (bpfObjects *BpfObjects) UpdateQer(id uint32, qerInfo QerInfo) error {
-	err := bpfObjects.N3N6EntrypointMaps.QerMap.Update(id, unsafe.Pointer(&qerInfo), ebpf.UpdateExist)
+	err := bpfObjects.QerMap.Update(id, unsafe.Pointer(&qerInfo), ebpf.UpdateExist)
 	if err != nil {
 		return fmt.Errorf("failed to update QER: %w", err)
 	}
@@ -143,7 +143,7 @@ func (bpfObjects *BpfObjects) UpdateQer(id uint32, qerInfo QerInfo) error {
 }
 
 func (bpfObjects *BpfObjects) DeleteQer(id uint32) error {
-	err := bpfObjects.N3N6EntrypointMaps.QerMap.Update(id, unsafe.Pointer(&QerInfo{}), ebpf.UpdateExist)
+	err := bpfObjects.QerMap.Update(id, unsafe.Pointer(&QerInfo{}), ebpf.UpdateExist)
 	if err != nil {
 		return fmt.Errorf("failed to delete QER: %w", err)
 	}
@@ -154,7 +154,7 @@ func (bpfObjects *BpfObjects) DeleteQer(id uint32) error {
 func (bpfObjects *BpfObjects) NewUrr(id uint32) error {
 	zeroVals := make([]uint64, runtime.NumCPU())
 
-	err := bpfObjects.N3N6EntrypointMaps.UrrMap.Put(id, zeroVals)
+	err := bpfObjects.UrrMap.Put(id, zeroVals)
 	if err != nil {
 		return fmt.Errorf("failed to put urr id %d: %w", id, err)
 	}
@@ -164,12 +164,14 @@ func (bpfObjects *BpfObjects) NewUrr(id uint32) error {
 
 func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 	var pdrToStore N3N6EntrypointPdrInfo
+
 	pdrToStore.LocalSeid = defaultPdr.SEID
 	pdrToStore.OuterHeaderRemoval = defaultPdr.OuterHeaderRemoval
 	pdrToStore.PdrId = defaultPdr.PdrID
 	pdrToStore.FarId = defaultPdr.FarID
 	pdrToStore.QerId = defaultPdr.QerID
 	pdrToStore.UrrId = defaultPdr.UrrID
+
 	return pdrToStore
 }
 

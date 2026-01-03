@@ -114,7 +114,7 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
 
     services:
       ella-core:
-        image: ghcr.io/ellanetworks/ella-core:v0.6.0
+        image: ghcr.io/ellanetworks/ella-core:v0.7.0
         configs:
           - source: ella_config
             target: /core.yaml
@@ -155,5 +155,5 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
     Ensure your Kubernetes cluster is running with the [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni) installed.
 
     ```bash
-    kubectl apply -k github.com/ellanetworks/core/k8s?ref=v0.6.0 -n ella
+    kubectl apply -k github.com/ellanetworks/core/k8s?ref=v0.7.0 -n ella
     ```

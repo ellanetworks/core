@@ -116,6 +116,7 @@ func ListRoutes(dbInstance *db.Database) http.Handler {
 func GetRoute(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		idStr := r.PathValue("id")
+
 		idNum, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid id format", err, logger.APILog)
@@ -128,7 +129,9 @@ func GetRoute(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Route not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to get route", err, logger.APILog)
+
 			return
 		}
 
@@ -147,6 +150,7 @@ func GetRoute(dbInstance *db.Database) http.Handler {
 func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -163,22 +167,27 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			writeError(w, http.StatusBadRequest, "destination is missing", nil, logger.APILog)
 			return
 		}
+
 		if createRouteParams.Gateway == "" {
 			writeError(w, http.StatusBadRequest, "gateway is missing", nil, logger.APILog)
 			return
 		}
+
 		if createRouteParams.Interface == "" {
 			writeError(w, http.StatusBadRequest, "interface is missing", nil, logger.APILog)
 			return
 		}
+
 		if !isRouteDestinationValid(createRouteParams.Destination) {
 			writeError(w, http.StatusBadRequest, "invalid destination format: expecting CIDR notation", nil, logger.APILog)
 			return
 		}
+
 		if !isRouteGatewayValid(createRouteParams.Gateway) {
 			writeError(w, http.StatusBadRequest, "invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
 			return
 		}
+
 		if createRouteParams.Metric < 0 {
 			writeError(w, http.StatusBadRequest, "Invalid metric value", nil, logger.APILog)
 			return
@@ -201,6 +210,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			writeError(w, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
 			return
 		}
+
 		ipGateway = ipGateway.To4()
 
 		routeExists, err := kernelInt.RouteExists(ipNetwork, ipGateway, createRouteParams.Metric, kernelNetworkInterface)
@@ -208,6 +218,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			writeError(w, http.StatusInternalServerError, "Failed to check if route exists", err, logger.APILog)
 			return
 		}
+
 		if routeExists {
 			writeError(w, http.StatusBadRequest, "Route already exists", nil, logger.APILog)
 			return
@@ -242,7 +253,9 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			writeError(w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
 			return
 		}
+
 		committed := false
+
 		defer func() {
 			if !committed {
 				if rbErr := tx.Rollback(); rbErr != nil {
@@ -266,6 +279,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			writeError(w, http.StatusInternalServerError, "Failed to commit transaction", err, logger.APILog)
 			return
 		}
+
 		committed = true
 
 		response := CreateSuccessResponse{Message: "Route created successfully", ID: routeID}
@@ -277,6 +291,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -284,6 +299,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 		}
 
 		routeIDStr := r.PathValue("id")
+
 		routeID, err := strconv.ParseInt(routeIDStr, 10, 64)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid id format", err, logger.APILog)
@@ -296,7 +312,9 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 				writeError(w, http.StatusNotFound, "Route not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to get route", err, logger.APILog)
+
 			return
 		}
 
@@ -311,6 +329,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			writeError(w, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
 			return
 		}
+
 		gateway = gateway.To4()
 
 		tx, err := dbInstance.BeginTransaction()

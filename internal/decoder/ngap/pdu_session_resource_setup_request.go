@@ -76,6 +76,7 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest ngapType
 
 func buildPDUSessionResourceSetupListSUReq(list ngapType.PDUSessionResourceSetupListSUReq) []PDUSessionResourceSetupSUReq {
 	var reqList []PDUSessionResourceSetupSUReq
+
 	for _, item := range list.List {
 		pduSUReq := PDUSessionResourceSetupSUReq{
 			PDUSessionID:                           item.PDUSessionID.Value,

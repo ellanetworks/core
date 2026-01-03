@@ -7,6 +7,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 const RestoreAction = "restore_database"
@@ -14,6 +15,7 @@ const RestoreAction = "restore_database"
 func Restore(dbInstance *db.Database) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		email := r.Context().Value(contextKeyEmail)
+
 		emailStr, ok := email.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -31,7 +33,13 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "No backup file provided", err, logger.APILog)
 			return
 		}
-		defer file.Close()
+
+		defer func() {
+			err := file.Close()
+			if err != nil {
+				logger.EllaLog.Error("could not close uploaded file", zap.Error(err))
+			}
+		}()
 
 		tempFile, err := os.CreateTemp("", "restore_*.db")
 		if err != nil {

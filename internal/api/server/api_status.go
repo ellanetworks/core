@@ -17,6 +17,7 @@ type StatusResponse struct {
 func GetStatus(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+
 		numUsers, err := dbInstance.CountUsers(ctx)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Unable to retrieve number of users", err, logger.APILog)

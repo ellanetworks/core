@@ -66,6 +66,7 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID int64, page in
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
+
 		return nil, 0, err
 	}
 
@@ -84,8 +85,10 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID int64, page in
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, count, nil
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, 0, err
 	}
 
@@ -113,10 +116,13 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
 			span.SetStatus(codes.Error, "unique constraint failed")
+
 			return ErrAlreadyExists
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -148,6 +154,7 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, err
 	}
 
@@ -175,6 +182,7 @@ func (db *Database) GetAPITokenByName(ctx context.Context, userID int64, name st
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, err
 	}
 
@@ -202,6 +210,7 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -231,6 +240,7 @@ func (db *Database) CountAPITokens(ctx context.Context, userID int64) (int, erro
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return 0, err
 	}
 

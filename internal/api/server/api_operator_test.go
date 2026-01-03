@@ -115,20 +115,25 @@ func getOperator(url string, client *http.Client, token string) (int, *GetOperat
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var operatorResponse GetOperatorResponse
 	if err := json.NewDecoder(res.Body).Decode(&operatorResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &operatorResponse, nil
 }
 
@@ -137,20 +142,25 @@ func getOperatorSlice(url string, client *http.Client, token string) (int, *GetO
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var operatorSliceResponse GetOperatorSliceResponse
 	if err := json.NewDecoder(res.Body).Decode(&operatorSliceResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &operatorSliceResponse, nil
 }
 
@@ -159,20 +169,25 @@ func getOperatorTracking(url string, client *http.Client, token string) (int, *G
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var operatorTrackingResponse GetOperatorTrackingResponse
 	if err := json.NewDecoder(res.Body).Decode(&operatorTrackingResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &operatorTrackingResponse, nil
 }
 
@@ -181,20 +196,25 @@ func getOperatorID(url string, client *http.Client, token string) (int, *GetOper
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var operatorIDResponse GetOperatorIDResponse
 	if err := json.NewDecoder(res.Body).Decode(&operatorIDResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &operatorIDResponse, nil
 }
 
@@ -203,24 +223,30 @@ func updateOperatorSlice(url string, client *http.Client, token string, data *Up
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/slice", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var updateResponse UpdateOperatorSliceResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &updateResponse, nil
 }
 
@@ -229,24 +255,30 @@ func updateOperatorTracking(url string, client *http.Client, token string, data 
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/tracking", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var updateResponse UpdateOperatorTrackingResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &updateResponse, nil
 }
 
@@ -255,24 +287,30 @@ func updateOperatorID(url string, client *http.Client, token string, data *Updat
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/id", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var updateResponse UpdateOperatorIDResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &updateResponse, nil
 }
 
@@ -281,24 +319,30 @@ func updateOperatorCode(url string, client *http.Client, token string, data *Upd
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/code", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var updateResponse UpdateOperatorCodeResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &updateResponse, nil
 }
 
@@ -308,11 +352,13 @@ func updateOperatorCode(url string, client *http.Client, token string, data *Upd
 func TestApiOperatorEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -325,16 +371,20 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 			Sst: Sst,
 			Sd:  Sd,
 		}
+
 		statusCode, response, err := updateOperatorSlice(ts.URL, client, token, updateOperatorParams)
 		if err != nil {
 			t.Fatalf("couldn't create operator: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if response.Result.Message != "Operator slice information updated successfully" {
 			t.Fatalf("expected message %q, got %q", "Operator slice information updated successfully", response.Result.Message)
 		}
@@ -345,15 +395,19 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.Sst != Sst {
 			t.Fatalf("expected sst %d, got %d", Sst, response.Result.Sst)
 		}
+
 		if response.Result.Sd != Sd {
 			t.Fatalf("expected sd %v, got %v", Sd, response.Result.Sd)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -363,13 +417,16 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		updateOperatorParams := &UpdateOperatorSliceParams{
 			Sd: "303132",
 		}
+
 		statusCode, response, err := updateOperatorSlice(ts.URL, client, token, updateOperatorParams)
 		if err != nil {
 			t.Fatalf("couldn't create operator: %s", err)
 		}
+
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
+
 		if response.Error != "sst is missing" {
 			t.Fatalf("expected error %q, got %q", "sst is missing", response.Error)
 		}
@@ -379,13 +436,16 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		updateOperatorParams := &UpdateOperatorSliceParams{
 			Sst: 1,
 		}
+
 		statusCode, response, err := updateOperatorSlice(ts.URL, client, token, updateOperatorParams)
 		if err != nil {
 			t.Fatalf("couldn't create operator: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Result.Message != "Operator slice information updated successfully" {
 			t.Fatalf("expected message %q, got %q", "Operator slice information updated successfully", response.Result.Message)
 		}
@@ -396,15 +456,19 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.Sst != Sst {
 			t.Fatalf("expected sst %d, got %d", Sst, response.Result.Sst)
 		}
+
 		if response.Result.Sd != "" {
 			t.Fatalf("expected no sd, got %v", response.Result.Sd)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -422,12 +486,15 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't create operator: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if response.Result.Message != "Operator tracking information updated successfully" {
 			t.Fatalf("expected message %q, got %q", "Operator tracking information updated successfully", response.Result.Message)
 		}
@@ -438,9 +505,11 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if len(response.Result.SupportedTacs) != 2 {
 			t.Fatalf("expected supported TACs of length 2")
 		}
@@ -448,9 +517,11 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		if response.Result.SupportedTacs[0] != "000001" {
 			t.Fatalf("expected supported TACs first item to be 000001, got %s", response.Result.SupportedTacs[0])
 		}
+
 		if response.Result.SupportedTacs[1] != "000002" {
 			t.Fatalf("expected supported TACs first item to be 000002, got %s", response.Result.SupportedTacs[1])
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -458,13 +529,16 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 
 	t.Run("9. Update operator tracking - no supportedTacs", func(t *testing.T) {
 		updateOperatorTrackingParams := &UpdateOperatorTrackingParams{}
+
 		statusCode, response, err := updateOperatorTracking(ts.URL, client, token, updateOperatorTrackingParams)
 		if err != nil {
 			t.Fatalf("couldn't create operator: %s", err)
 		}
+
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
+
 		if response.Error != "supportedTacs is missing" {
 			t.Fatalf("expected error %q, got %q", "supportedTacs is missing", response.Error)
 		}
@@ -475,16 +549,20 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 			Mcc: Mcc,
 			Mnc: Mnc,
 		}
+
 		statusCode, response, err := updateOperatorID(ts.URL, client, token, updateOperatorIDParams)
 		if err != nil {
 			t.Fatalf("couldn't update operator: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if response.Result.Message != "Operator ID updated successfully" {
 			t.Fatalf("expected message %q, got %q", "Operator ID updated successfully", response.Result.Message)
 		}
@@ -495,15 +573,19 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get operator Id: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.Mcc != Mcc {
 			t.Fatalf("expected mcc %q, got %q", Mcc, response.Result.Mcc)
 		}
+
 		if response.Result.Mnc != Mnc {
 			t.Fatalf("expected mnc %q, got %q", Mnc, response.Result.Mnc)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -513,16 +595,20 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		updateOperatorCodeParams := &UpdateOperatorCodeParams{
 			OperatorCode: "0123456789ABCDEF0123456789ABCDEF",
 		}
+
 		statusCode, response, err := updateOperatorCode(ts.URL, client, token, updateOperatorCodeParams)
 		if err != nil {
 			t.Fatalf("couldn't update operator code: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if response.Result.Message != "Operator Code updated successfully" {
 			t.Fatalf("expected message %q, got %q", "Operator Code updated successfully", response.Result.Message)
 		}
@@ -533,30 +619,39 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.ID.Mcc != Mcc {
 			t.Fatalf("expected mcc %q, got %q", Mcc, response.Result.ID.Mcc)
 		}
+
 		if response.Result.ID.Mnc != Mnc {
 			t.Fatalf("expected mnc %q, got %q", Mnc, response.Result.ID.Mnc)
 		}
+
 		if response.Result.Slice.Sst != 1 {
 			t.Fatalf("expected sst %d, got %d", 1, response.Result.Slice.Sst)
 		}
+
 		if response.Result.Slice.Sd != "" {
 			t.Fatalf("expected no sd, got %q", response.Result.Slice.Sd)
 		}
+
 		if len(response.Result.Tracking.SupportedTacs) != 2 {
 			t.Fatalf("expected supported TACs of length 2")
 		}
+
 		if response.Result.Tracking.SupportedTacs[0] != "000001" {
 			t.Fatalf("expected supported TACs first item to be 000001, got %s", response.Result.Tracking.SupportedTacs[0])
 		}
+
 		if response.Result.Tracking.SupportedTacs[1] != "000002" {
 			t.Fatalf("expected supported TACs first item to be 000002, got %s", response.Result.Tracking.SupportedTacs[1])
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -566,11 +661,13 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -621,13 +718,16 @@ func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 				Sst: tt.sst,
 				Sd:  tt.sd,
 			}
+
 			statusCode, response, err := updateOperatorSlice(ts.URL, client, token, updateOperatorParams)
 			if err != nil {
 				t.Fatalf("couldn't update operator: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
@@ -638,11 +738,13 @@ func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -679,13 +781,16 @@ func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 			updateOperatorParams := &UpdateOperatorTrackingParams{
 				SupportedTacs: tt.supportedTacs,
 			}
+
 			statusCode, response, err := updateOperatorTracking(ts.URL, client, token, updateOperatorParams)
 			if err != nil {
 				t.Fatalf("couldn't update operator: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
@@ -696,11 +801,13 @@ func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 func TestUpdateOperatorIDInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -758,13 +865,16 @@ func TestUpdateOperatorIDInvalidInput(t *testing.T) {
 				Mcc: tt.mcc,
 				Mnc: tt.mnc,
 			}
+
 			statusCode, response, err := updateOperatorID(ts.URL, client, token, updateOperatorParams)
 			if err != nil {
 				t.Fatalf("couldn't update operator ID: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
@@ -775,11 +885,13 @@ func TestUpdateOperatorIDInvalidInput(t *testing.T) {
 func TestUpdateOperatorCodeInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -813,13 +925,16 @@ func TestUpdateOperatorCodeInvalidInput(t *testing.T) {
 			updateOperatorCodeParams := &UpdateOperatorCodeParams{
 				OperatorCode: tt.operatorCode,
 			}
+
 			statusCode, response, err := updateOperatorCode(ts.URL, client, token, updateOperatorCodeParams)
 			if err != nil {
 				t.Fatalf("couldn't update operator: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}

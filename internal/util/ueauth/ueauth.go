@@ -26,6 +26,7 @@ const (
 func KDFLen(input []byte) []byte {
 	r := make([]byte, 2)
 	binary.BigEndian.PutUint16(r, uint16(len(input)))
+
 	return r
 }
 

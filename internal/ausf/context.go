@@ -32,26 +32,14 @@ var ausfContext AUSFContext
 
 var servingNetworkRegex = regexp.MustCompile(`^5G:mnc[0-9]{3}\.mcc[0-9]{3}\.3gppnetwork\.org$`)
 
-func init() {
-	ausfContext = AUSFContext{
-		UePool: make(map[string]*AusfUeContext),
-	}
-}
-
-func NewAusfUeContext(supi string) (ausfUeContext *AusfUeContext) {
-	ausfUeContext = new(AusfUeContext)
-	ausfUeContext.Supi = supi
-	return ausfUeContext
-}
-
-func AddAusfUeContextToPool(suci string, ausfUeContext *AusfUeContext) {
+func addUeContextToPool(suci string, ausfUeContext *AusfUeContext) {
 	ausfContext.Mutex.Lock()
 	defer ausfContext.Mutex.Unlock()
 
 	ausfContext.UePool[suci] = ausfUeContext
 }
 
-func GetAusfUeContext(suci string) *AusfUeContext {
+func getUeContext(suci string) *AusfUeContext {
 	ausfContext.Mutex.Lock()
 	defer ausfContext.Mutex.Unlock()
 
@@ -63,11 +51,13 @@ func GetAusfUeContext(suci string) *AusfUeContext {
 	return ausfUeContext
 }
 
-func IsServingNetworkAuthorized(lookup string) bool {
+func isServingNetworkAuthorized(lookup string) bool {
 	return servingNetworkRegex.MatchString(lookup)
 }
 
-func Start(dbInstance *db.Database) error {
-	ausfContext.DBInstance = dbInstance
-	return nil
+func Start(dbInstance *db.Database) {
+	ausfContext = AUSFContext{
+		UePool:     make(map[string]*AusfUeContext),
+		DBInstance: dbInstance,
+	}
 }

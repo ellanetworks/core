@@ -1,44 +1,28 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandlePDUSessionResourceNotify(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceNotify) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
 
-	initiatingMessage := msg.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("InitiatingMessage is nil")
-		return
-	}
+	var (
+		aMFUENGAPID                       *ngapType.AMFUENGAPID
+		rANUENGAPID                       *ngapType.RANUENGAPID
+		pDUSessionResourceNotifyList      *ngapType.PDUSessionResourceNotifyList
+		pDUSessionResourceReleasedListNot *ngapType.PDUSessionResourceReleasedListNot
+		userLocationInformation           *ngapType.UserLocationInformation
+	)
 
-	PDUSessionResourceNotify := initiatingMessage.Value.PDUSessionResourceNotify
-	if PDUSessionResourceNotify == nil {
-		ran.Log.Error("PDUSessionResourceNotify is nil")
-		return
-	}
-
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pDUSessionResourceNotifyList *ngapType.PDUSessionResourceNotifyList
-	var pDUSessionResourceReleasedListNot *ngapType.PDUSessionResourceReleasedListNot
-	var userLocationInformation *ngapType.UserLocationInformation
-
-	for _, ie := range PDUSessionResourceNotify.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID // reject
@@ -62,24 +46,24 @@ func HandlePDUSessionResourceNotify(ctx ctxt.Context, ran *context.AmfRan, msg *
 		}
 	}
 
-	var ranUe *context.RanUe
+	var ranUe *amfContext.RanUe
 
-	ranUe = ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 	}
 
-	ranUe = context.AMFSelf().RanUeFindByAmfUeNgapID(aMFUENGAPID.Value)
+	ranUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 		return
 	}
 
-	ranUe.Ran = ran
+	ranUe.Radio = ran
 	ranUe.Log.Debug("Handle PDUSessionResourceNotify", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
 
 	if userLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, userLocationInformation)
+		ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 	}
 
 	ranUe.Log.Debug("Send PDUSessionResourceNotifyTransfer to SMF")

@@ -30,6 +30,7 @@ func outerHeaderRemovalSet(pdrIEs []*ie.IE) bool {
 			}
 		}
 	}
+
 	return false
 }
 
@@ -54,6 +55,7 @@ func outerHeaderCreationSet(farIEs []*ie.IE, expectedIPv4Address string) bool {
 			}
 		}
 	}
+
 	return false
 }
 
@@ -77,6 +79,7 @@ func TestBuildPfcpSessionEstablishmentRequest(t *testing.T) {
 	farList := []*context.FAR{}
 	qerList := []*context.QER{}
 	urrList := []*context.URR{}
+
 	msg, err := pfcp.BuildPfcpSessionEstablishmentRequest(43, cpNodeID, net.ParseIP(cpNodeID), 1, pdrList, farList, qerList, urrList)
 	if err != nil {
 		t.Fatalf("error building PFCP session establishment request: %v", err)
@@ -87,6 +90,7 @@ func TestBuildPfcpSessionEstablishmentRequest(t *testing.T) {
 	}
 
 	buf := make([]byte, msg.MarshalLen())
+
 	err = msg.MarshalTo(buf)
 	if err != nil {
 		t.Fatalf("error marshalling PFCP session establishment request: %v", err)
@@ -166,6 +170,7 @@ func TestBuildPfcpSessionModificationRequest(t *testing.T) {
 	}
 
 	buf := make([]byte, msg.MarshalLen())
+
 	err = msg.MarshalTo(buf)
 	if err != nil {
 		t.Fatalf("error marshalling PFCP session modification request: %v", err)
@@ -228,6 +233,7 @@ func TestBuildPfcpSessionModificationRequestNoOuterHeader(t *testing.T) {
 	}
 
 	buf := make([]byte, msg.MarshalLen())
+
 	err = msg.MarshalTo(buf)
 	if err != nil {
 		t.Fatalf("error marshalling PFCP session modification request: %v", err)
@@ -261,6 +267,7 @@ func TestBuildPfcpSessionDeletionRequest(t *testing.T) {
 	}
 
 	buf := make([]byte, msg.MarshalLen())
+
 	err := msg.MarshalTo(buf)
 	if err != nil {
 		t.Fatalf("error marshalling PFCP session deletion request: %v", err)

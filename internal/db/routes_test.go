@@ -15,6 +15,7 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -45,7 +46,9 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete BeginTransaction: %s", err)
 	}
+
 	committedCreate := false
+
 	defer func() {
 		if !committedCreate {
 			if rbErr := tx.Rollback(); rbErr != nil {
@@ -58,9 +61,11 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
+
 	if err := tx.Commit(); err != nil {
 		t.Fatalf("Couldn't complete Commit: %s", err)
 	}
+
 	committedCreate = true
 
 	if routeID != 1 {
@@ -84,12 +89,15 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
+
 	if retrievedRoute.Destination != route.Destination {
 		t.Fatalf("The route from the database doesn't match the route that was given")
 	}
+
 	if retrievedRoute.Gateway != route.Gateway {
 		t.Fatalf("The permanent key value from the database doesn't match the permanent key value that was given")
 	}
+
 	if retrievedRoute.Interface != route.Interface {
 		t.Fatalf("The OPC value from the database doesn't match the OPC value that was given")
 	}
@@ -98,7 +106,9 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete BeginTransaction: %s", err)
 	}
+
 	committedDelete := false
+
 	defer func() {
 		if !committedDelete {
 			if rbErr := tx.Rollback(); rbErr != nil {

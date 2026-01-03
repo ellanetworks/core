@@ -15,37 +15,14 @@ linters:
     - unparam
     - whitespace
     - govet
-  disable:
-    - staticcheck
-    - goconst
-  exclusions:
-    generated: lax
-    presets:
-      - comments
-      - common-false-positives
-      - legacy
-      - std-error-handling
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
+    - wsl_v5
 issues:
   new-from-rev: ""
   new: false
 severity:
   default: error
-  rules:
-    - linters:
-        - mnd
-      severity: ignore
 formatters:
   enable:
     - gci
     - gofmt
     - gofumpt
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$

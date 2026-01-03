@@ -1,25 +1,31 @@
 package pdusession
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/smf/context"
+	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
-func UpdateSmContextCauseDuplicatePDUSessionID(ctx ctxt.Context, smContextRef string) ([]byte, error) {
-	ctx, span := tracer.Start(ctx, "SMF Update SmContext Cause Duplicate PDU Session ID")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("smf.smContextRef", smContextRef),
+func UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"SMF Update SmContext Cause Duplicate PDU Session ID",
+		trace.WithAttributes(
+			attribute.String("smf.smContextRef", smContextRef),
+		),
 	)
+	defer span.End()
 
 	if smContextRef == "" {
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
 
-	smContext := context.GetSMContext(smContextRef)
+	smf := smfContext.SMFSelf()
+
+	smContext := smf.GetSMContext(smContextRef)
 	if smContext == nil {
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
@@ -29,12 +35,12 @@ func UpdateSmContextCauseDuplicatePDUSessionID(ctx ctxt.Context, smContextRef st
 
 	smContext.PDUSessionReleaseDueToDupPduID = true
 
-	n2Rsp, err := context.BuildPDUSessionResourceReleaseCommandTransfer()
+	n2Rsp, err := smfContext.BuildPDUSessionResourceReleaseCommandTransfer()
 	if err != nil {
 		return nil, fmt.Errorf("build PDUSession Resource Release Command Transfer Error: %v", err)
 	}
 
-	err = releaseTunnel(ctx, smContext)
+	err = releaseTunnel(ctx, smf, smContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to release tunnel: %v", err)
 	}

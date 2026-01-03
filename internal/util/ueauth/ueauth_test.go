@@ -62,12 +62,12 @@ func TestGetKDFValue(t *testing.T) {
 		if err != nil {
 			t.Errorf("TestGetKDFValue[%d] error: %+v\n", i, err)
 		}
-		// fmt.Printf("val = %x\n", val)
 
 		dk, err := hex.DecodeString(tc.DerivedKey)
 		if err != nil {
 			t.Errorf("TestGetKDFValue[%d] error: %+v\n", i, err)
 		}
+
 		if (i == 0 && !bytes.Equal(val, dk)) || (i == 1 && bytes.Equal(val, dk)) {
 			t.Errorf("TestGetKDFValue[%d] failed\n", i)
 		}

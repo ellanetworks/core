@@ -8,12 +8,16 @@
 package context
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/free5gc/aper"
+	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -24,15 +28,41 @@ const (
 	RanPresentN3IwfID = 3
 )
 
-type AmfRan struct {
-	RanPresent      int
-	RanID           *models.GlobalRanNodeID
-	Name            string
-	GnbIP           string
-	Conn            *sctp.SCTPConn
-	SupportedTAList []SupportedTAI
-	RanUePool       map[int64]*RanUe // Key: RanUeNgapID
-	Log             *zap.Logger
+type NGAPSender interface {
+	SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error
+	SendNGSetupFailure(ctx context.Context, cause *ngapType.Cause) error
+	SendNGSetupResponse(ctx context.Context, guami *models.Guami, plmnSupported *models.PlmnSupportItem, amfName string, amfRelativeCapacity int64) error
+	SendNGResetAcknowledge(ctx context.Context, partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) error
+	SendErrorIndication(ctx context.Context, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error
+	SendRanConfigurationUpdateAcknowledge(ctx context.Context, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error
+	SendRanConfigurationUpdateFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error
+	SendDownlinkRanConfigurationTransfer(ctx context.Context, transfer *ngapType.SONConfigurationTransfer) error
+	SendPathSwitchRequestFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error
+	SendAMFStatusIndication(ctx context.Context, unavailableGUAMIList ngapType.UnavailableGUAMIList) error
+	SendUEContextReleaseCommand(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, causePresent int, cause aper.Enumerated) error
+	SendDownlinkNasTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error
+	SendPDUSessionResourceReleaseCommand(ctx context.Context, amfUENgapID int64, ranUENgapID int64, nasPdu []byte, pduSessionResourceReleasedList ngapType.PDUSessionResourceToReleaseListRelCmd) error
+	SendHandoverCancelAcknowledge(ctx context.Context, amfUENgapID int64, ranUENgapID int64) error
+	SendPDUSessionResourceModifyConfirm(ctx context.Context, amfUENgapID int64, ranUENgapID int64, pduSessionResourceModifyConfirmList ngapType.PDUSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyList ngapType.PDUSessionResourceFailedToModifyListModCfm) error
+	SendPDUSessionResourceSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) error
+	SendHandoverPreparationFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error
+	SendLocationReportingControl(ctx context.Context, amfUENgapID int64, ranUENgapID int64, eventType ngapType.EventType) error
+	SendHandoverCommand(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, handOverType ngapType.HandoverType, pduSessionResourceHandoverList ngapType.PDUSessionResourceHandoverList, pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd, container ngapType.TargetToSourceTransparentContainer) error
+	SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai *models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability string, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error
+	SendPathSwitchRequestAcknowledge(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList, pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck, supportedPLMN *models.PlmnSupportItem) error
+	SendHandoverRequest(ctx context.Context, amfUeNgapID int64, handOverType ngapType.HandoverType, uplinkAmbr string, downlinkAmbr string, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer, supportedPLMN *models.PlmnSupportItem, supportedGUAMI *models.Guami) error
+}
+
+type Radio struct {
+	RanPresent    int
+	RanID         *models.GlobalRanNodeID
+	NGAPSender    NGAPSender
+	Name          string
+	GnbIP         string
+	Conn          *sctp.SCTPConn
+	SupportedTAIs []SupportedTAI
+	RanUEs        map[int64]*RanUe // Key: RanUeNgapID
+	Log           *zap.Logger
 }
 
 type SupportedTAI struct {
@@ -40,44 +70,26 @@ type SupportedTAI struct {
 	SNssaiList []models.Snssai
 }
 
-func NewSupportedTAI() (tai SupportedTAI) {
-	tai.SNssaiList = make([]models.Snssai, 0, MaxNumOfSlice)
-	return
-}
-
-func NewSupportedTAIList() []SupportedTAI {
-	return make([]SupportedTAI, 0, MaxNumOfTAI*MaxNumOfBroadcastPLMNs)
-}
-
-func (ran *AmfRan) Remove() {
-	ran.RemoveAllUeInRan()
-	AMFSelf().DeleteAmfRan(ran.Conn)
-}
-
-func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {
-	self := AMFSelf()
-
-	amfUeNgapID, err := self.AllocateAmfUeNgapID()
+func (r *Radio) NewUe(ranUeNgapID int64) (*RanUe, error) {
+	amfUeNgapID, err := allocateAmfUeNgapID()
 	if err != nil {
 		return nil, fmt.Errorf("error allocating amf ue ngap id: %+v", err)
 	}
 
-	ranUe := RanUe{}
-	ranUe.AmfUeNgapID = amfUeNgapID
-	ranUe.RanUeNgapID = ranUeNgapID
-	ranUe.Ran = ran
-	ranUe.Log = ran.Log.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("%d", ranUe.AmfUeNgapID)))
+	ranUE := &RanUe{
+		AmfUeNgapID: amfUeNgapID,
+		RanUeNgapID: ranUeNgapID,
+		Radio:       r,
+		Log:         r.Log.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("%d", amfUeNgapID))),
+	}
 
-	ran.RanUePool[ranUe.RanUeNgapID] = &ranUe
+	r.RanUEs[ranUeNgapID] = ranUE
 
-	self.Mutex.Lock()
-	defer self.Mutex.Unlock()
-
-	return &ranUe, nil
+	return ranUE, nil
 }
 
-func (ran *AmfRan) RemoveAllUeInRan() {
-	for _, ranUe := range ran.RanUePool {
+func (r *Radio) RemoveAllUeInRan() {
+	for _, ranUe := range r.RanUEs {
 		err := ranUe.Remove()
 		if err != nil {
 			logger.AmfLog.Error("error removing ran ue", zap.Error(err))
@@ -85,19 +97,17 @@ func (ran *AmfRan) RemoveAllUeInRan() {
 	}
 }
 
-func (ran *AmfRan) RanUeFindByRanUeNgapID(ranUeNgapID int64) *RanUe {
-	ranUe, ok := ran.RanUePool[ranUeNgapID]
+func (r *Radio) FindUEByRanUeNgapID(ranUeNgapID int64) *RanUe {
+	ranUe, ok := r.RanUEs[ranUeNgapID]
 	if ok {
 		return ranUe
 	}
 
-	ran.Log.Debug("Ran UE not found", zap.Int64("ranUeNgapID", ranUeNgapID))
-
 	return nil
 }
 
-func (ran *AmfRan) SetRanID(ranNodeID *ngapType.GlobalRANNodeID) {
+func (r *Radio) SetRanID(ranNodeID *ngapType.GlobalRANNodeID) {
 	ranID := util.RanIDToModels(*ranNodeID)
-	ran.RanPresent = ranNodeID.Present
-	ran.RanID = &ranID
+	r.RanPresent = ranNodeID.Present
+	r.RanID = &ranID
 }

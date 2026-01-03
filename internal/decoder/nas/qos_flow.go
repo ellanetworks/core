@@ -108,13 +108,16 @@ type QoSFlowDescription struct {
 
 func ParseAuthorizedQosFlowDescriptions(content []byte) ([]QoSFlowDescription, error) {
 	var descs []QoSFlowDescription
+
 	i := 0
 
 	for i < len(content) {
 		if len(content[i:]) < 3 {
 			return nil, fmt.Errorf("qfd: truncated header at off=%d (have %d, need 3)", i, len(content[i:]))
 		}
+
 		var d QoSFlowDescription
+
 		d.QFDLen = QFDFixLen
 
 		// QFI (mask to bits 6..1)
@@ -138,6 +141,7 @@ func ParseAuthorizedQosFlowDescriptions(content []byte) ([]QoSFlowDescription, e
 			if len(content[i:]) < 2 {
 				return nil, fmt.Errorf("qfd: truncated parameter header at off=%d", i)
 			}
+
 			pid := content[i]
 			plen := content[i+1]
 			i += 2
@@ -145,6 +149,7 @@ func ParseAuthorizedQosFlowDescriptions(content []byte) ([]QoSFlowDescription, e
 			if len(content[i:]) < int(plen) {
 				return nil, fmt.Errorf("qfd: truncated parameter content at off=%d want=%d have=%d", i, plen, len(content[i:]))
 			}
+
 			raw := make([]byte, plen)
 			copy(raw, content[i:i+int(plen)])
 			i += int(plen)
@@ -160,6 +165,7 @@ func ParseAuthorizedQosFlowDescriptions(content []byte) ([]QoSFlowDescription, e
 				if plen != 1 {
 					break
 				}
+
 				v := raw[0]
 				param.FiveQI = &v
 
@@ -168,7 +174,9 @@ func ParseAuthorizedQosFlowDescriptions(content []byte) ([]QoSFlowDescription, e
 				if plen != 3 {
 					break
 				}
+
 				unit := raw[0]
+
 				val := binary.BigEndian.Uint16(raw[1:3])
 				if kbps, ok := toKbps(unit, val); ok {
 					switch pid {
@@ -181,8 +189,6 @@ func ParseAuthorizedQosFlowDescriptions(content []byte) ([]QoSFlowDescription, e
 					case QFDParamIDMfbrDl:
 						param.MfbrDlKbps = &kbps
 					}
-				} else {
-					// unknown unit → keep Raw, mark len ok but unit unknown is implicit from missing decoded field
 				}
 
 			case QFDParamIDAvgWnd:
@@ -190,6 +196,7 @@ func ParseAuthorizedQosFlowDescriptions(content []byte) ([]QoSFlowDescription, e
 				if plen != 2 {
 					break
 				}
+
 				ms := binary.BigEndian.Uint16(raw)
 				param.AvgWindowMs = &ms
 
@@ -198,6 +205,7 @@ func ParseAuthorizedQosFlowDescriptions(content []byte) ([]QoSFlowDescription, e
 				if plen != 1 {
 					break
 				}
+
 				ebi := raw[0]
 				param.EpsBearerID = &ebi
 
@@ -212,5 +220,6 @@ func ParseAuthorizedQosFlowDescriptions(content []byte) ([]QoSFlowDescription, e
 
 		descs = append(descs, d)
 	}
+
 	return descs, nil
 }

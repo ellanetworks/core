@@ -194,6 +194,7 @@ func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 		if err != nil {
 			logger.DBLog.Error("Failed to close database connection after error", zap.Error(err))
 		}
+
 		return nil, fmt.Errorf("failed to enable WAL journaling: %w", err)
 	}
 
@@ -203,6 +204,7 @@ func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 		if err != nil {
 			logger.DBLog.Error("Failed to close database connection after error", zap.Error(err))
 		}
+
 		return nil, fmt.Errorf("failed to set synchronous to NORMAL: %w", err)
 	}
 
@@ -212,6 +214,7 @@ func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 		if err != nil {
 			logger.DBLog.Error("Failed to close database connection after error", zap.Error(err))
 		}
+
 		return nil, fmt.Errorf("failed to enable foreign key support: %w", err)
 	}
 
@@ -219,45 +222,59 @@ func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateSubscribersTable, SubscribersTableName)); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreatePoliciesTable, PoliciesTableName)); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateRoutesTable, RoutesTableName)); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateOperatorTable, OperatorTableName)); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateDataNetworksTable, DataNetworksTableName)); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateUsersTable, UsersTableName)); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, createSessionsTableSQL); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateAuditLogsTable, AuditLogsTableName)); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateRadioEventsTable, RadioEventsTableName)); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, QueryCreateRadioEventsIndex); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateRetentionPolicyTable, RetentionPolicyTableName)); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateAPITokensTable, APITokensTableName)); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateNATSettingsTable, NATSettingsTableName)); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateN3SettingsTable, N3SettingsTableName)); err != nil {
 		return nil, err
 	}
+
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateDailyUsageTable, DailyUsageTableName)); err != nil {
 		return nil, err
 	}
@@ -789,6 +806,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("couldn't generate operator code: %w", err)
 		}
+
 		initialHNPrivateKey, err := generateHomeNetworkPrivateKey()
 		if err != nil {
 			return fmt.Errorf("couldn't generate HN private key: %w", err)
@@ -896,6 +914,7 @@ func (db *Database) BeginTransaction() (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &Transaction{tx: tx, db: db}, nil
 }
 
@@ -915,7 +934,9 @@ func (t *Transaction) Rollback() error {
 
 func generateOperatorCode() (string, error) {
 	var op [16]byte
+
 	_, err := rand.Read(op[:])
+
 	return hex.EncodeToString(op[:]), err
 }
 
@@ -924,8 +945,10 @@ func generateHomeNetworkPrivateKey() (string, error) {
 	if _, err := rand.Read(pk[:]); err != nil {
 		return "", err
 	}
+
 	pk[0] &= 248
 	pk[31] &= 127
 	pk[31] |= 64
+
 	return hex.EncodeToString(pk[:]), nil
 }

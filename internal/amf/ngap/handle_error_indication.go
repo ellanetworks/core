@@ -7,34 +7,20 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleErrorIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var cause *ngapType.Cause
-	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
-
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
-		ran.Log.Error("NGAP Message is nil")
-		return
-	}
-	initiatingMessage := message.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("InitiatingMessage is nil")
-		return
-	}
-
-	errorIndication := initiatingMessage.Value.ErrorIndication
-	if errorIndication == nil {
+func HandleErrorIndication(ran *context.Radio, msg *ngapType.ErrorIndication) {
+	if msg == nil {
 		ran.Log.Error("ErrorIndication is nil")
 		return
 	}
 
-	for _, ie := range errorIndication.ProtocolIEs.List {
+	var (
+		aMFUENGAPID            *ngapType.AMFUENGAPID
+		rANUENGAPID            *ngapType.RANUENGAPID
+		cause                  *ngapType.Cause
+		criticalityDiagnostics *ngapType.CriticalityDiagnostics
+	)
+
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID

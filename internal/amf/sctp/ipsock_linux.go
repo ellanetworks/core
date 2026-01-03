@@ -21,6 +21,7 @@ func boolint(b bool) int {
 	if b {
 		return 1
 	}
+
 	return 0
 }
 
@@ -31,12 +32,15 @@ func ipToSockaddr(family int, ip net.IP, port int) (syscall.Sockaddr, error) {
 		if len(ip) == 0 {
 			ip = net.IPv4zero
 		}
+
 		ip4 := ip.To4()
 		if ip4 == nil {
 			return nil, &net.AddrError{Err: "non-IPv4 address", Addr: ip.String()}
 		}
+
 		sa := &syscall.SockaddrInet4{Port: port}
 		copy(sa.Addr[:], ip4)
+
 		return sa, nil
 	case syscall.AF_INET6:
 		// In general, an IP wildcard address, which is either
@@ -62,8 +66,10 @@ func ipToSockaddr(family int, ip net.IP, port int) (syscall.Sockaddr, error) {
 		// if real Zone handling is required, the zone cache implementation in golang/net should be pulled here
 		sa := &syscall.SockaddrInet6{Port: port, ZoneId: 0}
 		copy(sa.Addr[:], ip6)
+
 		return sa, nil
 	}
+
 	return nil, &net.AddrError{Err: "invalid address family", Addr: ip.String()}
 }
 
@@ -72,6 +78,7 @@ func sockaddr(a *net.TCPAddr, family int) (syscall.Sockaddr, error) {
 	if a == nil {
 		return nil, nil
 	}
+
 	return ipToSockaddr(family, a.IP, a.Port)
 }
 
@@ -90,7 +97,7 @@ var ipStackCaps ipStackCapabilities
 // supportsIPv4 reports whether the platform supports IPv4 networking
 // functionality.
 func supportsIPv4() bool {
-	ipStackCaps.Once.Do(ipStackCaps.probe)
+	ipStackCaps.Do(ipStackCaps.probe)
 	return ipStackCaps.ipv4Enabled
 }
 
@@ -99,7 +106,7 @@ func supportsIPv4() bool {
 // IPv4 address inside an IPv6 address at transport layer
 // protocols. See RFC 4291, RFC 4038 and RFC 3493.
 func supportsIPv4map() bool {
-	ipStackCaps.Once.Do(ipStackCaps.probe)
+	ipStackCaps.Do(ipStackCaps.probe)
 	return ipStackCaps.ipv4MappedIPv6Enabled
 }
 
@@ -123,8 +130,10 @@ func (p *ipStackCapabilities) probe() {
 		if err != nil {
 			logger.AmfLog.Warn("failed to close socket", zap.Error(err))
 		}
+
 		p.ipv4Enabled = true
 	}
+
 	probes := []struct {
 		laddr net.TCPAddr
 		value int
@@ -140,24 +149,29 @@ func (p *ipStackCapabilities) probe() {
 		if err != nil {
 			continue
 		}
+
 		defer func() {
 			err := syscall.Close(s)
 			if err != nil {
 				logger.AmfLog.Warn("failed to close socket", zap.Error(err))
 			}
 		}()
+
 		err = syscall.SetsockoptInt(s, syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, probes[i].value)
 		if err != nil {
 			logger.AmfLog.Warn("failed to set IPV6_V6ONLY", zap.Error(err))
 			continue
 		}
+
 		sa, err := sockaddr(&(probes[i].laddr), syscall.AF_INET6)
 		if err != nil {
 			continue
 		}
+
 		if err := syscall.Bind(s, sa); err != nil {
 			continue
 		}
+
 		if i == 0 {
 			p.ipv6Enabled = true
 		} else {
@@ -172,6 +186,7 @@ func (a *SCTPAddr) isWildcard() bool {
 	if a == nil {
 		return true
 	}
+
 	if len(a.IPAddrs) == 0 {
 		return true
 	}
@@ -187,6 +202,7 @@ func (a *SCTPAddr) family() int {
 			}
 		}
 	}
+
 	return syscall.AF_INET
 }
 
@@ -203,9 +219,11 @@ func favoriteAddrFamily(network string, laddr *SCTPAddr, raddr *SCTPAddr, mode s
 		if supportsIPv4map() || !supportsIPv4() {
 			return syscall.AF_INET6, false
 		}
+
 		if laddr == nil {
 			return syscall.AF_INET, false
 		}
+
 		return laddr.family(), false
 	}
 
@@ -213,6 +231,7 @@ func favoriteAddrFamily(network string, laddr *SCTPAddr, raddr *SCTPAddr, mode s
 		(raddr == nil || raddr.family() == syscall.AF_INET) {
 		return syscall.AF_INET, false
 	}
+
 	return syscall.AF_INET6, false
 }
 

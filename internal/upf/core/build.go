@@ -12,6 +12,7 @@ func BuildPfcpSessionReportRequestForDownlinkData(remoteSEID uint64, sequenceNum
 	ies := make([]*ie.IE, 0)
 	ies = append(ies, ie.NewDownlinkDataReport(ie.NewPDRID(pdrid), ie.NewDownlinkDataServiceInformation(false, true, 0, qfi)))
 	ies = append(ies, ie.NewReportType(0, 0, 0, 1))
+
 	return message.NewSessionReportRequest(
 		1,
 		0,
@@ -37,6 +38,7 @@ func BuildPfcpSessionReportRequestForUsage(remoteSEID uint64, sequenceNumber uin
 		ie.NewVolumeMeasurement(volMeasurement, uvol+dvol, uvol, dvol, 0, 0, 0),
 	))
 	ies = append(ies, ie.NewReportType(0, 0, 1, 0))
+
 	return message.NewSessionReportRequest(
 		1,
 		0,

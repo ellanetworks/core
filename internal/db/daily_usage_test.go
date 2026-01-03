@@ -16,6 +16,7 @@ func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (i
 		Name:   "not-internet",
 		IPPool: "1.2.3.0/24",
 	}
+
 	err := database.CreateDataNetwork(context.Background(), newDataNetwork)
 	if err != nil {
 		return 0, err
@@ -47,11 +48,12 @@ func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (i
 
 	subscriber := &db.Subscriber{
 		Imsi:           imsi,
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       policyCreated.ID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber)
 	if err != nil {
 		return 0, err
@@ -67,6 +69,7 @@ func TestGetUsagePerDay_1Sub(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -125,6 +128,7 @@ func TestGetUsagePerDay_1Sub_OutOfRangeDates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -170,6 +174,7 @@ func TestGetUsagePerDay_MultiSubsSameDay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -198,11 +203,12 @@ func TestGetUsagePerDay_MultiSubsSameDay(t *testing.T) {
 	imsi2 := "001010100007488"
 	subscriber := &db.Subscriber{
 		Imsi:           imsi2,
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       policyID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber)
 	if err != nil {
 		t.Fatalf("Couldn't complete create subscriber 2: %s", err)
@@ -251,6 +257,7 @@ func TestGetUsagePerDay_MultiSubsMultiDays(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -335,6 +342,7 @@ func TestGetUsagePerDay_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -363,11 +371,12 @@ func TestGetUsagePerDay_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
 	imsi2 := "001010100007488"
 	subscriber := &db.Subscriber{
 		Imsi:           imsi2,
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "1234567890abcdef1234567890abcdef",
+		Opc:            "1234567890abcdef1234567890abcdef",
 		PolicyID:       policyID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber)
 	if err != nil {
 		t.Fatalf("Couldn't complete create subscriber 2: %s", err)
@@ -416,6 +425,7 @@ func TestGetUsagePerDay_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -445,11 +455,12 @@ func TestGetUsagePerDay_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
 	imsi2 := "001010100007488"
 	subscriber := &db.Subscriber{
 		Imsi:           imsi2,
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "1234567890abcdef1234567890abcdef",
+		Opc:            "1234567890abcdef1234567890abcdef",
 		PolicyID:       policyID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber)
 	if err != nil {
 		t.Fatalf("Couldn't complete create subscriber 2: %s", err)
@@ -521,6 +532,7 @@ func TestGetUsagePerSubscriber_1Sub(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -528,6 +540,7 @@ func TestGetUsagePerSubscriber_1Sub(t *testing.T) {
 	}()
 
 	imsi1 := "001010100007488"
+
 	_, err = createDataNetworkPolicyAndSubscriber(database, imsi1)
 	if err != nil {
 		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
@@ -577,6 +590,7 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -606,11 +620,12 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 	imsi2 := "001010100007488"
 	subscriber := &db.Subscriber{
 		Imsi:           imsi2,
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "1234567890abcdef1234567890abcdef",
+		Opc:            "1234567890abcdef1234567890abcdef",
 		PolicyID:       policyID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber)
 	if err != nil {
 		t.Fatalf("Couldn't complete create subscriber 2: %s", err)
@@ -629,11 +644,12 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 	imsi3 := "001010100007489"
 	subscriber = &db.Subscriber{
 		Imsi:           imsi3,
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "1234567890abcdef1234567890abcdef",
+		Opc:            "1234567890abcdef1234567890abcdef",
 		PolicyID:       policyID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber)
 	if err != nil {
 		t.Fatalf("Couldn't complete create subscriber 3: %s", err)
@@ -711,6 +727,7 @@ func TestClearDailyUsage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -767,6 +784,7 @@ func TestDeleteOldDailyUsage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)

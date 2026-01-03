@@ -73,20 +73,25 @@ func listRoutes(url string, client *http.Client, token string, page int, perPage
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var routeResponse ListRouteResponse
 	if err := json.NewDecoder(res.Body).Decode(&routeResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &routeResponse, nil
 }
 
@@ -95,20 +100,25 @@ func getRoute(url string, client *http.Client, token string, id int64) (int, *Ge
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var routeResponse GetRouteResponse
 	if err := json.NewDecoder(res.Body).Decode(&routeResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &routeResponse, nil
 }
 
@@ -117,24 +127,30 @@ func createRoute(url string, client *http.Client, token string, data *CreateRout
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/networking/routes", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var createResponse CreateRouteResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &createResponse, nil
 }
 
@@ -143,20 +159,25 @@ func deleteRoute(url string, client *http.Client, token string, id int64) (int, 
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var deleteRouteResponse DeleteRouteResponse
 	if err := json.NewDecoder(res.Body).Decode(&deleteRouteResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &deleteRouteResponse, nil
 }
 
@@ -166,11 +187,13 @@ func deleteRoute(url string, client *http.Client, token string, id int64) (int, 
 func TestAPIRoutesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -183,12 +206,15 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't list route: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if len(response.Result.Items) != 0 {
 			t.Fatalf("expected 0 routes, got %d", len(response.Result.Items))
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -201,16 +227,20 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 			Interface:   Interface,
 			Metric:      Metric,
 		}
+
 		statusCode, response, err := createRoute(ts.URL, client, token, createRouteParams)
 		if err != nil {
 			t.Fatalf("couldn't create route: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
+
 		if response.Result.Message != "Route created successfully" {
 			t.Fatalf("expected message 'Route created successfully', got %q", response.Result.Message)
 		}
@@ -221,12 +251,15 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't list route: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if len(response.Result.Items) != 1 {
 			t.Fatalf("expected 1 route, got %d", len(response.Result.Items))
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -237,18 +270,23 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get route: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.Destination != Destination {
 			t.Fatalf("expected destination %s, got %s", Destination, response.Result.Destination)
 		}
+
 		if response.Result.Gateway != Gateway {
 			t.Fatalf("expected gateway %s, got %s", Gateway, response.Result.Gateway)
 		}
+
 		if response.Result.Interface != Interface {
 			t.Fatalf("expected interface %s, got %s", Interface, response.Result.Interface)
 		}
+
 		if response.Result.Metric != Metric {
 			t.Fatalf("expected metric %d, got %d", Metric, response.Result.Metric)
 		}
@@ -263,9 +301,11 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get route: %s", err)
 		}
+
 		if statusCode != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 		}
+
 		if response.Error != "Route not found" {
 			t.Fatalf("expected error %q, got %q", "Route not found", response.Error)
 		}
@@ -273,13 +313,16 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 
 	t.Run("5. Create route - no destination", func(t *testing.T) {
 		createRouteParams := &CreateRouteParams{}
+
 		statusCode, response, err := createRoute(ts.URL, client, token, createRouteParams)
 		if err != nil {
 			t.Fatalf("couldn't create route: %s", err)
 		}
+
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
+
 		if response.Error != "destination is missing" {
 			t.Fatalf("expected error %q, got %q", "destination is missing", response.Error)
 		}
@@ -290,9 +333,11 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete route: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -303,9 +348,11 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't delete route: %s", err)
 		}
+
 		if statusCode != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 		}
+
 		if response.Error != "Route not found" {
 			t.Fatalf("expected error %q, got %q", "Route not found", response.Error)
 		}
@@ -315,11 +362,13 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 func TestCreateRouteInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -386,13 +435,16 @@ func TestCreateRouteInvalidInput(t *testing.T) {
 				Interface:   tt.networkInterface,
 				Metric:      tt.metric,
 			}
+
 			statusCode, response, err := createRoute(ts.URL, client, token, createRouteParams)
 			if err != nil {
 				t.Fatalf("couldn't create route: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
@@ -403,11 +455,13 @@ func TestCreateRouteInvalidInput(t *testing.T) {
 func TestCreateTooManyRoutes(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -422,13 +476,16 @@ func TestCreateTooManyRoutes(t *testing.T) {
 			Interface:   Interface,
 			Metric:      Metric,
 		}
+
 		statusCode, response, err := createRoute(ts.URL, client, token, createRouteParams)
 		if err != nil {
 			t.Fatalf("couldn't create route: %s", err)
 		}
+
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
+
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -440,13 +497,16 @@ func TestCreateTooManyRoutes(t *testing.T) {
 		Interface:   Interface,
 		Metric:      Metric,
 	}
+
 	statusCode, response, err := createRoute(ts.URL, client, token, createRouteParams)
 	if err != nil {
 		t.Fatalf("couldn't create route: %s", err)
 	}
+
 	if statusCode != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 	}
+
 	if response.Error != "Maximum number of routes reached (12)" {
 		t.Fatalf("expected error %q, got %q", "Maximum number of routes reached (12)", response.Error)
 	}

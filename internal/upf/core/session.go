@@ -75,5 +75,6 @@ func (s *Session) GetPDR(id uint16) SPDRInfo {
 func (s *Session) RemovePDR(id uint32) SPDRInfo {
 	sPdrInfo := s.PDRs[id]
 	delete(s.PDRs, id)
+
 	return sPdrInfo
 }

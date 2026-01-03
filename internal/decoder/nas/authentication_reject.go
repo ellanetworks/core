@@ -21,7 +21,7 @@ func buildAuthenticationReject(msg *nasMessage.AuthenticationReject) *Authentica
 	}
 
 	if msg.EAPMessage != nil {
-		authReject.EAPMessage = msg.EAPMessage.GetEAPMessage()
+		authReject.EAPMessage = msg.GetEAPMessage()
 	}
 
 	return authReject

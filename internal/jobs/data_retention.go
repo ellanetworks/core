@@ -19,9 +19,11 @@ func StartDataRetentionWorker(database *db.Database) {
 			if err := enforceAuditDataRetention(database); err != nil {
 				logger.EllaLog.Error("error enforcing audit log retention", zap.Error(err))
 			}
+
 			if err := enforceRadioDataRetention(database); err != nil {
 				logger.EllaLog.Error("error enforcing radio log retention", zap.Error(err))
 			}
+
 			if err := enforceSubscriberUsageDataRetention(database); err != nil {
 				logger.EllaLog.Error("error enforcing subscriber usage data retention", zap.Error(err))
 			}

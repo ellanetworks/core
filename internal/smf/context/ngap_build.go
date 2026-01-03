@@ -101,6 +101,7 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpda
 		ie.Criticality.Value = ngapType.CriticalityPresentReject
 
 		var qosFlowsList []ngapType.QosFlowSetupRequestItem
+
 		arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
 		if qosAddFlow.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
 			arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
@@ -220,6 +221,7 @@ func BuildPathSwitchRequestAcknowledgeTransfer(dpNode *DataPathNode) ([]byte, er
 func BuildHandoverCommandTransfer(dpNode *DataPathNode) ([]byte, error) {
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, dpNode.UpLinkTunnel.TEID)
+
 	handoverCommandTransfer := ngapType.HandoverCommandTransfer{}
 
 	handoverCommandTransfer.DLForwardingUPTNLInformation = new(ngapType.UPTransportLayerInformation)

@@ -24,13 +24,13 @@ const QueryCreateSubscribersTable = `
 	CREATE TABLE IF NOT EXISTS %s (
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		imsi TEXT NOT NULL UNIQUE,
+		imsi TEXT NOT NULL UNIQUE CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
 
 		ipAddress TEXT UNIQUE,
 
-		sequenceNumber TEXT NOT NULL,
-		permanentKey TEXT NOT NULL,
-		opc TEXT NOT NULL,
+		sequenceNumber TEXT NOT NULL CHECK (length(sequenceNumber) = 12),
+		permanentKey TEXT NOT NULL CHECK (length(permanentKey) = 32),
+		opc TEXT NOT NULL CHECK (length(opc) = 32),
 
 		policyID INTEGER NOT NULL,
 
@@ -81,6 +81,7 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
+
 		return nil, 0, err
 	}
 
@@ -97,8 +98,10 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, count, nil
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, 0, err
 	}
 
@@ -128,8 +131,10 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, err
 	}
 
@@ -156,11 +161,13 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
 			span.SetStatus(codes.Error, "unique constraint failed")
+
 			return ErrAlreadyExists
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -188,6 +195,7 @@ func (db *Database) UpdateSubscriberPolicy(ctx context.Context, subscriber *Subs
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -195,12 +203,14 @@ func (db *Database) UpdateSubscriberPolicy(ctx context.Context, subscriber *Subs
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
+
 		return err
 	}
 
 	if rowsAffected == 0 {
 		span.RecordError(ErrNotFound)
 		span.SetStatus(codes.Error, "not found")
+
 		return ErrNotFound
 	}
 
@@ -231,6 +241,7 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -258,6 +269,7 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -265,12 +277,14 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
+
 		return err
 	}
 
 	if rowsAffected == 0 {
 		span.RecordError(ErrNotFound)
 		span.SetStatus(codes.Error, "not found")
+
 		return ErrNotFound
 	}
 
@@ -295,10 +309,13 @@ func (db *Database) SubscribersInPolicy(ctx context.Context, name string) (bool,
 		if errors.Is(err, ErrNotFound) {
 			span.RecordError(ErrNotFound)
 			span.SetStatus(codes.Error, "policy not found")
+
 			return false, ErrNotFound
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "policy not found")
+
 		return false, err
 	}
 
@@ -306,6 +323,7 @@ func (db *Database) SubscribersInPolicy(ctx context.Context, name string) (bool,
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "counting failed")
+
 		return false, err
 	}
 
@@ -329,6 +347,7 @@ func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (boo
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "data network not found")
+
 		return false, err
 	}
 
@@ -336,6 +355,7 @@ func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (boo
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "listing failed")
+
 		return false, err
 	}
 
@@ -394,6 +414,7 @@ func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error)
 		ipStr := ip.String()
 
 		var existing Subscriber
+
 		err = db.conn.Query(ctx, db.checkSubscriberIPStmt, Subscriber{IPAddress: &ipStr}).Get(&existing)
 		if err == sql.ErrNoRows {
 			// IP is not allocated, assign it to the subscriber
@@ -405,6 +426,7 @@ func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error)
 					logger.DBLog.Warn("IP address collision during allocation, retrying", zap.String("ip", ipStr))
 					continue
 				}
+
 				return nil, fmt.Errorf("failed to allocate IP: %v", err)
 			}
 
@@ -433,6 +455,7 @@ func (db *Database) ReleaseIP(ctx context.Context, imsi string) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to get subscriber")
+
 		return fmt.Errorf("failed to get subscriber: %v", err)
 	}
 
@@ -445,6 +468,7 @@ func (db *Database) ReleaseIP(ctx context.Context, imsi string) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "release failed")
+
 		return fmt.Errorf("failed to release IP: %v", err)
 	}
 
@@ -485,6 +509,7 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return 0, err
 	}
 
@@ -515,6 +540,7 @@ func (db *Database) CountSubscribersInPolicy(ctx context.Context, policyID int) 
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return 0, err
 	}
 
@@ -542,6 +568,7 @@ func (db *Database) CountSubscribersWithIP(ctx context.Context) (int, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return 0, err
 	}
 

@@ -38,17 +38,21 @@ func TestHandlePfcpSessionModificationRequestCauseSessionContextNotFound(t *test
 		0,
 		ies...,
 	)
+
 	response, err := core.HandlePfcpSessionModificationRequest(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("Error handling session modification request: %v", err)
 	}
+
 	if response == nil {
 		t.Fatalf("Response is nil")
 	}
+
 	CauseIE, err := response.Cause.Cause()
 	if err != nil {
 		t.Fatalf("Error getting Cause IE: %v", err)
 	}
+
 	if CauseIE != ie.CauseSessionContextNotFound {
 		t.Fatalf("Cause IE is not CauseSessionContextNotFound: %v", CauseIE)
 	}
@@ -85,17 +89,21 @@ func TestHandlePfcpSessionDeletionRequestCauseRequestAccepted(t *testing.T) {
 		0,
 		ies...,
 	)
+
 	response, err := core.HandlePfcpSessionDeletionRequest(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("Error handling session modification request: %v", err)
 	}
+
 	if response == nil {
 		t.Fatalf("Response is nil")
 	}
+
 	CauseIE, err := response.Cause.Cause()
 	if err != nil {
 		t.Fatalf("Error getting Cause IE: %v", err)
 	}
+
 	if CauseIE != ie.CauseRequestAccepted {
 		t.Fatalf("Cause IE is not CauseRequestAccepted: %v", CauseIE)
 	}
@@ -129,17 +137,21 @@ func TestHandlePfcpSessionDeletionRequestCauseSessionContextNotFound(t *testing.
 		0,
 		ies...,
 	)
+
 	response, err := core.HandlePfcpSessionModificationRequest(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("Error handling session modification request: %v", err)
 	}
+
 	if response == nil {
 		t.Fatalf("Response is nil")
 	}
+
 	CauseIE, err := response.Cause.Cause()
 	if err != nil {
 		t.Fatalf("Error getting Cause IE: %v", err)
 	}
+
 	if CauseIE != ie.CauseSessionContextNotFound {
 		t.Fatalf("Cause IE is not CauseSessionContextNotFound: %v", CauseIE)
 	}
@@ -176,17 +188,21 @@ func TestHandlePfcpSessionModificationRequestCauseRequestAccepted(t *testing.T) 
 		0,
 		ies...,
 	)
+
 	response, err := core.HandlePfcpSessionModificationRequest(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("Error handling session modification request: %v", err)
 	}
+
 	if response == nil {
 		t.Fatalf("Response is nil")
 	}
+
 	CauseIE, err := response.Cause.Cause()
 	if err != nil {
 		t.Fatalf("Error getting Cause IE: %v", err)
 	}
+
 	if CauseIE != ie.CauseRequestAccepted {
 		t.Fatalf("Cause IE is not CauseRequestAccepted: %v", CauseIE)
 	}

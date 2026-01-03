@@ -99,5 +99,6 @@ func (c *Client) UpdateUsageRetentionPolicy(ctx context.Context, opts *UpdateUsa
 	if err != nil {
 		return err
 	}
+
 	return nil
 }

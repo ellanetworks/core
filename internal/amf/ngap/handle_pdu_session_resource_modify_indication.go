@@ -1,72 +1,33 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
-	"github.com/ellanetworks/core/internal/logger"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceModifyIndication) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
 
-	initiatingMessage := msg.InitiatingMessage // reject
-	if initiatingMessage == nil {
-		ran.Log.Error("InitiatingMessage is nil")
-		cause := ngapType.Cause{
-			Present: ngapType.CausePresentProtocol,
-			Protocol: &ngapType.CauseProtocol{
-				Value: ngapType.CauseProtocolPresentAbstractSyntaxErrorReject,
-			},
-		}
-		err := message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
-		if err != nil {
-			ran.Log.Error("error sending error indication", zap.Error(err))
-		}
-		ran.Log.Info("sent error indication")
-		return
-	}
-	pDUSessionResourceModifyIndication := initiatingMessage.Value.PDUSessionResourceModifyIndication
-	if pDUSessionResourceModifyIndication == nil {
-		ran.Log.Error("PDUSessionResourceModifyIndication is nil")
-		cause := ngapType.Cause{
-			Present: ngapType.CausePresentProtocol,
-			Protocol: &ngapType.CauseProtocol{
-				Value: ngapType.CauseProtocolPresentAbstractSyntaxErrorReject,
-			},
-		}
-		err := message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
-		if err != nil {
-			ran.Log.Error("error sending error indication", zap.Error(err))
-		}
-		ran.Log.Info("sent error indication")
-		return
-	}
+	var (
+		aMFUENGAPID                            *ngapType.AMFUENGAPID
+		rANUENGAPID                            *ngapType.RANUENGAPID
+		pduSessionResourceModifyIndicationList *ngapType.PDUSessionResourceModifyListModInd
+		iesCriticalityDiagnostics              ngapType.CriticalityDiagnosticsIEList
+	)
 
-	ran.Log.Info("handle PDU Session Resource Modify Indication")
-
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var pduSessionResourceModifyIndicationList *ngapType.PDUSessionResourceModifyListModInd
-	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
-
-	for _, ie := range pDUSessionResourceModifyIndication.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // reject
 			aMFUENGAPID = ie.Value.AMFUENGAPID
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
+
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDAMFUENGAPID)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
@@ -74,6 +35,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 			rANUENGAPID = ie.Value.RANUENGAPID
 			if rANUENGAPID == nil {
 				ran.Log.Error("RanUeNgapID is nil")
+
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDRANUENGAPID)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
@@ -81,6 +43,7 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 			pduSessionResourceModifyIndicationList = ie.Value.PDUSessionResourceModifyListModInd
 			if pduSessionResourceModifyIndicationList == nil {
 				ran.Log.Error("PDUSessionResourceModifyListModInd is nil")
+
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDPDUSessionResourceModifyListModInd)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
@@ -89,21 +52,21 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 
 	if len(iesCriticalityDiagnostics.List) > 0 {
 		ran.Log.Error("Has missing reject IE(s)")
-		procedureCode := ngapType.ProcedureCodePDUSessionResourceModifyIndication
-		triggeringMessage := ngapType.TriggeringMessagePresentInitiatingMessage
-		procedureCriticality := ngapType.CriticalityPresentReject
-		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage, &procedureCriticality,
-			&iesCriticalityDiagnostics)
-		err := message.SendErrorIndication(ctx, ran, nil, nil, nil, &criticalityDiagnostics)
+
+		criticalityDiagnostics := buildCriticalityDiagnostics(ngapType.ProcedureCodePDUSessionResourceModifyIndication, ngapType.TriggeringMessagePresentInitiatingMessage, ngapType.CriticalityPresentReject, &iesCriticalityDiagnostics)
+
+		err := ran.NGAPSender.SendErrorIndication(ctx, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent error indication")
+
 		return
 	}
 
-	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		cause := ngapType.Cause{
@@ -112,12 +75,15 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
 			},
 		}
-		err := message.SendErrorIndication(ctx, ran, nil, nil, &cause, nil)
+
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
 			return
 		}
+
 		ran.Log.Info("sent error indication")
+
 		return
 	}
 
@@ -126,10 +92,11 @@ func HandlePDUSessionResourceModifyIndication(ctx ctxt.Context, ran *context.Amf
 	pduSessionResourceModifyListModCfm := ngapType.PDUSessionResourceModifyListModCfm{}
 	pduSessionResourceFailedToModifyListModCfm := ngapType.PDUSessionResourceFailedToModifyListModCfm{}
 
-	err := message.SendPDUSessionResourceModifyConfirm(ctx, ranUe, pduSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyListModCfm, nil)
+	err := ranUe.Radio.NGAPSender.SendPDUSessionResourceModifyConfirm(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, pduSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyListModCfm)
 	if err != nil {
 		ranUe.Log.Error("error sending pdu session resource modify confirm", zap.Error(err))
 		return
 	}
+
 	ran.Log.Info("sent pdu session resource modify confirm")
 }

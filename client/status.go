@@ -23,5 +23,6 @@ func (c *Client) GetStatus(ctx context.Context) (*Status, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &statusResponse, nil
 }

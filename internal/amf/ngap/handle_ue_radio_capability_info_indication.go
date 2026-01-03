@@ -4,39 +4,26 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUERadioCapabilityInfoIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
-	if message == nil {
+func HandleUERadioCapabilityInfoIndication(ran *context.Radio, msg *ngapType.UERadioCapabilityInfoIndication) {
+	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
-	initiatingMessage := message.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
-		return
-	}
-	uERadioCapabilityInfoIndication := initiatingMessage.Value.UERadioCapabilityInfoIndication
-	if uERadioCapabilityInfoIndication == nil {
-		ran.Log.Error("UERadioCapabilityInfoIndication is nil")
-		return
-	}
 
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var uERadioCapability *ngapType.UERadioCapability
-	var uERadioCapabilityForPaging *ngapType.UERadioCapabilityForPaging
+	var (
+		aMFUENGAPID                *ngapType.AMFUENGAPID
+		rANUENGAPID                *ngapType.RANUENGAPID
+		uERadioCapability          *ngapType.UERadioCapability
+		uERadioCapabilityForPaging *ngapType.UERadioCapabilityForPaging
+	)
 
-	for i := 0; i < len(uERadioCapabilityInfoIndication.ProtocolIEs.List); i++ {
-		ie := uERadioCapabilityInfoIndication.ProtocolIEs.List[i]
+	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
+		ie := msg.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
@@ -65,7 +52,7 @@ func HandleUERadioCapabilityInfoIndication(ran *context.AmfRan, message *ngapTyp
 		}
 	}
 
-	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		return
@@ -84,11 +71,12 @@ func HandleUERadioCapabilityInfoIndication(ran *context.AmfRan, message *ngapTyp
 	}
 
 	if uERadioCapabilityForPaging != nil {
-		amfUe.UeRadioCapabilityForPaging = &context.UERadioCapabilityForPaging{}
+		amfUe.UeRadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
 		if uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR != nil {
 			amfUe.UeRadioCapabilityForPaging.NR = hex.EncodeToString(
 				uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value)
 		}
+
 		if uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA != nil {
 			amfUe.UeRadioCapabilityForPaging.EUTRA = hex.EncodeToString(
 				uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value)

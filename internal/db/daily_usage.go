@@ -93,6 +93,7 @@ type UsageFilters struct {
 func DaysSinceEpoch(t time.Time) int64 {
 	t = t.UTC()
 	y, m, d := t.Date()
+
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC).Unix() / 86400
 }
 
@@ -125,6 +126,7 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -163,8 +165,10 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, fmt.Errorf("couldn't query: %w", err)
 	}
 
@@ -203,8 +207,10 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, fmt.Errorf("couldn't query: %w", err)
 	}
 
@@ -230,6 +236,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -260,6 +267,7 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 

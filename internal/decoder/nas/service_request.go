@@ -88,6 +88,7 @@ func buildServiceRequest(msg *nasMessage.ServiceRequest) *ServiceRequest {
 
 	if msg.UplinkDataStatus != nil {
 		uplinkDataStatus := []UplinkDataStatusPDU{}
+
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(msg.UplinkDataStatus.Buffer)
 		for pduSessionID, hasUplinkData := range uplinkDataPsi {
 			uplinkDataStatus = append(uplinkDataStatus, UplinkDataStatusPDU{
@@ -95,11 +96,13 @@ func buildServiceRequest(msg *nasMessage.ServiceRequest) *ServiceRequest {
 				Active:       hasUplinkData,
 			})
 		}
+
 		serviceRequest.UplinkDataStatus = uplinkDataStatus
 	}
 
 	if msg.PDUSessionStatus != nil {
 		pduSessionStatus := []PDUSessionStatusPDU{}
+
 		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
 		for pduSessionID, isActive := range psiArray {
 			pduSessionStatus = append(pduSessionStatus, PDUSessionStatusPDU{
@@ -107,11 +110,13 @@ func buildServiceRequest(msg *nasMessage.ServiceRequest) *ServiceRequest {
 				Active:       isActive,
 			})
 		}
+
 		serviceRequest.PDUSessionStatus = pduSessionStatus
 	}
 
 	if msg.AllowedPDUSessionStatus != nil {
 		allowedPduSessionStatus := []AllowedPDUSessionStatus{}
+
 		allowedPsis := nasConvert.PSIToBooleanArray(msg.AllowedPDUSessionStatus.Buffer)
 		for pduSessionID, isAllowed := range allowedPsis {
 			allowedPduSessionStatus = append(allowedPduSessionStatus, AllowedPDUSessionStatus{
@@ -119,11 +124,12 @@ func buildServiceRequest(msg *nasMessage.ServiceRequest) *ServiceRequest {
 				Active:       isAllowed,
 			})
 		}
+
 		serviceRequest.AllowedPDUSessionStatus = allowedPduSessionStatus
 	}
 
 	if msg.NASMessageContainer != nil {
-		serviceRequest.NASMessageContainer = msg.NASMessageContainer.GetNASMessageContainerContents()
+		serviceRequest.NASMessageContainer = msg.GetNASMessageContainerContents()
 	}
 
 	return serviceRequest

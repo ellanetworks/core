@@ -1,18 +1,18 @@
 package gmm
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 	"strconv"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func sendUEAuthenticationAuthenticateRequest(ctx ctxt.Context, ue *context.AmfUe, resynchronizationInfo *models.ResynchronizationInfo) (*models.Av5gAka, error) {
+func sendUEAuthenticationAuthenticateRequest(ctx context.Context, ue *amfContext.AmfUe, resynchronizationInfo *models.ResynchronizationInfo) (*models.Av5gAka, error) {
 	if ue.Tai.PlmnID == nil {
 		return nil, fmt.Errorf("tai is not available in UE context")
 	}
@@ -36,11 +36,11 @@ func sendUEAuthenticationAuthenticateRequest(ctx ctxt.Context, ue *context.AmfUe
 	return ueAuthenticationCtx, nil
 }
 
-func identityVerification(ue *context.AmfUe) bool {
+func identityVerification(ue *amfContext.AmfUe) bool {
 	return ue.Supi != "" || len(ue.Suci) != 0
 }
 
-func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe) (bool, error) {
+func AuthenticationProcedure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) (bool, error) {
 	ctx, span := tracer.Start(ctx, "AuthenticationProcedure")
 	defer span.End()
 
@@ -54,6 +54,7 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe) (bool, error) 
 		}
 
 		ue.Log.Info("sent identity request")
+
 		return false, nil
 	}
 
@@ -76,7 +77,7 @@ func AuthenticationProcedure(ctx ctxt.Context, ue *context.AmfUe) (bool, error) 
 
 	ue.ABBA = []uint8{0x00, 0x00} // set ABBA value as described at TS 33.501 Annex A.7.1
 
-	err = message.SendAuthenticationRequest(ctx, ue.RanUe)
+	err = message.SendAuthenticationRequest(ctx, amf, ue.RanUe)
 	if err != nil {
 		return false, fmt.Errorf("error sending authentication request: %v", err)
 	}

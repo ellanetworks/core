@@ -36,5 +36,6 @@ func (c *Client) Initialize(ctx context.Context, opts *InitializeOptions) error 
 	if err != nil {
 		return err
 	}
+
 	return nil
 }

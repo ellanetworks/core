@@ -80,22 +80,22 @@ func buildPDUSessionEstablishmentRequest(msg *nasMessage.PDUSessionEstablishment
 
 	estReq := &PDUSessionEstablishmentRequest{
 		ExtendedProtocolDiscriminator: msg.ExtendedProtocolDiscriminator.Octet,
-		PDUSessionID:                  msg.PDUSessionID.GetPDUSessionID(),
-		PTI:                           msg.PTI.GetPTI(),
-		PDUSESSIONESTABLISHMENTREQUESTMessageIdentity: msg.PDUSESSIONESTABLISHMENTREQUESTMessageIdentity.GetMessageType(),
+		PDUSessionID:                  msg.GetPDUSessionID(),
+		PTI:                           msg.GetPTI(),
+		PDUSESSIONESTABLISHMENTREQUESTMessageIdentity: msg.GetMessageType(),
 		IntegrityProtectionMaximumDataRate: IntegrityProtectionMaximumDataRate{
-			Uplink:   msg.IntegrityProtectionMaximumDataRate.GetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForUpLink(),
-			Downlink: msg.IntegrityProtectionMaximumDataRate.GetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForDownLink(),
+			Uplink:   msg.GetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForUpLink(),
+			Downlink: msg.GetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForDownLink(),
 		},
 	}
 
 	if msg.PDUSessionType != nil {
-		sessionType := buildPDUSessionType(msg.PDUSessionType.GetPDUSessionTypeValue())
+		sessionType := buildPDUSessionType(msg.GetPDUSessionTypeValue())
 		estReq.PDUSessionType = &sessionType
 	}
 
 	if msg.SSCMode != nil {
-		sscMode := msg.SSCMode.GetSSCMode()
+		sscMode := msg.GetSSCMode()
 		estReq.SSCMode = &sscMode
 	}
 

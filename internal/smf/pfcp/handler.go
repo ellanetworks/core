@@ -4,15 +4,15 @@
 package pfcp
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 	"time"
 
-	amf_producer "github.com/ellanetworks/core/internal/amf/producer"
+	"github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/context"
+	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 	"go.uber.org/zap"
@@ -20,14 +20,16 @@ import (
 
 type SmfPfcpHandler struct{}
 
-func (s SmfPfcpHandler) HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReportRequest) (*message.SessionReportResponse, error) {
+func (s SmfPfcpHandler) HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionReportRequest) (*message.SessionReportResponse, error) {
 	return HandlePfcpSessionReportRequest(ctx, msg)
 }
 
-func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReportRequest) (*message.SessionReportResponse, error) {
+func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionReportRequest) (*message.SessionReportResponse, error) {
 	seid := msg.SEID()
 
-	smContext := context.GetSMContextBySEID(seid)
+	smf := smfContext.SMFSelf()
+
+	smContext := smf.GetSMContextBySEID(seid)
 
 	if smContext == nil || smContext.Supi == "" {
 		return message.NewSessionReportResponse(
@@ -53,7 +55,7 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 
 	// Downlink Data Report
 	if msg.ReportType.HasDLDR() {
-		n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext.SmPolicyUpdates, smContext.SmPolicyData, smContext.Tunnel.DataPath.DPNode)
+		n2Pdu, err := smfContext.BuildPDUSessionResourceSetupRequestTransfer(smContext.SmPolicyUpdates, smContext.SmPolicyData, smContext.Tunnel.DataPath.DPNode)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 		}
@@ -64,7 +66,7 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 			BinaryDataN2Information: n2Pdu,
 		}
 
-		err = amf_producer.N2MessageTransferOrPage(ctx, smContext.Supi, n1n2Request)
+		err = producer.N2MessageTransferOrPage(ctx, smContext.Supi, n1n2Request)
 		if err != nil {
 			return message.NewSessionReportResponse(
 				1,
@@ -79,8 +81,6 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 
 	// Usage Report
 	if msg.ReportType.HasUSAR() {
-		smfSelf := context.SMFSelf()
-
 		for _, urrReport := range msg.UsageReport {
 			// Read Volume Measurement
 			urrId, err := urrReport.URRID()
@@ -94,6 +94,7 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 					ie.NewCause(ie.CauseRequestRejected),
 				), fmt.Errorf("failed to get URR ID from Usage Report IE: %v", err)
 			}
+
 			volumeMeasurement, err := urrReport.VolumeMeasurement()
 			if err != nil {
 				return message.NewSessionReportResponse(
@@ -113,7 +114,7 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 			}
 			dailyUsage.SetDay(time.Now().UTC())
 
-			err = smfSelf.DBInstance.IncrementDailyUsage(ctx, dailyUsage)
+			err = smf.DBInstance.IncrementDailyUsage(ctx, dailyUsage)
 			if err != nil {
 				return message.NewSessionReportResponse(
 					1,
@@ -124,6 +125,7 @@ func HandlePfcpSessionReportRequest(ctx ctxt.Context, msg *message.SessionReport
 					ie.NewCause(ie.CauseRequestRejected),
 				), fmt.Errorf("failed to update uplink data volume in db for imsi %s: %v", smContext.Supi, err)
 			}
+
 			logger.SmfLog.Debug(
 				"Processed usage report",
 				zap.String("supi", smContext.Supi),

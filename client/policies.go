@@ -74,6 +74,7 @@ func (c *Client) CreatePolicy(ctx context.Context, opts *CreatePolicyOptions) er
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -93,6 +94,7 @@ func (c *Client) GetPolicy(ctx context.Context, opts *GetPolicyOptions) (*Policy
 	if err != nil {
 		return nil, err
 	}
+
 	return &policyResponse, nil
 }
 
@@ -105,6 +107,7 @@ func (c *Client) DeletePolicy(ctx context.Context, opts *DeletePolicyOptions) er
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 

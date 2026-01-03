@@ -21,6 +21,7 @@ func TestValidConfigSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp cert file: %s", err)
 	}
+
 	defer func() {
 		if err := os.Remove(tempCertFile.Name()); err != nil {
 			log.Fatalf("Failed to remove temp key file: %v", err)
@@ -31,6 +32,7 @@ func TestValidConfigSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp key file: %s", err)
 	}
+
 	defer func() {
 		if err := os.Remove(tempKeyFile.Name()); err != nil {
 			log.Fatalf("Failed to remove temp key file: %v", err)
@@ -40,6 +42,7 @@ func TestValidConfigSuccess(t *testing.T) {
 	if _, err := tempCertFile.WriteString("dummy cert data"); err != nil {
 		t.Fatalf("Failed to write to temp cert file: %s", err)
 	}
+
 	if _, err := tempKeyFile.WriteString("dummy key data"); err != nil {
 		t.Fatalf("Failed to write to temp key file: %s", err)
 	}
@@ -49,6 +52,7 @@ func TestValidConfigSuccess(t *testing.T) {
 			log.Fatalf("Faile to close temp cert file: %v", err)
 		}
 	}()
+
 	defer func() {
 		if err := tempKeyFile.Close(); err != nil {
 			log.Fatalf("Faile to close temp key file: %v", err)
@@ -68,6 +72,7 @@ func TestValidConfigSuccess(t *testing.T) {
 
 	// Update the config file to use the temporary cert and key paths
 	confFilePath := "testdata/valid.yaml"
+
 	originalContent, err := os.ReadFile(confFilePath)
 	if err != nil {
 		t.Fatalf("Failed to read config file: %s", err)
@@ -80,6 +85,7 @@ func TestValidConfigSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to update config file: %s", err)
 	}
+
 	defer func() {
 		if err := os.WriteFile(confFilePath, originalContent, os.FileMode(0o600)); err != nil {
 			log.Fatalf("Failed to close database: %v", err)
@@ -145,6 +151,7 @@ func TestValidConfigNoTLSSuccess(t *testing.T) {
 	}
 
 	confFilePath := "testdata/valid_no_tls.yaml"
+
 	originalContent, err := os.ReadFile(confFilePath)
 	if err != nil {
 		t.Fatalf("Failed to read config file: %s", err)

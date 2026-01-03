@@ -1,45 +1,28 @@
 package ngap
 
 import (
-	ctxt "context"
+	"context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap/message"
-	"github.com/ellanetworks/core/internal/logger"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleLocationReport(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.NGAPPDU) {
-	if ran == nil {
-		logger.AmfLog.Error("ran is nil")
-		return
-	}
-
+func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.LocationReport) {
 	if msg == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
 	}
 
-	initiatingMessage := msg.InitiatingMessage
-	if initiatingMessage == nil {
-		ran.Log.Error("InitiatingMessage is nil")
-		return
-	}
+	var (
+		aMFUENGAPID                    *ngapType.AMFUENGAPID
+		rANUENGAPID                    *ngapType.RANUENGAPID
+		userLocationInformation        *ngapType.UserLocationInformation
+		uEPresenceInAreaOfInterestList *ngapType.UEPresenceInAreaOfInterestList
+		locationReportingRequestType   *ngapType.LocationReportingRequestType
+	)
 
-	locationReport := initiatingMessage.Value.LocationReport
-	if locationReport == nil {
-		ran.Log.Error("LocationReport is nil")
-		return
-	}
-
-	var aMFUENGAPID *ngapType.AMFUENGAPID
-	var rANUENGAPID *ngapType.RANUENGAPID
-	var userLocationInformation *ngapType.UserLocationInformation
-	var uEPresenceInAreaOfInterestList *ngapType.UEPresenceInAreaOfInterestList
-	var locationReportingRequestType *ngapType.LocationReportingRequestType
-
-	for _, ie := range locationReport.ProtocolIEs.List {
+	for _, ie := range msg.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // reject
 			aMFUENGAPID = ie.Value.AMFUENGAPID
@@ -69,13 +52,13 @@ func HandleLocationReport(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		}
 	}
 
-	ranUe := ran.RanUeFindByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		return
 	}
 
-	ranUe.UpdateLocation(ctx, userLocationInformation)
+	ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 
 	// ranUe.Log.Debugf("Report Area[%d]", locationReportingRequestType.ReportArea.Value)
 	ranUe.Log.Debug("Handle Location Report", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Any("ReportArea", locationReportingRequestType.ReportArea))
@@ -89,6 +72,7 @@ func HandleLocationReport(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 
 	case ngapType.EventTypePresentUePresenceInAreaOfInterest:
 		ranUe.Log.Debug("To report UE presence in the area of interest")
+
 		for _, uEPresenceInAreaOfInterestItem := range uEPresenceInAreaOfInterestList.List {
 			uEPresence := uEPresenceInAreaOfInterestItem.UEPresence.Value
 			referenceID := uEPresenceInAreaOfInterestItem.LocationReportingReferenceID.Value
@@ -101,10 +85,11 @@ func HandleLocationReport(ctx ctxt.Context, ran *context.AmfRan, msg *ngapType.N
 		}
 
 	case ngapType.EventTypePresentStopChangeOfServeCell:
-		err := message.SendLocationReportingControl(ctx, ranUe, nil, 0, locationReportingRequestType.EventType)
+		err := ranUe.Radio.NGAPSender.SendLocationReportingControl(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, locationReportingRequestType.EventType)
 		if err != nil {
 			ranUe.Log.Error("error sending location reporting control", zap.Error(err))
 		}
+
 		ranUe.Log.Info("sent location reporting control ngap message")
 	case ngapType.EventTypePresentStopUePresenceInAreaOfInterest:
 		ranUe.Log.Debug("To stop reporting UE presence in the area of interest", zap.Int64("ReferenceID", locationReportingRequestType.LocationReportingReferenceIDToBeCancelled.Value))

@@ -20,6 +20,7 @@ func TestDatabaseBackup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't initialize NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't close database: %s", err)
@@ -35,9 +36,17 @@ func TestDatabaseBackup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't create temp file for backup: %s", err)
 	}
+
 	defer func() {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name()) // Ensure cleanup
+		err := tmpFile.Close()
+		if err != nil {
+			t.Fatalf("Couldn't close temp file: %s", err)
+		}
+
+		err = os.Remove(tmpFile.Name()) // Ensure cleanup
+		if err != nil {
+			t.Fatalf("Couldn't remove temp file: %s", err)
+		}
 	}()
 
 	err = database.Backup(context.Background(), tmpFile)

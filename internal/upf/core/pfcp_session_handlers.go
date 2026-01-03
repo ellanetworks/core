@@ -58,6 +58,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 	logger.UpfLog.Debug("Tracking new session", zap.Uint64("SEID", seid))
 
 	printSessionEstablishmentRequest(msg)
+
 	createdPDRs := []SPDRInfo{}
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 
@@ -157,6 +158,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 			createdPDRs = append(createdPDRs, spdrInfo)
 			bpfObjects.ClearNotified(seid, pdrID, session.GetQer(spdrInfo.PdrInfo.QerID).Qfi)
 		}
+
 		return nil
 	}()
 	if err != nil {
@@ -176,7 +178,9 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 	additionalIEs = append(additionalIEs, pdrIEs...)
 
 	estResp := message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, additionalIEs...)
+
 	logger.UpfLog.Debug("Accepted Session Establishment Request")
+
 	return estResp, nil
 }
 
@@ -198,17 +202,20 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 	}
 
 	bpfObjects := conn.BpfObjects
+
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 	for _, pdrInfo := range session.PDRs {
 		if err := pdrContext.deletePDR(pdrInfo, bpfObjects); err != nil {
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
+
 	for id := range session.FARs {
 		if err := bpfObjects.DeleteFar(id); err != nil {
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
+
 	for id := range session.QERs {
 		if err := bpfObjects.DeleteQer(id); err != nil {
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
@@ -389,13 +396,16 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			if err != nil {
 				return fmt.Errorf("URR ID missing")
 			}
+
 			if !urr.HasVOLUM() {
 				return fmt.Errorf("only Volume Measurement Method is supported, received")
 			}
+
 			measurementPeriod, err := urr.MeasurementPeriod()
 			if err != nil {
 				return fmt.Errorf("measurement period is invalid: %s", err.Error())
 			}
+
 			logger.UpfLog.Debug(
 				"Received Usage Reporting Rule update - Not yet supported",
 				zap.Uint32("urrID", urrId),
@@ -409,6 +419,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			if err != nil {
 				return fmt.Errorf("URR ID missing")
 			}
+
 			logger.UpfLog.Debug("Received Usage Reporting Rule remove - Not yet supported", zap.Uint32("urrID", urrId))
 		}
 
@@ -470,7 +481,9 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				}
 			}
 		}
+
 		logger.UpfLog.Debug("Session modification successful")
+
 		return nil
 	}()
 	if err != nil {
@@ -489,6 +502,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 	additionalIEs = append(additionalIEs, pdrIEs...)
 
 	modResp := message.NewSessionModificationResponse(0, 0, session.SEID, msg.Sequence(), 0, additionalIEs...)
+
 	return modResp, nil
 }
 
@@ -528,6 +542,7 @@ func IndexFunc[S ~[]E, E any](s S, f func(E) bool) int {
 			return i
 		}
 	}
+
 	return -1
 }
 
@@ -535,6 +550,7 @@ func findIEindex(ieArr []*ie.IE, ieType uint16) int {
 	arrIndex := IndexFunc(ieArr, func(ie *ie.IE) bool {
 		return ie.Type == ieType
 	})
+
 	return arrIndex
 }
 
@@ -580,6 +596,7 @@ func causeToString(cause uint8) string {
 func cloneIP(ip net.IP) net.IP {
 	dup := make(net.IP, len(ip))
 	copy(dup, ip)
+
 	return dup
 }
 
@@ -594,15 +611,20 @@ func composeFarInfo(far *ie.IE, localIP net.IP, farInfo ebpf.FarInfo) (ebpf.FarI
 		farInfo.Action = applyAction[0]
 	}
 
-	var forward []*ie.IE
-	var err error
-	if far.Type == ie.CreateFAR {
+	var (
+		forward []*ie.IE
+		err     error
+	)
+
+	switch far.Type {
+	case ie.CreateFAR:
 		forward, err = far.ForwardingParameters()
-	} else if far.Type == ie.UpdateFAR {
+	case ie.UpdateFAR:
 		forward, err = far.UpdateForwardingParameters()
-	} else {
+	default:
 		return ebpf.FarInfo{}, fmt.Errorf("unsupported IE type")
 	}
+
 	if err == nil {
 		outerHeaderCreationIndex := findIEindex(forward, 84) // IE Type Outer Header Creation
 		if outerHeaderCreationIndex == -1 {
@@ -610,10 +632,12 @@ func composeFarInfo(far *ie.IE, localIP net.IP, farInfo ebpf.FarInfo) (ebpf.FarI
 		} else {
 			outerHeaderCreation, _ := forward[outerHeaderCreationIndex].OuterHeaderCreation()
 			farInfo.OuterHeaderCreation = uint8(outerHeaderCreation.OuterHeaderCreationDescription >> 8)
+
 			farInfo.TeID = outerHeaderCreation.TEID
 			if outerHeaderCreation.HasIPv4() {
 				farInfo.RemoteIP = binary.LittleEndian.Uint32(outerHeaderCreation.IPv4Address)
 			}
+
 			if outerHeaderCreation.HasIPv6() {
 				logger.UpfLog.Warn("IPv6 not supported yet, ignoring")
 				return ebpf.FarInfo{}, fmt.Errorf("IPv6 not supported yet")
@@ -629,22 +653,27 @@ func updateQer(qerInfo *ebpf.QerInfo, qer *ie.IE) {
 	if err == nil {
 		qerInfo.GateStatusDL = gateStatusDL
 	}
+
 	gateStatusUL, err := qer.GateStatusUL()
 	if err == nil {
 		qerInfo.GateStatusUL = gateStatusUL
 	}
+
 	maxBitrateDL, err := qer.MBRDL()
 	if err == nil {
 		qerInfo.MaxBitrateDL = maxBitrateDL * 1000
 	}
+
 	maxBitrateUL, err := qer.MBRUL()
 	if err == nil {
 		qerInfo.MaxBitrateUL = maxBitrateUL * 1000
 	}
+
 	qfi, err := qer.QFI()
 	if err == nil {
 		qerInfo.Qfi = qfi
 	}
+
 	qerInfo.StartUL = 0
 	qerInfo.StartDL = 0
 }
@@ -655,7 +684,9 @@ func newIeNodeID(nodeID string) *ie.IE {
 		if ip.To4() != nil {
 			return ie.NewNodeID(nodeID, "", "")
 		}
+
 		return ie.NewNodeID("", nodeID, "")
 	}
+
 	return ie.NewNodeID("", "", nodeID)
 }

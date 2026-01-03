@@ -124,6 +124,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceReleaseCommand(t *testing.T) {
 	}
 
 	expectedNASPDU := "fgKGQUZ3A34AaAEABS4BBNMAEgE="
+
 	expectedNASPDUraw, err := decodeB64(expectedNASPDU)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
@@ -165,6 +166,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceReleaseCommand(t *testing.T) {
 	}
 
 	expectedTransfer := "EA=="
+
 	expectedTransferRaw, err := decodeB64(expectedTransfer)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)

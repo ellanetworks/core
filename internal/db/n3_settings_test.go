@@ -17,6 +17,7 @@ func TestN3Settings_EndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -43,6 +44,7 @@ func TestN3Settings_EndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete GetN3Settings: %s", err)
 	}
+
 	if updatedN3Settings.ExternalAddress != newExternalAddress {
 		t.Fatalf("N3 external address was not updated correctly")
 	}

@@ -37,9 +37,11 @@ app_uplink_bytes 5678
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
+
 	if v, ok := metrics["app_downlink_bytes"]; !ok || v != 1234 {
 		t.Errorf("Expected app_downlink_bytes to be 1234, got %v", v)
 	}
+
 	if v, ok := metrics["app_uplink_bytes"]; !ok || v != 5678 {
 		t.Errorf("Expected app_uplink_bytes to be 5678, got %v", v)
 	}
@@ -61,6 +63,7 @@ func TestGetMetricsRequesterError(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error, got nil")
 	}
+
 	if err.Error() != "request failed" {
 		t.Errorf("Expected error 'request failed', got: %v", err)
 	}
@@ -112,6 +115,7 @@ func TestGetMetricsEmptyResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error for empty response, got: %v", err)
 	}
+
 	if len(metrics) != 0 {
 		t.Errorf("Expected empty metrics map, got: %v", metrics)
 	}

@@ -14,10 +14,12 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 		FteIDResourceManager *core.FteIDResourceManager
 		TEIDCache            map[uint8]uint32
 	}
+
 	type args struct {
 		pdr      *ie.IE
 		spdrInfo *core.SPDRInfo
 	}
+
 	tests := []struct {
 		name    string
 		fields  fields

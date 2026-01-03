@@ -10,10 +10,12 @@ import (
 
 func SNssaiToModels(ngapSnssai ngapType.SNSSAI) models.Snssai {
 	var modelsSnssai models.Snssai
+
 	modelsSnssai.Sst = int32(ngapSnssai.SST.Value[0])
 	if ngapSnssai.SD != nil {
 		modelsSnssai.Sd = hex.EncodeToString(ngapSnssai.SD.Value)
 	}
+
 	return modelsSnssai
 }
 
@@ -24,10 +26,12 @@ func SNssaiToNgap(modelsSnssai *models.Snssai) (ngapType.SNSSAI, error) {
 
 	if modelsSnssai.Sd != "" {
 		ngapSnssai.SD = new(ngapType.SD)
+
 		sdTmp, err := hex.DecodeString(modelsSnssai.Sd)
 		if err != nil {
 			return ngapSnssai, fmt.Errorf("could not decode SD: %+v", err)
 		}
+
 		ngapSnssai.SD.Value = sdTmp
 	}
 

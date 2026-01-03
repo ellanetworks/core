@@ -22,19 +22,23 @@ func getStatus(url string, client *http.Client) (int, *GetStatusResponse, error)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var radioResponse GetStatusResponse
 	if err := json.NewDecoder(res.Body).Decode(&radioResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &radioResponse, nil
 }
 
@@ -44,11 +48,13 @@ func getStatus(url string, client *http.Client) (int, *GetStatusResponse, error)
 func TestStatusEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	t.Run("1. Get status", func(t *testing.T) {
@@ -56,9 +62,11 @@ func TestStatusEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get status: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
+
 		if response.Result.Version == "" {
 			t.Fatalf("expected version to be non-empty")
 		}

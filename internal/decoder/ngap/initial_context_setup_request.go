@@ -119,10 +119,12 @@ func buildInitialContextSetupRequest(initialContextSetupRequest ngapType.Initial
 			})
 		case ngapType.ProtocolIEIDCoreNetworkAssistanceInformation:
 			value, err := buildCoreNetworkAssistanceInformation(*ie.Value.CoreNetworkAssistanceInformation)
+
 			ieErr := ""
 			if err != nil {
 				ieErr = fmt.Sprintf("failed to build CoreNetworkAssistanceInformation: %v", err)
 			}
+
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
@@ -251,14 +253,17 @@ func decodeNRintegrityAlgorithms(bs aper.BitString) []string {
 	}
 
 	var algos []string
+
 	b := bs.Bytes[0]
 
 	if (b>>7)&1 == 1 {
 		algos = append(algos, "NIA1")
 	}
+
 	if (b>>6)&1 == 1 {
 		algos = append(algos, "NIA2")
 	}
+
 	if (b>>5)&1 == 1 {
 		algos = append(algos, "NIA3")
 	}
@@ -266,6 +271,7 @@ func decodeNRintegrityAlgorithms(bs aper.BitString) []string {
 	if len(algos) == 0 {
 		return []string{"None or NIA0 (null integrity)"}
 	}
+
 	return algos
 }
 
@@ -406,12 +412,14 @@ func buildExpectedUEBehaviour(eub ngapType.ExpectedUEBehaviour) ExpectedUEBehavi
 	for i := 0; i < len(eub.ExpectedUEMovingTrajectory.List); i++ {
 		item := eub.ExpectedUEMovingTrajectory.List[i]
 		ngRanCgi := buildNGRANCGI(item.NGRANCGI)
+
 		expectedUEMovingTrajectoryItem := ExpectedUEMovingTrajectoryItem{
 			NGRANCGI: ngRanCgi,
 		}
 		if item.TimeStayedInCell != nil {
 			expectedUEMovingTrajectoryItem.TimeStayedInCell = item.TimeStayedInCell
 		}
+
 		returnedEUB.ExpectedUEMovingTrajectory = append(returnedEUB.ExpectedUEMovingTrajectory, expectedUEMovingTrajectoryItem)
 	}
 

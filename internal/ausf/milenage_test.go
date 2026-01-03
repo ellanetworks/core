@@ -2,7 +2,7 @@
 // Copyright 2019 Communication Service/Software Laboratory, National Chiao Tung University (free5gc.org)
 // SPDX-License-Identifier: Apache-2.0
 
-package milenage_test
+package ausf_test
 
 import (
 	"crypto/aes"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/util/milenage"
+	"github.com/ellanetworks/core/internal/ausf"
 )
 
 type f1Test struct {
@@ -130,30 +130,37 @@ func TestF1Test35207(t *testing.T) {
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		RAND, err := hex.DecodeString(strings.Repeat(testTable.RAND, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		SQN, err := hex.DecodeString(strings.Repeat(testTable.SQN, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		AMF, err := hex.DecodeString(strings.Repeat(testTable.AMF, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		OP, err := hex.DecodeString(strings.Repeat(testTable.OP, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		ExpectedOPc, err := hex.DecodeString(strings.Repeat(testTable.ExpectedOPc, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		f1, err := hex.DecodeString(strings.Repeat(testTable.f1, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		f1Start, err := hex.DecodeString(strings.Repeat(testTable.f1Start, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
@@ -167,8 +174,10 @@ func TestF1Test35207(t *testing.T) {
 		if !reflect.DeepEqual(OPC, ExpectedOPc) {
 			t.Errorf("Testf1Test35207[%d] \t OPC[0x%x] \t ExpectedOPc[0x%x]\n", i, OPC, ExpectedOPc)
 		}
+
 		macA, macS := make([]byte, 8), make([]byte, 8)
-		err = milenage.F1(OPC, K, RAND, SQN, AMF, macA, macS)
+
+		err = ausf.F1(OPC, K, RAND, SQN, AMF, macA, macS)
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
@@ -176,6 +185,7 @@ func TestF1Test35207(t *testing.T) {
 		if !reflect.DeepEqual(macA, f1) {
 			t.Errorf("Testf1Test35207[%d] \t macA[0x%x] \t f1[0x%x]\n", i, macA, f1)
 		}
+
 		if !reflect.DeepEqual(macS, f1Start) {
 			t.Errorf("Testf1Test35207[%d] \t macS[0x%x] \t f1Start[0x%x]\n", i, macS, f1Start)
 		}
@@ -236,26 +246,32 @@ func TestF2F5F3Test35207(t *testing.T) {
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		OP, err := hex.DecodeString(strings.Repeat(testTable.OP, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		ExpectedOPc, err := hex.DecodeString(strings.Repeat(testTable.ExpectedOPc, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		ExpectedRES, err := hex.DecodeString(strings.Repeat(testTable.ExpectedRES, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		ExpectedAK, err := hex.DecodeString(strings.Repeat(testTable.ExpectedAK, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		ExpectedCK, err := hex.DecodeString(strings.Repeat(testTable.ExpectedCK, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		RAND, err := hex.DecodeString(strings.Repeat(testTable.RAND, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
@@ -269,19 +285,24 @@ func TestF2F5F3Test35207(t *testing.T) {
 		if !reflect.DeepEqual(OPC, ExpectedOPc) {
 			t.Errorf("TestF2F5F3Test35207[%d] \t OPC[0x%x] \t ExpectedOPc[0x%x]\n", i, OPC, ExpectedOPc)
 		}
+
 		CK, IK := make([]byte, 16), make([]byte, 16)
 		RES := make([]byte, 8)
 		AK, AKstar := make([]byte, 6), make([]byte, 6)
-		err = milenage.F2345(OPC, K, RAND, RES, CK, IK, AK, AKstar)
+
+		err = ausf.F2345(OPC, K, RAND, RES, CK, IK, AK, AKstar)
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		if !reflect.DeepEqual(RES, ExpectedRES) {
 			t.Errorf("TestF2F5F3Test35207[%d] \t RES[0x%x] \t ExpectedRES[0x%x]\n", i, RES, ExpectedRES)
 		}
+
 		if !reflect.DeepEqual(AK, ExpectedAK) {
 			t.Errorf("TestF2F5F3Test35207[%d] \t AK[0x%x] \t ExpectedAK[0x%x]\n", i, AK, ExpectedAK)
 		}
+
 		if !reflect.DeepEqual(CK, ExpectedCK) {
 			t.Errorf("TestF2F5F3Test35207[%d] \t CK[0x%x] \t ExpectedCK[0x%x]\n", i, CK, ExpectedCK)
 		}
@@ -345,10 +366,12 @@ func TestF4F5StarTest35207(t *testing.T) {
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		OP, err := hex.DecodeString(strings.Repeat(testTable.OP, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		ExpectedOPc, err := hex.DecodeString(strings.Repeat(testTable.ExpectedOPc, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
@@ -358,10 +381,12 @@ func TestF4F5StarTest35207(t *testing.T) {
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		ExpectedIK, err := hex.DecodeString(strings.Repeat(testTable.ExpectedIK, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		RAND, err := hex.DecodeString(strings.Repeat(testTable.RAND, 1))
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
@@ -375,16 +400,20 @@ func TestF4F5StarTest35207(t *testing.T) {
 		if !reflect.DeepEqual(OPC, ExpectedOPc) {
 			t.Errorf("TestF4F5StarTest35207[%d] \t OPC[0x%x] \t ExpectedOPc[0x%x]\n", i, OPC, ExpectedOPc)
 		}
+
 		CK, IK := make([]byte, 16), make([]byte, 16)
 		RES := make([]byte, 8)
 		AK, AKstar := make([]byte, 6), make([]byte, 6)
-		err = milenage.F2345(OPC, K, RAND, RES, CK, IK, AK, AKstar)
+
+		err = ausf.F2345(OPC, K, RAND, RES, CK, IK, AK, AKstar)
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
+
 		if !reflect.DeepEqual(AKstar, ExpectedAKStar) {
 			t.Errorf("TestF4F5StarTest35207[%d] \t AKstar[0x%x] \t ExpectedAKStar[0x%x]\n", i, AKstar, ExpectedAKStar)
 		}
+
 		if !reflect.DeepEqual(IK, ExpectedIK) {
 			t.Errorf("TestF4F5StarTest35207[%d] \t IK[0x%x] \t ExpectedIK[0x%x]\n", i, IK, ExpectedIK)
 		}
@@ -394,6 +423,7 @@ func TestF4F5StarTest35207(t *testing.T) {
 func TestGenerateOPC(t *testing.T) {
 	// kStr := "3016ebeae2c45bd0060923dbbb402be6"
 	kStr := "000102030405060708090a0b0c0d0e0f" // CHT
+
 	K, err := hex.DecodeString(kStr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
@@ -401,6 +431,7 @@ func TestGenerateOPC(t *testing.T) {
 
 	// opStr := "00000000000000000000000000000000"
 	opStr := "00112233445566778899aabbccddeeff" // CHT
+
 	OP, err := hex.DecodeString(opStr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
@@ -418,7 +449,6 @@ func TestRAND(t *testing.T) {
 		SQN, AK: 48 bits (6 bytes) (hex len = 12) TS33.102 - 6.3.2
 		AMF: 16 bits (2 bytes) (hex len = 4) TS33.102 - Annex H
 	*/
-
 	kStr := "5122250214c33e723a5dd523fc145fc0"
 	opStr := "c9e8763286b5b9ffbdf56e1297d0887b"
 	sqnStr := "16f3b3f70fc2"
@@ -427,10 +457,12 @@ func TestRAND(t *testing.T) {
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
+
 	OP, err := hex.DecodeString(opStr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
+
 	SQN, err := hex.DecodeString(sqnStr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
@@ -463,46 +495,56 @@ func TestRAND(t *testing.T) {
 
 	// Generate macA, macS
 
-	err = milenage.F1(OPC, K, RAND, SQN, AMF, macA, macS)
+	err = ausf.F1(OPC, K, RAND, SQN, AMF, macA, macS)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
 
 	// Generate RES, CK, IK, AK, AKstar
 	// RES == XRES (expected RES) for server
-	err = milenage.F2345(OPC, K, RAND, RES, CK, IK, AK, AKstar)
+	err = ausf.F2345(OPC, K, RAND, RES, CK, IK, AK, AKstar)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
+
 	expRES, err := hex.DecodeString("28d7b0f2a2ec3de5")
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
+
 	if !reflect.DeepEqual(RES, RES) {
 		t.Errorf("RES[0x%x] \t expected[0x%x]\n", RES, expRES)
 	}
+
 	expCK, err := hex.DecodeString("5349fbe098649f948f5d2e973a81c00f")
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
+
 	if !reflect.DeepEqual(CK, expCK) {
 		t.Errorf("CK[0x%x] \t expected[0x%x]\n", CK, expCK)
 	}
+
 	expIK, err := hex.DecodeString("9744871ad32bf9bbd1dd5ce54e3e2e5a")
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
+
 	if !reflect.DeepEqual(IK, expIK) {
 		t.Errorf("IK[0x%x] \t expected[0x%x]\n", IK, expIK)
 	}
+
 	expAK, err := hex.DecodeString("ada15aeb7bb8")
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
+
 	if !reflect.DeepEqual(AK, expAK) {
 		t.Errorf("AK[0x%x] \t expected[0x%x]\n", AK, expAK)
 	}
+
 	SQNxorAK := make([]byte, 6)
+
 	for i := 0; i < len(SQN); i++ {
 		SQNxorAK[i] = SQN[i] ^ AK[i]
 	}
@@ -513,6 +555,7 @@ func TestRAND(t *testing.T) {
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
+
 	if !reflect.DeepEqual(AUTN, expAUTN) {
 		t.Errorf("AUTN[0x%x] \t expected[0x%x]\n", AUTN, expAUTN)
 	}

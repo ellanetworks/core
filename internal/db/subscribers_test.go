@@ -17,6 +17,7 @@ func createDataNetworkAndPolicy(database *db.Database) (int, int, error) {
 		Name:   "not-internet",
 		IPPool: "1.2.3.0/24",
 	}
+
 	err := database.CreateDataNetwork(context.Background(), newDataNetwork)
 	if err != nil {
 		return 0, 0, err
@@ -56,6 +57,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -82,11 +84,12 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 
 	subscriber := &db.Subscriber{
 		Imsi:           "001010100007487",
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       policyID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
@@ -130,6 +133,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		Name:          "another-policy",
 		DataNetworkID: dataNetworkID,
 	}
+
 	err = database.CreatePolicy(context.Background(), &newPolicy)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
@@ -176,6 +180,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -201,6 +206,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 		Name:          "test-policy",
 		DataNetworkID: createdDNN.ID,
 	}
+
 	err = database.CreatePolicy(context.Background(), policy)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreatePolicy: %s", err)
@@ -213,11 +219,12 @@ func TestIPAllocationAndRelease(t *testing.T) {
 
 	subscriber := &db.Subscriber{
 		Imsi:           "001010123456789",
-		SequenceNumber: "123456",
-		PermanentKey:   "abcdef",
-		Opc:            "123456",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       createdPolicy.ID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateSubscriber: %s", err)
@@ -228,6 +235,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't allocate IP for subscriber: %s", err)
 	}
+
 	if allocatedIP == nil {
 		t.Fatalf("Allocated IP is nil")
 	}
@@ -242,6 +250,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't retrieve subscriber: %s", err)
 	}
+
 	if *retrievedSubscriber.IPAddress != allocatedIP.String() {
 		t.Fatalf("IP address in database %s does not match allocated IP %s", *retrievedSubscriber.IPAddress, allocatedIP.String())
 	}
@@ -257,6 +266,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't retrieve subscriber after release: %s", err)
 	}
+
 	if retrievedSubscriber.IPAddress != nil {
 		t.Fatalf("IP address was not cleared from the database after release")
 	}
@@ -266,6 +276,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't allocate a new IP for subscriber: %s", err)
 	}
+
 	if newAllocatedIP == nil {
 		t.Fatalf("New allocated IP is nil")
 	}
@@ -278,6 +289,7 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -288,6 +300,7 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 		Name:   "test-dnn",
 		IPPool: "192.168.1.0/29", // Small pool for testing (6 usable addresses)
 	}
+
 	err = database.CreateDataNetwork(context.Background(), dnn)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateDataNetwork: %s", err)
@@ -303,6 +316,7 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 		Name:          "test-pool",
 		DataNetworkID: createdDNN.ID,
 	}
+
 	err = database.CreatePolicy(context.Background(), policy)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreatePolicy: %s", err)
@@ -321,10 +335,10 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 
 	for i := 1; i < totalIPs-1; i++ { // Skip network and broadcast addresses
 		subscriber := &db.Subscriber{
-			Imsi:           fmt.Sprintf("IMSI%012d", i),
-			SequenceNumber: fmt.Sprintf("%d", i),
-			PermanentKey:   fmt.Sprintf("%d", i),
-			Opc:            fmt.Sprintf("%d", i),
+			Imsi:           fmt.Sprintf("00%012d", i),
+			SequenceNumber: "000000000001",
+			PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+			Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 			PolicyID:       createdPolicy.ID,
 		}
 
@@ -337,6 +351,7 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Couldn't allocate IP for subscriber %s: %s", subscriber.Imsi, err)
 		}
+
 		if allocatedIP == nil {
 			t.Fatalf("Allocated IP is nil for subscriber %s", subscriber.Imsi)
 		}
@@ -345,6 +360,7 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 		if _, exists := allocatedIPs[ipStr]; exists {
 			t.Fatalf("Duplicate IP allocation detected: %s", ipStr)
 		}
+
 		allocatedIPs[ipStr] = struct{}{}
 
 		// Verify that the allocated IP is within the pool
@@ -355,12 +371,13 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 
 	// Attempt to allocate one more IP, which should fail
 	extraSubscriber := &db.Subscriber{
-		Imsi:           "IMSI_OVERFLOW",
-		SequenceNumber: "123456",
-		PermanentKey:   "abcdef",
-		Opc:            "123456",
+		Imsi:           "001019379926284",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       createdPolicy.ID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), extraSubscriber)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateSubscriber for overflow subscriber: %s", err)
@@ -383,6 +400,7 @@ func TestCountSubscribersWithIP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -393,6 +411,7 @@ func TestCountSubscribersWithIP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete CountSubscribersWithIP: %s", err)
 	}
+
 	if count != 0 {
 		t.Fatalf("Expected 0 subscribers with IP, but got %d", count)
 	}
@@ -405,12 +424,13 @@ func TestCountSubscribersWithIP(t *testing.T) {
 	ip := "192.168.1.2"
 	subscriber1 := &db.Subscriber{
 		Imsi:           "001010100007487",
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "e08f6711b5319a21d550787cd263ee0a",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		IPAddress:      &ip,
 		PolicyID:       policyID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber1)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
@@ -418,11 +438,12 @@ func TestCountSubscribersWithIP(t *testing.T) {
 
 	subscriber2 := &db.Subscriber{
 		Imsi:           "001010100007488",
-		SequenceNumber: "123457",
-		PermanentKey:   "123457",
-		Opc:            "123457",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       policyID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber2)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
@@ -440,12 +461,13 @@ func TestCountSubscribersWithIP(t *testing.T) {
 	ip = "192.168.1.3"
 	subscriber3 := &db.Subscriber{
 		Imsi:           "001010100007489",
-		SequenceNumber: "123458",
-		PermanentKey:   "123458",
-		Opc:            "123458",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "e08f6711b5319a21d550787cd263ee0a",
+		Opc:            "89aae6a1b7c490eecf67f66badffbc0d",
 		IPAddress:      &ip,
 		PolicyID:       policyID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber3)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
@@ -468,6 +490,7 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
+
 	defer func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("Couldn't complete Close: %s", err)
@@ -490,11 +513,12 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 
 	subscriber1 := &db.Subscriber{
 		Imsi:           "001010100007487",
-		SequenceNumber: "123456",
-		PermanentKey:   "123456",
-		Opc:            "123456",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "e08f6711b5319a21d550787cd263ee0a",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       policyID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber1)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateSubscriber: %s", err)
@@ -504,6 +528,7 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 		Name:          "another-policy",
 		DataNetworkID: dnID,
 	}
+
 	err = database.CreatePolicy(context.Background(), newPolicy)
 	if err != nil {
 		t.Fatalf("Couldn't Create Policy: %s", err)
@@ -516,11 +541,12 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 
 	subscriber2 := &db.Subscriber{
 		Imsi:           "001010100007488",
-		SequenceNumber: "123457",
-		PermanentKey:   "123457",
-		Opc:            "123457",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       newPolicyCreated.ID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber2)
 	if err != nil {
 		t.Fatalf("Couldn't Create Subscriber: %s", err)
@@ -537,11 +563,12 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 
 	subscriber3 := &db.Subscriber{
 		Imsi:           "001010100007489",
-		SequenceNumber: "123458",
-		PermanentKey:   "123458",
-		Opc:            "123458",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
 		PolicyID:       policyID,
 	}
+
 	err = database.CreateSubscriber(context.Background(), subscriber3)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateSubscriber: %s", err)

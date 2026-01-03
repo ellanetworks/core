@@ -67,6 +67,7 @@ func (c *Client) CreateRoute(ctx context.Context, opts *CreateRouteOptions) erro
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -86,6 +87,7 @@ func (c *Client) GetRoute(ctx context.Context, opts *GetRouteOptions) (*Route, e
 	if err != nil {
 		return nil, err
 	}
+
 	return &routeResponse, nil
 }
 
@@ -98,6 +100,7 @@ func (c *Client) DeleteRoute(ctx context.Context, opts *DeleteRouteOptions) erro
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -114,10 +117,13 @@ func (c *Client) ListRoutes(ctx context.Context, p *ListParams) (*ListRoutesResp
 	if err != nil {
 		return nil, err
 	}
+
 	var routesResponse ListRoutesResponse
+
 	err = resp.DecodeResult(&routesResponse)
 	if err != nil {
 		return nil, err
 	}
+
 	return &routesResponse, nil
 }

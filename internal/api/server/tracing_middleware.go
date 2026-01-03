@@ -16,6 +16,7 @@ func TracingMiddleware(serviceName string, handler http.Handler) http.Handler {
 			path := r.URL.Path
 			// strip dynamic segments for better grouping, e.g., "/users/{email}"
 			path = strings.ReplaceAll(path, "/{", "/:")
+
 			return r.Method + " " + path
 		}),
 		otelhttp.WithServerName(serviceName),

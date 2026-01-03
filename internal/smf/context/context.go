@@ -9,15 +9,20 @@ package context
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"sync"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 var smfContext SMFContext
@@ -34,32 +39,37 @@ type SMFContext struct {
 	CPNodeID       net.IP
 	LocalSEIDCount uint64
 
-	smContextPool    map[string]*SMContext // key: canonicalName(identifier, pduSessID)
-	seidSMContextMap map[uint64]*SMContext // key: PFCP SEID
+	smContextPool map[string]*SMContext // key: canonicalName(identifier, pduSessID)
 }
 
-func init() {
+func InitializeSMF(dbInstance *db.Database) {
 	smfContext = SMFContext{
-		smContextPool:    make(map[string]*SMContext),
-		seidSMContextMap: make(map[uint64]*SMContext),
+		smContextPool: make(map[string]*SMContext),
+		DBInstance:    dbInstance,
+		CPNodeID:      net.ParseIP("0.0.0.0"),
+		UPF: &UPF{
+			pdrIDGenerator: idgenerator.NewGenerator(1, math.MaxUint16),
+			farIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
+			qerIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
+			urrIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
+			N3Interface:    nil,
+		},
 	}
 }
 
-// SnssaiSmfDnnInfo records the SMF per S-NSSAI DNN information
 type SnssaiSmfDnnInfo struct {
 	DNS net.IP
 	MTU uint16
 }
 
-// SnssaiSmfInfo records the SMF S-NSSAI related information
 type SnssaiSmfInfo struct {
 	DnnInfos *SnssaiSmfDnnInfo
 	Snssai   models.Snssai
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
-func RetrieveDnnInformation(ctx context.Context, ueSnssai models.Snssai, dnn string) (*SnssaiSmfDnnInfo, error) {
-	supportedSnssai, err := GetSnssaiInfo(ctx, dnn)
+func (smf *SMFContext) RetrieveDnnInformation(ctx context.Context, ueSnssai models.Snssai, dnn string) (*SnssaiSmfDnnInfo, error) {
+	supportedSnssai, err := smf.GetSnssaiInfo(ctx, dnn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get snssai information: %v", err)
 	}
@@ -75,30 +85,30 @@ func RetrieveDnnInformation(ctx context.Context, ueSnssai models.Snssai, dnn str
 	return supportedSnssai.DnnInfos, nil
 }
 
-func AllocateLocalSEID() uint64 {
-	atomic.AddUint64(&smfContext.LocalSEIDCount, 1)
-	return smfContext.LocalSEIDCount
+func (smf *SMFContext) AllocateLocalSEID() uint64 {
+	return atomic.AddUint64(&smf.LocalSEIDCount, 1)
 }
 
 func SMFSelf() *SMFContext {
 	return &smfContext
 }
 
-func GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
-	ctx, span := tracer.Start(ctx, "SMF GetSnssaiInfo")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("dnn", dnn),
+func (smf *SMFContext) GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"SMF GetSnssaiInfo",
+		trace.WithAttributes(
+			attribute.String("dnn", dnn),
+		),
 	)
+	defer span.End()
 
-	self := SMFSelf()
-
-	operator, err := self.DBInstance.GetOperator(ctx)
+	operator, err := smf.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
 	}
 
-	dataNetwork, err := self.DBInstance.GetDataNetwork(ctx, dnn)
+	dataNetwork, err := smf.DBInstance.GetDataNetwork(ctx, dnn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list policies from db: %v", err)
 	}
@@ -125,21 +135,22 @@ func GetAllowedSessionType() uint8 {
 	return AllowedSessionType
 }
 
-func GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyDecision, error) {
-	ctx, span := tracer.Start(ctx, "SMF GetSubscriberPolicy")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.supi", ueID),
+func (smf *SMFContext) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyDecision, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"SMF GetSubscriberPolicy",
+		trace.WithAttributes(
+			attribute.String("ue.supi", ueID),
+		),
 	)
+	defer span.End()
 
-	self := SMFSelf()
-
-	subscriber, err := self.DBInstance.GetSubscriber(ctx, ueID)
+	subscriber, err := smf.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 
-	policy, err := self.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
+	policy, err := smf.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
@@ -162,4 +173,106 @@ func GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyDeci
 	}
 
 	return subscriberPolicy, nil
+}
+
+func (smf *SMFContext) PDUSessionsByDNN(dnn string) []*SMContext {
+	smf.Mutex.Lock()
+	defer smf.Mutex.Unlock()
+
+	var out []*SMContext
+
+	for _, smContext := range smf.smContextPool {
+		if smContext.Dnn == dnn {
+			out = append(out, smContext)
+		}
+	}
+
+	return out
+}
+
+func (smf *SMFContext) GetSMContextBySEID(seid uint64) *SMContext {
+	smf.Mutex.Lock()
+	defer smf.Mutex.Unlock()
+
+	for _, smContext := range smf.smContextPool {
+		if smContext.PFCPContext != nil && smContext.PFCPContext.LocalSEID == seid {
+			return smContext
+		}
+	}
+
+	return nil
+}
+
+func (smContext *SMContext) AllocateLocalSEIDForDataPath(smf *SMFContext) {
+	if smContext.PFCPContext != nil {
+		return
+	}
+
+	allocatedSEID := smf.AllocateLocalSEID()
+
+	smContext.PFCPContext = &PFCPSessionContext{
+		LocalSEID: allocatedSEID,
+	}
+}
+
+func (smf *SMFContext) NewSMContext(supi string, pduSessID uint8) *SMContext {
+	smf.Mutex.Lock()
+	defer smf.Mutex.Unlock()
+
+	smContext := new(SMContext)
+
+	ref := CanonicalName(supi, pduSessID)
+	smf.smContextPool[ref] = smContext
+	smContext.PDUSessionID = pduSessID
+
+	return smContext
+}
+
+func (smf *SMFContext) GetSMContext(ref string) *SMContext {
+	smf.Mutex.Lock()
+	defer smf.Mutex.Unlock()
+
+	value, ok := smf.smContextPool[ref]
+	if !ok {
+		return nil
+	}
+
+	return value
+}
+
+func (smf *SMFContext) GetPDUSessionCount() int {
+	smf.Mutex.Lock()
+	defer smf.Mutex.Unlock()
+
+	return len(smf.smContextPool)
+}
+
+func (smf *SMFContext) RemoveSMContext(ctx context.Context, ref string) {
+	smf.Mutex.Lock()
+	defer smf.Mutex.Unlock()
+
+	smContext, ok := smf.smContextPool[ref]
+	if !ok {
+		return
+	}
+
+	err := smf.ReleaseUeIPAddr(ctx, smContext.Supi)
+	if err != nil {
+		logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
+	}
+
+	delete(smf.smContextPool, ref)
+
+	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
+}
+
+func (smf *SMFContext) ReleaseUeIPAddr(ctx context.Context, supi string) error {
+	err := smf.DBInstance.ReleaseIP(ctx, supi)
+	if err != nil {
+		return fmt.Errorf("failed to release IP Address, %v", err)
+	}
+
+	logger.SmfLog.Info("Released IP Address", zap.String("supi", supi))
+
+	return nil
 }

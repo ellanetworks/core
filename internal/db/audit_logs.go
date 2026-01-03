@@ -54,6 +54,7 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -86,6 +87,7 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, page, perPage int) ([
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
+
 		return nil, 0, err
 	}
 
@@ -97,8 +99,10 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, page, perPage int) ([
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, count, nil
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return nil, 0, err
 	}
 
@@ -130,6 +134,7 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 	if err := db.conn.Query(ctx, db.deleteOldAuditLogsStmt, args).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
+
 		return err
 	}
 
@@ -159,8 +164,10 @@ func (db *Database) CountAuditLogs(ctx context.Context) (int, error) {
 			span.SetStatus(codes.Ok, "no rows")
 			return 0, nil
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
+
 		return 0, err
 	}
 

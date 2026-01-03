@@ -8,6 +8,9 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 func newFrontendFileServer(embedFS fs.FS) (http.Handler, error) {
@@ -33,7 +36,9 @@ func newFrontendFileServer(embedFS fs.FS) (http.Handler, error) {
 					return
 				}
 			}
+
 			http.NotFound(w, r)
+
 			return
 		}
 
@@ -43,7 +48,9 @@ func newFrontendFileServer(embedFS fs.FS) (http.Handler, error) {
 				serveBytes(w, uiFS, "/index.html")
 				return
 			}
+
 			http.NotFound(w, r)
+
 			return
 		}
 
@@ -69,7 +76,9 @@ func flightCandidates(p string) []string {
 	if p == "/" {
 		return []string{"/index.txt"}
 	}
+
 	base := strings.TrimSuffix(p, "/")
+
 	return []string{base + ".txt", base + "/index.txt"}
 }
 
@@ -89,6 +98,7 @@ func serveFileServer(w http.ResponseWriter, r *http.Request, fsHandler http.Hand
 		u := *r.URL
 		r2.URL = &u
 	}
+
 	r2.URL.Path = p
 	fsHandler.ServeHTTP(w, &r2)
 }
@@ -100,7 +110,12 @@ func serveBytes(w http.ResponseWriter, fsys fs.FS, p string) {
 		return
 	}
 
-	defer f.Close()
+	defer func() {
+		err := f.Close()
+		if err != nil {
+			logger.EllaLog.Error("could not close file", zap.String("path", p), zap.Error(err))
+		}
+	}()
 
 	ct := mime.TypeByExtension(filepath.Ext(p))
 	if ct == "" {

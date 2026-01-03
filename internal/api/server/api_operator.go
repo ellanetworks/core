@@ -78,11 +78,13 @@ func isValidMcc(mcc string) bool {
 	if len(mcc) != 3 {
 		return false
 	}
+
 	for _, c := range mcc {
 		if c < '0' || c > '9' {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -91,11 +93,13 @@ func isValidMnc(mnc string) bool {
 	if len(mnc) != 2 && len(mnc) != 3 {
 		return false
 	}
+
 	for _, c := range mnc {
 		if c < '0' || c > '9' {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -105,11 +109,13 @@ func isValidOperatorCode(operatorCode string) bool {
 		logger.APILog.Warn("Invalid operator code length", zap.Int("length", len(operatorCode)))
 		return false
 	}
+
 	_, err := hex.DecodeString(operatorCode)
 	if err != nil {
 		logger.APILog.Warn("Invalid operator code", zap.Error(err), zap.String("operatorCode", operatorCode))
 		return false
 	}
+
 	return true
 }
 
@@ -193,6 +199,15 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 		if err != nil {
 			logger.APILog.Warn("Failed to get home network public key", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Failed to get home network public key", err, logger.APILog)
+
+			return
+		}
+
+		supportedTACs, err := dbOperator.GetSupportedTacs()
+		if err != nil {
+			logger.APILog.Warn("Failed to get supported TACs", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "Failed to get supported TACs", err, logger.APILog)
+
 			return
 		}
 
@@ -206,7 +221,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 				Sd:  SDToString(dbOperator.Sd),
 			},
 			Tracking: GetOperatorTrackingResponse{
-				SupportedTacs: dbOperator.GetSupportedTacs(),
+				SupportedTacs: supportedTACs,
 			},
 			HomeNetwork: GetOperatorHomeNetworkResponse{
 				PublicKey: hnPublicKey,
@@ -242,8 +257,16 @@ func GetOperatorTracking(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		supportedTACs, err := dbOperator.GetSupportedTacs()
+		if err != nil {
+			logger.APILog.Warn("Failed to get supported TACs", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "Failed to get supported TACs", err, logger.APILog)
+
+			return
+		}
+
 		operatorTracking := &GetOperatorTrackingResponse{
-			SupportedTacs: dbOperator.GetSupportedTacs(),
+			SupportedTacs: supportedTACs,
 		}
 
 		writeResponse(w, operatorTracking, http.StatusOK, logger.APILog)
@@ -270,6 +293,7 @@ func GetOperatorID(dbInstance *db.Database) http.Handler {
 func UpdateOperatorSlice(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -320,6 +344,7 @@ func UpdateOperatorSlice(dbInstance *db.Database) http.Handler {
 func UpdateOperatorTracking(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -352,6 +377,7 @@ func UpdateOperatorTracking(dbInstance *db.Database) http.Handler {
 		if err := dbInstance.UpdateOperatorTracking(r.Context(), params.SupportedTacs); err != nil {
 			logger.APILog.Warn("Failed to update operator tracking information", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Failed to update operator tracking information", err, logger.APILog)
+
 			return
 		}
 
@@ -371,6 +397,7 @@ func UpdateOperatorTracking(dbInstance *db.Database) http.Handler {
 func UpdateOperatorID(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -382,18 +409,22 @@ func UpdateOperatorID(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
+
 		if params.Mcc == "" {
 			writeError(w, http.StatusBadRequest, "mcc is missing", nil, logger.APILog)
 			return
 		}
+
 		if params.Mnc == "" {
 			writeError(w, http.StatusBadRequest, "mnc is missing", nil, logger.APILog)
 			return
 		}
+
 		if !isValidMcc(params.Mcc) {
 			writeError(w, http.StatusBadRequest, "Invalid mcc format. Must be a 3-decimal digit.", nil, logger.APILog)
 			return
 		}
+
 		if !isValidMnc(params.Mnc) {
 			writeError(w, http.StatusBadRequest, "Invalid mnc format. Must be a 2 or 3-decimal digit.", nil, logger.APILog)
 			return
@@ -431,6 +462,7 @@ func UpdateOperatorID(dbInstance *db.Database) http.Handler {
 func UpdateOperatorCode(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -447,6 +479,7 @@ func UpdateOperatorCode(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusBadRequest, "operator code is missing", nil, logger.APILog)
 			return
 		}
+
 		if !isValidOperatorCode(params.OperatorCode) {
 			writeError(w, http.StatusBadRequest, "Invalid operator code format. Must be a 32-character hexadecimal string.", nil, logger.APILog)
 			return
@@ -483,6 +516,7 @@ func UpdateOperatorCode(dbInstance *db.Database) http.Handler {
 func UpdateOperatorHomeNetwork(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
+
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -508,6 +542,7 @@ func UpdateOperatorHomeNetwork(dbInstance *db.Database) http.Handler {
 		if err := dbInstance.UpdateHomeNetworkPrivateKey(r.Context(), params.PrivateKey); err != nil {
 			logger.APILog.Warn("Failed to update home network private key", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Failed to update home network private key", err, logger.APILog)
+
 			return
 		}
 

@@ -80,6 +80,7 @@ func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOpt
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -99,6 +100,7 @@ func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) 
 	if err != nil {
 		return nil, err
 	}
+
 	return &subscriberResponse, nil
 }
 
@@ -111,6 +113,7 @@ func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOpt
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 

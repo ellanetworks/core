@@ -56,7 +56,9 @@ func isValidBitrate(bitrate string) bool {
 	if len(s) != 2 {
 		return false
 	}
+
 	value := s[0]
+
 	unit := s[1]
 	if unit != "Mbps" && unit != "Gbps" {
 		return false
@@ -105,6 +107,7 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 		}
 
 		policyList := make([]Policy, 0)
+
 		for _, dbPolicy := range dbPolicies {
 			dataNetwork, err := dbInstance.GetDataNetworkByID(ctx, dbPolicy.DataNetworkID)
 			if err != nil {
@@ -140,16 +143,19 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
 		}
+
 		dbPolicy, err := dbInstance.GetPolicy(r.Context(), name)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 			return
 		}
+
 		dataNetwork, err := dbInstance.GetDataNetworkByID(r.Context(), dbPolicy.DataNetworkID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 			return
 		}
+
 		policy := Policy{
 			Name:            dbPolicy.Name,
 			BitrateDownlink: dbPolicy.BitrateDownlink,
@@ -188,7 +194,9 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to check subscribers", err, logger.APILog)
+
 			return
 		}
 
@@ -202,7 +210,9 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 				return
 			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to delete policy", err, logger.APILog)
+
 			return
 		}
 
@@ -264,6 +274,7 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			}
 
 			writeError(w, http.StatusInternalServerError, "Failed to create policy", err, logger.APILog)
+
 			return
 		}
 
@@ -343,15 +354,16 @@ func validatePolicyParams(p CreatePolicyParams) error {
 	case p.Arp == 0:
 		return errors.New("arp is missing")
 	case !isPolicyNameValid(p.Name):
-		return errors.New("Invalid name format. Must be less than 256 characters")
+		return errors.New("invalid name format - must be less than 256 characters")
 	case !isValidBitrate(p.BitrateUplink):
-		return errors.New("Invalid bitrate_uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+		return errors.New("invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
 	case !isValidBitrate(p.BitrateDownlink):
-		return errors.New("Invalid bitrate_downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+		return errors.New("invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
 	case !isValid5Qi(p.Var5qi):
-		return errors.New("Invalid Var5qi format. Must be an integer associated with a non-GBR 5QI")
+		return errors.New("invalid Var5qi format - must be an integer associated with a non-GBR 5QI")
 	case !isValidArp(p.Arp):
-		return errors.New("Invalid arp format. Must be an integer between 1 and 255")
+		return errors.New("invalid arp format - must be an integer between 1 and 255")
 	}
+
 	return nil
 }

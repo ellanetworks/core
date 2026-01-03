@@ -14,6 +14,7 @@ func RequestedNssaiToModels(nasNssai *nasType.RequestedNSSAI) ([]*models.Snssai,
 
 	buf := nasNssai.GetSNSSAIValue()
 	lengthOfBuf := int(nasNssai.GetLen())
+
 	offset := 0
 	for offset < lengthOfBuf {
 		lengthOfSnssaiContents := buf[offset]
@@ -41,7 +42,6 @@ func snssaiToModels(lengthOfSnssaiContents uint8, buf []byte) (*models.Snssai, e
 			Sst: int32(buf[1]),
 		}, nil
 	case 0x04: // SST and SD
-
 		return &models.Snssai{
 			Sst: int32(buf[1]),
 			Sd:  hex.EncodeToString(buf[2:5]),
@@ -52,7 +52,6 @@ func snssaiToModels(lengthOfSnssaiContents uint8, buf []byte) (*models.Snssai, e
 			Sd:  hex.EncodeToString(buf[2:5]),
 		}, nil
 	case 0x08: // SST, SD, mapped HPLMN SST and mapped HPLMN SD
-
 		return &models.Snssai{
 			Sst: int32(buf[1]),
 			Sd:  hex.EncodeToString(buf[2:5]),

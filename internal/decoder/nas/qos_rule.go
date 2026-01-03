@@ -128,6 +128,7 @@ func unmarshalQosRule(b []byte) (QosRule, int, error) {
 	if len(b) < 3 {
 		return r, 0, io.ErrUnexpectedEOF
 	}
+
 	cur := 0
 
 	// Identifier
@@ -138,17 +139,20 @@ func unmarshalQosRule(b []byte) (QosRule, int, error) {
 	if len(b[cur:]) < 2 {
 		return r, 0, io.ErrUnexpectedEOF
 	}
+
 	contentLen := int(binary.BigEndian.Uint16(b[cur : cur+2]))
 	cur += 2
 
 	if contentLen > 0xFF {
 		return r, 0, fmt.Errorf("qos rule content length %d exceeds uint8 field; change QosRule.Length to uint16", contentLen)
 	}
+
 	r.Length = uint8(contentLen)
 
 	if len(b[cur:]) < contentLen {
 		return r, 0, io.ErrUnexpectedEOF
 	}
+
 	content := b[cur : cur+contentLen]
 	cc := 0
 
@@ -156,6 +160,7 @@ func unmarshalQosRule(b []byte) (QosRule, int, error) {
 	if len(content) < 1 {
 		return r, 0, io.ErrUnexpectedEOF
 	}
+
 	hdr := content[cc]
 	cc++
 
@@ -165,17 +170,21 @@ func unmarshalQosRule(b []byte) (QosRule, int, error) {
 
 	// Packet filters
 	r.PacketFilterList = r.PacketFilterList[:0]
+
 	for i := 0; i < numPF; i++ {
 		if cc >= len(content) {
 			return r, 0, io.ErrUnexpectedEOF
 		}
+
 		pf, n, err := unmarshalPacketFilter(content[cc:])
 		if err != nil {
 			return r, 0, fmt.Errorf("packet filter %d: %w", i, err)
 		}
+
 		if n <= 0 {
 			return r, 0, fmt.Errorf("packet filter %d consumed 0 bytes", i)
 		}
+
 		r.PacketFilterList = append(r.PacketFilterList, pf)
 		cc += n
 	}
@@ -184,6 +193,7 @@ func unmarshalQosRule(b []byte) (QosRule, int, error) {
 	if len(content[cc:]) < 2 {
 		return r, 0, io.ErrUnexpectedEOF
 	}
+
 	r.Precedence = content[cc]
 	cc++
 	segQFI := content[cc]
@@ -196,6 +206,7 @@ func unmarshalQosRule(b []byte) (QosRule, int, error) {
 	}
 
 	total := cur + contentLen
+
 	return r, total, nil
 }
 
@@ -213,12 +224,15 @@ func UnmarshalQosRules(data []byte) ([]QosRule, error) {
 		if err != nil {
 			return nil, fmt.Errorf("qos rule at offset %d: %w", cur, err)
 		}
+
 		if n <= 0 {
 			return nil, fmt.Errorf("decoder consumed 0 bytes at offset %d", cur)
 		}
+
 		out = append(out, rule)
 		cur += n
 	}
+
 	return out, nil
 }
 
@@ -227,6 +241,7 @@ func unmarshalPacketFilter(b []byte) (PacketFilter, int, error) {
 	if len(b) < 2 {
 		return pf, 0, io.ErrUnexpectedEOF
 	}
+
 	cur := 0
 
 	// Header: Direction (high nibble) | Identifier (low nibble)
@@ -246,11 +261,13 @@ func unmarshalPacketFilter(b []byte) (PacketFilter, int, error) {
 	if len(b[cur:]) < int(pf.ContentLength) {
 		return pf, 0, io.ErrUnexpectedEOF
 	}
+
 	content := b[cur : cur+int(pf.ContentLength)]
 	cur += int(pf.ContentLength)
 
 	// Parse components from content
 	var comps []PacketFilterComponent
+
 	i := 0
 	for i < len(content) {
 		t := content[i]
@@ -264,6 +281,7 @@ func unmarshalPacketFilter(b []byte) (PacketFilter, int, error) {
 				ComponentType:  utils.MakeEnum(t, "", true),
 				ComponentValue: append([]byte(nil), content[i:]...),
 			})
+
 			break
 		}
 
@@ -272,12 +290,14 @@ func unmarshalPacketFilter(b []byte) (PacketFilter, int, error) {
 				ComponentType:  buildPFComponentTypeString(t),
 				ComponentValue: nil,
 			})
+
 			continue
 		}
 
 		if i+valLen > len(content) {
 			return pf, 0, io.ErrUnexpectedEOF
 		}
+
 		val := content[i : i+valLen]
 		i += valLen
 
@@ -288,5 +308,6 @@ func unmarshalPacketFilter(b []byte) (PacketFilter, int, error) {
 	}
 
 	pf.Content = comps
+
 	return pf, cur, nil
 }

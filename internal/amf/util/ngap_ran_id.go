@@ -8,6 +8,7 @@ import (
 
 func RanIDToModels(ranNodeID ngapType.GlobalRANNodeID) models.GlobalRanNodeID {
 	var ranID models.GlobalRanNodeID
+
 	present := ranNodeID.Present
 	switch present {
 	case ngapType.GlobalRANNodeIDPresentGlobalGNBID:
@@ -16,6 +17,7 @@ func RanIDToModels(ranNodeID ngapType.GlobalRANNodeID) models.GlobalRanNodeID {
 		ngapGnbID := ranNodeID.GlobalGNBID
 		plmnid := PlmnIDToModels(ngapGnbID.PLMNIdentity)
 		ranID.PlmnID = &plmnid
+
 		if ngapGnbID.GNBID.Present == ngapType.GNBIDPresentGNBID {
 			choiceGnbID := ngapGnbID.GNBID.GNBID
 			gnbID.BitLength = int32(choiceGnbID.BitLength)
@@ -25,6 +27,7 @@ func RanIDToModels(ranNodeID ngapType.GlobalRANNodeID) models.GlobalRanNodeID {
 		ngapNgENBID := ranNodeID.GlobalNgENBID
 		plmnid := PlmnIDToModels(ngapNgENBID.PLMNIdentity)
 		ranID.PlmnID = &plmnid
+
 		switch ngapNgENBID.NgENBID.Present {
 		case ngapType.NgENBIDPresentMacroNgENBID:
 			macroNgENBID := ngapNgENBID.NgENBID.MacroNgENBID
@@ -40,6 +43,7 @@ func RanIDToModels(ranNodeID ngapType.GlobalRANNodeID) models.GlobalRanNodeID {
 		ngapN3IWFID := ranNodeID.GlobalN3IWFID
 		plmnid := PlmnIDToModels(ngapN3IWFID.PLMNIdentity)
 		ranID.PlmnID = &plmnid
+
 		if ngapN3IWFID.N3IWFID.Present == ngapType.N3IWFIDPresentN3IWFID {
 			choiceN3IWFID := ngapN3IWFID.N3IWFID.N3IWFID
 			ranID.N3IwfID = ngapConvert.BitStringToHex(choiceN3IWFID)

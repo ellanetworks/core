@@ -58,20 +58,20 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 	}
 
 	// check that the SD IE is not present
-	if nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI == nil {
+	if nasMsg.PDUSessionEstablishmentAccept.SNSSAI == nil {
 		t.Errorf("SNSSAI IE is missing")
 	}
 
-	if nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetLen() != 4 {
-		t.Errorf("expected SNSSAI length 1, got %d", nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetLen())
+	if nasMsg.PDUSessionEstablishmentAccept.SNSSAI.GetLen() != 4 {
+		t.Errorf("expected SNSSAI length 1, got %d", nasMsg.PDUSessionEstablishmentAccept.SNSSAI.GetLen())
 	}
 
-	if nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetSST() != 1 {
-		t.Errorf("expected SST 1, got %d", nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetSST())
+	if nasMsg.PDUSessionEstablishmentAccept.GetSST() != 1 {
+		t.Errorf("expected SST 1, got %d", nasMsg.PDUSessionEstablishmentAccept.GetSST())
 	}
 
-	if nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetSD() != [3]uint8{1, 2, 3} {
-		t.Errorf("expected SD [1,2,3], got %v", nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetSD())
+	if nasMsg.PDUSessionEstablishmentAccept.GetSD() != [3]uint8{1, 2, 3} {
+		t.Errorf("expected SD [1,2,3], got %v", nasMsg.PDUSessionEstablishmentAccept.GetSD())
 	}
 }
 
@@ -121,19 +121,19 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
 	}
 
 	// check that the SD IE is not present
-	if nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI == nil {
+	if nasMsg.PDUSessionEstablishmentAccept.SNSSAI == nil {
 		t.Errorf("SNSSAI IE is missing")
 	}
 
-	if nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetLen() != 1 {
-		t.Errorf("expected SNSSAI length 1, got %d", nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetLen())
+	if nasMsg.PDUSessionEstablishmentAccept.SNSSAI.GetLen() != 1 {
+		t.Errorf("expected SNSSAI length 1, got %d", nasMsg.PDUSessionEstablishmentAccept.SNSSAI.GetLen())
 	}
 
-	if nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetSST() != 1 {
-		t.Errorf("expected SST 1, got %d", nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetSST())
+	if nasMsg.PDUSessionEstablishmentAccept.GetSST() != 1 {
+		t.Errorf("expected SST 1, got %d", nasMsg.PDUSessionEstablishmentAccept.GetSST())
 	}
 
-	if nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetSD() != [3]uint8{0, 0, 0} {
-		t.Errorf("expected SD [0,0,0], got %v", nasMsg.GsmMessage.PDUSessionEstablishmentAccept.SNSSAI.GetSD())
+	if nasMsg.PDUSessionEstablishmentAccept.GetSD() != [3]uint8{0, 0, 0} {
+		t.Errorf("expected SD [0,0,0], got %v", nasMsg.PDUSessionEstablishmentAccept.GetSD())
 	}
 }

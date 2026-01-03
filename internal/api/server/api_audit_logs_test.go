@@ -59,11 +59,14 @@ func listAuditLogs(url string, client *http.Client, token string, page int, perP
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
@@ -83,11 +86,14 @@ func getAuditLogRetentionPolicy(url string, client *http.Client, token string) (
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
@@ -107,24 +113,30 @@ func editAuditLogRetentionPolicy(url string, client *http.Client, token string, 
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/logs/audit/retention", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
+
 	defer func() {
 		if err := res.Body.Close(); err != nil {
 			panic(err)
 		}
 	}()
+
 	var updateResponse UpdateAuditLogRetentionPolicyResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
+
 	return res.StatusCode, &updateResponse, nil
 }
 
@@ -138,6 +150,7 @@ func TestAPIAuditLogs(t *testing.T) {
 	}
 
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -174,11 +187,13 @@ func TestAPIAuditLogs(t *testing.T) {
 func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -311,11 +326,13 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 func TestAPIAuditLogRetentionPolicyEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -328,6 +345,7 @@ func TestAPIAuditLogRetentionPolicyEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get audit log retention policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -345,10 +363,12 @@ func TestAPIAuditLogRetentionPolicyEndToEnd(t *testing.T) {
 		updateAuditLogRetentionPolicyParams := &UpdateAuditLogRetentionPolicyParams{
 			Days: 15,
 		}
+
 		statusCode, response, err := editAuditLogRetentionPolicy(ts.URL, client, token, updateAuditLogRetentionPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't get audit log retention policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -367,6 +387,7 @@ func TestAPIAuditLogRetentionPolicyEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't get audit log retention policy: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
@@ -384,11 +405,13 @@ func TestAPIAuditLogRetentionPolicyEndToEnd(t *testing.T) {
 func TestUpdateAuditLogRetentionPolicyInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
 	ts, _, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
 	client := ts.Client()
 
 	token, err := initializeAndRefresh(ts.URL, client)
@@ -417,13 +440,16 @@ func TestUpdateAuditLogRetentionPolicyInvalidInput(t *testing.T) {
 			updateParams := &UpdateAuditLogRetentionPolicyParams{
 				Days: tt.days,
 			}
+
 			statusCode, response, err := editAuditLogRetentionPolicy(ts.URL, client, token, updateParams)
 			if err != nil {
 				t.Fatalf("couldn't edit audit log retention policy: %s", err)
 			}
+
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
+
 			if response.Error != tt.error {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
