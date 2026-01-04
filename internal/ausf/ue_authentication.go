@@ -20,40 +20,35 @@ import (
 
 var tracer = otel.Tracer("ella-core/ausf")
 
-func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo models.AuthenticationInfo) (*models.Av5gAka, error) {
+func UeAuthPostRequestProcedure(ctx context.Context, suci string, snName string, resyncInfo *models.ResynchronizationInfo) (*models.Av5gAka, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"AUSF UEAuthentication PostRequest",
 		trace.WithAttributes(
-			attribute.String("ue.suci", updateAuthenticationInfo.Suci),
+			attribute.String("ue.suci", suci),
 		),
 	)
 	defer span.End()
 
-	suci := updateAuthenticationInfo.Suci
-
-	snName := updateAuthenticationInfo.ServingNetworkName
-	servingNetworkAuthorized := ausf.isServingNetworkAuthorized(snName)
-
-	if !servingNetworkAuthorized {
+	if !ausf.isServingNetworkAuthorized(snName) {
 		return nil, fmt.Errorf("serving network not authorized: %s", snName)
 	}
 
-	authInfoReq := models.AuthenticationInfoRequest{
-		ServingNetworkName: snName,
-	}
+	var createResyncInfo *models.ResynchronizationInfo
 
-	if updateAuthenticationInfo.ResynchronizationInfo != nil {
+	if resyncInfo != nil {
 		ausfCurrentContext := ausf.getUeAuthenticationContext(suci)
 		if ausfCurrentContext == nil {
 			return nil, fmt.Errorf("ue context not found for suci: %v", suci)
 		}
 
-		updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
-		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
+		createResyncInfo = &models.ResynchronizationInfo{
+			Auts: resyncInfo.Auts,
+			Rand: ausfCurrentContext.Rand,
+		}
 	}
 
-	authInfoResult, err := ausf.CreateAuthData(ctx, authInfoReq, suci)
+	authInfoResult, err := ausf.CreateAuthData(ctx, snName, createResyncInfo, suci)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auth data: %s", err)
 	}

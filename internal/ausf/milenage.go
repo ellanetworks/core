@@ -26,7 +26,7 @@ func F1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
 	rijndaelInput := make([]uint8, 16)
 
 	/* tmp1 = TEMP = E_K(RAND XOR OP_C) */
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		rijndaelInput[i] = _rand[i] ^ opc[i]
 	}
 	// RijndaelEncrypt( OP, op_c );
@@ -46,12 +46,12 @@ func F1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
 	/* OUT1 = E_K(TEMP XOR rot(IN1 XOR OP_C, r1) XOR c1) XOR OP_C */
 
 	/* rotate (tmp2 XOR OP_C) by r1 (= 0x40 = 8 bytes) */
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		tmp3[(i+8)%16] = tmp2[i] ^ opc[i]
 	}
 
 	/* XOR with TEMP = E_K(RAND XOR OP_C) */
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		tmp3[i] ^= tmp1[i]
 	}
 
@@ -61,7 +61,7 @@ func F1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
 	tmp1 = make([]byte, block.BlockSize())
 	block.Encrypt(tmp1, tmp3)
 
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		tmp1[i] ^= opc[i]
 	}
 

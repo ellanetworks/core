@@ -31,11 +31,10 @@ const (
 
 // suci-0(SUPI type)-mcc-mnc-routingIndentifier-protectionScheme-homeNetworkPublicKeyIdentifier-schemeOutput.
 const (
-	supiTypePlace      = 1
-	mccPlace           = 2
-	mncPlace           = 3
-	schemePlace        = 5
-	HNPublicKeyIDPlace = 6
+	supiTypePlace = 1
+	mccPlace      = 2
+	mncPlace      = 3
+	schemePlace   = 5
 )
 
 const (
@@ -114,9 +113,9 @@ func calcSchemeResult(decryptPlainText []byte, supiType string) string {
 }
 
 func profileA(input, supiType, privateKey string) (string, error) {
-	s, hexDecodeErr := hex.DecodeString(input)
-	if hexDecodeErr != nil {
-		return "", fmt.Errorf("error decoding hex string: %w", hexDecodeErr)
+	s, err := hex.DecodeString(input)
+	if err != nil {
+		return "", fmt.Errorf("error decoding hex string: %w", err)
 	}
 
 	// for X25519(profile A), q (The number of elements in the field Fq) = 2^255 - 19

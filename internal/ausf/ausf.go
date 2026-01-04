@@ -117,7 +117,7 @@ func strictHex(s string, n int) string {
 	return s[l-n : l]
 }
 
-func (ausf *AUSF) CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationInfoRequest, suci string) (*models.AuthenticationInfoResult, error) {
+func (ausf *AUSF) CreateAuthData(ctx context.Context, snName string, resyncInfo *models.ResynchronizationInfo, suci string) (*models.AuthenticationInfoResult, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"AUSF CreateAuthData",
@@ -176,24 +176,24 @@ func (ausf *AUSF) CreateAuthData(ctx context.Context, authInfoRequest models.Aut
 	}
 
 	// re-synchroniztion
-	if authInfoRequest.ResynchronizationInfo != nil {
-		Auts, err := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Auts)
+	if resyncInfo != nil {
+		auts, err := hex.DecodeString(resyncInfo.Auts)
 		if err != nil {
 			return nil, fmt.Errorf("could not decode auts: %w", err)
 		}
 
-		randHex, err := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Rand)
+		randHex, err := hex.DecodeString(resyncInfo.Rand)
 		if err != nil {
 			return nil, fmt.Errorf("could not decode rand: %w", err)
 		}
 
-		SQNms, macS, err := aucSQN(opc, k, Auts, randHex)
+		SQNms, macS, err := aucSQN(opc, k, auts, randHex)
 		if err != nil {
 			return nil, fmt.Errorf("failed to re-sync SQN with supi %s: %w", supi, err)
 		}
 
-		if !reflect.DeepEqual(macS, Auts[6:]) {
-			return nil, fmt.Errorf("failed to re-sync MAC with supi %s, macS %x, auts[6:] %x, sqn %x", supi, macS, Auts[6:], SQNms)
+		if !reflect.DeepEqual(macS, auts[6:]) {
+			return nil, fmt.Errorf("failed to re-sync MAC with supi %s, macS %x, auts[6:] %x, sqn %x", supi, macS, auts[6:], SQNms)
 		}
 
 		_, err = rand.Read(RAND)
@@ -272,7 +272,7 @@ func (ausf *AUSF) CreateAuthData(ctx context.Context, authInfoRequest models.Aut
 	// derive XRES*
 	key := append(CK, IK...)
 	FC := ueauth.FCForResStarXresStarDerivation
-	P0 := []byte(authInfoRequest.ServingNetworkName)
+	P0 := []byte(snName)
 	P1 := RAND
 	P2 := RES
 
@@ -285,7 +285,7 @@ func (ausf *AUSF) CreateAuthData(ctx context.Context, authInfoRequest models.Aut
 
 	// derive Kausf
 	FC = ueauth.FCForKausfDerivation
-	P0 = []byte(authInfoRequest.ServingNetworkName)
+	P0 = []byte(snName)
 	P1 = SQNxorAK
 
 	kdfValForKausf, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
