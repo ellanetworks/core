@@ -199,7 +199,7 @@ func handlePDUSessionSMContextCreate(
 		return "", nil, 0, nil, nil, 0, nil, response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
 
-	allowedSessionType := smfContext.GetAllowedSessionType()
+	allowedSessionType := smf.GetAllowedSessionType()
 
 	logger.SmfLog.Info("Successfully created PDU session context", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 

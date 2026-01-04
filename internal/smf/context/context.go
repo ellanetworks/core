@@ -30,24 +30,23 @@ var smfContext SMF
 
 var tracer = otel.Tracer("ella-core/smf")
 
-var AllowedSessionType = nasMessage.PDUSessionTypeIPv4
-
 type SMF struct {
 	Mutex sync.Mutex
 
-	DBInstance     *db.Database
-	UPF            *UPF
-	CPNodeID       net.IP
-	LocalSEIDCount uint64
-
-	smContextPool map[string]*SMContext // key: canonicalName(identifier, pduSessID)
+	DBInstance         *db.Database
+	UPF                *UPF
+	CPNodeID           net.IP
+	LocalSEIDCount     uint64
+	allowedSessionType uint8
+	smContextPool      map[string]*SMContext // key: canonicalName(identifier, pduSessID)
 }
 
 func InitializeSMF(dbInstance *db.Database) {
 	smfContext = SMF{
-		smContextPool: make(map[string]*SMContext),
-		DBInstance:    dbInstance,
-		CPNodeID:      net.ParseIP("0.0.0.0"),
+		smContextPool:      make(map[string]*SMContext),
+		DBInstance:         dbInstance,
+		CPNodeID:           net.ParseIP("0.0.0.0"),
+		allowedSessionType: nasMessage.PDUSessionTypeIPv4,
 		UPF: &UPF{
 			pdrIDGenerator: idgenerator.NewGenerator(1, math.MaxUint16),
 			farIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
@@ -132,8 +131,8 @@ func (smf *SMF) GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, 
 	return snssaiInfo, nil
 }
 
-func GetAllowedSessionType() uint8 {
-	return AllowedSessionType
+func (smf *SMF) GetAllowedSessionType() uint8 {
+	return smf.allowedSessionType
 }
 
 func (smf *SMF) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyDecision, error) {
