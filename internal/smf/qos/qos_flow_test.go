@@ -12,19 +12,15 @@ import (
 )
 
 func TestBuildAuthorizedQosFlowDescriptions(t *testing.T) {
-	smPolicyDecision := &models.SmPolicyDecision{
-		QosDecs: &models.QosData{
-			QFI:           1,
-			Var5qi:        5,
-			MaxbrUl:       "101 Mbps",
-			MaxbrDl:       "201 Mbps",
-			PriorityLevel: 5,
-		},
+	qosData := &models.QosData{
+		QFI:           1,
+		Var5qi:        5,
+		MaxbrUl:       "101 Mbps",
+		MaxbrDl:       "201 Mbps",
+		PriorityLevel: 5,
 	}
 
-	smPolicyUpdates := qos.BuildSmPolicyUpdate(smPolicyDecision)
-
-	authorizedQosFlow, err := qos.BuildAuthorizedQosFlowDescription(smPolicyUpdates.QosFlowUpdate)
+	authorizedQosFlow, err := qos.BuildAuthorizedQosFlowDescription(qosData)
 	if err != nil {
 		t.Fatalf("Error building Authorized QoS Flow Descriptions: %v", err)
 	}

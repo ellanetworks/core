@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel"
@@ -156,7 +157,7 @@ func (smf *SMF) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.S
 	}
 
 	subscriberPolicy := &models.SmPolicyDecision{
-		SessRule: &models.SessionRule{
+		SessionRule: &models.SessionRule{
 			AuthDefQos: &models.AuthorizedDefaultQos{
 				Var5qi: policy.Var5qi,
 				Arp:    &models.Arp{PriorityLevel: policy.Arp},
@@ -166,9 +167,10 @@ func (smf *SMF) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.S
 				Downlink: policy.BitrateDownlink,
 			},
 		},
-		QosDecs: &models.QosData{
+		QosData: &models.QosData{
 			Var5qi: policy.Var5qi,
 			Arp:    &models.Arp{PriorityLevel: policy.Arp},
+			QFI:    qos.DefaultQFI,
 		},
 	}
 

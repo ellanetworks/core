@@ -125,7 +125,7 @@ func (dataPath *DataPath) ActivateUlDlTunnel() error {
 }
 
 func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext, smPolicyDecision *models.SmPolicyDecision) (*QER, error) {
-	if smPolicyDecision.QosDecs == nil {
+	if smPolicyDecision.QosData == nil {
 		return nil, fmt.Errorf("QOS Data not found in Policy Decision")
 	}
 
@@ -134,14 +134,14 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext, smPolicyDecisi
 		return nil, fmt.Errorf("failed to add QER: %v", err)
 	}
 
-	newQER.QFI = smPolicyDecision.QosDecs.QFI
+	newQER.QFI = smPolicyDecision.QosData.QFI
 	newQER.GateStatus = &GateStatus{
 		ULGate: GateOpen,
 		DLGate: GateOpen,
 	}
 	newQER.MBR = &MBR{
-		ULMBR: BitRateTokbps(smPolicyDecision.SessRule.AuthSessAmbr.Uplink),
-		DLMBR: BitRateTokbps(smPolicyDecision.SessRule.AuthSessAmbr.Downlink),
+		ULMBR: BitRateTokbps(smPolicyDecision.SessionRule.AuthSessAmbr.Uplink),
+		DLMBR: BitRateTokbps(smPolicyDecision.SessionRule.AuthSessAmbr.Downlink),
 	}
 
 	flowQER := newQER

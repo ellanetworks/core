@@ -25,7 +25,7 @@ func UpdateSmContextN2HandoverPreparing(smContextRef string, n2Data []byte) ([]b
 		return nil, fmt.Errorf("handle HandoverRequiredTransfer failed: %v", err)
 	}
 
-	n2Rsp, err := context.BuildPDUSessionResourceSetupRequestTransfer(nil, smContext.PolicyData, smContext.Tunnel.DataPath.DPNode)
+	n2Rsp, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext.PolicyData.SessionRule, smContext.PolicyData.QosData, smContext.Tunnel.DataPath.DPNode)
 	if err != nil {
 		return nil, fmt.Errorf("build PDUSession Resource Setup Request Transfer Error: %v", err)
 	}

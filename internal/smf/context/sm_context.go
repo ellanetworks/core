@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/free5gc/nas/nasMessage"
 )
 
@@ -29,11 +28,6 @@ type UPTunnel struct {
 	}
 }
 
-type PolicyData struct {
-	QosData     *models.QosData
-	SessionRule *models.SessionRule
-}
-
 type SMContext struct {
 	Mutex sync.Mutex
 
@@ -41,7 +35,7 @@ type SMContext struct {
 	Dnn                            string
 	Snssai                         *models.Snssai
 	Tunnel                         *UPTunnel
-	PolicyData                     *PolicyData
+	PolicyData                     *models.SmPolicyDecision
 	PFCPContext                    *PFCPSessionContext
 	PDUSessionID                   uint8
 	PDUSessionReleaseDueToDupPduID bool
@@ -66,10 +60,10 @@ func PDUAddressToNAS(pduAddress net.IP, pduSessionType uint8) ([12]byte, uint8) 
 	}
 }
 
-func (smContext *SMContext) CommitSmPolicyDecision(smPolicyUpdates *qos.PolicyUpdate) {
+func (smContext *SMContext) CommitSmPolicyDecision(smPolicyUpdates *models.SmPolicyDecision) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	smContext.PolicyData.QosData = smPolicyUpdates.QosFlowUpdate
-	smContext.PolicyData.SessionRule = smPolicyUpdates.SessRuleUpdate
+	smContext.PolicyData.QosData = smPolicyUpdates.QosData
+	smContext.PolicyData.SessionRule = smPolicyUpdates.SessionRule
 }

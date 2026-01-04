@@ -9,21 +9,20 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func selectedSessionRule(smPolicyUpdates *qos.PolicyUpdate, qosPolicyData *PolicyData) *models.SessionRule {
-	if smPolicyUpdates != nil {
-		return smPolicyUpdates.SessRuleUpdate
-	}
+// func selectedSessionRule(smPolicyUpdates *qos.PolicyUpdate, qosPolicyData *PolicyData) *models.SessionRule {
+// 	if smPolicyUpdates != nil {
+// 		return smPolicyUpdates.SessRuleUpdate
+// 	}
 
-	return qosPolicyData.SessionRule
-}
+// 	return qosPolicyData.SessionRule
+// }
 
-func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpdate, qosPolicyData *PolicyData, dpNode *DataPathNode) ([]byte, error) {
+func BuildPDUSessionResourceSetupRequestTransfer(sessionRule *models.SessionRule, qosData *models.QosData, dpNode *DataPathNode) ([]byte, error) {
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, dpNode.UpLinkTunnel.TEID)
 
@@ -35,19 +34,19 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpda
 	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
 
-	sessRule := selectedSessionRule(smPolicyUpdates, qosPolicyData)
-	if sessRule == nil || sessRule.AuthSessAmbr == nil {
-		return nil, fmt.Errorf("no PDU Session AMBR")
-	}
+	// sessRule := selectedSessionRule(smPolicyUpdates, qosPolicyData)
+	// if sessRule == nil || sessRule.AuthSessAmbr == nil {
+	// 	return nil, fmt.Errorf("no PDU Session AMBR")
+	// }
 
 	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
 		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentPDUSessionAggregateMaximumBitRate,
 		PDUSessionAggregateMaximumBitRate: &ngapType.PDUSessionAggregateMaximumBitRate{
 			PDUSessionAggregateMaximumBitRateDL: ngapType.BitRate{
-				Value: ngapConvert.UEAmbrToInt64(sessRule.AuthSessAmbr.Downlink),
+				Value: ngapConvert.UEAmbrToInt64(sessionRule.AuthSessAmbr.Downlink),
 			},
 			PDUSessionAggregateMaximumBitRateUL: ngapType.BitRate{
-				Value: ngapConvert.UEAmbrToInt64(sessRule.AuthSessAmbr.Uplink),
+				Value: ngapConvert.UEAmbrToInt64(sessionRule.AuthSessAmbr.Uplink),
 			},
 		},
 	}
@@ -89,19 +88,19 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpda
 	resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
 
 	// Get Qos Flow
-	var qosAddFlow *models.QosData
+	// var qosAddFlow *models.QosData
 
-	if qosPolicyData != nil && qosPolicyData.QosData != nil {
-		qosAddFlow = qosPolicyData.QosData
-	}
+	// if qosPolicyData != nil && qosPolicyData.QosData != nil {
+	// 	qosAddFlow = qosPolicyData.QosData
+	// }
 
-	// PCF has provided some update
-	if smPolicyUpdates != nil && smPolicyUpdates.QosFlowUpdate != nil {
-		qosAddFlow = smPolicyUpdates.QosFlowUpdate
-	}
+	// // PCF has provided some update
+	// if smPolicyUpdates != nil && smPolicyUpdates.QosFlowUpdate != nil {
+	// 	qosAddFlow = smPolicyUpdates.QosFlowUpdate
+	// }
 
 	// QoS Flow Setup Request List
-	if qosAddFlow != nil {
+	if qosData != nil {
 		ie = ngapType.PDUSessionResourceSetupRequestTransferIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDQosFlowSetupRequestList
 		ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -109,29 +108,29 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpda
 		var qosFlowsList []ngapType.QosFlowSetupRequestItem
 
 		arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-		if qosAddFlow.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
+		if qosData.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
 			arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
 		}
 
 		arpPreemptVul := ngapType.PreEmptionVulnerabilityPresentNotPreEmptable
-		if qosAddFlow.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
+		if qosData.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
 			arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
 		}
 
 		qosFlowItem := ngapType.QosFlowSetupRequestItem{
-			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(qosAddFlow.QFI)},
+			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(qosData.QFI)},
 			QosFlowLevelQosParameters: ngapType.QosFlowLevelQosParameters{
 				QosCharacteristics: ngapType.QosCharacteristics{
 					Present: ngapType.QosCharacteristicsPresentNonDynamic5QI,
 					NonDynamic5QI: &ngapType.NonDynamic5QIDescriptor{
 						FiveQI: ngapType.FiveQI{
-							Value: int64(qosAddFlow.Var5qi),
+							Value: int64(qosData.Var5qi),
 						},
 					},
 				},
 				AllocationAndRetentionPriority: ngapType.AllocationAndRetentionPriority{
 					PriorityLevelARP: ngapType.PriorityLevelARP{
-						Value: int64(qosAddFlow.Arp.PriorityLevel),
+						Value: int64(qosData.Arp.PriorityLevel),
 					},
 					PreEmptionCapability: ngapType.PreEmptionCapability{
 						Value: arpPreemptCap,
@@ -154,11 +153,12 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpda
 		resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
 	}
 
-	if buf, err := aper.MarshalWithParams(resourceSetupRequestTransfer, "valueExt"); err != nil {
+	buf, err := aper.MarshalWithParams(resourceSetupRequestTransfer, "valueExt")
+	if err != nil {
 		return nil, fmt.Errorf("encode resourceSetupRequestTransfer failed: %s", err)
-	} else {
-		return buf, nil
 	}
+
+	return buf, nil
 }
 
 func BuildPDUSessionResourceReleaseCommandTransfer() ([]byte, error) {
