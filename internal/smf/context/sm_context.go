@@ -78,7 +78,7 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 	defer smContext.Mutex.Unlock()
 
 	if status {
-		err := qos.CommitSmPolicyDecision(&smContext.SmPolicyData, smContext.SmPolicyUpdates)
+		err := smContext.SmPolicyData.CommitSmPolicyDecision(smContext.SmPolicyUpdates)
 		if err != nil {
 			logger.SmfLog.Error("failed to commit SM Policy Decision", zap.Error(err))
 		}

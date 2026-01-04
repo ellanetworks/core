@@ -10,18 +10,12 @@ import (
 
 // Handle Session Rule related info
 type SessRulesUpdate struct {
-	add, mod, del  *models.SessionRule
+	add            *models.SessionRule
 	ActiveSessRule *models.SessionRule
 }
 
-// Get Session rule changes delta
 func GetSessionRulesUpdate(pcfSessRule, ctxtSessRule *models.SessionRule) *SessRulesUpdate {
 	change := SessRulesUpdate{}
-
-	// deleted rule
-	if pcfSessRule == nil && ctxtSessRule != nil {
-		change.del = ctxtSessRule
-	}
 
 	/// added rule
 	if pcfSessRule != nil && ctxtSessRule == nil {
@@ -31,24 +25,16 @@ func GetSessionRulesUpdate(pcfSessRule, ctxtSessRule *models.SessionRule) *SessR
 
 	// modified rule
 	if pcfSessRule != nil && ctxtSessRule != nil {
-		change.mod = pcfSessRule
 		change.ActiveSessRule = pcfSessRule
 	}
 
 	return &change
 }
 
-func CommitSessionRulesUpdate(smCtxtPolData *SmCtxtPolicyData, update *SessRulesUpdate) {
-	// Add new Rule
+func (polData *SmCtxtPolicyData) CommitSessionRulesUpdate(update *SessRulesUpdate) {
 	if update.add != nil {
-		smCtxtPolData.SmCtxtSessionRules.SessionRule = update.add
+		polData.SmCtxtSessionRules.SessionRule = update.add
 	}
 
-	// Delete Rule
-	if update.del != nil {
-		smCtxtPolData.SmCtxtSessionRules.SessionRule = nil
-	}
-
-	// Set Active Rule
-	smCtxtPolData.SmCtxtSessionRules.ActiveRule = update.ActiveSessRule
+	polData.SmCtxtSessionRules.ActiveRule = update.ActiveSessRule
 }

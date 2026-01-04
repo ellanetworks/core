@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
 
@@ -123,10 +124,8 @@ func (dataPath *DataPath) ActivateUlDlTunnel() error {
 	return nil
 }
 
-func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) {
-	smPolicyDec := smContext.SmPolicyUpdates.SmPolicyDecision
-
-	if smPolicyDec.QosDecs == nil {
+func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext, smPolicyDecision *models.SmPolicyDecision) (*QER, error) {
+	if smPolicyDecision.QosDecs == nil {
 		return nil, fmt.Errorf("QOS Data not found in Policy Decision")
 	}
 
@@ -137,7 +136,7 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) 
 
 	sessionRule := SelectedSessionRule(smContext.SmPolicyUpdates, smContext.SmPolicyData)
 
-	newQER.QFI = smPolicyDec.QosDecs.QFI
+	newQER.QFI = smPolicyDecision.QosDecs.QFI
 	newQER.GateStatus = &GateStatus{
 		ULGate: GateOpen,
 		DLGate: GateOpen,
@@ -225,7 +224,7 @@ func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, pduAddress net
 	}
 }
 
-func (dataPath *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, pduAddress net.IP, precedence uint32) error {
+func (dataPath *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, smPolicyDecision *models.SmPolicyDecision, pduAddress net.IP, precedence uint32) error {
 	smContext.AllocateLocalSEIDForDataPath(smf)
 
 	err := dataPath.ActivateUlDlTunnel()
@@ -233,7 +232,7 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, p
 		return fmt.Errorf("could not activate UL/DL Tunnel: %s", err)
 	}
 
-	defQER, err := dataPath.DPNode.CreateSessRuleQer(smContext)
+	defQER, err := dataPath.DPNode.CreateSessRuleQer(smContext, smPolicyDecision)
 	if err != nil {
 		return fmt.Errorf("failed to create default QER: %v", err)
 	}

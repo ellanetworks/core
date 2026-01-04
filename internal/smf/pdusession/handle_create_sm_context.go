@@ -193,7 +193,7 @@ func handlePDUSessionSMContextCreate(
 		DataPath: defaultPath,
 	}
 
-	err = defaultPath.ActivateTunnelAndPDR(smf, smContext, pduAddress, 255)
+	err = defaultPath.ActivateTunnelAndPDR(smf, smContext, subscriberPolicy, pduAddress, 255)
 	if err != nil {
 		response, err := smfContext.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {

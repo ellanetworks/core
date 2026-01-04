@@ -79,7 +79,7 @@ type QosFlowParameter struct {
 }
 
 type QosFlowsUpdate struct {
-	Add, mod, del *models.QosData
+	Add *models.QosData
 }
 
 // Build Qos Flow Description to be sent to UE
@@ -241,17 +241,7 @@ func (q *QoSFlowDescription) addQosFlowRateParam(rate string, rateType uint8) er
 }
 
 func GetQosFlowDescUpdate(pcfQosData, ctxtQosData *models.QosData) *QosFlowsUpdate {
-	if pcfQosData == nil && ctxtQosData == nil {
-		return nil
-	}
-
 	update := QosFlowsUpdate{}
-
-	// deleted flow
-	if pcfQosData == nil && ctxtQosData != nil {
-		update.del = ctxtQosData
-		return &update
-	}
 
 	// added flow
 	if pcfQosData != nil && ctxtQosData == nil {
@@ -261,20 +251,11 @@ func GetQosFlowDescUpdate(pcfQosData, ctxtQosData *models.QosData) *QosFlowsUpda
 		return &update
 	}
 
-	// modified flow
-	update.mod = pcfQosData
-
 	return &update
 }
 
-func CommitQosFlowDescUpdate(smCtxtPolData *SmCtxtPolicyData, update *QosFlowsUpdate) {
-	// Add new Flows
+func (polData *SmCtxtPolicyData) CommitQosFlowDescUpdate(update *QosFlowsUpdate) {
 	if update.Add != nil {
-		smCtxtPolData.SmCtxtQosData = update.Add
-	}
-
-	// Delete Flows
-	if update.del != nil {
-		smCtxtPolData.SmCtxtQosData = nil
+		polData.SmCtxtQosData = update.Add
 	}
 }

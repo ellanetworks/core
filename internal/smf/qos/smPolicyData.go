@@ -8,22 +8,16 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// Define SMF Session-Rule/PccRule/Rule-Qos-Data
 type PolicyUpdate struct {
 	SessRuleUpdate *SessRulesUpdate
 	QosFlowUpdate  *QosFlowsUpdate
-
-	// relevant SM Policy Decision from PCF
-	SmPolicyDecision *models.SmPolicyDecision
 }
 
 type SmCtxtPolicyData struct {
-	// maintain all session rule-info and current active sess rule
 	SmCtxtQosData      *models.QosData
 	SmCtxtSessionRules SmCtxtSessionRulesInfo
 }
 
-// maintain all session rule-info and current active sess rule
 type SmCtxtSessionRulesInfo struct {
 	ActiveRule  *models.SessionRule
 	SessionRule *models.SessionRule
@@ -32,27 +26,20 @@ type SmCtxtSessionRulesInfo struct {
 func BuildSmPolicyUpdate(smCtxtPolData *SmCtxtPolicyData, smPolicyDecision *models.SmPolicyDecision) *PolicyUpdate {
 	update := &PolicyUpdate{}
 
-	// Keep copy of SmPolicyDecision received from PCF
-	update.SmPolicyDecision = smPolicyDecision
-
-	// Qos Flows update
 	update.QosFlowUpdate = GetQosFlowDescUpdate(smPolicyDecision.QosDecs, smCtxtPolData.SmCtxtQosData)
 
-	// Session Rule update
 	update.SessRuleUpdate = GetSessionRulesUpdate(smPolicyDecision.SessRule, smCtxtPolData.SmCtxtSessionRules.SessionRule)
 
 	return update
 }
 
-func CommitSmPolicyDecision(smCtxtPolData *SmCtxtPolicyData, smPolicyUpdate *PolicyUpdate) error {
-	// Update Qos Flows
+func (polData *SmCtxtPolicyData) CommitSmPolicyDecision(smPolicyUpdate *PolicyUpdate) error {
 	if smPolicyUpdate.QosFlowUpdate != nil {
-		CommitQosFlowDescUpdate(smCtxtPolData, smPolicyUpdate.QosFlowUpdate)
+		polData.CommitQosFlowDescUpdate(smPolicyUpdate.QosFlowUpdate)
 	}
 
-	// Update Session Rules
 	if smPolicyUpdate.SessRuleUpdate != nil {
-		CommitSessionRulesUpdate(smCtxtPolData, smPolicyUpdate.SessRuleUpdate)
+		polData.CommitSessionRulesUpdate(smPolicyUpdate.SessRuleUpdate)
 	}
 
 	return nil
