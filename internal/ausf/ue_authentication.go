@@ -30,10 +30,12 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 	)
 	defer span.End()
 
+	// ausf := ausf // local copy
+
 	suci := updateAuthenticationInfo.Suci
 
 	snName := updateAuthenticationInfo.ServingNetworkName
-	servingNetworkAuthorized := isServingNetworkAuthorized(snName)
+	servingNetworkAuthorized := ausf.isServingNetworkAuthorized(snName)
 
 	if !servingNetworkAuthorized {
 		return nil, fmt.Errorf("serving network not authorized: %s", snName)
@@ -44,7 +46,7 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 	}
 
 	if updateAuthenticationInfo.ResynchronizationInfo != nil {
-		ausfCurrentContext := getUeContext(suci)
+		ausfCurrentContext := ausf.getUeContext(suci)
 		if ausfCurrentContext == nil {
 			return nil, fmt.Errorf("ue context not found for suci: %v", suci)
 		}
@@ -89,7 +91,7 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 		Rand:     authInfoResult.AuthenticationVector.Rand,
 	}
 
-	addUeContextToPool(suci, ausfUeContext)
+	ausf.addUeContextToPool(suci, ausfUeContext)
 
 	return &models.Av5gAka{
 		Rand:      authInfoResult.AuthenticationVector.Rand,
@@ -99,7 +101,7 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 }
 
 func Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (string, string, error) {
-	ausfCurrentContext := getUeContext(suci)
+	ausfCurrentContext := ausf.getUeContext(suci)
 	if ausfCurrentContext == nil {
 		return "", "", fmt.Errorf("ausf ue context is nil for suci: %s", suci)
 	}

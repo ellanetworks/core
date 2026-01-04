@@ -187,10 +187,6 @@ func ToSupi(suci string, privateKey string) (string, error) {
 	}
 
 	if scheme != profileAScheme {
-		return "", fmt.Errorf("protect Scheme mismatch [%s:%s]", scheme, profileAScheme)
-	}
-
-	if scheme != profileAScheme {
 		return "", fmt.Errorf("protect Scheme (%s) is not supported", scheme)
 	}
 

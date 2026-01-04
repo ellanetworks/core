@@ -67,11 +67,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	)
 	defer span.End()
 
-	if ausfContext.DBInstance == nil {
-		return nil, fmt.Errorf("db instance is nil")
-	}
-
-	hnPrivateKey, err := ausfContext.DBInstance.GetHomeNetworkPrivateKey(ctx)
+	hnPrivateKey, err := ausf.dbInstance.GetHomeNetworkPrivateKey(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get home network private key: %w", err)
 	}
@@ -81,7 +77,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}
 
-	subscriber, err := ausfContext.DBInstance.GetSubscriber(ctx, supi)
+	subscriber, err := ausf.dbInstance.GetSubscriber(ctx, supi)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", supi, err)
 	}
@@ -175,7 +171,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	SQNheStr := fmt.Sprintf("%x", bigSQN)
 	SQNheStr = strictHex(SQNheStr, 12)
 
-	err = ausfContext.DBInstance.EditSubscriberSequenceNumber(ctx, supi, SQNheStr)
+	err = ausf.dbInstance.EditSubscriberSequenceNumber(ctx, supi, SQNheStr)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't update subscriber %s: %v", supi, err)
 	}

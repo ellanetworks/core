@@ -40,7 +40,7 @@ func identityVerification(ue *amfContext.AmfUe) bool {
 	return ue.Supi != "" || len(ue.Suci) != 0
 }
 
-func AuthenticationProcedure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) (bool, error) {
+func authenticationProcedure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) (bool, error) {
 	ctx, span := tracer.Start(ctx, "AuthenticationProcedure")
 	defer span.End()
 

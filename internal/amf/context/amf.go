@@ -140,11 +140,13 @@ func (amf *AMF) RemoveAMFUE(ue *AmfUe) {
 
 	tmsiGenerator.FreeID(int64(ue.Tmsi))
 
-	if len(ue.Supi) > 0 {
-		amf.Mutex.Lock()
-		delete(amf.UEs, ue.Supi)
-		amf.Mutex.Unlock()
+	if ue.Supi == "" {
+		return
 	}
+
+	amf.Mutex.Lock()
+	delete(amf.UEs, ue.Supi)
+	amf.Mutex.Unlock()
 }
 
 func (amf *AMF) FindAMFUEBySupi(supi string) (*AmfUe, bool) {

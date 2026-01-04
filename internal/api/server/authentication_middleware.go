@@ -82,7 +82,7 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 			return 0, "", 0, errors.New("invalid API token format")
 		}
 
-		tok, err := store.GetAPITokenByTokenID(r.Context(), tokenID)
+		tok, err := store.GetAPITokenByTokenID(ctx, tokenID)
 		if err != nil || tok == nil {
 			return 0, "", 0, errors.New("invalid API token")
 		}

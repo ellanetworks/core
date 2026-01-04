@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/api"
@@ -22,6 +23,7 @@ import (
 	"github.com/ellanetworks/core/internal/upf"
 	upf_pfcp "github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/version"
+	"go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 )
 
@@ -54,8 +56,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		zap.String("revision", ver.Revision),
 	)
 
+	var tp *trace.TracerProvider
+
 	if cfg.Telemetry.Enabled {
-		tp, err := tracing.InitTracer(ctx, tracing.TelemetryConfig{
+		tp, err = tracing.InitTracer(ctx, tracing.TelemetryConfig{
 			OTLPEndpoint:    cfg.Telemetry.OTLPEndpoint,
 			ServiceName:     "ella-core",
 			ServiceVersion:  ver.Version,
@@ -64,15 +68,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		if err != nil {
 			return fmt.Errorf("couldn't initialize tracer: %w", err)
 		}
-
-		defer func() {
-			if err := tp.Shutdown(ctx); err != nil {
-				logger.EllaLog.Error("could not shutdown tracer", zap.Error(err))
-			}
-		}()
 	}
 
-	dbInstance, err := db.NewDatabase(context.Background(), cfg.DB.Path)
+	dbInstance, err := db.NewDatabase(ctx, cfg.DB.Path)
 	if err != nil {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
@@ -122,19 +120,31 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	smf.Start(dbInstance)
 
-	if err := amf.Start(dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port); err != nil {
+	if err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port); err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}
 
 	ausf.Start(dbInstance)
 
 	defer func() {
-		amf.Close()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+
+		amf.Close(shutdownCtx)
 		upfInstance.Close()
 
 		err := dbInstance.Close()
 		if err != nil {
 			logger.EllaLog.Error("couldn't close database", zap.Error(err))
+		}
+
+		if tp == nil {
+			return
+		}
+
+		err = tp.Shutdown(shutdownCtx)
+		if err != nil {
+			logger.EllaLog.Error("could not shutdown tracer", zap.Error(err))
 		}
 	}()
 

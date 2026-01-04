@@ -10,13 +10,12 @@ import (
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
 // TS 24.501 5.4.1
-func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.AuthenticationResponse) error {
 	if ue.State != amfContext.Authentication {
 		return fmt.Errorf("state mismatch: receive Authentication Response message in state %s", ue.State)
 	}

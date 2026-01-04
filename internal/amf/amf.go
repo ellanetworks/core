@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
+func Start(ctx context.Context, dbInstance *db.Database, n2Address string, n2Port int) error {
 	nasLogger.SetLogLevel(0) // Panic level to avoid NAS log output
 
 	self := amfContext.AMFSelf()
@@ -83,7 +83,7 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	self.Name = "amf"
 	self.RelativeCapacity = 0xff
 
-	err := service.Run(n2Address, n2Port)
+	err := service.Run(ctx, n2Address, n2Port)
 	if err != nil {
 		return fmt.Errorf("failed to start NGAP service: %+v", err)
 	}
@@ -91,9 +91,7 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	return nil
 }
 
-func Close() {
-	ctx := context.Background()
-
+func Close(ctx context.Context) {
 	amf := amfContext.AMFSelf()
 
 	operatorInfo, err := amf.GetOperatorInfo(ctx)

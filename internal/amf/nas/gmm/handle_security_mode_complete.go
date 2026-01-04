@@ -7,10 +7,11 @@ import (
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
+	"github.com/free5gc/nas/nasMessage"
 )
 
 // TS 33.501 6.7.2
-func handleSecurityModeComplete(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleSecurityModeComplete(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.SecurityModeComplete) error {
 	if ue.State != amfContext.SecurityMode {
 		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", ue.State)
 	}
@@ -35,8 +36,8 @@ func handleSecurityModeComplete(ctx context.Context, amf *amfContext.AMF, ue *am
 		ue.Pei = nasConvert.PeiToString(msg.IMEISV.Octet[:])
 	}
 
-	if msg.SecurityModeComplete.NASMessageContainer != nil {
-		contents := msg.SecurityModeComplete.GetNASMessageContainerContents()
+	if msg.NASMessageContainer != nil {
+		contents := msg.GetNASMessageContainerContents()
 
 		m := nas.NewMessage()
 		if err := m.GmmMessageDecode(&contents); err != nil {

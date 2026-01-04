@@ -18,27 +18,27 @@ func HandleGmmMessage(ctx context.Context, amf *amfContext.AMF, ue *amfContext.A
 	case nas.MsgTypeRegistrationRequest:
 		return handleRegistrationRequest(ctx, amf, ue, msg)
 	case nas.MsgTypeServiceRequest:
-		return handleServiceRequest(ctx, amf, ue, msg)
+		return handleServiceRequest(ctx, amf, ue, msg.ServiceRequest)
 	case nas.MsgTypeULNASTransport:
-		return handleULNASTransport(ctx, amf, ue, msg)
+		return handleULNASTransport(ctx, amf, ue, msg.ULNASTransport)
 	case nas.MsgTypeConfigurationUpdateComplete:
 		return handleConfigurationUpdateComplete(ue)
 	case nas.MsgTypeNotificationResponse:
-		return handleNotificationResponse(ctx, ue, msg)
+		return handleNotificationResponse(ctx, ue, msg.NotificationResponse)
 	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
-		return handleDeregistrationRequestUEOriginatingDeregistration(ctx, ue, msg)
+		return handleDeregistrationRequestUEOriginatingDeregistration(ctx, ue, msg.DeregistrationRequestUEOriginatingDeregistration)
 	case nas.MsgTypeStatus5GMM:
-		return handleStatus5GMM(ue, msg)
+		return handleStatus5GMM(ue, msg.Status5GMM)
 	case nas.MsgTypeIdentityResponse:
-		return handleIdentityResponse(ctx, amf, ue, msg)
+		return handleIdentityResponse(ctx, amf, ue, msg.IdentityResponse)
 	case nas.MsgTypeAuthenticationResponse:
-		return handleAuthenticationResponse(ctx, amf, ue, msg)
+		return handleAuthenticationResponse(ctx, amf, ue, msg.AuthenticationResponse)
 	case nas.MsgTypeAuthenticationFailure:
-		return handleAuthenticationFailure(ctx, amf, ue, msg)
+		return handleAuthenticationFailure(ctx, amf, ue, msg.AuthenticationFailure)
 	case nas.MsgTypeSecurityModeComplete:
-		return handleSecurityModeComplete(ctx, amf, ue, msg)
+		return handleSecurityModeComplete(ctx, amf, ue, msg.SecurityModeComplete)
 	case nas.MsgTypeSecurityModeReject:
-		return handleSecurityModeReject(ctx, ue, msg)
+		return handleSecurityModeReject(ctx, ue, msg.SecurityModeReject)
 	case nas.MsgTypeRegistrationComplete:
 		return handleRegistrationComplete(ctx, ue)
 	case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:

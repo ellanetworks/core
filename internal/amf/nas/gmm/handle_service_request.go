@@ -37,9 +37,16 @@ func serviceTypeToString(serviceType uint8) string {
 	}
 }
 
-func sendServiceAccept(ctx context.Context, ue *amfContext.AmfUe, ctxList ngapType.PDUSessionResourceSetupListCxtReq,
-	suList ngapType.PDUSessionResourceSetupListSUReq, pDUSessionStatus *[16]bool,
-	reactivationResult *[16]bool, errPduSessionID, errCause []uint8, supportedGUAMI *models.Guami,
+func sendServiceAccept(
+	ctx context.Context,
+	ue *amfContext.AmfUe,
+	ctxList ngapType.PDUSessionResourceSetupListCxtReq,
+	suList ngapType.PDUSessionResourceSetupListSUReq,
+	pDUSessionStatus *[16]bool,
+	reactivationResult *[16]bool,
+	errPduSessionID []uint8,
+	errCause []uint8,
+	supportedGUAMI *models.Guami,
 ) error {
 	if ue.RanUe.UeContextRequest {
 		// update Kgnb/Kn3iwf
@@ -48,8 +55,7 @@ func sendServiceAccept(ctx context.Context, ue *amfContext.AmfUe, ctxList ngapTy
 			return fmt.Errorf("error updating security context: %v", err)
 		}
 
-		nasPdu, err := message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult,
-			errPduSessionID, errCause)
+		nasPdu, err := message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
 			return err
 		}
@@ -135,7 +141,7 @@ func sendServiceAccept(ctx context.Context, ue *amfContext.AmfUe, ctxList ngapTy
 }
 
 // TS 24501 5.6.1
-func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.ServiceRequest) error {
 	if ue.State != amfContext.Deregistered && ue.State != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Service Request message in state %s", ue.State)
 	}
@@ -186,8 +192,8 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	// the UE has a valid 5G NAS security context and the UE needs to send non-cleartext IEs
 	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS message
 	// container IE, the UE shall set the security header type of the initial NAS message to "integrity protected"
-	if msg.ServiceRequest.NASMessageContainer != nil {
-		contents := msg.ServiceRequest.GetNASMessageContainerContents()
+	if msg.NASMessageContainer != nil {
+		contents := msg.GetNASMessageContainerContents()
 
 		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
 		// message container IE, the UE shall set the security header type of the initial NAS message to
@@ -208,7 +214,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			}
 			// TS 24.501 4.4.6: The AMF shall consider the NAS message that is obtained from the NAS message container
 			// IE as the initial NAS message that triggered the procedure
-			msg.ServiceRequest = m.ServiceRequest
+			msg = m.ServiceRequest
 		}
 		// TS 33.501 6.4.6 step 3: if the initial NAS message was protected but did not pass the integrity check
 		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
@@ -269,8 +275,8 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		}
 	}
 
-	if msg.ServiceRequest.UplinkDataStatus != nil {
-		uplinkDataPsi := nasConvert.PSIToBooleanArray(msg.ServiceRequest.UplinkDataStatus.Buffer)
+	if msg.UplinkDataStatus != nil {
+		uplinkDataPsi := nasConvert.PSIToBooleanArray(msg.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
 
 		for pduSessionID, smContext := range ue.SmContextList {
@@ -293,10 +299,10 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		}
 	}
 
-	if msg.ServiceRequest.PDUSessionStatus != nil {
+	if msg.PDUSessionStatus != nil {
 		acceptPduSessionPsi = new([16]bool)
 
-		psiArray := nasConvert.PSIToBooleanArray(msg.ServiceRequest.PDUSessionStatus.Buffer)
+		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
 		for pduSessionID, smContext := range ue.SmContextList {
 			if !psiArray[pduSessionID] {
 				err := pdusession.ReleaseSmContext(ctx, smContext.Ref)
