@@ -157,84 +157,75 @@ func (node *DataPathNode) CreateSessRuleURR() (*URR, error) {
 }
 
 func (node *DataPathNode) ActivateUpLinkPdr(dnn string, pduAddress net.IP, defQER *QER, defURR *URR, defPrecedence uint32) {
-	ueIPAddr := UEIPAddress{}
-	ueIPAddr.V4 = true
-	ueIPAddr.IPv4Address = pduAddress.To4()
-
-	curULTunnel := node.UpLinkTunnel
-
-	curULTunnel.PDR.QER = defQER
-	curULTunnel.PDR.URR = defURR
+	node.UpLinkTunnel.PDR.QER = defQER
+	node.UpLinkTunnel.PDR.URR = defURR
 
 	// Set Default precedence
-	if curULTunnel.PDR.Precedence == 0 {
-		curULTunnel.PDR.Precedence = defPrecedence
+	if node.UpLinkTunnel.PDR.Precedence == 0 {
+		node.UpLinkTunnel.PDR.Precedence = defPrecedence
 	}
 
-	curULTunnel.PDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceAccess}
-	curULTunnel.PDR.PDI.LocalFTeID = &FTEID{
+	node.UpLinkTunnel.PDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceAccess}
+	node.UpLinkTunnel.PDR.PDI.LocalFTeID = &FTEID{
 		Ch: true,
 	}
-	curULTunnel.PDR.PDI.UEIPAddress = &ueIPAddr
-	curULTunnel.PDR.PDI.NetworkInstance = dnn
+	node.UpLinkTunnel.PDR.PDI.UEIPAddress = &UEIPAddress{
+		V4:          true,
+		IPv4Address: pduAddress.To4(),
+	}
+	node.UpLinkTunnel.PDR.PDI.NetworkInstance = dnn
 
-	curULTunnel.PDR.OuterHeaderRemoval = &OuterHeaderRemoval{
+	node.UpLinkTunnel.PDR.OuterHeaderRemoval = &OuterHeaderRemoval{
 		OuterHeaderRemovalDescription: OuterHeaderRemovalGtpUUdpIpv4,
 	}
 
-	ULFAR := curULTunnel.PDR.FAR
-	ULFAR.ApplyAction = ApplyAction{
+	node.UpLinkTunnel.PDR.FAR.ApplyAction = ApplyAction{
 		Buff: false,
 		Drop: false,
 		Dupl: false,
 		Forw: true,
 		Nocp: false,
 	}
-	ULFAR.ForwardingParameters = &ForwardingParameters{
+	node.UpLinkTunnel.PDR.FAR.ForwardingParameters = &ForwardingParameters{
 		DestinationInterface: DestinationInterface{
 			InterfaceValue: DestinationInterfaceCore,
 		},
 		NetworkInstance: dnn,
 	}
 
-	ULFAR.ForwardingParameters.DestinationInterface.InterfaceValue = DestinationInterfaceSgiLanN6Lan
+	node.UpLinkTunnel.PDR.FAR.ForwardingParameters.DestinationInterface.InterfaceValue = DestinationInterfaceSgiLanN6Lan
 }
 
 func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, pduAddress net.IP, defQER *QER, defURR *URR, defPrecedence uint32, dataPath *DataPath) {
-	curDLTunnel := node.DownLinkTunnel
+	node.DownLinkTunnel.PDR.QER = defQER
+	node.DownLinkTunnel.PDR.URR = defURR
 
-	// UPF provided UE ip-addr
-	ueIPAddr := UEIPAddress{}
-	ueIPAddr.V4 = true
-	ueIPAddr.IPv4Address = pduAddress.To4()
-
-	curDLTunnel.PDR.QER = defQER
-	curDLTunnel.PDR.URR = defURR
-
-	if curDLTunnel.PDR.Precedence == 0 {
-		curDLTunnel.PDR.Precedence = defPrecedence
+	if node.DownLinkTunnel.PDR.Precedence == 0 {
+		node.DownLinkTunnel.PDR.Precedence = defPrecedence
 	}
 
-	curDLTunnel.PDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceCore}
-	curDLTunnel.PDR.PDI.UEIPAddress = &ueIPAddr
+	node.DownLinkTunnel.PDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceCore}
+	node.DownLinkTunnel.PDR.PDI.UEIPAddress = &UEIPAddress{
+		V4:          true,
+		IPv4Address: pduAddress.To4(),
+	}
 
 	if anIP := smContext.Tunnel.ANInformation.IPAddress; anIP != nil {
-		ANUPF := dataPath.DPNode
-		DefaultDLPDR := ANUPF.DownLinkTunnel.PDR
-		DLFAR := DefaultDLPDR.FAR
-		DLFAR.ForwardingParameters = new(ForwardingParameters)
-		DLFAR.ForwardingParameters.DestinationInterface.InterfaceValue = DestinationInterfaceAccess
-		DLFAR.ForwardingParameters.NetworkInstance = smContext.Dnn
-		DLFAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
-
-		dlOuterHeaderCreation := DLFAR.ForwardingParameters.OuterHeaderCreation
-		dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
-		dlOuterHeaderCreation.TeID = smContext.Tunnel.ANInformation.TEID
-		dlOuterHeaderCreation.IPv4Address = smContext.Tunnel.ANInformation.IPAddress.To4()
+		dataPath.DPNode.DownLinkTunnel.PDR.FAR.ForwardingParameters = &ForwardingParameters{
+			DestinationInterface: DestinationInterface{
+				InterfaceValue: DestinationInterfaceAccess,
+			},
+			NetworkInstance: smContext.Dnn,
+			OuterHeaderCreation: &OuterHeaderCreation{
+				OuterHeaderCreationDescription: OuterHeaderCreationGtpUUdpIpv4,
+				TeID:                           smContext.Tunnel.ANInformation.TEID,
+				IPv4Address:                    anIP.To4(),
+			},
+		}
 	}
 }
 
-func (dataPath *DataPath) ActivateTunnelAndPDR(smf *SMFContext, smContext *SMContext, pduAddress net.IP, precedence uint32) error {
+func (dataPath *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, pduAddress net.IP, precedence uint32) error {
 	smContext.AllocateLocalSEIDForDataPath(smf)
 
 	err := dataPath.ActivateUlDlTunnel()
@@ -267,14 +258,13 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smf *SMFContext, smContext *SMCon
 		dataPath.DPNode.ActivateDlLinkPdr(smContext, pduAddress, defQER, defDLURR, precedence, dataPath)
 	}
 
-	ueIPAddr := UEIPAddress{}
-	ueIPAddr.V4 = true
-	ueIPAddr.IPv4Address = pduAddress.To4()
-
 	if dataPath.DPNode.DownLinkTunnel != nil {
 		dataPath.DPNode.DownLinkTunnel.PDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceCore}
 		dataPath.DPNode.DownLinkTunnel.PDR.PDI.NetworkInstance = smContext.Dnn
-		dataPath.DPNode.DownLinkTunnel.PDR.PDI.UEIPAddress = &ueIPAddr
+		dataPath.DPNode.DownLinkTunnel.PDR.PDI.UEIPAddress = &UEIPAddress{
+			V4:          true,
+			IPv4Address: pduAddress.To4(),
+		}
 	}
 
 	dataPath.Activated = true
@@ -283,9 +273,8 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smf *SMFContext, smContext *SMCon
 }
 
 func (dataPath *DataPath) DeactivateTunnelAndPDR() {
-	DPNode := dataPath.DPNode
-	DPNode.DeactivateUpLinkTunnel()
-	DPNode.DeactivateDownLinkTunnel()
+	dataPath.DPNode.DeactivateUpLinkTunnel()
+	dataPath.DPNode.DeactivateDownLinkTunnel()
 
 	dataPath.Activated = false
 }
@@ -293,28 +282,23 @@ func (dataPath *DataPath) DeactivateTunnelAndPDR() {
 func BitRateTokbps(bitrate string) uint64 {
 	s := strings.Split(bitrate, " ")
 
-	var kbps uint64
-
-	var digit int
-
-	if n, err := strconv.Atoi(s[0]); err != nil {
+	digit, err := strconv.Atoi(s[0])
+	if err != nil {
 		return 0
-	} else {
-		digit = n
 	}
 
 	switch s[1] {
 	case "bps":
-		kbps = uint64(digit / 1000)
+		return uint64(digit / 1000)
 	case "Kbps":
-		kbps = uint64(digit * 1)
+		return uint64(digit * 1)
 	case "Mbps":
-		kbps = uint64(digit * 1000)
+		return uint64(digit * 1000)
 	case "Gbps":
-		kbps = uint64(digit * 1000000)
+		return uint64(digit * 1000000)
 	case "Tbps":
-		kbps = uint64(digit * 1000000000)
+		return uint64(digit * 1000000000)
+	default:
+		return 0
 	}
-
-	return kbps
 }

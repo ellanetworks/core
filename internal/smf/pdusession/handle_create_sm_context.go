@@ -74,7 +74,7 @@ func CreateSmContext(ctx context.Context, supi string, pduSessionID uint8, dnn s
 	return smContextRef, nil, nil
 }
 
-func handlePduSessionContextReplacement(ctx context.Context, smf *smfContext.SMFContext, smCtxt *smfContext.SMContext) error {
+func handlePduSessionContextReplacement(ctx context.Context, smf *smfContext.SMF, smCtxt *smfContext.SMContext) error {
 	smCtxt.Mutex.Lock()
 	defer smCtxt.Mutex.Unlock()
 
@@ -82,7 +82,7 @@ func handlePduSessionContextReplacement(ctx context.Context, smf *smfContext.SMF
 
 	// Check if UPF session set, send release
 	if smCtxt.Tunnel != nil {
-		err := releaseTunnel(ctx, smf, smCtxt)
+		err := releaseTunnel(ctx, smf.CPNodeID, smCtxt)
 		if err != nil {
 			logger.SmfLog.Error("release tunnel failed", zap.Error(err), zap.String("supi", smCtxt.Supi), zap.Uint8("pduSessionID", smCtxt.PDUSessionID))
 		}
@@ -93,7 +93,7 @@ func handlePduSessionContextReplacement(ctx context.Context, smf *smfContext.SMF
 
 func handlePDUSessionSMContextCreate(
 	ctx context.Context,
-	smf *smfContext.SMFContext,
+	smf *smfContext.SMF,
 	supi string,
 	dnn string,
 	snssai *models.Snssai,
@@ -250,7 +250,7 @@ func handlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmen
 }
 
 // SendPFCPRules send all datapaths to UPFs
-func sendPFCPRules(ctx context.Context, smf *smfContext.SMFContext, smContext *smfContext.SMContext) error {
+func sendPFCPRules(ctx context.Context, smf *smfContext.SMF, smContext *smfContext.SMContext) error {
 	dataPath := smContext.Tunnel.DataPath
 	if !dataPath.Activated {
 		logger.SmfLog.Debug("DataPath is not activated, skip sending PFCP rules")
@@ -301,7 +301,7 @@ func sendPFCPRules(ctx context.Context, smf *smfContext.SMFContext, smContext *s
 		return nil
 	}
 
-	err := pfcp.SendPfcpSessionModificationRequest(ctx, smf, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, qerList)
+	err := pfcp.SendPfcpSessionModificationRequest(ctx, smf.CPNodeID, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, qerList)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}

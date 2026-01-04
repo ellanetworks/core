@@ -9,6 +9,7 @@ package pfcp
 import (
 	"context"
 	"fmt"
+	"net"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -29,7 +30,7 @@ func getSeqNumber() uint32 {
 
 func SendPfcpSessionEstablishmentRequest(
 	ctx context.Context,
-	smf *smfContext.SMFContext,
+	smf *smfContext.SMF,
 	localSEID uint64,
 	pdrList []*smfContext.PDR,
 	farList []*smfContext.FAR,
@@ -63,7 +64,7 @@ func SendPfcpSessionEstablishmentRequest(
 	return nil
 }
 
-func HandlePfcpSessionEstablishmentResponse(ctx context.Context, smf *smfContext.SMFContext, msg *message.SessionEstablishmentResponse) error {
+func HandlePfcpSessionEstablishmentResponse(ctx context.Context, smf *smfContext.SMF, msg *message.SessionEstablishmentResponse) error {
 	seid := msg.SEID()
 
 	smContext := smf.GetSMContextBySEID(seid)
@@ -148,7 +149,7 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 
 func SendPfcpSessionModificationRequest(
 	ctx context.Context,
-	smf *smfContext.SMFContext,
+	cpNodeID net.IP,
 	localSEID uint64,
 	remoteSEID uint64,
 	pdrList []*smfContext.PDR,
@@ -157,7 +158,7 @@ func SendPfcpSessionModificationRequest(
 ) error {
 	seqNum := getSeqNumber()
 
-	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, localSEID, remoteSEID, smf.CPNodeID, pdrList, farList, qerList)
+	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, localSEID, remoteSEID, cpNodeID, pdrList, farList, qerList)
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Modification Request: %v", err)
 	}
@@ -192,10 +193,10 @@ func HandlePfcpSessionDeletionResponse(msg *message.SessionDeletionResponse) err
 	return nil
 }
 
-func SendPfcpSessionDeletionRequest(ctx context.Context, smf *smfContext.SMFContext, localSEID uint64, remoteSEID uint64) error {
+func SendPfcpSessionDeletionRequest(ctx context.Context, cpNodeID net.IP, localSEID uint64, remoteSEID uint64) error {
 	seqNum := getSeqNumber()
 
-	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, localSEID, remoteSEID, smf.CPNodeID)
+	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, localSEID, remoteSEID, cpNodeID)
 
 	rsp, err := dispatcher.UPF.HandlePfcpSessionDeletionRequest(ctx, pfcpMsg)
 	if err != nil {

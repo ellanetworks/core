@@ -45,7 +45,7 @@ func UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef st
 		return nil, fmt.Errorf("pfcp session context not found for upf")
 	}
 
-	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, nil)
+	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf.CPNodeID, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}

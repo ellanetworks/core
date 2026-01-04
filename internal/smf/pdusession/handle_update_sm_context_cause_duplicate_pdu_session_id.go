@@ -40,7 +40,7 @@ func UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef
 		return nil, fmt.Errorf("build PDUSession Resource Release Command Transfer Error: %v", err)
 	}
 
-	err = releaseTunnel(ctx, smf, smContext)
+	err = releaseTunnel(ctx, smf.CPNodeID, smContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to release tunnel: %v", err)
 	}
