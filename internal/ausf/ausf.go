@@ -31,12 +31,12 @@ const (
 type AUSF struct {
 	mu sync.RWMutex
 
-	uePool              map[string]*AusfUeContext // Key: suci
+	uePool              map[string]*UEAuthenticationContext // Key: suci
 	dbInstance          *db.Database
 	servingNetworkRegex *regexp.Regexp
 }
 
-type AusfUeContext struct {
+type UEAuthenticationContext struct {
 	Supi     string
 	Kseaf    string
 	XresStar string
@@ -51,20 +51,20 @@ func Start(dbInstance *db.Database) {
 
 func NewAUSF(dbInstance *db.Database) *AUSF {
 	return &AUSF{
-		uePool:              make(map[string]*AusfUeContext),
+		uePool:              make(map[string]*UEAuthenticationContext),
 		dbInstance:          dbInstance,
 		servingNetworkRegex: regexp.MustCompile(`^5G:mnc[0-9]{3}\.mcc[0-9]{3}\.3gppnetwork\.org$`),
 	}
 }
 
-func (a *AUSF) addUeContextToPool(suci string, ausfUeContext *AusfUeContext) {
+func (a *AUSF) addUeAuthenticationContextToPool(suci string, ueAuthContext *UEAuthenticationContext) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	a.uePool[suci] = ausfUeContext
+	a.uePool[suci] = ueAuthContext
 }
 
-func (a *AUSF) getUeContext(suci string) *AusfUeContext {
+func (a *AUSF) getUeAuthenticationContext(suci string) *UEAuthenticationContext {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
