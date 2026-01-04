@@ -30,8 +30,6 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 	)
 	defer span.End()
 
-	// ausf := ausf // local copy
-
 	suci := updateAuthenticationInfo.Suci
 
 	snName := updateAuthenticationInfo.ServingNetworkName
@@ -55,7 +53,7 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 	}
 
-	authInfoResult, err := CreateAuthData(ctx, authInfoReq, suci)
+	authInfoResult, err := ausf.CreateAuthData(ctx, authInfoReq, suci)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auth data: %s", err)
 	}
