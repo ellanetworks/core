@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
 )
@@ -66,7 +65,7 @@ func updateUEIdentity(ue *amfContext.AmfUe, mobileIdentityContents []uint8) erro
 	return nil
 }
 
-func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.IdentityResponse) error {
 	switch ue.State {
 	case amfContext.Authentication:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
@@ -77,7 +76,7 @@ func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfCon
 
 		ue.State = amfContext.Authentication
 
-		pass, err := AuthenticationProcedure(ctx, amf, ue)
+		pass, err := authenticationProcedure(ctx, amf, ue)
 		if err != nil {
 			ue.State = amfContext.Deregistered
 			return fmt.Errorf("error in authentication procedure: %v", err)

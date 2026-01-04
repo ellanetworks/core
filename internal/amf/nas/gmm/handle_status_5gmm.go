@@ -4,12 +4,11 @@ import (
 	"fmt"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
-func handleStatus5GMM(ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleStatus5GMM(ue *amfContext.AmfUe, msg *nasMessage.Status5GMM) error {
 	if ue.State == amfContext.Deregistered {
 		return fmt.Errorf("UE is in Deregistered state, ignore Status 5GMM message")
 	}
@@ -18,9 +17,7 @@ func handleStatus5GMM(ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 
-	cause := msg.Status5GMM.GetCauseValue()
-
-	ue.Log.Error("Received Status 5GMM with cause", zap.String("Cause", nasMessage.Cause5GMMToString(cause)))
+	ue.Log.Error("Received Status 5GMM with cause", zap.String("Cause", nasMessage.Cause5GMMToString(msg.GetCauseValue())))
 
 	return nil
 }

@@ -42,7 +42,7 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 	AssocInfo: &sctp.AssocInfo{AsocMaxRxt: 4},
 }
 
-func Run(address string, port int) error {
+func Run(ctx context.Context, address string, port int) error {
 	netAddr, err := net.ResolveIPAddr("ip", address)
 	if err != nil {
 		return fmt.Errorf("error resolving address '%s': %v", address, err)
@@ -53,12 +53,12 @@ func Run(address string, port int) error {
 		Port:    port,
 	}
 
-	go listenAndServe(addr)
+	go listenAndServe(ctx, addr)
 
 	return nil
 }
 
-func listenAndServe(addr *sctp.SCTPAddr) {
+func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
 	listener, err := sctpConfig.Listen("sctp", addr)
 	if err != nil {
 		logger.AmfLog.Error("Failed to listen", zap.Error(err))
@@ -133,7 +133,7 @@ func listenAndServe(addr *sctp.SCTPAddr) {
 		logger.AmfLog.Info("New SCTP connection", zap.String("remote_address", remoteAddress.String()))
 		connections.Store(newConn, newConn)
 
-		go handleConnection(newConn, readBufSize)
+		go handleConnection(ctx, newConn, readBufSize)
 	}
 }
 
@@ -154,7 +154,7 @@ func Stop() {
 	logger.AmfLog.Info("SCTP server closed")
 }
 
-func handleConnection(conn *sctp.SCTPConn, bufsize uint32) {
+func handleConnection(ctx context.Context, conn *sctp.SCTPConn, bufsize uint32) {
 	defer func() {
 		// if AMF call Stop(), then conn.Close() will return EBADF because conn has been closed inside Stop()
 		if err := conn.Close(); err != nil && err != syscall.EBADF {
@@ -194,7 +194,7 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32) {
 				continue
 			}
 
-			ngap.Dispatch(context.Background(), conn, buf[:n])
+			ngap.Dispatch(ctx, conn, buf[:n])
 		}
 	}
 }

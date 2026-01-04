@@ -196,7 +196,7 @@ func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 
 		ue.State = amfContext.Authentication
 
-		pass, err := AuthenticationProcedure(ctx, amf, ue)
+		pass, err := authenticationProcedure(ctx, amf, ue)
 		if err != nil {
 			ue.State = amfContext.Deregistered
 

@@ -20,40 +20,35 @@ import (
 
 var tracer = otel.Tracer("ella-core/ausf")
 
-func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo models.AuthenticationInfo) (*models.Av5gAka, error) {
+func UeAuthPostRequestProcedure(ctx context.Context, suci string, snName string, resyncInfo *models.ResynchronizationInfo) (*models.Av5gAka, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"AUSF UEAuthentication PostRequest",
 		trace.WithAttributes(
-			attribute.String("ue.suci", updateAuthenticationInfo.Suci),
+			attribute.String("ue.suci", suci),
 		),
 	)
 	defer span.End()
 
-	suci := updateAuthenticationInfo.Suci
-
-	snName := updateAuthenticationInfo.ServingNetworkName
-	servingNetworkAuthorized := isServingNetworkAuthorized(snName)
-
-	if !servingNetworkAuthorized {
+	if !ausf.isServingNetworkAuthorized(snName) {
 		return nil, fmt.Errorf("serving network not authorized: %s", snName)
 	}
 
-	authInfoReq := models.AuthenticationInfoRequest{
-		ServingNetworkName: snName,
-	}
+	var createResyncInfo *models.ResynchronizationInfo
 
-	if updateAuthenticationInfo.ResynchronizationInfo != nil {
-		ausfCurrentContext := getUeContext(suci)
+	if resyncInfo != nil {
+		ausfCurrentContext := ausf.getUeAuthenticationContext(suci)
 		if ausfCurrentContext == nil {
 			return nil, fmt.Errorf("ue context not found for suci: %v", suci)
 		}
 
-		updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
-		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
+		createResyncInfo = &models.ResynchronizationInfo{
+			Auts: resyncInfo.Auts,
+			Rand: ausfCurrentContext.Rand,
+		}
 	}
 
-	authInfoResult, err := CreateAuthData(ctx, authInfoReq, suci)
+	authInfoResult, err := ausf.CreateAuthData(ctx, snName, createResyncInfo, suci)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auth data: %s", err)
 	}
@@ -82,14 +77,12 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 		return nil, fmt.Errorf("failed to get KDF value: %s", err)
 	}
 
-	ausfUeContext := &AusfUeContext{
+	ausf.addUeAuthenticationContextToPool(suci, &UEAuthenticationContext{
 		Supi:     authInfoResult.Supi,
 		XresStar: authInfoResult.AuthenticationVector.XresStar,
 		Kseaf:    hex.EncodeToString(kSeaf),
 		Rand:     authInfoResult.AuthenticationVector.Rand,
-	}
-
-	addUeContextToPool(suci, ausfUeContext)
+	})
 
 	return &models.Av5gAka{
 		Rand:      authInfoResult.AuthenticationVector.Rand,
@@ -99,7 +92,7 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 }
 
 func Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (string, string, error) {
-	ausfCurrentContext := getUeContext(suci)
+	ausfCurrentContext := ausf.getUeAuthenticationContext(suci)
 	if ausfCurrentContext == nil {
 		return "", "", fmt.Errorf("ausf ue context is nil for suci: %s", suci)
 	}

@@ -1,3 +1,8 @@
+// Copyright 2024 Ella Networks
+// Copyright 2019 free5GC.org
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
+// SPDX-License-Identifier: Apache-2.0
+
 package ausf
 
 import (
@@ -7,8 +12,11 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"regexp"
 	"strings"
+	"sync"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"go.opentelemetry.io/otel/attribute"
@@ -19,6 +27,58 @@ const (
 	SqnMAx int64 = 0x7FFFFFFFFFF
 	ind    int64 = 32
 )
+
+type AUSF struct {
+	mu sync.RWMutex
+
+	uePool              map[string]*UEAuthenticationContext // Key: suci
+	dbInstance          *db.Database
+	servingNetworkRegex *regexp.Regexp
+}
+
+type UEAuthenticationContext struct {
+	Supi     string
+	Kseaf    string
+	XresStar string
+	Rand     string
+}
+
+var ausf *AUSF
+
+func Start(dbInstance *db.Database) {
+	ausf = NewAUSF(dbInstance)
+}
+
+func NewAUSF(dbInstance *db.Database) *AUSF {
+	return &AUSF{
+		uePool:              make(map[string]*UEAuthenticationContext),
+		dbInstance:          dbInstance,
+		servingNetworkRegex: regexp.MustCompile(`^5G:mnc[0-9]{3}\.mcc[0-9]{3}\.3gppnetwork\.org$`),
+	}
+}
+
+func (a *AUSF) addUeAuthenticationContextToPool(suci string, ueAuthContext *UEAuthenticationContext) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.uePool[suci] = ueAuthContext
+}
+
+func (a *AUSF) getUeAuthenticationContext(suci string) *UEAuthenticationContext {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	ausfUeContext, ok := a.uePool[suci]
+	if !ok {
+		return nil
+	}
+
+	return ausfUeContext
+}
+
+func (a *AUSF) isServingNetworkAuthorized(lookup string) bool {
+	return a.servingNetworkRegex.MatchString(lookup)
+}
 
 func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
 	AK, SQNms := make([]byte, 6), make([]byte, 6)
@@ -57,7 +117,7 @@ func strictHex(s string, n int) string {
 	return s[l-n : l]
 }
 
-func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationInfoRequest, suci string) (*models.AuthenticationInfoResult, error) {
+func (ausf *AUSF) CreateAuthData(ctx context.Context, snName string, resyncInfo *models.ResynchronizationInfo, suci string) (*models.AuthenticationInfoResult, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"AUSF CreateAuthData",
@@ -67,11 +127,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	)
 	defer span.End()
 
-	if ausfContext.DBInstance == nil {
-		return nil, fmt.Errorf("db instance is nil")
-	}
-
-	hnPrivateKey, err := ausfContext.DBInstance.GetHomeNetworkPrivateKey(ctx)
+	hnPrivateKey, err := ausf.dbInstance.GetHomeNetworkPrivateKey(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get home network private key: %w", err)
 	}
@@ -81,7 +137,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}
 
-	subscriber, err := ausfContext.DBInstance.GetSubscriber(ctx, supi)
+	subscriber, err := ausf.dbInstance.GetSubscriber(ctx, supi)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", supi, err)
 	}
@@ -120,24 +176,24 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	}
 
 	// re-synchroniztion
-	if authInfoRequest.ResynchronizationInfo != nil {
-		Auts, err := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Auts)
+	if resyncInfo != nil {
+		auts, err := hex.DecodeString(resyncInfo.Auts)
 		if err != nil {
 			return nil, fmt.Errorf("could not decode auts: %w", err)
 		}
 
-		randHex, err := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Rand)
+		randHex, err := hex.DecodeString(resyncInfo.Rand)
 		if err != nil {
 			return nil, fmt.Errorf("could not decode rand: %w", err)
 		}
 
-		SQNms, macS, err := aucSQN(opc, k, Auts, randHex)
+		SQNms, macS, err := aucSQN(opc, k, auts, randHex)
 		if err != nil {
 			return nil, fmt.Errorf("failed to re-sync SQN with supi %s: %w", supi, err)
 		}
 
-		if !reflect.DeepEqual(macS, Auts[6:]) {
-			return nil, fmt.Errorf("failed to re-sync MAC with supi %s, macS %x, auts[6:] %x, sqn %x", supi, macS, Auts[6:], SQNms)
+		if !reflect.DeepEqual(macS, auts[6:]) {
+			return nil, fmt.Errorf("failed to re-sync MAC with supi %s, macS %x, auts[6:] %x, sqn %x", supi, macS, auts[6:], SQNms)
 		}
 
 		_, err = rand.Read(RAND)
@@ -175,7 +231,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	SQNheStr := fmt.Sprintf("%x", bigSQN)
 	SQNheStr = strictHex(SQNheStr, 12)
 
-	err = ausfContext.DBInstance.EditSubscriberSequenceNumber(ctx, supi, SQNheStr)
+	err = ausf.dbInstance.EditSubscriberSequenceNumber(ctx, supi, SQNheStr)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't update subscriber %s: %v", supi, err)
 	}
@@ -216,7 +272,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 	// derive XRES*
 	key := append(CK, IK...)
 	FC := ueauth.FCForResStarXresStarDerivation
-	P0 := []byte(authInfoRequest.ServingNetworkName)
+	P0 := []byte(snName)
 	P1 := RAND
 	P2 := RES
 
@@ -229,7 +285,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 
 	// derive Kausf
 	FC = ueauth.FCForKausfDerivation
-	P0 = []byte(authInfoRequest.ServingNetworkName)
+	P0 = []byte(snName)
 	P1 = SQNxorAK
 
 	kdfValForKausf, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))

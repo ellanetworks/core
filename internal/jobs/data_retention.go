@@ -16,15 +16,17 @@ func StartDataRetentionWorker(database *db.Database) {
 		defer ticker.Stop()
 
 		for {
-			if err := enforceAuditDataRetention(database); err != nil {
+			ctx := context.Background()
+
+			if err := enforceAuditDataRetention(ctx, database); err != nil {
 				logger.EllaLog.Error("error enforcing audit log retention", zap.Error(err))
 			}
 
-			if err := enforceRadioDataRetention(database); err != nil {
+			if err := enforceRadioDataRetention(ctx, database); err != nil {
 				logger.EllaLog.Error("error enforcing radio log retention", zap.Error(err))
 			}
 
-			if err := enforceSubscriberUsageDataRetention(database); err != nil {
+			if err := enforceSubscriberUsageDataRetention(ctx, database); err != nil {
 				logger.EllaLog.Error("error enforcing subscriber usage data retention", zap.Error(err))
 			}
 
@@ -33,9 +35,7 @@ func StartDataRetentionWorker(database *db.Database) {
 	}()
 }
 
-func enforceAuditDataRetention(database *db.Database) error {
-	ctx := context.Background()
-
+func enforceAuditDataRetention(ctx context.Context, database *db.Database) error {
 	days, err := database.GetRetentionPolicy(ctx, db.CategoryAuditLogs)
 	if err != nil {
 		return err
@@ -48,9 +48,7 @@ func enforceAuditDataRetention(database *db.Database) error {
 	return nil
 }
 
-func enforceRadioDataRetention(database *db.Database) error {
-	ctx := context.Background()
-
+func enforceRadioDataRetention(ctx context.Context, database *db.Database) error {
 	days, err := database.GetRetentionPolicy(ctx, db.CategoryRadioLogs)
 	if err != nil {
 		return err
@@ -63,9 +61,7 @@ func enforceRadioDataRetention(database *db.Database) error {
 	return nil
 }
 
-func enforceSubscriberUsageDataRetention(database *db.Database) error {
-	ctx := context.Background()
-
+func enforceSubscriberUsageDataRetention(ctx context.Context, database *db.Database) error {
 	days, err := database.GetRetentionPolicy(ctx, db.CategorySubscriberUsage)
 	if err != nil {
 		return fmt.Errorf("failed to get subscriber usage retention policy: %v", err)

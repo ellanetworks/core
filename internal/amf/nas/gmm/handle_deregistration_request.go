@@ -8,25 +8,18 @@ import (
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
-	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
 // TS 23.502 4.2.2.3
-func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amfContext.AmfUe, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration) error {
 	if ue.State != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", ue.State)
 	}
 
-	if msg == nil {
-		return fmt.Errorf("gmm message is nil")
-	}
-
 	ue.State = amfContext.Deregistered
-
-	targetDeregistrationAccessType := msg.DeregistrationRequestUEOriginatingDeregistration.GetAccessType()
 
 	for _, smContext := range ue.SmContextList {
 		err := pdusession.ReleaseSmContext(ctx, smContext.Ref)
@@ -41,7 +34,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	}
 
 	// if Deregistration type is not switch-off, send Deregistration Accept
-	if msg.DeregistrationRequestUEOriginatingDeregistration.GetSwitchOff() == 0 {
+	if msg.GetSwitchOff() == 0 {
 		err := message.SendDeregistrationAccept(ctx, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("error sending deregistration accept: %v", err)
@@ -51,6 +44,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	}
 
 	// TS 23.502 4.2.6, 4.12.3
+	targetDeregistrationAccessType := msg.GetAccessType()
 	if targetDeregistrationAccessType != nasMessage.AccessType3GPP {
 		return fmt.Errorf("only 3gpp access type is supported")
 	}

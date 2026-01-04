@@ -252,7 +252,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	return nil
 }
 
-func handleULNASTransport(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
+func handleULNASTransport(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.ULNASTransport) error {
 	if ue.State != amfContext.Registered {
 		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amfContext.Registered, ue.State)
 	}
@@ -261,10 +261,10 @@ func handleULNASTransport(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 
-	switch msg.ULNASTransport.GetPayloadContainerType() {
+	switch msg.GetPayloadContainerType() {
 	// TS 24.501 5.4.5.2.3 case a)
 	case nasMessage.PayloadContainerTypeN1SMInfo:
-		return transport5GSMMessage(ctx, amf, ue, msg.ULNASTransport)
+		return transport5GSMMessage(ctx, amf, ue, msg)
 	case nasMessage.PayloadContainerTypeSMS:
 		return fmt.Errorf("PayloadContainerTypeSMS has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeLPP:
@@ -276,7 +276,7 @@ func handleULNASTransport(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	case nasMessage.PayloadContainerTypeUEParameterUpdate:
 		ue.Log.Info("AMF Transfer UEParameterUpdate To UDM")
 
-		upuMac, err := nasConvert.UpuAckToModels(msg.ULNASTransport.GetPayloadContainerContents())
+		upuMac, err := nasConvert.UpuAckToModels(msg.GetPayloadContainerContents())
 		if err != nil {
 			return fmt.Errorf("failed to convert UPU ACK to models: %v", err)
 		}

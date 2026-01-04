@@ -12,7 +12,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/models"
 )
 
 func TestCreateAuthDataBadSuci(t *testing.T) {
@@ -24,12 +23,9 @@ func TestCreateAuthDataBadSuci(t *testing.T) {
 		t.Fatalf("failed to create database: %v", err)
 	}
 
-	ausf.Start(testdb)
+	ausfInst := ausf.NewAUSF(testdb)
 
-	authInfoRequest := models.AuthenticationInfoRequest{}
-	ueSuci := "123"
-
-	authInfoResult, err := ausf.CreateAuthData(context.Background(), authInfoRequest, ueSuci)
+	authInfoResult, err := ausfInst.CreateAuthData(context.Background(), "", nil, "123")
 	if err == nil {
 		t.Fatalf("failed to create auth data: %v", err)
 	}

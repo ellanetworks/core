@@ -113,9 +113,7 @@ func BuildAuthenticationRequest(ue *amfContext.AmfUe) ([]byte, error) {
 	return m.PlainNasEncode()
 }
 
-func BuildServiceAccept(ue *amfContext.AmfUe, pDUSessionStatus *[16]bool,
-	reactivationResult *[16]bool, errPduSessionID, errCause []uint8,
-) ([]byte, error) {
+func BuildServiceAccept(ue *amfContext.AmfUe, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeServiceAccept)

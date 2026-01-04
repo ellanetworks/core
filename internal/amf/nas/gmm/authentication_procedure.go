@@ -22,13 +22,9 @@ func sendUEAuthenticationAuthenticateRequest(ctx context.Context, ue *amfContext
 		return nil, fmt.Errorf("could not convert mnc to int: %v", err)
 	}
 
-	authInfo := models.AuthenticationInfo{
-		Suci:                  ue.Suci,
-		ServingNetworkName:    fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, ue.Tai.PlmnID.Mcc),
-		ResynchronizationInfo: resynchronizationInfo,
-	}
+	snName := fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, ue.Tai.PlmnID.Mcc)
 
-	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(ctx, authInfo)
+	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(ctx, ue.Suci, snName, resynchronizationInfo)
 	if err != nil {
 		return nil, fmt.Errorf("ausf UE Authentication Authenticate Request failed: %s", err.Error())
 	}
@@ -40,7 +36,7 @@ func identityVerification(ue *amfContext.AmfUe) bool {
 	return ue.Supi != "" || len(ue.Suci) != 0
 }
 
-func AuthenticationProcedure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) (bool, error) {
+func authenticationProcedure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) (bool, error) {
 	ctx, span := tracer.Start(ctx, "AuthenticationProcedure")
 	defer span.End()
 
