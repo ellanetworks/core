@@ -8,7 +8,7 @@ import (
 	"github.com/wmnsk/go-pfcp/ie"
 )
 
-func FindFTEID(createdPDRIEs []*ie.IE) (*ie.FTEIDFields, error) {
+func findFTEID(createdPDRIEs []*ie.IE) (*ie.FTEIDFields, error) {
 	for _, createdPDRIE := range createdPDRIEs {
 		teid, err := createdPDRIE.FTEID()
 		if err == nil {

@@ -15,7 +15,15 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpdate, qosPolicyData qos.SmCtxtPolicyData, dpNode *DataPathNode) ([]byte, error) {
+func selectedSessionRule(smPolicyUpdates *qos.PolicyUpdate, qosPolicyData *PolicyData) *models.SessionRule {
+	if smPolicyUpdates != nil {
+		return smPolicyUpdates.SessRuleUpdate
+	}
+
+	return qosPolicyData.SessionRule
+}
+
+func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpdate, qosPolicyData *PolicyData, dpNode *DataPathNode) ([]byte, error) {
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, dpNode.UpLinkTunnel.TEID)
 
@@ -27,7 +35,7 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpda
 	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
 
-	sessRule := SelectedSessionRule(smPolicyUpdates, qosPolicyData)
+	sessRule := selectedSessionRule(smPolicyUpdates, qosPolicyData)
 	if sessRule == nil || sessRule.AuthSessAmbr == nil {
 		return nil, fmt.Errorf("no PDU Session AMBR")
 	}
@@ -83,15 +91,13 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpda
 	// Get Qos Flow
 	var qosAddFlow *models.QosData
 
-	if qosPolicyData.SmCtxtQosData != nil {
-		qosAddFlow = qosPolicyData.SmCtxtQosData
+	if qosPolicyData != nil && qosPolicyData.QosData != nil {
+		qosAddFlow = qosPolicyData.QosData
 	}
 
 	// PCF has provided some update
-	if smPolicyUpdates != nil {
-		if smPolicyUpdates.QosFlowUpdate != nil && smPolicyUpdates.QosFlowUpdate.Add != nil {
-			qosAddFlow = smPolicyUpdates.QosFlowUpdate.Add
-		}
+	if smPolicyUpdates != nil && smPolicyUpdates.QosFlowUpdate != nil {
+		qosAddFlow = smPolicyUpdates.QosFlowUpdate
 	}
 
 	// QoS Flow Setup Request List

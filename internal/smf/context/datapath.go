@@ -134,16 +134,14 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext, smPolicyDecisi
 		return nil, fmt.Errorf("failed to add QER: %v", err)
 	}
 
-	sessionRule := SelectedSessionRule(smContext.SmPolicyUpdates, smContext.SmPolicyData)
-
 	newQER.QFI = smPolicyDecision.QosDecs.QFI
 	newQER.GateStatus = &GateStatus{
 		ULGate: GateOpen,
 		DLGate: GateOpen,
 	}
 	newQER.MBR = &MBR{
-		ULMBR: BitRateTokbps(sessionRule.AuthSessAmbr.Uplink),
-		DLMBR: BitRateTokbps(sessionRule.AuthSessAmbr.Downlink),
+		ULMBR: BitRateTokbps(smPolicyDecision.SessRule.AuthSessAmbr.Uplink),
+		DLMBR: BitRateTokbps(smPolicyDecision.SessRule.AuthSessAmbr.Downlink),
 	}
 
 	flowQER := newQER

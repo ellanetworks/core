@@ -9,38 +9,17 @@ import (
 )
 
 type PolicyUpdate struct {
-	SessRuleUpdate *SessRulesUpdate
-	QosFlowUpdate  *QosFlowsUpdate
+	SessRuleUpdate *models.SessionRule
+	QosFlowUpdate  *models.QosData
 }
 
-type SmCtxtPolicyData struct {
-	SmCtxtQosData      *models.QosData
-	SmCtxtSessionRules SmCtxtSessionRulesInfo
-}
+func BuildSmPolicyUpdate(smPolicyDecision *models.SmPolicyDecision) *PolicyUpdate {
+	update := &PolicyUpdate{
+		QosFlowUpdate:  smPolicyDecision.QosDecs,
+		SessRuleUpdate: smPolicyDecision.SessRule,
+	}
 
-type SmCtxtSessionRulesInfo struct {
-	ActiveRule  *models.SessionRule
-	SessionRule *models.SessionRule
-}
-
-func BuildSmPolicyUpdate(smCtxtPolData *SmCtxtPolicyData, smPolicyDecision *models.SmPolicyDecision) *PolicyUpdate {
-	update := &PolicyUpdate{}
-
-	update.QosFlowUpdate = GetQosFlowDescUpdate(smPolicyDecision.QosDecs, smCtxtPolData.SmCtxtQosData)
-
-	update.SessRuleUpdate = GetSessionRulesUpdate(smPolicyDecision.SessRule, smCtxtPolData.SmCtxtSessionRules.SessionRule)
+	update.QosFlowUpdate.QFI = DefaultQFI
 
 	return update
-}
-
-func (polData *SmCtxtPolicyData) CommitSmPolicyDecision(smPolicyUpdate *PolicyUpdate) error {
-	if smPolicyUpdate.QosFlowUpdate != nil {
-		polData.CommitQosFlowDescUpdate(smPolicyUpdate.QosFlowUpdate)
-	}
-
-	if smPolicyUpdate.SessRuleUpdate != nil {
-		polData.CommitSessionRulesUpdate(smPolicyUpdate.SessRuleUpdate)
-	}
-
-	return nil
 }

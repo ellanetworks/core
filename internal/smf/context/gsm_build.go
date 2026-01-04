@@ -35,7 +35,9 @@ type ProtocolConfigurationOptions struct {
 }
 
 func BuildGSMPDUSessionEstablishmentAccept(
-	smPolicyUpdates *qos.PolicyUpdate,
+	authSessionAmbr *models.Ambr,
+	defaultQFI uint8,
+	qosData *models.QosData,
 	pduSessionID uint8,
 	pti uint8,
 	snssai *models.Snssai,
@@ -45,26 +47,12 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	dNNInfo *SnssaiSmfDnnInfo,
 	pduAddress net.IP,
 ) ([]byte, error) {
-	if smPolicyUpdates == nil {
-		return nil, fmt.Errorf("no SM Policy Update found in SM Context")
-	}
-
-	if smPolicyUpdates.SessRuleUpdate == nil {
-		return nil, fmt.Errorf("no Session Rule Update found in SM Policy Update")
-	}
-
-	if smPolicyUpdates.QosFlowUpdate == nil {
-		return nil, fmt.Errorf("no Qos Flow Update found in SM Policy Update")
-	}
-
 	m := nas.NewMessage()
 	m.GsmMessage = nas.NewGsmMessage()
 	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionEstablishmentAccept)
 	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
 	m.PDUSessionEstablishmentAccept = nasMessage.NewPDUSessionEstablishmentAccept(0x0)
 	pDUSessionEstablishmentAccept := m.PDUSessionEstablishmentAccept
-
-	sessRule := smPolicyUpdates.SessRuleUpdate.ActiveSessRule
 
 	pDUSessionEstablishmentAccept.SetPDUSessionID(pduSessionID)
 	pDUSessionEstablishmentAccept.SetMessageType(nas.MsgTypePDUSessionEstablishmentAccept)
@@ -75,15 +63,13 @@ func BuildGSMPDUSessionEstablishmentAccept(
 
 	pDUSessionEstablishmentAccept.SetSSCMode(1)
 
-	ambr, err := modelsToSessionAMBR(sessRule.AuthSessAmbr)
+	ambr, err := modelsToSessionAMBR(authSessionAmbr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert models to SessionAMBR: %v", err)
 	}
 
 	pDUSessionEstablishmentAccept.SessionAMBR = ambr
 	pDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(pDUSessionEstablishmentAccept.SessionAMBR.Octet)))
-
-	defaultQFI := smPolicyUpdates.QosFlowUpdate.Add.QFI
 
 	defQosRule := qos.BuildDefaultQosRule(DefaultQosRuleID, defaultQFI)
 	qosRules := qos.QoSRules{
@@ -109,7 +95,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	}
 
 	// Get Authorized QoS Flow Descriptions
-	authQfd, err := qos.BuildAuthorizedQosFlowDescription(smPolicyUpdates.QosFlowUpdate.Add)
+	authQfd, err := qos.BuildAuthorizedQosFlowDescription(qosData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build Authorized QoS Flow Descriptions: %v", err)
 	}

@@ -55,7 +55,7 @@ func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionRep
 
 	// Downlink Data Report
 	if msg.ReportType.HasDLDR() {
-		n2Pdu, err := smfContext.BuildPDUSessionResourceSetupRequestTransfer(smContext.SmPolicyUpdates, smContext.SmPolicyData, smContext.Tunnel.DataPath.DPNode)
+		n2Pdu, err := smfContext.BuildPDUSessionResourceSetupRequestTransfer(nil, smContext.PolicyData, smContext.Tunnel.DataPath.DPNode)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 		}

@@ -47,7 +47,7 @@ func CreateSmContext(ctx context.Context, supi string, pduSessionID uint8, dnn s
 
 	smContext = smf.NewSMContext(supi, pduSessionID)
 
-	smContextRef, pco, pduSessionType, dnnInfo, pduAddress, pti, errRsp, err := handlePDUSessionSMContextCreate(ctx, smf, supi, dnn, snssai, n1Msg, smContext)
+	smContextRef, pco, pduSessionType, dnnInfo, pduAddress, pti, smPolicyUpdates, errRsp, err := handlePDUSessionSMContextCreate(ctx, smf, supi, dnn, snssai, n1Msg, smContext)
 	if err != nil {
 		return "", errRsp, fmt.Errorf("failed to create SM Context: %v", err)
 	}
@@ -58,7 +58,7 @@ func CreateSmContext(ctx context.Context, supi string, pduSessionID uint8, dnn s
 
 	err = sendPFCPRules(ctx, smf, smContext)
 	if err != nil {
-		err := sendPduSessionEstablishmentReject(ctx, smContext, pti)
+		err := sendPduSessionEstablishmentReject(ctx, smContext, smPolicyUpdates, pti)
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to send pdu session establishment reject n1 message: %v", err)
 		}
@@ -66,7 +66,7 @@ func CreateSmContext(ctx context.Context, supi string, pduSessionID uint8, dnn s
 		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
 	}
 
-	err = sendPduSessionEstablishmentAccept(ctx, smContext, pco, pduSessionType, dnnInfo, pduAddress, pti)
+	err = sendPduSessionEstablishmentAccept(ctx, smContext, smPolicyUpdates, pco, pduSessionType, dnnInfo, pduAddress, pti)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to send pdu session establishment accept n1 message: %v", err)
 	}
@@ -106,6 +106,7 @@ func handlePDUSessionSMContextCreate(
 	*smfContext.SnssaiSmfDnnInfo,
 	net.IP,
 	uint8,
+	*qos.PolicyUpdate,
 	[]byte,
 	error,
 ) {
@@ -113,11 +114,11 @@ func handlePDUSessionSMContextCreate(
 
 	err := m.GsmMessageDecode(&n1Msg)
 	if err != nil {
-		return "", nil, 0, nil, nil, 0, nil, fmt.Errorf("error decoding NAS message: %v", err)
+		return "", nil, 0, nil, nil, 0, nil, nil, fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
 	if m.GsmHeader.GetMessageType() != nas.MsgTypePDUSessionEstablishmentRequest {
-		return "", nil, 0, nil, nil, 0, nil, fmt.Errorf("error decoding NAS message: %v", err)
+		return "", nil, 0, nil, nil, 0, nil, nil, fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
 	smContext.Mutex.Lock()
@@ -136,7 +137,7 @@ func handlePDUSessionSMContextCreate(
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
 
-		return "", nil, 0, nil, nil, 0, rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
+		return "", nil, 0, nil, nil, 0, nil, rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
 	}
 
 	dnnInfo, err := smf.RetrieveDnnInformation(ctx, *snssai, dnn)
@@ -148,7 +149,7 @@ func handlePDUSessionSMContextCreate(
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
 
-		return "", nil, 0, nil, nil, 0, rsp, nil
+		return "", nil, 0, nil, nil, 0, nil, rsp, nil
 	}
 
 	pduAddress, err := smf.DBInstance.AllocateIP(ctx, smContext.Supi)
@@ -158,7 +159,7 @@ func handlePDUSessionSMContextCreate(
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
 
-		return "", nil, 0, nil, nil, 0, rsp, nil
+		return "", nil, 0, nil, nil, 0, nil, rsp, nil
 	}
 
 	logger.SmfLog.Info("Successfully allocated IP address", zap.String("IP", pduAddress.String()), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
@@ -174,12 +175,10 @@ func handlePDUSessionSMContextCreate(
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
 
-		return "", nil, 0, nil, nil, 0, response, err
+		return "", nil, 0, nil, nil, 0, nil, response, err
 	}
 
-	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, subscriberPolicy)
-
-	smContext.SmPolicyUpdates = policyUpdates
+	smPolicyUpdates := qos.BuildSmPolicyUpdate(subscriberPolicy)
 
 	defaultPath := &smfContext.DataPath{
 		DPNode: &smfContext.DataPathNode{
@@ -200,14 +199,14 @@ func handlePDUSessionSMContextCreate(
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		}
 
-		return "", nil, 0, nil, nil, 0, response, fmt.Errorf("couldn't activate data path: %v", err)
+		return "", nil, 0, nil, nil, 0, nil, response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
 
 	allowedSessionType := smfContext.GetAllowedSessionType()
 
 	logger.SmfLog.Info("Successfully created PDU session context", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-	return smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID), pco, allowedSessionType, dnnInfo, pduAddress, pti, nil, nil
+	return smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID), pco, allowedSessionType, dnnInfo, pduAddress, pti, smPolicyUpdates, nil, nil
 }
 
 func handlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmentRequest) (*smfContext.ProtocolConfigurationOptions, error) {
@@ -311,7 +310,7 @@ func sendPFCPRules(ctx context.Context, smf *smfContext.SMF, smContext *smfConte
 	return nil
 }
 
-func sendPduSessionEstablishmentReject(ctx context.Context, smContext *smfContext.SMContext, pti uint8) error {
+func sendPduSessionEstablishmentReject(ctx context.Context, smContext *smfContext.SMContext, smPolicyUpdates *qos.PolicyUpdate, pti uint8) error {
 	smNasBuf, err := smfContext.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 	if err != nil {
 		return fmt.Errorf("build GSM PDUSessionEstablishmentReject failed: %v", err)
@@ -319,20 +318,12 @@ func sendPduSessionEstablishmentReject(ctx context.Context, smContext *smfContex
 
 	err = producer.TransferN1Msg(ctx, smContext.Supi, smNasBuf, smContext.PDUSessionID)
 	if err != nil {
-		err1 := smContext.CommitSmPolicyDecision(false)
-		if err1 != nil {
-			return fmt.Errorf("failed to commit sm policy decision: %v", err1)
-		}
-
 		return fmt.Errorf("failed to send n1 message: %v", err)
 	}
 
 	logger.SmfLog.Debug("Sent n1 message", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-	err = smContext.CommitSmPolicyDecision(true)
-	if err != nil {
-		return fmt.Errorf("failed to commit sm policy decision: %v", err)
-	}
+	smContext.CommitSmPolicyDecision(smPolicyUpdates)
 
 	return nil
 }
@@ -340,18 +331,19 @@ func sendPduSessionEstablishmentReject(ctx context.Context, smContext *smfContex
 func sendPduSessionEstablishmentAccept(
 	ctx context.Context,
 	smContext *smfContext.SMContext,
+	smPolicyUpdates *qos.PolicyUpdate,
 	pco *smfContext.ProtocolConfigurationOptions,
 	pduSessionType uint8,
 	dnnInfo *smfContext.SnssaiSmfDnnInfo,
 	pduAddress net.IP,
 	pti uint8,
 ) error {
-	n1Msg, err := smfContext.BuildGSMPDUSessionEstablishmentAccept(smContext.SmPolicyUpdates, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, pduSessionType, dnnInfo, pduAddress)
+	n1Msg, err := smfContext.BuildGSMPDUSessionEstablishmentAccept(smPolicyUpdates.SessRuleUpdate.AuthSessAmbr, smPolicyUpdates.QosFlowUpdate.QFI, smPolicyUpdates.QosFlowUpdate, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, pduSessionType, dnnInfo, pduAddress)
 	if err != nil {
 		return fmt.Errorf("build GSM PDUSessionEstablishmentAccept failed: %v", err)
 	}
 
-	n2Msg, err := smfContext.BuildPDUSessionResourceSetupRequestTransfer(smContext.SmPolicyUpdates, smContext.SmPolicyData, smContext.Tunnel.DataPath.DPNode)
+	n2Msg, err := smfContext.BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates, smContext.PolicyData, smContext.Tunnel.DataPath.DPNode)
 	if err != nil {
 		return fmt.Errorf("build PDUSessionResourceSetupRequestTransfer failed: %v", err)
 	}
@@ -365,20 +357,12 @@ func sendPduSessionEstablishmentAccept(
 
 	err = producer.TransferN1N2Message(ctx, smContext.Supi, n1n2Request)
 	if err != nil {
-		err1 := smContext.CommitSmPolicyDecision(false)
-		if err1 != nil {
-			return fmt.Errorf("failed to commit sm policy decision: %v", err1)
-		}
-
 		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
 	}
 
 	logger.SmfLog.Debug("Sent n1 n2 transfer request", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-	err = smContext.CommitSmPolicyDecision(true)
-	if err != nil {
-		return fmt.Errorf("failed to commit sm policy decision: %v", err)
-	}
+	smContext.CommitSmPolicyDecision(smPolicyUpdates)
 
 	return nil
 }

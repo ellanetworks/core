@@ -95,7 +95,7 @@ func HandlePfcpSessionEstablishmentResponse(ctx context.Context, smf *smfContext
 
 	// UE IP-Addr(only v4 supported)
 	if msg.CreatedPDR != nil {
-		fteid, err := FindFTEID(msg.CreatedPDR)
+		fteid, err := findFTEID(msg.CreatedPDR)
 		if err != nil {
 			return fmt.Errorf("failed to parse TEID IE: %+v", err)
 		}

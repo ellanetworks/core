@@ -78,10 +78,6 @@ type QosFlowParameter struct {
 	ParamLen     uint8
 }
 
-type QosFlowsUpdate struct {
-	Add *models.QosData
-}
-
 // Build Qos Flow Description to be sent to UE
 func BuildAuthorizedQosFlowDescription(qosData *models.QosData) (*QosFlowDescriptionsAuthorized, error) {
 	if qosData == nil {
@@ -238,24 +234,4 @@ func (q *QoSFlowDescription) addQosFlowRateParam(rate string, rateType uint8) er
 	q.QFDLen += 5 //(Id-1 + len-1 + Content-3)
 
 	return nil
-}
-
-func GetQosFlowDescUpdate(pcfQosData, ctxtQosData *models.QosData) *QosFlowsUpdate {
-	update := QosFlowsUpdate{}
-
-	// added flow
-	if pcfQosData != nil && ctxtQosData == nil {
-		update.Add = pcfQosData
-		update.Add.QFI = DefaultQFI
-
-		return &update
-	}
-
-	return &update
-}
-
-func (polData *SmCtxtPolicyData) CommitQosFlowDescUpdate(update *QosFlowsUpdate) {
-	if update.Add != nil {
-		polData.SmCtxtQosData = update.Add
-	}
 }

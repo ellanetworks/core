@@ -7,29 +7,18 @@ import (
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/free5gc/nas"
 )
 
 func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
-	smPolicyUpdates := &qos.PolicyUpdate{
-		SessRuleUpdate: &qos.SessRulesUpdate{
-			ActiveSessRule: &models.SessionRule{
-				AuthSessAmbr: &models.Ambr{
-					Uplink:   "1 Gbps",
-					Downlink: "1 Gbps",
-				},
-				AuthDefQos: &models.AuthorizedDefaultQos{
-					Var5qi: 9,
-				},
-			},
-		},
-		QosFlowUpdate: &qos.QosFlowsUpdate{
-			Add: &models.QosData{
-				QFI:    1,
-				Var5qi: 9,
-			},
-		},
+	ambr := &models.Ambr{
+		Uplink:   "1 Gbps",
+		Downlink: "1 Gbps",
+	}
+	defaultQFI := uint8(1)
+	qosData := &models.QosData{
+		QFI:    1,
+		Var5qi: 9,
 	}
 
 	pduSessionID := uint8(10)
@@ -45,7 +34,7 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 
 	pco := &context.ProtocolConfigurationOptions{}
 
-	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(smPolicyUpdates, pduSessionID, pti, snssai, dnn, pco, 0, nil, nil)
+	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(ambr, defaultQFI, qosData, pduSessionID, pti, snssai, dnn, pco, 0, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
 	}
@@ -76,24 +65,14 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 }
 
 func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
-	smPolicyUpdates := &qos.PolicyUpdate{
-		SessRuleUpdate: &qos.SessRulesUpdate{
-			ActiveSessRule: &models.SessionRule{
-				AuthSessAmbr: &models.Ambr{
-					Uplink:   "1 Gbps",
-					Downlink: "1 Gbps",
-				},
-				AuthDefQos: &models.AuthorizedDefaultQos{
-					Var5qi: 9,
-				},
-			},
-		},
-		QosFlowUpdate: &qos.QosFlowsUpdate{
-			Add: &models.QosData{
-				QFI:    1,
-				Var5qi: 9,
-			},
-		},
+	ambr := &models.Ambr{
+		Uplink:   "1 Gbps",
+		Downlink: "1 Gbps",
+	}
+	defaultQFI := uint8(1)
+	qosData := &models.QosData{
+		QFI:    1,
+		Var5qi: 9,
 	}
 	pduSessionID := uint8(10)
 
@@ -108,7 +87,7 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
 
 	pco := &context.ProtocolConfigurationOptions{}
 
-	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(smPolicyUpdates, pduSessionID, pti, snssai, dnn, pco, 0, nil, nil)
+	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(ambr, defaultQFI, qosData, pduSessionID, pti, snssai, dnn, pco, 0, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
 	}

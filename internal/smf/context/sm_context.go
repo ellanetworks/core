@@ -11,11 +11,9 @@ import (
 	"net"
 	"sync"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/free5gc/nas/nasMessage"
-	"go.uber.org/zap"
 )
 
 type PFCPSessionContext struct {
@@ -31,6 +29,11 @@ type UPTunnel struct {
 	}
 }
 
+type PolicyData struct {
+	QosData     *models.QosData
+	SessionRule *models.SessionRule
+}
+
 type SMContext struct {
 	Mutex sync.Mutex
 
@@ -38,8 +41,7 @@ type SMContext struct {
 	Dnn                            string
 	Snssai                         *models.Snssai
 	Tunnel                         *UPTunnel
-	SmPolicyUpdates                *qos.PolicyUpdate
-	SmPolicyData                   qos.SmCtxtPolicyData
+	PolicyData                     *PolicyData
 	PFCPContext                    *PFCPSessionContext
 	PDUSessionID                   uint8
 	PDUSessionReleaseDueToDupPduID bool
@@ -64,27 +66,10 @@ func PDUAddressToNAS(pduAddress net.IP, pduSessionType uint8) ([12]byte, uint8) 
 	}
 }
 
-// SelectedSessionRule - return the SMF selected session rule for this SM Context
-func SelectedSessionRule(smPolicyUpdates *qos.PolicyUpdate, qosPolicyData qos.SmCtxtPolicyData) *models.SessionRule {
-	if smPolicyUpdates != nil {
-		return smPolicyUpdates.SessRuleUpdate.ActiveSessRule
-	}
-
-	return qosPolicyData.SmCtxtSessionRules.ActiveRule
-}
-
-func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
+func (smContext *SMContext) CommitSmPolicyDecision(smPolicyUpdates *qos.PolicyUpdate) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if status {
-		err := smContext.SmPolicyData.CommitSmPolicyDecision(smContext.SmPolicyUpdates)
-		if err != nil {
-			logger.SmfLog.Error("failed to commit SM Policy Decision", zap.Error(err))
-		}
-	}
-
-	smContext.SmPolicyUpdates = nil
-
-	return nil
+	smContext.PolicyData.QosData = smPolicyUpdates.QosFlowUpdate
+	smContext.PolicyData.SessionRule = smPolicyUpdates.SessRuleUpdate
 }
