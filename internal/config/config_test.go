@@ -3,7 +3,6 @@
 package config_test
 
 import (
-	"log"
 	"os"
 	"strings"
 	"testing"
@@ -24,7 +23,7 @@ func TestValidConfigSuccess(t *testing.T) {
 
 	defer func() {
 		if err := os.Remove(tempCertFile.Name()); err != nil {
-			log.Fatalf("Failed to remove temp key file: %v", err)
+			t.Fatalf("Failed to remove temp key file: %v", err)
 		}
 	}()
 
@@ -35,7 +34,7 @@ func TestValidConfigSuccess(t *testing.T) {
 
 	defer func() {
 		if err := os.Remove(tempKeyFile.Name()); err != nil {
-			log.Fatalf("Failed to remove temp key file: %v", err)
+			t.Fatalf("Failed to remove temp key file: %v", err)
 		}
 	}()
 
@@ -49,13 +48,13 @@ func TestValidConfigSuccess(t *testing.T) {
 
 	defer func() {
 		if err := tempCertFile.Close(); err != nil {
-			log.Fatalf("Faile to close temp cert file: %v", err)
+			t.Fatalf("Faile to close temp cert file: %v", err)
 		}
 	}()
 
 	defer func() {
 		if err := tempKeyFile.Close(); err != nil {
-			log.Fatalf("Faile to close temp key file: %v", err)
+			t.Fatalf("Faile to close temp key file: %v", err)
 		}
 	}()
 
@@ -88,7 +87,7 @@ func TestValidConfigSuccess(t *testing.T) {
 
 	defer func() {
 		if err := os.WriteFile(confFilePath, originalContent, os.FileMode(0o600)); err != nil {
-			log.Fatalf("Failed to close database: %v", err)
+			t.Fatalf("Failed to close database: %v", err)
 		}
 	}()
 
@@ -159,7 +158,7 @@ func TestValidConfigNoTLSSuccess(t *testing.T) {
 
 	defer func() {
 		if err := os.WriteFile(confFilePath, originalContent, os.FileMode(0o600)); err != nil {
-			log.Fatalf("Failed to close database: %v", err)
+			t.Fatalf("Failed to close database: %v", err)
 		}
 	}()
 
