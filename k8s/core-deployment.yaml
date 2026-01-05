@@ -34,8 +34,6 @@ spec:
         volumeMounts:
         - name: config-volume
           mountPath: /config
-        - name: sysfs-bpf
-          mountPath: /sys/fs/bpf
         - name: data-volume
           mountPath: /core/data
         ports:
@@ -48,7 +46,3 @@ spec:
       - name: data-volume
         emptyDir:
           sizeLimit: 500Mi
-      - name: sysfs-bpf
-        hostPath:
-          path: /sys/fs/bpf
-          type: Directory

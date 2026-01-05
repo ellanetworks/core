@@ -14,7 +14,6 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
     sudo snap install ella-core
     sudo snap connect ella-core:network-control
     sudo snap connect ella-core:process-control
-    sudo snap connect ella-core:sys-fs-bpf-upf-pipeline
     sudo snap connect ella-core:system-observe
     sudo snap connect ella-core:firewall-control
     ```
@@ -120,8 +119,6 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
             target: /core.yaml
         restart: unless-stopped
         entrypoint: /bin/core --config /core.yaml
-        volumes:
-          - /sys/fs/bpf:/sys/fs/bpf:rw
         privileged: true
         ports:
           - "5002:5002"

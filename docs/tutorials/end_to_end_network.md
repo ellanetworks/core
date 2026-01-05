@@ -31,8 +31,6 @@ services:
     image: ghcr.io/ellanetworks/ella-core:v0.7.0
     restart: unless-stopped
     entrypoint: /bin/core --config /core.yaml
-    volumes:
-      - /sys/fs/bpf:/sys/fs/bpf:rw
     privileged: true
     ports:
       - "5002:5002"
