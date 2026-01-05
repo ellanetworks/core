@@ -13,6 +13,7 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -34,11 +35,14 @@ type SMF struct {
 	Mutex sync.Mutex
 
 	DBInstance         *db.Database
-	UPF                *UPF
 	CPNodeID           net.IP
 	LocalSEIDCount     uint64
 	allowedSessionType uint8
 	smContextPool      map[string]*SMContext // key: canonicalName(identifier, pduSessID)
+	pdrIDGenerator     *idgenerator.IDGenerator
+	farIDGenerator     *idgenerator.IDGenerator
+	qerIDGenerator     *idgenerator.IDGenerator
+	urrIDGenerator     *idgenerator.IDGenerator
 }
 
 func InitializeSMF(dbInstance *db.Database) {
@@ -47,13 +51,10 @@ func InitializeSMF(dbInstance *db.Database) {
 		DBInstance:         dbInstance,
 		CPNodeID:           net.ParseIP("0.0.0.0"),
 		allowedSessionType: nasMessage.PDUSessionTypeIPv4,
-		UPF: &UPF{
-			pdrIDGenerator: idgenerator.NewGenerator(1, math.MaxUint16),
-			farIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
-			qerIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
-			urrIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
-			N3Interface:    nil,
-		},
+		pdrIDGenerator:     idgenerator.NewGenerator(1, math.MaxUint16),
+		farIDGenerator:     idgenerator.NewGenerator(1, math.MaxUint32),
+		qerIDGenerator:     idgenerator.NewGenerator(1, math.MaxUint32),
+		urrIDGenerator:     idgenerator.NewGenerator(1, math.MaxUint32),
 	}
 }
 
@@ -275,4 +276,120 @@ func (smf *SMF) ReleaseUeIPAddr(ctx context.Context, supi string) error {
 	logger.SmfLog.Info("Released IP Address", zap.String("supi", supi))
 
 	return nil
+}
+
+func (smf *SMF) pdrID() (uint16, error) {
+	pdrID, err := smf.pdrIDGenerator.Allocate()
+	if err != nil {
+		return 0, fmt.Errorf("could not allocate PDR ID: %v", err)
+	}
+
+	return uint16(pdrID), nil
+}
+
+func (smf *SMF) farID() (uint32, error) {
+	tmpID, err := smf.farIDGenerator.Allocate()
+	if err != nil {
+		return 0, err
+	}
+
+	return uint32(tmpID), nil
+}
+
+func (smf *SMF) qerID() (uint32, error) {
+	tmpID, err := smf.qerIDGenerator.Allocate()
+	if err != nil {
+		return 0, err
+	}
+
+	return uint32(tmpID), nil
+}
+
+func (smf *SMF) urrID() (uint32, error) {
+	tmpID, err := smf.urrIDGenerator.Allocate()
+	if err != nil {
+		return 0, err
+	}
+
+	return uint32(tmpID), nil
+}
+
+func (smf *SMF) AddPDR() (*PDR, error) {
+	pdrID, err := smf.pdrID()
+	if err != nil {
+		return nil, err
+	}
+
+	pdr := new(PDR)
+	pdr.PDRID = pdrID
+
+	newFAR, err := smf.AddFAR()
+	if err != nil {
+		return nil, err
+	}
+
+	pdr.FAR = newFAR
+
+	return pdr, nil
+}
+
+func (smf *SMF) AddFAR() (*FAR, error) {
+	farID, err := smf.farID()
+	if err != nil {
+		return nil, err
+	}
+
+	far := new(FAR)
+	far.ApplyAction.Drop = true
+	far.FARID = farID
+
+	return far, nil
+}
+
+func (smf *SMF) AddQER() (*QER, error) {
+	qerID, err := smf.qerID()
+	if err != nil {
+		return nil, err
+	}
+
+	qer := new(QER)
+	qer.QERID = qerID
+
+	return qer, nil
+}
+
+func (smf *SMF) AddURR() (*URR, error) {
+	urrID, err := smf.urrID()
+	if err != nil {
+		return nil, err
+	}
+
+	urr := &URR{
+		URRID: urrID,
+		MeasurementMethods: MeasurementMethods{
+			Volume: true,
+		},
+		ReportingTriggers: ReportingTriggers{
+			PeriodicReporting: true,
+		},
+		MeasurementPeriod: 60 * time.Second,
+	}
+
+	return urr, nil
+}
+
+func (smf *SMF) RemovePDR(pdr *PDR) {
+	smf.pdrIDGenerator.FreeID(int64(pdr.PDRID))
+}
+
+func (smf *SMF) RemoveFAR(far *FAR) {
+	smf.farIDGenerator.FreeID(int64(far.FARID))
+}
+
+func (smf *SMF) RemoveQER(qer *QER) {
+	smf.qerIDGenerator.FreeID(int64(qer.QERID))
+}
+
+func (smf *SMF) RemoveURR(urr *URR) {
+	smf.urrIDGenerator.FreeID(int64(urr.URRID))
 }

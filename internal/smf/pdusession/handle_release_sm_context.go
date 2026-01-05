@@ -36,7 +36,7 @@ func ReleaseSmContext(ctx context.Context, smContextRef string) error {
 		logger.SmfLog.Error("release UE IP address failed", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 	}
 
-	err = releaseTunnel(ctx, smf.CPNodeID, smContext)
+	err = releaseTunnel(ctx, smf, smContext)
 	if err != nil {
 		smf.RemoveSMContext(ctx, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
 		return fmt.Errorf("release tunnel failed: %v", err)

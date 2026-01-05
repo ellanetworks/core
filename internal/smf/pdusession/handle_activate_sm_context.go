@@ -21,7 +21,7 @@ func ActivateSmContext(smContextRef string) ([]byte, error) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	n2Buf, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext.PolicyData.SessionRule, smContext.PolicyData.QosData, smContext.Tunnel.DataPath.DPNode)
+	n2Buf, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext.PolicyData.SessionRule, smContext.PolicyData.QosData, smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.N3IP)
 	if err != nil {
 		return nil, fmt.Errorf("build PDUSession Resource Setup Request Transfer Error: %v", err)
 	}

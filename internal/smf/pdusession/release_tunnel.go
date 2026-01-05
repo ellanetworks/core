@@ -3,20 +3,19 @@ package pdusession
 import (
 	"context"
 	"fmt"
-	"net"
 
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 )
 
-func releaseTunnel(ctx context.Context, cpNodeID net.IP, smContext *smfContext.SMContext) error {
+func releaseTunnel(ctx context.Context, smf *smfContext.SMF, smContext *smfContext.SMContext) error {
 	if smContext.Tunnel == nil {
 		return fmt.Errorf("tunnel not found")
 	}
 
-	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR()
+	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR(smf)
 
-	err := pfcp.SendPfcpSessionDeletionRequest(ctx, cpNodeID, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID)
+	err := pfcp.SendPfcpSessionDeletionRequest(ctx, smf.CPNodeID, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID)
 	if err != nil {
 		return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 	}

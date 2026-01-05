@@ -21,10 +21,10 @@ import (
 type GTPTunnel struct {
 	PDR  *PDR
 	TEID uint32
+	N3IP net.IP
 }
 
 type DataPathNode struct {
-	UPF            *UPF
 	UpLinkTunnel   *GTPTunnel
 	DownLinkTunnel *GTPTunnel
 }
@@ -34,8 +34,8 @@ type DataPath struct {
 	Activated bool
 }
 
-func (node *DataPathNode) ActivateUpLinkTunnel() error {
-	pdr, err := node.UPF.AddPDR()
+func (node *DataPathNode) ActivateUpLinkTunnel(smf *SMF) error {
+	pdr, err := smf.AddPDR()
 	if err != nil {
 		return fmt.Errorf("add PDR failed: %s", err)
 	}
@@ -45,8 +45,8 @@ func (node *DataPathNode) ActivateUpLinkTunnel() error {
 	return nil
 }
 
-func (node *DataPathNode) ActivateDownLinkTunnel() error {
-	pdr, err := node.UPF.AddPDR()
+func (node *DataPathNode) ActivateDownLinkTunnel(smf *SMF) error {
+	pdr, err := smf.AddPDR()
 	if err != nil {
 		return fmt.Errorf("add PDR failed: %s", err)
 	}
@@ -56,26 +56,26 @@ func (node *DataPathNode) ActivateDownLinkTunnel() error {
 	return nil
 }
 
-func (node *DataPathNode) DeactivateUpLinkTunnel() {
+func (node *DataPathNode) DeactivateUpLinkTunnel(smf *SMF) {
 	if node.UpLinkTunnel.PDR == nil {
 		logger.SmfLog.Debug("PDR is nil in UpLink Tunnel")
 		return
 	}
 
-	node.UPF.RemovePDR(node.UpLinkTunnel.PDR)
+	smf.RemovePDR(node.UpLinkTunnel.PDR)
 
 	if far := node.UpLinkTunnel.PDR.FAR; far != nil {
-		node.UPF.RemoveFAR(far)
+		smf.RemoveFAR(far)
 	}
 
 	qer := node.UpLinkTunnel.PDR.QER
 	if qer != nil {
-		node.UPF.RemoveQER(qer)
+		smf.RemoveQER(qer)
 	}
 
 	urr := node.UpLinkTunnel.PDR.URR
 	if urr != nil {
-		node.UPF.RemoveURR(urr)
+		smf.RemoveURR(urr)
 	}
 
 	logger.SmfLog.Info("deactivated UpLinkTunnel PDR ")
@@ -83,7 +83,7 @@ func (node *DataPathNode) DeactivateUpLinkTunnel() {
 	node.DownLinkTunnel = &GTPTunnel{}
 }
 
-func (node *DataPathNode) DeactivateDownLinkTunnel() {
+func (node *DataPathNode) DeactivateDownLinkTunnel(smf *SMF) {
 	if node.DownLinkTunnel.PDR == nil {
 		logger.SmfLog.Debug("PDR is nil in Downlink Tunnel")
 		return
@@ -91,32 +91,32 @@ func (node *DataPathNode) DeactivateDownLinkTunnel() {
 
 	logger.SmfLog.Info("deactivated DownLinkTunnel PDR", zap.Uint16("pdrId", node.DownLinkTunnel.PDR.PDRID))
 
-	node.UPF.RemovePDR(node.DownLinkTunnel.PDR)
+	smf.RemovePDR(node.DownLinkTunnel.PDR)
 
 	if far := node.DownLinkTunnel.PDR.FAR; far != nil {
-		node.UPF.RemoveFAR(far)
+		smf.RemoveFAR(far)
 	}
 
 	qer := node.DownLinkTunnel.PDR.QER
 	if qer != nil {
-		node.UPF.RemoveQER(qer)
+		smf.RemoveQER(qer)
 	}
 
 	urr := node.DownLinkTunnel.PDR.URR
 	if urr != nil {
-		node.UPF.RemoveURR(urr)
+		smf.RemoveURR(urr)
 	}
 
 	node.DownLinkTunnel = &GTPTunnel{}
 }
 
-func (dataPath *DataPath) ActivateUlDlTunnel() error {
-	err := dataPath.DPNode.ActivateUpLinkTunnel()
+func (dataPath *DataPath) ActivateUlDlTunnel(smf *SMF) error {
+	err := dataPath.DPNode.ActivateUpLinkTunnel(smf)
 	if err != nil {
 		return fmt.Errorf("couldn't activate UpLinkTunnel: %s", err)
 	}
 
-	err = dataPath.DPNode.ActivateDownLinkTunnel()
+	err = dataPath.DPNode.ActivateDownLinkTunnel(smf)
 	if err != nil {
 		return fmt.Errorf("couldn't activate DownLinkTunnel: %s", err)
 	}
@@ -124,12 +124,12 @@ func (dataPath *DataPath) ActivateUlDlTunnel() error {
 	return nil
 }
 
-func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext, smPolicyDecision *models.SmPolicyDecision) (*QER, error) {
+func (node *DataPathNode) CreateSessRuleQer(smf *SMF, smPolicyDecision *models.SmPolicyDecision) (*QER, error) {
 	if smPolicyDecision.QosData == nil {
 		return nil, fmt.Errorf("QOS Data not found in Policy Decision")
 	}
 
-	newQER, err := node.UPF.AddQER()
+	newQER, err := smf.AddQER()
 	if err != nil {
 		return nil, fmt.Errorf("failed to add QER: %v", err)
 	}
@@ -147,10 +147,6 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext, smPolicyDecisi
 	flowQER := newQER
 
 	return flowQER, nil
-}
-
-func (node *DataPathNode) CreateSessRuleURR() (*URR, error) {
-	return node.UPF.AddURR()
 }
 
 func (node *DataPathNode) ActivateUpLinkPdr(dnn string, pduAddress net.IP, defQER *QER, defURR *URR, defPrecedence uint32) {
@@ -225,22 +221,22 @@ func (node *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, pduAddress net
 func (dataPath *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, smPolicyDecision *models.SmPolicyDecision, pduAddress net.IP, precedence uint32) error {
 	smContext.AllocateLocalSEIDForDataPath(smf)
 
-	err := dataPath.ActivateUlDlTunnel()
+	err := dataPath.ActivateUlDlTunnel(smf)
 	if err != nil {
 		return fmt.Errorf("could not activate UL/DL Tunnel: %s", err)
 	}
 
-	defQER, err := dataPath.DPNode.CreateSessRuleQer(smContext, smPolicyDecision)
+	defQER, err := dataPath.DPNode.CreateSessRuleQer(smf, smPolicyDecision)
 	if err != nil {
 		return fmt.Errorf("failed to create default QER: %v", err)
 	}
 
-	defULURR, err := dataPath.DPNode.CreateSessRuleURR()
+	defULURR, err := smf.AddURR()
 	if err != nil {
 		return fmt.Errorf("failed to create uplink URR: %v", err)
 	}
 
-	defDLURR, err := dataPath.DPNode.CreateSessRuleURR()
+	defDLURR, err := smf.AddURR()
 	if err != nil {
 		return fmt.Errorf("failed to create uplink URR: %v", err)
 	}
@@ -269,9 +265,9 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, s
 	return nil
 }
 
-func (dataPath *DataPath) DeactivateTunnelAndPDR() {
-	dataPath.DPNode.DeactivateUpLinkTunnel()
-	dataPath.DPNode.DeactivateDownLinkTunnel()
+func (dataPath *DataPath) DeactivateTunnelAndPDR(smf *SMF) {
+	dataPath.DPNode.DeactivateUpLinkTunnel(smf)
+	dataPath.DPNode.DeactivateDownLinkTunnel(smf)
 
 	dataPath.Activated = false
 }

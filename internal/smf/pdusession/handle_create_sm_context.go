@@ -81,7 +81,7 @@ func handlePduSessionContextReplacement(ctx context.Context, smf *smfContext.SMF
 
 	// Check if UPF session set, send release
 	if smCtxt.Tunnel != nil {
-		err := releaseTunnel(ctx, smf.CPNodeID, smCtxt)
+		err := releaseTunnel(ctx, smf, smCtxt)
 		if err != nil {
 			logger.SmfLog.Error("release tunnel failed", zap.Error(err), zap.String("supi", smCtxt.Supi), zap.Uint8("pduSessionID", smCtxt.PDUSessionID))
 		}
@@ -181,7 +181,6 @@ func handlePDUSessionSMContextCreate(
 		DPNode: &smfContext.DataPathNode{
 			UpLinkTunnel:   &smfContext.GTPTunnel{},
 			DownLinkTunnel: &smfContext.GTPTunnel{},
-			UPF:            smf.UPF,
 		},
 	}
 
@@ -340,7 +339,7 @@ func sendPduSessionEstablishmentAccept(
 		return fmt.Errorf("build GSM PDUSessionEstablishmentAccept failed: %v", err)
 	}
 
-	n2Msg, err := smfContext.BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates.SessionRule, smPolicyUpdates.QosData, smContext.Tunnel.DataPath.DPNode)
+	n2Msg, err := smfContext.BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates.SessionRule, smPolicyUpdates.QosData, smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.N3IP)
 	if err != nil {
 		return fmt.Errorf("build PDUSessionResourceSetupRequestTransfer failed: %v", err)
 	}

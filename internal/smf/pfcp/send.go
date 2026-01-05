@@ -79,11 +79,6 @@ func HandlePfcpSessionEstablishmentResponse(ctx context.Context, smf *smfContext
 		return fmt.Errorf("PFCP Session Establishment Response missing Node ID")
 	}
 
-	nodeID, err := msg.NodeID.NodeID()
-	if err != nil {
-		return fmt.Errorf("failed to parse NodeID IE: %+v", err)
-	}
-
 	if msg.UPFSEID != nil {
 		rspUPFseid, err := msg.UPFSEID.FSEID()
 		if err != nil {
@@ -101,12 +96,7 @@ func HandlePfcpSessionEstablishmentResponse(ctx context.Context, smf *smfContext
 		}
 
 		smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.TEID = fteid.TEID
-
-		if smf.UPF == nil {
-			return fmt.Errorf("can't find UPF: %s", nodeID)
-		}
-
-		smf.UPF.N3Interface = fteid.IPv4Address
+		smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.N3IP = fteid.IPv4Address
 	}
 
 	if msg.Cause == nil {

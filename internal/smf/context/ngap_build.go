@@ -7,6 +7,7 @@ package context
 import (
 	"encoding/binary"
 	"fmt"
+	"net"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
@@ -14,17 +15,9 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// func selectedSessionRule(smPolicyUpdates *qos.PolicyUpdate, qosPolicyData *PolicyData) *models.SessionRule {
-// 	if smPolicyUpdates != nil {
-// 		return smPolicyUpdates.SessRuleUpdate
-// 	}
-
-// 	return qosPolicyData.SessionRule
-// }
-
-func BuildPDUSessionResourceSetupRequestTransfer(sessionRule *models.SessionRule, qosData *models.QosData, dpNode *DataPathNode) ([]byte, error) {
+func BuildPDUSessionResourceSetupRequestTransfer(sessionRule *models.SessionRule, qosData *models.QosData, teid uint32, n3IP net.IP) ([]byte, error) {
 	teidOct := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidOct, dpNode.UpLinkTunnel.TEID)
+	binary.BigEndian.PutUint32(teidOct, teid)
 
 	resourceSetupRequestTransfer := ngapType.PDUSessionResourceSetupRequestTransfer{}
 
@@ -33,11 +26,6 @@ func BuildPDUSessionResourceSetupRequestTransfer(sessionRule *models.SessionRule
 	ie := ngapType.PDUSessionResourceSetupRequestTransferIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
-
-	// sessRule := selectedSessionRule(smPolicyUpdates, qosPolicyData)
-	// if sessRule == nil || sessRule.AuthSessAmbr == nil {
-	// 	return nil, fmt.Errorf("no PDU Session AMBR")
-	// }
 
 	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
 		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentPDUSessionAggregateMaximumBitRate,
@@ -64,8 +52,8 @@ func BuildPDUSessionResourceSetupRequestTransfer(sessionRule *models.SessionRule
 			GTPTunnel: &ngapType.GTPTunnel{
 				TransportLayerAddress: ngapType.TransportLayerAddress{
 					Value: aper.BitString{
-						Bytes:     dpNode.UPF.N3Interface,
-						BitLength: uint64(len(dpNode.UPF.N3Interface) * 8),
+						Bytes:     n3IP,
+						BitLength: uint64(len(n3IP) * 8),
 					},
 				},
 				GTPTEID: ngapType.GTPTEID{Value: teidOct},
@@ -180,12 +168,12 @@ func BuildPDUSessionResourceReleaseCommandTransfer() ([]byte, error) {
 }
 
 // TS 38.413 9.3.4.9
-func BuildPathSwitchRequestAcknowledgeTransfer(dpNode *DataPathNode) ([]byte, error) {
+func BuildPathSwitchRequestAcknowledgeTransfer(teid uint32, n3IP net.IP) ([]byte, error) {
 	// dataPath := ctx.Tunnel.DataPath
 	// ANUPF := dataPath.DPNode
 	// UpNode := ANUPF.UPF
 	teidOct := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidOct, dpNode.UpLinkTunnel.TEID)
+	binary.BigEndian.PutUint32(teidOct, teid)
 
 	pathSwitchRequestAcknowledgeTransfer := ngapType.PathSwitchRequestAcknowledgeTransfer{}
 
@@ -200,8 +188,8 @@ func BuildPathSwitchRequestAcknowledgeTransfer(dpNode *DataPathNode) ([]byte, er
 	gtpTunnel := ULNGUUPTNLInformation.GTPTunnel
 	gtpTunnel.GTPTEID.Value = teidOct
 	gtpTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     dpNode.UPF.N3Interface,
-		BitLength: uint64(len(dpNode.UPF.N3Interface) * 8),
+		Bytes:     n3IP,
+		BitLength: uint64(len(n3IP) * 8),
 	}
 
 	// Security Indication(optional) TS 38.413 9.3.1.27
@@ -224,9 +212,9 @@ func BuildPathSwitchRequestAcknowledgeTransfer(dpNode *DataPathNode) ([]byte, er
 	}
 }
 
-func BuildHandoverCommandTransfer(dpNode *DataPathNode) ([]byte, error) {
+func BuildHandoverCommandTransfer(teid uint32, n3IP net.IP) ([]byte, error) {
 	teidOct := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidOct, dpNode.UpLinkTunnel.TEID)
+	binary.BigEndian.PutUint32(teidOct, teid)
 
 	handoverCommandTransfer := ngapType.HandoverCommandTransfer{}
 
@@ -237,8 +225,8 @@ func BuildHandoverCommandTransfer(dpNode *DataPathNode) ([]byte, error) {
 	gtpTunnel := handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel
 	gtpTunnel.GTPTEID.Value = teidOct
 	gtpTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     dpNode.UPF.N3Interface,
-		BitLength: uint64(len(dpNode.UPF.N3Interface) * 8),
+		Bytes:     n3IP,
+		BitLength: uint64(len(n3IP) * 8),
 	}
 
 	buf, err := aper.MarshalWithParams(handoverCommandTransfer, "valueExt")

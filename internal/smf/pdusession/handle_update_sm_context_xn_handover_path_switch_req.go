@@ -62,7 +62,7 @@ func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *smfConte
 		return nil, nil, nil, fmt.Errorf("handle PathSwitchRequestTransfer failed: %v", err)
 	}
 
-	n2Buf, err := smfContext.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.DataPath.DPNode)
+	n2Buf, err := smfContext.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.N3IP)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("build Path Switch Transfer Error: %v", err)
 	}

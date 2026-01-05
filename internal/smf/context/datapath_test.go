@@ -16,7 +16,6 @@ func TestActivateUpLinkPdr(t *testing.T) {
 	defURR := &context.URR{}
 
 	node := &context.DataPathNode{
-		UPF: &context.UPF{},
 		UpLinkTunnel: &context.GTPTunnel{
 			PDR: &context.PDR{
 				Precedence: 0,
@@ -80,7 +79,6 @@ func TestActivateDlLinkPdr(t *testing.T) {
 	defURR := &context.URR{}
 
 	node := &context.DataPathNode{
-		UPF: &context.UPF{},
 		DownLinkTunnel: &context.GTPTunnel{
 			PDR: &context.PDR{
 				Precedence: 0,

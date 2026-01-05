@@ -43,7 +43,7 @@ func UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte
 	}
 
 	if sendPfcpDelete {
-		err := releaseTunnel(ctx, smf.CPNodeID, smContext)
+		err := releaseTunnel(ctx, smf, smContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to release tunnel: %v", err)
 		}
