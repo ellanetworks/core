@@ -120,10 +120,14 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
 		statistic->fib_lookup_ip4_error_drop += 1;
 		return XDP_DROP;
+	case BPF_FIB_LKUP_RET_FRAG_NEEDED:
+		upf_printk("upf: fragmentation needed for %pI4 -> %pI4",
+			   &ctx->ip4->saddr, &ctx->ip4->daddr);
+		statistic->fib_lookup_ip4_error_drop += 1;
+		return XDP_DROP;
 	case BPF_FIB_LKUP_RET_NOT_FWDED:
 	case BPF_FIB_LKUP_RET_FWD_DISABLED:
 	case BPF_FIB_LKUP_RET_UNSUPP_LWT:
-	case BPF_FIB_LKUP_RET_FRAG_NEEDED:
 	default:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
@@ -188,10 +192,14 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
 		statistic->fib_lookup_ip6_error_drop += 1;
 		return XDP_DROP;
+	case BPF_FIB_LKUP_RET_FRAG_NEEDED:
+		upf_printk("upf: fragmentation needed %pI6c -> %pI6c",
+			   &ctx->ip6->saddr, &ctx->ip6->daddr);
+		statistic->fib_lookup_ip6_error_drop += 1;
+		return XDP_DROP;
 	case BPF_FIB_LKUP_RET_NOT_FWDED:
 	case BPF_FIB_LKUP_RET_FWD_DISABLED:
 	case BPF_FIB_LKUP_RET_UNSUPP_LWT:
-	case BPF_FIB_LKUP_RET_FRAG_NEEDED:
 	default:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
