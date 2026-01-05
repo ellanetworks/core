@@ -105,7 +105,7 @@ func handlePDUSessionSMContextCreate(
 	*smfContext.SnssaiSmfDnnInfo,
 	net.IP,
 	uint8,
-	*models.SmPolicyDecision,
+	*models.SmPolicyData,
 	[]byte,
 	error,
 ) {
@@ -302,7 +302,7 @@ func sendPFCPRules(ctx context.Context, smf *smfContext.SMF, smContext *smfConte
 	return nil
 }
 
-func sendPduSessionEstablishmentReject(ctx context.Context, smContext *smfContext.SMContext, smPolicyUpdates *models.SmPolicyDecision, pti uint8) error {
+func sendPduSessionEstablishmentReject(ctx context.Context, smContext *smfContext.SMContext, smPolicyUpdates *models.SmPolicyData, pti uint8) error {
 	smNasBuf, err := smfContext.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 	if err != nil {
 		return fmt.Errorf("build GSM PDUSessionEstablishmentReject failed: %v", err)
@@ -315,7 +315,7 @@ func sendPduSessionEstablishmentReject(ctx context.Context, smContext *smfContex
 
 	logger.SmfLog.Debug("Sent n1 message", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-	smContext.CommitSmPolicyDecision(smPolicyUpdates)
+	smContext.SetSMPolicyData(smPolicyUpdates)
 
 	return nil
 }
@@ -323,7 +323,7 @@ func sendPduSessionEstablishmentReject(ctx context.Context, smContext *smfContex
 func sendPduSessionEstablishmentAccept(
 	ctx context.Context,
 	smContext *smfContext.SMContext,
-	smPolicyUpdates *models.SmPolicyDecision,
+	smPolicyUpdates *models.SmPolicyData,
 	pco *smfContext.ProtocolConfigurationOptions,
 	pduSessionType uint8,
 	dnnInfo *smfContext.SnssaiSmfDnnInfo,
@@ -335,7 +335,7 @@ func sendPduSessionEstablishmentAccept(
 		return fmt.Errorf("build GSM PDUSessionEstablishmentAccept failed: %v", err)
 	}
 
-	n2Msg, err := smfContext.BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates.SessionRule, smPolicyUpdates.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
+	n2Msg, err := smfContext.BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
 	if err != nil {
 		return fmt.Errorf("build PDUSessionResourceSetupRequestTransfer failed: %v", err)
 	}
@@ -354,7 +354,7 @@ func sendPduSessionEstablishmentAccept(
 
 	logger.SmfLog.Debug("Sent n1 n2 transfer request", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
-	smContext.CommitSmPolicyDecision(smPolicyUpdates)
+	smContext.SetSMPolicyData(smPolicyUpdates)
 
 	return nil
 }

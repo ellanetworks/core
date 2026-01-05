@@ -1,6 +1,6 @@
 package models
 
-type SmPolicyDecision struct {
+type SmPolicyData struct {
 	SessionRule *SessionRule
 	QosData     *QosData
 }

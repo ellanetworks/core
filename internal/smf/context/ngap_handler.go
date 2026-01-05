@@ -16,7 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) error {
+func HandlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContext) error {
 	resourceSetupResponseTransfer := ngapType.PDUSessionResourceSetupResponseTransfer{}
 
 	err := aper.UnmarshalWithParams(b, &resourceSetupResponseTransfer, "valueExt")
@@ -35,15 +35,15 @@ func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) err
 
 	teid := binary.BigEndian.Uint32(gtpTunnel.GTPTEID.Value)
 
-	ctx.Tunnel.ANInformation.IPAddress = gtpTunnel.TransportLayerAddress.Value.Bytes
-	ctx.Tunnel.ANInformation.TEID = teid
+	smContext.Tunnel.ANInformation.IPAddress = gtpTunnel.TransportLayerAddress.Value.Bytes
+	smContext.Tunnel.ANInformation.TEID = teid
 
-	if ctx.Tunnel.DataPath.Activated {
-		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
-		dlOuterHeaderCreation := ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation
+	if smContext.Tunnel.DataPath.Activated {
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
+		dlOuterHeaderCreation := smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation
 		dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
 		dlOuterHeaderCreation.TeID = teid
-		dlOuterHeaderCreation.IPv4Address = ctx.Tunnel.ANInformation.IPAddress.To4()
+		dlOuterHeaderCreation.IPv4Address = smContext.Tunnel.ANInformation.IPAddress.To4()
 	}
 
 	return nil
@@ -75,7 +75,7 @@ func HandlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte) error {
 	return nil
 }
 
-func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
+func HandlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 	pathSwitchRequestTransfer := ngapType.PathSwitchRequestTransfer{}
 
 	if err := aper.UnmarshalWithParams(b, &pathSwitchRequestTransfer, "valueExt"); err != nil {
@@ -90,17 +90,17 @@ func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
 
 	teid := binary.BigEndian.Uint32(gtpTunnel.GTPTEID.Value)
 
-	ctx.Tunnel.ANInformation.IPAddress = gtpTunnel.TransportLayerAddress.Value.Bytes
-	ctx.Tunnel.ANInformation.TEID = teid
+	smContext.Tunnel.ANInformation.IPAddress = gtpTunnel.TransportLayerAddress.Value.Bytes
+	smContext.Tunnel.ANInformation.TEID = teid
 
-	if ctx.Tunnel.DataPath.Activated {
-		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
-		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
-		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.TeID = teid
-		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.IPv4Address = gtpTunnel.TransportLayerAddress.Value.Bytes
-		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
-		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.PFCPSMReqFlags = new(PFCPSMReqFlags)
-		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.PFCPSMReqFlags.Sndem = true
+	if smContext.Tunnel.DataPath.Activated {
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.TeID = teid
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.IPv4Address = gtpTunnel.TransportLayerAddress.Value.Bytes
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.PFCPSMReqFlags = new(PFCPSMReqFlags)
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.PFCPSMReqFlags.Sndem = true
 	}
 
 	return nil
@@ -128,7 +128,7 @@ func HandleHandoverRequiredTransfer(b []byte) error {
 	return nil
 }
 
-func HandleHandoverRequestAcknowledgeTransfer(b []byte, ctx *SMContext) error {
+func HandleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) error {
 	handoverRequestAcknowledgeTransfer := ngapType.HandoverRequestAcknowledgeTransfer{}
 
 	err := aper.UnmarshalWithParams(b, &handoverRequestAcknowledgeTransfer, "valueExt")
@@ -145,12 +145,12 @@ func HandleHandoverRequestAcknowledgeTransfer(b []byte, ctx *SMContext) error {
 		return fmt.Errorf("parse TEID error %s", err.Error())
 	}
 
-	if ctx.Tunnel.DataPath.Activated {
-		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
-		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
-		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.TeID = uint32(teid)
-		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.IPv4Address = GTPTunnel.TransportLayerAddress.Value.Bytes
-		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
+	if smContext.Tunnel.DataPath.Activated {
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.TeID = uint32(teid)
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.IPv4Address = GTPTunnel.TransportLayerAddress.Value.Bytes
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
 	}
 
 	return nil

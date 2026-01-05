@@ -136,7 +136,7 @@ func (smf *SMF) GetAllowedSessionType() uint8 {
 	return smf.allowedSessionType
 }
 
-func (smf *SMF) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyDecision, error) {
+func (smf *SMF) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyData, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"SMF GetSubscriberPolicy",
@@ -156,7 +156,7 @@ func (smf *SMF) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.S
 		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
 
-	subscriberPolicy := &models.SmPolicyDecision{
+	subscriberPolicy := &models.SmPolicyData{
 		SessionRule: &models.SessionRule{
 			AuthDefQos: &models.AuthorizedDefaultQos{
 				Var5qi: policy.Var5qi,
@@ -313,7 +313,7 @@ func (smf *SMF) NewFAR() (*FAR, error) {
 	return far, nil
 }
 
-func (smf *SMF) NewQER(smData *models.SmPolicyDecision) (*QER, error) {
+func (smf *SMF) NewQER(smData *models.SmPolicyData) (*QER, error) {
 	qerID, err := smf.qerIDGenerator.Allocate()
 	if err != nil {
 		return nil, fmt.Errorf("could not allocate QER ID: %v", err)

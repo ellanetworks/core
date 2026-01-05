@@ -35,7 +35,7 @@ type SMContext struct {
 	Dnn                            string
 	Snssai                         *models.Snssai
 	Tunnel                         *UPTunnel
-	PolicyData                     *models.SmPolicyDecision
+	PolicyData                     *models.SmPolicyData
 	PFCPContext                    *PFCPSessionContext
 	PDUSessionID                   uint8
 	PDUSessionReleaseDueToDupPduID bool
@@ -60,12 +60,9 @@ func PDUAddressToNAS(pduAddress net.IP, pduSessionType uint8) ([12]byte, uint8) 
 	}
 }
 
-func (smContext *SMContext) CommitSmPolicyDecision(smPolicyUpdates *models.SmPolicyDecision) {
+func (smContext *SMContext) SetSMPolicyData(smPolicyData *models.SmPolicyData) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	smContext.PolicyData = &models.SmPolicyDecision{
-		QosData:     smPolicyUpdates.QosData,
-		SessionRule: smPolicyUpdates.SessionRule,
-	}
+	smContext.PolicyData = smPolicyData
 }

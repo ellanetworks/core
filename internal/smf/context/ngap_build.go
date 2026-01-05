@@ -15,7 +15,11 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func BuildPDUSessionResourceSetupRequestTransfer(sessionRule *models.SessionRule, qosData *models.QosData, teid uint32, n3IP net.IP) ([]byte, error) {
+func BuildPDUSessionResourceSetupRequestTransfer(smPolicyData *models.SmPolicyData, teid uint32, n3IP net.IP) ([]byte, error) {
+	if smPolicyData == nil {
+		return nil, fmt.Errorf("smPolicyData is nil")
+	}
+
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, teid)
 
@@ -31,10 +35,10 @@ func BuildPDUSessionResourceSetupRequestTransfer(sessionRule *models.SessionRule
 		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentPDUSessionAggregateMaximumBitRate,
 		PDUSessionAggregateMaximumBitRate: &ngapType.PDUSessionAggregateMaximumBitRate{
 			PDUSessionAggregateMaximumBitRateDL: ngapType.BitRate{
-				Value: ngapConvert.UEAmbrToInt64(sessionRule.AuthSessAmbr.Downlink),
+				Value: ngapConvert.UEAmbrToInt64(smPolicyData.SessionRule.AuthSessAmbr.Downlink),
 			},
 			PDUSessionAggregateMaximumBitRateUL: ngapType.BitRate{
-				Value: ngapConvert.UEAmbrToInt64(sessionRule.AuthSessAmbr.Uplink),
+				Value: ngapConvert.UEAmbrToInt64(smPolicyData.SessionRule.AuthSessAmbr.Uplink),
 			},
 		},
 	}
@@ -75,20 +79,8 @@ func BuildPDUSessionResourceSetupRequestTransfer(sessionRule *models.SessionRule
 	}
 	resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
 
-	// Get Qos Flow
-	// var qosAddFlow *models.QosData
-
-	// if qosPolicyData != nil && qosPolicyData.QosData != nil {
-	// 	qosAddFlow = qosPolicyData.QosData
-	// }
-
-	// // PCF has provided some update
-	// if smPolicyUpdates != nil && smPolicyUpdates.QosFlowUpdate != nil {
-	// 	qosAddFlow = smPolicyUpdates.QosFlowUpdate
-	// }
-
 	// QoS Flow Setup Request List
-	if qosData != nil {
+	if smPolicyData.QosData != nil {
 		ie = ngapType.PDUSessionResourceSetupRequestTransferIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDQosFlowSetupRequestList
 		ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -96,29 +88,29 @@ func BuildPDUSessionResourceSetupRequestTransfer(sessionRule *models.SessionRule
 		var qosFlowsList []ngapType.QosFlowSetupRequestItem
 
 		arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-		if qosData.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
+		if smPolicyData.QosData.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
 			arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
 		}
 
 		arpPreemptVul := ngapType.PreEmptionVulnerabilityPresentNotPreEmptable
-		if qosData.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
+		if smPolicyData.QosData.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
 			arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
 		}
 
 		qosFlowItem := ngapType.QosFlowSetupRequestItem{
-			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(qosData.QFI)},
+			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(smPolicyData.QosData.QFI)},
 			QosFlowLevelQosParameters: ngapType.QosFlowLevelQosParameters{
 				QosCharacteristics: ngapType.QosCharacteristics{
 					Present: ngapType.QosCharacteristicsPresentNonDynamic5QI,
 					NonDynamic5QI: &ngapType.NonDynamic5QIDescriptor{
 						FiveQI: ngapType.FiveQI{
-							Value: int64(qosData.Var5qi),
+							Value: int64(smPolicyData.QosData.Var5qi),
 						},
 					},
 				},
 				AllocationAndRetentionPriority: ngapType.AllocationAndRetentionPriority{
 					PriorityLevelARP: ngapType.PriorityLevelARP{
-						Value: int64(qosData.Arp.PriorityLevel),
+						Value: int64(smPolicyData.QosData.Arp.PriorityLevel),
 					},
 					PreEmptionCapability: ngapType.PreEmptionCapability{
 						Value: arpPreemptCap,

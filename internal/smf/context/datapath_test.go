@@ -62,19 +62,6 @@ func TestActivateUpLinkPdr(t *testing.T) {
 }
 
 func TestActivateDlLinkPdr(t *testing.T) {
-	smContext := &context.SMContext{
-		Dnn: "internet",
-		Tunnel: &context.UPTunnel{
-			ANInformation: struct {
-				IPAddress net.IP
-				TEID      uint32
-			}{
-				IPAddress: net.IP{10, 0, 0, 1},
-				TEID:      12345,
-			},
-		},
-	}
-
 	defQER := &context.QER{}
 	defURR := &context.URR{}
 
@@ -90,7 +77,7 @@ func TestActivateDlLinkPdr(t *testing.T) {
 
 	ip := net.IPv4(192, 168, 1, 1)
 
-	dp.ActivateDlLinkPdr(smContext, ip, defQER, defURR, 10)
+	dp.ActivateDlLinkPdr("internet", net.IP{10, 0, 0, 1}, 12345, ip, defQER, defURR, 10)
 
 	if dp.DownLinkTunnel.PDR == nil {
 		t.Fatalf("expected pdr to be not nil")

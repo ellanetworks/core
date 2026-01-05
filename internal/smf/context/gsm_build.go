@@ -71,12 +71,9 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	pDUSessionEstablishmentAccept.SessionAMBR = ambr
 	pDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(pDUSessionEstablishmentAccept.SessionAMBR.Octet)))
 
-	defQosRule := qos.BuildDefaultQosRule(DefaultQosRuleID, defaultQFI)
 	qosRules := qos.QoSRules{
-		defQosRule,
+		qos.BuildDefaultQosRule(DefaultQosRuleID, defaultQFI),
 	}
-
-	logger.SmfLog.Debug("Built qos rules", zap.Any("QoS Rules", qosRules))
 
 	qosRulesBytes, err := qosRules.MarshalBinary()
 	if err != nil {
