@@ -95,8 +95,8 @@ func HandlePfcpSessionEstablishmentResponse(ctx context.Context, smf *smfContext
 			return fmt.Errorf("failed to parse TEID IE: %+v", err)
 		}
 
-		smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.TEID = fteid.TEID
-		smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.N3IP = fteid.IPv4Address
+		smContext.Tunnel.DataPath.UpLinkTunnel.TEID = fteid.TEID
+		smContext.Tunnel.DataPath.UpLinkTunnel.N3IP = fteid.IPv4Address
 	}
 
 	if msg.Cause == nil {

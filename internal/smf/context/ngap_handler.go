@@ -38,11 +38,9 @@ func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) err
 	ctx.Tunnel.ANInformation.IPAddress = gtpTunnel.TransportLayerAddress.Value.Bytes
 	ctx.Tunnel.ANInformation.TEID = teid
 
-	dataPath := ctx.Tunnel.DataPath
-	if dataPath.Activated {
-		ANUPF := dataPath.DPNode
-		ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
-		dlOuterHeaderCreation := ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation
+	if ctx.Tunnel.DataPath.Activated {
+		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
+		dlOuterHeaderCreation := ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation
 		dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
 		dlOuterHeaderCreation.TeID = teid
 		dlOuterHeaderCreation.IPv4Address = ctx.Tunnel.ANInformation.IPAddress.To4()
@@ -95,17 +93,14 @@ func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
 	ctx.Tunnel.ANInformation.IPAddress = gtpTunnel.TransportLayerAddress.Value.Bytes
 	ctx.Tunnel.ANInformation.TEID = teid
 
-	dataPath := ctx.Tunnel.DataPath
-	if dataPath.Activated {
-		ANUPF := dataPath.DPNode
-		ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
-		dlOuterHeaderCreation := ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation
-		dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
-		dlOuterHeaderCreation.TeID = teid
-		dlOuterHeaderCreation.IPv4Address = gtpTunnel.TransportLayerAddress.Value.Bytes
-		ANUPF.DownLinkTunnel.PDR.FAR.State = RuleUpdate
-		ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters.PFCPSMReqFlags = new(PFCPSMReqFlags)
-		ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters.PFCPSMReqFlags.Sndem = true
+	if ctx.Tunnel.DataPath.Activated {
+		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
+		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
+		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.TeID = teid
+		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.IPv4Address = gtpTunnel.TransportLayerAddress.Value.Bytes
+		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
+		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.PFCPSMReqFlags = new(PFCPSMReqFlags)
+		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.PFCPSMReqFlags.Sndem = true
 	}
 
 	return nil
@@ -150,15 +145,12 @@ func HandleHandoverRequestAcknowledgeTransfer(b []byte, ctx *SMContext) error {
 		return fmt.Errorf("parse TEID error %s", err.Error())
 	}
 
-	dataPath := ctx.Tunnel.DataPath
-	if dataPath.Activated {
-		ANUPF := dataPath.DPNode
-		ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
-		dlOuterHeaderCreation := ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation
-		dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
-		dlOuterHeaderCreation.TeID = uint32(teid)
-		dlOuterHeaderCreation.IPv4Address = GTPTunnel.TransportLayerAddress.Value.Bytes
-		ANUPF.DownLinkTunnel.PDR.FAR.State = RuleUpdate
+	if ctx.Tunnel.DataPath.Activated {
+		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
+		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
+		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.TeID = uint32(teid)
+		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.IPv4Address = GTPTunnel.TransportLayerAddress.Value.Bytes
+		ctx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
 	}
 
 	return nil

@@ -178,10 +178,8 @@ func handlePDUSessionSMContextCreate(
 	}
 
 	defaultPath := &smfContext.DataPath{
-		DPNode: &smfContext.DataPathNode{
-			UpLinkTunnel:   &smfContext.GTPTunnel{},
-			DownLinkTunnel: &smfContext.GTPTunnel{},
-		},
+		UpLinkTunnel:   &smfContext.GTPTunnel{},
+		DownLinkTunnel: &smfContext.GTPTunnel{},
 	}
 
 	smContext.Tunnel = &smfContext.UPTunnel{
@@ -252,36 +250,34 @@ func sendPFCPRules(ctx context.Context, smf *smfContext.SMF, smContext *smfConte
 		return nil
 	}
 
-	curDataPathNode := dataPath.DPNode
-
 	pdrList := make([]*smfContext.PDR, 0, 2)
 	farList := make([]*smfContext.FAR, 0, 2)
 	qerList := make([]*smfContext.QER, 0, 2)
 	urrList := make([]*smfContext.URR, 0, 2)
 
-	if curDataPathNode.UpLinkTunnel != nil && curDataPathNode.UpLinkTunnel.PDR != nil {
-		pdrList = append(pdrList, curDataPathNode.UpLinkTunnel.PDR)
+	if dataPath.UpLinkTunnel != nil && dataPath.UpLinkTunnel.PDR != nil {
+		pdrList = append(pdrList, dataPath.UpLinkTunnel.PDR)
 
-		farList = append(farList, curDataPathNode.UpLinkTunnel.PDR.FAR)
-		if curDataPathNode.UpLinkTunnel.PDR.QER != nil {
-			qerList = append(qerList, curDataPathNode.UpLinkTunnel.PDR.QER)
+		farList = append(farList, dataPath.UpLinkTunnel.PDR.FAR)
+		if dataPath.UpLinkTunnel.PDR.QER != nil {
+			qerList = append(qerList, dataPath.UpLinkTunnel.PDR.QER)
 		}
 
-		if curDataPathNode.UpLinkTunnel.PDR.URR != nil {
-			urrList = append(urrList, curDataPathNode.UpLinkTunnel.PDR.URR)
+		if dataPath.UpLinkTunnel.PDR.URR != nil {
+			urrList = append(urrList, dataPath.UpLinkTunnel.PDR.URR)
 		}
 	}
 
-	if curDataPathNode.DownLinkTunnel != nil && curDataPathNode.DownLinkTunnel.PDR != nil {
-		pdrList = append(pdrList, curDataPathNode.DownLinkTunnel.PDR)
-		farList = append(farList, curDataPathNode.DownLinkTunnel.PDR.FAR)
+	if dataPath.DownLinkTunnel != nil && dataPath.DownLinkTunnel.PDR != nil {
+		pdrList = append(pdrList, dataPath.DownLinkTunnel.PDR)
+		farList = append(farList, dataPath.DownLinkTunnel.PDR.FAR)
 
-		if curDataPathNode.DownLinkTunnel.PDR.QER != nil {
-			qerList = append(qerList, curDataPathNode.DownLinkTunnel.PDR.QER)
+		if dataPath.DownLinkTunnel.PDR.QER != nil {
+			qerList = append(qerList, dataPath.DownLinkTunnel.PDR.QER)
 		}
 
-		if curDataPathNode.DownLinkTunnel.PDR.URR != nil {
-			urrList = append(urrList, curDataPathNode.DownLinkTunnel.PDR.URR)
+		if dataPath.DownLinkTunnel.PDR.URR != nil {
+			urrList = append(urrList, dataPath.DownLinkTunnel.PDR.URR)
 		}
 	}
 
@@ -339,7 +335,7 @@ func sendPduSessionEstablishmentAccept(
 		return fmt.Errorf("build GSM PDUSessionEstablishmentAccept failed: %v", err)
 	}
 
-	n2Msg, err := smfContext.BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates.SessionRule, smPolicyUpdates.QosData, smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.N3IP)
+	n2Msg, err := smfContext.BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates.SessionRule, smPolicyUpdates.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
 	if err != nil {
 		return fmt.Errorf("build PDUSessionResourceSetupRequestTransfer failed: %v", err)
 	}

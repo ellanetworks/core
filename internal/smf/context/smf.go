@@ -278,94 +278,71 @@ func (smf *SMF) ReleaseUeIPAddr(ctx context.Context, supi string) error {
 	return nil
 }
 
-func (smf *SMF) pdrID() (uint16, error) {
+func (smf *SMF) NewPDR() (*PDR, error) {
 	pdrID, err := smf.pdrIDGenerator.Allocate()
 	if err != nil {
-		return 0, fmt.Errorf("could not allocate PDR ID: %v", err)
+		return nil, fmt.Errorf("could not allocate PDR ID: %v", err)
 	}
 
-	return uint16(pdrID), nil
-}
-
-func (smf *SMF) farID() (uint32, error) {
-	tmpID, err := smf.farIDGenerator.Allocate()
-	if err != nil {
-		return 0, err
-	}
-
-	return uint32(tmpID), nil
-}
-
-func (smf *SMF) qerID() (uint32, error) {
-	tmpID, err := smf.qerIDGenerator.Allocate()
-	if err != nil {
-		return 0, err
-	}
-
-	return uint32(tmpID), nil
-}
-
-func (smf *SMF) urrID() (uint32, error) {
-	tmpID, err := smf.urrIDGenerator.Allocate()
-	if err != nil {
-		return 0, err
-	}
-
-	return uint32(tmpID), nil
-}
-
-func (smf *SMF) AddPDR() (*PDR, error) {
-	pdrID, err := smf.pdrID()
+	far, err := smf.NewFAR()
 	if err != nil {
 		return nil, err
 	}
 
-	pdr := new(PDR)
-	pdr.PDRID = pdrID
-
-	newFAR, err := smf.AddFAR()
-	if err != nil {
-		return nil, err
+	pdr := &PDR{
+		PDRID: uint16(pdrID),
+		FAR:   far,
 	}
-
-	pdr.FAR = newFAR
 
 	return pdr, nil
 }
 
-func (smf *SMF) AddFAR() (*FAR, error) {
-	farID, err := smf.farID()
+func (smf *SMF) NewFAR() (*FAR, error) {
+	farID, err := smf.farIDGenerator.Allocate()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not allocate FAR ID: %v", err)
 	}
 
-	far := new(FAR)
-	far.ApplyAction.Drop = true
-	far.FARID = farID
+	far := &FAR{
+		FARID: uint32(farID),
+		ApplyAction: ApplyAction{
+			Drop: true,
+		},
+	}
 
 	return far, nil
 }
 
-func (smf *SMF) AddQER() (*QER, error) {
-	qerID, err := smf.qerID()
+func (smf *SMF) NewQER(smData *models.SmPolicyDecision) (*QER, error) {
+	qerID, err := smf.qerIDGenerator.Allocate()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not allocate QER ID: %v", err)
 	}
 
-	qer := new(QER)
-	qer.QERID = qerID
+	qer := &QER{
+		QERID: uint32(qerID),
+		QFI:   smData.QosData.QFI,
+		GateStatus: &GateStatus{
+			ULGate: GateOpen,
+			DLGate: GateOpen,
+		},
+		MBR: &MBR{
+			ULMBR: BitRateTokbps(smData.SessionRule.AuthSessAmbr.Uplink),
+			DLMBR: BitRateTokbps(smData.SessionRule.AuthSessAmbr.Downlink),
+		},
+	}
 
 	return qer, nil
 }
 
-func (smf *SMF) AddURR() (*URR, error) {
-	urrID, err := smf.urrID()
+func (smf *SMF) NewURR() (*URR, error) {
+	urrID, err := smf.urrIDGenerator.Allocate()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not allocate URR ID: %v", err)
 	}
 
 	urr := &URR{
-		URRID: urrID,
+		URRID: uint32(urrID),
 		MeasurementMethods: MeasurementMethods{
 			Volume: true,
 		},

@@ -25,7 +25,7 @@ func UpdateSmContextN2HandoverPrepared(smContextRef string, n2Data []byte) ([]by
 		return nil, fmt.Errorf("handle HandoverRequestAcknowledgeTransfer failed: %v", err)
 	}
 
-	n2Rsp, err := context.BuildHandoverCommandTransfer(smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.N3IP)
+	n2Rsp, err := context.BuildHandoverCommandTransfer(smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
 	if err != nil {
 		return nil, fmt.Errorf("build Handover Command Transfer Error: %v", err)
 	}
