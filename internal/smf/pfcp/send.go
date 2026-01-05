@@ -200,3 +200,14 @@ func SendPfcpSessionDeletionRequest(ctx context.Context, cpNodeID net.IP, localS
 
 	return nil
 }
+
+func findFTEID(createdPDRIEs []*ie.IE) (*ie.FTEIDFields, error) {
+	for _, createdPDRIE := range createdPDRIEs {
+		teid, err := createdPDRIE.FTEID()
+		if err == nil {
+			return teid, nil
+		}
+	}
+
+	return nil, fmt.Errorf("FTEID not found in CreatedPDR")
+}

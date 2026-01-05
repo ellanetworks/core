@@ -470,16 +470,26 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 
 		amfUe.Log.Info("start T3555 timer")
 		amfUe.T3555 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			amfUe.Log.Warn("timer T3555 expired, retransmit Configuration Update Command",
-				zap.Int32("retry", expireTimes))
+			amfUe.Log.Warn("timer T3555 expired, retransmit Configuration Update Command", zap.Int32("retry", expireTimes))
+
+			if amfUe.RanUe == nil {
+				amfUe.Log.Warn("UE Context released, abort retransmission of Configuration Update Command")
+				amfUe.T3555 = nil
+
+				return
+			}
+
+			if amfUe.RanUe.Radio == nil {
+				amfUe.Log.Warn("Radio is nil, abort retransmission of Configuration Update Command")
+				return
+			}
 
 			err = amfUe.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, amfUe.RanUe.AmfUeNgapID, amfUe.RanUe.RanUeNgapID, nasMsg, mobilityRestrictionList)
 			if err != nil {
 				amfUe.Log.Error("could not send configuration update command", zap.Error(err))
 			}
 		}, func() {
-			amfUe.Log.Warn("timer T3555 expired too many times, aborting configuration update procedure",
-				zap.Int32("maximum retries", cfg.MaxRetryTimes))
+			amfUe.Log.Warn("timer T3555 expired too many times, aborting configuration update procedure", zap.Int32("maximum retries", cfg.MaxRetryTimes))
 		},
 		)
 	}
