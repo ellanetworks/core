@@ -6,7 +6,6 @@ package qos
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
@@ -79,10 +78,6 @@ type QosFlowParameter struct {
 	ParamLen     uint8
 }
 
-type QosFlowsUpdate struct {
-	Add, mod, del *models.QosData
-}
-
 // Build Qos Flow Description to be sent to UE
 func BuildAuthorizedQosFlowDescription(qosData *models.QosData) (*QosFlowDescriptionsAuthorized, error) {
 	if qosData == nil {
@@ -116,12 +111,18 @@ func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *
 
 	// MFBR uplink
 	if qosData.MaxbrUl != "" {
-		qfd.addQosFlowRateParam(qosData.MaxbrUl, QFDParameterIDMfbrUl)
+		err := qfd.addQosFlowRateParam(qosData.MaxbrUl, QFDParameterIDMfbrUl)
+		if err != nil {
+			return fmt.Errorf("error adding MFBR uplink parameter: %v", err)
+		}
 	}
 
 	// MFBR downlink
 	if qosData.MaxbrDl != "" {
-		qfd.addQosFlowRateParam(qosData.MaxbrDl, QFDParameterIDMfbrDl)
+		err := qfd.addQosFlowRateParam(qosData.MaxbrDl, QFDParameterIDMfbrDl)
+		if err != nil {
+			return fmt.Errorf("error adding MFBR downlink parameter: %v", err)
+		}
 	}
 
 	// Set E-Bit of QFD for the "create new QoS flow description" operation
@@ -133,29 +134,24 @@ func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *
 	return nil
 }
 
-func GetBitRate(sBitRate string) (val uint16, unit uint8) {
+func GetBitRate(sBitRate string) (uint16, uint8, error) {
 	sl := strings.Fields(sBitRate)
 
-	// rate
-	if rate, err := strconv.ParseUint(sl[0], 10, 16); err != nil {
-		log.Printf("invalid bit rate [%v]", sBitRate)
-	} else {
-		val = uint16(rate)
+	rate, err := strconv.ParseUint(sl[0], 10, 16)
+	if err != nil {
+		return 0, 0, fmt.Errorf("could not parse bit rate: %v", err)
 	}
 
-	// Unit
 	switch sl[1] {
 	case "Kbps":
-		unit = QFBitRate1Kbps
+		return uint16(rate), QFBitRate1Kbps, nil
 	case "Mbps":
-		unit = QFBitRate1Mbps
+		return uint16(rate), QFBitRate1Mbps, nil
 	case "Gbps":
-		unit = QFBitRate1Gbps
+		return uint16(rate), QFBitRate1Gbps, nil
 	default:
-		unit = QFBitRate1Mbps
+		return uint16(rate), QFBitRate1Mbps, nil
 	}
-
-	return
 }
 
 // bits 6 to 1 of octet(00xxxxxx)
@@ -222,52 +218,20 @@ func (q *QoSFlowDescription) AddQosFlowParam5Qi(val uint8) {
 	q.QFDLen += 3 //(Id + Len + content)
 }
 
-func (q *QoSFlowDescription) addQosFlowRateParam(rate string, rateType uint8) {
+func (q *QoSFlowDescription) addQosFlowRateParam(rate string, rateType uint8) error {
+	bitRate, unit, err := GetBitRate(rate)
+	if err != nil {
+		return fmt.Errorf("invalid bit rate [%v]: %v", rate, err)
+	}
+
 	flowParam := QosFlowParameter{}
-	bitRate, unit := GetBitRate(rate)
+
 	flowParam.SetQosFlowParamBitRate(rateType, unit, bitRate)
 	// Add to QosFlowDescription
 	q.NumOfParam += 1
 	q.ParamList = append(q.ParamList, flowParam)
 
 	q.QFDLen += 5 //(Id-1 + len-1 + Content-3)
-}
 
-func GetQosFlowDescUpdate(pcfQosData, ctxtQosData *models.QosData) *QosFlowsUpdate {
-	if pcfQosData == nil && ctxtQosData == nil {
-		return nil
-	}
-
-	update := QosFlowsUpdate{}
-
-	// deleted flow
-	if pcfQosData == nil && ctxtQosData != nil {
-		update.del = ctxtQosData
-		return &update
-	}
-
-	// added flow
-	if pcfQosData != nil && ctxtQosData == nil {
-		update.Add = pcfQosData
-		update.Add.QFI = DefaultQFI
-
-		return &update
-	}
-
-	// modified flow
-	update.mod = pcfQosData
-
-	return &update
-}
-
-func CommitQosFlowDescUpdate(smCtxtPolData *SmCtxtPolicyData, update *QosFlowsUpdate) {
-	// Add new Flows
-	if update.Add != nil {
-		smCtxtPolData.SmCtxtQosData = update.Add
-	}
-
-	// Delete Flows
-	if update.del != nil {
-		smCtxtPolData.SmCtxtQosData = nil
-	}
+	return nil
 }

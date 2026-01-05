@@ -45,7 +45,7 @@ func UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef st
 		return nil, fmt.Errorf("pfcp session context not found for upf")
 	}
 
-	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, nil)
+	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf.CPNodeID, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
@@ -62,7 +62,7 @@ func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *smfConte
 		return nil, nil, nil, fmt.Errorf("handle PathSwitchRequestTransfer failed: %v", err)
 	}
 
-	n2Buf, err := smfContext.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.DataPath.DPNode)
+	n2Buf, err := smfContext.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("build Path Switch Transfer Error: %v", err)
 	}
@@ -70,11 +70,9 @@ func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *smfConte
 	pdrList := []*smfContext.PDR{}
 	farList := []*smfContext.FAR{}
 
-	dataPath := smContext.Tunnel.DataPath
-	if dataPath.Activated {
-		ANUPF := dataPath.DPNode
-		pdrList = append(pdrList, ANUPF.DownLinkTunnel.PDR)
-		farList = append(farList, ANUPF.DownLinkTunnel.PDR.FAR)
+	if smContext.Tunnel.DataPath.Activated {
+		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
+		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
 	}
 
 	return pdrList, farList, n2Buf, nil

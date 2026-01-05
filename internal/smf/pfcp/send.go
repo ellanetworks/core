@@ -9,6 +9,7 @@ package pfcp
 import (
 	"context"
 	"fmt"
+	"net"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -29,7 +30,7 @@ func getSeqNumber() uint32 {
 
 func SendPfcpSessionEstablishmentRequest(
 	ctx context.Context,
-	smf *smfContext.SMFContext,
+	smf *smfContext.SMF,
 	localSEID uint64,
 	pdrList []*smfContext.PDR,
 	farList []*smfContext.FAR,
@@ -63,7 +64,7 @@ func SendPfcpSessionEstablishmentRequest(
 	return nil
 }
 
-func HandlePfcpSessionEstablishmentResponse(ctx context.Context, smf *smfContext.SMFContext, msg *message.SessionEstablishmentResponse) error {
+func HandlePfcpSessionEstablishmentResponse(ctx context.Context, smf *smfContext.SMF, msg *message.SessionEstablishmentResponse) error {
 	seid := msg.SEID()
 
 	smContext := smf.GetSMContextBySEID(seid)
@@ -78,11 +79,6 @@ func HandlePfcpSessionEstablishmentResponse(ctx context.Context, smf *smfContext
 		return fmt.Errorf("PFCP Session Establishment Response missing Node ID")
 	}
 
-	nodeID, err := msg.NodeID.NodeID()
-	if err != nil {
-		return fmt.Errorf("failed to parse NodeID IE: %+v", err)
-	}
-
 	if msg.UPFSEID != nil {
 		rspUPFseid, err := msg.UPFSEID.FSEID()
 		if err != nil {
@@ -94,18 +90,13 @@ func HandlePfcpSessionEstablishmentResponse(ctx context.Context, smf *smfContext
 
 	// UE IP-Addr(only v4 supported)
 	if msg.CreatedPDR != nil {
-		fteid, err := FindFTEID(msg.CreatedPDR)
+		fteid, err := findFTEID(msg.CreatedPDR)
 		if err != nil {
 			return fmt.Errorf("failed to parse TEID IE: %+v", err)
 		}
 
-		smContext.Tunnel.DataPath.DPNode.UpLinkTunnel.TEID = fteid.TEID
-
-		if smf.UPF == nil {
-			return fmt.Errorf("can't find UPF: %s", nodeID)
-		}
-
-		smf.UPF.N3Interface = fteid.IPv4Address
+		smContext.Tunnel.DataPath.UpLinkTunnel.TEID = fteid.TEID
+		smContext.Tunnel.DataPath.UpLinkTunnel.N3IP = fteid.IPv4Address
 	}
 
 	if msg.Cause == nil {
@@ -148,7 +139,7 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 
 func SendPfcpSessionModificationRequest(
 	ctx context.Context,
-	smf *smfContext.SMFContext,
+	cpNodeID net.IP,
 	localSEID uint64,
 	remoteSEID uint64,
 	pdrList []*smfContext.PDR,
@@ -157,7 +148,7 @@ func SendPfcpSessionModificationRequest(
 ) error {
 	seqNum := getSeqNumber()
 
-	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, localSEID, remoteSEID, smf.CPNodeID, pdrList, farList, qerList)
+	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, localSEID, remoteSEID, cpNodeID, pdrList, farList, qerList)
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Modification Request: %v", err)
 	}
@@ -192,10 +183,10 @@ func HandlePfcpSessionDeletionResponse(msg *message.SessionDeletionResponse) err
 	return nil
 }
 
-func SendPfcpSessionDeletionRequest(ctx context.Context, smf *smfContext.SMFContext, localSEID uint64, remoteSEID uint64) error {
+func SendPfcpSessionDeletionRequest(ctx context.Context, cpNodeID net.IP, localSEID uint64, remoteSEID uint64) error {
 	seqNum := getSeqNumber()
 
-	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, localSEID, remoteSEID, smf.CPNodeID)
+	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, localSEID, remoteSEID, cpNodeID)
 
 	rsp, err := dispatcher.UPF.HandlePfcpSessionDeletionRequest(ctx, pfcpMsg)
 	if err != nil {
@@ -208,4 +199,15 @@ func SendPfcpSessionDeletionRequest(ctx context.Context, smf *smfContext.SMFCont
 	}
 
 	return nil
+}
+
+func findFTEID(createdPDRIEs []*ie.IE) (*ie.FTEIDFields, error) {
+	for _, createdPDRIE := range createdPDRIEs {
+		teid, err := createdPDRIE.FTEID()
+		if err == nil {
+			return teid, nil
+		}
+	}
+
+	return nil, fmt.Errorf("FTEID not found in CreatedPDR")
 }

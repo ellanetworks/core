@@ -45,7 +45,7 @@ func DeactivateSmContext(ctx context.Context, smContextRef string) error {
 		return fmt.Errorf("pfcp session context not found for upf")
 	}
 
-	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, nil, farList, nil)
+	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf.CPNodeID, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, nil, farList, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
@@ -60,20 +60,20 @@ func handleUpCnxStateDeactivate(smContext *smfContext.SMContext) ([]*smfContext.
 		return nil, nil
 	}
 
-	if smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR == nil {
+	if smContext.Tunnel.DataPath.DownLinkTunnel.PDR == nil {
 		return nil, fmt.Errorf("AN Release Error, PDR is nil")
 	}
 
-	smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR.State = smfContext.RuleUpdate
-	smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR.ApplyAction.Forw = false
-	smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR.ApplyAction.Buff = true
-	smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR.ApplyAction.Nocp = true
+	smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = smfContext.RuleUpdate
+	smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction.Forw = false
+	smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction.Buff = true
+	smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction.Nocp = true
 
-	if smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR.ForwardingParameters != nil {
-		smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
+	if smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters != nil {
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
 	}
 
-	farList := []*smfContext.FAR{smContext.Tunnel.DataPath.DPNode.DownLinkTunnel.PDR.FAR}
+	farList := []*smfContext.FAR{smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR}
 
 	return farList, nil
 }

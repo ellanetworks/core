@@ -45,7 +45,7 @@ func UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef strin
 		return fmt.Errorf("pfcp session context not found")
 	}
 
-	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, nil)
+	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf.CPNodeID, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
@@ -61,22 +61,20 @@ func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smC
 	pdrList := []*smfContext.PDR{}
 	farList := []*smfContext.FAR{}
 
-	dataPath := smContext.Tunnel.DataPath
-	if dataPath.Activated {
-		ANUPF := dataPath.DPNode
-		ANUPF.DownLinkTunnel.PDR.FAR.ApplyAction = smfContext.ApplyAction{Buff: false, Drop: false, Dupl: false, Forw: true, Nocp: false}
-		ANUPF.DownLinkTunnel.PDR.FAR.ForwardingParameters = &smfContext.ForwardingParameters{
+	if smContext.Tunnel.DataPath.Activated {
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction = smfContext.ApplyAction{Buff: false, Drop: false, Dupl: false, Forw: true, Nocp: false}
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters = &smfContext.ForwardingParameters{
 			DestinationInterface: smfContext.DestinationInterface{
 				InterfaceValue: smfContext.DestinationInterfaceAccess,
 			},
 			NetworkInstance: smContext.Dnn,
 		}
 
-		ANUPF.DownLinkTunnel.PDR.State = smfContext.RuleUpdate
-		ANUPF.DownLinkTunnel.PDR.FAR.State = smfContext.RuleUpdate
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.State = smfContext.RuleUpdate
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = smfContext.RuleUpdate
 
-		pdrList = append(pdrList, ANUPF.DownLinkTunnel.PDR)
-		farList = append(farList, ANUPF.DownLinkTunnel.PDR.FAR)
+		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
+		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
 	}
 
 	err := smfContext.HandlePDUSessionResourceSetupResponseTransfer(binaryDataN2SmInformation, smContext)

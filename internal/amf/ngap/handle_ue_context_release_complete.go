@@ -125,7 +125,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 	}
 
 	if amfUe.State == amfContext.Registered {
-		ranUe.Log.Warn("Rel Ue Context in GMM-Registered", zap.String("supi", amfUe.Supi))
+		ranUe.Log.Debug("Release UE Context in GMM-Registered", zap.String("supi", amfUe.Supi))
 
 		if pDUSessionResourceList != nil {
 			for _, pduSessionReourceItem := range pDUSessionResourceList.List {

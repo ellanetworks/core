@@ -7,17 +7,21 @@ package context
 import (
 	"encoding/binary"
 	"fmt"
+	"net"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpdate, qosPolicyData qos.SmCtxtPolicyData, dpNode *DataPathNode) ([]byte, error) {
+func BuildPDUSessionResourceSetupRequestTransfer(smPolicyData *models.SmPolicyData, teid uint32, n3IP net.IP) ([]byte, error) {
+	if smPolicyData == nil {
+		return nil, fmt.Errorf("smPolicyData is nil")
+	}
+
 	teidOct := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidOct, dpNode.UpLinkTunnel.TEID)
+	binary.BigEndian.PutUint32(teidOct, teid)
 
 	resourceSetupRequestTransfer := ngapType.PDUSessionResourceSetupRequestTransfer{}
 
@@ -27,19 +31,14 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpda
 	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
 
-	sessRule := SelectedSessionRule(smPolicyUpdates, qosPolicyData)
-	if sessRule == nil || sessRule.AuthSessAmbr == nil {
-		return nil, fmt.Errorf("no PDU Session AMBR")
-	}
-
 	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
 		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentPDUSessionAggregateMaximumBitRate,
 		PDUSessionAggregateMaximumBitRate: &ngapType.PDUSessionAggregateMaximumBitRate{
 			PDUSessionAggregateMaximumBitRateDL: ngapType.BitRate{
-				Value: ngapConvert.UEAmbrToInt64(sessRule.AuthSessAmbr.Downlink),
+				Value: ngapConvert.UEAmbrToInt64(smPolicyData.SessionRule.AuthSessAmbr.Downlink),
 			},
 			PDUSessionAggregateMaximumBitRateUL: ngapType.BitRate{
-				Value: ngapConvert.UEAmbrToInt64(sessRule.AuthSessAmbr.Uplink),
+				Value: ngapConvert.UEAmbrToInt64(smPolicyData.SessionRule.AuthSessAmbr.Uplink),
 			},
 		},
 	}
@@ -57,8 +56,8 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpda
 			GTPTunnel: &ngapType.GTPTunnel{
 				TransportLayerAddress: ngapType.TransportLayerAddress{
 					Value: aper.BitString{
-						Bytes:     dpNode.UPF.N3Interface,
-						BitLength: uint64(len(dpNode.UPF.N3Interface) * 8),
+						Bytes:     n3IP,
+						BitLength: uint64(len(n3IP) * 8),
 					},
 				},
 				GTPTEID: ngapType.GTPTEID{Value: teidOct},
@@ -80,22 +79,8 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpda
 	}
 	resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
 
-	// Get Qos Flow
-	var qosAddFlow *models.QosData
-
-	if qosPolicyData.SmCtxtQosData != nil {
-		qosAddFlow = qosPolicyData.SmCtxtQosData
-	}
-
-	// PCF has provided some update
-	if smPolicyUpdates != nil {
-		if smPolicyUpdates.QosFlowUpdate != nil && smPolicyUpdates.QosFlowUpdate.Add != nil {
-			qosAddFlow = smPolicyUpdates.QosFlowUpdate.Add
-		}
-	}
-
 	// QoS Flow Setup Request List
-	if qosAddFlow != nil {
+	if smPolicyData.QosData != nil {
 		ie = ngapType.PDUSessionResourceSetupRequestTransferIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDQosFlowSetupRequestList
 		ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -103,29 +88,29 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpda
 		var qosFlowsList []ngapType.QosFlowSetupRequestItem
 
 		arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-		if qosAddFlow.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
+		if smPolicyData.QosData.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
 			arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
 		}
 
 		arpPreemptVul := ngapType.PreEmptionVulnerabilityPresentNotPreEmptable
-		if qosAddFlow.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
+		if smPolicyData.QosData.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
 			arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
 		}
 
 		qosFlowItem := ngapType.QosFlowSetupRequestItem{
-			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(qosAddFlow.QFI)},
+			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(smPolicyData.QosData.QFI)},
 			QosFlowLevelQosParameters: ngapType.QosFlowLevelQosParameters{
 				QosCharacteristics: ngapType.QosCharacteristics{
 					Present: ngapType.QosCharacteristicsPresentNonDynamic5QI,
 					NonDynamic5QI: &ngapType.NonDynamic5QIDescriptor{
 						FiveQI: ngapType.FiveQI{
-							Value: int64(qosAddFlow.Var5qi),
+							Value: int64(smPolicyData.QosData.Var5qi),
 						},
 					},
 				},
 				AllocationAndRetentionPriority: ngapType.AllocationAndRetentionPriority{
 					PriorityLevelARP: ngapType.PriorityLevelARP{
-						Value: int64(qosAddFlow.Arp.PriorityLevel),
+						Value: int64(smPolicyData.QosData.Arp.PriorityLevel),
 					},
 					PreEmptionCapability: ngapType.PreEmptionCapability{
 						Value: arpPreemptCap,
@@ -148,11 +133,12 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyUpdates *qos.PolicyUpda
 		resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
 	}
 
-	if buf, err := aper.MarshalWithParams(resourceSetupRequestTransfer, "valueExt"); err != nil {
+	buf, err := aper.MarshalWithParams(resourceSetupRequestTransfer, "valueExt")
+	if err != nil {
 		return nil, fmt.Errorf("encode resourceSetupRequestTransfer failed: %s", err)
-	} else {
-		return buf, nil
 	}
+
+	return buf, nil
 }
 
 func BuildPDUSessionResourceReleaseCommandTransfer() ([]byte, error) {
@@ -174,12 +160,12 @@ func BuildPDUSessionResourceReleaseCommandTransfer() ([]byte, error) {
 }
 
 // TS 38.413 9.3.4.9
-func BuildPathSwitchRequestAcknowledgeTransfer(dpNode *DataPathNode) ([]byte, error) {
+func BuildPathSwitchRequestAcknowledgeTransfer(teid uint32, n3IP net.IP) ([]byte, error) {
 	// dataPath := ctx.Tunnel.DataPath
 	// ANUPF := dataPath.DPNode
 	// UpNode := ANUPF.UPF
 	teidOct := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidOct, dpNode.UpLinkTunnel.TEID)
+	binary.BigEndian.PutUint32(teidOct, teid)
 
 	pathSwitchRequestAcknowledgeTransfer := ngapType.PathSwitchRequestAcknowledgeTransfer{}
 
@@ -194,8 +180,8 @@ func BuildPathSwitchRequestAcknowledgeTransfer(dpNode *DataPathNode) ([]byte, er
 	gtpTunnel := ULNGUUPTNLInformation.GTPTunnel
 	gtpTunnel.GTPTEID.Value = teidOct
 	gtpTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     dpNode.UPF.N3Interface,
-		BitLength: uint64(len(dpNode.UPF.N3Interface) * 8),
+		Bytes:     n3IP,
+		BitLength: uint64(len(n3IP) * 8),
 	}
 
 	// Security Indication(optional) TS 38.413 9.3.1.27
@@ -218,9 +204,9 @@ func BuildPathSwitchRequestAcknowledgeTransfer(dpNode *DataPathNode) ([]byte, er
 	}
 }
 
-func BuildHandoverCommandTransfer(dpNode *DataPathNode) ([]byte, error) {
+func BuildHandoverCommandTransfer(teid uint32, n3IP net.IP) ([]byte, error) {
 	teidOct := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidOct, dpNode.UpLinkTunnel.TEID)
+	binary.BigEndian.PutUint32(teidOct, teid)
 
 	handoverCommandTransfer := ngapType.HandoverCommandTransfer{}
 
@@ -231,8 +217,8 @@ func BuildHandoverCommandTransfer(dpNode *DataPathNode) ([]byte, error) {
 	gtpTunnel := handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel
 	gtpTunnel.GTPTEID.Value = teidOct
 	gtpTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     dpNode.UPF.N3Interface,
-		BitLength: uint64(len(dpNode.UPF.N3Interface) * 8),
+		Bytes:     n3IP,
+		BitLength: uint64(len(n3IP) * 8),
 	}
 
 	buf, err := aper.MarshalWithParams(handoverCommandTransfer, "valueExt")

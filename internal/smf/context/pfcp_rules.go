@@ -135,14 +135,6 @@ type ForwardingParameters struct {
 	DestinationInterface DestinationInterface
 }
 
-type SuggestedBufferingPacketsCount struct {
-	PacketCountValue uint8
-}
-
-type DownlinkDataNotificationDelay struct {
-	DelayValue time.Duration
-}
-
 type GBR struct {
 	ULGBR uint64 // 40-bit data
 	DLGBR uint64 // 40-bit data

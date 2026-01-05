@@ -13,10 +13,12 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel"
@@ -25,35 +27,34 @@ import (
 	"go.uber.org/zap"
 )
 
-var smfContext SMFContext
+var smfContext SMF
 
 var tracer = otel.Tracer("ella-core/smf")
 
-var AllowedSessionType = nasMessage.PDUSessionTypeIPv4
-
-type SMFContext struct {
+type SMF struct {
 	Mutex sync.Mutex
 
-	DBInstance     *db.Database
-	UPF            *UPF
-	CPNodeID       net.IP
-	LocalSEIDCount uint64
-
-	smContextPool map[string]*SMContext // key: canonicalName(identifier, pduSessID)
+	DBInstance         *db.Database
+	CPNodeID           net.IP
+	LocalSEIDCount     uint64
+	allowedSessionType uint8
+	smContextPool      map[string]*SMContext // key: canonicalName(identifier, pduSessID)
+	pdrIDGenerator     *idgenerator.IDGenerator
+	farIDGenerator     *idgenerator.IDGenerator
+	qerIDGenerator     *idgenerator.IDGenerator
+	urrIDGenerator     *idgenerator.IDGenerator
 }
 
 func InitializeSMF(dbInstance *db.Database) {
-	smfContext = SMFContext{
-		smContextPool: make(map[string]*SMContext),
-		DBInstance:    dbInstance,
-		CPNodeID:      net.ParseIP("0.0.0.0"),
-		UPF: &UPF{
-			pdrIDGenerator: idgenerator.NewGenerator(1, math.MaxUint16),
-			farIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
-			qerIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
-			urrIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
-			N3Interface:    nil,
-		},
+	smfContext = SMF{
+		smContextPool:      make(map[string]*SMContext),
+		DBInstance:         dbInstance,
+		CPNodeID:           net.ParseIP("0.0.0.0"),
+		allowedSessionType: nasMessage.PDUSessionTypeIPv4,
+		pdrIDGenerator:     idgenerator.NewGenerator(1, math.MaxUint16),
+		farIDGenerator:     idgenerator.NewGenerator(1, math.MaxUint32),
+		qerIDGenerator:     idgenerator.NewGenerator(1, math.MaxUint32),
+		urrIDGenerator:     idgenerator.NewGenerator(1, math.MaxUint32),
 	}
 }
 
@@ -68,7 +69,7 @@ type SnssaiSmfInfo struct {
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
-func (smf *SMFContext) RetrieveDnnInformation(ctx context.Context, ueSnssai models.Snssai, dnn string) (*SnssaiSmfDnnInfo, error) {
+func (smf *SMF) RetrieveDnnInformation(ctx context.Context, ueSnssai models.Snssai, dnn string) (*SnssaiSmfDnnInfo, error) {
 	supportedSnssai, err := smf.GetSnssaiInfo(ctx, dnn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get snssai information: %v", err)
@@ -85,15 +86,15 @@ func (smf *SMFContext) RetrieveDnnInformation(ctx context.Context, ueSnssai mode
 	return supportedSnssai.DnnInfos, nil
 }
 
-func (smf *SMFContext) AllocateLocalSEID() uint64 {
+func (smf *SMF) AllocateLocalSEID() uint64 {
 	return atomic.AddUint64(&smf.LocalSEIDCount, 1)
 }
 
-func SMFSelf() *SMFContext {
+func SMFSelf() *SMF {
 	return &smfContext
 }
 
-func (smf *SMFContext) GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
+func (smf *SMF) GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"SMF GetSnssaiInfo",
@@ -131,11 +132,11 @@ func (smf *SMFContext) GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSm
 	return snssaiInfo, nil
 }
 
-func GetAllowedSessionType() uint8 {
-	return AllowedSessionType
+func (smf *SMF) GetAllowedSessionType() uint8 {
+	return smf.allowedSessionType
 }
 
-func (smf *SMFContext) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyDecision, error) {
+func (smf *SMF) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyData, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"SMF GetSubscriberPolicy",
@@ -155,8 +156,8 @@ func (smf *SMFContext) GetSubscriberPolicy(ctx context.Context, ueID string) (*m
 		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
 
-	subscriberPolicy := &models.SmPolicyDecision{
-		SessRule: &models.SessionRule{
+	subscriberPolicy := &models.SmPolicyData{
+		SessionRule: &models.SessionRule{
 			AuthDefQos: &models.AuthorizedDefaultQos{
 				Var5qi: policy.Var5qi,
 				Arp:    &models.Arp{PriorityLevel: policy.Arp},
@@ -166,16 +167,17 @@ func (smf *SMFContext) GetSubscriberPolicy(ctx context.Context, ueID string) (*m
 				Downlink: policy.BitrateDownlink,
 			},
 		},
-		QosDecs: &models.QosData{
+		QosData: &models.QosData{
 			Var5qi: policy.Var5qi,
 			Arp:    &models.Arp{PriorityLevel: policy.Arp},
+			QFI:    qos.DefaultQFI,
 		},
 	}
 
 	return subscriberPolicy, nil
 }
 
-func (smf *SMFContext) PDUSessionsByDNN(dnn string) []*SMContext {
+func (smf *SMF) PDUSessionsByDNN(dnn string) []*SMContext {
 	smf.Mutex.Lock()
 	defer smf.Mutex.Unlock()
 
@@ -190,7 +192,7 @@ func (smf *SMFContext) PDUSessionsByDNN(dnn string) []*SMContext {
 	return out
 }
 
-func (smf *SMFContext) GetSMContextBySEID(seid uint64) *SMContext {
+func (smf *SMF) GetSMContextBySEID(seid uint64) *SMContext {
 	smf.Mutex.Lock()
 	defer smf.Mutex.Unlock()
 
@@ -203,32 +205,31 @@ func (smf *SMFContext) GetSMContextBySEID(seid uint64) *SMContext {
 	return nil
 }
 
-func (smContext *SMContext) AllocateLocalSEIDForDataPath(smf *SMFContext) {
+func (smContext *SMContext) AllocateLocalSEIDForDataPath(smf *SMF) {
 	if smContext.PFCPContext != nil {
 		return
 	}
 
-	allocatedSEID := smf.AllocateLocalSEID()
-
 	smContext.PFCPContext = &PFCPSessionContext{
-		LocalSEID: allocatedSEID,
+		LocalSEID: smf.AllocateLocalSEID(),
 	}
 }
 
-func (smf *SMFContext) NewSMContext(supi string, pduSessID uint8) *SMContext {
+func (smf *SMF) NewSMContext(supi string, pduSessID uint8) *SMContext {
 	smf.Mutex.Lock()
 	defer smf.Mutex.Unlock()
 
-	smContext := new(SMContext)
+	smContext := &SMContext{
+		PDUSessionID: pduSessID,
+	}
 
 	ref := CanonicalName(supi, pduSessID)
 	smf.smContextPool[ref] = smContext
-	smContext.PDUSessionID = pduSessID
 
 	return smContext
 }
 
-func (smf *SMFContext) GetSMContext(ref string) *SMContext {
+func (smf *SMF) GetSMContext(ref string) *SMContext {
 	smf.Mutex.Lock()
 	defer smf.Mutex.Unlock()
 
@@ -240,14 +241,14 @@ func (smf *SMFContext) GetSMContext(ref string) *SMContext {
 	return value
 }
 
-func (smf *SMFContext) GetPDUSessionCount() int {
+func (smf *SMF) GetPDUSessionCount() int {
 	smf.Mutex.Lock()
 	defer smf.Mutex.Unlock()
 
 	return len(smf.smContextPool)
 }
 
-func (smf *SMFContext) RemoveSMContext(ctx context.Context, ref string) {
+func (smf *SMF) RemoveSMContext(ctx context.Context, ref string) {
 	smf.Mutex.Lock()
 	defer smf.Mutex.Unlock()
 
@@ -266,7 +267,7 @@ func (smf *SMFContext) RemoveSMContext(ctx context.Context, ref string) {
 	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
 }
 
-func (smf *SMFContext) ReleaseUeIPAddr(ctx context.Context, supi string) error {
+func (smf *SMF) ReleaseUeIPAddr(ctx context.Context, supi string) error {
 	err := smf.DBInstance.ReleaseIP(ctx, supi)
 	if err != nil {
 		return fmt.Errorf("failed to release IP Address, %v", err)
@@ -275,4 +276,97 @@ func (smf *SMFContext) ReleaseUeIPAddr(ctx context.Context, supi string) error {
 	logger.SmfLog.Info("Released IP Address", zap.String("supi", supi))
 
 	return nil
+}
+
+func (smf *SMF) NewPDR() (*PDR, error) {
+	pdrID, err := smf.pdrIDGenerator.Allocate()
+	if err != nil {
+		return nil, fmt.Errorf("could not allocate PDR ID: %v", err)
+	}
+
+	far, err := smf.NewFAR()
+	if err != nil {
+		return nil, err
+	}
+
+	pdr := &PDR{
+		PDRID: uint16(pdrID),
+		FAR:   far,
+	}
+
+	return pdr, nil
+}
+
+func (smf *SMF) NewFAR() (*FAR, error) {
+	farID, err := smf.farIDGenerator.Allocate()
+	if err != nil {
+		return nil, fmt.Errorf("could not allocate FAR ID: %v", err)
+	}
+
+	far := &FAR{
+		FARID: uint32(farID),
+		ApplyAction: ApplyAction{
+			Drop: true,
+		},
+	}
+
+	return far, nil
+}
+
+func (smf *SMF) NewQER(smData *models.SmPolicyData) (*QER, error) {
+	qerID, err := smf.qerIDGenerator.Allocate()
+	if err != nil {
+		return nil, fmt.Errorf("could not allocate QER ID: %v", err)
+	}
+
+	qer := &QER{
+		QERID: uint32(qerID),
+		QFI:   smData.QosData.QFI,
+		GateStatus: &GateStatus{
+			ULGate: GateOpen,
+			DLGate: GateOpen,
+		},
+		MBR: &MBR{
+			ULMBR: BitRateTokbps(smData.SessionRule.AuthSessAmbr.Uplink),
+			DLMBR: BitRateTokbps(smData.SessionRule.AuthSessAmbr.Downlink),
+		},
+	}
+
+	return qer, nil
+}
+
+func (smf *SMF) NewURR() (*URR, error) {
+	urrID, err := smf.urrIDGenerator.Allocate()
+	if err != nil {
+		return nil, fmt.Errorf("could not allocate URR ID: %v", err)
+	}
+
+	urr := &URR{
+		URRID: uint32(urrID),
+		MeasurementMethods: MeasurementMethods{
+			Volume: true,
+		},
+		ReportingTriggers: ReportingTriggers{
+			PeriodicReporting: true,
+		},
+		MeasurementPeriod: 60 * time.Second,
+	}
+
+	return urr, nil
+}
+
+func (smf *SMF) RemovePDR(pdr *PDR) {
+	smf.pdrIDGenerator.FreeID(int64(pdr.PDRID))
+}
+
+func (smf *SMF) RemoveFAR(far *FAR) {
+	smf.farIDGenerator.FreeID(int64(far.FARID))
+}
+
+func (smf *SMF) RemoveQER(qer *QER) {
+	smf.qerIDGenerator.FreeID(int64(qer.QERID))
+}
+
+func (smf *SMF) RemoveURR(urr *URR) {
+	smf.urrIDGenerator.FreeID(int64(urr.URRID))
 }
