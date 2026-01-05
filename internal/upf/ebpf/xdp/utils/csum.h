@@ -16,7 +16,10 @@
 
 #pragma once
 
+#include <features.h>
 #include <linux/bpf.h>
+#include <linux/icmp.h>
+#include <linux/ip.h>
 #include <linux/types.h>
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
@@ -80,4 +83,26 @@ static __always_inline __u16 ipv4_csum_update_u16(__u16 csum, __u16 orig,
 	new_sum = ~new_sum;
 
 	return bpf_ntohs(new_sum);
+}
+
+static __always_inline void recompute_ipv4_csum(struct iphdr *ip)
+{
+	__u32 csum = 0;
+	ip->check = 0;
+	__u16 *word = (__u16 *)ip;
+	for (int i = 0; i < (int)sizeof(*ip) >> 1; i++) {
+		csum += *word++;
+	}
+	ip->check = ~((csum & 0xffff) + (csum >> 16));
+}
+
+static __always_inline void recompute_icmp_csum(struct icmphdr *icmp, int len)
+{
+	__u32 csum = 0;
+	icmp->checksum = 0;
+	__u16 *word = (__u16 *)icmp;
+	for (int i = 0; i < len >> 1; i++) {
+		csum += *word++;
+	}
+	icmp->checksum = ~((csum & 0xffff) + (csum >> 16));
 }
