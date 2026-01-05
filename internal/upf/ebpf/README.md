@@ -19,11 +19,12 @@ generate the files:
 Inspecting UPF state
 ====================
 
-Maps used to drive the XDP code are pinned in the `sysfs` filesystem
-under `/sys/fs/bpf/upf_pipeline/`. They can be inspected with `bpftool`.
+Maps used to drive the XDP code can be inspected with `bpftool`.
 
 For example, it is possible to list all the uplink PDRs with the following
 command:
 
 
-`sudo bpftool map dump pinned /sys/fs/bpf/upf_pipeline/pdrs_uplink`
+```shell
+sudo bpftool map dump name pdrs_uplink
+```

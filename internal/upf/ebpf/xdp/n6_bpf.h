@@ -20,7 +20,6 @@ struct {
 	__type(key, __u32);
 	__type(value, struct pdr_info);
 	__uint(max_entries, PDR_MAP_DOWNLINK_IPV4_SIZE);
-	__uint(pinning, LIBBPF_PIN_BY_NAME);
 } pdrs_downlink_ip4 SEC(".maps");
 
 struct {
@@ -28,7 +27,6 @@ struct {
 	__type(key, struct in6_addr);
 	__type(value, struct pdr_info);
 	__uint(max_entries, PDR_MAP_DOWNLINK_IPV4_SIZE);
-	__uint(pinning, LIBBPF_PIN_BY_NAME);
 } pdrs_downlink_ip6 SEC(".maps");
 
 struct {
@@ -36,7 +34,6 @@ struct {
 	__type(key, __u32);
 	__type(value, struct route_stat);
 	__uint(max_entries, 1);
-	__uint(pinning, LIBBPF_PIN_BY_NAME);
 } downlink_route_stats SEC(".maps");
 
 struct {
@@ -44,7 +41,6 @@ struct {
 	__type(key, __u32);
 	__type(value, struct upf_statistic);
 	__uint(max_entries, 1);
-	__uint(pinning, LIBBPF_PIN_BY_NAME);
 } downlink_statistics SEC(".maps");
 
 /*

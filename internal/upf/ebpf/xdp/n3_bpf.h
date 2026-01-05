@@ -18,7 +18,6 @@ struct {
 	__type(key, __u32);
 	__type(value, struct pdr_info);
 	__uint(max_entries, PDR_MAP_UPLINK_SIZE);
-	__uint(pinning, LIBBPF_PIN_BY_NAME);
 } pdrs_uplink SEC(".maps");
 
 struct {
@@ -26,7 +25,6 @@ struct {
 	__type(key, __u32);
 	__type(value, struct route_stat);
 	__uint(max_entries, 1);
-	__uint(pinning, LIBBPF_PIN_BY_NAME);
 } uplink_route_stats SEC(".maps");
 
 struct {
@@ -34,7 +32,6 @@ struct {
 	__type(key, __u32);
 	__type(value, struct upf_statistic);
 	__uint(max_entries, 1);
-	__uint(pinning, LIBBPF_PIN_BY_NAME);
 } uplink_statistics SEC(".maps");
 
 static __always_inline enum xdp_action

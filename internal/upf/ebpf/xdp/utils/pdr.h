@@ -82,5 +82,4 @@ struct {
 	__type(key, __u32);
 	__type(value, struct far_info);
 	__uint(max_entries, FAR_MAP_SIZE);
-	__uint(pinning, LIBBPF_PIN_BY_NAME);
 } far_map SEC(".maps");
