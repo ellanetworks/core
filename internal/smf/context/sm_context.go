@@ -64,6 +64,8 @@ func (smContext *SMContext) CommitSmPolicyDecision(smPolicyUpdates *models.SmPol
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	smContext.PolicyData.QosData = smPolicyUpdates.QosData
-	smContext.PolicyData.SessionRule = smPolicyUpdates.SessionRule
+	smContext.PolicyData = &models.SmPolicyDecision{
+		QosData:     smPolicyUpdates.QosData,
+		SessionRule: smPolicyUpdates.SessionRule,
+	}
 }
