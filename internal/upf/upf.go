@@ -80,12 +80,6 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 
 	bpfObjects := ebpf.NewBpfObjects(masquerade, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
 
-	err = ebpf.PinMaps()
-	if err != nil {
-		logger.UpfLog.Fatal("Creating BPF pin path failed", zap.Error(err))
-		return nil, err
-	}
-
 	if err := bpfObjects.Load(); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
 		return nil, err

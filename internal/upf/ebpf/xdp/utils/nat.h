@@ -51,7 +51,6 @@ struct {
 	__type(key, struct five_tuple);
 	__type(value, struct nat_entry);
 	__uint(max_entries, NAT_CT_MAP_SIZE);
-	__uint(pinning, LIBBPF_PIN_BY_NAME);
 } nat_ct SEC(".maps");
 
 static __always_inline bool are_five_tuple_equal(struct five_tuple a,
