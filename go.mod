@@ -10,7 +10,7 @@ require (
 	github.com/free5gc/ngap v1.1.2
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/nftables v0.3.0
-	github.com/mattn/go-sqlite3 v1.14.32
+	github.com/mattn/go-sqlite3 v1.14.33
 	github.com/moby/moby/client v0.2.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/vishvananda/netlink v1.3.1

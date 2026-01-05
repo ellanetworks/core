@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "xdp/utils/common.h"
-#include "xdp/utils/routing.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
@@ -30,12 +28,18 @@
 
 #include "xdp/n3_bpf.h"
 #include "xdp/n6_bpf.h"
-#include "xdp/utils/statistics.h"
 
+#include "xdp/utils/statistics.h"
+#include "xdp/utils/common.h"
+#include "xdp/utils/routing.h"
+
+#include "xdp/utils/frag_needed.h"
 #include "xdp/utils/trace.h"
 #include "xdp/utils/packet_context.h"
 #include "xdp/utils/parsers.h"
 #include "xdp/utils/nat.h"
+
+#define GTP_ENCAP_SIZE 20 + 8 + 16
 
 static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
 {
@@ -101,6 +105,8 @@ SEC("xdp/upf_n3_n6_entrypoint")
 int upf_n3_n6_entrypoint_func(struct xdp_md *ctx)
 {
 	const __u32 key = 0;
+	__u32 mtu_len = 0;
+	long ret;
 	
 	struct upf_statistic *statistics = NULL;
 	if (ctx->ingress_ifindex == n3_ifindex) {
@@ -113,6 +119,11 @@ int upf_n3_n6_entrypoint_func(struct xdp_md *ctx)
 			if (!statistics)
 				return XDP_ABORTED;
 		}
+		ret = bpf_check_mtu(ctx, n6_ifindex, &mtu_len, -GTP_ENCAP_SIZE, 0);
+		if (ret < 0) {
+			statistics->xdp_actions[XDP_ABORTED & EUPF_MAX_XDP_ACTION_MASK] += 1;
+			return XDP_ABORTED;
+		}
 	} else if (ctx->ingress_ifindex == n6_ifindex) {
 		statistics = bpf_map_lookup_elem(&downlink_statistics, &key);
 		if (!statistics) {
@@ -122,6 +133,13 @@ int upf_n3_n6_entrypoint_func(struct xdp_md *ctx)
 			statistics = bpf_map_lookup_elem(&downlink_statistics, &key);
 			if (!statistics)
 				return XDP_ABORTED;
+		}
+		ret = bpf_check_mtu(ctx, n3_ifindex, &mtu_len, GTP_ENCAP_SIZE, 0);
+		if (ret < 0) {
+			statistics->xdp_actions[XDP_ABORTED & EUPF_MAX_XDP_ACTION_MASK] += 1;
+			return XDP_ABORTED;
+		} else {
+			mtu_len -= GTP_ENCAP_SIZE;
 		}
 	} else {
 		return XDP_ABORTED;
@@ -134,6 +152,10 @@ int upf_n3_n6_entrypoint_func(struct xdp_md *ctx)
 		.statistics = statistics,
 	};
 
+	if (ret > 0) {
+		bpf_printk("upf: packet too large");
+		return frag_needed(&context, mtu_len);
+	}
 	return process_packet(&context);
 }
 

@@ -31,8 +31,6 @@ services:
         target: /core.yaml
     restart: unless-stopped
     entrypoint: /bin/core --config /core.yaml
-    volumes:
-      - /sys/fs/bpf:/sys/fs/bpf:rw
     privileged: true
     ports:
       - "5002:5002"

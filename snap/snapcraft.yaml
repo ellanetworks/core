@@ -20,12 +20,6 @@ confinement: strict
 license: Apache-2.0
 icon: docs/images/logo.png
 
-plugs:
-  sys-fs-bpf-upf-pipeline:
-    interface: system-files
-    write:
-    - /sys/fs/bpf/upf_pipeline
-
 apps:
   cored:
     daemon: simple
@@ -34,7 +28,6 @@ apps:
     refresh-mode: endure
     restart-condition: on-failure
     plugs:
-      - sys-fs-bpf-upf-pipeline
       - network
       - network-bind
       - network-control

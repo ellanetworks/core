@@ -2,9 +2,7 @@ package ebpf
 
 import (
 	"errors"
-	"fmt"
 	"io"
-	"os"
 
 	"github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
@@ -19,10 +17,6 @@ import (
 // Usage: export BPF_CFLAGS="-DENABLE_LOG"
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3N6Entrypoint xdp/n3n6_bpf.c -- -I. -O2 -Wall -Werror -g
-
-const (
-	PinPath = "/sys/fs/bpf/upf_pipeline"
-)
 
 type DataNotification struct {
 	LocalSEID uint64
@@ -52,32 +46,14 @@ func NewBpfObjects(masquerade bool, n3ifindex int, n6ifindex int, n3vlan uint32,
 	}
 }
 
-func PinMaps() error {
-	if err := os.MkdirAll(PinPath, 0o750); err != nil {
-		return fmt.Errorf("failed to create bpf fs subpath: %w", err)
-	}
-
-	return nil
-}
-
 func (bpfObjects *BpfObjects) Load() error {
-	collectionOptions := ebpf.CollectionOptions{
-		Maps: ebpf.MapOptions{
-			// Pin the map to the BPF filesystem and configure the
-			// library to automatically re-write it in the BPF
-			// program, so it can be re-used if it already exists or
-			// create it if not
-			PinPath: PinPath,
-		},
-	}
-
 	n3n6Spec, err := LoadN3N6Entrypoint()
 	if err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 spec", zap.Error(err))
 		return err
 	}
 
-	if err := bpfObjects.loadAndAssignFromSpec(n3n6Spec, &bpfObjects.N3N6EntrypointObjects, &collectionOptions); err != nil {
+	if err := bpfObjects.loadAndAssignFromSpec(n3n6Spec, &bpfObjects.N3N6EntrypointObjects, nil); err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 program", zap.Error(err))
 
 		var ve *ebpf.VerifierError
@@ -126,33 +102,9 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 }
 
 func (bpfObjects *BpfObjects) Close() error {
-	bpfObjects.unpinMaps()
-
 	return CloseAllObjects(
 		&bpfObjects.N3N6EntrypointObjects,
 	)
-}
-
-func (bpfObjects *BpfObjects) unpinMaps() {
-	if err := bpfObjects.UplinkRouteStats.Unpin(); err != nil {
-		logger.UpfLog.Warn("failed to unpin uplink_route_stats map, state could be left behind: %v", zap.Error(err))
-	}
-
-	if err := bpfObjects.PdrsUplink.Unpin(); err != nil {
-		logger.UpfLog.Warn("failed to unpin pdrs_uplink map, state could be left behind: %v", zap.Error(err))
-	}
-
-	if err := bpfObjects.DownlinkRouteStats.Unpin(); err != nil {
-		logger.UpfLog.Warn("failed to unpin downlink_route_stats map, state could be left behind: %v", zap.Error(err))
-	}
-
-	if err := bpfObjects.PdrsDownlinkIp4.Unpin(); err != nil {
-		logger.UpfLog.Warn("failed to unpin pdrs_downlink_ip4 map, state could be left behind: %v", zap.Error(err))
-	}
-
-	if err := bpfObjects.PdrsDownlinkIp6.Unpin(); err != nil {
-		logger.UpfLog.Warn("failed to unpin pdrs_downlink_ip6 map, state could be left behind: %v", zap.Error(err))
-	}
 }
 
 func (bpfObjects *BpfObjects) IsAlreadyNotified(d DataNotification) bool {
