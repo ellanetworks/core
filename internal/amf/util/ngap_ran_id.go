@@ -15,8 +15,6 @@ func RanIDToModels(ranNodeID ngapType.GlobalRANNodeID) models.GlobalRanNodeID {
 		ranID.GNbID = new(models.GNbID)
 		gnbID := ranID.GNbID
 		ngapGnbID := ranNodeID.GlobalGNBID
-		plmnid := PlmnIDToModels(ngapGnbID.PLMNIdentity)
-		ranID.PlmnID = &plmnid
 
 		if ngapGnbID.GNBID.Present == ngapType.GNBIDPresentGNBID {
 			choiceGnbID := ngapGnbID.GNBID.GNBID
@@ -25,8 +23,6 @@ func RanIDToModels(ranNodeID ngapType.GlobalRANNodeID) models.GlobalRanNodeID {
 		}
 	case ngapType.GlobalRANNodeIDPresentGlobalNgENBID:
 		ngapNgENBID := ranNodeID.GlobalNgENBID
-		plmnid := PlmnIDToModels(ngapNgENBID.PLMNIdentity)
-		ranID.PlmnID = &plmnid
 
 		switch ngapNgENBID.NgENBID.Present {
 		case ngapType.NgENBIDPresentMacroNgENBID:
@@ -41,8 +37,6 @@ func RanIDToModels(ranNodeID ngapType.GlobalRANNodeID) models.GlobalRanNodeID {
 		}
 	case ngapType.GlobalRANNodeIDPresentGlobalN3IWFID:
 		ngapN3IWFID := ranNodeID.GlobalN3IWFID
-		plmnid := PlmnIDToModels(ngapN3IWFID.PLMNIdentity)
-		ranID.PlmnID = &plmnid
 
 		if ngapN3IWFID.N3IWFID.Present == ngapType.N3IWFIDPresentN3IWFID {
 			choiceN3IWFID := ngapN3IWFID.N3IWFID.N3IWFID

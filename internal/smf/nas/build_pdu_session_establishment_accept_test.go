@@ -1,24 +1,25 @@
-// Copyright 2024 Ella Networks
+// Copyright 2025 Ella Networks
 
-package context_test
+package nas_test
 
 import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/context"
+	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/free5gc/nas"
 )
 
 func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
-	ambr := &models.Ambr{
-		Uplink:   "1 Gbps",
-		Downlink: "1 Gbps",
-	}
-	defaultQFI := uint8(1)
-	qosData := &models.QosData{
-		QFI:    1,
-		Var5qi: 9,
+	smPolicyData := &models.SmPolicyData{
+		Ambr: &models.Ambr{
+			Uplink:   "1 Gbps",
+			Downlink: "1 Gbps",
+		},
+		QosData: &models.QosData{
+			QFI:    1,
+			Var5qi: 9,
+		},
 	}
 
 	pduSessionID := uint8(10)
@@ -32,9 +33,9 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 
 	dnn := "internet"
 
-	pco := &context.ProtocolConfigurationOptions{}
+	pco := &smfNas.ProtocolConfigurationOptions{}
 
-	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(ambr, defaultQFI, qosData, pduSessionID, pti, snssai, dnn, pco, 0, nil, nil)
+	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(smPolicyData, pduSessionID, pti, snssai, dnn, pco, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
 	}
@@ -65,15 +66,17 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 }
 
 func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
-	ambr := &models.Ambr{
-		Uplink:   "1 Gbps",
-		Downlink: "1 Gbps",
+	smPolicyData := &models.SmPolicyData{
+		Ambr: &models.Ambr{
+			Uplink:   "1 Gbps",
+			Downlink: "1 Gbps",
+		},
+		QosData: &models.QosData{
+			QFI:    1,
+			Var5qi: 9,
+		},
 	}
-	defaultQFI := uint8(1)
-	qosData := &models.QosData{
-		QFI:    1,
-		Var5qi: 9,
-	}
+
 	pduSessionID := uint8(10)
 
 	pti := uint8(5)
@@ -85,9 +88,9 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
 
 	dnn := "internet"
 
-	pco := &context.ProtocolConfigurationOptions{}
+	pco := &smfNas.ProtocolConfigurationOptions{}
 
-	msg, err := context.BuildGSMPDUSessionEstablishmentAccept(ambr, defaultQFI, qosData, pduSessionID, pti, snssai, dnn, pco, 0, nil, nil)
+	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(smPolicyData, pduSessionID, pti, snssai, dnn, pco, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
 	}

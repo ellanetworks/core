@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,9 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
-	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -31,30 +31,30 @@ var smfContext SMF
 
 var tracer = otel.Tracer("ella-core/smf")
 
+const DefaultQFI uint8 = 1
+
 type SMF struct {
 	Mutex sync.Mutex
 
-	DBInstance         *db.Database
-	CPNodeID           net.IP
-	LocalSEIDCount     uint64
-	allowedSessionType uint8
-	smContextPool      map[string]*SMContext // key: canonicalName(identifier, pduSessID)
-	pdrIDGenerator     *idgenerator.IDGenerator
-	farIDGenerator     *idgenerator.IDGenerator
-	qerIDGenerator     *idgenerator.IDGenerator
-	urrIDGenerator     *idgenerator.IDGenerator
+	DBInstance     *db.Database
+	CPNodeID       net.IP
+	LocalSEIDCount uint64
+	smContextPool  map[string]*SMContext // key: canonicalName(identifier, pduSessID)
+	pdrIDGenerator *idgenerator.IDGenerator
+	farIDGenerator *idgenerator.IDGenerator
+	qerIDGenerator *idgenerator.IDGenerator
+	urrIDGenerator *idgenerator.IDGenerator
 }
 
 func InitializeSMF(dbInstance *db.Database) {
 	smfContext = SMF{
-		smContextPool:      make(map[string]*SMContext),
-		DBInstance:         dbInstance,
-		CPNodeID:           net.ParseIP("0.0.0.0"),
-		allowedSessionType: nasMessage.PDUSessionTypeIPv4,
-		pdrIDGenerator:     idgenerator.NewGenerator(1, math.MaxUint16),
-		farIDGenerator:     idgenerator.NewGenerator(1, math.MaxUint32),
-		qerIDGenerator:     idgenerator.NewGenerator(1, math.MaxUint32),
-		urrIDGenerator:     idgenerator.NewGenerator(1, math.MaxUint32),
+		smContextPool:  make(map[string]*SMContext),
+		DBInstance:     dbInstance,
+		CPNodeID:       net.ParseIP("0.0.0.0"),
+		pdrIDGenerator: idgenerator.NewGenerator(1, math.MaxUint16),
+		farIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
+		qerIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
+		urrIDGenerator: idgenerator.NewGenerator(1, math.MaxUint32),
 	}
 }
 
@@ -132,10 +132,6 @@ func (smf *SMF) GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, 
 	return snssaiInfo, nil
 }
 
-func (smf *SMF) GetAllowedSessionType() uint8 {
-	return smf.allowedSessionType
-}
-
 func (smf *SMF) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyData, error) {
 	ctx, span := tracer.Start(
 		ctx,
@@ -157,20 +153,14 @@ func (smf *SMF) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.S
 	}
 
 	subscriberPolicy := &models.SmPolicyData{
-		SessionRule: &models.SessionRule{
-			AuthDefQos: &models.AuthorizedDefaultQos{
-				Var5qi: policy.Var5qi,
-				Arp:    &models.Arp{PriorityLevel: policy.Arp},
-			},
-			AuthSessAmbr: &models.Ambr{
-				Uplink:   policy.BitrateUplink,
-				Downlink: policy.BitrateDownlink,
-			},
+		Ambr: &models.Ambr{
+			Uplink:   policy.BitrateUplink,
+			Downlink: policy.BitrateDownlink,
 		},
 		QosData: &models.QosData{
 			Var5qi: policy.Var5qi,
 			Arp:    &models.Arp{PriorityLevel: policy.Arp},
-			QFI:    qos.DefaultQFI,
+			QFI:    DefaultQFI,
 		},
 	}
 
@@ -327,8 +317,8 @@ func (smf *SMF) NewQER(smData *models.SmPolicyData) (*QER, error) {
 			DLGate: GateOpen,
 		},
 		MBR: &MBR{
-			ULMBR: BitRateTokbps(smData.SessionRule.AuthSessAmbr.Uplink),
-			DLMBR: BitRateTokbps(smData.SessionRule.AuthSessAmbr.Downlink),
+			ULMBR: bitRateTokbps(smData.Ambr.Uplink),
+			DLMBR: bitRateTokbps(smData.Ambr.Downlink),
 		},
 	}
 
@@ -369,4 +359,28 @@ func (smf *SMF) RemoveQER(qer *QER) {
 
 func (smf *SMF) RemoveURR(urr *URR) {
 	smf.urrIDGenerator.FreeID(int64(urr.URRID))
+}
+
+func bitRateTokbps(bitrate string) uint64 {
+	s := strings.Split(bitrate, " ")
+
+	digit, err := strconv.Atoi(s[0])
+	if err != nil {
+		return 0
+	}
+
+	switch s[1] {
+	case "bps":
+		return uint64(digit / 1000)
+	case "Kbps":
+		return uint64(digit * 1)
+	case "Mbps":
+		return uint64(digit * 1000)
+	case "Gbps":
+		return uint64(digit * 1000000)
+	case "Tbps":
+		return uint64(digit * 1000000000)
+	default:
+		return 0
+	}
 }

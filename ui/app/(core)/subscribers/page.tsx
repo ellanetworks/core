@@ -197,26 +197,6 @@ const SubscriberPage: React.FC = () => {
         },
       },
       {
-        field: "session",
-        headerName: "Session",
-        width: 140,
-        minWidth: 120,
-        valueGetter: (_v, row: APISubscriber) =>
-          Boolean(row?.status?.ipAddress),
-        sortComparator: (v1, v2) => Number(Boolean(v1)) - Number(Boolean(v2)),
-        renderCell: (params: GridRenderCellParams<APISubscriber>) => {
-          const active = Boolean(params.row?.status?.ipAddress);
-          return (
-            <Chip
-              size="small"
-              label={active ? "Active" : "Inactive"}
-              color={active ? "success" : "default"}
-              variant="filled"
-            />
-          );
-        },
-      },
-      {
         field: "ipAddress",
         headerName: "IP Address",
         width: 140,

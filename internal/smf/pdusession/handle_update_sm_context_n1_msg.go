@@ -7,6 +7,8 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
+	smfNas "github.com/ellanetworks/core/internal/smf/nas"
+	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/free5gc/nas"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -79,12 +81,12 @@ func handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *smfContext.
 
 		pti := m.PDUSessionReleaseRequest.GetPTI()
 
-		n1SmMsg, err := smfContext.BuildGSMPDUSessionReleaseCommand(smContext.PDUSessionID, pti)
+		n1SmMsg, err := smfNas.BuildGSMPDUSessionReleaseCommand(smContext.PDUSessionID, pti)
 		if err != nil {
 			return nil, false, fmt.Errorf("build GSM PDUSessionReleaseCommand failed: %v", err)
 		}
 
-		n2SmMsg, err := smfContext.BuildPDUSessionResourceReleaseCommandTransfer()
+		n2SmMsg, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
 		if err != nil {
 			return nil, false, fmt.Errorf("build PDUSession Resource Release Command Transfer Error: %v", err)
 		}

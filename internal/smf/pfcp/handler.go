@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 	"go.uber.org/zap"
@@ -55,7 +56,7 @@ func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionRep
 
 	// Downlink Data Report
 	if msg.ReportType.HasDLDR() {
-		n2Pdu, err := smfContext.BuildPDUSessionResourceSetupRequestTransfer(smContext.PolicyData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
+		n2Pdu, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(smContext.PolicyData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 		}

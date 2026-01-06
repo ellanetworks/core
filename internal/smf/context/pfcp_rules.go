@@ -135,11 +135,6 @@ type ForwardingParameters struct {
 	DestinationInterface DestinationInterface
 }
 
-type GBR struct {
-	ULGBR uint64 // 40-bit data
-	DLGBR uint64 // 40-bit data
-}
-
 const (
 	GateOpen uint8 = iota
 	GateClose
@@ -159,7 +154,6 @@ type MBR struct {
 type QER struct {
 	GateStatus *GateStatus
 	MBR        *MBR
-	GBR        *GBR
 
 	State RuleState
 	QFI   uint8

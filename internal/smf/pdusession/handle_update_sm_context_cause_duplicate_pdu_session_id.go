@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/ngap"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -35,7 +36,7 @@ func UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef
 
 	smContext.PDUSessionReleaseDueToDupPduID = true
 
-	n2Rsp, err := smfContext.BuildPDUSessionResourceReleaseCommandTransfer()
+	n2Rsp, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
 	if err != nil {
 		return nil, fmt.Errorf("build PDUSession Resource Release Command Transfer Error: %v", err)
 	}

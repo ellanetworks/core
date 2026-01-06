@@ -2,18 +2,14 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // SPDX-License-Identifier: Apache-2.0
 
-package qos
+package nas
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasMessage"
 )
-
-const DefaultQFI uint8 = 1
 
 // TS 24.501 Table 9.11.4.12
 /*
@@ -109,22 +105,6 @@ func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *
 	// 5QI
 	qfd.AddQosFlowParam5Qi(uint8(qosData.Var5qi))
 
-	// MFBR uplink
-	if qosData.MaxbrUl != "" {
-		err := qfd.addQosFlowRateParam(qosData.MaxbrUl, QFDParameterIDMfbrUl)
-		if err != nil {
-			return fmt.Errorf("error adding MFBR uplink parameter: %v", err)
-		}
-	}
-
-	// MFBR downlink
-	if qosData.MaxbrDl != "" {
-		err := qfd.addQosFlowRateParam(qosData.MaxbrDl, QFDParameterIDMfbrDl)
-		if err != nil {
-			return fmt.Errorf("error adding MFBR downlink parameter: %v", err)
-		}
-	}
-
 	// Set E-Bit of QFD for the "create new QoS flow description" operation
 	qfd.SetQFDEBitCreateNewQFD()
 
@@ -132,26 +112,6 @@ func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *
 	d.AddQFD(&qfd)
 
 	return nil
-}
-
-func GetBitRate(sBitRate string) (uint16, uint8, error) {
-	sl := strings.Fields(sBitRate)
-
-	rate, err := strconv.ParseUint(sl[0], 10, 16)
-	if err != nil {
-		return 0, 0, fmt.Errorf("could not parse bit rate: %v", err)
-	}
-
-	switch sl[1] {
-	case "Kbps":
-		return uint16(rate), QFBitRate1Kbps, nil
-	case "Mbps":
-		return uint16(rate), QFBitRate1Mbps, nil
-	case "Gbps":
-		return uint16(rate), QFBitRate1Gbps, nil
-	default:
-		return uint16(rate), QFBitRate1Mbps, nil
-	}
 }
 
 // bits 6 to 1 of octet(00xxxxxx)
@@ -169,13 +129,6 @@ func (q *QoSFlowDescription) SetQoSFlowDescOpCode(val uint8) {
 // 1:	parameters list is included
 func (q *QoSFlowDescription) SetQFDEBitCreateNewQFD() {
 	q.NumOfParam |= QFDEbit
-}
-
-func (p *QosFlowParameter) SetQosFlowParamBitRate(rateType, rateUnit uint8, rateVal uint16) {
-	p.ParamID = rateType //(i.e. QosFlowDescriptionParameterIDGfbrUl)
-	p.ParamLen = 0x03    //(Length is rate unit(1 byte) + rate value(2 bytes))
-	p.ParamContent = []byte{rateUnit}
-	p.ParamContent = append(p.ParamContent, byte(rateVal>>8), byte(rateVal&0xff))
 }
 
 // Encode QoSFlowDescriptions IE
@@ -216,22 +169,4 @@ func (q *QoSFlowDescription) AddQosFlowParam5Qi(val uint8) {
 	q.ParamList = append(q.ParamList, qfp)
 
 	q.QFDLen += 3 //(Id + Len + content)
-}
-
-func (q *QoSFlowDescription) addQosFlowRateParam(rate string, rateType uint8) error {
-	bitRate, unit, err := GetBitRate(rate)
-	if err != nil {
-		return fmt.Errorf("invalid bit rate [%v]: %v", rate, err)
-	}
-
-	flowParam := QosFlowParameter{}
-
-	flowParam.SetQosFlowParamBitRate(rateType, unit, bitRate)
-	// Add to QosFlowDescription
-	q.NumOfParam += 1
-	q.ParamList = append(q.ParamList, flowParam)
-
-	q.QFDLen += 5 //(Id-1 + len-1 + Content-3)
-
-	return nil
 }

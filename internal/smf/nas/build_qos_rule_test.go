@@ -2,16 +2,16 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // SPDX-License-Identifier: Apache-2.0
 
-package qos_test
+package nas_test
 
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/smf/qos"
+	"github.com/ellanetworks/core/internal/smf/nas"
 )
 
 func TestBuildDefaultQosRule_Marshal(t *testing.T) {
-	qosRules := qos.BuildDefaultQosRule(1, 1)
+	qosRules := nas.BuildDefaultQosRule(1, 1)
 
 	bytes, err := qosRules.MarshalBinary()
 	if err != nil {
@@ -25,7 +25,7 @@ func TestBuildDefaultQosRule_Marshal(t *testing.T) {
 }
 
 func TestBuildDefaultQosRule_Content(t *testing.T) {
-	qosFlow := qos.BuildDefaultQosRule(1, 1)
+	qosFlow := nas.BuildDefaultQosRule(1, 1)
 
 	if qosFlow.Identifier != 1 {
 		t.Errorf("Expected Identifier 1, got %d", qosFlow.Identifier)
