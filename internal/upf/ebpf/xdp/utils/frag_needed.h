@@ -1,5 +1,7 @@
 // Copyright 2025 Ella Networks
 
+#pragma once
+
 #include "linux/bpf.h"
 #include "bpf/bpf_helpers.h"
 
@@ -14,6 +16,8 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <stdint.h>
+
+#define GTP_ENCAP_SIZE 20 + 8 + 16
 
 static __always_inline int vlan_to_insert(struct packet_context *ctx)
 {
@@ -48,8 +52,7 @@ static __always_inline enum xdp_action
 frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 {
 	upf_printk("upf: preparing fragmention needed error");
-	int ip_proto = parse_ip4(ctx);
-	if (ip_proto < 0) {
+	if (ctx->ip4->protocol < 0) {
 		upf_printk("upf: packet was not IPv4");
 		ctx->statistics
 			->xdp_actions[XDP_ABORTED & EUPF_MAX_XDP_ACTION_MASK] += 1;
@@ -210,12 +213,12 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 static __always_inline enum xdp_action
 frag_needed(struct packet_context *ctx, __u32 mtu_len)
 {
-	__u16 l3_protocol = parse_ethernet(ctx);
 	__be16 mtu = bpf_htons(mtu_len);
-	switch (l3_protocol) {
+	switch (bpf_ntohs(ctx->eth->h_proto)) {
 	case ETH_P_IP:
 		return frag_needed_ipv4(ctx, mtu);
 	}
+	upf_printk("upf: unsupported eth proto for frag needed: %x", ctx->eth->h_proto);
 	ctx->statistics->xdp_actions[XDP_DROP & EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return XDP_DROP;
 }
