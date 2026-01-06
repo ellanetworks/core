@@ -95,10 +95,16 @@ func ListRadios() http.HandlerFunc {
 
 		for _, radio := range ranList {
 			supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAIs)
+
+			radioAddress := ""
+			if radio.Conn != nil {
+				radioAddress = radio.Conn.RemoteAddr().String()
+			}
+
 			newRadio := Radio{
 				Name:          radio.Name,
 				ID:            radio.RanID.GNbID.GNBValue,
-				Address:       radio.GnbIP,
+				Address:       radioAddress,
 				SupportedTAIs: supportedTais,
 			}
 
@@ -131,10 +137,16 @@ func GetRadio() http.HandlerFunc {
 		for _, radio := range ranList {
 			if radio.Name == radioName {
 				supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAIs)
+
+				radioAddress := ""
+				if radio.Conn != nil {
+					radioAddress = radio.Conn.RemoteAddr().String()
+				}
+
 				result := Radio{
 					Name:          radio.Name,
 					ID:            radio.RanID.GNbID.GNBValue,
-					Address:       radio.GnbIP,
+					Address:       radioAddress,
 					SupportedTAIs: supportedTais,
 				}
 				writeResponse(w, result, http.StatusOK, logger.APILog)

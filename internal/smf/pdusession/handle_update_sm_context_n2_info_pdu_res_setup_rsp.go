@@ -2,11 +2,14 @@ package pdusession
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
+	"github.com/free5gc/aper"
+	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -77,10 +80,41 @@ func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smC
 		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
 	}
 
-	err := smfContext.HandlePDUSessionResourceSetupResponseTransfer(binaryDataN2SmInformation, smContext)
+	err := handlePDUSessionResourceSetupResponseTransfer(binaryDataN2SmInformation, smContext)
 	if err != nil {
 		return nil, nil, fmt.Errorf("handle PDUSessionResourceSetupResponseTransfer failed: %v", err)
 	}
 
 	return pdrList, farList, nil
+}
+
+func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *smfContext.SMContext) error {
+	resourceSetupResponseTransfer := ngapType.PDUSessionResourceSetupResponseTransfer{}
+
+	err := aper.UnmarshalWithParams(b, &resourceSetupResponseTransfer, "valueExt")
+	if err != nil {
+		return fmt.Errorf("failed to unmarshall resource setup response transfer: %s", err.Error())
+	}
+
+	QosFlowPerTNLInformation := resourceSetupResponseTransfer.DLQosFlowPerTNLInformation
+
+	if QosFlowPerTNLInformation.UPTransportLayerInformation.Present != ngapType.UPTransportLayerInformationPresentGTPTunnel {
+		return fmt.Errorf("expected qos flow per tnl information up transport layer information present to be gtp tunnel")
+	}
+
+	gtpTunnel := QosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel
+
+	teid := binary.BigEndian.Uint32(gtpTunnel.GTPTEID.Value)
+
+	smContext.Tunnel.ANInformation.IPAddress = gtpTunnel.TransportLayerAddress.Value.Bytes
+	smContext.Tunnel.ANInformation.TEID = teid
+
+	if smContext.Tunnel.DataPath.Activated {
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = new(smfContext.OuterHeaderCreation)
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.OuterHeaderCreationDescription = smfContext.OuterHeaderCreationGtpUUdpIpv4
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.TeID = teid
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation.IPv4Address = smContext.Tunnel.ANInformation.IPAddress.To4()
+	}
+
+	return nil
 }

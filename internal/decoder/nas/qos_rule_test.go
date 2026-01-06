@@ -4,22 +4,22 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
-	"github.com/ellanetworks/core/internal/smf/qos"
+	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 )
 
 func TestUnmarshalQosRules(t *testing.T) {
-	qosRule := &qos.QosRule{
+	qosRule := &smfNas.QosRule{
 		Identifier:    1,
 		DQR:           0x01,
-		OperationCode: qos.OperationCodeCreateNewQoSRule,
+		OperationCode: smfNas.OperationCodeCreateNewQoSRule,
 		Precedence:    255,
 		QFI:           1,
-		PacketFilterList: []qos.PacketFilter{
+		PacketFilterList: []smfNas.PacketFilter{
 			{
 				Identifier: 1,
-				Direction:  qos.PacketFilterDirectionBidirectional,
-				Content: []qos.PacketFilterComponent{{
-					ComponentType: qos.PFComponentTypeMatchAll,
+				Direction:  smfNas.PacketFilterDirectionBidirectional,
+				Content: []smfNas.PacketFilterComponent{{
+					ComponentType: smfNas.PFComponentTypeMatchAll,
 				}},
 				ContentLength: 0x01,
 			},

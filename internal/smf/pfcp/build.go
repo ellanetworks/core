@@ -155,10 +155,6 @@ func qerToCreateQER(qer *context.QER) *ie.IE {
 		createQERies = append(createQERies, ie.NewMBR(qer.MBR.ULMBR, qer.MBR.DLMBR))
 	}
 
-	if qer.GBR != nil {
-		createQERies = append(createQERies, ie.NewGBR(qer.GBR.ULGBR, qer.GBR.DLGBR))
-	}
-
 	return ie.NewCreateQER(createQERies...)
 }
 

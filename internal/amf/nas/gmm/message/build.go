@@ -9,7 +9,6 @@ package message
 import (
 	"encoding/hex"
 	"fmt"
-	"time"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
@@ -432,7 +431,7 @@ func BuildRegistrationAccept(
 }
 
 // TS 24.501 - 5.4.4 Generic UE configuration update procedure - 5.4.4.1 General
-func BuildConfigurationUpdateCommand(amf *amfContext.AMF, ue *amfContext.AmfUe, flags *amfContext.ConfigurationUpdateCommandFlags) ([]byte, error, bool) {
+func BuildConfigurationUpdateCommand(amf *amfContext.AMF, ue *amfContext.AmfUe, needGuti bool) ([]byte, error, bool) {
 	needTimer := false
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -444,13 +443,7 @@ func BuildConfigurationUpdateCommand(amf *amfContext.AMF, ue *amfContext.AmfUe, 
 	configurationUpdateCommand.SetSpareHalfOctet(0)
 	configurationUpdateCommand.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
 
-	if flags.NeedNetworkSlicingIndication {
-		configurationUpdateCommand.NetworkSlicingIndication = nasType.
-			NewNetworkSlicingIndication(nasMessage.ConfigurationUpdateCommandNetworkSlicingIndicationType)
-		configurationUpdateCommand.SetNSSCI(0x01)
-	}
-
-	if flags.NeedGUTI {
+	if needGuti {
 		if ue.Guti != "" {
 			gutiNas, err := nasConvert.GutiToNasWithError(ue.Guti)
 			if err != nil {
@@ -464,118 +457,7 @@ func BuildConfigurationUpdateCommand(amf *amfContext.AMF, ue *amfContext.AmfUe, 
 		}
 	}
 
-	if flags.NeedAllowedNSSAI {
-		if ue.AllowedNssai != nil {
-			configurationUpdateCommand.AllowedNSSAI = nasType.NewAllowedNSSAI(nasMessage.ConfigurationUpdateCommandAllowedNSSAIType)
-
-			var buf []uint8
-
-			allowedSnssaiNas, err := util.SnssaiToNas(*ue.AllowedNssai)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert allowed SNSSAI to NAS: %v", err), false
-			}
-
-			buf = append(buf, allowedSnssaiNas...)
-			configurationUpdateCommand.AllowedNSSAI.SetLen(uint8(len(buf)))
-			configurationUpdateCommand.AllowedNSSAI.SetSNSSAIValue(buf)
-		} else {
-			ue.Log.Warn("Require Allowed NSSAI, but got nothing.")
-		}
-	}
-
-	// Using this code requires additional refactoring, like adding the field ConfiguredNssai to
-	// the amf_ue context.
-	//
-	// if flags.NeedConfiguredNSSAI {
-	// 	if len(ue.ConfiguredNssai) > 0 {
-	// 		configurationUpdateCommand.ConfiguredNSSAI = nasType.
-	// 			NewConfiguredNSSAI(nasMessage.ConfigurationUpdateCommandConfiguredNSSAIType)
-
-	// 		var buf []uint8
-	// 		for _, snssai := range ue.ConfiguredNssai {
-	// 			configuredSnssaiNas, err := util.SnssaiToNas(*snssai.ConfiguredSnssai)
-	// 			if err != nil {
-	// 				return nil, fmt.Errorf("failed to convert allowed SNSSAI to NAS: %v", err), false
-	// 			}
-	// 			buf = append(buf, configuredSnssaiNas...)
-	// 		}
-	// 		configurationUpdateCommand.ConfiguredNSSAI.SetLen(uint8(len(buf)))
-	// 		configurationUpdateCommand.ConfiguredNSSAI.SetSNSSAIValue(buf)
-	// 	} else {
-	// 		ue.Log.Warn("Require Configured NSSAI, but got nothing.")
-	// 	}
-	// }
-
-	if flags.NeedRejectNSSAI {
-		ue.Log.Warn("Require Rejected NSSAI, but got nothing.")
-	}
-
-	if flags.NeedTaiList {
-		if len(ue.RegistrationArea) > 0 {
-			configurationUpdateCommand.TAIList = nasType.NewTAIList(nasMessage.ConfigurationUpdateCommandTAIListType)
-
-			taiListNas, err := util.TaiListToNas(ue.RegistrationArea)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert TAI list to NAS: %v", err), false
-			}
-
-			configurationUpdateCommand.TAIList.SetLen(uint8(len(taiListNas)))
-			configurationUpdateCommand.SetPartialTrackingAreaIdentityList(taiListNas)
-		} else {
-			ue.Log.Warn("Require TAI List, but got nothing.")
-		}
-	}
-
-	if flags.NeedServiceAreaList {
-		ue.Log.Warn("Require Service Area List, but got nothing.")
-	}
-
-	if flags.NeedLadnInformation {
-		ue.Log.Warn("Require LADN Information, but got nothing.")
-	}
-
-	if flags.NeedNITZ {
-		// Full network name
-		if amf.NetworkName.Full != "" {
-			fullNetworkName := nasConvert.FullNetworkNameToNas(amf.NetworkName.Full)
-			configurationUpdateCommand.FullNameForNetwork = &fullNetworkName
-			configurationUpdateCommand.FullNameForNetwork.SetIei(nasMessage.ConfigurationUpdateCommandFullNameForNetworkType)
-		} else {
-			ue.Log.Warn("Require Full Network Name, but got nothing.")
-		}
-		// Short network name
-		if amf.NetworkName.Short != "" {
-			shortNetworkName := nasConvert.ShortNetworkNameToNas(amf.NetworkName.Short)
-			configurationUpdateCommand.ShortNameForNetwork = &shortNetworkName
-			configurationUpdateCommand.ShortNameForNetwork.SetIei(nasMessage.ConfigurationUpdateCommandShortNameForNetworkType)
-		} else {
-			ue.Log.Warn("Require Short Network Name, but got nothing.")
-		}
-		// Universal Time and Local Time Zone
-		now := time.Now()
-		universalTimeAndLocalTimeZone := nasConvert.EncodeUniversalTimeAndLocalTimeZoneToNas(now)
-		universalTimeAndLocalTimeZone.SetIei(nasMessage.ConfigurationUpdateCommandUniversalTimeAndLocalTimeZoneType)
-		configurationUpdateCommand.UniversalTimeAndLocalTimeZone = &universalTimeAndLocalTimeZone
-
-		if ue.TimeZone != amf.TimeZone {
-			ue.TimeZone = amf.TimeZone
-			// Local Time Zone
-			localTimeZone := nasConvert.EncodeLocalTimeZoneToNas(ue.TimeZone)
-			localTimeZone.SetIei(nasMessage.ConfigurationUpdateCommandLocalTimeZoneType)
-			configurationUpdateCommand.LocalTimeZone = nasType.
-				NewLocalTimeZone(nasMessage.ConfigurationUpdateCommandLocalTimeZoneType)
-			configurationUpdateCommand.LocalTimeZone = &localTimeZone
-			// Daylight Saving Time
-			daylightSavingTime := nasConvert.EncodeDaylightSavingTimeToNas(ue.TimeZone)
-			daylightSavingTime.SetIei(nasMessage.ConfigurationUpdateCommandNetworkDaylightSavingTimeType)
-			configurationUpdateCommand.NetworkDaylightSavingTime = nasType.
-				NewNetworkDaylightSavingTime(nasMessage.ConfigurationUpdateCommandNetworkDaylightSavingTimeType)
-			configurationUpdateCommand.NetworkDaylightSavingTime = &daylightSavingTime
-		}
-	}
-
-	configurationUpdateCommand.ConfigurationUpdateIndication = nasType.
-		NewConfigurationUpdateIndication(nasMessage.ConfigurationUpdateCommandConfigurationUpdateIndicationType)
+	configurationUpdateCommand.ConfigurationUpdateIndication = nasType.NewConfigurationUpdateIndication(nasMessage.ConfigurationUpdateCommandConfigurationUpdateIndicationType)
 	if configurationUpdateCommand.GUTI5G != nil ||
 		configurationUpdateCommand.TAIList != nil ||
 		configurationUpdateCommand.AllowedNSSAI != nil ||

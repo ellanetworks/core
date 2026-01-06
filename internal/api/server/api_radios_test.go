@@ -125,7 +125,6 @@ func TestListRadios(t *testing.T) {
 			},
 		},
 	}
-	ran1.GnbIP = "1.2.3.4"
 	ran1.RanID = &models.GlobalRanNodeID{
 		GNbID: &models.GNbID{
 			GNBValue: "mcc:001:mnc:01:gnb-001",
@@ -153,7 +152,6 @@ func TestListRadios(t *testing.T) {
 			},
 		},
 	}
-	ran2.GnbIP = "2.3.4.5"
 	ran2.RanID = &models.GlobalRanNodeID{
 		GNbID: &models.GNbID{
 			GNBValue: "mcc:001:mnc:01:gnb-002",
@@ -183,8 +181,8 @@ func TestListRadios(t *testing.T) {
 	for _, radio := range response.Result.Items {
 		switch radio.Name {
 		case "gnb-001":
-			if radio.Address != "1.2.3.4" {
-				t.Fatalf("expected radio address %q, got %q", "1.2.3.4", radio.Address)
+			if radio.Address != "" {
+				t.Fatalf("expected radio address %q, got %q", "", radio.Address)
 			}
 
 			if radio.ID != "mcc:001:mnc:01:gnb-001" {
@@ -219,8 +217,8 @@ func TestListRadios(t *testing.T) {
 				t.Fatalf("expected sd %q, got %q", "010204", radio.SupportedTAIs[0].SNssais[0].Sd)
 			}
 		case "gnb-002":
-			if radio.Address != "2.3.4.5" {
-				t.Fatalf("expected radio address %q, got %q", "2.3.4.5", radio.Address)
+			if radio.Address != "" {
+				t.Fatalf("expected radio address %q, got %q", "", radio.Address)
 			}
 
 			if radio.ID != "mcc:001:mnc:01:gnb-002" {

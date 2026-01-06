@@ -192,7 +192,6 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 		RanUEs:        make(map[int64]*RanUe),
 		SupportedTAIs: make([]SupportedTAI, 0),
 		Conn:          conn,
-		GnbIP:         remoteAddr.String(),
 		Log:           logger.AmfLog.With(zap.String("ran_addr", remoteAddr.String())),
 	}
 

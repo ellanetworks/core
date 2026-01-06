@@ -131,22 +131,6 @@ type AmfUe struct {
 	Log *zap.Logger
 }
 
-// TS 24.501 8.2.19
-type ConfigurationUpdateCommandFlags struct {
-	NeedGUTI                                     bool
-	NeedNITZ                                     bool
-	NeedTaiList                                  bool
-	NeedRejectNSSAI                              bool
-	NeedAllowedNSSAI                             bool
-	NeedSmsIndication                            bool
-	NeedMicoIndication                           bool
-	NeedLadnInformation                          bool
-	NeedServiceAreaList                          bool
-	NeedConfiguredNSSAI                          bool
-	NeedNetworkSlicingIndication                 bool
-	NeedOperatordefinedAccessCategoryDefinitions bool
-}
-
 func NewAmfUe() *AmfUe {
 	return &AmfUe{
 		State:            Deregistered,

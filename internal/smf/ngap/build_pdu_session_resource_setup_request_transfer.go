@@ -1,8 +1,4 @@
-// Copyright 2024 Ella Networks
-// Copyright 2019 free5GC.org
-// SPDX-License-Identifier: Apache-2.0
-
-package context
+package ngap
 
 import (
 	"encoding/binary"
@@ -35,10 +31,10 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyData *models.SmPolicyDa
 		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentPDUSessionAggregateMaximumBitRate,
 		PDUSessionAggregateMaximumBitRate: &ngapType.PDUSessionAggregateMaximumBitRate{
 			PDUSessionAggregateMaximumBitRateDL: ngapType.BitRate{
-				Value: ngapConvert.UEAmbrToInt64(smPolicyData.SessionRule.AuthSessAmbr.Downlink),
+				Value: ngapConvert.UEAmbrToInt64(smPolicyData.Ambr.Downlink),
 			},
 			PDUSessionAggregateMaximumBitRateUL: ngapType.BitRate{
-				Value: ngapConvert.UEAmbrToInt64(smPolicyData.SessionRule.AuthSessAmbr.Uplink),
+				Value: ngapConvert.UEAmbrToInt64(smPolicyData.Ambr.Uplink),
 			},
 		},
 	}
@@ -136,94 +132,6 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyData *models.SmPolicyDa
 	buf, err := aper.MarshalWithParams(resourceSetupRequestTransfer, "valueExt")
 	if err != nil {
 		return nil, fmt.Errorf("encode resourceSetupRequestTransfer failed: %s", err)
-	}
-
-	return buf, nil
-}
-
-func BuildPDUSessionResourceReleaseCommandTransfer() ([]byte, error) {
-	resourceReleaseCommandTransfer := ngapType.PDUSessionResourceReleaseCommandTransfer{
-		Cause: ngapType.Cause{
-			Present: ngapType.CausePresentNas,
-			Nas: &ngapType.CauseNas{
-				Value: ngapType.CauseNasPresentNormalRelease,
-			},
-		},
-	}
-
-	buf, err := aper.MarshalWithParams(resourceReleaseCommandTransfer, "valueExt")
-	if err != nil {
-		return nil, fmt.Errorf("could not encode pdu session resource release command transfer: %s", err)
-	}
-
-	return buf, nil
-}
-
-// TS 38.413 9.3.4.9
-func BuildPathSwitchRequestAcknowledgeTransfer(teid uint32, n3IP net.IP) ([]byte, error) {
-	// dataPath := ctx.Tunnel.DataPath
-	// ANUPF := dataPath.DPNode
-	// UpNode := ANUPF.UPF
-	teidOct := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidOct, teid)
-
-	pathSwitchRequestAcknowledgeTransfer := ngapType.PathSwitchRequestAcknowledgeTransfer{}
-
-	// UL NG-U UP TNL Information(optional) TS 38.413 9.3.2.2
-	pathSwitchRequestAcknowledgeTransfer.
-		ULNGUUPTNLInformation = new(ngapType.UPTransportLayerInformation)
-
-	ULNGUUPTNLInformation := pathSwitchRequestAcknowledgeTransfer.ULNGUUPTNLInformation
-	ULNGUUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
-	ULNGUUPTNLInformation.GTPTunnel = new(ngapType.GTPTunnel)
-
-	gtpTunnel := ULNGUUPTNLInformation.GTPTunnel
-	gtpTunnel.GTPTEID.Value = teidOct
-	gtpTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     n3IP,
-		BitLength: uint64(len(n3IP) * 8),
-	}
-
-	// Security Indication(optional) TS 38.413 9.3.1.27
-	pathSwitchRequestAcknowledgeTransfer.SecurityIndication = new(ngapType.SecurityIndication)
-	securityIndication := pathSwitchRequestAcknowledgeTransfer.SecurityIndication
-	securityIndication.IntegrityProtectionIndication.Value = ngapType.IntegrityProtectionIndicationPresentNotNeeded
-	securityIndication.ConfidentialityProtectionIndication.Value = ngapType.ConfidentialityProtectionIndicationPresentNotNeeded
-
-	integrityProtectionInd := securityIndication.IntegrityProtectionIndication.Value
-	if integrityProtectionInd == ngapType.IntegrityProtectionIndicationPresentRequired ||
-		integrityProtectionInd == ngapType.IntegrityProtectionIndicationPresentPreferred {
-		securityIndication.MaximumIntegrityProtectedDataRateUL = new(ngapType.MaximumIntegrityProtectedDataRate)
-		securityIndication.MaximumIntegrityProtectedDataRateUL.Value = ngapType.MaximumIntegrityProtectedDataRatePresentBitrate64kbs
-	}
-
-	if buf, err := aper.MarshalWithParams(pathSwitchRequestAcknowledgeTransfer, "valueExt"); err != nil {
-		return nil, err
-	} else {
-		return buf, nil
-	}
-}
-
-func BuildHandoverCommandTransfer(teid uint32, n3IP net.IP) ([]byte, error) {
-	teidOct := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidOct, teid)
-
-	handoverCommandTransfer := ngapType.HandoverCommandTransfer{}
-
-	handoverCommandTransfer.DLForwardingUPTNLInformation = new(ngapType.UPTransportLayerInformation)
-	handoverCommandTransfer.DLForwardingUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
-	handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel = new(ngapType.GTPTunnel)
-
-	gtpTunnel := handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel
-	gtpTunnel.GTPTEID.Value = teidOct
-	gtpTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     n3IP,
-		BitLength: uint64(len(n3IP) * 8),
-	}
-
-	buf, err := aper.MarshalWithParams(handoverCommandTransfer, "valueExt")
-	if err != nil {
-		return nil, fmt.Errorf("could not encode handover command transfer: %s", err)
 	}
 
 	return buf, nil

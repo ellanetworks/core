@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/nas/nasMessage"
 )
 
 type PFCPSessionContext struct {
@@ -43,21 +42,6 @@ type SMContext struct {
 
 func CanonicalName(identifier string, pduSessID uint8) string {
 	return fmt.Sprintf("%s-%d", identifier, pduSessID)
-}
-
-func PDUAddressToNAS(pduAddress net.IP, pduSessionType uint8) ([12]byte, uint8) {
-	var addr [12]byte
-
-	copy(addr[:], pduAddress)
-
-	switch pduSessionType {
-	case nasMessage.PDUSessionTypeIPv4:
-		return addr, 4 + 1
-	case nasMessage.PDUSessionTypeIPv4IPv6:
-		return addr, 12 + 1
-	default:
-		return addr, 0
-	}
 }
 
 func (smContext *SMContext) SetSMPolicyData(smPolicyData *models.SmPolicyData) {

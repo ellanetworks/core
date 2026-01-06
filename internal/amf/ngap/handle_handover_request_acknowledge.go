@@ -125,37 +125,38 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amf *amfContext.AMF, 
 	sourceUe := targetUe.SourceUe
 	if sourceUe == nil {
 		ran.Log.Error("handover between different Ue has not been implement yet")
-	} else {
-		ran.Log.Debug("handle handover request acknowledge", zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID),
-			zap.Int64("targetRanUeNgapID", targetUe.RanUeNgapID), zap.Int64("targetAmfUeNgapID", targetUe.AmfUeNgapID))
-
-		if len(pduSessionResourceHandoverList.List) == 0 {
-			targetUe.Log.Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
-
-			cause := &ngapType.Cause{
-				Present: ngapType.CausePresentRadioNetwork,
-				RadioNetwork: &ngapType.CauseRadioNetwork{
-					Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
-				},
-			}
-
-			sourceUe.AmfUe.SetOnGoing(amfContext.OnGoingProcedureNothing)
-
-			err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
-			if err != nil {
-				ran.Log.Error("error sending handover preparation failure", zap.Error(err))
-			}
-
-			ran.Log.Info("sent handover preparation failure to source UE")
-
-			return
-		}
-
-		err := sourceUe.Radio.NGAPSender.SendHandoverCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, *targetToSourceTransparentContainer)
-		if err != nil {
-			ran.Log.Error("error sending handover command to source UE", zap.Error(err))
-		}
-
-		ran.Log.Info("sent handover command to source UE")
+		return
 	}
+
+	ran.Log.Debug("handle handover request acknowledge", zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID),
+		zap.Int64("targetRanUeNgapID", targetUe.RanUeNgapID), zap.Int64("targetAmfUeNgapID", targetUe.AmfUeNgapID))
+
+	if len(pduSessionResourceHandoverList.List) == 0 {
+		targetUe.Log.Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
+
+		cause := &ngapType.Cause{
+			Present: ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{
+				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
+			},
+		}
+
+		sourceUe.AmfUe.SetOnGoing(amfContext.OnGoingProcedureNothing)
+
+		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
+		if err != nil {
+			ran.Log.Error("error sending handover preparation failure", zap.Error(err))
+		}
+
+		ran.Log.Info("sent handover preparation failure to source UE")
+
+		return
+	}
+
+	err := sourceUe.Radio.NGAPSender.SendHandoverCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, *targetToSourceTransparentContainer)
+	if err != nil {
+		ran.Log.Error("error sending handover command to source UE", zap.Error(err))
+	}
+
+	ran.Log.Info("sent handover command to source UE")
 }

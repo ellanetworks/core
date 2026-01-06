@@ -58,7 +58,6 @@ type Radio struct {
 	RanID         *models.GlobalRanNodeID
 	NGAPSender    NGAPSender
 	Name          string
-	GnbIP         string
 	Conn          *sctp.SCTPConn
 	SupportedTAIs []SupportedTAI
 	RanUEs        map[int64]*RanUe // Key: RanUeNgapID
