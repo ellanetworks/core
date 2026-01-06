@@ -58,7 +58,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		return XDP_ABORTED;
 	}
 	if (ret > 0) {
-		bpf_printk("upf: packet too large");
+		bpf_printk("upf: n3 packet too large");
 		return frag_needed(ctx, mtu_len);
 	}
 
