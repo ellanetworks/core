@@ -7,6 +7,7 @@
 #include <bpf/bpf_helpers.h>
 
 #include "xdp/utils/common.h"
+#include "xdp/utils/frag_needed.h"
 #include "xdp/utils/gtp.h"
 #include "xdp/utils/pdr.h"
 #include "xdp/utils/qer.h"
@@ -48,6 +49,17 @@ handle_gtp_packet(struct packet_context *ctx)
 	if (!pdr) {
 		upf_printk("upf: no session for teid:%d", teid);
 		return DEFAULT_XDP_ACTION;
+	}
+
+	__u32 mtu_len = 0;
+	long ret = bpf_check_mtu(ctx->xdp_ctx, n6_ifindex, &mtu_len, -GTP_ENCAP_SIZE, 0);
+	if (ret < 0) {
+		ctx->statistics->xdp_actions[XDP_ABORTED & EUPF_MAX_XDP_ACTION_MASK] += 1;
+		return XDP_ABORTED;
+	}
+	if (ret > 0) {
+		bpf_printk("upf: packet too large");
+		return frag_needed(ctx, mtu_len);
 	}
 
 	ctx->interface = INTERFACE_N3;

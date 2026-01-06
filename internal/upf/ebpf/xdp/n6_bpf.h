@@ -7,6 +7,7 @@
 #include <linux/ipv6.h>
 
 #include "xdp/utils/common.h"
+#include "xdp/utils/frag_needed.h"
 #include "xdp/utils/gtp.h"
 #include "xdp/utils/pdr.h"
 #include "xdp/utils/qer.h"
@@ -81,6 +82,19 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	if (!pdr) {
 		upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
 		return DEFAULT_XDP_ACTION;
+	}
+
+	__u32 mtu_len = 0;
+	long ret = 0;
+	ret = bpf_check_mtu(ctx->xdp_ctx, n3_ifindex, &mtu_len, GTP_ENCAP_SIZE, 0);
+	if (ret < 0) {
+		ctx->statistics->xdp_actions[XDP_ABORTED & EUPF_MAX_XDP_ACTION_MASK] += 1;
+		return XDP_ABORTED;
+	}
+	if (ret > 0) {
+		bpf_printk("upf: packet too large");
+		mtu_len -= GTP_ENCAP_SIZE;
+		return frag_needed(ctx, mtu_len);
 	}
 
 	ctx->interface = INTERFACE_N6;

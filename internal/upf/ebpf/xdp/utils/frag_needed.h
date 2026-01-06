@@ -1,5 +1,7 @@
 // Copyright 2025 Ella Networks
 
+#pragma once
+
 #include "linux/bpf.h"
 #include "bpf/bpf_helpers.h"
 
@@ -14,6 +16,8 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <stdint.h>
+
+#define GTP_ENCAP_SIZE 20 + 8 + 16
 
 static __always_inline int vlan_to_insert(struct packet_context *ctx)
 {
