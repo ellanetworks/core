@@ -213,7 +213,8 @@ const Dashboard = () => {
       pduSessions: pduSessions ?? null,
       memoryUsageMB:
         memBytes == null ? null : Math.round(memBytes / (1024 * 1024)),
-      databaseSizeKB: dbBytes == null ? null : Math.round(dbBytes / 1024),
+      databaseSizeMB:
+        dbBytes == null ? null : Math.round(dbBytes / (1024 * 1024)),
       routines: goGoroutines ?? null,
       allocatedIPs: allocIPs == null ? null : Math.round(allocIPs),
       totalIPs: totalIPsV == null ? null : Math.round(totalIPsV),
@@ -268,7 +269,7 @@ const Dashboard = () => {
         const {
           pduSessions,
           memoryUsageMB,
-          databaseSizeKB,
+          databaseSizeMB,
           routines,
           allocatedIPs,
           totalIPs,
@@ -281,7 +282,7 @@ const Dashboard = () => {
 
         setActiveSessions(pduSessions);
         setMemoryUsage(memoryUsageMB);
-        setDatabaseSize(databaseSizeKB);
+        setDatabaseSize(databaseSizeMB);
         setRoutines(routines);
         setAllocatedIPs(allocatedIPs);
         setTotalIPs(totalIPs);
@@ -607,7 +608,7 @@ const Dashboard = () => {
             title="Database Size"
             loading={loading}
             value={
-              databaseSize != null ? `${formatNumber(databaseSize)} KB` : "N/A"
+              databaseSize != null ? `${formatNumber(databaseSize)} MB` : "N/A"
             }
           />
         </Grid>
