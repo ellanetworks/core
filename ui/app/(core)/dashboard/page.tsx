@@ -213,7 +213,8 @@ const Dashboard = () => {
       pduSessions: pduSessions ?? null,
       memoryUsageMB:
         memBytes == null ? null : Math.round(memBytes / (1024 * 1024)),
-      databaseSizeMB: dbBytes == null ? null : Math.round(dbBytes / (1024 * 1024)),
+      databaseSizeMB:
+        dbBytes == null ? null : Math.round(dbBytes / (1024 * 1024)),
       routines: goGoroutines ?? null,
       allocatedIPs: allocIPs == null ? null : Math.round(allocIPs),
       totalIPs: totalIPsV == null ? null : Math.round(totalIPsV),
