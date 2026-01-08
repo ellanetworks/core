@@ -243,6 +243,9 @@ func handlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmen
 
 // SendPFCPRules send all datapaths to UPFs
 func sendPFCPRules(ctx context.Context, cpNodeID net.IP, smContext *smfContext.SMContext) error {
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
 	dataPath := smContext.Tunnel.DataPath
 	if !dataPath.Activated {
 		logger.SmfLog.Debug("DataPath is not activated, skip sending PFCP rules")
