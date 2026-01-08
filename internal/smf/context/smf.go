@@ -69,7 +69,7 @@ type SnssaiSmfInfo struct {
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
-func (smf *SMF) RetrieveDnnInformation(ctx context.Context, ueSnssai models.Snssai, dnn string) (*SnssaiSmfDnnInfo, error) {
+func (smf *SMF) RetrieveDnnInformation(ctx context.Context, ueSnssai *models.Snssai, dnn string) (*SnssaiSmfDnnInfo, error) {
 	supportedSnssai, err := smf.GetSnssaiInfo(ctx, dnn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get snssai information: %v", err)
@@ -195,25 +195,18 @@ func (smf *SMF) GetSMContextBySEID(seid uint64) *SMContext {
 	return nil
 }
 
-func (smContext *SMContext) AllocateLocalSEIDForDataPath(smf *SMF) {
-	if smContext.PFCPContext != nil {
-		return
-	}
-
-	smContext.PFCPContext = &PFCPSessionContext{
-		LocalSEID: smf.AllocateLocalSEID(),
-	}
-}
-
-func (smf *SMF) NewSMContext(supi string, pduSessID uint8) *SMContext {
+func (smf *SMF) NewSMContext(supi string, pduSessionID uint8, dnn string, snssai *models.Snssai) *SMContext {
 	smf.Mutex.Lock()
 	defer smf.Mutex.Unlock()
 
 	smContext := &SMContext{
-		PDUSessionID: pduSessID,
+		PDUSessionID: pduSessionID,
+		Supi:         supi,
+		Dnn:          dnn,
+		Snssai:       snssai,
 	}
 
-	ref := CanonicalName(supi, pduSessID)
+	ref := CanonicalName(supi, pduSessionID)
 	smf.smContextPool[ref] = smContext
 
 	return smContext

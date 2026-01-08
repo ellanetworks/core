@@ -38,11 +38,11 @@ func ReleaseSmContext(ctx context.Context, smContextRef string) error {
 
 	err = releaseTunnel(ctx, smf, smContext)
 	if err != nil {
-		smf.RemoveSMContext(ctx, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
+		smf.RemoveSMContext(ctx, smContext.CanonicalName())
 		return fmt.Errorf("release tunnel failed: %v", err)
 	}
 
-	smf.RemoveSMContext(ctx, smfContext.CanonicalName(smContext.Supi, smContext.PDUSessionID))
+	smf.RemoveSMContext(ctx, smContext.CanonicalName())
 
 	return nil
 }

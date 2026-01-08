@@ -18,15 +18,14 @@ func TestActivateUpLinkPdr(t *testing.T) {
 	dp := &context.DataPath{
 		UpLinkTunnel: &context.GTPTunnel{
 			PDR: &context.PDR{
-				Precedence: 0,
-				FAR:        &context.FAR{},
+				FAR: &context.FAR{},
 			},
 		},
 	}
 
 	ip := net.IPv4(192, 168, 1, 1)
 
-	dp.ActivateUpLinkPdr("internet", ip, defQER, defURR, 10)
+	dp.ActivateUpLinkPdr("internet", ip, defQER, defURR)
 
 	if dp.UpLinkTunnel.PDR == nil {
 		t.Fatalf("expected pdr to be not nil")
@@ -68,16 +67,15 @@ func TestActivateDlLinkPdr(t *testing.T) {
 	dp := &context.DataPath{
 		DownLinkTunnel: &context.GTPTunnel{
 			PDR: &context.PDR{
-				Precedence: 0,
-				FAR:        &context.FAR{},
-				URR:        &context.URR{},
+				FAR: &context.FAR{},
+				URR: &context.URR{},
 			},
 		},
 	}
 
 	ip := net.IPv4(192, 168, 1, 1)
 
-	dp.ActivateDlLinkPdr("internet", net.IP{10, 0, 0, 1}, 12345, ip, defQER, defURR, 10)
+	dp.ActivateDlLinkPdr("internet", net.IP{10, 0, 0, 1}, 12345, ip, defQER, defURR)
 
 	if dp.DownLinkTunnel.PDR == nil {
 		t.Fatalf("expected pdr to be not nil")
