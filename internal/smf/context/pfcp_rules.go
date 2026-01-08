@@ -44,10 +44,9 @@ type PDR struct {
 	URR *URR
 	QER *QER
 
-	PDI        PDI
-	State      RuleState
-	PDRID      uint16
-	Precedence uint32
+	PDI   PDI
+	State RuleState
+	PDRID uint16
 }
 
 type FTEID struct {

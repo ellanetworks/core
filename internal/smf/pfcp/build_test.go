@@ -64,7 +64,6 @@ func TestBuildPfcpSessionEstablishmentRequest(t *testing.T) {
 		{
 			OuterHeaderRemoval: &context.OuterHeaderRemoval{},
 			PDRID:              1,
-			Precedence:         123,
 			FAR:                &context.FAR{},
 			PDI: context.PDI{
 				LocalFTeID:      &context.FTEID{},
@@ -130,7 +129,6 @@ func TestBuildPfcpSessionModificationRequest(t *testing.T) {
 		{
 			OuterHeaderRemoval: &context.OuterHeaderRemoval{},
 			PDRID:              1,
-			Precedence:         123,
 			FAR:                &context.FAR{},
 			PDI: context.PDI{
 				LocalFTeID:      &context.FTEID{},
@@ -201,7 +199,6 @@ func TestBuildPfcpSessionModificationRequestNoOuterHeader(t *testing.T) {
 		{
 			OuterHeaderRemoval: &context.OuterHeaderRemoval{},
 			PDRID:              1,
-			Precedence:         123,
 			FAR:                &context.FAR{},
 			PDI: context.PDI{
 				LocalFTeID:      &context.FTEID{},

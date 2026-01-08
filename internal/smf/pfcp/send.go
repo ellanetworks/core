@@ -12,12 +12,10 @@ import (
 	"net"
 	"sync/atomic"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	"go.uber.org/zap"
 )
 
 var seq uint32
@@ -28,19 +26,25 @@ func getSeqNumber() uint32 {
 	return atomic.AddUint32(&seq, 1)
 }
 
+type PFCPSessionEstablishmentResult struct {
+	RemoteSEID uint64
+	TEID       uint32
+	N3IP       net.IP
+}
+
 func SendPfcpSessionEstablishmentRequest(
 	ctx context.Context,
-	smf *smfContext.SMF,
+	cpNodeID net.IP,
 	localSEID uint64,
 	pdrList []*smfContext.PDR,
 	farList []*smfContext.FAR,
 	qerList []*smfContext.QER,
 	urrList []*smfContext.URR,
-) error {
+) (*PFCPSessionEstablishmentResult, error) {
 	pfcpMsg, err := BuildPfcpSessionEstablishmentRequest(
 		getSeqNumber(),
-		smf.CPNodeID.String(),
-		smf.CPNodeID,
+		cpNodeID.String(),
+		cpNodeID,
 		localSEID,
 		pdrList,
 		farList,
@@ -48,72 +52,61 @@ func SendPfcpSessionEstablishmentRequest(
 		urrList,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to build PFCP Session Establishment Request: %v", err)
+		return nil, fmt.Errorf("failed to build PFCP Session Establishment Request: %v", err)
 	}
 
 	rsp, err := dispatcher.UPF.HandlePfcpSessionEstablishmentRequest(ctx, pfcpMsg)
 	if err != nil {
-		return fmt.Errorf("failed to send PFCP Session Establishment Request to upf: %v", err)
+		return nil, fmt.Errorf("failed to send PFCP Session Establishment Request to upf: %v", err)
 	}
 
-	err = HandlePfcpSessionEstablishmentResponse(ctx, smf, rsp)
+	result, err := HandlePfcpSessionEstablishmentResponse(rsp)
 	if err != nil {
-		return fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
+		return nil, fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
 	}
 
-	return nil
+	return result, nil
 }
 
-func HandlePfcpSessionEstablishmentResponse(ctx context.Context, smf *smfContext.SMF, msg *message.SessionEstablishmentResponse) error {
-	seid := msg.SEID()
-
-	smContext := smf.GetSMContextBySEID(seid)
-	if smContext == nil {
-		return fmt.Errorf("failed to find SM Context for SEID: %d", seid)
+func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentResponse) (*PFCPSessionEstablishmentResult, error) {
+	if msg.UPFSEID == nil {
+		return nil, fmt.Errorf("PFCP Session Establishment Response missing UPF SEID")
 	}
 
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	if msg.NodeID == nil {
-		return fmt.Errorf("PFCP Session Establishment Response missing Node ID")
+	rspUPFseid, err := msg.UPFSEID.FSEID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse FSEID IE: %+v", err)
 	}
 
-	if msg.UPFSEID != nil {
-		rspUPFseid, err := msg.UPFSEID.FSEID()
-		if err != nil {
-			return fmt.Errorf("failed to parse FSEID IE: %+v", err)
-		}
-
-		smContext.PFCPContext.RemoteSEID = rspUPFseid.SEID
+	if msg.CreatedPDR == nil {
+		return nil, fmt.Errorf("PFCP Session Establishment Response missing Created PDR")
 	}
 
-	// UE IP-Addr(only v4 supported)
-	if msg.CreatedPDR != nil {
-		fteid, err := findFTEID(msg.CreatedPDR)
-		if err != nil {
-			return fmt.Errorf("failed to parse TEID IE: %+v", err)
-		}
-
-		smContext.Tunnel.DataPath.UpLinkTunnel.TEID = fteid.TEID
-		smContext.Tunnel.DataPath.UpLinkTunnel.N3IP = fteid.IPv4Address
+	fteid, err := findFTEID(msg.CreatedPDR)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse TEID IE: %+v", err)
 	}
 
 	if msg.Cause == nil {
-		return fmt.Errorf("PFCP Session Establishment Response missing Cause")
+		return nil, fmt.Errorf("PFCP Session Establishment Response missing Cause")
 	}
 
 	causeValue, err := msg.Cause.Cause()
 	if err != nil {
-		return fmt.Errorf("failed to parse Cause IE: %+v", err)
+		return nil, fmt.Errorf("failed to parse Cause IE: %+v", err)
 	}
 
-	if causeValue == ie.CauseRequestAccepted {
-		logger.SmfLog.Info("PFCP Session Establishment accepted", zap.Uint64("SEID", seid), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
-		return nil
+	if causeValue != ie.CauseRequestAccepted {
+		return nil, fmt.Errorf("PFCP Session Establishment Failed: %v", causeValue)
 	}
 
-	return fmt.Errorf("PFCP Session Establishment rejected with cause: %v", causeValue)
+	result := &PFCPSessionEstablishmentResult{
+		RemoteSEID: rspUPFseid.SEID,
+		TEID:       fteid.TEID,
+		N3IP:       fteid.IPv4Address,
+	}
+
+	return result, nil
 }
 
 func HandlePfcpSessionModificationResponse(msg *message.SessionModificationResponse) error {
@@ -131,8 +124,6 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 	if causeValue != ie.CauseRequestAccepted {
 		return fmt.Errorf("PFCP Session Modification Failed: %d", seid)
 	}
-
-	logger.SmfLog.Info("PFCP Session Modification Success", zap.Uint64("SEID", seid))
 
 	return nil
 }

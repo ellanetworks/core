@@ -171,7 +171,7 @@ func unmarshalQosRule(b []byte) (QosRule, int, error) {
 	// Packet filters
 	r.PacketFilterList = r.PacketFilterList[:0]
 
-	for i := 0; i < numPF; i++ {
+	for i := range numPF {
 		if cc >= len(content) {
 			return r, 0, io.ErrUnexpectedEOF
 		}

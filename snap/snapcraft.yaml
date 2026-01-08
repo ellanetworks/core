@@ -44,7 +44,7 @@ parts:
       - git
     build-snaps:
       - go/1.25/stable
-      - node/22/stable
+      - node/24/stable
     override-build: |
       npm install --prefix ui
       npm run build --prefix ui

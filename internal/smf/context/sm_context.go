@@ -50,3 +50,17 @@ func (smContext *SMContext) SetSMPolicyData(smPolicyData *models.SmPolicyData) {
 
 	smContext.PolicyData = smPolicyData
 }
+
+func (smContext *SMContext) SetPFCPSession(seid uint64) {
+	if smContext.PFCPContext != nil {
+		return
+	}
+
+	smContext.PFCPContext = &PFCPSessionContext{
+		LocalSEID: seid,
+	}
+}
+
+func (smContext *SMContext) CanonicalName() string {
+	return CanonicalName(smContext.Supi, smContext.PDUSessionID)
+}

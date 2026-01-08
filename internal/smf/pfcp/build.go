@@ -82,7 +82,6 @@ func createPDIIE(pdi *context.PDI) *ie.IE {
 func pdrToCreatePDR(pdr *context.PDR) *ie.IE {
 	ies := make([]*ie.IE, 0)
 	ies = append(ies, ie.NewPDRID(pdr.PDRID))
-	ies = append(ies, ie.NewPrecedence(pdr.Precedence))
 	ies = append(ies, createPDIIE(&pdr.PDI))
 
 	if pdr.OuterHeaderRemoval != nil {
@@ -255,7 +254,6 @@ func boolToInt(b bool) int {
 func pdrToUpdatePDR(pdr *context.PDR) *ie.IE {
 	updatePDRies := make([]*ie.IE, 0)
 	updatePDRies = append(updatePDRies, ie.NewPDRID(pdr.PDRID))
-	updatePDRies = append(updatePDRies, ie.NewPrecedence(pdr.Precedence))
 	updatePDRies = append(updatePDRies, createPDIIE(&pdr.PDI))
 
 	if pdr.OuterHeaderRemoval != nil {
