@@ -57,7 +57,7 @@ func CreateSmContext(ctx context.Context, supi string, pduSessionID uint8, dnn s
 		return "", errRsp, nil
 	}
 
-	err = sendPFCPRules(ctx, smf, smContext)
+	err = sendPFCPRules(ctx, smf.CPNodeID, smContext)
 	if err != nil {
 		err := sendPduSessionEstablishmentReject(ctx, smContext, smPolicyUpdates, pti)
 		if err != nil {
@@ -242,7 +242,7 @@ func handlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmen
 }
 
 // SendPFCPRules send all datapaths to UPFs
-func sendPFCPRules(ctx context.Context, smf *smfContext.SMF, smContext *smfContext.SMContext) error {
+func sendPFCPRules(ctx context.Context, cpNodeID net.IP, smContext *smfContext.SMContext) error {
 	dataPath := smContext.Tunnel.DataPath
 	if !dataPath.Activated {
 		logger.SmfLog.Debug("DataPath is not activated, skip sending PFCP rules")
@@ -281,17 +281,19 @@ func sendPFCPRules(ctx context.Context, smf *smfContext.SMF, smContext *smfConte
 	}
 
 	if smContext.PFCPContext == nil || smContext.PFCPContext.RemoteSEID == 0 {
-		err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, smf, smContext.PFCPContext.LocalSEID, pdrList, farList, qerList, urrList)
+		result, err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, cpNodeID, smContext.PFCPContext.LocalSEID, pdrList, farList, qerList, urrList)
 		if err != nil {
 			return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 		}
 
-		logger.SmfLog.Info("Sent PFCP session establishment request to upf")
+		smContext.PFCPContext.RemoteSEID = result.RemoteSEID
+		smContext.Tunnel.DataPath.UpLinkTunnel.TEID = result.TEID
+		smContext.Tunnel.DataPath.UpLinkTunnel.N3IP = result.N3IP
 
 		return nil
 	}
 
-	err := pfcp.SendPfcpSessionModificationRequest(ctx, smf.CPNodeID, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, qerList)
+	err := pfcp.SendPfcpSessionModificationRequest(ctx, cpNodeID, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, pdrList, farList, qerList)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
