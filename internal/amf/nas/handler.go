@@ -39,7 +39,7 @@ func HandleNAS(ctx context.Context, amf *amfContext.AMF, ue *amfContext.RanUe, n
 	if ue.AmfUe == nil {
 		amfUe, err := fetchUeContextWithMobileIdentity(ctx, amf, nasPdu)
 		if err != nil {
-			return fmt.Errorf("error fetching UE context: %v", err)
+			return fmt.Errorf("error fetching UE context with mobile identity: %v", err)
 		}
 
 		ue.AmfUe = amfUe
@@ -177,7 +177,12 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 	}
 
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
-		return nil, fmt.Errorf("UE Context derived from Guti but received in plain nas")
+		ue.Log.Info("UE identified by GUTI but NAS is plain; treating as no security context", zap.String("guti", guti))
+
+		// UE likely lost keys; force fresh security setup
+		ue.SecurityContextAvailable = false
+
+		return ue, nil
 	}
 
 	ue.Log.Info("UE Context derived from Guti", zap.String("guti", guti))

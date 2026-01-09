@@ -1,8 +1,10 @@
 # Tutorials
 
-In these tutorials, we will deploy and operate Ella Core.
+In these tutorials, we will learn how to deploy and operate Ella Core.
 
 These tutorials will introduce you to key concepts, tools, processes and operations, starting from your first installation to an end-to-end deployment with 5G radio simulation.
+
+To run through the tutorials, you don't need any 5G radio or specialized hardware; we will use software simulation for all radio and user equipment components.
 
 If you are new to Ella Core, we recommend starting with the [Getting Started](getting_started.md) tutorial.
 
