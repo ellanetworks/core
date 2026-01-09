@@ -92,7 +92,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		return XDP_ABORTED;
 	}
 	if (ret > 0) {
-		bpf_printk("upf: n6 packet too large");
+		upf_printk("upf: n6 packet too large");
 		mtu_len -= GTP_ENCAP_SIZE;
 		return frag_needed(ctx, mtu_len);
 	}
