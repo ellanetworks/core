@@ -50,6 +50,7 @@ nav:
     - Integrate with a Radio: how_to/integrate_with_radio.md
     - Backup and Restore: how_to/backup_and_restore.md
     - Use VLANs: how_to/vlan.md
+    - Tune Network Performance: how_to/performance_tuning.md
   - Reference:
     - reference/index.md
     - API:
