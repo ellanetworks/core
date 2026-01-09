@@ -6,3 +6,4 @@ These how-to guides cover key operations and common tasks in Ella Core.
 - [Integrate with a Radio](integrate_with_radio.md)
 - [Backup and Restore](backup_and_restore.md)
 - [Use VLANs](vlan.md)
+- [Tune Network Performance](performance_tuning.md)
