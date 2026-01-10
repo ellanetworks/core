@@ -111,7 +111,7 @@ func getSupportedTAIs(operator *db.Operator) ([]models.Tai, error) {
 }
 
 func (amf *AMF) GetSubscriberDnn(ctx context.Context, ueID string) (string, error) {
-	ctx, span := tracer.Start(ctx, "AMF GetSubscriberData",
+	ctx, span := tracer.Start(ctx, "AMF GetSubscriberDnn",
 		trace.WithAttributes(
 			attribute.String("supi", ueID),
 		),
@@ -154,10 +154,8 @@ func (amf *AMF) GetSubscriberBitrate(ctx context.Context, ueID string) (*models.
 		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
 
-	bitRate := &models.Ambr{
+	return &models.Ambr{
 		Downlink: policy.BitrateDownlink,
 		Uplink:   policy.BitrateUplink,
-	}
-
-	return bitRate, nil
+	}, nil
 }
