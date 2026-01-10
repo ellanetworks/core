@@ -87,37 +87,26 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 	if ue.RegistrationRequest.UplinkDataStatus != nil {
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
-		allowReEstablishPduSession := true
 
-		if !allowReEstablishPduSession {
-			for pduSessionID, hasUplinkData := range uplinkDataPsi {
-				if hasUplinkData {
-					errPduSessionID = append(errPduSessionID, uint8(pduSessionID))
-					errCause = append(errCause, nasMessage.Cause5GMMRestrictedServiceArea)
-				}
+		for idx, hasUplinkData := range uplinkDataPsi {
+			if !hasUplinkData {
+				continue
 			}
-		} else {
-			for idx, hasUplinkData := range uplinkDataPsi {
-				pduSessionID := uint8(idx)
-				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
-					// uplink data are pending for the corresponding PDU session identity
-					if hasUplinkData {
-						binaryDataN2SmInformation, err := pdusession.ActivateSmContext(smContext.Ref)
-						if err != nil {
-							ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
-							reactivationResult[pduSessionID] = true
-							errPduSessionID = append(errPduSessionID, pduSessionID)
-							cause := nasMessage.Cause5GMMProtocolErrorUnspecified
-							errCause = append(errCause, cause)
-						} else {
-							if ue.RanUe.UeContextRequest {
-								send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID,
-									smContext.Snssai, nil, binaryDataN2SmInformation)
-							} else {
-								send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID,
-									smContext.Snssai, nil, binaryDataN2SmInformation)
-							}
-						}
+
+			pduSessionID := uint8(idx)
+			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
+				// uplink data are pending for the corresponding PDU session identity
+				binaryDataN2SmInformation, err := pdusession.ActivateSmContext(smContext.Ref)
+				if err != nil {
+					ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+					reactivationResult[pduSessionID] = true
+					errPduSessionID = append(errPduSessionID, pduSessionID)
+					errCause = append(errCause, nasMessage.Cause5GMMProtocolErrorUnspecified)
+				} else {
+					if ue.RanUe.UeContextRequest {
+						send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
+					} else {
+						send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
 					}
 				}
 			}
@@ -136,9 +125,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 					err := pdusession.ReleaseSmContext(ctx, smContext.Ref)
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
-					} else {
-						pduSessionStatus[psi] = false
 					}
+					pduSessionStatus[psi] = false
 				} else {
 					pduSessionStatus[psi] = true
 				}
@@ -207,15 +195,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 				return fmt.Errorf("pdu Session Id does not Exists")
 			}
 
-			var (
-				nasPdu []byte
-				err    error
-			)
+			var nasPdu []byte
 
 			if n1Msg != nil {
 				nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
 				if err != nil {
-					return err
+					return fmt.Errorf("build DL NAS Transport error: %v", err)
 				}
 			}
 
@@ -234,36 +219,38 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 		ue.Log.Info("Sent GMM registration accept")
 
 		return nil
-	} else {
-		nasPdu, err := message.BuildRegistrationAccept(amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
+	}
+
+	nasPdu, err := message.BuildRegistrationAccept(amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
+	if err != nil {
+		return fmt.Errorf("error building registration accept: %v", err)
+	}
+
+	if len(suList.List) != 0 {
+		err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
+			ctx,
+			ue.RanUe.AmfUeNgapID,
+			ue.RanUe.RanUeNgapID,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			nasPdu,
+			suList,
+		)
 		if err != nil {
-			return fmt.Errorf("error building registration accept: %v", err)
+			return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 		}
 
-		if len(suList.List) != 0 {
-			err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
-				ctx,
-				ue.RanUe.AmfUeNgapID,
-				ue.RanUe.RanUeNgapID,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				nasPdu,
-				suList,
-			)
-			if err != nil {
-				return fmt.Errorf("error sending pdu session resource setup request: %v", err)
-			}
-
-			ue.Log.Info("Sent NGAP pdu session resource setup request")
-		} else {
-			err := ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasPdu, nil)
-			if err != nil {
-				return fmt.Errorf("error sending downlink nas transport: %v", err)
-			}
-
-			ue.Log.Info("sent downlink nas transport message")
-		}
+		ue.Log.Info("Sent NGAP pdu session resource setup request")
 
 		return nil
 	}
+
+	err = ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasPdu, nil)
+	if err != nil {
+		return fmt.Errorf("error sending downlink nas transport: %v", err)
+	}
+
+	ue.Log.Info("sent downlink nas transport message")
+
+	return nil
 }
