@@ -75,7 +75,6 @@ type AmfUe struct {
 	Tai      models.Tai
 	TimeZone string
 	/* context about udm */
-	Dnn                               string
 	Ambr                              *models.Ambr
 	AuthenticationCtx                 *models.Av5gAka
 	AuthFailureCauseSynchFailureTimes int
