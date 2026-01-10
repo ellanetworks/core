@@ -110,8 +110,8 @@ func getSupportedTAIs(operator *db.Operator) ([]models.Tai, error) {
 	return tais, nil
 }
 
-func (amf *AMF) GetSubscriberData(ctx context.Context, ueID string) (*models.Ambr, string, error) {
-	ctx, span := tracer.Start(ctx, "AMF GetSubscriberData",
+func (amf *AMF) GetSubscriberDnn(ctx context.Context, ueID string) (string, error) {
+	ctx, span := tracer.Start(ctx, "AMF GetSubscriberDnn",
 		trace.WithAttributes(
 			attribute.String("supi", ueID),
 		),
@@ -120,23 +120,42 @@ func (amf *AMF) GetSubscriberData(ctx context.Context, ueID string) (*models.Amb
 
 	subscriber, err := amf.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
-		return nil, "", fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
+		return "", fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 
 	policy, err := amf.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
 	if err != nil {
-		return nil, "", fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
+		return "", fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
 
 	dataNetwork, err := amf.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
 	if err != nil {
-		return nil, "", fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
+		return "", fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
 	}
 
-	bitRate := &models.Ambr{
+	return dataNetwork.Name, nil
+}
+
+func (amf *AMF) GetSubscriberBitrate(ctx context.Context, ueID string) (*models.Ambr, error) {
+	ctx, span := tracer.Start(ctx, "AMF GetSubscriberBitrate",
+		trace.WithAttributes(
+			attribute.String("supi", ueID),
+		),
+	)
+	defer span.End()
+
+	subscriber, err := amf.DBInstance.GetSubscriber(ctx, ueID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
+	}
+
+	policy, err := amf.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
+	}
+
+	return &models.Ambr{
 		Downlink: policy.BitrateDownlink,
 		Uplink:   policy.BitrateUplink,
-	}
-
-	return bitRate, dataNetwork.Name, nil
+	}, nil
 }

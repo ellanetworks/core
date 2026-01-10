@@ -68,12 +68,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 		return nil
 	}
 
-	bitRate, dnn, err := amf.GetSubscriberData(ctx, ue.Supi)
+	bitRate, err := amf.GetSubscriberBitrate(ctx, ue.Supi)
 	if err != nil {
 		return fmt.Errorf("failed to get subscriber data: %v", err)
 	}
 
-	ue.Dnn = dnn
 	ue.Ambr = bitRate
 
 	var (

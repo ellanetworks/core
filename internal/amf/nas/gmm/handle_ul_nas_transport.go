@@ -211,7 +211,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			} else {
 				// if user's subscription context obtained from UDM does not contain the default DNN for the,
 				// S-NSSAI, the AMF shall use a locally configured DNN as the DNN
-				_, dnnResp, err := amf.GetSubscriberData(ctx, ue.Supi)
+				dnnResp, err := amf.GetSubscriberDnn(ctx, ue.Supi)
 				if err != nil {
 					return fmt.Errorf("failed to get subscriber data: %v", err)
 				}

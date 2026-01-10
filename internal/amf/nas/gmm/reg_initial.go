@@ -34,12 +34,11 @@ func HandleInitialRegistration(ctx context.Context, amf *amfContext.AMF, ue *amf
 		ue.UESpecificDRX = ue.RegistrationRequest.GetDRXValue()
 	}
 
-	bitRate, dnn, err := amf.GetSubscriberData(ctx, ue.Supi)
+	bitRate, err := amf.GetSubscriberBitrate(ctx, ue.Supi)
 	if err != nil {
 		return fmt.Errorf("failed to get subscriber data: %v", err)
 	}
 
-	ue.Dnn = dnn
 	ue.Ambr = bitRate
 
 	ue.AllocateRegistrationArea(operatorInfo.Tais)

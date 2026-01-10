@@ -57,57 +57,32 @@ func sendServiceAccept(
 
 		nasPdu, err := message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
-			return err
+			return fmt.Errorf("error building service accept message: %v", err)
 		}
 
-		if len(ctxList.List) != 0 {
-			ue.RanUe.SentInitialContextSetupRequest = true
+		ue.RanUe.SentInitialContextSetupRequest = true
 
-			err := ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
-				ctx,
-				ue.RanUe.AmfUeNgapID,
-				ue.RanUe.RanUeNgapID,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				ue.AllowedNssai,
-				ue.Kgnb,
-				ue.PlmnID,
-				ue.UeRadioCapability,
-				ue.UeRadioCapabilityForPaging,
-				ue.UESecurityCapability,
-				nasPdu,
-				&ctxList,
-				supportedGUAMI,
-			)
-			if err != nil {
-				return fmt.Errorf("error sending initial context setup request: %v", err)
-			}
-
-			ue.Log.Info("sent service accept with context list", zap.Int("len", len(ctxList.List)))
-		} else {
-			err := ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
-				ctx,
-				ue.RanUe.AmfUeNgapID,
-				ue.RanUe.RanUeNgapID,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				ue.AllowedNssai,
-				ue.Kgnb,
-				ue.PlmnID,
-				ue.UeRadioCapability,
-				ue.UeRadioCapabilityForPaging,
-				ue.UESecurityCapability,
-				nasPdu,
-				nil,
-				supportedGUAMI,
-			)
-			if err != nil {
-				return fmt.Errorf("error sending initial context setup request: %v", err)
-			}
-
-			ue.RanUe.SentInitialContextSetupRequest = true
-			ue.Log.Info("sent service accept")
+		err = ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
+			ctx,
+			ue.RanUe.AmfUeNgapID,
+			ue.RanUe.RanUeNgapID,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			ue.AllowedNssai,
+			ue.Kgnb,
+			ue.PlmnID,
+			ue.UeRadioCapability,
+			ue.UeRadioCapabilityForPaging,
+			ue.UESecurityCapability,
+			nasPdu,
+			&ctxList,
+			supportedGUAMI,
+		)
+		if err != nil {
+			return fmt.Errorf("error sending initial context setup request: %v", err)
 		}
+
+		ue.Log.Info("sent service accept with initial context setup request")
 	} else if len(suList.List) != 0 {
 		nasPdu, err := message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
@@ -172,7 +147,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	if !ue.SecurityContextIsValid() || ue.State == amfContext.Deregistered {
 		ue.Log.Warn("No security context", zap.String("supi", ue.Supi))
 
-		err := message.SendServiceReject(ctx, ue.RanUe, nil, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		err := message.SendServiceReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
@@ -242,7 +217,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		ue.SecurityContextAvailable = false
 		ue.Log.Warn("Security Context Exist, But Integrity Check Failed with existing Context", zap.String("supi", ue.Supi))
 
-		err := message.SendServiceReject(ctx, ue.RanUe, nil, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		err := message.SendServiceReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
@@ -379,7 +354,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 		}
 
-		message.SendConfigurationUpdateCommand(ctx, amf, ue, true)
+		message.SendConfigurationUpdateCommand(ctx, amf, ue)
 
 	case nasMessage.ServiceTypeData:
 		err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
