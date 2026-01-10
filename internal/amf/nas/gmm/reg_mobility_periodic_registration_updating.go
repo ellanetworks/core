@@ -126,6 +126,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
 					}
+
 					pduSessionStatus[psi] = false
 				} else {
 					pduSessionStatus[psi] = true
@@ -151,7 +152,20 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 			// downlink signalling
 			if n2Info == nil {
 				if len(suList.List) != 0 {
-					nasPdu, err := message.BuildRegistrationAccept(amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
+					nasPdu, err := message.BuildRegistrationAccept(
+						ue,
+						amf.NetworkFeatureSupport5GS,
+						ue.Guti,
+						ue.RegistrationArea,
+						ue.AllowedNssai,
+						ue.T3512Value,
+						ue.UESpecificDRX,
+						pduSessionStatus,
+						reactivationResult,
+						errPduSessionID,
+						errCause,
+						operatorInfo.SupportedPLMN,
+					)
 					if err != nil {
 						return err
 					}
@@ -221,7 +235,20 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 		return nil
 	}
 
-	nasPdu, err := message.BuildRegistrationAccept(amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
+	nasPdu, err := message.BuildRegistrationAccept(
+		ue,
+		amf.NetworkFeatureSupport5GS,
+		ue.Guti,
+		ue.RegistrationArea,
+		ue.AllowedNssai,
+		ue.T3512Value,
+		ue.UESpecificDRX,
+		pduSessionStatus,
+		reactivationResult,
+		errPduSessionID,
+		errCause,
+		operatorInfo.SupportedPLMN,
+	)
 	if err != nil {
 		return fmt.Errorf("error building registration accept: %v", err)
 	}

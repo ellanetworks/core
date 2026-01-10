@@ -44,8 +44,6 @@ func HandleInitialRegistration(ctx context.Context, amf *amfContext.AMF, ue *amf
 
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
-	ue.Log.Debug("use original GUTI", zap.String("guti", ue.Guti))
-
 	err = amf.AddAmfUeToUePool(ue)
 	if err != nil {
 		return fmt.Errorf("error adding AMF UE to UE pool: %v", err)

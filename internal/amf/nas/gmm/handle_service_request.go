@@ -60,55 +60,33 @@ func sendServiceAccept(
 			return err
 		}
 
-		if len(ctxList.List) != 0 {
-			ue.RanUe.SentInitialContextSetupRequest = true
-
-			err := ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
-				ctx,
-				ue.RanUe.AmfUeNgapID,
-				ue.RanUe.RanUeNgapID,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				ue.AllowedNssai,
-				ue.Kgnb,
-				ue.PlmnID,
-				ue.UeRadioCapability,
-				ue.UeRadioCapabilityForPaging,
-				ue.UESecurityCapability,
-				nasPdu,
-				&ctxList,
-				supportedGUAMI,
-			)
-			if err != nil {
-				return fmt.Errorf("error sending initial context setup request: %v", err)
-			}
-
-			ue.Log.Info("sent service accept with context list", zap.Int("len", len(ctxList.List)))
-		} else {
-			err := ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
-				ctx,
-				ue.RanUe.AmfUeNgapID,
-				ue.RanUe.RanUeNgapID,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				ue.AllowedNssai,
-				ue.Kgnb,
-				ue.PlmnID,
-				ue.UeRadioCapability,
-				ue.UeRadioCapabilityForPaging,
-				ue.UESecurityCapability,
-				nasPdu,
-				nil,
-				supportedGUAMI,
-			)
-			if err != nil {
-				return fmt.Errorf("error sending initial context setup request: %v", err)
-			}
-
-			ue.RanUe.SentInitialContextSetupRequest = true
-			ue.Log.Info("sent service accept")
+		err = ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
+			ctx,
+			ue.RanUe.AmfUeNgapID,
+			ue.RanUe.RanUeNgapID,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			ue.AllowedNssai,
+			ue.Kgnb,
+			ue.PlmnID,
+			ue.UeRadioCapability,
+			ue.UeRadioCapabilityForPaging,
+			ue.UESecurityCapability,
+			nasPdu,
+			&ctxList,
+			supportedGUAMI,
+		)
+		if err != nil {
+			return fmt.Errorf("error sending initial context setup request: %v", err)
 		}
-	} else if len(suList.List) != 0 {
+
+		ue.RanUe.SentInitialContextSetupRequest = true
+		ue.Log.Info("sent service accept with initial context setup request")
+
+		return nil
+	}
+
+	if len(suList.List) != 0 {
 		nasPdu, err := message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
 			return fmt.Errorf("error building service accept message: %v", err)
@@ -127,15 +105,17 @@ func sendServiceAccept(
 			return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 		}
 
-		ue.Log.Info("sent service accept")
-	} else {
-		err := message.SendServiceAccept(ctx, ue.RanUe, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
-		if err != nil {
-			return fmt.Errorf("error sending service accept: %v", err)
-		}
+		ue.Log.Info("sent service accept with pdu session setup list")
 
-		ue.Log.Info("sent service accept")
+		return nil
 	}
+
+	err := message.SendServiceAccept(ctx, ue.RanUe, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
+	if err != nil {
+		return fmt.Errorf("error sending service accept: %v", err)
+	}
+
+	ue.Log.Info("sent service accept")
 
 	return nil
 }
@@ -172,7 +152,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	if !ue.SecurityContextIsValid() || ue.State == amfContext.Deregistered {
 		ue.Log.Warn("No security context", zap.String("supi", ue.Supi))
 
-		err := message.SendServiceReject(ctx, ue.RanUe, nil, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		err := message.SendServiceReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
@@ -198,14 +178,13 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
 		// message container IE, the UE shall set the security header type of the initial NAS message to
 		// "integrity protected"; then the AMF shall decipher the value part of the NAS message container IE
-		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
-			security.DirectionUplink, contents)
+		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
 		if err != nil {
 			ue.SecurityContextAvailable = false
 		} else {
 			m := nas.NewMessage()
 			if err := m.GmmMessageDecode(&contents); err != nil {
-				return err
+				return fmt.Errorf("failed to decode NAS message from NAS message container: %v", err)
 			}
 
 			messageType := m.GmmHeader.GetMessageType()
@@ -242,7 +221,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		ue.SecurityContextAvailable = false
 		ue.Log.Warn("Security Context Exist, But Integrity Check Failed with existing Context", zap.String("supi", ue.Supi))
 
-		err := message.SendServiceReject(ctx, ue.RanUe, nil, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		err := message.SendServiceReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
@@ -265,14 +244,15 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 	if serviceType == nasMessage.ServiceTypeSignalling {
 		err := sendServiceAccept(ctx, ue, ctxList, suList, nil, nil, nil, nil, operatorInfo.Guami)
-		return err
+		if err != nil {
+			return fmt.Errorf("error sending service accept: %v", err)
+		}
+
+		return nil
 	}
 
-	if ue.N1N2Message != nil {
-		requestData := ue.N1N2Message
-		if ue.N1N2Message.BinaryDataN2Information != nil {
-			targetPduSessionID = requestData.PduSessionID
-		}
+	if ue.N1N2Message != nil || ue.N1N2Message.BinaryDataN2Information != nil {
+		targetPduSessionID = ue.N1N2Message.PduSessionID
 	}
 
 	if msg.UplinkDataStatus != nil {
@@ -320,7 +300,6 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		// TS 24.501 5.4.4.1 - We need to assign a new GUTI after a successful Service Request
 		// triggered by a paging request.
 		if ue.N1N2Message != nil {
-			requestData := ue.N1N2Message
 			n1Msg := ue.N1N2Message.BinaryDataN1Message
 			n2Info := ue.N1N2Message.BinaryDataN2Information
 
@@ -331,7 +310,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 					return fmt.Errorf("error sending service accept: %v", err)
 				}
 
-				err = message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
+				err = message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, ue.N1N2Message.PduSessionID, 0)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport message: %v", err)
 				}
@@ -340,7 +319,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 				ue.N1N2Message = nil
 			} else {
-				_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
+				_, exist := ue.SmContextFindByPDUSessionID(ue.N1N2Message.PduSessionID)
 				if !exist {
 					ue.N1N2Message = nil
 					return fmt.Errorf("service Request triggered by Network for pduSessionID that does not exist")
@@ -348,16 +327,16 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 				var nasPdu []byte
 				if n1Msg != nil {
-					nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
+					nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, ue.N1N2Message.PduSessionID, nil)
 					if err != nil {
 						return fmt.Errorf("error building DL NAS transport message: %v", err)
 					}
 				}
 
 				if ue.RanUe.UeContextRequest {
-					send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+					send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, ue.N1N2Message.PduSessionID, ue.N1N2Message.SNssai, nasPdu, n2Info)
 				} else {
-					send.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+					send.AppendPDUSessionResourceSetupListSUReq(&suList, ue.N1N2Message.PduSessionID, ue.N1N2Message.SNssai, nasPdu, n2Info)
 				}
 
 				ue.Log.Debug("sending service accept")
@@ -379,7 +358,10 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 		}
 
-		message.SendConfigurationUpdateCommand(ctx, amf, ue, true)
+		err = message.SendConfigurationUpdateCommand(ctx, amf, ue)
+		if err != nil {
+			return fmt.Errorf("error sending configuration update command: %v", err)
+		}
 
 	case nasMessage.ServiceTypeData:
 		err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)

@@ -101,7 +101,7 @@ func SendAuthenticationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 		return fmt.Errorf("authentication context of UE is nil")
 	}
 
-	nasMsg, err := BuildAuthenticationRequest(amfUe)
+	nasMsg, err := BuildAuthenticationRequest(amfUe.ABBA, amfUe.NgKsi, amfUe.AuthenticationCtx)
 	if err != nil {
 		return fmt.Errorf("error building authentication request: %s", err.Error())
 	}
@@ -184,7 +184,7 @@ func SendAuthenticationReject(ctx context.Context, ue *amfContext.RanUe) error {
 	return nil
 }
 
-func SendServiceReject(ctx context.Context, ue *amfContext.RanUe, pDUSessionStatus *[16]bool, cause uint8) error {
+func SendServiceReject(ctx context.Context, ue *amfContext.RanUe, cause uint8) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -198,7 +198,7 @@ func SendServiceReject(ctx context.Context, ue *amfContext.RanUe, pDUSessionStat
 	)
 	defer span.End()
 
-	nasMsg, err := BuildServiceReject(pDUSessionStatus, cause)
+	nasMsg, err := BuildServiceReject(cause)
 	if err != nil {
 		return fmt.Errorf("error building service reject: %s", err.Error())
 	}
@@ -252,10 +252,22 @@ func SendSecurityModeCommand(ctx context.Context, amf *amfContext.AMF, ue *amfCo
 	)
 	defer span.End()
 
-	nasMsg, err := BuildSecurityModeCommand(ue.AmfUe)
+	nasMsg, err := BuildSecurityModeCommand(
+		ue.AmfUe,
+		ue.AmfUe.Pei,
+		ue.AmfUe.UESecurityCapability,
+		ue.AmfUe.CipheringAlg,
+		ue.AmfUe.IntegrityAlg,
+		ue.AmfUe.NgKsi,
+		ue.AmfUe.RetransmissionOfInitialNASMsg,
+		ue.AmfUe.RegistrationType5GS,
+	)
 	if err != nil {
+		ue.AmfUe.SecurityContextAvailable = false
 		return fmt.Errorf("error building security mode command: %s", err.Error())
 	}
+
+	ue.AmfUe.SecurityContextAvailable = true
 
 	err = ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
 	if err != nil {
@@ -336,7 +348,20 @@ func SendRegistrationAccept(
 	)
 	defer span.End()
 
-	nasMsg, err := BuildRegistrationAccept(amf, ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause, supportedPLMN)
+	nasMsg, err := BuildRegistrationAccept(
+		ue,
+		amf.NetworkFeatureSupport5GS,
+		ue.Guti,
+		ue.RegistrationArea,
+		ue.AllowedNssai,
+		ue.T3512Value,
+		ue.UESpecificDRX,
+		pDUSessionStatus,
+		reactivationResult,
+		errPduSessionID,
+		errCause,
+		supportedPLMN,
+	)
 	if err != nil {
 		return fmt.Errorf("error building registration accept: %s", err.Error())
 	}
@@ -427,9 +452,9 @@ func SendRegistrationAccept(
 	return nil
 }
 
-func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, amfUe *amfContext.AmfUe, needGuti bool) {
-	if amfUe == nil {
-		return
+func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, amfUe *amfContext.AmfUe) error {
+	if amfUe == nil || amfUe.RanUe == nil {
+		return fmt.Errorf("ue is nil")
 	}
 
 	ctx, span := tracer.Start(ctx, "Send Configuration Update Command",
@@ -440,32 +465,24 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 	)
 	defer span.End()
 
-	if amfUe.RanUe == nil {
-		amfUe.Log.Error("cannot SendConfigurationUpdateCommand: RanUe is nil")
-		return
-	}
-
-	nasMsg, err, startT3555 := BuildConfigurationUpdateCommand(amf, amfUe, needGuti)
+	nasMsg, err := BuildConfigurationUpdateCommand(amfUe, amfUe.Guti)
 	if err != nil {
-		amfUe.Log.Error("error building ConfigurationUpdateCommand", zap.Error(err))
-		return
+		return fmt.Errorf("error building ConfigurationUpdateCommand: %s", err.Error())
 	}
-
-	amfUe.Log.Info("Send Configuration Update Command")
 
 	mobilityRestrictionList, err := send.BuildIEMobilityRestrictionList(amfUe.PlmnID)
 	if err != nil {
-		amfUe.Log.Error("could not build Mobility Restriction List IE", zap.Error(err))
-		return
+		return fmt.Errorf("error building Mobility Restriction List IE: %s", err.Error())
 	}
 
 	err = amfUe.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, amfUe.RanUe.AmfUeNgapID, amfUe.RanUe.RanUeNgapID, nasMsg, mobilityRestrictionList)
 	if err != nil {
-		amfUe.Log.Error("could not send configuration update command", zap.Error(err))
-		return
+		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
 
-	if startT3555 && amf.T3555Cfg.Enable {
+	amfUe.Log.Info("Sent Configuration Update Command")
+
+	if amf.T3555Cfg.Enable {
 		cfg := amf.T3555Cfg
 
 		amfUe.Log.Info("start T3555 timer")
@@ -493,4 +510,6 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 		},
 		)
 	}
+
+	return nil
 }
