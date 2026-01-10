@@ -60,54 +60,29 @@ func sendServiceAccept(
 			return err
 		}
 
-		if len(ctxList.List) != 0 {
-			ue.RanUe.SentInitialContextSetupRequest = true
+		ue.RanUe.SentInitialContextSetupRequest = true
 
-			err := ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
-				ctx,
-				ue.RanUe.AmfUeNgapID,
-				ue.RanUe.RanUeNgapID,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				ue.AllowedNssai,
-				ue.Kgnb,
-				ue.PlmnID,
-				ue.UeRadioCapability,
-				ue.UeRadioCapabilityForPaging,
-				ue.UESecurityCapability,
-				nasPdu,
-				&ctxList,
-				supportedGUAMI,
-			)
-			if err != nil {
-				return fmt.Errorf("error sending initial context setup request: %v", err)
-			}
-
-			ue.Log.Info("sent service accept with context list", zap.Int("len", len(ctxList.List)))
-		} else {
-			err := ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
-				ctx,
-				ue.RanUe.AmfUeNgapID,
-				ue.RanUe.RanUeNgapID,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				ue.AllowedNssai,
-				ue.Kgnb,
-				ue.PlmnID,
-				ue.UeRadioCapability,
-				ue.UeRadioCapabilityForPaging,
-				ue.UESecurityCapability,
-				nasPdu,
-				nil,
-				supportedGUAMI,
-			)
-			if err != nil {
-				return fmt.Errorf("error sending initial context setup request: %v", err)
-			}
-
-			ue.RanUe.SentInitialContextSetupRequest = true
-			ue.Log.Info("sent service accept")
+		err = ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
+			ctx,
+			ue.RanUe.AmfUeNgapID,
+			ue.RanUe.RanUeNgapID,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			ue.AllowedNssai,
+			ue.Kgnb,
+			ue.PlmnID,
+			ue.UeRadioCapability,
+			ue.UeRadioCapabilityForPaging,
+			ue.UESecurityCapability,
+			nasPdu,
+			&ctxList,
+			supportedGUAMI,
+		)
+		if err != nil {
+			return fmt.Errorf("error sending initial context setup request: %v", err)
 		}
+
+		ue.Log.Info("sent service accept with initial context setup request")
 	} else if len(suList.List) != 0 {
 		nasPdu, err := message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
