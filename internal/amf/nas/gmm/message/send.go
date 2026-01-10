@@ -184,7 +184,7 @@ func SendAuthenticationReject(ctx context.Context, ue *amfContext.RanUe) error {
 	return nil
 }
 
-func SendServiceReject(ctx context.Context, ue *amfContext.RanUe, pDUSessionStatus *[16]bool, cause uint8) error {
+func SendServiceReject(ctx context.Context, ue *amfContext.RanUe, cause uint8) error {
 	if ue == nil || ue.AmfUe == nil {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
@@ -198,7 +198,7 @@ func SendServiceReject(ctx context.Context, ue *amfContext.RanUe, pDUSessionStat
 	)
 	defer span.End()
 
-	nasMsg, err := BuildServiceReject(pDUSessionStatus, cause)
+	nasMsg, err := BuildServiceReject(cause)
 	if err != nil {
 		return fmt.Errorf("error building service reject: %s", err.Error())
 	}
@@ -427,7 +427,7 @@ func SendRegistrationAccept(
 	return nil
 }
 
-func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, amfUe *amfContext.AmfUe, needGuti bool) {
+func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, amfUe *amfContext.AmfUe) {
 	if amfUe == nil {
 		return
 	}
@@ -445,7 +445,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 		return
 	}
 
-	nasMsg, err, startT3555 := BuildConfigurationUpdateCommand(amf, amfUe, needGuti)
+	nasMsg, err := BuildConfigurationUpdateCommand(amfUe)
 	if err != nil {
 		amfUe.Log.Error("error building ConfigurationUpdateCommand", zap.Error(err))
 		return
@@ -465,7 +465,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 		return
 	}
 
-	if startT3555 && amf.T3555Cfg.Enable {
+	if amf.T3555Cfg.Enable {
 		cfg := amf.T3555Cfg
 
 		amfUe.Log.Info("start T3555 timer")

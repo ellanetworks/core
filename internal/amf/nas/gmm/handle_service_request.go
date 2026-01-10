@@ -57,7 +57,7 @@ func sendServiceAccept(
 
 		nasPdu, err := message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
-			return err
+			return fmt.Errorf("error building service accept message: %v", err)
 		}
 
 		ue.RanUe.SentInitialContextSetupRequest = true
@@ -147,7 +147,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	if !ue.SecurityContextIsValid() || ue.State == amfContext.Deregistered {
 		ue.Log.Warn("No security context", zap.String("supi", ue.Supi))
 
-		err := message.SendServiceReject(ctx, ue.RanUe, nil, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		err := message.SendServiceReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
@@ -217,7 +217,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		ue.SecurityContextAvailable = false
 		ue.Log.Warn("Security Context Exist, But Integrity Check Failed with existing Context", zap.String("supi", ue.Supi))
 
-		err := message.SendServiceReject(ctx, ue.RanUe, nil, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		err := message.SendServiceReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
@@ -354,7 +354,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 		}
 
-		message.SendConfigurationUpdateCommand(ctx, amf, ue, true)
+		message.SendConfigurationUpdateCommand(ctx, amf, ue)
 
 	case nasMessage.ServiceTypeData:
 		err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)

@@ -173,7 +173,7 @@ func BuildAuthenticationReject() ([]byte, error) {
 }
 
 // T3346 Timer and EAP are not Supported
-func BuildServiceReject(pDUSessionStatus *[16]bool, cause uint8) ([]byte, error) {
+func BuildServiceReject(cause uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeServiceReject)
@@ -183,13 +183,6 @@ func BuildServiceReject(pDUSessionStatus *[16]bool, cause uint8) ([]byte, error)
 	serviceReject.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
 	serviceReject.SetMessageType(nas.MsgTypeServiceReject)
 	serviceReject.SetCauseValue(cause)
-
-	if pDUSessionStatus != nil {
-		serviceReject.PDUSessionStatus = new(nasType.PDUSessionStatus)
-		serviceReject.PDUSessionStatus.SetIei(nasMessage.ServiceAcceptPDUSessionStatusType)
-		serviceReject.PDUSessionStatus.SetLen(2)
-		serviceReject.PDUSessionStatus.Buffer = nasConvert.PSIToBuf(*pDUSessionStatus)
-	}
 
 	m.ServiceReject = serviceReject
 
@@ -431,8 +424,11 @@ func BuildRegistrationAccept(
 }
 
 // TS 24.501 - 5.4.4 Generic UE configuration update procedure - 5.4.4.1 General
-func BuildConfigurationUpdateCommand(amf *amfContext.AMF, ue *amfContext.AmfUe, needGuti bool) ([]byte, error, bool) {
-	needTimer := false
+func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe) ([]byte, error) {
+	if ue.Guti == "" {
+		return nil, fmt.Errorf("5G-GUTI is required")
+	}
+
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
@@ -443,54 +439,17 @@ func BuildConfigurationUpdateCommand(amf *amfContext.AMF, ue *amfContext.AmfUe, 
 	configurationUpdateCommand.SetSpareHalfOctet(0)
 	configurationUpdateCommand.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
 
-	if needGuti {
-		if ue.Guti != "" {
-			gutiNas, err := nasConvert.GutiToNasWithError(ue.Guti)
-			if err != nil {
-				return nil, fmt.Errorf("encode GUTI failed: %w", err), needTimer
-			}
-
-			configurationUpdateCommand.GUTI5G = &gutiNas
-			configurationUpdateCommand.GUTI5G.SetIei(nasMessage.ConfigurationUpdateCommandGUTI5GType)
-		} else {
-			ue.Log.Warn("Require 5G-GUTI, but got nothing.")
-		}
+	gutiNas, err := nasConvert.GutiToNasWithError(ue.Guti)
+	if err != nil {
+		return nil, fmt.Errorf("encode GUTI failed: %w", err)
 	}
+
+	configurationUpdateCommand.GUTI5G = &gutiNas
+	configurationUpdateCommand.GUTI5G.SetIei(nasMessage.ConfigurationUpdateCommandGUTI5GType)
 
 	configurationUpdateCommand.ConfigurationUpdateIndication = nasType.NewConfigurationUpdateIndication(nasMessage.ConfigurationUpdateCommandConfigurationUpdateIndicationType)
-	if configurationUpdateCommand.GUTI5G != nil ||
-		configurationUpdateCommand.TAIList != nil ||
-		configurationUpdateCommand.AllowedNSSAI != nil ||
-		configurationUpdateCommand.LADNInformation != nil ||
-		configurationUpdateCommand.ServiceAreaList != nil ||
-		configurationUpdateCommand.MICOIndication != nil ||
-		configurationUpdateCommand.ConfiguredNSSAI != nil ||
-		configurationUpdateCommand.RejectedNSSAI != nil ||
-		configurationUpdateCommand.NetworkSlicingIndication != nil ||
-		configurationUpdateCommand.OperatordefinedAccessCategoryDefinitions != nil ||
-		configurationUpdateCommand.SMSIndication != nil {
-		// TS 24.501 - 5.4.4.2 Generic UE configuration update procedure initiated by the network
-		// Acknowledgement shall be requested for all parameters except when only NITZ is included
-		configurationUpdateCommand.SetACK(uint8(1))
 
-		needTimer = true
-	}
-
-	if configurationUpdateCommand.MICOIndication != nil {
-		// Allowed NSSAI and Configured NSSAI are optional to request to perform the registration procedure
-		configurationUpdateCommand.SetRED(uint8(1))
-	}
-
-	// Check if the Configuration Update Command is vaild
-	if configurationUpdateCommand.GetACK() == uint8(0) &&
-		configurationUpdateCommand.GetRED() == uint8(0) &&
-		(configurationUpdateCommand.FullNameForNetwork == nil &&
-			configurationUpdateCommand.ShortNameForNetwork == nil &&
-			configurationUpdateCommand.UniversalTimeAndLocalTimeZone == nil &&
-			configurationUpdateCommand.LocalTimeZone == nil &&
-			configurationUpdateCommand.NetworkDaylightSavingTime == nil) {
-		return nil, fmt.Errorf("configuration update command is invalid"), false
-	}
+	configurationUpdateCommand.SetACK(uint8(1))
 
 	m.ConfigurationUpdateCommand = configurationUpdateCommand
 
@@ -501,8 +460,8 @@ func BuildConfigurationUpdateCommand(amf *amfContext.AMF, ue *amfContext.AmfUe, 
 
 	b, err := ue.EncodeNASMessage(m)
 	if err != nil {
-		return nil, fmt.Errorf("could not encode NAS message: %v", err), false
+		return nil, fmt.Errorf("could not encode NAS message: %v", err)
 	}
 
-	return b, err, needTimer
+	return b, nil
 }
