@@ -153,10 +153,6 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 		upf.startGC()
 	}
 
-	if masquerade {
-		go upf.collectCollectionTrackingGarbage(ctx)
-	}
-
 	return upf, nil
 }
 
