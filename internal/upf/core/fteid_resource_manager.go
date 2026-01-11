@@ -1,4 +1,3 @@
-// Copyright 2024 Ella Networks
 package core
 
 import (
@@ -7,8 +6,8 @@ import (
 )
 
 type FteIDResourceManager struct {
-	freeTEIDs []uint32
-	busyTEIDs map[uint64]map[uint32]uint32 // map[seID]map[pdrID]teid
+	free []uint32
+	busy map[uint64]uint32 // seID -> teid
 	sync.RWMutex
 }
 
@@ -17,55 +16,44 @@ func NewFteIDResourceManager(teidRange uint32) (*FteIDResourceManager, error) {
 		return nil, errors.New("TEID range should be greater than 0")
 	}
 
-	freeTEIDs := make([]uint32, 0, 10000)
-	busyTEIDs := make(map[uint64]map[uint32]uint32)
+	free := make([]uint32, 0, teidRange)
 
-	var teid uint32
-
-	for teid = 1; teid <= teidRange; teid++ {
-		freeTEIDs = append(freeTEIDs, teid)
+	for teid := uint32(1); teid <= teidRange; teid++ {
+		free = append(free, teid)
 	}
 
-	fteidm := &FteIDResourceManager{
-		freeTEIDs: freeTEIDs,
-		busyTEIDs: busyTEIDs,
-	}
-
-	return fteidm, nil
+	return &FteIDResourceManager{
+		free: free,
+		busy: make(map[uint64]uint32),
+	}, nil
 }
 
-func (fteidm *FteIDResourceManager) AllocateTEID(seID uint64, pdrID uint32) (uint32, error) {
-	fteidm.Lock()
-	defer fteidm.Unlock()
+func (m *FteIDResourceManager) AllocateTEID(seID uint64) (uint32, error) {
+	m.Lock()
+	defer m.Unlock()
 
-	if len(fteidm.freeTEIDs) == 0 {
+	if _, exists := m.busy[seID]; exists {
+		return 0, errors.New("TEID already allocated for seID")
+	}
+
+	if len(m.free) == 0 {
 		return 0, errors.New("no free TEID available")
 	}
 
-	teid := fteidm.freeTEIDs[0]
+	teid := m.free[0]
+	m.free = m.free[1:]
 
-	fteidm.freeTEIDs = fteidm.freeTEIDs[1:]
-
-	if _, ok := fteidm.busyTEIDs[seID]; !ok {
-		pdr := make(map[uint32]uint32)
-		pdr[pdrID] = teid
-		fteidm.busyTEIDs[seID] = pdr
-	} else {
-		fteidm.busyTEIDs[seID][pdrID] = teid
-	}
+	m.busy[seID] = teid
 
 	return teid, nil
 }
 
-func (fteidm *FteIDResourceManager) ReleaseTEID(seID uint64) {
-	fteidm.Lock()
-	defer fteidm.Unlock()
+func (m *FteIDResourceManager) ReleaseTEID(seID uint64) {
+	m.Lock()
+	defer m.Unlock()
 
-	if teid, ok := fteidm.busyTEIDs[seID]; ok {
-		for _, t := range teid {
-			fteidm.freeTEIDs = append(fteidm.freeTEIDs, t)
-		}
-
-		delete(fteidm.busyTEIDs, seID)
+	if teid, ok := m.busy[seID]; ok {
+		delete(m.busy, seID)
+		m.free = append(m.free, teid)
 	}
 }

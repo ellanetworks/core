@@ -30,11 +30,10 @@ func TestResourceManagerNonEmptyRange(t *testing.T) {
 	}
 
 	// Allocate all resources
-	for i := uint32(0); i < teIDRange; i++ {
+	for i := range teIDRange {
 		seID := uint64(i)
-		pdrID := i
 
-		teID, err := resourceManager.AllocateTEID(seID, pdrID)
+		teID, err := resourceManager.AllocateTEID(seID)
 		if err != nil {
 			t.Fatalf("Expected nil, got %v", err)
 		}
@@ -45,22 +44,21 @@ func TestResourceManagerNonEmptyRange(t *testing.T) {
 	}
 
 	// Try to allocate one more resource
-	_, err = resourceManager.AllocateTEID(uint64(teIDRange), teIDRange)
+	_, err = resourceManager.AllocateTEID(uint64(teIDRange))
 	if err == nil {
 		t.Fatalf("Expected error, got nil")
 	}
 
 	// Release all resources
-	for i := uint32(0); i < teIDRange; i++ {
+	for i := range teIDRange {
 		resourceManager.ReleaseTEID(uint64(i))
 	}
 
 	// Allocate all resources again
-	for i := uint32(0); i < teIDRange; i++ {
+	for i := range teIDRange {
 		seID := uint64(i)
-		pdrID := i
 
-		teID, err := resourceManager.AllocateTEID(seID, pdrID)
+		teID, err := resourceManager.AllocateTEID(seID)
 		if err != nil {
 			t.Fatalf("Expected nil, got %v", err)
 		}
