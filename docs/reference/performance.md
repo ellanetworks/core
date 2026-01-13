@@ -8,7 +8,7 @@ This reference document contains performance test results of Ella Core, covering
 
 ## Results
 
-### Throughput
+### Throughput (iPerf3)
 
 The following table outlines the performance test results of Ella Core's data plane throughput:
 
@@ -18,6 +18,32 @@ The following table outlines the performance test results of Ella Core's data pl
 
 The tests could saturate the 10Gbps connection consistently, with or without NAT enabled, with CPU
 usage peaking at 8%.
+
+### Throughput (TRex)
+
+The following table outlines the performance test results of Ella Core's data plane throughput:
+
+| Packet size (bytes) | Uplink    | Downlink  |
+| ------------------- | --------- | --------- |
+| 46                  | 2.50 Mpps | 3.79 Mpps |
+| 494                 | 2.17 Mpps | 2.17 Mpps |
+| 1456                | 812  Kpps | 812  Kpps |
+
+The packet size represents only the IP packet for the UE and ignores Ethernet and GTP encapsulation.
+
+Downlink performance is better as the number of packets increases as the flows are able to handled by
+different cores using [Receive Side Scaling (RSS)](https://www.kernel.org/doc/html/latest/networking/scaling.html).
+The uplink flows are all seen by the NIC drivers as the same flow, because of the GTP encapsulation.
+
+When enabling NAT, we got the following results:
+
+| Packet size (bytes) | Uplink    |
+| ------------------- | --------- |
+| 46                  | 1.72 Mpps |
+| 494                 | 1.70 Mpps |
+| 1456                | 812  Kpps |
+
+Downlink with NAT was not supported by our testing script.
 
 ### Latency (Round-trip)
 
@@ -51,7 +77,7 @@ The RAN simulator used was [Packet Rusher](https://github.com/HewlettPackard/Pac
   <figcaption>Performance Testing Environment</figcaption>
 </figure>
 
-### Throughput testing
+### iPerf3 Throughput testing
 
 We performed the throughput tests using [iPerf3](https://iperf.fr/).
 
@@ -63,6 +89,17 @@ Test parameters:
 - **Streams**: 4
 - **MSS**: 1416 bytes
 - **Runs (average over)**: 5
+
+### TRex Throughput testing
+
+We performed those tests using [TRex](https://trex-tgn.cisco.com).
+
+Test parameters:
+
+- **Version**: v3.08
+- **Duration**: 120 seconds
+- **Drop rate**: 0%
+- **Streams**: 64
 
 ### Latency testing
 
