@@ -17,6 +17,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/sctp"
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -36,11 +37,27 @@ var (
 
 func init() {
 	amfContext = AMF{
+		Ausf:   &RealAusf{},
 		UEs:    make(map[string]*AmfUe),
 		Radios: make(map[*sctp.SCTPConn]*Radio),
 	}
 	tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
 	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID)
+}
+
+type Ausf interface {
+	UeAuthPostRequestProcedure(ctx context.Context, suci string, snName string, resyncInfo *models.ResynchronizationInfo) (*models.Av5gAka, error)
+	Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (string, string, error)
+}
+
+type RealAusf struct{}
+
+func (a *RealAusf) UeAuthPostRequestProcedure(ctx context.Context, suci string, snName string, resyncInfo *models.ResynchronizationInfo) (*models.Av5gAka, error) {
+	return ausf.UeAuthPostRequestProcedure(ctx, suci, snName, resyncInfo)
+}
+
+func (a *RealAusf) Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (string, string, error) {
+	return ausf.Auth5gAkaComfirmRequestProcedure(resStar, suci)
 }
 
 type NetworkFeatureSupport5GS struct {
@@ -76,6 +93,7 @@ type AMF struct {
 	Mutex sync.Mutex
 
 	DBInstance               DBer
+	Ausf                     Ausf
 	UEs                      map[string]*AmfUe // Key: supi
 	Radios                   map[*sctp.SCTPConn]*Radio
 	RelativeCapacity         int64
