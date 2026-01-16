@@ -117,13 +117,13 @@ type SecurityAlgorithm struct {
 	CipheringOrder []uint8 // slice of security.AlgCipheringXXX
 }
 
-func allocateTMSI() (int32, error) {
+func allocateTMSI() (uint32, error) {
 	val, err := tmsiGenerator.Allocate()
 	if err != nil {
-		return -1, fmt.Errorf("could not allocate TMSI: %v", err)
+		return 0, fmt.Errorf("could not allocate TMSI: %v", err)
 	}
 
-	return int32(val), nil
+	return uint32(val), nil
 }
 
 func allocateAmfUeNgapID() (int64, error) {
