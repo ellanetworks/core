@@ -54,7 +54,7 @@ func TestHandleRegistrationRequest_NilRanUE(t *testing.T) {
 	ctx := context.TODO()
 	amf := amfContext.AMF{}
 
-	m, err := buildTestRegistrationRequestMessage(nil)
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestHandleRegistrationRequest_ErrorMissingIdentity(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	m, err := buildTestRegistrationRequestMessage(nil)
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestHandleRegistrationRequest_ErrorMissingOperatorInfo(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	m, err := buildTestRegistrationRequestMessage(nil)
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 		Tac: "42",
 	}
 
-	m, err := buildTestRegistrationRequestMessage(nil)
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T)
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	m, err := buildTestRegistrationRequestMessage(nil)
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 	ue.T3513 = amfContext.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
 	ue.T3565 = amfContext.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
 
-	m, err := buildTestRegistrationRequestMessage(nil)
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	m, err := buildTestRegistrationRequestMessage(nil)
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -392,7 +392,7 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 	ue.Suci = "testsuci"
 	ue.Supi = "imsi-001019756139935"
 
-	m, err := buildTestRegistrationRequestMessage(nil)
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -460,7 +460,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	ue.NgKsi.Ksi = 1
 	ue.MacFailed = false
 
-	m, err := buildTestRegistrationRequestMessage(nil)
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -515,7 +515,7 @@ func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *te
 
 	ue.State = amfContext.ContextSetup
 
-	m, err := buildTestRegistrationRequestMessage(nil)
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -557,7 +557,7 @@ func TestHandleRegistrationRequest_UEStateAuthentication_Error(t *testing.T) {
 
 	ue.State = amfContext.Authentication
 
-	m, err := buildTestRegistrationRequestMessage(nil)
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -611,7 +611,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 	ue.State = amfContext.SecurityMode
 	ue.T3560 = amfContext.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
 
-	m, err := buildTestRegistrationRequestMessage(nil)
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -693,7 +693,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 	ue.CipheringAlg = algo
 	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestRegistrationRequestMessage(ue)
+	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -778,7 +778,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	ue.CipheringAlg = algo
 	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestRegistrationRequestMessage(ue)
+	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -813,7 +813,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	}
 }
 
-func buildTestRegistrationRequestMessage(ue *amfContext.AmfUe) (*nas.GmmMessage, error) {
+func buildTestRegistrationRequestMessage(cipherAlg uint8, key *[16]uint8, ulcount uint32) (*nas.GmmMessage, error) {
 	m := nas.NewGmmMessage()
 
 	registrationRequest := nasMessage.NewRegistrationRequest(0)
@@ -831,7 +831,7 @@ func buildTestRegistrationRequestMessage(ue *amfContext.AmfUe) (*nas.GmmMessage,
 	}
 	registrationRequest.UESecurityCapability = &nasType.UESecurityCapability{}
 
-	if ue != nil {
+	if key != nil {
 		registrationRequest.UESecurityCapability = &nasType.UESecurityCapability{
 			Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
 			Len:    2,
@@ -850,7 +850,7 @@ func buildTestRegistrationRequestMessage(ue *amfContext.AmfUe) (*nas.GmmMessage,
 	m.RegistrationRequest = registrationRequest
 	m.SetMessageType(nas.MsgTypeRegistrationRequest)
 
-	if ue == nil {
+	if key == nil {
 		return m, nil
 	}
 
@@ -863,7 +863,7 @@ func buildTestRegistrationRequestMessage(ue *amfContext.AmfUe) (*nas.GmmMessage,
 
 	nasPdu := data.Bytes()
 
-	if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, nasPdu); err != nil {
+	if err = security.NASEncrypt(cipherAlg, *key, ulcount, security.Bearer3GPP, security.DirectionUplink, nasPdu); err != nil {
 		return nil, fmt.Errorf("could not encrypt NAS message: %v", err)
 	}
 
