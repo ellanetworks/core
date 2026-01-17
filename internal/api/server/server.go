@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/http/pprof"
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
@@ -25,6 +26,9 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 
 	// Metrics (Unauthenticated)
 	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
+
+	// Pprof (Authenticated)
+	registerAuthenticatedPprof(mux, jwtSecret, dbInstance)
 
 	// Authentication
 	mux.HandleFunc("POST /api/v1/auth/login", Login(dbInstance, secureCookie).ServeHTTP)
@@ -139,4 +143,27 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	}
 
 	return handler
+}
+
+func registerAuthenticatedPprof(root *http.ServeMux, jwtSecret []byte, dbInstance *db.Database) {
+	// Sub-mux only for pprof endpoints.
+	pp := http.NewServeMux()
+
+	// Standard pprof endpoints.
+	pp.HandleFunc("/debug/pprof/", pprof.Index)
+	pp.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	pp.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	pp.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	pp.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	// Named profiles.
+	pp.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+	pp.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
+	pp.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+	pp.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+	pp.Handle("/debug/pprof/block", pprof.Handler("block"))
+	pp.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
+
+	// Mount the subtree.
+	root.Handle("/debug/pprof/", Authenticate(jwtSecret, dbInstance, RequirePermission(PermPprof, jwtSecret, pp)))
 }

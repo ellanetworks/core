@@ -45,6 +45,9 @@ var PermissionsByRole = map[RoleID][]string{
 }
 
 const (
+	// Pprof permission
+	PermPprof = "pprof"
+
 	// User permissions
 	PermListUsers            = "user:list"
 	PermCreateUser           = "user:create"
