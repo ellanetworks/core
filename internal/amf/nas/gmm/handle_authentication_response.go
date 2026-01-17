@@ -8,7 +8,6 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
-	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
@@ -66,7 +65,7 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 		return nil
 	}
 
-	supi, kseaf, err := ausf.Auth5gAkaComfirmRequestProcedure(hex.EncodeToString(resStar[:]), ue.Suci)
+	supi, kseaf, err := amf.Ausf.Auth5gAkaComfirmRequestProcedure(hex.EncodeToString(resStar[:]), ue.Suci)
 	if err != nil {
 		logger.AmfLog.Error("5G AKA Confirmation Request Procedure failed", zap.Error(err))
 

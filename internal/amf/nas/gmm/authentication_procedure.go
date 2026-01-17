@@ -7,12 +7,11 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
-	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func sendUEAuthenticationAuthenticateRequest(ctx context.Context, ue *amfContext.AmfUe, resynchronizationInfo *models.ResynchronizationInfo) (*models.Av5gAka, error) {
+func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, resynchronizationInfo *models.ResynchronizationInfo) (*models.Av5gAka, error) {
 	if ue.Tai.PlmnID == nil {
 		return nil, fmt.Errorf("tai is not available in UE context")
 	}
@@ -24,7 +23,7 @@ func sendUEAuthenticationAuthenticateRequest(ctx context.Context, ue *amfContext
 
 	snName := fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, ue.Tai.PlmnID.Mcc)
 
-	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(ctx, ue.Suci, snName, resynchronizationInfo)
+	ueAuthenticationCtx, err := amf.Ausf.UeAuthPostRequestProcedure(ctx, ue.Suci, snName, resynchronizationInfo)
 	if err != nil {
 		return nil, fmt.Errorf("ausf UE Authentication Authenticate Request failed: %s", err.Error())
 	}
@@ -64,7 +63,7 @@ func authenticationProcedure(ctx context.Context, amf *amfContext.AMF, ue *amfCo
 
 	ue.Log.Debug("UE has no valid security context - continue with the authentication procedure")
 
-	response, err := sendUEAuthenticationAuthenticateRequest(ctx, ue, nil)
+	response, err := sendUEAuthenticationAuthenticateRequest(ctx, amf, ue, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to send ue authentication request: %s", err)
 	}

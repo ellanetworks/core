@@ -80,7 +80,7 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 			Auts: hex.EncodeToString(auts[:]),
 		}
 
-		response, err := sendUEAuthenticationAuthenticateRequest(ctx, ue, resynchronizationInfo)
+		response, err := sendUEAuthenticationAuthenticateRequest(ctx, amf, ue, resynchronizationInfo)
 		if err != nil {
 			return fmt.Errorf("send UE Authentication Authenticate Request Error: %s", err.Error())
 		}

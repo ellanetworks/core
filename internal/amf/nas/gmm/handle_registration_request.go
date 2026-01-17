@@ -33,11 +33,7 @@ func getRegistrationType5GSName(regType5Gs uint8) string {
 }
 
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
-func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, registrationRequest *nasMessage.RegistrationRequest) error {
-	if ue == nil {
-		return fmt.Errorf("AmfUe is nil")
-	}
-
+func handleRegistrationRequestMessage(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, registrationRequest *nasMessage.RegistrationRequest) error {
 	if ue.RanUe == nil {
 		return fmt.Errorf("RanUe is nil")
 	}
@@ -190,7 +186,7 @@ func HandleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
 	switch ue.State {
 	case amfContext.Deregistered, amfContext.Registered:
-		if err := HandleRegistrationRequest(ctx, amf, ue, msg.RegistrationRequest); err != nil {
+		if err := handleRegistrationRequestMessage(ctx, amf, ue, msg.RegistrationRequest); err != nil {
 			return fmt.Errorf("failed handling registration request: %v", err)
 		}
 
