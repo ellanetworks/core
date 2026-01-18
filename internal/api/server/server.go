@@ -146,24 +146,20 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 }
 
 func registerAuthenticatedPprof(root *http.ServeMux, jwtSecret []byte, dbInstance *db.Database) {
-	// Sub-mux only for pprof endpoints.
 	pp := http.NewServeMux()
 
-	// Standard pprof endpoints.
-	pp.HandleFunc("/debug/pprof/", pprof.Index)
-	pp.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	pp.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	pp.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	pp.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	pp.HandleFunc("/api/v1/pprof/", pprof.Index)
+	pp.HandleFunc("/api/v1/pprof/cmdline", pprof.Cmdline)
+	pp.HandleFunc("/api/v1/pprof/profile", pprof.Profile)
+	pp.HandleFunc("/api/v1/pprof/symbol", pprof.Symbol)
+	pp.HandleFunc("/api/v1/pprof/trace", pprof.Trace)
 
-	// Named profiles.
-	pp.Handle("/debug/pprof/heap", pprof.Handler("heap"))
-	pp.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
-	pp.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
-	pp.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
-	pp.Handle("/debug/pprof/block", pprof.Handler("block"))
-	pp.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
+	pp.Handle("/api/v1/pprof/allocs", pprof.Handler("allocs"))
+	pp.Handle("/api/v1/pprof/block", pprof.Handler("block"))
+	pp.Handle("/api/v1/pprof/goroutine", pprof.Handler("goroutine"))
+	pp.Handle("/api/v1/pprof/heap", pprof.Handler("heap"))
+	pp.Handle("/api/v1/pprof/mutex", pprof.Handler("mutex"))
+	pp.Handle("/api/v1/pprof/threadcreate", pprof.Handler("threadcreate"))
 
-	// Mount the subtree.
-	root.Handle("/debug/pprof/", Authenticate(jwtSecret, dbInstance, RequirePermission(PermPprof, jwtSecret, pp)))
+	root.Handle("/api/v1/pprof/", Authenticate(jwtSecret, dbInstance, RequirePermission(PermPprof, jwtSecret, pp)))
 }
