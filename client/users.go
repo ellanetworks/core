@@ -60,6 +60,7 @@ type ListAPITokensResponse struct {
 	TotalCount int        `json:"total_count"`
 }
 
+// ListUsers lists users with pagination.
 func (c *Client) ListUsers(ctx context.Context, p *ListParams) (*ListUsersResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -84,6 +85,7 @@ func (c *Client) ListUsers(ctx context.Context, p *ListParams) (*ListUsersRespon
 	return &users, nil
 }
 
+// CreateUser creates a new user with the provided options.
 func (c *Client) CreateUser(ctx context.Context, opts *CreateUserOptions) error {
 	payload := struct {
 		Email    string `json:"email"`
@@ -115,6 +117,7 @@ func (c *Client) CreateUser(ctx context.Context, opts *CreateUserOptions) error 
 	return nil
 }
 
+// DeleteUser deletes a user by email.
 func (c *Client) DeleteUser(ctx context.Context, opts *DeleteUserOptions) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -128,6 +131,7 @@ func (c *Client) DeleteUser(ctx context.Context, opts *DeleteUserOptions) error 
 	return nil
 }
 
+// CreateMyAPIToken creates a new API token for the authenticated user.
 func (c *Client) CreateMyAPIToken(ctx context.Context, opts *CreateAPITokenOptions) (*CreateAPITokenResponse, error) {
 	payload := struct {
 		Name   string `json:"name"`
@@ -164,6 +168,7 @@ func (c *Client) CreateMyAPIToken(ctx context.Context, opts *CreateAPITokenOptio
 	return &tokenResponse, nil
 }
 
+// ListMyAPITokens lists API tokens for the authenticated user with pagination.
 func (c *Client) ListMyAPITokens(ctx context.Context, p *ListParams) (*ListAPITokensResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -188,6 +193,7 @@ func (c *Client) ListMyAPITokens(ctx context.Context, p *ListParams) (*ListAPITo
 	return &tokens, nil
 }
 
+// DeleteMyAPIToken deletes an API token for the authenticated user by token ID.
 func (c *Client) DeleteMyAPIToken(ctx context.Context, tokenID string) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,

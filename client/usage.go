@@ -30,6 +30,7 @@ type ListUsageParams struct {
 	Subscriber string `json:"subscriber"`
 }
 
+// ListUsage retrieves subscriber usage data based on the provided parameters.
 func (c *Client) ListUsage(ctx context.Context, p *ListUsageParams) (*ListUsageResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -56,6 +57,7 @@ func (c *Client) ListUsage(ctx context.Context, p *ListUsageParams) (*ListUsageR
 	return &usage, nil
 }
 
+// GetUsageRetentionPolicy retrieves the current usage retention policy.
 func (c *Client) GetUsageRetentionPolicy(ctx context.Context) (*GetUsageRetentionPolicy, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -76,6 +78,7 @@ func (c *Client) GetUsageRetentionPolicy(ctx context.Context) (*GetUsageRetentio
 	return &policy, nil
 }
 
+// UpdateUsageRetentionPolicy updates the usage retention policy with the provided options.
 func (c *Client) UpdateUsageRetentionPolicy(ctx context.Context, opts *UpdateUsageRetentionPolicyOptions) error {
 	payload := struct {
 		Days int `json:"days"`

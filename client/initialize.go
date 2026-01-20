@@ -11,6 +11,7 @@ type InitializeOptions struct {
 	Password string `json:"password"`
 }
 
+// Initialize initializes the client with the provided options.
 func (c *Client) Initialize(ctx context.Context, opts *InitializeOptions) error {
 	payload := struct {
 		Email    string `json:"email"`

@@ -41,6 +41,7 @@ type ListPoliciesResponse struct {
 	TotalCount int      `json:"total_count"`
 }
 
+// CreatePolicy creates a new policy with the provided options.
 func (c *Client) CreatePolicy(ctx context.Context, opts *CreatePolicyOptions) error {
 	payload := struct {
 		Name            string `json:"name"`
@@ -78,6 +79,7 @@ func (c *Client) CreatePolicy(ctx context.Context, opts *CreatePolicyOptions) er
 	return nil
 }
 
+// GetPolicy retrieves a policy by name.
 func (c *Client) GetPolicy(ctx context.Context, opts *GetPolicyOptions) (*Policy, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -98,6 +100,7 @@ func (c *Client) GetPolicy(ctx context.Context, opts *GetPolicyOptions) (*Policy
 	return &policyResponse, nil
 }
 
+// DeletePolicy deletes a policy by name.
 func (c *Client) DeletePolicy(ctx context.Context, opts *DeletePolicyOptions) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -111,6 +114,7 @@ func (c *Client) DeletePolicy(ctx context.Context, opts *DeletePolicyOptions) er
 	return nil
 }
 
+// ListPolicies lists policies with pagination.
 func (c *Client) ListPolicies(ctx context.Context, p *ListParams) (*ListPoliciesResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
