@@ -21,9 +21,22 @@ extra_css:
   - stylesheets/extra.css
 repo_url: https://github.com/ellanetworks/core
 repo_name: ellanetworks/core
-copyright: Copyright &copy; 2024 Guillaume Belanger
+copyright: Copyright &copy; 2026 Ella Networks
 extra:
   generator: false
+  social:
+  - icon: fontawesome/solid/globe
+    link: https://www.ellanetworks.com
+    name: Ella Networks website
+  - icon: fontawesome/brands/youtube
+    link: https://www.youtube.com/@ellanetworks
+    name: Ella Networks on YouTube
+  - icon: fontawesome/brands/linkedin
+    link: https://www.linkedin.com/company/ellanetworks
+    name: Ella Networks on LinkedIn
+  - icon: fontawesome/brands/github
+    link: https://www.github.com/ellanetworks/core
+    name: Ella Networks on GitHub
 markdown_extensions:
   - attr_list
   - md_in_html
@@ -85,6 +98,7 @@ nav:
     - User Plane Packet processing with eBPF: explanation/user_plane_packet_processing_with_ebpf.md
     - Obtaining a PLMN ID for a Private Network: explanation/obtaining_plmn_id.md
     - Managing SIM Cards: explanation/managing_sim_cards.md
+  - Website: https://ellanetworks.com/
 plugins:
   - search
   - glightbox

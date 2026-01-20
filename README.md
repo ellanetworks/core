@@ -26,7 +26,9 @@ Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm,
 
 ## Quick Links
 
+- [Website](https://ellanetworks.com/)
 - [Documentation](https://docs.ellanetworks.com/)
+- [YouTube Channel](https://www.youtube.com/@ellanetworks)
 - [Whitepaper](https://medium.com/@gruyaume/ella-core-simplifying-private-mobile-networks-a82de955c92c)
 - [Snap Store Listing](https://snapcraft.io/ella-core)
 - [Contributing](CONTRIBUTING.md)
