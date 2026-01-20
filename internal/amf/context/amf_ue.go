@@ -66,8 +66,8 @@ type AmfUe struct {
 	Suci    string
 	Supi    string
 	Pei     string
-	Tmsi    int32
-	OldTmsi int32
+	Tmsi    uint32
+	OldTmsi uint32
 	Guti    string
 	OldGuti string
 	/* User Location*/

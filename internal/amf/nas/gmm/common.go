@@ -5,6 +5,10 @@ import (
 )
 
 func plmnIDStringToModels(plmnIDStr string) models.PlmnID {
+	if len(plmnIDStr) < 5 {
+		return models.PlmnID{}
+	}
+
 	return models.PlmnID{
 		Mcc: plmnIDStr[:3],
 		Mnc: plmnIDStr[3:],

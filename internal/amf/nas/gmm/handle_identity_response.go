@@ -32,20 +32,34 @@ func updateUEIdentity(ue *amfContext.AmfUe, mobileIdentityContents []uint8) erro
 		}
 
 		_, guti := nasConvert.GutiToString(mobileIdentityContents)
-		ue.Guti = guti
+		if guti == "" {
+			return fmt.Errorf("UE sent invalid GUTI")
+		}
+
+		if guti != ue.Guti && guti != ue.OldGuti {
+			return fmt.Errorf("UE sent unknown GUTI")
+		}
 	case nasMessage.MobileIdentity5GSType5gSTmsi:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
+		if len(mobileIdentityContents) != 7 {
+			return fmt.Errorf("wrong length for TMSI")
+		}
+
 		sTmsi := hex.EncodeToString(mobileIdentityContents[1:])
 
-		tmp, err := strconv.ParseInt(sTmsi[4:], 10, 32)
+		tmp, err := strconv.ParseUint(sTmsi[4:], 16, 32)
 		if err != nil {
 			return fmt.Errorf("could not parse 5G-S-TMSI: %v", err)
 		}
 
-		ue.Tmsi = int32(tmp)
+		tmsi := uint32(tmp)
+
+		if tmsi != ue.Tmsi && tmsi != ue.OldTmsi {
+			return fmt.Errorf("UE sent unknown TMSI")
+		}
 	case nasMessage.MobileIdentity5GSTypeImei:
 		if ue.MacFailed {
 			return fmt.Errorf("NAS message integrity check failed")
