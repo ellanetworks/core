@@ -49,6 +49,7 @@ type UpdateOperatorHomeNetworkOptions struct {
 	PrivateKey string
 }
 
+// GetOperator retrieves the current operator configuration.
 func (c *Client) GetOperator(ctx context.Context) (*Operator, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -69,6 +70,7 @@ func (c *Client) GetOperator(ctx context.Context) (*Operator, error) {
 	return &operatorResponse, nil
 }
 
+// UpdateOperatorID updates the operator's Mobile Country Code (MCC) and Mobile Network Code (MNC).
 func (c *Client) UpdateOperatorID(ctx context.Context, opts *UpdateOperatorIDOptions) error {
 	payload := struct {
 		Mcc string `json:"mcc"`
@@ -98,6 +100,7 @@ func (c *Client) UpdateOperatorID(ctx context.Context, opts *UpdateOperatorIDOpt
 	return nil
 }
 
+// UpdateOperatorSlice updates the operator's slice information.
 func (c *Client) UpdateOperatorSlice(ctx context.Context, opts *UpdateOperatorSliceOptions) error {
 	payload := struct {
 		Sst int    `json:"sst"`
@@ -127,6 +130,7 @@ func (c *Client) UpdateOperatorSlice(ctx context.Context, opts *UpdateOperatorSl
 	return nil
 }
 
+// UpdateOperatorTracking updates the operator's tracking information (supported TACs).
 func (c *Client) UpdateOperatorTracking(ctx context.Context, opts *UpdateOperatorTrackingOptions) error {
 	payload := struct {
 		SupportedTacs []string `json:"supportedTacs"`
@@ -154,6 +158,7 @@ func (c *Client) UpdateOperatorTracking(ctx context.Context, opts *UpdateOperato
 	return nil
 }
 
+// UpdateOperatorHomeNetwork updates the operator's home network information (private key).
 func (c *Client) UpdateOperatorHomeNetwork(ctx context.Context, opts *UpdateOperatorHomeNetworkOptions) error {
 	payload := struct {
 		PrivateKey string `json:"privateKey"`

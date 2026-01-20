@@ -14,6 +14,7 @@ type UpdateNATInfoOptions struct {
 	Enabled bool `json:"enabled"`
 }
 
+// GetNATInfo retrieves the current Network Address Translation (NAT) configuration.
 func (c *Client) GetNATInfo(ctx context.Context) (*GetNATInfoResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -34,6 +35,7 @@ func (c *Client) GetNATInfo(ctx context.Context) (*GetNATInfoResponse, error) {
 	return &natInfoResponse, nil
 }
 
+// UpdateNATInfo updates the Network Address Translation (NAT) configuration.
 func (c *Client) UpdateNATInfo(ctx context.Context, opts *UpdateNATInfoOptions) error {
 	var body bytes.Buffer
 

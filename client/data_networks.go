@@ -37,6 +37,7 @@ type ListDataNetworksResponse struct {
 	TotalCount int           `json:"total_count"`
 }
 
+// CreateDataNetwork creates a new data network with the provided options.
 func (c *Client) CreateDataNetwork(ctx context.Context, opts *CreateDataNetworkOptions) error {
 	payload := struct {
 		Name   string `json:"name"`
@@ -70,6 +71,7 @@ func (c *Client) CreateDataNetwork(ctx context.Context, opts *CreateDataNetworkO
 	return nil
 }
 
+// GetDataNetwork retrieves the details of a data network by name.
 func (c *Client) GetDataNetwork(ctx context.Context, opts *GetDataNetworkOptions) (*DataNetwork, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -90,6 +92,7 @@ func (c *Client) GetDataNetwork(ctx context.Context, opts *GetDataNetworkOptions
 	return &dataNetworkResponse, nil
 }
 
+// DeleteDataNetwork deletes a data network by name.
 func (c *Client) DeleteDataNetwork(ctx context.Context, opts *DeleteDataNetworkOptions) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -103,6 +106,7 @@ func (c *Client) DeleteDataNetwork(ctx context.Context, opts *DeleteDataNetworkO
 	return nil
 }
 
+// ListDataNetworks lists all data networks with pagination support.
 func (c *Client) ListDataNetworks(ctx context.Context, p *ListParams) (*ListDataNetworksResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,

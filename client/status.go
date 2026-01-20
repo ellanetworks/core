@@ -7,6 +7,7 @@ type Status struct {
 	Initialized bool   `json:"initialized"`
 }
 
+// GetStatus retrieves the current status of the system.
 func (c *Client) GetStatus(ctx context.Context) (*Status, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,

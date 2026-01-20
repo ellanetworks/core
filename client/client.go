@@ -86,14 +86,17 @@ type Client struct {
 	token     string
 }
 
+// GetToken returns the current API token.
 func (c *Client) GetToken() string {
 	return c.token
 }
 
+// SetToken sets the API token to be used for authentication.
 func (c *Client) SetToken(token string) {
 	c.token = token
 }
 
+// New creates a new Client using the provided configuration.
 func New(config *Config) (*Client, error) {
 	if config == nil {
 		config = &Config{}

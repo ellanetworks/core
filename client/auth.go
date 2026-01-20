@@ -16,7 +16,6 @@ type RefreshResponseResult struct {
 }
 
 // Login authenticates the user with the provided email and password.
-// It stores the token in the client for future requests.
 func (c *Client) Login(ctx context.Context, opts *LoginOptions) error {
 	payload := struct {
 		Email    string `json:"email"`
@@ -51,6 +50,8 @@ func (c *Client) Login(ctx context.Context, opts *LoginOptions) error {
 	return nil
 }
 
+// Refresh refreshes the authentication token.
+// It stores the new token in the client.
 func (c *Client) Refresh(ctx context.Context) error {
 	headers := map[string]string{
 		"Content-Type": "application/json",
