@@ -6,7 +6,7 @@ description: RESTful API reference for getting metrics in Prometheus format.
 
 ## Get metrics
 
-This path returns the metrics of Ella core in Prometheus format. For more information about metrics exposed by Ella core, see the [Metrics Reference](../metrics.md).
+This path returns the metrics of Ella core in Prometheus format. For more information about metrics exposed by Ella core, see the [Observability Reference](../observability.md).
 
 | Method | Path              |
 | ------ | ----------------- |

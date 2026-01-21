@@ -76,6 +76,7 @@ nav:
       - Networking: reference/api/networking.md
       - Operator: reference/api/operator.md
       - Policies: reference/api/policies.md
+      - Pprof: reference/api/pprof.md
       - Radios: reference/api/radios.md
       - Restore: reference/api/restore.md
       - Status: reference/api/status.md
@@ -84,9 +85,7 @@ nav:
       - Usage: reference/api/usage.md
     - Configuration File: reference/config_file.md
     - Production Hardening: reference/production_hardening.md
-    - Metrics: reference/metrics.md
-    - Logging: reference/logging.md
-    - Tracing: reference/tracing.md
+    - Observability: reference/observability.md
     - Connectivity: reference/connectivity.md
     - TLS: reference/tls.md
     - Performance: reference/performance.md

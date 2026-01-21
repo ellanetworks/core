@@ -648,7 +648,7 @@ func TestCreateTooManyDataNetworks(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	for i := 0; i < 11; i++ { // We use 11 instead of 12 because the first data network is created by default
+	for i := range 11 { // We use 11 instead of 12 because the first data network is created by default
 		createDataNetworkParams := &CreateDataNetworkParams{
 			Name:   "data-network-" + strconv.Itoa(i),
 			IPPool: IPPool,

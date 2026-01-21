@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/http/pprof"
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
@@ -25,6 +26,9 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 
 	// Metrics (Unauthenticated)
 	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
+
+	// Pprof (Authenticated)
+	registerAuthenticatedPprof(mux, jwtSecret, dbInstance)
 
 	// Authentication
 	mux.HandleFunc("POST /api/v1/auth/login", Login(dbInstance, secureCookie).ServeHTTP)
@@ -139,4 +143,23 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	}
 
 	return handler
+}
+
+func registerAuthenticatedPprof(root *http.ServeMux, jwtSecret []byte, dbInstance *db.Database) {
+	pp := http.NewServeMux()
+
+	pp.HandleFunc("/api/v1/pprof/", pprof.Index)
+	pp.HandleFunc("/api/v1/pprof/cmdline", pprof.Cmdline)
+	pp.HandleFunc("/api/v1/pprof/profile", pprof.Profile)
+	pp.HandleFunc("/api/v1/pprof/symbol", pprof.Symbol)
+	pp.HandleFunc("/api/v1/pprof/trace", pprof.Trace)
+
+	pp.Handle("/api/v1/pprof/allocs", pprof.Handler("allocs"))
+	pp.Handle("/api/v1/pprof/block", pprof.Handler("block"))
+	pp.Handle("/api/v1/pprof/goroutine", pprof.Handler("goroutine"))
+	pp.Handle("/api/v1/pprof/heap", pprof.Handler("heap"))
+	pp.Handle("/api/v1/pprof/mutex", pprof.Handler("mutex"))
+	pp.Handle("/api/v1/pprof/threadcreate", pprof.Handler("threadcreate"))
+
+	root.Handle("/api/v1/pprof/", Authenticate(jwtSecret, dbInstance, RequirePermission(PermPprof, jwtSecret, pp)))
 }
