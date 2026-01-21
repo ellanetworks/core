@@ -134,7 +134,7 @@ const (
 	PermListAuditLogs              = "audit_logs:list"
 )
 
-func RequirePermission(permission string, jwtSecret []byte, next http.Handler) http.Handler {
+func Authorize(permission string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		allowedPerms := PermissionsByRole[r.Context().Value(contextKeyRoleID).(RoleID)]
 		for _, p := range allowedPerms {
