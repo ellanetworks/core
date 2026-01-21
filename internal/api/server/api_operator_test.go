@@ -110,6 +110,19 @@ type UpdateOperatorCodeResponse struct {
 	Error  string                           `json:"error,omitempty"`
 }
 
+type UpdateOperatorHomeNetworkParams struct {
+	PrivateKey string `json:"privateKey,omitempty"`
+}
+
+type UpdateOperatorHomeNetworkResponseResult struct {
+	Message string `json:"message"`
+}
+
+type UpdateOperatorHomeNetworkResponse struct {
+	Result UpdateOperatorHomeNetworkResponseResult `json:"result"`
+	Error  string                                  `json:"error,omitempty"`
+}
+
 func getOperator(url string, client *http.Client, token string) (int, *GetOperatorResponse, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/operator", nil)
 	if err != nil {
@@ -339,6 +352,38 @@ func updateOperatorCode(url string, client *http.Client, token string, data *Upd
 	}()
 
 	var updateResponse UpdateOperatorCodeResponse
+	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
+		return 0, nil, err
+	}
+
+	return res.StatusCode, &updateResponse, nil
+}
+
+func updateOperatorHomeNetwork(url string, client *http.Client, token string, data *UpdateOperatorHomeNetworkParams) (int, *UpdateOperatorHomeNetworkResponse, error) {
+	body, err := json.Marshal(data)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/home-network", strings.NewReader(string(body)))
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var updateResponse UpdateOperatorHomeNetworkResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
@@ -940,4 +985,148 @@ func TestUpdateOperatorCodeInvalidInput(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateOperatorHomeNetwork(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := ts.Client()
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	t.Run("Success - valid private key", func(t *testing.T) {
+		// Valid Curve25519 private key (32 bytes hex)
+		validPrivateKey := "5122250214c33e723a5dd523fc145fc05122250214c33e723a5dd523fc145fc0"
+
+		params := &UpdateOperatorHomeNetworkParams{
+			PrivateKey: validPrivateKey,
+		}
+
+		statusCode, response, err := updateOperatorHomeNetwork(ts.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't update home network: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error: %q", response.Error)
+		}
+
+		if response.Result.Message != "Home Network private key updated successfully" {
+			t.Fatalf("expected message 'Home Network private key updated successfully', got %q", response.Result.Message)
+		}
+	})
+
+	t.Run("Missing private key", func(t *testing.T) {
+		params := &UpdateOperatorHomeNetworkParams{
+			PrivateKey: "",
+		}
+
+		statusCode, response, err := updateOperatorHomeNetwork(ts.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't update home network: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if response.Error != "privateKey is missing" {
+			t.Fatalf("expected error 'privateKey is missing', got %q", response.Error)
+		}
+	})
+
+	t.Run("Invalid private key - too short", func(t *testing.T) {
+		params := &UpdateOperatorHomeNetworkParams{
+			PrivateKey: "5122250214c33e723a5dd523fc145fc",
+		}
+
+		statusCode, response, err := updateOperatorHomeNetwork(ts.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't update home network: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if response.Error != "Invalid private key format. Must be a 32-byte hexadecimal string." {
+			t.Fatalf("expected error about invalid format, got %q", response.Error)
+		}
+	})
+
+	t.Run("Invalid private key - too long", func(t *testing.T) {
+		params := &UpdateOperatorHomeNetworkParams{
+			PrivateKey: "5122250214c33e723a5dd523fc145fc05122250214c33e723a5dd523fc145fc012",
+		}
+
+		statusCode, response, err := updateOperatorHomeNetwork(ts.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't update home network: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if response.Error != "Invalid private key format. Must be a 32-byte hexadecimal string." {
+			t.Fatalf("expected error about invalid format, got %q", response.Error)
+		}
+	})
+
+	t.Run("Invalid private key - non-hex characters", func(t *testing.T) {
+		params := &UpdateOperatorHomeNetworkParams{
+			PrivateKey: "5122250214c33e723a5dd523fc145fc05122250214c33e723a5dd523fc145fZZ",
+		}
+
+		statusCode, response, err := updateOperatorHomeNetwork(ts.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't update home network: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if response.Error != "Invalid private key format. Must be a 32-byte hexadecimal string." {
+			t.Fatalf("expected error about invalid format, got %q", response.Error)
+		}
+	})
+
+	t.Run("Invalid request body", func(t *testing.T) {
+		body := strings.NewReader(`{"invalid": json}`)
+
+		req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/operator/home-network", body)
+		if err != nil {
+			t.Fatalf("couldn't create request: %s", err)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		res, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("couldn't do request: %s", err)
+		}
+
+		defer func() {
+			_ = res.Body.Close()
+		}()
+
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.StatusCode)
+		}
+	})
 }

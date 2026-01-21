@@ -477,7 +477,9 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("couldn't do request: %s", err)
 		}
 
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 
 		if res.StatusCode != http.StatusNotFound {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, res.StatusCode)
@@ -486,6 +488,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 	t.Run("9. Update subscriber - invalid request body", func(t *testing.T) {
 		body := strings.NewReader(`{"invalid": json}`)
+
 		req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/subscribers/"+Imsi, body)
 		if err != nil {
 			t.Fatalf("couldn't create request: %s", err)
@@ -498,7 +501,9 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("couldn't do request: %s", err)
 		}
 
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 
 		if res.StatusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.StatusCode)
