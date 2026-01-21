@@ -54,7 +54,6 @@ type CreateUserParams struct {
 }
 
 type UpdateUserPasswordParams struct {
-	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
@@ -63,7 +62,6 @@ type UpdateMyUserPasswordParams struct {
 }
 
 type UpdateUserParams struct {
-	Email  string `json:"email"`
 	RoleID RoleID `json:"role_id"`
 }
 
@@ -566,7 +564,6 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 
 	t.Run("5. Edit user password", func(t *testing.T) {
 		updateUserPasswordParams := &UpdateUserPasswordParams{
-			Email:    Email,
 			Password: "password1234",
 		}
 
@@ -590,7 +587,6 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 
 	t.Run("6. Edit user", func(t *testing.T) {
 		updateUserParams := &UpdateUserParams{
-			Email:  Email,
 			RoleID: RoleReadOnly,
 		}
 
@@ -667,6 +663,201 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 			t.Fatalf("expected error %q, got %q", "User not found", response.Error)
 		}
 	})
+}
+
+func TestUpdateUserPasswordSuccess(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := ts.Client()
+
+	adminToken, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	createUserParams := &CreateUserParams{
+		Email:    "testuser@ellanetworks.com",
+		Password: Password,
+		RoleID:   RoleReadOnly,
+	}
+
+	statusCode, response, err := createUser(ts.URL, client, adminToken, createUserParams)
+	if err != nil {
+		t.Fatalf("couldn't create user: %s", err)
+	}
+
+	if statusCode != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+	}
+
+	if response.Error != "" {
+		t.Fatalf("unexpected error: %q", response.Error)
+	}
+
+	params := &UpdateUserPasswordParams{
+		Password: "newpassword123",
+	}
+
+	statusCode, updateResponse, err := editUserPassword(ts.URL, client, adminToken, "testuser@ellanetworks.com", params)
+	if err != nil {
+		t.Fatalf("couldn't edit user password: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if updateResponse.Error != "" {
+		t.Fatalf("unexpected error: %q", updateResponse.Error)
+	}
+
+	if updateResponse.Result.Message != "User password updated successfully" {
+		t.Fatalf("expected message %q, got %q", "User password updated successfully", updateResponse.Result.Message)
+	}
+}
+
+func TestUpdateUserPasswordValidation(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := ts.Client()
+
+	adminToken, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	tests := []struct {
+		name           string
+		email          string
+		params         *UpdateUserPasswordParams
+		expectedStatus int
+		expectedError  string
+	}{
+		{
+			name:  "missing password in body",
+			email: "testuser@ellanetworks.com",
+			params: &UpdateUserPasswordParams{
+				Password: "",
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "Invalid input",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusCode, updateResponse, err := editUserPassword(ts.URL, client, adminToken, tt.email, tt.params)
+			if err != nil {
+				t.Fatalf("couldn't make request: %s", err)
+			}
+
+			if statusCode != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, statusCode)
+			}
+
+			if updateResponse.Error != tt.expectedError {
+				t.Errorf("expected error %q, got %q", tt.expectedError, updateResponse.Error)
+			}
+		})
+	}
+}
+
+func TestUpdateUserPasswordInvalidJSON(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := ts.Client()
+
+	adminToken, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/users/test@ellanetworks.com/password", strings.NewReader(`{"invalid json`))
+	if err != nil {
+		t.Fatalf("couldn't create request: %s", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("couldn't make request: %s", err)
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
+
+	if res.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, res.StatusCode)
+	}
+
+	var updateResponse UpdateUserPasswordResponse
+	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
+		t.Fatalf("couldn't decode response: %s", err)
+	}
+
+	if updateResponse.Error != "Invalid request data" {
+		t.Errorf("expected error %q, got %q", "Invalid request data", updateResponse.Error)
+	}
+}
+
+func TestUpdateUserPasswordNotFound(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := ts.Client()
+
+	adminToken, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	params := &UpdateUserPasswordParams{
+		Password: "newpassword123",
+	}
+
+	statusCode, updateResponse, err := editUserPassword(ts.URL, client, adminToken, "nonexistent@ellanetworks.com", params)
+	if err != nil {
+		t.Fatalf("couldn't make request: %s", err)
+	}
+
+	if statusCode != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
+	}
+
+	if updateResponse.Error != "User not found" {
+		t.Fatalf("expected error %q, got %q", "User not found", updateResponse.Error)
+	}
 }
 
 func TestNonAdminUpdateUserPassword(t *testing.T) {
@@ -846,7 +1037,6 @@ func TestEditUnexistentUser(t *testing.T) {
 	}
 
 	updateUserParams := &UpdateUserParams{
-		Email:  "nonexistent@ellanetworks.com",
 		RoleID: RoleReadOnly,
 	}
 

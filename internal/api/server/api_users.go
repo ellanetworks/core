@@ -24,12 +24,10 @@ type CreateUserParams struct {
 }
 
 type UpdateUserParams struct {
-	Email  string `json:"email"`
 	RoleID RoleID `json:"role_id"`
 }
 
 type UpdateUserPasswordParams struct {
-	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
@@ -309,12 +307,7 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if updateUserParams.Email == "" || !isValidEmail(updateUserParams.Email) {
-			writeError(w, http.StatusBadRequest, "Invalid or missing email", errors.New("bad format"), logger.APILog)
-			return
-		}
-
-		err = dbInstance.UpdateUser(r.Context(), updateUserParams.Email, db.RoleID(updateUserParams.RoleID))
+		err = dbInstance.UpdateUser(r.Context(), emailParam, db.RoleID(updateUserParams.RoleID))
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
@@ -328,7 +321,7 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 
 		writeResponse(w, SuccessResponse{Message: "User updated successfully"}, http.StatusOK, logger.APILog)
 
-		logger.LogAuditEvent(r.Context(), UpdateUserAction, requester, getClientIP(r), "User updated user: "+updateUserParams.Email)
+		logger.LogAuditEvent(r.Context(), UpdateUserAction, requester, getClientIP(r), "User updated user: "+emailParam)
 	})
 }
 
@@ -355,7 +348,7 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if updateUserParams.Email == "" || updateUserParams.Password == "" || !isValidEmail(updateUserParams.Email) {
+		if updateUserParams.Password == "" {
 			writeError(w, http.StatusBadRequest, "Invalid input", errors.New("bad input"), logger.APILog)
 			return
 		}
@@ -366,7 +359,7 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		err = dbInstance.UpdateUserPassword(r.Context(), updateUserParams.Email, hashedPassword)
+		err = dbInstance.UpdateUserPassword(r.Context(), emailParam, hashedPassword)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
@@ -380,7 +373,7 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 
 		writeResponse(w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
 
-		logger.LogAuditEvent(r.Context(), UpdateUserPasswordAction, requester, getClientIP(r), "User updated password for user: "+updateUserParams.Email)
+		logger.LogAuditEvent(r.Context(), UpdateUserPasswordAction, requester, getClientIP(r), "User updated password for user: "+emailParam)
 	})
 }
 
