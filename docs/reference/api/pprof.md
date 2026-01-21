@@ -89,3 +89,11 @@ This endpoint returns a 1-second execution trace.
 | Method | Path                |
 | ------ | ------------------- |
 | GET    | `/api/v1/pprof/trace` |
+
+## Symbol
+
+This endpoint is used to look up program counter (PC) addresses and return symbol information (for example, function names). It is primarily used by pprof tooling to map raw addresses in profiles back to human-readable symbols.
+
+| Method | Path                  |
+| ------ | --------------------- |
+| POST   | `/api/v1/pprof/symbol` |
