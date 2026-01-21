@@ -754,7 +754,7 @@ func TestUpdateUserPasswordValidation(t *testing.T) {
 				Password: "",
 			},
 			expectedStatus: http.StatusBadRequest,
-			expectedError:  "Invalid input",
+			expectedError:  "password is missing",
 		},
 	}
 
@@ -994,13 +994,24 @@ func TestCreateUserInvalidInput(t *testing.T) {
 			password: Password,
 			error:    "Invalid email format",
 		},
+		{
+			email:    "valid@ellanetworks.com",
+			password: Password,
+			error:    "Invalid role ID",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.email, func(t *testing.T) {
+			roleID := RoleAdmin
+			if tt.error == "Invalid role ID" {
+				roleID = RoleID(999) // Invalid role ID
+			}
+
 			createUserParams := &CreateUserParams{
 				Email:    tt.email,
 				Password: tt.password,
+				RoleID:   roleID,
 			}
 
 			statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
@@ -1051,6 +1062,58 @@ func TestEditUnexistentUser(t *testing.T) {
 
 	if response.Error == "" {
 		t.Fatalf("expected error, got none")
+	}
+}
+
+func TestUpdateUserInvalidRoleID(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := ts.Client()
+
+	adminToken, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	// Create a user first
+	createUserParams := &CreateUserParams{
+		Email:    "testuser@ellanetworks.com",
+		Password: Password,
+		RoleID:   RoleReadOnly,
+	}
+
+	statusCode, _, err := createUser(ts.URL, client, adminToken, createUserParams)
+	if err != nil {
+		t.Fatalf("couldn't create user: %s", err)
+	}
+
+	if statusCode != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+	}
+
+	// Try to update with invalid role ID
+	updateUserParams := &UpdateUserParams{
+		RoleID: RoleID(999),
+	}
+
+	statusCode, updateResponse, err := editUser(ts.URL, client, adminToken, "testuser@ellanetworks.com", updateUserParams)
+	if err != nil {
+		t.Fatalf("couldn't edit user: %s", err)
+	}
+
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+	}
+
+	if updateResponse.Error != "Invalid role ID" {
+		t.Fatalf("expected error %q, got %q", "Invalid role ID", updateResponse.Error)
 	}
 }
 

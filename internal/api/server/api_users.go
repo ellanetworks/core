@@ -90,6 +90,10 @@ func isValidEmail(email string) bool {
 	return err == nil
 }
 
+func isValidRoleID(roleID RoleID) bool {
+	return roleID == RoleAdmin || roleID == RoleReadOnly || roleID == RoleNetworkManager
+}
+
 func hashPassword(password string) (string, error) {
 	pw, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -232,7 +236,12 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 		}
 
 		if !isValidEmail(newUser.Email) {
-			writeError(w, http.StatusBadRequest, "Invalid email format", errors.New("bad format"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "Invalid email format", errors.New("invalid email format"), logger.APILog)
+			return
+		}
+
+		if !isValidRoleID(newUser.RoleID) {
+			writeError(w, http.StatusBadRequest, "Invalid role ID", errors.New("invalid role ID"), logger.APILog)
 			return
 		}
 
@@ -307,6 +316,11 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if !isValidRoleID(updateUserParams.RoleID) {
+			writeError(w, http.StatusBadRequest, "Invalid role ID", errors.New("invalid role ID"), logger.APILog)
+			return
+		}
+
 		err = dbInstance.UpdateUser(r.Context(), emailParam, db.RoleID(updateUserParams.RoleID))
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
@@ -349,7 +363,7 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 		}
 
 		if updateUserParams.Password == "" {
-			writeError(w, http.StatusBadRequest, "Invalid input", errors.New("bad input"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "password is missing", errors.New("password is missing"), logger.APILog)
 			return
 		}
 
