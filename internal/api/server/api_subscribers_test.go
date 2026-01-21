@@ -186,6 +186,52 @@ func deleteSubscriber(url string, client *http.Client, token string, imsi string
 	return res.StatusCode, &deleteResponse, nil
 }
 
+type UpdateSubscriberParams struct {
+	Imsi       string `json:"imsi"`
+	PolicyName string `json:"policyName"`
+}
+
+type UpdateSubscriberResponse struct {
+	Result UpdateSubscriberSuccessResponse `json:"result"`
+	Error  string                          `json:"error,omitempty"`
+}
+
+type UpdateSubscriberSuccessResponse struct {
+	Message string `json:"message"`
+}
+
+func updateSubscriber(url string, client *http.Client, token string, imsi string, data *UpdateSubscriberParams) (int, *UpdateSubscriberResponse, error) {
+	body, err := json.Marshal(data)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/subscribers/"+imsi, strings.NewReader(string(body)))
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var updateResponse UpdateSubscriberResponse
+	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
+		return 0, nil, err
+	}
+
+	return res.StatusCode, &updateResponse, nil
+}
+
 // This is an end-to-end test for the subscribers handlers.
 // The order of the tests is important, as some tests depend on
 // the state of the server after previous tests.
@@ -346,7 +392,220 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("6. Delete subscriber - success", func(t *testing.T) {
+	t.Run("6. Create second policy for update tests", func(t *testing.T) {
+		createPolicyParams := &CreatePolicyParams{
+			Name:            "policy2",
+			BitrateUplink:   "50 Mbps",
+			BitrateDownlink: "50 Mbps",
+			Var5qi:          8,
+			Arp:             2,
+			DataNetworkName: "whatever",
+		}
+
+		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
+		if err != nil {
+			t.Fatalf("couldn't create policy: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	})
+
+	t.Run("7. Update subscriber - success", func(t *testing.T) {
+		updateParams := &UpdateSubscriberParams{
+			Imsi:       Imsi,
+			PolicyName: "policy2",
+		}
+
+		statusCode, response, err := updateSubscriber(ts.URL, client, token, Imsi, updateParams)
+		if err != nil {
+			t.Fatalf("couldn't update subscriber: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+
+		if response.Result.Message != "Subscriber updated successfully" {
+			t.Fatalf("expected message 'Subscriber updated successfully', got %q", response.Result.Message)
+		}
+
+		// Verify the policy was actually updated
+		statusCode, getResponse, err := getSubscriber(ts.URL, client, token, Imsi)
+		if err != nil {
+			t.Fatalf("couldn't get subscriber: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if getResponse.Result.PolicyName != "policy2" {
+			t.Fatalf("expected policyName 'policy2', got %s", getResponse.Result.PolicyName)
+		}
+	})
+
+	t.Run("8. Update subscriber - missing imsi in path", func(t *testing.T) {
+		updateParams := &UpdateSubscriberParams{
+			Imsi:       Imsi,
+			PolicyName: PolicyName,
+		}
+
+		body, err := json.Marshal(updateParams)
+		if err != nil {
+			t.Fatalf("couldn't marshal params: %s", err)
+		}
+
+		req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/subscribers/", strings.NewReader(string(body)))
+		if err != nil {
+			t.Fatalf("couldn't create request: %s", err)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		res, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("couldn't do request: %s", err)
+		}
+
+		defer res.Body.Close()
+
+		if res.StatusCode != http.StatusNotFound {
+			t.Fatalf("expected status %d, got %d", http.StatusNotFound, res.StatusCode)
+		}
+	})
+
+	t.Run("9. Update subscriber - invalid request body", func(t *testing.T) {
+		body := strings.NewReader(`{"invalid": json}`)
+		req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/subscribers/"+Imsi, body)
+		if err != nil {
+			t.Fatalf("couldn't create request: %s", err)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		res, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("couldn't do request: %s", err)
+		}
+
+		defer res.Body.Close()
+
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.StatusCode)
+		}
+	})
+
+	t.Run("10. Update subscriber - missing imsi in body", func(t *testing.T) {
+		updateParams := &UpdateSubscriberParams{
+			Imsi:       "",
+			PolicyName: PolicyName,
+		}
+
+		statusCode, response, err := updateSubscriber(ts.URL, client, token, Imsi, updateParams)
+		if err != nil {
+			t.Fatalf("couldn't update subscriber: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if response.Error != "Missing imsi parameter" {
+			t.Fatalf("expected error 'Missing imsi parameter', got %q", response.Error)
+		}
+	})
+
+	t.Run("5f. Update subscriber - missing policy name", func(t *testing.T) {
+		updateParams := &UpdateSubscriberParams{
+			Imsi:       Imsi,
+			PolicyName: "",
+		}
+
+		statusCode, response, err := updateSubscriber(ts.URL, client, token, Imsi, updateParams)
+		if err != nil {
+			t.Fatalf("couldn't update subscriber: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if response.Error != "Missing policyName parameter" {
+			t.Fatalf("expected error 'Missing policyName parameter', got %q", response.Error)
+		}
+	})
+
+	t.Run("11. Update subscriber - invalid imsi", func(t *testing.T) {
+		updateParams := &UpdateSubscriberParams{
+			Imsi:       "invalid-imsi",
+			PolicyName: PolicyName,
+		}
+
+		statusCode, response, err := updateSubscriber(ts.URL, client, token, "invalid-imsi", updateParams)
+		if err != nil {
+			t.Fatalf("couldn't update subscriber: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if response.Error != "Invalid IMSI" {
+			t.Fatalf("expected error 'Invalid IMSI', got %q", response.Error)
+		}
+	})
+
+	t.Run("12. Update subscriber - policy not found", func(t *testing.T) {
+		updateParams := &UpdateSubscriberParams{
+			Imsi:       Imsi,
+			PolicyName: "nonexistent-policy",
+		}
+
+		statusCode, response, err := updateSubscriber(ts.URL, client, token, Imsi, updateParams)
+		if err != nil {
+			t.Fatalf("couldn't update subscriber: %s", err)
+		}
+
+		if statusCode != http.StatusNotFound {
+			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
+		}
+
+		if response.Error != "Policy not found" {
+			t.Fatalf("expected error 'Policy not found', got %q", response.Error)
+		}
+	})
+
+	t.Run("13. Update subscriber - subscriber not found", func(t *testing.T) {
+		updateParams := &UpdateSubscriberParams{
+			Imsi:       "001010100007488",
+			PolicyName: PolicyName,
+		}
+
+		statusCode, response, err := updateSubscriber(ts.URL, client, token, "001010100007488", updateParams)
+		if err != nil {
+			t.Fatalf("couldn't update subscriber: %s", err)
+		}
+
+		if statusCode != http.StatusNotFound {
+			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
+		}
+
+		if response.Error != "Subscriber not found" {
+			t.Fatalf("expected error 'Subscriber not found', got %q", response.Error)
+		}
+	})
+
+	t.Run("14. Delete subscriber - success", func(t *testing.T) {
 		statusCode, response, err := deleteSubscriber(ts.URL, client, token, Imsi)
 		if err != nil {
 			t.Fatalf("couldn't delete subscriber: %s", err)
@@ -365,7 +624,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("7. Delete subscriber - no user", func(t *testing.T) {
+	t.Run("15. Delete subscriber - no user", func(t *testing.T) {
 		statusCode, response, err := deleteSubscriber(ts.URL, client, token, "001010100007488")
 		if err != nil {
 			t.Fatalf("couldn't delete subscriber: %s", err)
@@ -380,7 +639,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("8. Create subscriber (with opc)", func(t *testing.T) {
+	t.Run("16. Create subscriber (with opc)", func(t *testing.T) {
 		createSubscriberParams := &CreateSubscriberParams{
 			Imsi:           Imsi,
 			Key:            Key,
@@ -407,7 +666,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("9. Get subscriber - with opc", func(t *testing.T) {
+	t.Run("17. Get subscriber - with opc", func(t *testing.T) {
 		statusCode, response, err := getSubscriber(ts.URL, client, token, Imsi)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
