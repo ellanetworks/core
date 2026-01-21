@@ -38,6 +38,7 @@ type ListRoutesResponse struct {
 	TotalCount int     `json:"total_count"`
 }
 
+// CreateRoute creates a new route with the provided options. The route will be added to the system's underlying kernel routing table.
 func (c *Client) CreateRoute(ctx context.Context, opts *CreateRouteOptions) error {
 	payload := struct {
 		Destination string `json:"destination"`
@@ -71,6 +72,7 @@ func (c *Client) CreateRoute(ctx context.Context, opts *CreateRouteOptions) erro
 	return nil
 }
 
+// GetRoute retrieves a route by ID.
 func (c *Client) GetRoute(ctx context.Context, opts *GetRouteOptions) (*Route, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -91,6 +93,7 @@ func (c *Client) GetRoute(ctx context.Context, opts *GetRouteOptions) (*Route, e
 	return &routeResponse, nil
 }
 
+// DeleteRoute deletes a route by ID.
 func (c *Client) DeleteRoute(ctx context.Context, opts *DeleteRouteOptions) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -104,6 +107,7 @@ func (c *Client) DeleteRoute(ctx context.Context, opts *DeleteRouteOptions) erro
 	return nil
 }
 
+// ListRoutes lists routes with pagination.
 func (c *Client) ListRoutes(ctx context.Context, p *ListParams) (*ListRoutesResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,

@@ -98,7 +98,6 @@ nav:
     - User Plane Packet processing with eBPF: explanation/user_plane_packet_processing_with_ebpf.md
     - Obtaining a PLMN ID for a Private Network: explanation/obtaining_plmn_id.md
     - Managing SIM Cards: explanation/managing_sim_cards.md
-  - Website: https://ellanetworks.com/
 plugins:
   - search
   - glightbox

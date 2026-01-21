@@ -49,6 +49,7 @@ type ListSubscribersResponse struct {
 	TotalCount int          `json:"total_count"`
 }
 
+// CreateSubscriber creates a new subscriber with the provided options.
 func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOptions) error {
 	payload := struct {
 		Imsi           string `json:"imsi"`
@@ -84,6 +85,7 @@ func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOpt
 	return nil
 }
 
+// GetSubscriber retrieves a subscriber by ID.
 func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) (*Subscriber, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -104,6 +106,7 @@ func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) 
 	return &subscriberResponse, nil
 }
 
+// DeleteSubscriber deletes a subscriber by ID.
 func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOptions) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -117,8 +120,7 @@ func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOpt
 	return nil
 }
 
-// http://127.0.0.1:5002/api/v1/subscribers?page=1&per_page=25
-
+// ListSubscribers lists subscribers with pagination.
 func (c *Client) ListSubscribers(ctx context.Context, p *ListParams) (*ListSubscribersResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,

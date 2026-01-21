@@ -33,6 +33,7 @@ type ListAuditLogsResponse struct {
 	TotalCount int        `json:"total_count"`
 }
 
+// ListAuditLogs retrieves a paginated list of audit logs.
 func (c *Client) ListAuditLogs(ctx context.Context, p *ListParams) (*ListAuditLogsResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -57,6 +58,7 @@ func (c *Client) ListAuditLogs(ctx context.Context, p *ListParams) (*ListAuditLo
 	return &auditLogs, nil
 }
 
+// GetAuditLogRetentionPolicy retrieves the current audit log retention policy.
 func (c *Client) GetAuditLogRetentionPolicy(ctx context.Context) (*GetAuditLogsRetentionPolicy, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -77,6 +79,7 @@ func (c *Client) GetAuditLogRetentionPolicy(ctx context.Context) (*GetAuditLogsR
 	return &policy, nil
 }
 
+// UpdateAuditLogRetentionPolicy updates the audit log retention policy.
 func (c *Client) UpdateAuditLogRetentionPolicy(ctx context.Context, opts *UpdateAuditLogsRetentionPolicyOptions) error {
 	payload := struct {
 		Days int `json:"days"`
