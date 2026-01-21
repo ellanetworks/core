@@ -191,6 +191,33 @@ func getUser(url string, client *http.Client, token string, name string) (int, *
 	return res.StatusCode, &userResponse, nil
 }
 
+func getLoggedInUser(url string, client *http.Client, token string) (int, *GetUserResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/users/me", nil)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var userResponse GetUserResponse
+	if err := json.NewDecoder(res.Body).Decode(&userResponse); err != nil {
+		return 0, nil, err
+	}
+
+	return res.StatusCode, &userResponse, nil
+}
+
 func createUser(url string, client *http.Client, token string, data *CreateUserParams) (int, *CreateUserResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
@@ -1188,6 +1215,82 @@ func TestListUsersPagination(t *testing.T) {
 
 		if response.Result.TotalCount != 11 {
 			t.Fatalf("expected total_count 11, got %d", response.Result.TotalCount)
+		}
+	})
+}
+
+func TestGetLoggedInUser(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := ts.Client()
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't initialize and login: %s", err)
+	}
+
+	t.Run("Success - get logged in user", func(t *testing.T) {
+		statusCode, response, err := getLoggedInUser(ts.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't get logged in user: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error: %q", response.Error)
+		}
+
+		if response.Result.Email != FirstUserEmail {
+			t.Fatalf("expected email %s, got %s", FirstUserEmail, response.Result.Email)
+		}
+
+		if response.Result.RoleID != RoleAdmin {
+			t.Fatalf("expected role %d, got %d", RoleAdmin, response.Result.RoleID)
+		}
+	})
+
+	t.Run("Unauthorized - no token", func(t *testing.T) {
+		req, err := http.NewRequestWithContext(context.Background(), "GET", ts.URL+"/api/v1/users/me", nil)
+		if err != nil {
+			t.Fatalf("couldn't create request: %s", err)
+		}
+
+		res, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("couldn't do request: %s", err)
+		}
+
+		defer func() {
+			_ = res.Body.Close()
+		}()
+
+		if res.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, res.StatusCode)
+		}
+	})
+
+	t.Run("Unauthorized - invalid token", func(t *testing.T) {
+		statusCode, response, err := getLoggedInUser(ts.URL, client, "invalid-token")
+		if err != nil {
+			t.Fatalf("couldn't get logged in user: %s", err)
+		}
+
+		if statusCode != http.StatusUnauthorized {
+			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
+		}
+
+		if response.Error != "Invalid token" {
+			t.Fatalf("expected error 'Invalid token', got %q", response.Error)
 		}
 	})
 }
