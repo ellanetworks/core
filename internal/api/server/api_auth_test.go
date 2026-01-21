@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -1015,6 +1016,73 @@ func TestRefreshEdgeCases(t *testing.T) {
 			t.Fatalf("expected error 'Invalid session token', got %q", response.Error)
 		}
 	})
+}
+
+func TestSessionLimitPerUser(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, database, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+
+	defer ts.Close()
+
+	client := ts.Client()
+
+	_, err = initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	// Create MaxSessionsPerUser sessions by logging in multiple times
+	for i := range server.MaxSessionsPerUser {
+		statusCode, _, err := login(ts.URL, client, &LoginParams{
+			Email:    FirstUserEmail,
+			Password: "password123",
+		})
+		if err != nil {
+			t.Fatalf("couldn't make login request %d: %s", i, err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("login request %d failed with status %d", i, statusCode)
+		}
+	}
+
+	// Count sessions - should be MaxSessionsPerUser
+	sessionCount, err := database.CountSessionsByUser(context.Background(), 1) // User ID 1 is the first user
+	if err != nil {
+		t.Fatalf("couldn't count sessions: %s", err)
+	}
+
+	if sessionCount != server.MaxSessionsPerUser {
+		t.Fatalf("expected %d sessions, got %d", server.MaxSessionsPerUser, sessionCount)
+	}
+
+	// Login one more time - should still have MaxSessionsPerUser sessions (oldest deleted)
+	statusCode, _, err := login(ts.URL, client, &LoginParams{
+		Email:    FirstUserEmail,
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatalf("couldn't make final login request: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("final login request failed with status %d", statusCode)
+	}
+
+	// Count sessions again - should still be MaxSessionsPerUser
+	sessionCount, err = database.CountSessionsByUser(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("couldn't count sessions after final login: %s", err)
+	}
+
+	if sessionCount != server.MaxSessionsPerUser {
+		t.Fatalf("expected %d sessions after final login, got %d", server.MaxSessionsPerUser, sessionCount)
+	}
 }
 
 func mustParseURL(rawURL string) *url.URL {

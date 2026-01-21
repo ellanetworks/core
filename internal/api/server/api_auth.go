@@ -23,6 +23,7 @@ const (
 	SessionTokenDuration   = 30 * 24 * time.Hour // long-lived
 	SessionTokenCookieName = "session_token"
 	TokenLength            = 32 // Bytes
+	MaxSessionsPerUser     = 10 // Maximum number of concurrent sessions per user
 )
 
 type LoginParams struct {
@@ -192,6 +193,20 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 }
 
 func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, userID int64, secureCookie bool, w http.ResponseWriter) error {
+	// Enforce session limit per user to prevent database bloat
+	sessionCount, err := dbInstance.CountSessionsByUser(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("couldn't count user sessions: %w", err)
+	}
+
+	if sessionCount >= MaxSessionsPerUser {
+		// Delete oldest session to make room for the new one
+		err = dbInstance.DeleteOldestSessions(ctx, userID, 1)
+		if err != nil {
+			return fmt.Errorf("couldn't delete oldest session: %w", err)
+		}
+	}
+
 	rawToken := make([]byte, TokenLength)
 
 	n, err := rand.Read(rawToken)

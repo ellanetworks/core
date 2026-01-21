@@ -28,6 +28,8 @@ const (
 	getSessionByTokenHashStmt    = "SELECT &Session.* FROM %s WHERE token_hash==$Session.token_hash"
 	deleteSessionByTokenHashStmt = "DELETE FROM %s WHERE token_hash==$Session.token_hash"       // #nosec: G101
 	deleteExpiredSessionsStmt    = "DELETE FROM %s WHERE expires_at <= (strftime('%%s','now'))" // #nosec: G101
+	countSessionsByUserStmt      = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE user_id==$UserIDArgs.user_id"
+	deleteOldestSessionsStmt     = "DELETE FROM %s WHERE id IN (SELECT id FROM %s WHERE user_id==$DeleteOldestArgs.user_id ORDER BY created_at ASC LIMIT $DeleteOldestArgs.limit)"
 )
 
 type Session struct {
@@ -36,6 +38,15 @@ type Session struct {
 	TokenHash []byte `db:"token_hash"`
 	CreatedAt int64  `db:"created_at"` // store as Unix timestamp (seconds since epoch)
 	ExpiresAt int64  `db:"expires_at"` // store as Unix timestamp (seconds since epoch)
+}
+
+type UserIDArgs struct {
+	UserID int64 `db:"user_id"`
+}
+
+type DeleteOldestArgs struct {
+	UserID int64 `db:"user_id"`
+	Limit  int   `db:"limit"`
 }
 
 func (db *Database) CreateSession(ctx context.Context, session *Session) (int64, error) {
@@ -164,4 +175,62 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 	span.SetStatus(codes.Ok, "")
 
 	return int(rowsAffected), nil
+}
+
+func (db *Database) CountSessionsByUser(ctx context.Context, userID int64) (int, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "COUNT", SessionsTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("COUNT"),
+			attribute.String("db.collection", SessionsTableName),
+		),
+	)
+	defer span.End()
+
+	args := UserIDArgs{UserID: userID}
+
+	var result NumItems
+
+	err := db.conn.Query(ctx, db.countSessionsByUserStmt, args).Get(&result)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return 0, err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return result.Count, nil
+}
+
+func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limit int) error {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("DELETE"),
+			attribute.String("db.collection", SessionsTableName),
+		),
+	)
+	defer span.End()
+
+	args := DeleteOldestArgs{UserID: userID, Limit: limit}
+
+	err := db.conn.Query(ctx, db.deleteOldestSessionsStmt, args).Run()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
 }
