@@ -88,8 +88,6 @@ func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfCon
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 
-		ue.State = amfContext.Authentication
-
 		pass, err := authenticationProcedure(ctx, amf, ue)
 		if err != nil {
 			ue.State = amfContext.Deregistered
