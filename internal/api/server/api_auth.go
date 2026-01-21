@@ -22,6 +22,8 @@ const (
 	AccessTokenDuration    = 15 * time.Minute    // short-lived
 	SessionTokenDuration   = 30 * 24 * time.Hour // long-lived
 	SessionTokenCookieName = "session_token"
+	TokenLength            = 32 // Bytes
+	MaxSessionsPerUser     = 10 // Maximum number of concurrent sessions per user
 )
 
 type LoginParams struct {
@@ -38,7 +40,8 @@ type LookupTokenResponse struct {
 }
 
 const (
-	LoginAction = "auth_login"
+	LoginAction  = "auth_login"
+	LogoutAction = "auth_logout"
 )
 
 // Helper function to generate a JWT
@@ -72,6 +75,11 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 		rawToken, err := base64.URLEncoding.DecodeString(cookie.Value)
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "Invalid token encoding", err, logger.APILog)
+			return
+		}
+
+		if len(rawToken) != TokenLength {
+			writeError(w, http.StatusUnauthorized, "Invalid token length", fmt.Errorf("token must be %d bytes", TokenLength), logger.APILog)
 			return
 		}
 
@@ -185,11 +193,29 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 }
 
 func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, userID int64, secureCookie bool, w http.ResponseWriter) error {
-	rawToken := make([]byte, 32)
+	// Enforce session limit per user to prevent database bloat
+	sessionCount, err := dbInstance.CountSessionsByUser(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("couldn't count user sessions: %w", err)
+	}
 
-	_, err := rand.Read(rawToken)
+	if sessionCount >= MaxSessionsPerUser {
+		// Delete oldest session to make room for the new one
+		err = dbInstance.DeleteOldestSessions(ctx, userID, 1)
+		if err != nil {
+			return fmt.Errorf("couldn't delete oldest session: %w", err)
+		}
+	}
+
+	rawToken := make([]byte, TokenLength)
+
+	n, err := rand.Read(rawToken)
 	if err != nil {
 		return fmt.Errorf("couldn't create random token: %w", err)
+	}
+
+	if n != TokenLength {
+		return fmt.Errorf("rand.Read returned insufficient bytes: got %d, expected %d", n, TokenLength)
 	}
 
 	tokenHash := sha256.Sum256(rawToken)
@@ -239,14 +265,36 @@ func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 
 func Logout(dbInstance *db.Database, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var userEmail string
+
 		cookie, err := r.Cookie(SessionTokenCookieName)
 		if err == nil && cookie.Value != "" {
-			if raw, decErr := base64.URLEncoding.DecodeString(cookie.Value); decErr == nil {
+			if raw, decErr := base64.URLEncoding.DecodeString(cookie.Value); decErr == nil && len(raw) == TokenLength {
 				hashed := sha256.Sum256(raw)
+
+				// Retrieve session and user info for audit logging before deleting
+				session, getErr := dbInstance.GetSessionByTokenHash(r.Context(), hashed[:])
+				if getErr == nil {
+					user, userErr := dbInstance.GetUserByID(r.Context(), session.UserID)
+					if userErr == nil {
+						userEmail = user.Email
+					}
+				}
 
 				err = dbInstance.DeleteSessionByTokenHash(r.Context(), hashed[:])
 				if err != nil {
 					logger.APILog.Error("Error deleting session during logout", zap.Error(err))
+				}
+
+				// Log audit event if we successfully retrieved user info
+				if userEmail != "" {
+					logger.LogAuditEvent(
+						r.Context(),
+						LogoutAction,
+						userEmail,
+						getClientIP(r),
+						"User logged out",
+					)
 				}
 			}
 		}

@@ -38,9 +38,7 @@ func BenchmarkLoginHandler(b *testing.B) {
 		Password: "password123",
 	}
 
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		code, _, err := login(ts.URL, client, loginData)
 		if err != nil {
 			b.Fatalf("login failed: %s", err)

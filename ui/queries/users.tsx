@@ -134,7 +134,6 @@ export const updateUserPassword = async (
   password: string,
 ) => {
   const userData = {
-    email: email,
     password: password,
   };
 
@@ -204,7 +203,6 @@ export const updateUser = async (
   role_id: RoleID,
 ) => {
   const userData = {
-    email: email,
     role_id: role_id,
   };
 

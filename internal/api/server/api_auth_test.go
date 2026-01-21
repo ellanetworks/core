@@ -2,13 +2,16 @@ package server_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -127,6 +130,26 @@ func lookupToken(url string, client *http.Client, token string) (int, *LoookupTo
 	}
 
 	return res.StatusCode, &lookupResponse, nil
+}
+
+func logout(url string, client *http.Client) (int, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/auth/logout", nil)
+	if err != nil {
+		return 0, err
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	return res.StatusCode, nil
 }
 
 func TestLoginEndToEnd(t *testing.T) {
@@ -757,4 +780,316 @@ func TestLookupToken(t *testing.T) {
 			t.Fatalf("expected error %q, got %q", "Authorization header is required", response.Error)
 		}
 	})
+}
+
+func TestLogout(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := ts.Client()
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't initialize and login: %s", err)
+	}
+
+	t.Run("Success - logout with valid session", func(t *testing.T) {
+		statusCode, err := logout(ts.URL, client)
+		if err != nil {
+			t.Fatalf("couldn't logout: %s", err)
+		}
+
+		if statusCode != http.StatusNoContent {
+			t.Fatalf("expected status %d, got %d", http.StatusNoContent, statusCode)
+		}
+
+		// Verify session cookie is cleared
+		cookies := client.Jar.Cookies(mustParseURL(ts.URL + "/api/v1/auth/logout"))
+
+		var sessionCookie *http.Cookie
+
+		for _, c := range cookies {
+			if c.Name == "session_token" {
+				sessionCookie = c
+				break
+			}
+		}
+
+		if sessionCookie != nil && sessionCookie.Value != "" {
+			t.Fatalf("expected session cookie to be cleared")
+		}
+
+		statusCode, refreshResponse, err := refresh(ts.URL, client)
+		if err != nil {
+			t.Fatalf("couldn't call refresh: %s", err)
+		}
+
+		if statusCode != http.StatusUnauthorized {
+			t.Fatalf("expected status %d after logout, got %d", http.StatusUnauthorized, statusCode)
+		}
+
+		if refreshResponse.Error == "" {
+			t.Fatalf("expected error after logout")
+		}
+	})
+
+	t.Run("Success - logout without session (no error)", func(t *testing.T) {
+		// Create new client without session
+		newClient := ts.Client()
+
+		statusCode, err := logout(ts.URL, newClient)
+		if err != nil {
+			t.Fatalf("couldn't logout: %s", err)
+		}
+
+		if statusCode != http.StatusNoContent {
+			t.Fatalf("expected status %d, got %d", http.StatusNoContent, statusCode)
+		}
+	})
+
+	t.Run("Success - logout with invalid session token (no error)", func(t *testing.T) {
+		// Create new client and set invalid session cookie
+		newClient := ts.Client()
+
+		req, err := http.NewRequestWithContext(context.Background(), "GET", ts.URL, nil)
+		if err != nil {
+			t.Fatalf("couldn't create request: %s", err)
+		}
+
+		req.AddCookie(&http.Cookie{
+			Name:  "session_token",
+			Value: "invalid-token-value",
+		})
+		newClient.Jar.SetCookies(mustParseURL(ts.URL), []*http.Cookie{
+			{
+				Name:  "session_token",
+				Value: "invalid-token-value",
+			},
+		})
+
+		statusCode, err := logout(ts.URL, newClient)
+		if err != nil {
+			t.Fatalf("couldn't logout: %s", err)
+		}
+
+		if statusCode != http.StatusNoContent {
+			t.Fatalf("expected status %d, got %d", http.StatusNoContent, statusCode)
+		}
+	})
+
+	// Need to login again since we logged out
+	_, _, err = login(ts.URL, client, &LoginParams{
+		Email:    FirstUserEmail,
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatalf("couldn't login again: %s", err)
+	}
+
+	// Test that old token still works (it shouldn't be invalidated by logout)
+	t.Run("Old JWT token still works after logout", func(t *testing.T) {
+		statusCode, response, err := lookupToken(ts.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't lookup token: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		// Token should still be valid (JWTs are stateless)
+		if !response.Result.Valid {
+			t.Fatalf("expected JWT token to still be valid after logout")
+		}
+	})
+}
+
+func TestRefreshEdgeCases(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	t.Run("No session token", func(t *testing.T) {
+		// Create new client without session
+		newClient := ts.Client()
+
+		statusCode, response, err := refresh(ts.URL, newClient)
+		if err != nil {
+			t.Fatalf("couldn't call refresh: %s", err)
+		}
+
+		if statusCode != http.StatusUnauthorized {
+			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
+		}
+
+		if response.Error != "No session token" {
+			t.Fatalf("expected error 'No session token', got %q", response.Error)
+		}
+	})
+
+	t.Run("Invalid token encoding", func(t *testing.T) {
+		// Create client with invalid base64 token
+		newClient := ts.Client()
+		newClient.Jar.SetCookies(mustParseURL(ts.URL), []*http.Cookie{
+			{
+				Name:  "session_token",
+				Value: "not-valid-base64!@#$",
+			},
+		})
+
+		statusCode, response, err := refresh(ts.URL, newClient)
+		if err != nil {
+			t.Fatalf("couldn't call refresh: %s", err)
+		}
+
+		if statusCode != http.StatusUnauthorized {
+			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
+		}
+
+		if response.Error != "Invalid token encoding" {
+			t.Fatalf("expected error 'Invalid token encoding', got %q", response.Error)
+		}
+	})
+
+	t.Run("Invalid token length", func(t *testing.T) {
+		// Create client with valid base64 but wrong length (16 bytes instead of 32)
+		newClient := ts.Client()
+		shortToken := make([]byte, 16)
+		newClient.Jar.SetCookies(mustParseURL(ts.URL), []*http.Cookie{
+			{
+				Name:  "session_token",
+				Value: base64.URLEncoding.EncodeToString(shortToken),
+			},
+		})
+
+		statusCode, response, err := refresh(ts.URL, newClient)
+		if err != nil {
+			t.Fatalf("couldn't call refresh: %s", err)
+		}
+
+		if statusCode != http.StatusUnauthorized {
+			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
+		}
+
+		if response.Error != "Invalid token length" {
+			t.Fatalf("expected error 'Invalid token length', got %q", response.Error)
+		}
+	})
+
+	t.Run("Invalid session token (not in database)", func(t *testing.T) {
+		// Create client with valid base64 (32 bytes) but non-existent session
+		newClient := ts.Client()
+
+		fakeToken := make([]byte, 32)
+		for i := range fakeToken {
+			fakeToken[i] = byte(i)
+		}
+
+		newClient.Jar.SetCookies(mustParseURL(ts.URL), []*http.Cookie{
+			{
+				Name:  "session_token",
+				Value: base64.URLEncoding.EncodeToString(fakeToken),
+			},
+		})
+
+		statusCode, response, err := refresh(ts.URL, newClient)
+		if err != nil {
+			t.Fatalf("couldn't call refresh: %s", err)
+		}
+
+		if statusCode != http.StatusUnauthorized {
+			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
+		}
+
+		if response.Error != "Invalid session token" {
+			t.Fatalf("expected error 'Invalid session token', got %q", response.Error)
+		}
+	})
+}
+
+func TestSessionLimitPerUser(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, database, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+
+	defer ts.Close()
+
+	client := ts.Client()
+
+	_, err = initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	// Create MaxSessionsPerUser sessions by logging in multiple times
+	for i := range server.MaxSessionsPerUser {
+		statusCode, _, err := login(ts.URL, client, &LoginParams{
+			Email:    FirstUserEmail,
+			Password: "password123",
+		})
+		if err != nil {
+			t.Fatalf("couldn't make login request %d: %s", i, err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("login request %d failed with status %d", i, statusCode)
+		}
+	}
+
+	// Count sessions - should be MaxSessionsPerUser
+	sessionCount, err := database.CountSessionsByUser(context.Background(), 1) // User ID 1 is the first user
+	if err != nil {
+		t.Fatalf("couldn't count sessions: %s", err)
+	}
+
+	if sessionCount != server.MaxSessionsPerUser {
+		t.Fatalf("expected %d sessions, got %d", server.MaxSessionsPerUser, sessionCount)
+	}
+
+	// Login one more time - should still have MaxSessionsPerUser sessions (oldest deleted)
+	statusCode, _, err := login(ts.URL, client, &LoginParams{
+		Email:    FirstUserEmail,
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatalf("couldn't make final login request: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("final login request failed with status %d", statusCode)
+	}
+
+	// Count sessions again - should still be MaxSessionsPerUser
+	sessionCount, err = database.CountSessionsByUser(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("couldn't count sessions after final login: %s", err)
+	}
+
+	if sessionCount != server.MaxSessionsPerUser {
+		t.Fatalf("expected %d sessions after final login, got %d", server.MaxSessionsPerUser, sessionCount)
+	}
+}
+
+func mustParseURL(rawURL string) *url.URL {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		panic(err)
+	}
+
+	return u
 }

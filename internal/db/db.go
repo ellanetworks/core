@@ -120,6 +120,8 @@ type Database struct {
 	getSessionByTokenHashStmt    *sqlair.Statement
 	deleteSessionByTokenHashStmt *sqlair.Statement
 	deleteExpiredSessionsStmt    *sqlair.Statement
+	countSessionsByUserStmt      *sqlair.Statement
+	deleteOldestSessionsStmt     *sqlair.Statement
 
 	// User statements
 	listUsersStmt        *sqlair.Statement
@@ -654,6 +656,16 @@ func (db *Database) PrepareStatements() error {
 		return fmt.Errorf("failed to prepare delete expired sessions statement: %v", err)
 	}
 
+	countSessionsByUserStmt, err := sqlair.Prepare(fmt.Sprintf(countSessionsByUserStmt, SessionsTableName), UserIDArgs{}, NumItems{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare count sessions by user statement: %v", err)
+	}
+
+	deleteOldestSessionsStmt, err := sqlair.Prepare(fmt.Sprintf(deleteOldestSessionsStmt, SessionsTableName, SessionsTableName), DeleteOldestArgs{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare delete oldest sessions statement: %v", err)
+	}
+
 	listUsersStmt, err := sqlair.Prepare(fmt.Sprintf(listUsersPageStmt, UsersTableName), ListArgs{}, User{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare list users statement: %v", err)
@@ -777,6 +789,8 @@ func (db *Database) PrepareStatements() error {
 	db.getSessionByTokenHashStmt = getSessionByTokenHashStmt
 	db.deleteSessionByTokenHashStmt = deleteSessionByTokenHashStmt
 	db.deleteExpiredSessionsStmt = deleteExpiredSessionsStmt
+	db.countSessionsByUserStmt = countSessionsByUserStmt
+	db.deleteOldestSessionsStmt = deleteOldestSessionsStmt
 
 	db.listUsersStmt = listUsersStmt
 	db.getUserStmt = getUserStmt
