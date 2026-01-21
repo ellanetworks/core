@@ -39,7 +39,8 @@ type LookupTokenResponse struct {
 }
 
 const (
-	LoginAction = "auth_login"
+	LoginAction  = "auth_login"
+	LogoutAction = "auth_logout"
 )
 
 // Helper function to generate a JWT
@@ -249,14 +250,36 @@ func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 
 func Logout(dbInstance *db.Database, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var userEmail string
+
 		cookie, err := r.Cookie(SessionTokenCookieName)
 		if err == nil && cookie.Value != "" {
 			if raw, decErr := base64.URLEncoding.DecodeString(cookie.Value); decErr == nil && len(raw) == TokenLength {
 				hashed := sha256.Sum256(raw)
 
+				// Retrieve session and user info for audit logging before deleting
+				session, getErr := dbInstance.GetSessionByTokenHash(r.Context(), hashed[:])
+				if getErr == nil {
+					user, userErr := dbInstance.GetUserByID(r.Context(), session.UserID)
+					if userErr == nil {
+						userEmail = user.Email
+					}
+				}
+
 				err = dbInstance.DeleteSessionByTokenHash(r.Context(), hashed[:])
 				if err != nil {
 					logger.APILog.Error("Error deleting session during logout", zap.Error(err))
+				}
+
+				// Log audit event if we successfully retrieved user info
+				if userEmail != "" {
+					logger.LogAuditEvent(
+						r.Context(),
+						LogoutAction,
+						userEmail,
+						getClientIP(r),
+						"User logged out",
+					)
 				}
 			}
 		}
