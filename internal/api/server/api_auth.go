@@ -22,6 +22,7 @@ const (
 	AccessTokenDuration    = 15 * time.Minute    // short-lived
 	SessionTokenDuration   = 30 * 24 * time.Hour // long-lived
 	SessionTokenCookieName = "session_token"
+	TokenLength            = 32 // Bytes
 )
 
 type LoginParams struct {
@@ -72,6 +73,11 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 		rawToken, err := base64.URLEncoding.DecodeString(cookie.Value)
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "Invalid token encoding", err, logger.APILog)
+			return
+		}
+
+		if len(rawToken) != TokenLength {
+			writeError(w, http.StatusUnauthorized, "Invalid token length", fmt.Errorf("token must be %d bytes", TokenLength), logger.APILog)
 			return
 		}
 
@@ -185,11 +191,15 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 }
 
 func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, userID int64, secureCookie bool, w http.ResponseWriter) error {
-	rawToken := make([]byte, 32)
+	rawToken := make([]byte, TokenLength)
 
-	_, err := rand.Read(rawToken)
+	n, err := rand.Read(rawToken)
 	if err != nil {
 		return fmt.Errorf("couldn't create random token: %w", err)
+	}
+
+	if n != TokenLength {
+		return fmt.Errorf("rand.Read returned insufficient bytes: got %d, expected %d", n, TokenLength)
 	}
 
 	tokenHash := sha256.Sum256(rawToken)
@@ -241,7 +251,7 @@ func Logout(dbInstance *db.Database, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(SessionTokenCookieName)
 		if err == nil && cookie.Value != "" {
-			if raw, decErr := base64.URLEncoding.DecodeString(cookie.Value); decErr == nil {
+			if raw, decErr := base64.URLEncoding.DecodeString(cookie.Value); decErr == nil && len(raw) == TokenLength {
 				hashed := sha256.Sum256(raw)
 
 				err = dbInstance.DeleteSessionByTokenHash(r.Context(), hashed[:])

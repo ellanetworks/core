@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -960,13 +961,44 @@ func TestRefreshEdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("Invalid session token (not in database)", func(t *testing.T) {
-		// Create client with valid base64 but non-existent session
+	t.Run("Invalid token length", func(t *testing.T) {
+		// Create client with valid base64 but wrong length (16 bytes instead of 32)
 		newClient := ts.Client()
+		shortToken := make([]byte, 16)
 		newClient.Jar.SetCookies(mustParseURL(ts.URL), []*http.Cookie{
 			{
 				Name:  "session_token",
-				Value: "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3OA==", // valid base64
+				Value: base64.URLEncoding.EncodeToString(shortToken),
+			},
+		})
+
+		statusCode, response, err := refresh(ts.URL, newClient)
+		if err != nil {
+			t.Fatalf("couldn't call refresh: %s", err)
+		}
+
+		if statusCode != http.StatusUnauthorized {
+			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
+		}
+
+		if response.Error != "Invalid token length" {
+			t.Fatalf("expected error 'Invalid token length', got %q", response.Error)
+		}
+	})
+
+	t.Run("Invalid session token (not in database)", func(t *testing.T) {
+		// Create client with valid base64 (32 bytes) but non-existent session
+		newClient := ts.Client()
+
+		fakeToken := make([]byte, 32)
+		for i := range fakeToken {
+			fakeToken[i] = byte(i)
+		}
+
+		newClient.Jar.SetCookies(mustParseURL(ts.URL), []*http.Cookie{
+			{
+				Name:  "session_token",
+				Value: base64.URLEncoding.EncodeToString(fakeToken),
 			},
 		})
 
