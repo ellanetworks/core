@@ -4,7 +4,7 @@ description: RESTful API reference for profiling analysis.
 
 # Pprof
 
-Ella core exposes a [pprof](https://pkg.go.dev/net/http/pprof) compatible API for profiling analysis. Profiling endpoints are only available to admin users and scraping requires an API token.
+Ella Core exposes a [pprof](https://pkg.go.dev/net/http/pprof) compatible API for profiling analysis. Profiling endpoints are only available to admin users and scraping requires an API token.
 
 ## Index
 
