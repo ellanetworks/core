@@ -65,6 +65,28 @@ const formatBytes = (value: number | null | undefined): string => {
   return `${sign}${nf.format(n)} ${units[i]}`;
 };
 
+const formatMemory = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value)) return "N/A";
+
+  const base = 1024;
+  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
+
+  let i = 0;
+  let n = Math.abs(value);
+  while (n >= base && i < units.length - 1) {
+    n /= base;
+    i++;
+  }
+
+  const nf = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+
+  const sign = value < 0 ? "-" : "";
+  return `${sign}${nf.format(n)} ${units[i]}`;
+};
+
 const formatTimestamp = (s: string) => {
   if (!s) return "";
   const d = new Date(s);
@@ -164,7 +186,8 @@ const Dashboard = () => {
   const [radioCount, setRadioCount] = useState<number | null>(null);
 
   const [activeSessions, setActiveSessions] = useState<number | null>(null);
-  const [memoryUsage, setMemoryUsage] = useState<number | null>(null);
+  const [heapMemory, setHeapMemory] = useState<number | null>(null);
+  const [totalMemory, setTotalMemory] = useState<number | null>(null);
   const [databaseSize, setDatabaseSize] = useState<number | null>(null);
   const [routines, setRoutines] = useState<number | null>(null);
   const [allocatedIPs, setAllocatedIPs] = useState<number | null>(null);
@@ -194,7 +217,8 @@ const Dashboard = () => {
     };
 
     const pduSessions = getValue("app_pdu_sessions_total ");
-    const memBytes = getValue("go_memstats_alloc_bytes ");
+    const heapBytes = getValue("go_memstats_heap_inuse_bytes ");
+    const sysBytes = getValue("process_resident_memory_bytes ");
     const goGoroutines = getValue("go_goroutines ");
     const dbBytes = getValue("app_database_storage_bytes ");
     const allocIPs = getValue("app_ip_addresses_allocated_total ");
@@ -211,10 +235,9 @@ const Dashboard = () => {
 
     return {
       pduSessions: pduSessions ?? null,
-      memoryUsageMB:
-        memBytes == null ? null : Math.round(memBytes / (1024 * 1024)),
-      databaseSizeMB:
-        dbBytes == null ? null : Math.round(dbBytes / (1024 * 1024)),
+      heapMemoryBytes: heapBytes,
+      totalMemoryBytes: sysBytes,
+      databaseSizeBytes: dbBytes,
       routines: goGoroutines ?? null,
       allocatedIPs: allocIPs == null ? null : Math.round(allocIPs),
       totalIPs: totalIPsV == null ? null : Math.round(totalIPsV),
@@ -268,8 +291,9 @@ const Dashboard = () => {
 
         const {
           pduSessions,
-          memoryUsageMB,
-          databaseSizeMB,
+          heapMemoryBytes,
+          totalMemoryBytes,
+          databaseSizeBytes,
           routines,
           allocatedIPs,
           totalIPs,
@@ -281,8 +305,9 @@ const Dashboard = () => {
         } = parseMetrics(raw);
 
         setActiveSessions(pduSessions);
-        setMemoryUsage(memoryUsageMB);
-        setDatabaseSize(databaseSizeMB);
+        setHeapMemory(heapMemoryBytes);
+        setTotalMemory(totalMemoryBytes);
+        setDatabaseSize(databaseSizeBytes);
         setRoutines(routines);
         setAllocatedIPs(allocatedIPs);
         setTotalIPs(totalIPs);
@@ -596,20 +621,23 @@ const Dashboard = () => {
       >
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard
-            title="Memory Usage"
+            title="Heap Memory"
             loading={loading}
-            value={
-              memoryUsage != null ? `${formatNumber(memoryUsage)} MB` : "N/A"
-            }
+            value={formatMemory(heapMemory)}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiCard
+            title="Total Memory"
+            loading={loading}
+            value={formatMemory(totalMemory)}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard
             title="Database Size"
             loading={loading}
-            value={
-              databaseSize != null ? `${formatNumber(databaseSize)} MB` : "N/A"
-            }
+            value={formatMemory(databaseSize)}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
