@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"fmt"
 	"io/fs"
 	"net"
@@ -75,6 +76,9 @@ func Start(dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, em
 			Handler:           h2c.NewHandler(router, h2Server),
 		}
 		if scheme == HTTPS {
+			srv.TLSConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
 			if err := srv.ListenAndServeTLS(cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key); err != nil {
 				logger.APILog.Fatal("couldn't start API server", zap.Error(err))
 			}
