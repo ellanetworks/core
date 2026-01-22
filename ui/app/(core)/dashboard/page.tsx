@@ -200,6 +200,12 @@ const Dashboard = () => {
   const [n6Drops, setN6Drops] = useState<number | null>(null);
   const [n3Pass, setN3Pass] = useState<number | null>(null);
   const [n6Pass, setN6Pass] = useState<number | null>(null);
+  const [n3Tx, setN3Tx] = useState<number | null>(null);
+  const [n6Tx, setN6Tx] = useState<number | null>(null);
+  const [n3Redirect, setN3Redirect] = useState<number | null>(null);
+  const [n6Redirect, setN6Redirect] = useState<number | null>(null);
+  const [n3Aborted, setN3Aborted] = useState<number | null>(null);
+  const [n6Aborted, setN6Aborted] = useState<number | null>(null);
 
   const [upSince, setUpSince] = useState<Date | null>(null);
 
@@ -240,6 +246,24 @@ const Dashboard = () => {
     const n6PassV = getValue(
       'app_xdp_action_total{action="XDP_PASS",interface="n6"} ',
     );
+    const n3TxV = getValue(
+      'app_xdp_action_total{action="XDP_TX",interface="n3"} ',
+    );
+    const n6TxV = getValue(
+      'app_xdp_action_total{action="XDP_TX",interface="n6"} ',
+    );
+    const n3RedirectV = getValue(
+      'app_xdp_action_total{action="XDP_REDIRECT",interface="n3"} ',
+    );
+    const n6RedirectV = getValue(
+      'app_xdp_action_total{action="XDP_REDIRECT",interface="n6"} ',
+    );
+    const n3AbortedV = getValue(
+      'app_xdp_action_total{action="XDP_ABORTED",interface="n3"} ',
+    );
+    const n6AbortedV = getValue(
+      'app_xdp_action_total{action="XDP_ABORTED",interface="n6"} ',
+    );
     const startTime = getValue("process_start_time_seconds ");
 
     return {
@@ -256,6 +280,12 @@ const Dashboard = () => {
       n6Drops: n6Drop ?? null,
       n3Pass: n3PassV ?? null,
       n6Pass: n6PassV ?? null,
+      n3Tx: n3TxV ?? null,
+      n6Tx: n6TxV ?? null,
+      n3Redirect: n3RedirectV ?? null,
+      n6Redirect: n6RedirectV ?? null,
+      n3Aborted: n3AbortedV ?? null,
+      n6Aborted: n6AbortedV ?? null,
       processStart: startTime ?? null,
     };
   };
@@ -314,6 +344,12 @@ const Dashboard = () => {
           n6Drops,
           n3Pass,
           n6Pass,
+          n3Tx,
+          n6Tx,
+          n3Redirect,
+          n6Redirect,
+          n3Aborted,
+          n6Aborted,
           processStart,
         } = parseMetrics(raw);
 
@@ -330,6 +366,12 @@ const Dashboard = () => {
         setN6Drops(n6Drops);
         setN3Pass(n3Pass);
         setN6Pass(n6Pass);
+        setN3Tx(n3Tx);
+        setN6Tx(n6Tx);
+        setN3Redirect(n3Redirect);
+        setN6Redirect(n6Redirect);
+        setN3Aborted(n3Aborted);
+        setN6Aborted(n6Aborted);
 
         if (processStart) {
           setUpSince(new Date(processStart * 1000));
@@ -656,23 +698,31 @@ const Dashboard = () => {
               <KpiCard title="Uplink Drops" loading={loading}>
                 {loading ? (
                   <Skeleton width={120} height={40} />
-                ) : n3Drops != null &&
-                  n3Pass != null &&
-                  n3Drops + n3Pass > 0 ? (
-                  <Box sx={{ textAlign: "center" }}>
-                    <Typography variant="h4">
-                      {((n3Drops / (n3Drops + n3Pass)) * 100).toFixed(3)}%
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ mt: 0.5 }}
-                    >
-                      {formatNumber(n3Drops)} packets
-                    </Typography>
-                  </Box>
                 ) : (
-                  <Typography variant="h4">N/A</Typography>
+                  (() => {
+                    const totalN3 =
+                      (n3Drops ?? 0) +
+                      (n3Pass ?? 0) +
+                      (n3Tx ?? 0) +
+                      (n3Redirect ?? 0) +
+                      (n3Aborted ?? 0);
+                    return totalN3 > 0 && n3Drops != null ? (
+                      <Box sx={{ textAlign: "center" }}>
+                        <Typography variant="h4">
+                          {((n3Drops / totalN3) * 100).toFixed(3)}%
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ mt: 0.5 }}
+                        >
+                          {formatNumber(n3Drops)} packets
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Typography variant="h4">N/A</Typography>
+                    );
+                  })()
                 )}
               </KpiCard>
             </Box>
@@ -687,23 +737,31 @@ const Dashboard = () => {
               <KpiCard title="Downlink Drops" loading={loading}>
                 {loading ? (
                   <Skeleton width={120} height={40} />
-                ) : n6Drops != null &&
-                  n6Pass != null &&
-                  n6Drops + n6Pass > 0 ? (
-                  <Box sx={{ textAlign: "center" }}>
-                    <Typography variant="h4">
-                      {((n6Drops / (n6Drops + n6Pass)) * 100).toFixed(3)}%
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ mt: 0.5 }}
-                    >
-                      {formatNumber(n6Drops)} packets
-                    </Typography>
-                  </Box>
                 ) : (
-                  <Typography variant="h4">N/A</Typography>
+                  (() => {
+                    const totalN6 =
+                      (n6Drops ?? 0) +
+                      (n6Pass ?? 0) +
+                      (n6Tx ?? 0) +
+                      (n6Redirect ?? 0) +
+                      (n6Aborted ?? 0);
+                    return totalN6 > 0 && n6Drops != null ? (
+                      <Box sx={{ textAlign: "center" }}>
+                        <Typography variant="h4">
+                          {((n6Drops / totalN6) * 100).toFixed(3)}%
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ mt: 0.5 }}
+                        >
+                          {formatNumber(n6Drops)} packets
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Typography variant="h4">N/A</Typography>
+                    );
+                  })()
                 )}
               </KpiCard>
             </Box>
