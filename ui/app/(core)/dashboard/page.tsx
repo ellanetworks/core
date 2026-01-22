@@ -18,6 +18,7 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Tooltip,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 import { PieChart } from "@mui/x-charts/PieChart";
@@ -197,6 +198,8 @@ const Dashboard = () => {
   const [downlinkBytes, setDownlinkBytes] = useState<number | null>(null);
   const [n3Drops, setN3Drops] = useState<number | null>(null);
   const [n6Drops, setN6Drops] = useState<number | null>(null);
+  const [n3Pass, setN3Pass] = useState<number | null>(null);
+  const [n6Pass, setN6Pass] = useState<number | null>(null);
 
   const [upSince, setUpSince] = useState<Date | null>(null);
 
@@ -231,6 +234,12 @@ const Dashboard = () => {
     const n6Drop = getValue(
       'app_xdp_action_total{action="XDP_DROP",interface="n6"} ',
     );
+    const n3PassV = getValue(
+      'app_xdp_action_total{action="XDP_PASS",interface="n3"} ',
+    );
+    const n6PassV = getValue(
+      'app_xdp_action_total{action="XDP_PASS",interface="n6"} ',
+    );
     const startTime = getValue("process_start_time_seconds ");
 
     return {
@@ -245,6 +254,8 @@ const Dashboard = () => {
       downlinkBytes: dlBytes ?? null,
       n3Drops: n3Drop ?? null,
       n6Drops: n6Drop ?? null,
+      n3Pass: n3PassV ?? null,
+      n6Pass: n6PassV ?? null,
       processStart: startTime ?? null,
     };
   };
@@ -301,6 +312,8 @@ const Dashboard = () => {
           downlinkBytes,
           n3Drops,
           n6Drops,
+          n3Pass,
+          n6Pass,
           processStart,
         } = parseMetrics(raw);
 
@@ -315,6 +328,8 @@ const Dashboard = () => {
         setDownlinkBytes(downlinkBytes);
         setN3Drops(n3Drops);
         setN6Drops(n6Drops);
+        setN3Pass(n3Pass);
+        setN6Pass(n6Pass);
 
         if (processStart) {
           setUpSince(new Date(processStart * 1000));
@@ -423,34 +438,59 @@ const Dashboard = () => {
         justifyContent="flex-start"
       >
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard
-            title="Radios"
-            loading={loading}
-            value={formatNumber(radioCount)}
-            onClick={() => router.push("/radios")}
-          />
+          <Tooltip
+            title="Number of radio base stations (gNBs) connected to this core"
+            arrow
+          >
+            <Box>
+              <KpiCard
+                title="Radios"
+                loading={loading}
+                value={formatNumber(radioCount)}
+                onClick={() => router.push("/radios")}
+              />
+            </Box>
+          </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard
-            title="Subscribers"
-            loading={loading}
-            value={formatNumber(subscriberCount)}
-            onClick={() => router.push("/subscribers")}
-          />
+          <Tooltip
+            title="Total number of subscribers provisioned in the network"
+            arrow
+          >
+            <Box>
+              <KpiCard
+                title="Subscribers"
+                loading={loading}
+                value={formatNumber(subscriberCount)}
+                onClick={() => router.push("/subscribers")}
+              />
+            </Box>
+          </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard
-            title="Active Sessions"
-            loading={loading}
-            value={formatNumber(activeSessions)}
-          />
+          <Tooltip
+            title="Number of active PDU sessions (devices currently connected with data sessions)"
+            arrow
+          >
+            <Box>
+              <KpiCard
+                title="Active Sessions"
+                loading={loading}
+                value={formatNumber(activeSessions)}
+              />
+            </Box>
+          </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard
-            title="Up Since"
-            loading={loading}
-            value={upSince ? formatTimestamp(upSince.toISOString()) : "N/A"}
-          />
+          <Tooltip title="Time when the core process was started" arrow>
+            <Box>
+              <KpiCard
+                title="Up Since"
+                loading={loading}
+                value={upSince ? formatTimestamp(upSince.toISOString()) : "N/A"}
+              />
+            </Box>
+          </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 12, md: 4 }}>
           <KpiCard title="IP Allocation" loading={loading} minHeight={240}>
@@ -580,32 +620,94 @@ const Dashboard = () => {
           </KpiCard>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard
-            title="Uplink Traffic"
-            loading={loading}
-            value={formatBytes(uplinkBytes)}
-          />
+          <Tooltip
+            title="Total uplink traffic from devices (N3 → N6) since core started"
+            arrow
+          >
+            <Box>
+              <KpiCard
+                title="Uplink Traffic"
+                loading={loading}
+                value={formatBytes(uplinkBytes)}
+              />
+            </Box>
+          </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard
-            title="Downlink Traffic"
-            loading={loading}
-            value={formatBytes(downlinkBytes)}
-          />
+          <Tooltip
+            title="Total downlink traffic to devices (N6 → N3) since core started"
+            arrow
+          >
+            <Box>
+              <KpiCard
+                title="Downlink Traffic"
+                loading={loading}
+                value={formatBytes(downlinkBytes)}
+              />
+            </Box>
+          </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard
-            title="Uplink Drops"
-            loading={loading}
-            value={n3Drops != null ? `${formatNumber(n3Drops)} Packets` : "N/A"}
-          />
+          <Tooltip
+            title="Packets dropped by the eBPF program on the N3 interface"
+            arrow
+          >
+            <Box>
+              <KpiCard title="Uplink Drops" loading={loading}>
+                {loading ? (
+                  <Skeleton width={120} height={40} />
+                ) : n3Drops != null &&
+                  n3Pass != null &&
+                  n3Drops + n3Pass > 0 ? (
+                  <Box sx={{ textAlign: "center" }}>
+                    <Typography variant="h4">
+                      {((n3Drops / (n3Drops + n3Pass)) * 100).toFixed(3)}%
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mt: 0.5 }}
+                    >
+                      {formatNumber(n3Drops)} packets
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Typography variant="h4">N/A</Typography>
+                )}
+              </KpiCard>
+            </Box>
+          </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard
-            title="Downlink Drops"
-            loading={loading}
-            value={n6Drops != null ? `${formatNumber(n6Drops)} Packets` : "N/A"}
-          />
+          <Tooltip
+            title="Packets dropped by the eBPF program on the N6 interface (data network)"
+            arrow
+          >
+            <Box>
+              <KpiCard title="Downlink Drops" loading={loading}>
+                {loading ? (
+                  <Skeleton width={120} height={40} />
+                ) : n6Drops != null &&
+                  n6Pass != null &&
+                  n6Drops + n6Pass > 0 ? (
+                  <Box sx={{ textAlign: "center" }}>
+                    <Typography variant="h4">
+                      {((n6Drops / (n6Drops + n6Pass)) * 100).toFixed(3)}%
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mt: 0.5 }}
+                    >
+                      {formatNumber(n6Drops)} packets
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Typography variant="h4">N/A</Typography>
+                )}
+              </KpiCard>
+            </Box>
+          </Tooltip>
         </Grid>
       </Grid>
 
@@ -620,32 +722,54 @@ const Dashboard = () => {
         justifyContent="flex-start"
       >
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard
-            title="Heap Memory"
-            loading={loading}
-            value={formatMemory(heapMemory)}
-          />
+          <Tooltip
+            title="Memory allocated on the heap for the application"
+            arrow
+          >
+            <Box>
+              <KpiCard
+                title="Heap Memory"
+                loading={loading}
+                value={formatMemory(heapMemory)}
+              />
+            </Box>
+          </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard
-            title="Total Memory"
-            loading={loading}
-            value={formatMemory(totalMemory)}
-          />
+          <Tooltip title="Total physical RAM used by the core process" arrow>
+            <Box>
+              <KpiCard
+                title="Total Memory"
+                loading={loading}
+                value={formatMemory(totalMemory)}
+              />
+            </Box>
+          </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard
-            title="Database Size"
-            loading={loading}
-            value={formatMemory(databaseSize)}
-          />
+          <Tooltip title="Size of the database file on disk" arrow>
+            <Box>
+              <KpiCard
+                title="Database Size"
+                loading={loading}
+                value={formatMemory(databaseSize)}
+              />
+            </Box>
+          </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard
-            title="Routines"
-            loading={loading}
-            value={routines != null ? `${routines}` : "N/A"}
-          />
+          <Tooltip
+            title="Number of concurrent tasks currently running in the process"
+            arrow
+          >
+            <Box>
+              <KpiCard
+                title="Routines"
+                loading={loading}
+                value={routines != null ? `${routines}` : "N/A"}
+              />
+            </Box>
+          </Tooltip>
         </Grid>
       </Grid>
     </Box>
