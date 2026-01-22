@@ -52,10 +52,5 @@ func handleSecurityModeComplete(ctx context.Context, amf *amfContext.AMF, ue *am
 		return contextSetup(ctx, amf, ue, m.RegistrationRequest)
 	}
 
-	err := contextSetup(ctx, amf, ue, ue.RegistrationRequest)
-	if err != nil {
-		return fmt.Errorf("error in context setup: %v", err)
-	}
-
-	return nil
+	return contextSetup(ctx, amf, ue, ue.RegistrationRequest)
 }
