@@ -435,7 +435,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
+				SupportedTACs: "[\"CAFE64\"]",
 			},
 		},
 		Ausf: &FakeAusf{
@@ -453,6 +453,9 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
+
+	ue.Tai.Tac = "CAFE64"
+	ue.RanUe.Tai.Tac = "CAFE64"
 
 	ue.Suci = "testsuci"
 	ue.Supi = "imsi-001019756139935"
