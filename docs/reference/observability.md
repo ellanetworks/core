@@ -109,3 +109,16 @@ Ella Core exposes the [http/pprof](https://pkg.go.dev/net/http/pprof) API for CP
 ### API
 
 For more information on accessing the pprof API in Ella Core, refer to the [pprof API documentation](api/pprof.md).
+
+## Dashboards
+
+Ella Core includes pre-configured [Grafana](https://grafana.com/) dashboards. You can import dashboards in your Grafana instance using the URLs below.
+
+### Network Health 
+
+This dashboard uses Prometheus metrics to provide real-time visibility into all aspects of your 5G private network deployment, from radio connectivity and subscriber sessions to system performance and data plane throughput.
+
+<figure markdown="span">
+  ![Network Health Dashboard](../images/dashboard_network_health.png){ width="800" }
+  <figcaption>https://grafana.com/orgs/gruyaume/dashboards/24751</figcaption>
+</figure>
