@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -122,6 +123,11 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "insert").Inc()
+
 	err := db.conn.Query(ctx, db.incrementDailyUsageStmt, usage).Run()
 	if err != nil {
 		span.RecordError(err)
@@ -147,6 +153,11 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "select").Inc()
 
 	dailyUsageFilters := UsageFilters{
 		StartDate: DaysSinceEpoch(startDate),
@@ -190,6 +201,11 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "select").Inc()
+
 	dailyUsageFilters := UsageFilters{
 		StartDate: DaysSinceEpoch(startDate),
 		EndDate:   DaysSinceEpoch(endDate),
@@ -232,6 +248,11 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
+
 	err := db.conn.Query(ctx, db.deleteAllDailyUsageStmt).Run()
 	if err != nil {
 		span.RecordError(err)
@@ -258,6 +279,11 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
 	now := time.Now().UTC()
 

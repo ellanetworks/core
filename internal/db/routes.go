@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -84,6 +85,11 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 		return nil, 0, err
 	}
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RoutesTableName, "select").Inc()
+
 	var routes []Route
 
 	args := ListArgs{
@@ -122,6 +128,11 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RoutesTableName, "select").Inc()
+
 	row := Route{ID: id}
 
 	err := db.conn.Query(ctx, db.getRouteStmt, row).Get(&row)
@@ -154,6 +165,11 @@ func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, err
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RoutesTableName, "insert").Inc()
 
 	var outcome sqlair.Outcome
 
@@ -191,6 +207,11 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RoutesTableName, "delete").Inc()
+
 	err := t.tx.Query(ctx, t.db.deleteRouteStmt, Route{ID: id}).Run()
 	if err != nil {
 		span.RecordError(err)
@@ -217,6 +238,11 @@ func (db *Database) CountRoutes(ctx context.Context) (int, error) {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RoutesTableName, "select").Inc()
 
 	var result NumItems
 

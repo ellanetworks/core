@@ -271,6 +271,28 @@ func (amf *AMF) ListRadios() []Radio {
 	return ranList
 }
 
+func (amf *AMF) CountRadios() int {
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
+
+	return len(amf.Radios)
+}
+
+func (amf *AMF) CountRegisteredSubscribers() int {
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
+
+	count := 0
+
+	for _, ue := range amf.UEs {
+		if ue.State == Registered {
+			count++
+		}
+	}
+
+	return count
+}
+
 func (amf *AMF) RemoveRadio(ran *Radio) {
 	ran.RemoveAllUeInRan()
 

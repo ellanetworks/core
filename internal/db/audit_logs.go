@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -50,6 +51,11 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(AuditLogsTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "insert").Inc()
+
 	err := db.conn.Query(ctx, db.insertAuditLogStmt, auditLog).Run()
 	if err != nil {
 		span.RecordError(err)
@@ -78,17 +84,22 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, page, perPage int) ([
 	)
 	defer span.End()
 
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
 	count, err := db.CountAuditLogs(ctx)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
 
 		return nil, 0, err
+	}
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(AuditLogsTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "select").Inc()
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
 	}
 
 	var logs []dbwriter.AuditLog
@@ -126,6 +137,11 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(AuditLogsTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "delete").Inc()
+
 	// Compute UTC cutoff so string comparison works lexicographically for RFC3339
 	cutoff := time.Now().AddDate(0, 0, -days).UTC().Format(time.RFC3339)
 
@@ -155,6 +171,11 @@ func (db *Database) CountAuditLogs(ctx context.Context) (int, error) {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(AuditLogsTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "select").Inc()
 
 	var result NumItems
 

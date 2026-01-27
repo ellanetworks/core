@@ -20,7 +20,6 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"go.uber.org/zap"
@@ -33,6 +32,8 @@ const (
 	FTEIDPool        = 65535
 	ConnTrackTimeout = 10 * time.Minute
 )
+
+var bpfObjects *ebpf.BpfObjects
 
 type UPF struct {
 	n3Link             link.Link
@@ -78,7 +79,7 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 		return nil, err
 	}
 
-	bpfObjects := ebpf.NewBpfObjects(masquerade, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
+	bpfObjects = ebpf.NewBpfObjects(masquerade, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
 
 	if err := bpfObjects.Load(); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
@@ -118,12 +119,6 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PFCP connection: %w", err)
 	}
-
-	ForwardPlaneStats := &ebpf.UpfXdpActionStatistic{
-		BpfObjects: bpfObjects,
-	}
-
-	metrics.RegisterUPFMetrics(ForwardPlaneStats)
 
 	notificationReader, err := ringbuf.NewReader(bpfObjects.NocpMap)
 	if err != nil {

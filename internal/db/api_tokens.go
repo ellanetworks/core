@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -70,6 +71,11 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID int64, page in
 		return nil, 0, err
 	}
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(APITokensTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(APITokensTableName, "select").Inc()
+
 	var tokens []APIToken
 
 	args := ListArgs{
@@ -111,6 +117,11 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(APITokensTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(APITokensTableName, "insert").Inc()
+
 	err := db.conn.Query(ctx, db.createAPITokenStmt, apiToken).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
@@ -144,6 +155,11 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(APITokensTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(APITokensTableName, "select").Inc()
+
 	row := APIToken{TokenID: tokenID}
 
 	err := db.conn.Query(ctx, db.getAPITokenByIDStmt, row).Get(&row)
@@ -176,6 +192,11 @@ func (db *Database) GetAPITokenByName(ctx context.Context, userID int64, name st
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(APITokensTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(APITokensTableName, "select").Inc()
+
 	row := APIToken{UserID: userID, Name: name}
 
 	err := db.conn.Query(ctx, db.getAPITokenByNameStmt, row).Get(&row)
@@ -204,6 +225,11 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(APITokensTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(APITokensTableName, "delete").Inc()
+
 	arg := APIToken{ID: id}
 
 	err := db.conn.Query(ctx, db.deleteAPITokenStmt, arg).Run()
@@ -231,6 +257,11 @@ func (db *Database) CountAPITokens(ctx context.Context, userID int64) (int, erro
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(APITokensTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(APITokensTableName, "select").Inc()
 
 	var result NumItems
 

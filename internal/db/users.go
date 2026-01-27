@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -66,17 +67,22 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 	)
 	defer span.End()
 
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
 	count, err := db.CountUsers(ctx)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "count failed")
 
 		return nil, 0, err
+	}
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(UsersTableName, "select").Inc()
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
 	}
 
 	var users []User
@@ -113,6 +119,11 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(UsersTableName, "select").Inc()
+
 	row := User{Email: email}
 
 	err := db.conn.Query(ctx, db.getUserStmt, row).Get(&row)
@@ -147,6 +158,11 @@ func (db *Database) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(UsersTableName, "select").Inc()
+
 	row := User{ID: id}
 
 	err := db.conn.Query(ctx, db.getUserByIDStmt, row).Get(&row)
@@ -179,6 +195,11 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(UsersTableName, "insert").Inc()
 
 	var outcome sqlair.Outcome
 
@@ -223,6 +244,11 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(UsersTableName, "update").Inc()
 
 	user := &User{
 		Email:  email,
@@ -273,6 +299,11 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(UsersTableName, "update").Inc()
+
 	user := &User{
 		Email:          email,
 		HashedPassword: hashedPassword,
@@ -322,6 +353,11 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(UsersTableName, "delete").Inc()
+
 	var outcome sqlair.Outcome
 
 	err := db.conn.Query(ctx, db.deleteUserStmt, User{Email: email}).Get(&outcome)
@@ -365,6 +401,11 @@ func (db *Database) CountUsers(ctx context.Context) (int, error) {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(UsersTableName, "select").Inc()
 
 	var result NumItems
 

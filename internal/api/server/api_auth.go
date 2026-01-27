@@ -130,6 +130,12 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 
 func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var success bool
+
+		defer func() {
+			trackAuthAttempt("login", success)
+		}()
+
 		var loginParams LoginParams
 
 		if err := json.NewDecoder(r.Body).Decode(&loginParams); err != nil {
@@ -179,6 +185,8 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
 		}
+
+		success = true
 
 		writeResponse(w, SuccessResponse{Message: "Login successful"}, http.StatusOK, logger.APILog)
 

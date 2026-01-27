@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -62,6 +63,11 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) (int64,
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SessionsTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SessionsTableName, "insert").Inc()
+
 	var outcome sqlair.Outcome
 
 	err := db.conn.Query(ctx, db.createSessionStmt, session).Get(&outcome)
@@ -98,6 +104,11 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SessionsTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SessionsTableName, "select").Inc()
+
 	row := Session{TokenHash: tokenHash}
 
 	err := db.conn.Query(ctx, db.getSessionByTokenHashStmt, row).Get(&row)
@@ -126,6 +137,11 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SessionsTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
+
 	arg := Session{TokenHash: tokenHash}
 
 	err := db.conn.Query(ctx, db.deleteSessionByTokenHashStmt, arg).Run()
@@ -153,6 +169,11 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SessionsTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
 	var outcome sqlair.Outcome
 
@@ -190,6 +211,11 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID int64) (int,
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SessionsTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SessionsTableName, "select").Inc()
+
 	args := UserIDArgs{UserID: userID}
 
 	var result NumItems
@@ -219,6 +245,11 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limi
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SessionsTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
 	args := DeleteOldestArgs{UserID: userID, Limit: limit}
 

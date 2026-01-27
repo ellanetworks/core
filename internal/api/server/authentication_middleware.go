@@ -55,6 +55,16 @@ func parseAPIToken(presented string) (tokenID, secret string, ok bool) {
 // authenticateRequest validates the Authorization header (JWT or API token),
 // and returns (userID, email, roleID) for authorization.
 func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) (int64, string, RoleID, error) {
+	var authType string
+
+	var success bool
+
+	defer func() {
+		if authType != "" {
+			trackAuthAttempt(authType, success)
+		}
+	}()
+
 	ctx, span := tracer.Start(r.Context(), "Authenticate",
 		trace.WithAttributes(),
 	)
@@ -62,6 +72,7 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
+		authType = "unknown"
 		return 0, "", 0, errors.New("missing Authorization header")
 	}
 
@@ -77,6 +88,8 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 
 	// API token path
 	if isAPIToken(token) {
+		authType = "api_token"
+
 		tokenID, token, ok := parseAPIToken(token)
 		if !ok {
 			return 0, "", 0, errors.New("invalid API token format")
@@ -101,14 +114,20 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 			return 0, "", 0, errors.New("user not found")
 		}
 
+		success = true
+
 		return u.ID, u.Email, RoleID(u.RoleID), nil
 	}
 
 	// JWT path
+	authType = "jwt"
+
 	cl, err := getClaimsFromJWT(token, jwtSecret)
 	if err != nil {
 		return 0, "", 0, err
 	}
+
+	success = true
 
 	return cl.ID, cl.Email, cl.RoleID, nil
 }

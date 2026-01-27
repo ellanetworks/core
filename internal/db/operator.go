@@ -10,6 +10,7 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -130,6 +131,11 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "select").Inc()
+
 	var op Operator
 
 	err := db.conn.Query(ctx, db.getOperatorStmt).Get(&op)
@@ -164,6 +170,11 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "insert").Inc()
+
 	err := db.conn.Query(ctx, db.initializeOperatorStmt, initialOperator).Run()
 	if err != nil {
 		span.RecordError(err)
@@ -190,6 +201,11 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "select").Inc()
 
 	var op Operator
 
@@ -220,6 +236,11 @@ func (db *Database) UpdateOperatorSlice(ctx context.Context, sst int32, sd []byt
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
+
 	op := Operator{Sst: sst, Sd: sd}
 
 	err := db.conn.Query(ctx, db.updateOperatorSliceStmt, op).Run()
@@ -248,6 +269,11 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
 	op := Operator{}
 
@@ -286,6 +312,11 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
+
 	op := Operator{Mcc: mcc, Mnc: mnc}
 
 	err := db.conn.Query(ctx, db.updateOperatorIDStmt, op).Run()
@@ -314,6 +345,11 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "select").Inc()
 
 	var op Operator
 
@@ -344,6 +380,11 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
+
 	op := Operator{OperatorCode: operatorCode}
 
 	err := db.conn.Query(ctx, db.updateOperatorCodeStmt, op).Run()
@@ -373,6 +414,11 @@ func (db *Database) UpdateHomeNetworkPrivateKey(ctx context.Context, privateKey 
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
+
 	op := Operator{HomeNetworkPrivateKey: privateKey}
 
 	err := db.conn.Query(ctx, db.updateHomeNetworkPrivateKeyStmt, op).Run()
@@ -401,6 +447,11 @@ func (db *Database) GetHomeNetworkPrivateKey(ctx context.Context) (string, error
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "select").Inc()
 
 	var op Operator
 

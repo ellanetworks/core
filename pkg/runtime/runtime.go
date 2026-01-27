@@ -9,12 +9,12 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/api"
+	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
@@ -77,8 +77,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	logger.SetDb(dbInstance)
 
-	metrics.RegisterDatabaseMetrics(dbInstance)
-
 	jobs.StartDataRetentionWorker(dbInstance)
 
 	go sessions.CleanUp(ctx, dbInstance)
@@ -125,6 +123,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	ausf.Start(dbInstance)
+
+	server.RegisterMetrics()
+	amf.RegisterMetrics()
+	smf.RegisterMetrics()
+	upf.RegisterMetrics()
 
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)

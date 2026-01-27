@@ -290,6 +290,8 @@ func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to prepare statements: %w", err)
 	}
 
+	RegisterMetrics(db)
+
 	err = db.Initialize(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
