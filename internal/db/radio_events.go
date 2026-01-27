@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -97,6 +98,11 @@ func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.R
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RadioEventsTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "insert").Inc()
+
 	err := db.conn.Query(ctx, db.insertRadioEventStmt, radioEvent).Run()
 	if err != nil {
 		span.RecordError(err)
@@ -124,6 +130,11 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RadioEventsTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "select").Inc()
 
 	if filters == nil {
 		filters = &RadioEventFilters{}
@@ -181,6 +192,11 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RadioEventsTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "delete").Inc()
+
 	// Compute UTC cutoff so string comparison works lexicographically for RFC3339
 	cutoff := time.Now().AddDate(0, 0, -days).UTC().Format(time.RFC3339)
 
@@ -212,6 +228,11 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RadioEventsTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "delete").Inc()
+
 	err := db.conn.Query(ctx, db.deleteAllRadioEventsStmt).Run()
 	if err != nil {
 		span.RecordError(err)
@@ -237,6 +258,11 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 			attribute.Int("id", id),
 		),
 	)
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RadioEventsTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "select").Inc()
 
 	log := dbwriter.RadioEvent{ID: id}
 

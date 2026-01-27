@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -52,6 +53,11 @@ func (db *Database) InitializeNATSettings(ctx context.Context) error {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NATSettingsTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(NATSettingsTableName, "insert").Inc()
+
 	natSettings := NATSettings{Enabled: NATDefaultEnabled}
 
 	err := db.conn.Query(ctx, db.insertDefaultNATSettingsStmt, natSettings).Run()
@@ -80,6 +86,11 @@ func (db *Database) IsNATEnabled(ctx context.Context) (bool, error) {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NATSettingsTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(NATSettingsTableName, "select").Inc()
+
 	var natSettings NATSettings
 
 	err := db.conn.Query(ctx, db.getNATSettingsStmt).Get(&natSettings)
@@ -107,6 +118,11 @@ func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NATSettingsTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(NATSettingsTableName, "update").Inc()
 
 	arg := NATSettings{Enabled: enabled}
 

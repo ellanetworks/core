@@ -11,6 +11,7 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -85,6 +86,11 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 		return nil, 0, err
 	}
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
+
 	var subs []Subscriber
 
 	args := ListArgs{
@@ -123,6 +129,11 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
+
 	row := Subscriber{Imsi: imsi}
 
 	err := db.conn.Query(ctx, db.getSubscriberStmt, row).Get(&row)
@@ -156,6 +167,11 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "insert").Inc()
+
 	err := db.conn.Query(ctx, db.createSubscriberStmt, subscriber).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
@@ -188,6 +204,11 @@ func (db *Database) UpdateSubscriberPolicy(ctx context.Context, subscriber *Subs
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
 
 	var outcome sqlair.Outcome
 
@@ -232,6 +253,11 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
+
 	subscriber := &Subscriber{
 		Imsi:           imsi,
 		SequenceNumber: sequenceNumber,
@@ -262,6 +288,11 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "delete").Inc()
 
 	var outcome sqlair.Outcome
 
@@ -420,7 +451,14 @@ func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error)
 			// IP is not allocated, assign it to the subscriber
 			subscriber.IPAddress = &ipStr
 
+			timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "update"))
+
+			DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
+
 			err = db.conn.Query(ctx, db.allocateSubscriberIPStmt, subscriber).Run()
+
+			timer.ObserveDuration()
+
 			if err != nil {
 				if isUniqueNameError(err) {
 					logger.DBLog.Warn("IP address collision during allocation, retrying", zap.String("ip", ipStr))
@@ -464,6 +502,11 @@ func (db *Database) ReleaseIP(ctx context.Context, imsi string) error {
 		return nil
 	}
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
+
 	err = db.conn.Query(ctx, db.releaseSubscriberIPStmt, subscriber).Run()
 	if err != nil {
 		span.RecordError(err)
@@ -503,6 +546,11 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
+
 	var result NumItems
 
 	err := db.conn.Query(ctx, db.countSubscribersStmt).Get(&result)
@@ -531,6 +579,11 @@ func (db *Database) CountSubscribersInPolicy(ctx context.Context, policyID int) 
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
 
 	var result NumItems
 
@@ -561,6 +614,11 @@ func (db *Database) CountSubscribersWithIP(ctx context.Context) (int, error) {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
 
 	var result NumItems
 

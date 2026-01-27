@@ -61,6 +61,8 @@ func HandleInitialRegistration(ctx context.Context, amf *amfContext.AMF, ue *amf
 	// check in specs if we need to wait for confirmation before freeing old GUTI
 	ue.FreeOldGuti()
 
+	UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
+
 	err = message.SendRegistrationAccept(ctx, amf, ue, nil, nil, nil, nil, nil, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 	if err != nil {
 		return fmt.Errorf("error sending GMM registration accept: %v", err)

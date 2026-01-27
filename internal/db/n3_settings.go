@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -53,6 +54,11 @@ func (db *Database) InitializeN3Settings(ctx context.Context) error {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(N3SettingsTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(N3SettingsTableName, "insert").Inc()
+
 	n3Settings := N3Settings{ExternalAddress: N3DefaultExternalAddress}
 
 	if err := db.conn.Query(ctx, db.insertDefaultN3SettingsStmt, n3Settings).Run(); err != nil {
@@ -79,6 +85,11 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(N3SettingsTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(N3SettingsTableName, "update").Inc()
 
 	arg := N3Settings{ExternalAddress: externalAddress}
 
@@ -107,6 +118,9 @@ func (db *Database) GetN3Settings(ctx context.Context) (*N3Settings, error) {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(N3SettingsTableName, "select"))
+	defer timer.ObserveDuration()
 
 	var n3Settings N3Settings
 

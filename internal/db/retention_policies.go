@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -57,6 +58,11 @@ func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCa
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RetentionPolicyTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RetentionPolicyTableName, "select").Inc()
+
 	arg := RetentionPolicy{Category: category}
 
 	var row RetentionPolicy
@@ -88,6 +94,11 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RetentionPolicyTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RetentionPolicyTableName, "select").Inc()
 
 	row := RetentionPolicy{Category: category}
 
@@ -124,6 +135,11 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RetentionPolicyTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RetentionPolicyTableName, "insert").Inc()
 
 	err := db.conn.Query(ctx, db.upsertRetentionPolicyStmt, *policy).Run()
 	if err != nil {

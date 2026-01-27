@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -60,11 +61,6 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 	)
 	defer span.End()
 
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
 	count, err := db.CountDataNetworks(ctx)
 	if err != nil {
 		span.RecordError(err)
@@ -73,7 +69,17 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 		return nil, 0, err
 	}
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "select").Inc()
+
 	var dataNetworks []DataNetwork
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
+	}
 
 	err = db.conn.Query(ctx, db.listDataNetworksStmt, args).GetAll(&dataNetworks)
 	if err != nil {
@@ -105,6 +111,11 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "select").Inc()
 
 	row := DataNetwork{Name: name}
 
@@ -141,6 +152,11 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwor
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "select").Inc()
+
 	row := DataNetwork{ID: id}
 
 	err := db.conn.Query(ctx, db.getDataNetworkByIDStmt, row).Get(&row)
@@ -176,6 +192,11 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "insert").Inc()
+
 	err := db.conn.Query(ctx, db.createDataNetworkStmt, dataNetwork).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
@@ -208,6 +229,11 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "update").Inc()
 
 	var outcome sqlair.Outcome
 
@@ -252,6 +278,11 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "delete").Inc()
+
 	var outcome sqlair.Outcome
 
 	err := db.conn.Query(ctx, db.deleteDataNetworkStmt, DataNetwork{Name: name}).Get(&outcome)
@@ -294,6 +325,11 @@ func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "select").Inc()
 
 	var result NumItems
 

@@ -5,43 +5,24 @@ import (
 	"go.uber.org/zap"
 )
 
-type UpfXdpActionStatistic struct {
-	BpfObjects *BpfObjects
-}
+const (
+	XDP_ABORTED  = 0
+	XDP_DROP     = 1
+	XDP_PASS     = 2
+	XDP_TX       = 3
+	XDP_REDIRECT = 4
+)
 
-type UpfN3Counters struct {
-	RxArp      uint64
-	RxIcmp     uint64
-	RxIcmp6    uint64
-	RxIP4      uint64
-	RxIP6      uint64
-	RxTCP      uint64
-	RxUDP      uint64
-	RxOther    uint64
-	RxGtpEcho  uint64
-	RxGtpPdu   uint64
-	RxGtpOther uint64
-	RxGtpUnexp uint64
-	UlBytes    uint64
-}
-
-type UpfStatistic struct {
-	N3Counters UpfN3Counters
-	XdpStats   [5]uint64
-}
-
-// Getters for the upf_xdp_statistic (xdp_action)
-
-func (stat *UpfXdpActionStatistic) getUpfN3XdpStatisticField(field uint32) uint64 {
+func getUpfN3XdpStatisticField(bpfObjects *BpfObjects, field uint32) uint64 {
 	var statistics []N3N6EntrypointUpfStatistic
 
-	err := stat.BpfObjects.UplinkStatistics.Lookup(uint32(0), &statistics)
+	err := bpfObjects.UplinkStatistics.Lookup(uint32(0), &statistics)
 	if err != nil {
 		logger.UpfLog.Info("Failed to fetch UPF N3 stats", zap.Error(err))
 		return 0
 	}
 
-	var totalValue uint64 = 0
+	var totalValue uint64
 	for _, statistic := range statistics {
 		totalValue += statistic.XdpActions[field]
 	}
@@ -49,16 +30,16 @@ func (stat *UpfXdpActionStatistic) getUpfN3XdpStatisticField(field uint32) uint6
 	return totalValue
 }
 
-func (stat *UpfXdpActionStatistic) getUpfN6XdpStatisticField(field uint32) uint64 {
+func getUpfN6XdpStatisticField(bpfObjects *BpfObjects, field uint32) uint64 {
 	var statistics []N3N6EntrypointUpfStatistic
 
-	err := stat.BpfObjects.DownlinkStatistics.Lookup(uint32(0), &statistics)
+	err := bpfObjects.DownlinkStatistics.Lookup(uint32(0), &statistics)
 	if err != nil {
 		logger.UpfLog.Info("Failed to fetch UPF N6 stats", zap.Error(err))
 		return 0
 	}
 
-	var totalValue uint64 = 0
+	var totalValue uint64
 	for _, statistic := range statistics {
 		totalValue += statistic.XdpActions[field]
 	}
@@ -66,56 +47,56 @@ func (stat *UpfXdpActionStatistic) getUpfN6XdpStatisticField(field uint32) uint6
 	return totalValue
 }
 
-func (stat *UpfXdpActionStatistic) GetN3Aborted() uint64 {
-	return stat.getUpfN3XdpStatisticField(uint32(0))
+func GetN3Aborted(bpfObjects *BpfObjects) uint64 {
+	return getUpfN3XdpStatisticField(bpfObjects, XDP_ABORTED)
 }
 
-func (stat *UpfXdpActionStatistic) GetN3Drop() uint64 {
-	return stat.getUpfN3XdpStatisticField(uint32(1))
+func GetN3Drop(bpfObjects *BpfObjects) uint64 {
+	return getUpfN3XdpStatisticField(bpfObjects, XDP_DROP)
 }
 
-func (stat *UpfXdpActionStatistic) GetN3Pass() uint64 {
-	return stat.getUpfN3XdpStatisticField(uint32(2))
+func GetN3Pass(bpfObjects *BpfObjects) uint64 {
+	return getUpfN3XdpStatisticField(bpfObjects, XDP_PASS)
 }
 
-func (stat *UpfXdpActionStatistic) GetN3Tx() uint64 {
-	return stat.getUpfN3XdpStatisticField(uint32(3))
+func GetN3Tx(bpfObjects *BpfObjects) uint64 {
+	return getUpfN3XdpStatisticField(bpfObjects, XDP_TX)
 }
 
-func (stat *UpfXdpActionStatistic) GetN3Redirect() uint64 {
-	return stat.getUpfN3XdpStatisticField(uint32(4))
+func GetN3Redirect(bpfObjects *BpfObjects) uint64 {
+	return getUpfN3XdpStatisticField(bpfObjects, XDP_REDIRECT)
 }
 
-func (stat *UpfXdpActionStatistic) GetN6Aborted() uint64 {
-	return stat.getUpfN6XdpStatisticField(uint32(0))
+func GetN6Aborted(bpfObjects *BpfObjects) uint64 {
+	return getUpfN6XdpStatisticField(bpfObjects, XDP_ABORTED)
 }
 
-func (stat *UpfXdpActionStatistic) GetN6Drop() uint64 {
-	return stat.getUpfN6XdpStatisticField(uint32(1))
+func GetN6Drop(bpfObjects *BpfObjects) uint64 {
+	return getUpfN6XdpStatisticField(bpfObjects, XDP_DROP)
 }
 
-func (stat *UpfXdpActionStatistic) GetN6Pass() uint64 {
-	return stat.getUpfN6XdpStatisticField(uint32(2))
+func GetN6Pass(bpfObjects *BpfObjects) uint64 {
+	return getUpfN6XdpStatisticField(bpfObjects, XDP_PASS)
 }
 
-func (stat *UpfXdpActionStatistic) GetN6Tx() uint64 {
-	return stat.getUpfN3XdpStatisticField(uint32(3))
+func GetN6Tx(bpfObjects *BpfObjects) uint64 {
+	return getUpfN6XdpStatisticField(bpfObjects, XDP_TX)
 }
 
-func (stat *UpfXdpActionStatistic) GetN6Redirect() uint64 {
-	return stat.getUpfN6XdpStatisticField(uint32(4))
+func GetN6Redirect(bpfObjects *BpfObjects) uint64 {
+	return getUpfN6XdpStatisticField(bpfObjects, XDP_REDIRECT)
 }
 
-func (stat *UpfXdpActionStatistic) GetN3UplinkThroughputStats() uint64 {
+func GetN3UplinkThroughputStats(bpfObjects *BpfObjects) uint64 {
 	var n3Statistics []N3N6EntrypointUpfStatistic
 
-	err := stat.BpfObjects.UplinkStatistics.Lookup(uint32(0), &n3Statistics)
+	err := bpfObjects.UplinkStatistics.Lookup(uint32(0), &n3Statistics)
 	if err != nil {
 		logger.UpfLog.Info("Failed to fetch UPF N3 stats", zap.Error(err))
 		return 0
 	}
 
-	var totalValue uint64 = 0
+	var totalValue uint64
 	for _, statistic := range n3Statistics {
 		totalValue += statistic.ByteCounter.Bytes
 	}
@@ -123,16 +104,16 @@ func (stat *UpfXdpActionStatistic) GetN3UplinkThroughputStats() uint64 {
 	return totalValue
 }
 
-func (stat *UpfXdpActionStatistic) GetN6DownlinkThroughputStats() uint64 {
+func GetN6DownlinkThroughputStats(bpfObjects *BpfObjects) uint64 {
 	var n6Statistics []N3N6EntrypointUpfStatistic
 
-	err := stat.BpfObjects.DownlinkStatistics.Lookup(uint32(0), &n6Statistics)
+	err := bpfObjects.DownlinkStatistics.Lookup(uint32(0), &n6Statistics)
 	if err != nil {
 		logger.UpfLog.Info("Failed to fetch UPF N6 stats", zap.Error(err))
 		return 0
 	}
 
-	var totalValue uint64 = 0
+	var totalValue uint64
 	for _, statistic := range n6Statistics {
 		totalValue += statistic.ByteCounter.Bytes
 	}

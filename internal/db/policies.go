@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -75,6 +76,11 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 		return nil, 0, err
 	}
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
+
 	var policies []Policy
 
 	args := ListArgs{
@@ -113,6 +119,11 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
+
 	row := Policy{Name: name}
 
 	err := db.conn.Query(ctx, db.getPolicyStmt, row).Get(&row)
@@ -140,6 +151,11 @@ func (db *Database) GetPolicyByID(ctx context.Context, id int) (*Policy, error) 
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
 
 	row := Policy{ID: id}
 
@@ -176,6 +192,11 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "insert").Inc()
+
 	err := db.conn.Query(ctx, db.createPolicyStmt, policy).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
@@ -208,6 +229,11 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "update").Inc()
 
 	var outcome sqlair.Outcome
 
@@ -252,6 +278,11 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 	)
 	defer span.End()
 
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "delete").Inc()
+
 	var outcome sqlair.Outcome
 
 	err := db.conn.Query(ctx, db.deletePolicyStmt, Policy{Name: name}).Get(&outcome)
@@ -295,6 +326,11 @@ func (db *Database) CountPolicies(ctx context.Context) (int, error) {
 		),
 	)
 	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
 
 	var result NumItems
 

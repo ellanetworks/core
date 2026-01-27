@@ -124,6 +124,8 @@ func handlePDUSessionSMContextCreate(
 
 	subscriberPolicy, err := smf.GetSubscriberPolicy(ctx, smContext.Supi)
 	if err != nil {
+		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
+
 		rsp, err := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
@@ -136,6 +138,8 @@ func handlePDUSessionSMContextCreate(
 	if err != nil {
 		logger.SmfLog.Warn("error retrieving DNN information", zap.String("SST", fmt.Sprintf("%d", smContext.Snssai.Sst)), zap.String("SD", smContext.Snssai.Sd), zap.String("DNN", smContext.Dnn), zap.Error(err))
 
+		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
+
 		rsp, err1 := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
 		if err1 != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
@@ -146,6 +150,8 @@ func handlePDUSessionSMContextCreate(
 
 	pduAddress, err := smf.DBInstance.AllocateIP(ctx, smContext.Supi)
 	if err != nil {
+		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
+
 		rsp, err1 := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMInsufficientResources)
 		if err1 != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
@@ -161,6 +167,8 @@ func handlePDUSessionSMContextCreate(
 	pco, err := handlePDUSessionEstablishmentRequest(m.PDUSessionEstablishmentRequest)
 	if err != nil {
 		logger.SmfLog.Error("failed to handle PDU Session Establishment Request", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+
+		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
 		response, err := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {
@@ -181,6 +189,8 @@ func handlePDUSessionSMContextCreate(
 
 	err = defaultPath.ActivateTunnelAndPDR(smf, smContext, subscriberPolicy, pduAddress)
 	if err != nil {
+		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
+
 		response, err := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {
 			logger.SmfLog.Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
@@ -299,6 +309,8 @@ func sendPFCPRules(ctx context.Context, cpNodeID net.IP, smContext *smfContext.S
 }
 
 func sendPduSessionEstablishmentReject(ctx context.Context, smContext *smfContext.SMContext, smPolicyUpdates *models.SmPolicyData, pti uint8) error {
+	PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
+
 	smNasBuf, err := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 	if err != nil {
 		return fmt.Errorf("build GSM PDUSessionEstablishmentReject failed: %v", err)
@@ -325,6 +337,8 @@ func sendPduSessionEstablishmentAccept(
 	pduAddress net.IP,
 	pti uint8,
 ) error {
+	PDUSessionEstablishmentAttempts.WithLabelValues("accept").Inc()
+
 	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(smPolicyUpdates, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, dnnInfo, pduAddress)
 	if err != nil {
 		return fmt.Errorf("build GSM PDUSessionEstablishmentAccept failed: %v", err)

@@ -93,6 +93,8 @@ func DispatchNgapMsg(amf *amfContext.AMF, ran *amfContext.Radio, pdu *ngapType.N
 	)
 	defer span.End()
 
+	NGAPMessages.WithLabelValues(messageType).Inc()
+
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
 		initiatingMessage := pdu.InitiatingMessage

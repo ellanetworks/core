@@ -38,6 +38,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 
 	if ue.RegistrationRequest.Capability5GMM == nil {
 		if ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
+			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()
+
 			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
@@ -167,6 +169,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 						return err
 					}
 
+					UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
+
 					err = ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
 						ctx,
 						ue.RanUe.AmfUeNgapID,
@@ -182,6 +186,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 
 					ue.Log.Info("Sent NGAP pdu session resource setup request")
 				} else {
+					UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
+
 					err := message.SendRegistrationAccept(ctx, amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 					if err != nil {
 						return fmt.Errorf("error sending GMM registration accept: %v", err)
@@ -225,6 +231,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
 	if ue.RanUe.UeContextRequest {
+		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
+
 		err := message.SendRegistrationAccept(ctx, amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 		if err != nil {
 			return fmt.Errorf("error sending GMM registration accept: %v", err)
@@ -240,6 +248,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 		}
 
 		if len(suList.List) != 0 {
+			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
+
 			err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
 				ctx,
 				ue.RanUe.AmfUeNgapID,
@@ -255,6 +265,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 
 			ue.Log.Info("Sent NGAP pdu session resource setup request")
 		} else {
+			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
+
 			err := ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasPdu, nil)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %v", err)

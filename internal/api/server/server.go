@@ -138,6 +138,9 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	}
 
 	var handler http.Handler = mux
+
+	handler = MetricsMiddleware(handler)
+
 	if cfg.Telemetry.Enabled {
 		handler = TracingMiddleware("ella-core/api", handler)
 	}
