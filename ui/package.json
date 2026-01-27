@@ -23,7 +23,7 @@
     "autoprefixer": "^10.4.23",
     "dayjs": "^1.11.19",
     "jwt-decode": "^4.0.0",
-    "next": "16.1.4",
+    "next": "16.1.5",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-resizable-panels": "^3.0.6",
