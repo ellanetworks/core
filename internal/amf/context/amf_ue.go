@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"strconv"
 	"sync"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -193,15 +192,6 @@ func (ue *AmfUe) AllocateRegistrationArea(supportedTais []models.Tai) {
 
 	taiList := make([]models.Tai, len(supportedTais))
 	copy(taiList, supportedTais)
-
-	for i := range taiList {
-		tmp, err := strconv.ParseUint(taiList[i].Tac, 10, 32)
-		if err != nil {
-			logger.AmfLog.Error("Could not convert TAC to int", zap.Error(err))
-		}
-
-		taiList[i].Tac = fmt.Sprintf("%06x", tmp)
-	}
 
 	for _, supportTai := range taiList {
 		if reflect.DeepEqual(supportTai, ue.Tai) {

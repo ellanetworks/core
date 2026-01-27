@@ -149,7 +149,7 @@ func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"000001\"]",
 			},
 		},
 	}
@@ -215,7 +215,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T)
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"000001\"]",
 			},
 		},
 	}
@@ -275,7 +275,7 @@ func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"000001\"]",
 			},
 		},
 	}
@@ -318,7 +318,7 @@ func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"000001\"]",
 			},
 		},
 	}
@@ -371,7 +371,7 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"000001\"]",
 			},
 		},
 		Ausf: &FakeAusf{
@@ -435,7 +435,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"CAFE64\"]",
 			},
 		},
 		Ausf: &FakeAusf{
@@ -453,6 +453,9 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
+
+	ue.Tai.Tac = "CAFE64"
+	ue.RanUe.Tai.Tac = "CAFE64"
 
 	ue.Suci = "testsuci"
 	ue.Supi = "imsi-001019756139935"
@@ -503,7 +506,7 @@ func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *te
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"000001\"]",
 			},
 		},
 	}
@@ -545,7 +548,7 @@ func TestHandleRegistrationRequest_UEStateAuthentication_Error(t *testing.T) {
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"000001\"]",
 			},
 		},
 	}
@@ -584,7 +587,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"000001\"]",
 			},
 		},
 		Ausf: &FakeAusf{
@@ -661,7 +664,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"000001\"]",
 			},
 		},
 		Ausf: &FakeAusf{
@@ -746,7 +749,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"000001\"]",
 			},
 		},
 		Ausf: &FakeAusf{
@@ -893,7 +896,7 @@ func buildUeAndRadio() (*amfContext.AmfUe, *FakeNGAPSender, error) {
 			Mcc: "001",
 			Mnc: "01",
 		},
-		Tac: "1",
+		Tac: "000001",
 	}
 
 	if err != nil {

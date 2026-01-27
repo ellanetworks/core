@@ -1847,7 +1847,7 @@ func BuildPaging(
 	ie.Value.Present = ngapType.PagingIEsPresentTAIListForPaging
 	ie.Value.TAIListForPaging = new(ngapType.TAIListForPaging)
 
-	if registrationArea == nil {
+	if len(registrationArea) == 0 {
 		return nil, fmt.Errorf("registration area is empty for ue")
 	}
 
