@@ -242,7 +242,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"000001\"]",
 			},
 		},
 		Ausf: &FakeAusf{
@@ -303,7 +303,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"000001\"]",
 			},
 		},
 		Ausf: &FakeAusf{
@@ -354,7 +354,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 				Mcc:           "001",
 				Mnc:           "01",
 				Sst:           1,
-				SupportedTACs: "[\"1\"]",
+				SupportedTACs: "[\"000001\"]",
 			},
 		},
 		Ausf: &FakeAusf{
@@ -448,7 +448,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 						Mcc:           "001",
 						Mnc:           "01",
 						Sst:           1,
-						SupportedTACs: "[\"1\"]",
+						SupportedTACs: "[\"000001\"]",
 					},
 				},
 				Ausf: &FakeAusf{
