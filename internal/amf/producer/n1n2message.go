@@ -202,6 +202,15 @@ func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2Me
 		pagingPriority,
 	)
 	if err != nil {
+		ue.Log.Debug(
+			"building paging",
+			zap.String("GUTI", ue.Guti),
+			zap.Any("Registration Area", ue.RegistrationArea),
+			zap.Any("UeRadioCapabilityForPaging", ue.UeRadioCapabilityForPaging),
+			zap.Any("InfoOnRecommendedCellsAndRanNodesForPaging", ue.InfoOnRecommendedCellsAndRanNodesForPaging),
+			zap.Any("PagingPriority", pagingPriority),
+		)
+
 		return fmt.Errorf("build paging error: %v", err)
 	}
 
