@@ -18,16 +18,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install rockcraft
-        run: sudo snap install rockcraft --classic --channel stable
-
-      - name: Build rock (amd64)
-        if: matrix.arch == 'amd64'
-        run: rockcraft pack
-
-      - name: Build rock (arm64 - destructive mode)
-        if: matrix.arch == 'arm64'
-        run: rockcraft pack --destructive-mode
+      - uses: canonical/craft-actions/rockcraft-pack@61c29f28433cce029d2466291c117b995fae72bb # main
+        id: rockcraft
+        with:
+          rockcraft-channel: stable
 
       - name: Save container image to file
         run: |
