@@ -21,7 +21,7 @@ jobs:
       - uses: canonical/craft-actions/rockcraft-pack@91513c1bae43bc871c85ea2fdf2ac7eed91034f9 # main
         id: rockcraft
         with:
-          rockcraft-channel: edge
+          rockcraft-channel: stable
 
       - name: Save container image to file
         run: |
