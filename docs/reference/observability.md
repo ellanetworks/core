@@ -75,7 +75,7 @@ For more information on accessing the pprof API in Ella Core, refer to the [ppro
 
 ## Dashboards
 
-Ella Core ships with [Grafana](https://grafana.com/) dashboards. You can import these dashboards in Grafana using the Dashboard IDs provided below.
+Ella Core ships with [Grafana](https://grafana.com/) dashboards that you can import using the Dashboard IDs provided below.
 
 ### Network Health 
 
