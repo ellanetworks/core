@@ -85,7 +85,7 @@ docker run -d -p 5000:5000 --name registry registry:2
 
 # Build OCI image
 rockcraft pack
-sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.1.0_amd64.rock docker-daemon:ella-core:latest
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.2.0_amd64.rock docker-daemon:ella-core:latest
 docker tag ella-core:latest localhost:5000/ella-core:latest
 docker push localhost:5000/ella-core:latest
 ```
