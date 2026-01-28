@@ -49,17 +49,16 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 
 	atomicLevel = zap.NewAtomicLevelAt(zl)
 
-	consoleEnc := zapcore.NewConsoleEncoder(devConsoleEncoderConfig())
-	jsonEnc := zapcore.NewJSONEncoder(prodJSONEncoderConfig())
+	jsonEnc := zapcore.NewJSONEncoder(jsonEncoderConfig())
 
-	sysCores, err := makeCores(systemOutput, systemFilePath, consoleEnc, jsonEnc)
+	sysCores, err := makeCores(systemOutput, systemFilePath, jsonEnc)
 	if err != nil {
 		return fmt.Errorf("system logger: %w", err)
 	}
 
 	sysLogger := zap.New(zapcore.NewTee(sysCores...), zap.AddCaller())
 
-	auditCores, err := makeCores(auditOutput, auditFilePath, consoleEnc, jsonEnc)
+	auditCores, err := makeCores(auditOutput, auditFilePath, jsonEnc)
 	if err != nil {
 		return fmt.Errorf("could not make cores: %w", err)
 	}
@@ -70,7 +69,7 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 
 	auditLogger := zap.New(zapcore.NewTee(auditCores...), zap.AddCaller())
 
-	networkCores, err := makeCores(systemOutput, systemFilePath, consoleEnc, jsonEnc)
+	networkCores, err := makeCores(systemOutput, systemFilePath, jsonEnc)
 	if err != nil {
 		return fmt.Errorf("could not make cores: %w", err)
 	}
@@ -100,10 +99,10 @@ func SetDb(db dbwriter.DBWriter) {
 	dbInstance = db
 }
 
-// makeCores returns console core (+ file core if requested).
-func makeCores(mode, filePath string, consoleEnc, jsonEnc zapcore.Encoder) ([]zapcore.Core, error) {
+// makeCores returns JSON cores for stdout and optional file output.
+func makeCores(mode, filePath string, enc zapcore.Encoder) ([]zapcore.Core, error) {
 	cores := []zapcore.Core{
-		zapcore.NewCore(consoleEnc, zapcore.Lock(os.Stdout), atomicLevel),
+		zapcore.NewCore(enc, zapcore.Lock(os.Stdout), atomicLevel),
 	}
 
 	switch mode {
@@ -119,18 +118,7 @@ func makeCores(mode, filePath string, consoleEnc, jsonEnc zapcore.Encoder) ([]za
 			return nil, err
 		}
 
-		cores = append(cores, zapcore.NewCore(jsonEnc, ws, atomicLevel))
-	case "both":
-		if filePath == "" {
-			return nil, fmt.Errorf("both output selected but file path is empty")
-		}
-
-		ws, err := openFileSync(filePath)
-		if err != nil {
-			return nil, err
-		}
-
-		cores = append(cores, zapcore.NewCore(jsonEnc, ws, atomicLevel))
+		cores = append(cores, zapcore.NewCore(enc, ws, atomicLevel))
 	default:
 	}
 
@@ -147,54 +135,18 @@ func openFileSync(path string) (zapcore.WriteSyncer, error) {
 	return zapcore.Lock(zapcore.AddSync(f)), nil
 }
 
-func devConsoleEncoderConfig() zapcore.EncoderConfig {
-	enc := zap.NewDevelopmentEncoderConfig()
-	enc.TimeKey = "timestamp"
-	enc.EncodeTime = zapcore.ISO8601TimeEncoder
-	enc.LevelKey = "level"
-	enc.EncodeLevel = CapitalColorLevelEncoder // keep colors
-	enc.CallerKey = "caller"
-	enc.EncodeCaller = zapcore.ShortCallerEncoder
-	enc.MessageKey = "message"
-	enc.StacktraceKey = ""
-
-	return enc
-}
-
-func prodJSONEncoderConfig() zapcore.EncoderConfig {
+func jsonEncoderConfig() zapcore.EncoderConfig {
 	enc := zap.NewProductionEncoderConfig()
-	enc.TimeKey = "timestamp"
+	enc.TimeKey = "ts"
 	enc.EncodeTime = zapcore.ISO8601TimeEncoder
 	enc.LevelKey = "level"
 	enc.EncodeLevel = zapcore.LowercaseLevelEncoder
 	enc.CallerKey = "caller"
 	enc.EncodeCaller = zapcore.ShortCallerEncoder
-	enc.MessageKey = "message"
+	enc.MessageKey = "msg"
 	enc.StacktraceKey = ""
 
 	return enc
-}
-
-// CapitalColorLevelEncoder encodes the log level in color.
-func CapitalColorLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
-	var color string
-
-	switch l {
-	case zapcore.DebugLevel:
-		color = "\033[37m" // White
-	case zapcore.InfoLevel:
-		color = "\033[32m" // Green
-	case zapcore.WarnLevel:
-		color = "\033[33m" // Yellow
-	case zapcore.ErrorLevel:
-		color = "\033[31m" // Red
-	case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
-		color = "\033[35m" // Magenta
-	default:
-		color = "\033[0m" // Reset
-	}
-
-	enc.AppendString(fmt.Sprintf("%s%s\033[0m", color, l.CapitalString()))
 }
 
 // LogAuditEvent logs an audit event to the audit logger.
@@ -291,14 +243,3 @@ func LogNetworkEvent(
 		)
 	}
 }
-
-// type funcWriteSyncer struct {
-// 	write func([]byte) error
-// }
-
-// func (f funcWriteSyncer) Write(p []byte) (int, error) {
-// 	if err := f.write(p); err != nil {
-// 		return 0, err
-// 	}
-// 	return len(p), nil
-// }
