@@ -149,28 +149,6 @@ func jsonEncoderConfig() zapcore.EncoderConfig {
 	return enc
 }
 
-// CapitalColorLevelEncoder is deprecated but kept for compatibility.
-func CapitalColorLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
-	var color string
-
-	switch l {
-	case zapcore.DebugLevel:
-		color = "\033[37m" // White
-	case zapcore.InfoLevel:
-		color = "\033[32m" // Green
-	case zapcore.WarnLevel:
-		color = "\033[33m" // Yellow
-	case zapcore.ErrorLevel:
-		color = "\033[31m" // Red
-	case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
-		color = "\033[35m" // Magenta
-	default:
-		color = "\033[0m" // Reset
-	}
-
-	enc.AppendString(fmt.Sprintf("%s%s\033[0m", color, l.CapitalString()))
-}
-
 // LogAuditEvent logs an audit event to the audit logger.
 func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
 	AuditLog.Info("Audit event",
@@ -265,14 +243,3 @@ func LogNetworkEvent(
 		)
 	}
 }
-
-// type funcWriteSyncer struct {
-// 	write func([]byte) error
-// }
-
-// func (f funcWriteSyncer) Write(p []byte) (int, error) {
-// 	if err := f.write(p); err != nil {
-// 		return 0, err
-// 	}
-// 	return len(p), nil
-// }
