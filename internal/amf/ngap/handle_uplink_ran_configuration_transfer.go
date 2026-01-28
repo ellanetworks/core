@@ -34,7 +34,7 @@ func HandleUplinkRanConfigurationTransfer(ctx context.Context, amf *amfContext.A
 
 	targetRanNodeID := util.RanIDToModels(sONConfigurationTransferUL.TargetRANNodeID.GlobalRANNodeID)
 
-	if targetRanNodeID.GNbID.GNBValue != "" {
+	if targetRanNodeID.GNbID != nil && targetRanNodeID.GNbID.GNBValue != "" {
 		ran.Log.Debug("targetRanID", zap.String("targetRanID", targetRanNodeID.GNbID.GNBValue))
 	}
 
