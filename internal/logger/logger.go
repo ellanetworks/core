@@ -108,7 +108,7 @@ func makeCores(mode, filePath string, enc zapcore.Encoder) ([]zapcore.Core, erro
 	switch mode {
 	case "stdout":
 		// nothing else
-	case "file", "both":
+	case "file":
 		if filePath == "" {
 			return nil, fmt.Errorf("file output selected but file path is empty")
 		}
