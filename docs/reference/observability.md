@@ -88,7 +88,7 @@ This dashboard uses Prometheus metrics to provide real-time visibility into all 
 
 - Data Sources: Prometheus
 - Dashboard ID: 24751
-- View online: [grafana.com/grafana/dashboards/24751-ella-core-network-health/](https://grafana.com/grafana/dashboards/24751-ella-core-network-health/)
+- View online: [grafana.com/grafana/dashboards/24751/](https://grafana.com/grafana/dashboards/24751/)
 
 ### Deep Dive (for developers)
 
@@ -101,4 +101,4 @@ This dashboard uses metrics, logs, traces, and profiles to provide deep insights
 
 - Data Sources: Prometheus, Loki, Jaeger, Parca
 - Dashboard ID: 24753
-- View online: [grafana.com/grafana/dashboards/24753-ella-core-deep-dive/](https://grafana.com/grafana/dashboards/24753-ella-core-deep-dive/)
+- View online: [grafana.com/grafana/dashboards/24753/](https://grafana.com/grafana/dashboards/24753/)
