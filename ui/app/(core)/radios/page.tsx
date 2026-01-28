@@ -791,7 +791,7 @@ const Radio = () => {
                   <DataGrid<APIRadio>
                     rows={rows}
                     columns={columns}
-                    getRowId={(row) => row.id}
+                    getRowId={(row) => row.address}
                     paginationMode="server"
                     rowCount={rowCount}
                     paginationModel={paginationModel}
