@@ -27,7 +27,7 @@ Build the image and push it to the local registry
 
 ```shell
 rockcraft pack
-sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.1.0_amd64.rock docker-daemon:ella-core:latest
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.2.0_amd64.rock docker-daemon:ella-core:latest
 docker tag ella-core:latest localhost:5000/ella-core:latest
 docker push localhost:5000/ella-core:latest
 ```
@@ -92,7 +92,7 @@ uvx --with-requirements requirements-docs.txt mkdocs build
 ```shell
 sudo snap install rockcraft --classic --edge
 rockcraft pack -v
-sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.1.0_amd64.rock docker-daemon:ella-core:latest
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.2.0_amd64.rock docker-daemon:ella-core:latest
 docker run ella-core:latest
 ```
 
