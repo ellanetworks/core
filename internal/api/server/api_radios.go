@@ -101,9 +101,14 @@ func ListRadios() http.HandlerFunc {
 				radioAddress = radio.Conn.RemoteAddr().String()
 			}
 
+			radioID := ""
+			if radio.RanID.GNbID != nil {
+				radioID = radio.RanID.GNbID.GNBValue
+			}
+
 			newRadio := Radio{
 				Name:          radio.Name,
-				ID:            radio.RanID.GNbID.GNBValue,
+				ID:            radioID,
 				Address:       radioAddress,
 				SupportedTAIs: supportedTais,
 			}
@@ -143,9 +148,14 @@ func GetRadio() http.HandlerFunc {
 					radioAddress = radio.Conn.RemoteAddr().String()
 				}
 
+				radioID := ""
+				if radio.RanID.GNbID != nil {
+					radioID = radio.RanID.GNbID.GNBValue
+				}
+
 				result := Radio{
 					Name:          radio.Name,
-					ID:            radio.RanID.GNbID.GNBValue,
+					ID:            radioID,
 					Address:       radioAddress,
 					SupportedTAIs: supportedTais,
 				}
