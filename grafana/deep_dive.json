@@ -270,7 +270,7 @@
             "type": "parca",
             "uid": "${DS_PARCA}"
           },
-          "labelSelector": "{job=~\"$parca_job\"}",
+          "labelSelector": "{job=~\"$parca_job\", instance=~\"$instance\"}",
           "profileTypeId": "memory:inuse_space:bytes:space:bytes",
           "queryType": "metrics",
           "refId": "A"
@@ -343,7 +343,7 @@
             "type": "parca",
             "uid": "${DS_PARCA}"
           },
-          "labelSelector": "{job=~\"$parca_job\"}",
+          "labelSelector": "{job=~\"$parca_job\", instance=~\"$instance\"}",
           "profileTypeId": "goroutine:goroutine:count:goroutine:count",
           "queryType": "metrics",
           "refId": "A"
@@ -1061,7 +1061,7 @@
             "type": "parca",
             "uid": "${DS_PARCA}"
           },
-          "labelSelector": "{job=~\"$parca_job\"}",
+          "labelSelector": "{job=~\"$parca_job\", instance=~\"$instance\"}",
           "profileTypeId": "memory:inuse_space:bytes:space:bytes",
           "queryType": "metrics",
           "refId": "A"
@@ -1436,7 +1436,8 @@
           "limit": 1000,
           "queryType": "search",
           "refId": "A",
-          "service": "ella-core"
+          "service": "ella-core",
+          "tags": "host.name=${trace_host:pipe}"
         }
       ],
       "title": "Total Traces",
@@ -1510,7 +1511,7 @@
           "queryType": "search",
           "refId": "A",
           "service": "ella-core",
-          "tags": "error=true"
+          "tags": "error=true host.name=${trace_host:pipe}"
         }
       ],
       "title": "Error Traces",
@@ -1583,7 +1584,8 @@
           "limit": 1000,
           "queryType": "search",
           "refId": "A",
-          "service": "ella-core"
+          "service": "ella-core",
+          "tags": "host.name=${trace_host:pipe}"
         }
       ],
       "title": "Avg Duration",
@@ -1693,7 +1695,8 @@
           "limit": 1000,
           "queryType": "search",
           "refId": "A",
-          "service": "ella-core"
+          "service": "ella-core",
+          "tags": "host.name=${trace_host:pipe}"
         }
       ],
       "title": "Max Duration",
@@ -1832,7 +1835,8 @@
           "limit": 50,
           "queryType": "search",
           "refId": "A",
-          "service": "ella-core"
+          "service": "ella-core",
+          "tags": "host.name=${trace_host:pipe}"
         }
       ],
       "title": "Recent Traces",
@@ -2012,7 +2016,8 @@
           "minDuration": "1ms",
           "queryType": "search",
           "refId": "A",
-          "service": "ella-core"
+          "service": "ella-core",
+          "tags": "host.name=${trace_host:pipe}"
         }
       ],
       "title": "Slow-ish Traces (>1ms)",
@@ -2108,7 +2113,7 @@
           },
           "direction": "backward",
           "editorMode": "builder",
-          "expr": "{job=\"ella-core\", component=~\"$component\", level=~\"$level\"} | json | line_format \"[{{.component}}] {{.msg}}\"",
+          "expr": "{job=\"ella-core\", instance=~\"$instance\", component=~\"$component\", level=~\"$level\"} | json | line_format \"[{{.component}}] {{.msg}}\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -2149,7 +2154,7 @@
             "type": "parca",
             "uid": "${DS_PARCA}"
           },
-          "labelSelector": "{job=~\"$parca_job\"}",
+          "labelSelector": "{job=~\"$parca_job\", instance=~\"$instance\"}",
           "profileTypeId": "process_cpu:cpu:nanoseconds:cpu:nanoseconds:delta",
           "queryType": "profile",
           "refId": "A"
@@ -2178,7 +2183,7 @@
             "type": "parca",
             "uid": "${DS_PARCA}"
           },
-          "labelSelector": "{job=~\"$parca_job\"}",
+          "labelSelector": "{job=~\"$parca_job\", instance=~\"$instance\"}",
           "profileTypeId": "memory:inuse_space:bytes:space:bytes",
           "queryType": "profile",
           "refId": "A"
@@ -2344,6 +2349,24 @@
         "refresh": 2,
         "regex": "",
         "type": "query"
+      },
+      {
+        "allValue": "",
+        "current": {},
+        "description": "Hostname for filtering traces in Jaeger (auto-detected from host.name resource attribute)",
+        "includeAll": true,
+        "label": "Host",
+        "multi": false,
+        "name": "trace_host",
+        "options": [
+          {
+            "selected": false,
+            "text": "All",
+            "value": "$__all"
+          }
+        ],
+        "query": "",
+        "type": "textbox"
       }
     ]
   },
