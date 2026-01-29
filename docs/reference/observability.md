@@ -69,7 +69,7 @@ For more information on configuring tracing in Ella Core, refer to the [Configur
 
 ## 4. Profiles
 
-Ella Core exposes the [http/pprof](https://pkg.go.dev/net/http/pprof) API for CPU and memory profiling analysis. This allows users to collect and analyze profiles of Ella Core using visualization tools like [pprof](https://pkg.go.dev/net/http/pprof) or [parca](https://www.parca.dev/).
+Ella Core exposes the [http/pprof](https://pkg.go.dev/net/http/pprof) API for CPU and memory profiling analysis. This allows users to collect and analyze profiles of Ella Core using visualization tools like [pprof](https://pkg.go.dev/net/http/pprof) or [pyroscope](https://grafana.com/oss/pyroscope/).
 
 For more information on accessing the pprof API in Ella Core, refer to the [pprof API documentation](api/pprof.md).
 
@@ -92,13 +92,13 @@ This dashboard uses Prometheus metrics to provide real-time visibility into all 
 
 ### Deep Dive (for developers)
 
-This dashboard uses metrics, logs, traces, and profiles to provide deep insights into the internal workings of Ella Core. It is intended for developers and advanced users who want to understand the performance and behavior of Ella Core at a granular level.
+This dashboard uses metrics, logs, traces, and profiles to provide deep insights into the internal workings of Ella Core. It is intended for developers and advanced users who want to understand the performance and behavior of Ella Core at a granular level. We recommend running Grafana Alloy to collect all signals ([example configuration file](https://github.com/ellanetworks/core/tree/main/grafana)).
 
 <figure markdown="span">
   ![Deep Dive Dashboard](../images/dashboard_deep_dive.png){ width="800" }
   <figcaption>Grafana dashboard for Deep Dive.</figcaption>
 </figure>
 
-- Data Sources: Prometheus, Loki, Jaeger, Parca
-- Dashboard ID: 24753
-- View online: [grafana.com/grafana/dashboards/24753/](https://grafana.com/grafana/dashboards/24753/)
+- Data Sources: Prometheus, Loki, Jaeger, Pyroscope
+- Dashboard ID: 24770
+- View online: [grafana.com/grafana/dashboards/24770/](https://grafana.com/grafana/dashboards/24770/)

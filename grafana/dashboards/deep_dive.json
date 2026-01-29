@@ -9,12 +9,12 @@
       "pluginName": "Prometheus"
     },
     {
-      "name": "DS_PARCA",
-      "label": "parca",
+      "name": "DS_PYROSCOPE",
+      "label": "Pyroscope",
       "description": "",
       "type": "datasource",
-      "pluginId": "parca",
-      "pluginName": "Parca"
+      "pluginId": "grafana-pyroscope-datasource",
+      "pluginName": "Grafana Pyroscope"
     },
     {
       "name": "DS_JAEGER",
@@ -49,6 +49,12 @@
     },
     {
       "type": "datasource",
+      "id": "grafana-pyroscope-datasource",
+      "name": "Grafana Pyroscope",
+      "version": "12.3.1"
+    },
+    {
+      "type": "datasource",
       "id": "jaeger",
       "name": "Jaeger",
       "version": "12.3.1"
@@ -63,12 +69,6 @@
       "type": "datasource",
       "id": "loki",
       "name": "Loki",
-      "version": "12.3.1"
-    },
-    {
-      "type": "datasource",
-      "id": "parca",
-      "name": "Parca",
       "version": "12.3.1"
     },
     {
@@ -208,8 +208,8 @@
     },
     {
       "datasource": {
-        "type": "parca",
-        "uid": "${DS_PARCA}"
+        "type": "grafana-pyroscope-datasource",
+        "uid": "${DS_PYROSCOPE}"
       },
       "description": "Current heap memory in use by Ella Core. High values may indicate memory leaks or inefficient allocations.",
       "fieldConfig": {
@@ -267,10 +267,10 @@
       "targets": [
         {
           "datasource": {
-            "type": "parca",
-            "uid": "${DS_PARCA}"
+            "type": "grafana-pyroscope-datasource",
+            "uid": "${DS_PYROSCOPE}"
           },
-          "labelSelector": "{job=~\"$parca_job\", instance=~\"$instance\"}",
+          "labelSelector": "{service_name=\"${pyroscope_service}\"}",
           "profileTypeId": "memory:inuse_space:bytes:space:bytes",
           "queryType": "metrics",
           "refId": "A"
@@ -281,8 +281,8 @@
     },
     {
       "datasource": {
-        "type": "parca",
-        "uid": "${DS_PARCA}"
+        "type": "grafana-pyroscope-datasource",
+        "uid": "${DS_PYROSCOPE}"
       },
       "description": "Number of active goroutines. A steadily increasing count may indicate goroutine leaks.",
       "fieldConfig": {
@@ -340,10 +340,10 @@
       "targets": [
         {
           "datasource": {
-            "type": "parca",
-            "uid": "${DS_PARCA}"
+            "type": "grafana-pyroscope-datasource",
+            "uid": "${DS_PYROSCOPE}"
           },
-          "labelSelector": "{job=~\"$parca_job\", instance=~\"$instance\"}",
+          "labelSelector": "{service_name=\"${pyroscope_service}\"}",
           "profileTypeId": "goroutine:goroutine:count:goroutine:count",
           "queryType": "metrics",
           "refId": "A"
@@ -974,8 +974,8 @@
     },
     {
       "datasource": {
-        "type": "parca",
-        "uid": "${DS_PARCA}"
+        "type": "grafana-pyroscope-datasource",
+        "uid": "${DS_PYROSCOPE}"
       },
       "description": "Heap memory usage over time. Correlate spikes with specific operations using the flame graph.",
       "fieldConfig": {
@@ -1058,10 +1058,10 @@
       "targets": [
         {
           "datasource": {
-            "type": "parca",
-            "uid": "${DS_PARCA}"
+            "type": "grafana-pyroscope-datasource",
+            "uid": "${DS_PYROSCOPE}"
           },
-          "labelSelector": "{job=~\"$parca_job\", instance=~\"$instance\"}",
+          "labelSelector": "{service_name=\"${pyroscope_service}\"}",
           "profileTypeId": "memory:inuse_space:bytes:space:bytes",
           "queryType": "metrics",
           "refId": "A"
@@ -1436,8 +1436,8 @@
           "limit": 1000,
           "queryType": "search",
           "refId": "A",
-          "service": "ella-core",
-          "tags": "host.name=${trace_host:pipe}"
+          "service": "${trace_service}",
+          "tags": "${trace_host}"
         }
       ],
       "title": "Total Traces",
@@ -1510,8 +1510,8 @@
           "limit": 1000,
           "queryType": "search",
           "refId": "A",
-          "service": "ella-core",
-          "tags": "error=true host.name=${trace_host:pipe}"
+          "service": "${trace_service}",
+          "tags": "error=true ${trace_host}"
         }
       ],
       "title": "Error Traces",
@@ -1584,8 +1584,8 @@
           "limit": 1000,
           "queryType": "search",
           "refId": "A",
-          "service": "ella-core",
-          "tags": "host.name=${trace_host:pipe}"
+          "service": "${trace_service}",
+          "tags": "${trace_host}"
         }
       ],
       "title": "Avg Duration",
@@ -1695,8 +1695,8 @@
           "limit": 1000,
           "queryType": "search",
           "refId": "A",
-          "service": "ella-core",
-          "tags": "host.name=${trace_host:pipe}"
+          "service": "${trace_service}",
+          "tags": "${trace_host}"
         }
       ],
       "title": "Max Duration",
@@ -1835,8 +1835,8 @@
           "limit": 50,
           "queryType": "search",
           "refId": "A",
-          "service": "ella-core",
-          "tags": "host.name=${trace_host:pipe}"
+          "service": "${trace_service}",
+          "tags": "${trace_host}"
         }
       ],
       "title": "Recent Traces",
@@ -2016,8 +2016,8 @@
           "minDuration": "1ms",
           "queryType": "search",
           "refId": "A",
-          "service": "ella-core",
-          "tags": "host.name=${trace_host:pipe}"
+          "service": "${trace_service}",
+          "tags": "${trace_host}"
         }
       ],
       "title": "Slow-ish Traces (>1ms)",
@@ -2113,7 +2113,7 @@
           },
           "direction": "backward",
           "editorMode": "builder",
-          "expr": "{job=\"ella-core\", instance=~\"$instance\", component=~\"$component\", level=~\"$level\"} | json | line_format \"[{{.component}}] {{.msg}}\"",
+          "expr": "{job=~\"$job\", instance=~\"$instance\", component=~\"$component\", level=~\"$level\"} | json | line_format \"[{{.component}}] {{.msg}}\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -2136,8 +2136,8 @@
     },
     {
       "datasource": {
-        "type": "parca",
-        "uid": "${DS_PARCA}"
+        "type": "grafana-pyroscope-datasource",
+        "uid": "${DS_PYROSCOPE}"
       },
       "description": "CPU flame graph showing which functions consume the most CPU time. Wider bars indicate more CPU usage. Use this to identify optimization opportunities.",
       "gridPos": {
@@ -2151,11 +2151,11 @@
       "targets": [
         {
           "datasource": {
-            "type": "parca",
-            "uid": "${DS_PARCA}"
+            "type": "grafana-pyroscope-datasource",
+            "uid": "${DS_PYROSCOPE}"
           },
-          "labelSelector": "{job=~\"$parca_job\", instance=~\"$instance\"}",
-          "profileTypeId": "process_cpu:cpu:nanoseconds:cpu:nanoseconds:delta",
+          "labelSelector": "{service_name=\"${pyroscope_service}\"}",
+          "profileTypeId": "process_cpu:cpu:nanoseconds:cpu:nanoseconds",
           "queryType": "profile",
           "refId": "A"
         }
@@ -2165,8 +2165,8 @@
     },
     {
       "datasource": {
-        "type": "parca",
-        "uid": "${DS_PARCA}"
+        "type": "grafana-pyroscope-datasource",
+        "uid": "${DS_PYROSCOPE}"
       },
       "description": "Memory allocation flame graph showing which functions allocate the most heap memory. Use this to identify memory-intensive operations and potential leaks.",
       "gridPos": {
@@ -2180,10 +2180,10 @@
       "targets": [
         {
           "datasource": {
-            "type": "parca",
-            "uid": "${DS_PARCA}"
+            "type": "grafana-pyroscope-datasource",
+            "uid": "${DS_PYROSCOPE}"
           },
-          "labelSelector": "{job=~\"$parca_job\", instance=~\"$instance\"}",
+          "labelSelector": "{service_name=\"${pyroscope_service}\"}",
           "profileTypeId": "memory:inuse_space:bytes:space:bytes",
           "queryType": "profile",
           "refId": "A"
@@ -2228,10 +2228,10 @@
       {
         "current": {},
         "includeAll": false,
-        "label": "Parca",
-        "name": "DS_PARCA",
+        "label": "Pyroscope",
+        "name": "DS_PYROSCOPE",
         "options": [],
-        "query": "parca",
+        "query": "grafana-pyroscope-datasource",
         "refresh": 1,
         "regex": "",
         "type": "datasource"
@@ -2248,16 +2248,16 @@
         "type": "datasource"
       },
       {
-        "allValue": ".+",
+        "allValue": ".*",
         "current": {},
         "datasource": {
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(up, job)",
+        "description": "Select the Ella Core job. This filters metrics and logs (requires matching job labels in your Alloy/collector config).",
         "includeAll": true,
         "label": "Job",
-        "multi": true,
         "name": "job",
         "options": [],
         "query": {
@@ -2269,16 +2269,16 @@
         "type": "query"
       },
       {
-        "allValue": ".+",
+        "allValue": ".*",
         "current": {},
         "datasource": {
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(up{job=~\"$job\"}, instance)",
+        "description": "Select the Ella Core instance (host:port). This filters metrics and logs.",
         "includeAll": true,
         "label": "Instance",
-        "multi": true,
         "name": "instance",
         "options": [],
         "query": {
@@ -2294,10 +2294,10 @@
           "text": "ella-core",
           "value": "ella-core"
         },
-        "description": "Parca job name for profiling targets",
-        "includeAll": false,
-        "label": "Parca Job",
-        "name": "parca_job",
+        "description": "Pyroscope service name for CPU/memory profiling",
+        "hide": 2,
+        "label": "Profile Service",
+        "name": "pyroscope_service",
         "options": [
           {
             "selected": true,
@@ -2306,23 +2306,62 @@
           }
         ],
         "query": "ella-core",
-        "type": "custom"
+        "type": "textbox"
       },
       {
-        "allValue": ".+",
+        "current": {
+          "text": "ella-core",
+          "value": "ella-core"
+        },
+        "description": "Jaeger/OTEL service name for distributed traces",
+        "hide": 2,
+        "label": "Trace Service",
+        "name": "trace_service",
+        "options": [
+          {
+            "selected": true,
+            "text": "ella-core",
+            "value": "ella-core"
+          }
+        ],
+        "query": "ella-core",
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "description": "Optional: Filter traces by tag (e.g., host.name=raspberrypi). Leave empty for all traces.",
+        "hide": 2,
+        "label": "Trace Filter",
+        "name": "trace_host",
+        "options": [
+          {
+            "selected": true,
+            "text": "",
+            "value": ""
+          }
+        ],
+        "query": "",
+        "type": "textbox"
+      },
+      {
+        "allValue": ".*",
         "current": {},
         "datasource": {
           "type": "loki",
           "uid": "${DS_LOKI}"
         },
-        "definition": "label_values({job=\"ella-core\"}, component)",
+        "definition": "label_values({job=~\"$job\", instance=~\"$instance\"}, component)",
+        "description": "Filter logs by component (amf, smf, upf, api, etc.)",
         "includeAll": true,
         "label": "Component",
         "multi": true,
         "name": "component",
         "options": [],
         "query": {
-          "query": "label_values({job=\"ella-core\"}, component)",
+          "query": "label_values({job=~\"$job\", instance=~\"$instance\"}, component)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
@@ -2330,48 +2369,31 @@
         "type": "query"
       },
       {
-        "allValue": ".+",
+        "allValue": ".*",
         "current": {},
         "datasource": {
           "type": "loki",
           "uid": "${DS_LOKI}"
         },
-        "definition": "label_values({job=\"ella-core\"}, level)",
+        "definition": "label_values({job=~\"$job\", instance=~\"$instance\"}, level)",
+        "description": "Filter logs by severity (info, warn, error)",
         "includeAll": true,
-        "label": "Log Level",
+        "label": "Level",
         "multi": true,
         "name": "level",
         "options": [],
         "query": {
-          "query": "label_values({job=\"ella-core\"}, level)",
+          "query": "label_values({job=~\"$job\", instance=~\"$instance\"}, level)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
         "regex": "",
         "type": "query"
-      },
-      {
-        "allValue": "",
-        "current": {},
-        "description": "Hostname for filtering traces in Jaeger (auto-detected from host.name resource attribute)",
-        "includeAll": true,
-        "label": "Host",
-        "multi": false,
-        "name": "trace_host",
-        "options": [
-          {
-            "selected": false,
-            "text": "All",
-            "value": "$__all"
-          }
-        ],
-        "query": "",
-        "type": "textbox"
       }
     ]
   },
   "time": {
-    "from": "now-5m",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},

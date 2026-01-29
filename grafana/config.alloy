@@ -1,0 +1,190 @@
+// ============================================================================
+// Grafana Alloy Configuration for Ella Core Observability
+// ============================================================================
+// This config collects ALL telemetry (metrics, logs, traces, profiles) from
+// Ella Core and forwards to the central observability stack.
+// ============================================================================
+
+// ============================================================================
+// Authentication - Bearer token for Ella Core API
+// ============================================================================
+
+local.file "ella_core_token" {
+  filename  = "/etc/alloy/ella-core-token"
+  is_secret = true
+}
+
+// ============================================================================
+// Prometheus Metrics - Scrape from Ella Core and remote write to Prometheus
+// ============================================================================
+
+prometheus.scrape "ella_core" {
+  targets = [{
+    __address__ = "192.168.40.9:5002",
+  }]
+
+  job_name     = "ella-core"
+  scheme       = "http"
+  metrics_path = "/api/v1/metrics"
+
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+
+  bearer_token = local.file.ella_core_token.content
+
+  tls_config {
+    insecure_skip_verify = true
+  }
+
+  forward_to = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.remote_write "default" {
+  endpoint {
+    url = "http://192.168.40.6:9090/api/v1/write"
+  }
+}
+
+// ============================================================================
+// Loki Logs - Capture from systemd journal and push to Loki
+// ============================================================================
+
+loki.source.journal "ella_core" {
+  format_as_json = true
+  max_age        = "12h"
+  path           = "/var/log/journal"
+  matches        = "_SYSTEMD_UNIT=ella-core.service"
+  labels         = {
+    job      = "ella-core",
+    instance = "192.168.40.9:5002",
+  }
+  forward_to = [loki.process.ella_core.receiver]
+}
+
+loki.process "ella_core" {
+  forward_to = [loki.write.default.receiver]
+
+  // Extract MESSAGE from systemd journal
+  stage.json {
+    expressions = {
+      log = "MESSAGE",
+    }
+  }
+
+  // Parse the JSON log line
+  stage.json {
+    source = "log"
+    expressions = {
+      level     = "level",
+      component = "component",
+      msg       = "msg",
+      caller    = "caller",
+    }
+  }
+
+  // Promote to labels for efficient querying
+  stage.labels {
+    values = {
+      level     = "level",
+      component = "component",
+    }
+  }
+
+  // Set the log line to just the JSON message
+  stage.output {
+    source = "log"
+  }
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://192.168.40.6:3100/loki/api/v1/push"
+  }
+}
+
+// ============================================================================
+// OpenTelemetry Traces - Receive OTLP from Ella Core and forward to Jaeger
+// ============================================================================
+
+// Receive OTLP traces from Ella Core (gRPC on 4317, HTTP on 4318)
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+  output {
+    traces = [otelcol.processor.batch.default.input]
+  }
+}
+
+// Batch traces for efficient export
+otelcol.processor.batch "default" {
+  output {
+    traces = [otelcol.exporter.otlp.jaeger.input]
+  }
+}
+
+// Export traces to Jaeger via OTLP
+otelcol.exporter.otlp "jaeger" {
+  client {
+    endpoint = "192.168.40.6:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// ============================================================================
+// Pyroscope Profiling - Scrape pprof endpoints and push to Pyroscope
+// ============================================================================
+
+pyroscope.scrape "ella_core" {
+  targets = [{
+    __address__  = "192.168.40.9:5002",
+    service_name = "ella-core",
+  }]
+
+  scheme       = "http"
+  bearer_token = local.file.ella_core_token.content
+
+  scrape_interval = "30s"
+  scrape_timeout  = "25s"
+
+  forward_to = [pyroscope.write.default.receiver]
+
+  profiling_config {
+    profile.process_cpu {
+      enabled = true
+      path    = "/api/v1/pprof/profile"
+      delta   = true
+    }
+    profile.memory {
+      enabled = true
+      path    = "/api/v1/pprof/heap"
+      delta   = false
+    }
+    profile.goroutine {
+      enabled = true
+      path    = "/api/v1/pprof/goroutine"
+    }
+    profile.block {
+      enabled = true
+      path    = "/api/v1/pprof/block"
+      delta   = true
+    }
+    profile.mutex {
+      enabled = true
+      path    = "/api/v1/pprof/mutex"
+      delta   = true
+    }
+  }
+}
+
+pyroscope.write "default" {
+  endpoint {
+    url = "http://192.168.40.6:4040"
+  }
+}
+
