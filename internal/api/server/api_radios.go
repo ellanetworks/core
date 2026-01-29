@@ -97,8 +97,11 @@ func ListRadios() http.HandlerFunc {
 			supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAIs)
 
 			radioAddress := ""
+
 			if radio.Conn != nil {
-				radioAddress = radio.Conn.RemoteAddr().String()
+				if addr := radio.Conn.RemoteAddr(); addr != nil {
+					radioAddress = addr.String()
+				}
 			}
 
 			radioID := ""
@@ -144,8 +147,11 @@ func GetRadio() http.HandlerFunc {
 				supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAIs)
 
 				radioAddress := ""
+
 				if radio.Conn != nil {
-					radioAddress = radio.Conn.RemoteAddr().String()
+					if addr := radio.Conn.RemoteAddr(); addr != nil {
+						radioAddress = addr.String()
+					}
 				}
 
 				radioID := ""
