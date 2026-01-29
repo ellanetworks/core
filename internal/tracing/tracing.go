@@ -34,6 +34,8 @@ func InitTracer(ctx context.Context, cfg TelemetryConfig) (*sdktrace.TracerProvi
 	sampler := sdktrace.AlwaysSample()
 
 	res, err := sdkresource.New(ctx,
+		sdkresource.WithHost(),
+		sdkresource.WithProcess(),
 		sdkresource.WithAttributes(
 			semconv.ServiceNameKey.String(cfg.ServiceName),
 			attribute.String("service.version", cfg.ServiceVersion),
