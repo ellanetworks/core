@@ -113,7 +113,7 @@
     ]
   },
   "description": "Deep dive into Ella Core performance with CPU profiling, memory analysis, and detailed logs.",
-  "editable": true,
+  "editable": false,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
@@ -2248,7 +2248,7 @@
         "type": "datasource"
       },
       {
-        "allValue": ".*",
+        "allValue": ".+",
         "current": {},
         "datasource": {
           "type": "prometheus",
@@ -2269,7 +2269,7 @@
         "type": "query"
       },
       {
-        "allValue": ".*",
+        "allValue": ".+",
         "current": {},
         "datasource": {
           "type": "prometheus",
@@ -2347,7 +2347,7 @@
         "type": "textbox"
       },
       {
-        "allValue": ".*",
+        "allValue": ".+",
         "current": {},
         "datasource": {
           "type": "loki",
@@ -2369,7 +2369,7 @@
         "type": "query"
       },
       {
-        "allValue": ".*",
+        "allValue": ".+",
         "current": {},
         "datasource": {
           "type": "loki",
