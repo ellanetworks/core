@@ -9,7 +9,6 @@ package ngap
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
@@ -66,34 +65,37 @@ func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 		return
 	}
 
+	messageType := getMessageType(pdu)
+
+	ctx, span := tracer.Start(ctx, "NGAP receive",
+		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithAttributes(
+			attribute.String("ngap.message_type", messageType),
+			attribute.Int("ngap.pdu_category", pdu.Present),
+			attribute.Int("ngap.message_size", len(msg)),
+			attribute.String("network.protocol.name", "ngap"),
+			attribute.String("network.transport", "sctp"),
+			attribute.String("network.peer.address", remoteAddress.String()),
+			attribute.String("network.local.address", localAddress.String()),
+		),
+	)
+	defer span.End()
+
 	logger.LogNetworkEvent(
 		ctx,
 		logger.NGAPNetworkProtocol,
-		getMessageType(pdu),
+		messageType,
 		logger.DirectionInbound,
 		localAddress.String(),
 		remoteAddress.String(),
 		msg,
 	)
 
-	DispatchNgapMsg(amf, ran, pdu)
+	dispatchNgapMsg(ctx, amf, ran, pdu)
 }
 
-func DispatchNgapMsg(amf *amfContext.AMF, ran *amfContext.Radio, pdu *ngapType.NGAPPDU) {
-	messageType := getMessageType(pdu)
-
-	spanName := fmt.Sprintf("AMF NGAP %s", messageType)
-
-	ctx, span := tracer.Start(context.Background(), spanName,
-		trace.WithAttributes(
-			attribute.String("ngap.pdu_present", fmt.Sprintf("%d", pdu.Present)),
-			attribute.String("ngap.messageType", messageType),
-		),
-		trace.WithSpanKind(trace.SpanKindServer),
-	)
-	defer span.End()
-
-	NGAPMessages.WithLabelValues(messageType).Inc()
+func dispatchNgapMsg(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, pdu *ngapType.NGAPPDU) {
+	NGAPMessages.WithLabelValues(getMessageType(pdu)).Inc()
 
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
