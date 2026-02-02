@@ -18,10 +18,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func Start(ctx context.Context, dbInstance *db.Database, n2Address string, n2Port int) error {
+func Start(ctx context.Context, dbInstance *db.Database, n2Address string, n2Port int, smf amfContext.SmfSbi) error {
 	nasLogger.SetLogLevel(0) // Panic level to avoid NAS log output
 
 	self := amfContext.AMFSelf()
+	self.Smf = smf
 	self.NetworkFeatureSupport5GS = &amfContext.NetworkFeatureSupport5GS{
 		Emc:     0,
 		EmcN3:   0,
