@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -121,10 +120,6 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		return fmt.Errorf("state mismatch: receive Service Request message in state %s", ue.State)
 	}
 
-	if ue == nil {
-		return fmt.Errorf("AmfUe is nil")
-	}
-
 	if ue.T3513 != nil {
 		ue.T3513.Stop()
 		ue.T3513 = nil // clear the timer
@@ -140,27 +135,6 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		ue.SetOnGoing(amfContext.OnGoingProcedureNothing)
 	} else if procedure != amfContext.OnGoingProcedureNothing {
 		ue.Log.Warn("UE should not in OnGoing", zap.Any("procedure", procedure))
-	}
-
-	// Send Authtication / Security Procedure not support
-	// Rejecting ServiceRequest if it is received in Deregistered State
-	if !ue.SecurityContextIsValid() || ue.State == amfContext.Deregistered {
-		ue.Log.Warn("No security context", zap.String("supi", ue.Supi))
-
-		err := message.SendServiceReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
-		if err != nil {
-			return fmt.Errorf("error sending service reject: %v", err)
-		}
-
-		ue.Log.Info("sent service reject")
-		ue.RanUe.ReleaseAction = amfContext.UeContextN2NormalRelease
-
-		err = ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
-		if err != nil {
-			return fmt.Errorf("error sending ue context release command: %v", err)
-		}
-
-		return nil
 	}
 
 	// TS 24.501 8.2.6.21: if the UE is sending a REGISTRATION REQUEST message as an initial NAS message,
@@ -195,6 +169,27 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
 	}
 
+	// Service Reject if the SecurityContext is invalid or the UE is Deregistered
+	if !ue.SecurityContextIsValid() || ue.State == amfContext.Deregistered {
+		ue.Log.Warn("No security context", zap.String("supi", ue.Supi))
+		ue.SecurityContextAvailable = false
+
+		err := message.SendServiceReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		if err != nil {
+			return fmt.Errorf("error sending service reject: %v", err)
+		}
+
+		ue.Log.Info("sent service reject")
+		ue.RanUe.ReleaseAction = amfContext.UeContextN2NormalRelease
+
+		err = ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		if err != nil {
+			return fmt.Errorf("error sending ue context release command: %v", err)
+		}
+
+		return nil
+	}
+
 	serviceType := msg.GetServiceTypeValue()
 
 	logger.AmfLog.Debug("Handle Service Request", zap.String("supi", ue.Supi), zap.String("serviceType", serviceTypeToString(serviceType)))
@@ -211,26 +206,6 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	if serviceType == nasMessage.ServiceTypeEmergencyServices ||
 		serviceType == nasMessage.ServiceTypeEmergencyServicesFallback {
 		ue.Log.Warn("emergency service is not supported")
-	}
-
-	if ue.MacFailed {
-		ue.SecurityContextAvailable = false
-		ue.Log.Warn("Security Context Exist, But Integrity Check Failed with existing Context", zap.String("supi", ue.Supi))
-
-		err := message.SendServiceReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
-		if err != nil {
-			return fmt.Errorf("error sending service reject: %v", err)
-		}
-
-		ue.Log.Info("sent service reject")
-		ue.RanUe.ReleaseAction = amfContext.UeContextN2NormalRelease
-
-		err = ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
-		if err != nil {
-			return fmt.Errorf("error sending ue context release command: %v", err)
-		}
-
-		return nil
 	}
 
 	operatorInfo, err := amf.GetOperatorInfo(ctx)
@@ -250,6 +225,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		}
 	}
 
+	// If the UE has uplink data pending for some PDU sessions, we need to activate them
 	if msg.UplinkDataStatus != nil {
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(msg.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
@@ -257,7 +233,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		for pduSessionID, smContext := range ue.SmContextList {
 			if pduSessionID != targetPduSessionID {
 				if uplinkDataPsi[pduSessionID] {
-					binaryDataN2SmInformation, err := pdusession.ActivateSmContext(smContext.Ref)
+					binaryDataN2SmInformation, err := amf.Smf.ActivateSmContext(smContext.Ref)
 					if err != nil {
 						ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 						reactivationResult[pduSessionID] = true
@@ -280,7 +256,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
 		for pduSessionID, smContext := range ue.SmContextList {
 			if !psiArray[pduSessionID] {
-				err := pdusession.ReleaseSmContext(ctx, smContext.Ref)
+				err := amf.Smf.ReleaseSmContext(ctx, smContext.Ref)
 				if err != nil {
 					ue.Log.Error("Release SmContext Error", zap.Error(err))
 				}
@@ -323,6 +299,9 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 				var nasPdu []byte
 				if n1Msg != nil {
+					// This case is currently not tested and seems wrong. I was not able to find a case
+					// for this, and the NAS message stored for the UE is added in way that decryption does
+					// not seem to work.
 					nasPdu, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, nil)
 					if err != nil {
 						return fmt.Errorf("error building DL NAS transport message: %v", err)

@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/internal/smf/pdusession"
 	smf_pfcp "github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/internal/upf"
@@ -118,7 +119,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	smf.Start(dbInstance)
 
-	if err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port); err != nil {
+	if err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, pdusession.EllaSmfSbi{}); err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}
 

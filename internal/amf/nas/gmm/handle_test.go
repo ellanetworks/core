@@ -52,8 +52,28 @@ type NGDLNasTransport struct {
 	NasPdu      []byte
 }
 
+type NGPDUSessionResourceSetupRequest struct {
+	AmfUeNGAPID int64
+	RanUeNGAPID int64
+	AmbrUL      string
+	AmbrDL      string
+	NasPdu      []byte
+	SuList      ngapType.PDUSessionResourceSetupListSUReq
+}
+
+type NGInitialContextSetupRequest struct {
+	AmfUeNGAPID int64
+	RanUeNGAPID int64
+	AmbrUL      string
+	AmbrDL      string
+	NasPdu      []byte
+	CtxList     ngapType.PDUSessionResourceSetupListCxtReq
+}
+
 type FakeNGAPSender struct {
-	SentDownlinkNASTransport []*NGDLNasTransport
+	SentDownlinkNASTransport           []*NGDLNasTransport
+	SentPDUSessionResourceSetupRequest []*NGPDUSessionResourceSetupRequest
+	SentInitialContextSetupRequest     []*NGInitialContextSetupRequest
 }
 
 func (fng *FakeNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error {
@@ -132,6 +152,18 @@ func (fng *FakeNGAPSender) SendPDUSessionResourceModifyConfirm(ctx context.Conte
 }
 
 func (fng *FakeNGAPSender) SendPDUSessionResourceSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) error {
+	fng.SentPDUSessionResourceSetupRequest = append(
+		fng.SentPDUSessionResourceSetupRequest,
+		&NGPDUSessionResourceSetupRequest{
+			AmfUeNGAPID: amfUeNgapID,
+			RanUeNGAPID: ranUeNgapID,
+			AmbrUL:      ambrUplink,
+			AmbrDL:      ambrDownlink,
+			NasPdu:      nasPdu,
+			SuList:      pduSessionResourceSetupRequestList,
+		},
+	)
+
 	return nil
 }
 
@@ -148,6 +180,18 @@ func (fng *FakeNGAPSender) SendHandoverCommand(ctx context.Context, amfUeNgapID 
 }
 
 func (fng *FakeNGAPSender) SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai *models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability string, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error {
+	fng.SentInitialContextSetupRequest = append(
+		fng.SentInitialContextSetupRequest,
+		&NGInitialContextSetupRequest{
+			AmfUeNGAPID: amfUeNgapID,
+			RanUeNGAPID: ranUeNgapID,
+			AmbrUL:      ambrUplink,
+			AmbrDL:      ambrDownlink,
+			NasPdu:      nasPdu,
+			CtxList:     *pduSessionResourceSetupRequestList,
+		},
+	)
+
 	return nil
 }
 
@@ -194,4 +238,20 @@ func (a *FakeAusf) Auth5gAkaComfirmRequestProcedure(resStar string, suci string)
 	}
 
 	return a.Supi, a.Kseaf, nil
+}
+
+type FakeSmf struct {
+	Error error
+}
+
+func (s FakeSmf) ActivateSmContext(smContextRef string) ([]byte, error) {
+	if s.Error != nil {
+		return nil, s.Error
+	}
+
+	return []byte{}, nil
+}
+
+func (s FakeSmf) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+	return nil
 }

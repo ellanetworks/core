@@ -35,6 +35,11 @@ var (
 	amfUeNGAPIDGenerator *idgenerator.IDGenerator = nil
 )
 
+type SmfSbi interface {
+	ActivateSmContext(smContextRef string) ([]byte, error)
+	ReleaseSmContext(ctx context.Context, smContextRef string) error
+}
+
 func init() {
 	amfContext = AMF{
 		Ausf:   &RealAusf{},
@@ -110,6 +115,7 @@ type AMF struct {
 	T3555Cfg                 TimerValue
 	T3560Cfg                 TimerValue
 	T3565Cfg                 TimerValue
+	Smf                      SmfSbi
 }
 
 type SecurityAlgorithm struct {
