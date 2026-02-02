@@ -68,10 +68,11 @@ func HandleNAS(ctx context.Context, amf *amfContext.AMF, ue *amfContext.RanUe, n
 
 	msgTypeName := messageName(msg.GmmHeader.GetMessageType())
 
-	ctx, span := tracer.Start(ctx, fmt.Sprintf("AMF NAS %s", msgTypeName),
+	ctx, span := tracer.Start(ctx, "NAS receive",
+		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(
-			attribute.String("nas.messageType", msgTypeName),
-			attribute.String("supi", ue.AmfUe.Supi),
+			attribute.String("nas.message_type", msgTypeName),
+			attribute.String("ue.supi", ue.AmfUe.Supi),
 		),
 	)
 	defer span.End()

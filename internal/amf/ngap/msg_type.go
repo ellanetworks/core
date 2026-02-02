@@ -207,16 +207,3 @@ func getUnsuccessfulOutcomeMessageType(present int) string {
 		return "Unknown"
 	}
 }
-
-func getPDUCategory(present int) string {
-	switch present {
-	case ngapType.NGAPPDUPresentInitiatingMessage:
-		return "InitiatingMessage"
-	case ngapType.NGAPPDUPresentSuccessfulOutcome:
-		return "SuccessfulOutcome"
-	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
-		return "UnsuccessfulOutcome"
-	default:
-		return "Unknown"
-	}
-}

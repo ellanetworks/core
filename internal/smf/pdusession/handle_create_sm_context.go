@@ -28,10 +28,12 @@ import (
 var tracer = otel.Tracer("ella-core/smf")
 
 func CreateSmContext(ctx context.Context, supi string, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error) {
-	ctx, span := tracer.Start(ctx, "SMF Create SmContext",
+	ctx, span := tracer.Start(ctx, "SMF create session",
+		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String("supi", supi),
-			attribute.Int("pduSessionID", int(pduSessionID)),
+			attribute.String("ue.supi", supi),
+			attribute.Int("smf.pdu_session_id", int(pduSessionID)),
+			attribute.String("smf.dnn", dnn),
 		),
 	)
 	defer span.End()

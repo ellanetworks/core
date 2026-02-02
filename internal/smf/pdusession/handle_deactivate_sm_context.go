@@ -13,11 +13,10 @@ import (
 )
 
 func DeactivateSmContext(ctx context.Context, smContextRef string) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"SMF Deactivate SmContext",
+	ctx, span := tracer.Start(ctx, "SMF deactivate session",
+		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String("smf.smContextRef", smContextRef),
+			attribute.String("smf.context_ref", smContextRef),
 		),
 	)
 	defer span.End()

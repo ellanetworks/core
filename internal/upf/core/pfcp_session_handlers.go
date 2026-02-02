@@ -12,6 +12,7 @@ import (
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -37,7 +38,9 @@ func (u UpfPfcpHandler) HandlePfcpSessionModificationRequest(ctx context.Context
 }
 
 func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.SessionEstablishmentRequest) (*message.SessionEstablishmentResponse, error) {
-	ctx, span := tracer.Start(ctx, "UPF Session Establishment")
+	ctx, span := tracer.Start(ctx, "UPF establish session",
+		trace.WithSpanKind(trace.SpanKindServer),
+	)
 	defer span.End()
 
 	conn := GetConnection()
@@ -185,7 +188,9 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 }
 
 func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionDeletionRequest) (*message.SessionDeletionResponse, error) {
-	_, span := tracer.Start(ctx, "UPF Session Delete")
+	_, span := tracer.Start(ctx, "UPF delete session",
+		trace.WithSpanKind(trace.SpanKindServer),
+	)
 	defer span.End()
 
 	conn := GetConnection()
@@ -232,7 +237,9 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 }
 
 func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.SessionModificationRequest) (*message.SessionModificationResponse, error) {
-	ctx, span := tracer.Start(ctx, "UPF Session Modify")
+	ctx, span := tracer.Start(ctx, "UPF modify session",
+		trace.WithSpanKind(trace.SpanKindServer),
+	)
 	defer span.End()
 
 	conn := GetConnection()
