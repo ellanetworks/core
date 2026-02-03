@@ -11,10 +11,10 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/ausf"
@@ -27,11 +27,12 @@ import (
 
 const (
 	MaxValueOfAmfUeNgapID int64 = 1099511627775
+	PreallocateTmsi       uint  = 20
 )
 
 var (
 	amfContext                                    = AMF{}
-	tmsiGenerator        *idgenerator.IDGenerator = nil
+	tmsiGenerator        *etsi.TmsiAllocator      = nil
 	amfUeNGAPIDGenerator *idgenerator.IDGenerator = nil
 )
 
@@ -46,7 +47,7 @@ func init() {
 		UEs:    make(map[string]*AmfUe),
 		Radios: make(map[*sctp.SCTPConn]*Radio),
 	}
-	tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
+	tmsiGenerator = etsi.NewTMSIAllocator(context.TODO(), PreallocateTmsi)
 	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID)
 }
 
@@ -123,13 +124,16 @@ type SecurityAlgorithm struct {
 	CipheringOrder []uint8 // slice of security.AlgCipheringXXX
 }
 
-func allocateTMSI() (uint32, error) {
-	val, err := tmsiGenerator.Allocate()
+func allocateTMSI() (etsi.TMSI, error) {
+	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
+	defer cancel()
+
+	val, err := tmsiGenerator.Allocate(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("could not allocate TMSI: %v", err)
+		return val, fmt.Errorf("could not allocate TMSI: %v", err)
 	}
 
-	return uint32(val), nil
+	return val, nil
 }
 
 func allocateAmfUeNgapID() (int64, error) {
@@ -162,7 +166,7 @@ func (amf *AMF) RemoveAMFUE(ue *AmfUe) {
 		}
 	}
 
-	tmsiGenerator.FreeID(int64(ue.Tmsi))
+	tmsiGenerator.Free(ue.Tmsi)
 
 	if ue.Supi == "" {
 		return

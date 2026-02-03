@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -65,8 +66,8 @@ type AmfUe struct {
 	Suci    string
 	Supi    string
 	Pei     string
-	Tmsi    uint32
-	OldTmsi uint32
+	Tmsi    etsi.TMSI
+	OldTmsi etsi.TMSI
 	Guti    string
 	OldGuti string
 	/* User Location*/
@@ -172,15 +173,14 @@ func (ue *AmfUe) ReAllocateGuti(supportedGuami *models.Guami) error {
 
 	ue.Tmsi = tmsi
 	plmnID := supportedGuami.PlmnID.Mcc + supportedGuami.PlmnID.Mnc
-	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
 	ue.OldGuti = ue.Guti
-	ue.Guti = plmnID + supportedGuami.AmfID + tmsiStr
+	ue.Guti = fmt.Sprintf("%s%s%s", plmnID, supportedGuami.AmfID, ue.Tmsi.String())
 
 	return nil
 }
 
 func (ue *AmfUe) FreeOldGuti() {
-	tmsiGenerator.FreeID(int64(ue.OldTmsi))
+	tmsiGenerator.Free(ue.OldTmsi)
 	ue.OldGuti = ""
 }
 
