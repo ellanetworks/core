@@ -12,11 +12,10 @@ import (
 )
 
 func ReleaseSmContext(ctx context.Context, smContextRef string) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"SMF Release SmContext",
+	ctx, span := tracer.Start(ctx, "SMF release session",
+		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String("smf.smContextRef", smContextRef),
+			attribute.String("smf.context_ref", smContextRef),
 		),
 	)
 	defer span.End()

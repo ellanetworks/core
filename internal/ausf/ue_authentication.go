@@ -21,11 +21,11 @@ import (
 var tracer = otel.Tracer("ella-core/ausf")
 
 func UeAuthPostRequestProcedure(ctx context.Context, suci string, snName string, resyncInfo *models.ResynchronizationInfo) (*models.Av5gAka, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		"AUSF UEAuthentication PostRequest",
+	ctx, span := tracer.Start(ctx, "AUSF authenticate",
+		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("ue.suci", suci),
+			attribute.String("ausf.serving_network", snName),
 		),
 	)
 	defer span.End()

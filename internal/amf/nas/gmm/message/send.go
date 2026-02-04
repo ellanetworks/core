@@ -33,7 +33,7 @@ func SendDLNASTransport(ctx context.Context, ue *amfContext.RanUe, payloadContai
 			attribute.Int("pduSessionID", int(pduSessionID)),
 			attribute.Int("cause", int(cause)),
 		),
-		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
@@ -65,7 +65,7 @@ func SendIdentityRequest(ctx context.Context, ue *amfContext.RanUe, typeOfIdenti
 			attribute.String("supi", ue.AmfUe.Supi),
 			attribute.Int("typeOfIdentity", int(typeOfIdentity)),
 		),
-		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
@@ -91,7 +91,7 @@ func SendAuthenticationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 		),
-		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
@@ -141,7 +141,7 @@ func SendServiceAccept(ctx context.Context, ue *amfContext.RanUe, pDUSessionStat
 			attribute.Int("pduSessionIDErrorCount", len(errPduSessionID)),
 			attribute.Int("causeErrorCount", len(errCause)),
 		),
-		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
@@ -167,7 +167,7 @@ func SendAuthenticationReject(ctx context.Context, ue *amfContext.RanUe) error {
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 		),
-		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
@@ -194,7 +194,7 @@ func SendServiceReject(ctx context.Context, ue *amfContext.RanUe, cause uint8) e
 			attribute.String("supi", ue.AmfUe.Supi),
 			attribute.Int("cause", int(cause)),
 		),
-		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
@@ -222,7 +222,7 @@ func SendRegistrationReject(ctx context.Context, ue *amfContext.RanUe, cause5GMM
 			attribute.String("supi", ue.AmfUe.Supi),
 			attribute.Int("cause", int(cause5GMM)),
 		),
-		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
@@ -248,7 +248,7 @@ func SendSecurityModeCommand(ctx context.Context, amf *amfContext.AMF, ue *amfCo
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 		),
-		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
@@ -295,7 +295,7 @@ func SendDeregistrationAccept(ctx context.Context, ue *amfContext.RanUe) error {
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi),
 		),
-		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
@@ -332,7 +332,7 @@ func SendRegistrationAccept(
 		trace.WithAttributes(
 			attribute.String("supi", ue.Supi),
 		),
-		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
@@ -436,7 +436,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 		trace.WithAttributes(
 			attribute.String("supi", amfUe.Supi),
 		),
-		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 

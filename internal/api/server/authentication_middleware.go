@@ -65,8 +65,8 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 		}
 	}()
 
-	ctx, span := tracer.Start(r.Context(), "Authenticate",
-		trace.WithAttributes(),
+	ctx, span := tracer.Start(r.Context(), "API authenticate",
+		trace.WithSpanKind(trace.SpanKindServer),
 	)
 	defer span.End()
 
