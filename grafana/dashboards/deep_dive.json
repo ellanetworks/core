@@ -116,7 +116,6 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": null,
   "links": [],
   "panels": [
     {
@@ -591,7 +590,7 @@
               "viz": false
             },
             "insertNulls": false,
-            "lineInterpolation": "linear",
+            "lineInterpolation": "stepAfter",
             "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
@@ -1365,7 +1364,7 @@
       "type": "timeseries"
     },
     {
-      "collapsed": true,
+      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1373,698 +1372,679 @@
         "y": 32
       },
       "id": 48,
-      "panels": [
-        {
-          "datasource": {
-            "type": "jaeger",
-            "uid": "${DS_JAEGER}"
-          },
-          "description": "Total number of traces recorded in the selected time range.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "blue",
-                    "value": 0
-                  }
-                ]
-              },
-              "unit": "short"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 4,
-            "w": 6,
-            "x": 0,
-            "y": 33
-          },
-          "id": 60,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [
-                "count"
-              ],
-              "fields": "/^Trace ID$/",
-              "values": false
-            },
-            "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true
-          },
-          "pluginVersion": "12.3.1",
-          "targets": [
-            {
-              "datasource": {
-                "type": "jaeger",
-                "uid": "${DS_JAEGER}"
-              },
-              "limit": 1000,
-              "queryType": "search",
-              "refId": "A",
-              "service": "${trace_service}",
-              "tags": "${trace_host}"
-            }
-          ],
-          "title": "Total Traces",
-          "type": "stat"
-        },
-        {
-          "datasource": {
-            "type": "jaeger",
-            "uid": "${DS_JAEGER}"
-          },
-          "description": "Number of traces with errors in the selected time range.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "yellow",
-                    "value": 1
-                  },
-                  {
-                    "color": "red",
-                    "value": 10
-                  }
-                ]
-              },
-              "unit": "short"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 4,
-            "w": 6,
-            "x": 6,
-            "y": 33
-          },
-          "id": 61,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [
-                "count"
-              ],
-              "fields": "/^Trace ID$/",
-              "values": false
-            },
-            "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true
-          },
-          "pluginVersion": "12.3.1",
-          "targets": [
-            {
-              "datasource": {
-                "type": "jaeger",
-                "uid": "${DS_JAEGER}"
-              },
-              "limit": 1000,
-              "queryType": "search",
-              "refId": "A",
-              "service": "${trace_service}",
-              "tags": "error=true ${trace_host}"
-            }
-          ],
-          "title": "Error Traces",
-          "type": "stat"
-        },
-        {
-          "datasource": {
-            "type": "jaeger",
-            "uid": "${DS_JAEGER}"
-          },
-          "description": "Average trace duration across all traces in the selected time range.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "yellow",
-                    "value": 100000
-                  },
-                  {
-                    "color": "red",
-                    "value": 500000
-                  }
-                ]
-              },
-              "unit": "µs"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 4,
-            "w": 6,
-            "x": 12,
-            "y": 33
-          },
-          "id": 62,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [
-                "mean"
-              ],
-              "fields": "/^Duration$/",
-              "values": false
-            },
-            "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true
-          },
-          "pluginVersion": "12.3.1",
-          "targets": [
-            {
-              "datasource": {
-                "type": "jaeger",
-                "uid": "${DS_JAEGER}"
-              },
-              "limit": 1000,
-              "queryType": "search",
-              "refId": "A",
-              "service": "${trace_service}",
-              "tags": "${trace_host}"
-            }
-          ],
-          "title": "Avg Duration",
-          "transformations": [
-            {
-              "id": "filterByValue",
-              "options": {
-                "filters": [
-                  {
-                    "config": {
-                      "id": "substring",
-                      "options": {
-                        "value": "pprof"
-                      }
-                    },
-                    "fieldName": "Trace name"
-                  },
-                  {
-                    "config": {
-                      "id": "substring",
-                      "options": {
-                        "value": "metrics"
-                      }
-                    },
-                    "fieldName": "Trace name"
-                  }
-                ],
-                "match": "any",
-                "type": "exclude"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "renameByName": {
-                  "duration": "Duration"
-                }
-              }
-            }
-          ],
-          "type": "stat"
-        },
-        {
-          "datasource": {
-            "type": "jaeger",
-            "uid": "${DS_JAEGER}"
-          },
-          "description": "Maximum trace duration (slowest request) in the selected time range.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "yellow",
-                    "value": 500000
-                  },
-                  {
-                    "color": "red",
-                    "value": 1000000
-                  }
-                ]
-              },
-              "unit": "µs"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 4,
-            "w": 6,
-            "x": 18,
-            "y": 33
-          },
-          "id": 63,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [
-                "max"
-              ],
-              "fields": "/^Duration$/",
-              "values": false
-            },
-            "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true
-          },
-          "pluginVersion": "12.3.1",
-          "targets": [
-            {
-              "datasource": {
-                "type": "jaeger",
-                "uid": "${DS_JAEGER}"
-              },
-              "limit": 1000,
-              "queryType": "search",
-              "refId": "A",
-              "service": "${trace_service}",
-              "tags": "${trace_host}"
-            }
-          ],
-          "title": "Max Duration",
-          "transformations": [
-            {
-              "id": "filterByValue",
-              "options": {
-                "filters": [
-                  {
-                    "config": {
-                      "id": "substring",
-                      "options": {
-                        "value": "pprof"
-                      }
-                    },
-                    "fieldName": "Trace name"
-                  },
-                  {
-                    "config": {
-                      "id": "substring",
-                      "options": {
-                        "value": "metrics"
-                      }
-                    },
-                    "fieldName": "Trace name"
-                  }
-                ],
-                "match": "any",
-                "type": "exclude"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "renameByName": {
-                  "duration": "Duration"
-                }
-              }
-            }
-          ],
-          "type": "stat"
-        },
-        {
-          "datasource": {
-            "type": "jaeger",
-            "uid": "${DS_JAEGER}"
-          },
-          "description": "Recent traces from Ella Core. Click on a Trace ID to view the full span timeline.",
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "footer": {
-                  "reducers": []
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  }
-                ]
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Trace ID"
-                },
-                "properties": [
-                  {
-                    "id": "links",
-                    "value": [
-                      {
-                        "title": "View Trace",
-                        "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22jaeger%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22jaeger%22,%22uid%22:%22jaeger%22%7D,%22query%22:%22${__value.raw}%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1"
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Duration"
-                },
-                "properties": [
-                  {
-                    "id": "unit",
-                    "value": "µs"
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 37
-          },
-          "id": 52,
-          "options": {
-            "cellHeight": "sm",
-            "footer": {
-              "countRows": false,
-              "fields": "",
-              "reducer": [
-                "sum"
-              ],
-              "show": false
-            },
-            "showHeader": true,
-            "sortBy": [
-              {
-                "desc": true,
-                "displayName": "Start Time"
-              }
-            ]
-          },
-          "pluginVersion": "12.3.1",
-          "targets": [
-            {
-              "datasource": {
-                "type": "jaeger",
-                "uid": "${DS_JAEGER}"
-              },
-              "limit": 50,
-              "queryType": "search",
-              "refId": "A",
-              "service": "${trace_service}",
-              "tags": "${trace_host}"
-            }
-          ],
-          "title": "Recent Traces",
-          "transformations": [
-            {
-              "id": "filterByValue",
-              "options": {
-                "filters": [
-                  {
-                    "config": {
-                      "id": "substring",
-                      "options": {
-                        "value": "pprof"
-                      }
-                    },
-                    "fieldName": "Trace name"
-                  },
-                  {
-                    "config": {
-                      "id": "substring",
-                      "options": {
-                        "value": "metrics"
-                      }
-                    },
-                    "fieldName": "Trace name"
-                  }
-                ],
-                "match": "any",
-                "type": "exclude"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {},
-                "indexByName": {},
-                "renameByName": {
-                  "duration": "Duration",
-                  "startTime": "Start Time",
-                  "traceID": "Trace ID",
-                  "traceName": "Operation"
-                }
-              }
-            }
-          ],
-          "type": "table"
-        },
-        {
-          "datasource": {
-            "type": "jaeger",
-            "uid": "${DS_JAEGER}"
-          },
-          "description": "Traces exceeding 1ms duration. These may indicate performance bottlenecks. Click on a Trace ID to investigate.",
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "footer": {
-                  "reducers": []
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "yellow",
-                    "value": 0
-                  },
-                  {
-                    "color": "orange",
-                    "value": 500000
-                  },
-                  {
-                    "color": "red",
-                    "value": 1000000
-                  }
-                ]
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Trace ID"
-                },
-                "properties": [
-                  {
-                    "id": "links",
-                    "value": [
-                      {
-                        "title": "View Trace",
-                        "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22jaeger%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22jaeger%22,%22uid%22:%22jaeger%22%7D,%22query%22:%22${__value.raw}%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1"
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Duration"
-                },
-                "properties": [
-                  {
-                    "id": "unit",
-                    "value": "µs"
-                  },
-                  {
-                    "id": "custom.cellOptions",
-                    "value": {
-                      "mode": "gradient",
-                      "type": "color-background"
-                    }
-                  },
-                  {
-                    "id": "thresholds",
-                    "value": {
-                      "mode": "absolute",
-                      "steps": [
-                        {
-                          "color": "yellow",
-                          "value": 0
-                        },
-                        {
-                          "color": "orange",
-                          "value": 500000
-                        },
-                        {
-                          "color": "red",
-                          "value": 1000000
-                        }
-                      ]
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 37
-          },
-          "id": 64,
-          "options": {
-            "cellHeight": "sm",
-            "footer": {
-              "countRows": false,
-              "fields": "",
-              "reducer": [
-                "sum"
-              ],
-              "show": false
-            },
-            "showHeader": true,
-            "sortBy": [
-              {
-                "desc": true,
-                "displayName": "Duration"
-              }
-            ]
-          },
-          "pluginVersion": "12.3.1",
-          "targets": [
-            {
-              "datasource": {
-                "type": "jaeger",
-                "uid": "${DS_JAEGER}"
-              },
-              "limit": 50,
-              "minDuration": "1ms",
-              "queryType": "search",
-              "refId": "A",
-              "service": "${trace_service}",
-              "tags": "${trace_host}"
-            }
-          ],
-          "title": "Slow-ish Traces (>1ms)",
-          "transformations": [
-            {
-              "id": "filterByValue",
-              "options": {
-                "filters": [
-                  {
-                    "config": {
-                      "id": "substring",
-                      "options": {
-                        "value": "pprof"
-                      }
-                    },
-                    "fieldName": "Trace name"
-                  },
-                  {
-                    "config": {
-                      "id": "substring",
-                      "options": {
-                        "value": "metrics"
-                      }
-                    },
-                    "fieldName": "Trace name"
-                  }
-                ],
-                "match": "any",
-                "type": "exclude"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {},
-                "indexByName": {},
-                "renameByName": {
-                  "duration": "Duration",
-                  "startTime": "Start Time",
-                  "traceID": "Trace ID",
-                  "traceName": "Operation"
-                }
-              }
-            }
-          ],
-          "type": "table"
-        }
-      ],
+      "panels": [],
       "title": "Traces",
       "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "jaeger",
+        "uid": "${DS_JAEGER}"
+      },
+      "description": "Total number of traces recorded in the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 33
+      },
+      "id": 60,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "count"
+          ],
+          "fields": "/^Trace ID$/",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "jaeger",
+            "uid": "${DS_JAEGER}"
+          },
+          "limit": 1000,
+          "queryType": "search",
+          "refId": "A",
+          "service": "${trace_service}",
+          "tags": "${trace_host}"
+        }
+      ],
+      "title": "Total Traces",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "jaeger",
+        "uid": "${DS_JAEGER}"
+      },
+      "description": "Number of traces with errors in the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 33
+      },
+      "id": 61,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "count"
+          ],
+          "fields": "/^Trace ID$/",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "jaeger",
+            "uid": "${DS_JAEGER}"
+          },
+          "limit": 1000,
+          "queryType": "search",
+          "refId": "A",
+          "service": "${trace_service}",
+          "tags": "error=true ${trace_host}"
+        }
+      ],
+      "title": "Error Traces",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "jaeger",
+        "uid": "${DS_JAEGER}"
+      },
+      "description": "Average trace duration across all traces in the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 100000
+              },
+              {
+                "color": "red",
+                "value": 500000
+              }
+            ]
+          },
+          "unit": "µs"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 33
+      },
+      "id": 62,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "mean"
+          ],
+          "fields": "/^Duration$/",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "jaeger",
+            "uid": "${DS_JAEGER}"
+          },
+          "limit": 1000,
+          "queryType": "search",
+          "refId": "A",
+          "service": "${trace_service}",
+          "tags": "${trace_host}"
+        }
+      ],
+      "title": "Avg Duration",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "substring",
+                  "options": {
+                    "value": "pprof"
+                  }
+                },
+                "fieldName": "Trace name"
+              },
+              {
+                "config": {
+                  "id": "substring",
+                  "options": {
+                    "value": "metrics"
+                  }
+                },
+                "fieldName": "Trace name"
+              }
+            ],
+            "match": "any",
+            "type": "exclude"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "duration": "Duration"
+            }
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "jaeger",
+        "uid": "${DS_JAEGER}"
+      },
+      "description": "Maximum trace duration (slowest request) in the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 500000
+              },
+              {
+                "color": "red",
+                "value": 1000000
+              }
+            ]
+          },
+          "unit": "µs"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 33
+      },
+      "id": 63,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "max"
+          ],
+          "fields": "/^Duration$/",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "jaeger",
+            "uid": "${DS_JAEGER}"
+          },
+          "limit": 1000,
+          "queryType": "search",
+          "refId": "A",
+          "service": "${trace_service}",
+          "tags": "${trace_host}"
+        }
+      ],
+      "title": "Max Duration",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "substring",
+                  "options": {
+                    "value": "pprof"
+                  }
+                },
+                "fieldName": "Trace name"
+              },
+              {
+                "config": {
+                  "id": "substring",
+                  "options": {
+                    "value": "metrics"
+                  }
+                },
+                "fieldName": "Trace name"
+              }
+            ],
+            "match": "any",
+            "type": "exclude"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "duration": "Duration"
+            }
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "jaeger",
+        "uid": "${DS_JAEGER}"
+      },
+      "description": "Recent traces from Ella Core. Click on a Trace ID to view the full span timeline.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Trace ID"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View Trace",
+                    "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22jaeger%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22jaeger%22,%22uid%22:%22jaeger%22%7D,%22query%22:%22${__value.raw}%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "µs"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 37
+      },
+      "id": 52,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Start Time"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "jaeger",
+            "uid": "${DS_JAEGER}"
+          },
+          "limit": 50,
+          "queryType": "search",
+          "refId": "A",
+          "service": "${trace_service}",
+          "tags": "${trace_host}"
+        }
+      ],
+      "title": "Recent Traces",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "substring",
+                  "options": {
+                    "value": "pprof"
+                  }
+                },
+                "fieldName": "Trace name"
+              },
+              {
+                "config": {
+                  "id": "substring",
+                  "options": {
+                    "value": "metrics"
+                  }
+                },
+                "fieldName": "Trace name"
+              }
+            ],
+            "match": "any",
+            "type": "exclude"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "duration": "Duration",
+              "startTime": "Start Time",
+              "traceID": "Trace ID",
+              "traceName": "Operation"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "jaeger",
+        "uid": "${DS_JAEGER}"
+      },
+      "description": "Traces exceeding 1ms duration. These may indicate performance bottlenecks. Click on a Trace ID to investigate.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 500000
+              },
+              {
+                "color": "red",
+                "value": 1000000
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Trace ID"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View Trace",
+                    "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22jaeger%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22jaeger%22,%22uid%22:%22jaeger%22%7D,%22query%22:%22${__value.raw}%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "µs"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "yellow",
+                      "value": 0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 500000
+                    },
+                    {
+                      "color": "red",
+                      "value": 1000000
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 37
+      },
+      "id": 64,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Duration"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "jaeger",
+            "uid": "${DS_JAEGER}"
+          },
+          "limit": 50,
+          "minDuration": "1ms",
+          "operation": "NGAP receive",
+          "queryType": "search",
+          "refId": "A",
+          "service": "${trace_service}",
+          "tags": "${trace_host}"
+        }
+      ],
+      "title": "Slow NGAP Traces (>1ms)",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Trace name": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "orderByMode": "manual",
+            "renameByName": {
+              "Duration": "",
+              "Start time": "",
+              "Trace ID": "",
+              "Trace name": "",
+              "duration": "Duration",
+              "startTime": "Start Time",
+              "traceID": "Trace ID",
+              "traceName": "Operation"
+            }
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "collapsed": true,
@@ -2072,7 +2052,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 45
       },
       "id": 15,
       "panels": [
@@ -2098,14 +2078,12 @@
             "detailsMode": "inline",
             "enableInfiniteScrolling": false,
             "enableLogDetails": true,
-            "fontSize": "default",
             "prettifyLogMessage": false,
             "showCommonLabels": false,
             "showControls": true,
             "showLabels": true,
             "showTime": true,
             "sortOrder": "Descending",
-            "timestampResolution": "ms",
             "wrapLogMessage": false
           },
           "pluginVersion": "12.3.1",
@@ -2117,7 +2095,7 @@
               },
               "direction": "backward",
               "editorMode": "builder",
-              "expr": "{job=~\"$job\", instance=~\"$instance\"} | json | line_format `[{{.component}}] {{.msg}}`",
+              "expr": "{job=~\"$job\", instance=~\"$instance\", component=~\"$component\", level=~\"$level\"} | json | line_format \"[{{.component}}] {{.msg}}\"",
               "queryType": "range",
               "refId": "A"
             }
@@ -2135,7 +2113,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 46
       },
       "id": 3,
       "panels": [
@@ -2153,7 +2131,7 @@
             "h": 12,
             "w": 12,
             "x": 0,
-            "y": 47
+            "y": 83
           },
           "id": 2,
           "options": {},
@@ -2187,7 +2165,7 @@
             "h": 12,
             "w": 12,
             "x": 12,
-            "y": 47
+            "y": 83
           },
           "id": 1,
           "options": {},
@@ -2267,7 +2245,7 @@
         "type": "datasource"
       },
       {
-        "allValue": ".+",
+        "allValue": ".*",
         "current": {},
         "datasource": {
           "type": "prometheus",
@@ -2288,7 +2266,7 @@
         "type": "query"
       },
       {
-        "allValue": ".+",
+        "allValue": ".*",
         "current": {},
         "datasource": {
           "type": "prometheus",
@@ -2364,17 +2342,62 @@
         ],
         "query": "",
         "type": "textbox"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": {
+          "type": "loki",
+          "uid": "${DS_LOKI}"
+        },
+        "definition": "label_values({job=~\"$job\", instance=~\"$instance\"}, component)",
+        "description": "Filter logs by component (amf, smf, upf, api, etc.)",
+        "includeAll": true,
+        "label": "Component",
+        "multi": true,
+        "name": "component",
+        "options": [],
+        "query": {
+          "query": "label_values({job=~\"$job\", instance=~\"$instance\"}, component)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": {
+          "type": "loki",
+          "uid": "${DS_LOKI}"
+        },
+        "definition": "label_values({job=~\"$job\", instance=~\"$instance\"}, level)",
+        "description": "Filter logs by severity (info, warn, error)",
+        "includeAll": true,
+        "label": "Level",
+        "multi": true,
+        "name": "level",
+        "options": [],
+        "query": {
+          "query": "label_values({job=~\"$job\", instance=~\"$instance\"}, level)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "type": "query"
       }
     ]
   },
   "time": {
-    "from": "now-3h",
+    "from": "now-6h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "Ella Core Deep Dive",
   "uid": "ella-deep-dive",
-  "version": 3,
-  "weekStart": ""
+  "version": 8,
+  "weekStart": "",
+  "id": null
 }
