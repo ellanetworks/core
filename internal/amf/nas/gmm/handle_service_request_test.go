@@ -249,6 +249,71 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 	}
 }
 
+func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
+	amf := &context.AMF{
+		DBInstance: &FakeDBInstance{
+			Operator: &db.Operator{
+				Mcc:           "001",
+				Mnc:           "01",
+				Sst:           1,
+				SupportedTACs: "[\"000001\"]",
+			},
+		},
+		Ausf: &FakeAusf{
+			AvKgAka: &models.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
+			Supi:  "imsi-001019756139935",
+			Kseaf: "testkey",
+		},
+		UEs: make(map[string]*context.AmfUe),
+	}
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ranUe := ue.RanUe
+	ue = context.NewAmfUe()
+	ue.AttachRanUe(ranUe)
+
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+	algo := security.AlgCiphering128NEA2
+
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
+	if err != nil {
+		t.Fatalf("could not build service request: %v", err)
+	}
+
+	err = handleServiceRequest(t.Context(), amf, ue, m.ServiceRequest)
+	if err != nil {
+		t.Fatalf("expected no errors, got: %v", err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message")
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+		t.Fatalf("expected a plain NAS message")
+	}
+
+	err = nm.PlainNasDecode(&resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not decode plain NAS message")
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeServiceReject {
+		t.Fatalf("expected a service reject essage, got '%v'", nm.GmmHeader.GetMessageType())
+	}
+}
+
 func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	amf := &context.AMF{
 		DBInstance: &FakeDBInstance{
