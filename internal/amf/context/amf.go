@@ -47,7 +47,7 @@ func init() {
 		UEs:    make(map[string]*AmfUe),
 		Radios: make(map[*sctp.SCTPConn]*Radio),
 	}
-	tmsiGenerator = etsi.NewTMSIAllocator(context.TODO(), PreallocateTmsi)
+	tmsiGenerator = etsi.NewTMSIAllocator()
 	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID)
 }
 

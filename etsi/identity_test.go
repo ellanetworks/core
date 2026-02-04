@@ -23,36 +23,20 @@ func TestNewTMSI_Valid(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("TMSI_%8x", tc), func(t *testing.T) {
-			_, err := etsi.NewTMSI(tc)
+			tmsi, err := etsi.NewTMSI(tc)
 			if err != nil {
 				t.Fatalf("expected no error, got: %v", err)
+			}
+
+			if tmsi == etsi.InvalidTMSI {
+				t.Fatalf("expected valid TMSI, got %v", tmsi)
 			}
 		})
 	}
 }
 
-func TestTMSIAllocator_AllocateAndClose(t *testing.T) {
-	ta := etsi.NewTMSIAllocator(t.Context(), 1)
-
-	tmsi, err := ta.Allocate(t.Context())
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if tmsi == etsi.InvalidTMSI {
-		t.Fatalf("expected valid TMSI, got %v", tmsi)
-	}
-
-	err = ta.Close()
-	if err != nil {
-		t.Fatalf("expected no error closing allocator, got %v", err)
-	}
-}
-
 func TestTMSIAllocator_AllocateBalanceLSB(t *testing.T) {
-	ta := etsi.NewTMSIAllocator(t.Context(), 1)
-
-	defer func() { _ = ta.Close() }()
+	ta := etsi.NewTMSIAllocator()
 
 	dist := make(map[string]int)
 
@@ -84,9 +68,7 @@ func BenchmarkTMSIAllocation(b *testing.B) {
 
 	for _, count := range counts {
 		b.Run(fmt.Sprintf("TMSI-Count-%d", count), func(b *testing.B) {
-			ta := etsi.NewTMSIAllocator(b.Context(), 20)
-
-			defer func() { _ = ta.Close() }()
+			ta := etsi.NewTMSIAllocator()
 
 			for b.Loop() {
 				for range count {
@@ -105,9 +87,7 @@ func BenchmarkTMSIAllocationAndFree(b *testing.B) {
 
 	for _, count := range counts {
 		b.Run(fmt.Sprintf("TMSI-Count-%d", count), func(b *testing.B) {
-			ta := etsi.NewTMSIAllocator(b.Context(), 20)
-
-			defer func() { _ = ta.Close() }()
+			ta := etsi.NewTMSIAllocator()
 
 			for b.Loop() {
 				for range count {
@@ -124,27 +104,26 @@ func BenchmarkTMSIAllocationAndFree(b *testing.B) {
 }
 
 func BenchmarkTMSIConcurrentAllocationAndFree(b *testing.B) {
-	preallocate := []uint{1, 10, 20, 50, 100, 1000}
+	ta := etsi.NewTMSIAllocator()
 
-	for _, p := range preallocate {
-		b.Run(fmt.Sprintf("Preallocate-%d", p), func(b *testing.B) {
-			ta := etsi.NewTMSIAllocator(b.Context(), p)
-
-			defer func() { _ = ta.Close() }()
-
-			// Simulate 1000 subscribers
-			b.SetParallelism(1000)
-
-			b.RunParallel(func(pb *testing.PB) {
-				for pb.Next() {
-					tmsi, err := ta.Allocate(context.TODO())
-					if err != nil {
-						b.Fatalf("expected no error, got %v", err)
-					}
-
-					ta.Free(tmsi)
-				}
-			})
-		})
+	for range 1000000 {
+		_, err := ta.Allocate(b.Context())
+		if err != nil {
+			b.Fatalf("expected no error, got %v", err)
+		}
 	}
+
+	// Simulate 1000 subscribers
+	b.SetParallelism(1000)
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			tmsi, err := ta.Allocate(context.TODO())
+			if err != nil {
+				b.Fatalf("expected no error, got %v", err)
+			}
+
+			ta.Free(tmsi)
+		}
+	})
 }
