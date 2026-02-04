@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -25,6 +26,15 @@ type UpdateInputs struct {
 
 func emptyValidation(ue *amfContext.AmfUe) error {
 	return nil
+}
+
+func mustValidTestTmsi(t uint32) etsi.TMSI {
+	tmsi, err := etsi.NewTMSI(t)
+	if err != nil {
+		panic("Tried to create an invalid test TMSI")
+	}
+
+	return tmsi
 }
 
 func TestUpdateUeIdentity(t *testing.T) {
@@ -120,8 +130,8 @@ func TestUpdateUeIdentity(t *testing.T) {
 		},
 		{
 			"5G-S-TMSI maximum value matches",
-			&amfContext.AmfUe{MacFailed: false, Tmsi: 0xFFFFFFFF},
-			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+			&amfContext.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0xFFFFFFFE)},
+			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE},
 			nil,
 			emptyValidation,
 		},
@@ -141,21 +151,21 @@ func TestUpdateUeIdentity(t *testing.T) {
 		},
 		{
 			"Valid 5G-S-TMSI matches UE TMSI",
-			&amfContext.AmfUe{MacFailed: false, Tmsi: uint32(0x1A345678)},
+			&amfContext.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0x1A345678)},
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid 5G-S-TMSI matches UE old TMSI",
-			&amfContext.AmfUe{MacFailed: false, Tmsi: uint32(0x22234567), OldTmsi: uint32(0x1A345678)},
+			&amfContext.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0x22234567), OldTmsi: mustValidTestTmsi(0x1A345678)},
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid 5G-S-TMSI does not match AMF state",
-			&amfContext.AmfUe{MacFailed: false, Tmsi: uint32(0x22234567), OldTmsi: uint32(0x5FFF5555)},
+			&amfContext.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0x22234567), OldTmsi: mustValidTestTmsi(0x5FFF5555)},
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
 			fmt.Errorf("UE sent unknown TMSI"),
 			emptyValidation,

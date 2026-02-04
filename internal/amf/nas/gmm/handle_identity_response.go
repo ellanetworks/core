@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -55,7 +56,10 @@ func updateUEIdentity(ue *amfContext.AmfUe, mobileIdentityContents []uint8) erro
 			return fmt.Errorf("could not parse 5G-S-TMSI: %v", err)
 		}
 
-		tmsi := uint32(tmp)
+		tmsi, err := etsi.NewTMSI(uint32(tmp))
+		if err != nil {
+			return fmt.Errorf("invalid TMSI: %v", err)
+		}
 
 		if tmsi != ue.Tmsi && tmsi != ue.OldTmsi {
 			return fmt.Errorf("UE sent unknown TMSI")

@@ -141,7 +141,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	// the UE has a valid 5G NAS security context and the UE needs to send non-cleartext IEs
 	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS message
 	// container IE, the UE shall set the security header type of the initial NAS message to "integrity protected"
-	if msg.NASMessageContainer != nil {
+	if msg.NASMessageContainer != nil && ue.SecurityContextIsValid() {
 		contents := msg.GetNASMessageContainerContents()
 
 		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
