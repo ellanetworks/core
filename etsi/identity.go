@@ -100,7 +100,7 @@ func (ta *TmsiAllocator) Free(t TMSI) {
 	ta.Lock()
 	defer ta.Unlock()
 
-	ta.allocated[t] = false
+	delete(ta.allocated, t)
 
 	lsb := ta.lsbBuckets[t.tmsi&0x03FF]
 	if lsb.count > 0 {
@@ -124,11 +124,9 @@ func (ta *TmsiAllocator) preallocate(ctx context.Context, c chan<- TMSI) {
 			continue
 		}
 
-		ta.Lock()
-		ta.allocated[t] = true
-		lsb.count++
-		heap.Push(&ta.lsbPrioQueue, lsb)
-		ta.Unlock()
+		if !ta.tryAllocate(t, lsb) {
+			continue
+		}
 
 		select {
 		case c <- t:
@@ -137,6 +135,21 @@ func (ta *TmsiAllocator) preallocate(ctx context.Context, c chan<- TMSI) {
 			return
 		}
 	}
+}
+
+func (ta *TmsiAllocator) tryAllocate(t TMSI, lsb *pagingBucket) bool {
+	ta.Lock()
+	defer ta.Unlock()
+
+	if ta.allocated[t] {
+		return false
+	}
+
+	ta.allocated[t] = true
+	lsb.count++
+	heap.Push(&ta.lsbPrioQueue, lsb)
+
+	return true
 }
 
 func (ta *TmsiAllocator) nextLsb() *pagingBucket {
