@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -254,4 +255,18 @@ func (s FakeSmf) ActivateSmContext(smContextRef string) ([]byte, error) {
 
 func (s FakeSmf) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	return nil
+}
+
+func mustTestGuti(mcc string, mnc string, amfid string, tmsi uint32) etsi.GUTI {
+	t, err := etsi.NewTMSI(tmsi)
+	if err != nil {
+		panic("invalid tmsi")
+	}
+
+	guti, err := etsi.NewGUTI(mcc, mnc, amfid, t)
+	if err != nil {
+		panic("invalid guti")
+	}
+
+	return guti
 }

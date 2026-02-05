@@ -88,9 +88,9 @@ func TestUpdateUeIdentity(t *testing.T) {
 		},
 		{
 			"Invalid GUTI sets empty GUTI",
-			&amfContext.AmfUe{Guti: "oldguti", MacFailed: false},
+			&amfContext.AmfUe{Guti: mustTestGuti("999", "99", "cafe42", 0x00000001), MacFailed: false},
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0},
-			fmt.Errorf("UE sent invalid GUTI"),
+			fmt.Errorf("UE sent invalid GUTI: invalid GUTI length"),
 			emptyValidation,
 		},
 		{
@@ -102,21 +102,21 @@ func TestUpdateUeIdentity(t *testing.T) {
 		},
 		{
 			"Valid GUTI matches UE GUTI",
-			&amfContext.AmfUe{MacFailed: false, Guti: "00101cafe01deadbeef"},
+			&amfContext.AmfUe{MacFailed: false, Guti: mustTestGuti("001", "01", "cafe01", 0xdeadbeef)},
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid GUTI matches UE old GUTI",
-			&amfContext.AmfUe{MacFailed: false, Guti: "00101cafe02f00df00d", OldGuti: "00101cafe01deadbeef"},
+			&amfContext.AmfUe{MacFailed: false, Guti: mustTestGuti("001", "01", "cafe02", 0xf00df00d), OldGuti: mustTestGuti("001", "01", "cafe01", 0xdeadbeef)},
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid GUTI does not match AMF state",
-			&amfContext.AmfUe{MacFailed: false, Guti: "00101cafe02f00df00d", OldGuti: "00101cafe0112345678"},
+			&amfContext.AmfUe{MacFailed: false, Guti: mustTestGuti("001", "01", "cafe02", 0xf00df00d), OldGuti: mustTestGuti("001", "01", "cafe01", 0x12345678)},
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
 			fmt.Errorf("UE sent unknown GUTI"),
 			emptyValidation,

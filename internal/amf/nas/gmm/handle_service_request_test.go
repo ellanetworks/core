@@ -573,11 +573,13 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
+	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
+
 	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.SetOnGoing(context.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.State = context.Registered
-	ue.Guti = "oldguti"
+	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -631,11 +633,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.Guti == "oldguti" {
+	if ue.Guti == oldguti {
 		t.Fatal("expected new GUTI to be allocated")
 	}
 
-	if ue.OldGuti != "oldguti" {
+	if ue.OldGuti != oldguti {
 		t.Fatal("expected old GUTI to still be valid")
 	}
 }
@@ -670,7 +672,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 	ue.SetOnGoing(context.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.State = context.Registered
-	ue.Guti = "oldguti"
+	ue.Guti = mustTestGuti("001", "01", "cafe42", 0x00000001)
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -726,12 +728,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
+	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
+
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.SetOnGoing(context.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.State = context.Registered
-	ue.Guti = "oldguti"
+	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -821,11 +825,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
-	if ue.Guti == "oldguti" {
+	if ue.Guti == oldguti {
 		t.Fatal("expected new GUTI to be allocated")
 	}
 
-	if ue.OldGuti != "oldguti" {
+	if ue.OldGuti != oldguti {
 		t.Fatal("expected old GUTI to still be valid")
 	}
 }
@@ -858,12 +862,13 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
+	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.SetOnGoing(context.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.State = context.Registered
-	ue.Guti = "oldguti"
+	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -958,11 +963,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
-	if ue.Guti == "oldguti" {
+	if ue.Guti == oldguti {
 		t.Fatal("expected new GUTI to be allocated")
 	}
 
-	if ue.OldGuti != "oldguti" {
+	if ue.OldGuti != oldguti {
 		t.Fatal("expected old GUTI to still be valid")
 	}
 }
@@ -995,12 +1000,13 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
+	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.SetOnGoing(context.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.State = context.Registered
-	ue.Guti = "oldguti"
+	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -1103,11 +1109,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
-	if ue.Guti == "oldguti" {
+	if ue.Guti == oldguti {
 		t.Fatal("expected new GUTI to be allocated")
 	}
 
-	if ue.OldGuti != "oldguti" {
+	if ue.OldGuti != oldguti {
 		t.Fatal("expected old GUTI to still be valid")
 	}
 }
@@ -1140,12 +1146,13 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
+	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.SetOnGoing(context.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.State = context.Registered
-	ue.Guti = "oldguti"
+	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -1237,11 +1244,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
-	if ue.Guti == "oldguti" {
+	if ue.Guti == oldguti {
 		t.Fatal("expected new GUTI to be allocated")
 	}
 
-	if ue.OldGuti != "oldguti" {
+	if ue.OldGuti != oldguti {
 		t.Fatal("expected old GUTI to still be valid")
 	}
 }
@@ -1274,12 +1281,13 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
+	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.SetOnGoing(context.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.State = context.Registered
-	ue.Guti = "oldguti"
+	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -1414,11 +1422,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
-	if ue.Guti == "oldguti" {
+	if ue.Guti == oldguti {
 		t.Fatal("expected new GUTI to be allocated")
 	}
 
-	if ue.OldGuti != "oldguti" {
+	if ue.OldGuti != oldguti {
 		t.Fatal("expected old GUTI to still be valid")
 	}
 }

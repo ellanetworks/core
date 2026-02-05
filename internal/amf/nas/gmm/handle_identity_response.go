@@ -32,9 +32,9 @@ func updateUEIdentity(ue *amfContext.AmfUe, mobileIdentityContents []uint8) erro
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
-		_, guti := nasConvert.GutiToString(mobileIdentityContents)
-		if guti == "" {
-			return fmt.Errorf("UE sent invalid GUTI")
+		guti, err := etsi.NewGUTIFromBytes(mobileIdentityContents)
+		if err != nil {
+			return fmt.Errorf("UE sent invalid GUTI: %v", err)
 		}
 
 		if guti != ue.Guti && guti != ue.OldGuti {
