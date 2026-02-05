@@ -1,4 +1,4 @@
-import { HTTPStatus } from "@/queries/utils";
+import { apiFetch } from "@/queries/utils";
 
 export type SupportedTAI = {
   plmn_id: string;
@@ -24,30 +24,8 @@ export async function listRadios(
   page: number,
   perPage: number,
 ): Promise<ListRadiosResponse> {
-  const response = await fetch(
+  return apiFetch<ListRadiosResponse>(
     `/api/v1/ran/radios?page=${page}&per_page=${perPage}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + authToken,
-      },
-    },
+    { authToken },
   );
-  let json: { result: ListRadiosResponse; error?: string };
-  try {
-    json = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
-    );
-  }
-
-  return json.result;
 }

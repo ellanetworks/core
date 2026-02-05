@@ -1,3 +1,9 @@
+import { HTTPStatus } from "@/queries/utils";
+
+/**
+ * Downloads a backup as a binary blob.
+ * Cannot use apiFetch because the response is a Blob, not JSON.
+ */
 export const backup = async (authToken: string): Promise<Blob> => {
   const response = await fetch(`/api/v1/backup`, {
     method: "POST",
@@ -7,18 +13,26 @@ export const backup = async (authToken: string): Promise<Blob> => {
   });
 
   if (!response.ok) {
-    let respData;
+    let respData: { error?: string } | undefined;
     try {
       respData = await response.json();
     } catch {
-      throw new Error(`${response.status}: ${response.statusText}`);
+      throw new Error(
+        `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
+      );
     }
-    throw new Error(respData?.error || "Unknown error");
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+    );
   }
 
   return await response.blob();
 };
 
+/**
+ * Uploads a backup file for restore.
+ * Cannot use apiFetch because the request body is FormData, not JSON.
+ */
 export const restore = async (
   authToken: string,
   backupFile: Blob,
@@ -35,12 +49,16 @@ export const restore = async (
   });
 
   if (!response.ok) {
-    let respData;
+    let respData: { error?: string } | undefined;
     try {
       respData = await response.json();
     } catch {
-      throw new Error(`${response.status}: ${response.statusText}`);
+      throw new Error(
+        `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
+      );
     }
-    throw new Error(respData?.error || "Unknown error");
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+    );
   }
 };
