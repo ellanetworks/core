@@ -3,13 +3,88 @@ package etsi
 import (
 	"context"
 	"crypto/rand"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"math/big"
+	"strconv"
+	"strings"
 	"sync"
 )
 
 var maxMsbValue = big.NewInt(0x003FFFFF)
+
+// GUTI represents a 5G Globally Unique Temporary Identity,
+// as defined by 3GPP.
+type GUTI struct {
+	mcc   string
+	mnc   string
+	Amfid string
+	Tmsi  TMSI
+}
+
+var InvalidGUTI GUTI = GUTI{Tmsi: InvalidTMSI}
+
+func NewGUTI(mcc string, mnc string, amfid string, tmsi TMSI) (GUTI, error) {
+	if len(mcc) != 3 {
+		return InvalidGUTI, fmt.Errorf("invalid mcc: %s", mcc)
+	}
+
+	_, err := strconv.ParseUint(mcc, 10, 16)
+	if err != nil {
+		return InvalidGUTI, fmt.Errorf("invalid mcc: %s", mcc)
+	}
+
+	if len(mnc) < 2 || len(mnc) > 3 {
+		return InvalidGUTI, fmt.Errorf("invalid mnc: %s", mnc)
+	}
+
+	_, err = strconv.ParseUint(mnc, 10, 16)
+	if err != nil {
+		return InvalidGUTI, fmt.Errorf("invalid mnc: %s", mnc)
+	}
+
+	if len(amfid) != 6 {
+		return InvalidGUTI, fmt.Errorf("invalid amfid: %s", amfid)
+	}
+
+	_, err = hex.DecodeString(amfid)
+	if err != nil {
+		return InvalidGUTI, fmt.Errorf("invalid amfid: %s", amfid)
+	}
+
+	if tmsi == InvalidTMSI {
+		return InvalidGUTI, fmt.Errorf("invalid tmsi: %s", tmsi.String())
+	}
+
+	return GUTI{mcc: mcc, mnc: mnc, Amfid: strings.ToLower(amfid), Tmsi: tmsi}, nil
+}
+
+func NewGUTIFromBytes(buf []byte) (GUTI, error) {
+	if len(buf) != 11 {
+		return InvalidGUTI, fmt.Errorf("invalid GUTI length")
+	}
+
+	mcc, mnc, err := PlmnIDToMccMncString(buf[1:4])
+	if err != nil {
+		return InvalidGUTI, fmt.Errorf("invalid PLMN: %v", err)
+	}
+
+	amfID := hex.EncodeToString(buf[4:7])
+	tmsi5G := binary.BigEndian.Uint32(buf[7:])
+
+	tmsi, err := NewTMSI(tmsi5G)
+	if err != nil {
+		return InvalidGUTI, err
+	}
+
+	return GUTI{mcc: mcc, mnc: mnc, Amfid: amfID, Tmsi: tmsi}, nil
+}
+
+func (g *GUTI) String() string {
+	return fmt.Sprintf("%s%s%s%s", g.mcc, g.mnc, g.Amfid, &g.Tmsi)
+}
 
 // TMSI represents a 5G Temporary Mobile Subscriber's Identity,
 // as define by 3GPP.
@@ -110,4 +185,36 @@ func (ta *TmsiAllocator) tryAllocate(t TMSI) bool {
 	ta.nextLsb++
 
 	return true
+}
+
+func PlmnIDToMccMncString(buf []byte) (mcc string, mnc string, err error) {
+	mccDigit1 := buf[0] & 0x0f
+	mccDigit2 := (buf[0] & 0xf0) >> 4
+	mccDigit3 := (buf[1] & 0x0f)
+
+	mncDigit1 := (buf[2] & 0x0f)
+	mncDigit2 := (buf[2] & 0xf0) >> 4
+	mncDigit3 := (buf[1] & 0xf0) >> 4
+
+	if mccDigit1 > 9 || mccDigit2 > 9 || mccDigit3 > 9 {
+		return "", "", fmt.Errorf("invalid mcc")
+	}
+
+	// Last digit of MNC is set to `f` if MNC is only 2 digits
+	if mncDigit3 > 9 && mncDigit3 != 15 {
+		return "", "", fmt.Errorf("invalid mnc")
+	}
+
+	if mncDigit1 > 9 || mncDigit2 > 9 {
+		return "", "", fmt.Errorf("invalid mnc")
+	}
+
+	tmpBytes := []byte{(mccDigit1 << 4) | mccDigit2, (mccDigit3 << 4) | mncDigit1, (mncDigit2 << 4) | mncDigit3}
+
+	plmnID := hex.EncodeToString(tmpBytes)
+	if plmnID[5] == 'f' {
+		plmnID = plmnID[:5] // get plmnID[0~4]
+	}
+
+	return plmnID[:3], plmnID[3:], nil
 }

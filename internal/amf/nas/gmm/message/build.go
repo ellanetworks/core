@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
@@ -320,8 +321,8 @@ func BuildRegistrationAccept(
 	registrationResult |= nasMessage.AccessType3GPP
 	registrationAccept.SetRegistrationResultValue5GS(registrationResult)
 
-	if ue.Guti != "" {
-		gutiNas := nasConvert.GutiToNas(ue.Guti)
+	if ue.Guti != etsi.InvalidGUTI {
+		gutiNas := nasConvert.GutiToNas(ue.Guti.String())
 		registrationAccept.GUTI5G = &gutiNas
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
 	}
@@ -425,7 +426,7 @@ func BuildRegistrationAccept(
 
 // TS 24.501 - 5.4.4 Generic UE configuration update procedure - 5.4.4.1 General
 func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe) ([]byte, error) {
-	if ue.Guti == "" {
+	if ue.Guti == etsi.InvalidGUTI {
 		return nil, fmt.Errorf("5G-GUTI is required")
 	}
 
@@ -439,7 +440,7 @@ func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe) ([]byte, error) {
 	configurationUpdateCommand.SetSpareHalfOctet(0)
 	configurationUpdateCommand.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
 
-	gutiNas, err := nasConvert.GutiToNasWithError(ue.Guti)
+	gutiNas, err := nasConvert.GutiToNasWithError(ue.Guti.String())
 	if err != nil {
 		return nil, fmt.Errorf("encode GUTI failed: %w", err)
 	}

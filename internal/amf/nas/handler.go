@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm"
 	"github.com/ellanetworks/core/internal/logger"
@@ -120,7 +121,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 		return nil, fmt.Errorf("unsupported security header type: 0x%0x", msg.SecurityHeaderType)
 	}
 
-	var guti string
+	guti := etsi.InvalidGUTI
 
 	switch msg.GmmHeader.GetMessageType() {
 	case nas.MsgTypeRegistrationRequest:
@@ -130,8 +131,8 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 		}
 
 		if nasMessage.MobileIdentity5GSType5gGuti == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			_, guti = nasConvert.GutiToString(mobileIdentity5GSContents)
-			logger.AmfLog.Debug("Guti received in Registration Request Message", zap.String("guti", guti))
+			guti, _ = etsi.NewGUTIFromBytes(mobileIdentity5GSContents)
+			logger.AmfLog.Debug("Guti received in Registration Request Message", zap.String("guti", guti.String()))
 		} else if nasMessage.MobileIdentity5GSTypeSuci == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
 			suci, _ := nasConvert.SuciToString(mobileIdentity5GSContents)
 			/* UeContext found based on SUCI which means context is exist in Network(AMF) but not
@@ -157,28 +158,32 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 				return nil, fmt.Errorf("error converting 5G-S-TMSI to GUTI: %+v", err)
 			}
 
-			logger.AmfLog.Debug("Guti derived from Service Request Message", zap.String("guti", guti))
+			logger.AmfLog.Debug("Guti derived from Service Request Message", zap.String("guti", guti.String()))
 		}
 	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
 		mobileIdentity5GSContents := msg.DeregistrationRequestUEOriginatingDeregistration.GetMobileIdentity5GSContents()
 		if nasMessage.MobileIdentity5GSType5gGuti == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			_, guti = nasConvert.GutiToString(mobileIdentity5GSContents)
-			logger.AmfLog.Debug("Guti received in Deregistraion Request Message", zap.String("guti", guti))
+			guti, err := etsi.NewGUTIFromBytes(mobileIdentity5GSContents)
+			if err != nil {
+				return nil, nil
+			}
+
+			logger.AmfLog.Debug("Guti received in Deregistraion Request Message", zap.String("guti", guti.String()))
 		}
 	}
 
-	if guti == "" {
+	if guti == etsi.InvalidGUTI {
 		return nil, nil
 	}
 
 	ue, _ := amf.FindAmfUeByGuti(guti)
 	if ue == nil {
-		logger.AmfLog.Warn("UE Context not found", zap.String("guti", guti))
+		logger.AmfLog.Warn("UE Context not found", zap.String("guti", guti.String()))
 		return nil, nil
 	}
 
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
-		ue.Log.Info("UE identified by GUTI but NAS is plain; treating as no security context", zap.String("guti", guti))
+		ue.Log.Info("UE identified by GUTI but NAS is plain; treating as no security context", zap.String("guti", guti.String()))
 
 		// UE likely lost keys; force fresh security setup
 		ue.SecurityContextAvailable = false
@@ -186,7 +191,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 		return ue, nil
 	}
 
-	ue.Log.Info("UE Context derived from Guti", zap.String("guti", guti))
+	ue.Log.Info("UE Context derived from Guti", zap.String("guti", guti.String()))
 
 	return ue, nil
 }

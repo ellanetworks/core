@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -1779,7 +1780,7 @@ func BuildIEMobilityRestrictionList(plmnID models.PlmnID) (*ngapType.MobilityRes
 // with an ARP value associated with
 // priority services (e.g., MPS, MCS), as configured by the operator. (TS 23.502 4.2.3.3, TS 23.501 5.22.3)
 func BuildPaging(
-	guti string,
+	guti etsi.GUTI,
 	registrationArea []models.Tai,
 	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
 	ueInfoOnRecommendedCellsAndRanNodesForPaging *models.InfoOnRecommendedCellsAndRanNodesForPaging,
@@ -1811,27 +1812,14 @@ func BuildPaging(
 	uePagingIdentity.Present = ngapType.UEPagingIdentityPresentFiveGSTMSI
 	uePagingIdentity.FiveGSTMSI = new(ngapType.FiveGSTMSI)
 
-	var (
-		amfID string
-		tmsi  string
-	)
-
-	if len(guti) == 19 {
-		amfID = guti[5:11]
-		tmsi = guti[11:]
-	} else {
-		amfID = guti[6:12]
-		tmsi = guti[12:]
-	}
-
-	_, amfSetID, amfPointer := ngapConvert.AmfIdToNgap(amfID)
+	_, amfSetID, amfPointer := ngapConvert.AmfIdToNgap(guti.Amfid)
 
 	var err error
 
 	uePagingIdentity.FiveGSTMSI.AMFSetID.Value = amfSetID
 	uePagingIdentity.FiveGSTMSI.AMFPointer.Value = amfPointer
 
-	uePagingIdentity.FiveGSTMSI.FiveGTMSI.Value, err = hex.DecodeString(tmsi)
+	uePagingIdentity.FiveGSTMSI.FiveGTMSI.Value, err = hex.DecodeString(guti.Tmsi.String())
 	if err != nil {
 		return nil, fmt.Errorf("could not decode tmsi: %s", err)
 	}

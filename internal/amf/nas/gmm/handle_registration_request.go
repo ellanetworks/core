@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/models"
@@ -135,9 +136,30 @@ func handleRegistrationRequestMessage(ctx context.Context, amf *amfContext.AMF, 
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
 		ue.PlmnID = plmnIDStringToModels(plmnID)
 	case nasMessage.MobileIdentity5GSType5gGuti:
-		_, guti := nasConvert.GutiToString(mobileIdentity5GSContents)
-		ue.Guti = guti
-		ue.Log.Debug("UE used GUTI identity for registration", zap.String("guti", guti))
+		guti, err := etsi.NewGUTIFromBytes(mobileIdentity5GSContents)
+		if err != nil {
+			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()
+
+			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
+			if err != nil {
+				return fmt.Errorf("error sending registration reject: %v", err)
+			}
+
+			return fmt.Errorf("registration Reject [Invalid GUTI]")
+		}
+
+		if guti != ue.Guti || guti != ue.OldGuti {
+			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()
+
+			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			if err != nil {
+				return fmt.Errorf("error sending registration reject: %v", err)
+			}
+
+			return fmt.Errorf("registration Reject [Unknown GUTI]")
+		}
+
+		ue.Log.Debug("UE used GUTI identity for registration", zap.String("guti", guti.String()))
 	case nasMessage.MobileIdentity5GSTypeImei:
 		imei := nasConvert.PeiToString(mobileIdentity5GSContents)
 		ue.Pei = imei

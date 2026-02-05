@@ -43,7 +43,7 @@ func HandleInitialRegistration(ctx context.Context, amf *amfContext.AMF, ue *amf
 
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
-	ue.Log.Debug("use original GUTI", zap.String("guti", ue.Guti))
+	ue.Log.Debug("use original GUTI", zap.String("guti", ue.Guti.String()))
 
 	err = amf.AddAmfUeToUePool(ue)
 	if err != nil {

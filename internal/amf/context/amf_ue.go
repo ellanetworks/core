@@ -68,8 +68,8 @@ type AmfUe struct {
 	Pei     string
 	Tmsi    etsi.TMSI
 	OldTmsi etsi.TMSI
-	Guti    string
-	OldGuti string
+	Guti    etsi.GUTI
+	OldGuti etsi.GUTI
 	/* User Location*/
 	Location models.UserLocation
 	Tai      models.Tai
@@ -172,16 +172,20 @@ func (ue *AmfUe) ReAllocateGuti(supportedGuami *models.Guami) error {
 	}
 
 	ue.Tmsi = tmsi
-	plmnID := supportedGuami.PlmnID.Mcc + supportedGuami.PlmnID.Mnc
 	ue.OldGuti = ue.Guti
-	ue.Guti = fmt.Sprintf("%s%s%s", plmnID, supportedGuami.AmfID, ue.Tmsi.String())
+	ue.Guti, err = etsi.NewGUTI(
+		supportedGuami.PlmnID.Mcc,
+		supportedGuami.PlmnID.Mnc,
+		supportedGuami.AmfID,
+		tmsi,
+	)
 
-	return nil
+	return err
 }
 
 func (ue *AmfUe) FreeOldGuti() {
 	tmsiGenerator.Free(ue.OldTmsi)
-	ue.OldGuti = ""
+	ue.OldGuti = etsi.InvalidGUTI
 }
 
 func (ue *AmfUe) AllocateRegistrationArea(supportedTais []models.Tai) {

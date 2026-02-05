@@ -2,9 +2,10 @@ package ngap
 
 import (
 	"context"
-	"encoding/hex"
+	"encoding/binary"
 	"strconv"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/free5gc/ngap/ngapConvert"
@@ -137,13 +138,20 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 			tmpReginID, _, _ := ngapConvert.AmfIdToNgap(operatorInfo.Guami.AmfID)
 			amfID := ngapConvert.AmfIdToModels(tmpReginID, fiveGSTMSI.AMFSetID.Value, fiveGSTMSI.AMFPointer.Value)
 
-			tmsi := hex.EncodeToString(fiveGSTMSI.FiveGTMSI.Value)
+			tmsi, err := etsi.NewTMSI(binary.BigEndian.Uint32(fiveGSTMSI.FiveGTMSI.Value))
+			if err != nil {
+				ranUe.Log.Warn("invalid tmsi", zap.Error(err))
+			}
 
-			guti := operatorInfo.Guami.PlmnID.Mcc + operatorInfo.Guami.PlmnID.Mnc + amfID + tmsi
+			guti, err := etsi.NewGUTI(operatorInfo.Guami.PlmnID.Mcc, operatorInfo.Guami.PlmnID.Mnc, amfID, tmsi)
+			if err != nil {
+				ranUe.Log.Warn("invalid guti", zap.Error(err))
+			}
+
 			if amfUe, ok := amf.FindAmfUeByGuti(guti); !ok {
-				ranUe.Log.Warn("Unknown UE", zap.String("GUTI", guti))
+				ranUe.Log.Warn("Unknown UE", zap.String("GUTI", guti.String()))
 			} else {
-				ranUe.Log.Debug("find AmfUe", zap.String("GUTI", guti))
+				ranUe.Log.Debug("find AmfUe", zap.String("GUTI", guti.String()))
 				/* checking the guti-ue belongs to this amf instance */
 
 				if amfUe.RanUe != nil {

@@ -9,6 +9,7 @@ package context
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"sync"
@@ -312,8 +313,8 @@ func (amf *AMF) RemoveRadio(ran *Radio) {
 	delete(amf.Radios, ran.Conn)
 }
 
-func (amf *AMF) FindAmfUeByGuti(guti string) (*AmfUe, bool) {
-	if guti == "" {
+func (amf *AMF) FindAmfUeByGuti(guti etsi.GUTI) (*AmfUe, bool) {
+	if guti == etsi.InvalidGUTI {
 		return nil, false
 	}
 
@@ -412,17 +413,24 @@ func AMFSelf() *AMF {
 	return &amfContext
 }
 
-func (amf *AMF) StmsiToGuti(ctx context.Context, buf [7]byte) (string, error) {
+func (amf *AMF) StmsiToGuti(ctx context.Context, buf [7]byte) (etsi.GUTI, error) {
 	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
-		return "", fmt.Errorf("could not get operator info: %v", err)
+		return etsi.InvalidGUTI, fmt.Errorf("could not get operator info: %v", err)
 	}
 
 	tmpReginID := operatorInfo.Guami.AmfID[:2]
 	amfID := hex.EncodeToString(buf[1:3])
-	tmsi5G := hex.EncodeToString(buf[3:])
 
-	guti := operatorInfo.Guami.PlmnID.Mcc + operatorInfo.Guami.PlmnID.Mnc + tmpReginID + amfID + tmsi5G
+	tmsi5G, err := etsi.NewTMSI(binary.BigEndian.Uint32(buf[3:]))
+	if err != nil {
+		return etsi.InvalidGUTI, err
+	}
+
+	guti, err := etsi.NewGUTI(operatorInfo.Guami.PlmnID.Mcc, operatorInfo.Guami.PlmnID.Mnc, tmpReginID+amfID, tmsi5G)
+	if err != nil {
+		return etsi.InvalidGUTI, err
+	}
 
 	return guti, nil
 }
