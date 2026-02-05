@@ -66,7 +66,7 @@ func NewGUTIFromBytes(buf []byte) (GUTI, error) {
 		return InvalidGUTI, fmt.Errorf("invalid GUTI length")
 	}
 
-	mcc, mnc, err := PlmnIDToMccMncString(buf[1:4])
+	mcc, mnc, err := plmnIDToMccMncString(buf[1:4])
 	if err != nil {
 		return InvalidGUTI, fmt.Errorf("invalid PLMN: %v", err)
 	}
@@ -187,7 +187,7 @@ func (ta *TmsiAllocator) tryAllocate(t TMSI) bool {
 	return true
 }
 
-func PlmnIDToMccMncString(buf []byte) (mcc string, mnc string, err error) {
+func plmnIDToMccMncString(buf []byte) (mcc string, mnc string, err error) {
 	mccDigit1 := buf[0] & 0x0f
 	mccDigit2 := (buf[0] & 0xf0) >> 4
 	mccDigit3 := (buf[1] & 0x0f)
