@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useCallback, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Box,
   Typography,
@@ -19,6 +19,7 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   listPolicies,
   deletePolicy,
@@ -51,8 +52,13 @@ const PolicyPage = () => {
     pageSize: 25,
   });
 
-  const [pageData, setPageData] = useState<ListPoliciesResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const pageOneBased = pagination.page + 1;
+  const { data: pageData, isLoading: loading } = useQuery<ListPoliciesResponse>({
+    queryKey: ["policies", pageOneBased, pagination.pageSize],
+    queryFn: () => listPolicies(accessToken || "", pageOneBased, pagination.pageSize),
+    enabled: authReady && !!accessToken,
+  });
 
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
@@ -67,32 +73,6 @@ const PolicyPage = () => {
 
   const descriptionText =
     "Define bitrate and priority levels for your subscribers.";
-
-  const fetchPolicies = useCallback(async () => {
-    if (!authReady || !accessToken) return;
-    setLoading(true);
-    try {
-      const pageOneBased = pagination.page + 1;
-      const data = await listPolicies(
-        accessToken,
-        pageOneBased,
-        pagination.pageSize,
-      );
-      setPageData(data);
-    } catch (error) {
-      console.error("Error fetching policies:", error);
-      setAlert({
-        message: "Failed to fetch policies.",
-        severity: "error",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [accessToken, authReady, pagination.page, pagination.pageSize]);
-
-  useEffect(() => {
-    fetchPolicies();
-  }, [fetchPolicies]);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleEditClick = (policy: APIPolicy) => {
@@ -112,7 +92,7 @@ const PolicyPage = () => {
         message: `Policy "${selectedPolicy}" deleted successfully!`,
         severity: "success",
       });
-      fetchPolicies();
+      queryClient.invalidateQueries({ queryKey: ["policies"] });
     } catch (error) {
       setAlert({
         message: `Failed to delete policy "${selectedPolicy}": ${
@@ -297,14 +277,14 @@ const PolicyPage = () => {
         <CreatePolicyModal
           open
           onClose={() => setCreateModalOpen(false)}
-          onSuccess={fetchPolicies}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ["policies"] })}
         />
       )}
       {isEditModalOpen && (
         <EditPolicyModal
           open
           onClose={() => setEditModalOpen(false)}
-          onSuccess={fetchPolicies}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ["policies"] })}
           initialData={
             editData || {
               name: "",

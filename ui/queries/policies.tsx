@@ -1,4 +1,4 @@
-import { HTTPStatus } from "@/queries/utils";
+import { apiFetch } from "@/queries/utils";
 
 export type APIPolicy = {
   name: string;
@@ -21,33 +21,10 @@ export async function listPolicies(
   page: number,
   perPage: number,
 ): Promise<ListPoliciesResponse> {
-  const response = await fetch(
+  return apiFetch<ListPoliciesResponse>(
     `/api/v1/policies?page=${page}&per_page=${perPage}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + authToken,
-      },
-    },
+    { authToken },
   );
-
-  let json: { result: ListPoliciesResponse; error?: string };
-  try {
-    json = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
-    );
-  }
-
-  return json.result;
 }
 
 export const createPolicy = async (
@@ -59,39 +36,18 @@ export const createPolicy = async (
   arp: number,
   dataNetworkName: string,
 ) => {
-  const policyData = {
-    name: name,
-    bitrate_uplink: bitrateUplink,
-    bitrate_downlink: bitrateDownlink,
-    var5qi: var5qi,
-    arp: arp,
-    data_network_name: dataNetworkName,
-  };
-
-  const response = await fetch(`/api/v1/policies`, {
+  return apiFetch(`/api/v1/policies`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
+    authToken,
+    body: {
+      name,
+      bitrate_uplink: bitrateUplink,
+      bitrate_downlink: bitrateDownlink,
+      var5qi,
+      arp,
+      data_network_name: dataNetworkName,
     },
-    body: JSON.stringify(policyData),
   });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };
 
 export const updatePolicy = async (
@@ -103,63 +59,23 @@ export const updatePolicy = async (
   arp: number,
   dataNetworkName: string,
 ) => {
-  const policyData = {
-    name: name,
-    bitrate_uplink: bitrateUplink,
-    bitrate_downlink: bitrateDownlink,
-    var5qi: var5qi,
-    arp: arp,
-    data_network_name: dataNetworkName,
-  };
-
-  const response = await fetch(`/api/v1/policies/${name}`, {
+  return apiFetch(`/api/v1/policies/${name}`, {
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
+    authToken,
+    body: {
+      name,
+      bitrate_uplink: bitrateUplink,
+      bitrate_downlink: bitrateDownlink,
+      var5qi,
+      arp,
+      data_network_name: dataNetworkName,
     },
-    body: JSON.stringify(policyData),
   });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };
 
 export const deletePolicy = async (authToken: string, name: string) => {
-  const response = await fetch(`/api/v1/policies/${name}`, {
+  return apiFetch(`/api/v1/policies/${name}`, {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
+    authToken,
   });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };

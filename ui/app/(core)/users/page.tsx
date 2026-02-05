@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Box,
   Typography,
@@ -44,10 +45,6 @@ const UserPage: React.FC = () => {
     pageSize: 25,
   });
 
-  const [rows, setRows] = useState<APIUser[]>([]);
-  const [rowCount, setRowCount] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(true);
-
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
@@ -68,33 +65,16 @@ const UserPage: React.FC = () => {
     [outerTheme],
   );
 
-  const fetchUsers = useCallback(
-    async (pageZeroBased: number, pageSize: number) => {
-      if (!authReady || !accessToken) return;
-      setLoading(true);
-      try {
-        const pageOneBased = pageZeroBased + 1;
-        const res: ListUsersResponse = await listUsers(
-          accessToken,
-          pageOneBased,
-          pageSize,
-        );
-        setRows(res.items ?? []);
-        setRowCount(res.total_count ?? 0);
-      } catch (error) {
-        console.error("Error fetching users:", error);
-        setRows([]);
-        setRowCount(0);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [accessToken, authReady],
-  );
+  const queryClient = useQueryClient();
+  const pageOneBased = paginationModel.page + 1;
+  const { data: usersData, isLoading: loading } = useQuery<ListUsersResponse>({
+    queryKey: ["users", pageOneBased, paginationModel.pageSize],
+    queryFn: () => listUsers(accessToken || "", pageOneBased, paginationModel.pageSize),
+    enabled: authReady && !!accessToken,
+  });
 
-  useEffect(() => {
-    fetchUsers(paginationModel.page, paginationModel.pageSize);
-  }, [fetchUsers, paginationModel.page, paginationModel.pageSize]);
+  const rows: APIUser[] = usersData?.items ?? [];
+  const rowCount = usersData?.total_count ?? 0;
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
 
@@ -119,7 +99,7 @@ const UserPage: React.FC = () => {
     try {
       await deleteUser(accessToken, selectedUser);
       setAlert({ message: `User "${selectedUser}" deleted successfully!` });
-      fetchUsers(paginationModel.page, paginationModel.pageSize);
+      queryClient.invalidateQueries({ queryKey: ["users"] });
     } catch {
       setAlert({ message: `Failed to delete user "${selectedUser}".` });
     } finally {
@@ -288,7 +268,7 @@ const UserPage: React.FC = () => {
           open
           onClose={() => setCreateModalOpen(false)}
           onSuccess={() =>
-            fetchUsers(paginationModel.page, paginationModel.pageSize)
+            queryClient.invalidateQueries({ queryKey: ["users"] })
           }
         />
       )}
@@ -298,7 +278,7 @@ const UserPage: React.FC = () => {
           open
           onClose={() => setEditModalOpen(false)}
           onSuccess={() =>
-            fetchUsers(paginationModel.page, paginationModel.pageSize)
+            queryClient.invalidateQueries({ queryKey: ["users"] })
           }
           initialData={editData || { email: "", role_id: RoleID.ReadOnly }}
         />
@@ -309,7 +289,7 @@ const UserPage: React.FC = () => {
           open
           onClose={() => setEditPasswordModalOpen(false)}
           onSuccess={() =>
-            fetchUsers(paginationModel.page, paginationModel.pageSize)
+            queryClient.invalidateQueries({ queryKey: ["users"] })
           }
           initialData={editPasswordData || { email: "" }}
         />

@@ -1,4 +1,4 @@
-import { HTTPStatus } from "@/queries/utils";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type RadioEventRetentionPolicy = {
   days: number;
@@ -39,30 +39,7 @@ export async function listRadioEvents(
     }
   }
 
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${authToken}`,
-    },
-  });
-
-  let json: { result: ListRadioEventsResponse; error?: string };
-  try {
-    json = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
-    );
-  }
-
-  return json.result;
+  return apiFetch<ListRadioEventsResponse>(url.toString(), { authToken });
 }
 
 export type EnumField = {
@@ -89,107 +66,27 @@ export async function getRadioEvent(
   id: string,
 ): Promise<RadioEventContent> {
   const url = new URL(`/api/v1/ran/events/${id}`, window.location.origin);
-
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${authToken}`,
-    },
-  });
-
-  let json: { result: RadioEventContent; error?: string };
-  try {
-    json = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
-    );
-  }
-
-  return json.result;
+  return apiFetch<RadioEventContent>(url.toString(), { authToken });
 }
 
 export async function clearRadioEvents(authToken: string): Promise<void> {
-  const response = await fetch(`/api/v1/ran/events`, {
+  return apiFetchVoid(`/api/v1/ran/events`, {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${authToken}`,
-    },
+    authToken,
   });
-
-  if (!response.ok) {
-    let respData;
-    try {
-      respData = await response.json();
-    } catch {
-      throw new Error(
-        `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-      );
-    }
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
 }
 
-export const getRadioEventRetentionPolicy = async (authToken: string) => {
-  const response = await fetch(`/api/v1/ran/events/retention`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
-  });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
+export const getRadioEventRetentionPolicy = async (authToken: string): Promise<RadioEventRetentionPolicy> => {
+  return apiFetch<RadioEventRetentionPolicy>(`/api/v1/ran/events/retention`, { authToken });
 };
 
 export const updateRadioEventRetentionPolicy = async (
   authToken: string,
   days: number,
 ) => {
-  const response = await fetch(`/api/v1/ran/events/retention`, {
+  return apiFetchVoid(`/api/v1/ran/events/retention`, {
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
-    body: JSON.stringify({ days: days }),
+    authToken,
+    body: { days },
   });
-
-  if (!response.ok) {
-    let respData;
-    try {
-      respData = await response.json();
-    } catch {
-      throw new Error(
-        `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-      );
-    }
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
 };

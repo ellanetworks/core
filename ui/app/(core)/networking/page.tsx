@@ -43,10 +43,10 @@ import {
 import CreateRouteModal from "@/components/CreateRouteModal";
 
 // NAT
-import { getNATInfo, updateNATInfo } from "@/queries/nat";
+import { getNATInfo, updateNATInfo, type NatInfo } from "@/queries/nat";
 
 // Interfaces
-import { getInterfaces } from "@/queries/interfaces";
+import { getInterfaces, type InterfacesInfo, type VlanInfo } from "@/queries/interfaces";
 import EditInterfaceN3Modal from "@/components/EditInterfaceN3Modal";
 
 // Shared UI
@@ -65,32 +65,7 @@ const MAX_WIDTH = 1400;
 
 type TabKey = "data-networks" | "interfaces" | "routes" | "nat";
 
-// Match backend JSON (snake_case for VLAN subfields)
-type VlanInfo = {
-  master_interface?: string;
-  vlan_id?: number;
-};
 
-type InterfacesInfo = {
-  n2?: {
-    address?: string;
-    port?: number;
-  };
-  n3?: {
-    name?: string;
-    address?: string;
-    external_address?: string;
-    vlan?: VlanInfo;
-  };
-  n6?: {
-    name?: string;
-    vlan?: VlanInfo;
-  };
-  api?: {
-    address?: string;
-    port?: number;
-  };
-};
 
 export default function NetworkingPage() {
   const { role, accessToken } = useAuth();
@@ -137,7 +112,6 @@ export default function NetworkingPage() {
   } = useQuery<ListDataNetworksResponse>({
     queryKey: [
       "data-networks",
-      accessToken,
       dnPagination.page,
       dnPagination.pageSize,
     ],
@@ -273,7 +247,7 @@ export default function NetworkingPage() {
     isLoading: interfacesLoading,
     refetch: refetchInterfaces,
   } = useQuery<InterfacesInfo>({
-    queryKey: ["interfaces", accessToken],
+    queryKey: ["interfaces"],
     queryFn: () => getInterfaces(accessToken || ""),
     enabled: !!accessToken,
     refetchOnWindowFocus: true,
@@ -299,7 +273,7 @@ export default function NetworkingPage() {
     isLoading: rtLoading,
     refetch: refetchRoutes,
   } = useQuery<ListRoutesResponse>({
-    queryKey: ["routes", accessToken, rtPagination.page, rtPagination.pageSize],
+    queryKey: ["routes", rtPagination.page, rtPagination.pageSize],
     queryFn: () =>
       listRoutes(
         accessToken || "",
@@ -394,13 +368,12 @@ export default function NetworkingPage() {
   }, [canEdit]);
 
   // ====================== NAT ======================
-  type NatInfo = { enabled: boolean };
   const {
     data: natInfo,
     isLoading: natLoading,
     refetch: refetchNAT,
   } = useQuery<NatInfo>({
-    queryKey: ["nat", accessToken],
+    queryKey: ["nat"],
     queryFn: () => getNATInfo(accessToken || ""),
     enabled: !!accessToken,
     refetchOnWindowFocus: true,

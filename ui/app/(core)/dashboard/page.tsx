@@ -308,7 +308,7 @@ const Dashboard = () => {
         ]);
         if (!mounted) return;
 
-        setVersion(status.version);
+        setVersion(status.version ?? null);
         setSubscriberCount(subsPage.total_count ?? 0);
         setRadioCount(radiosPage.total_count ?? 0);
       } catch {
@@ -394,14 +394,17 @@ const Dashboard = () => {
       if (interval) window.clearInterval(interval);
     };
 
-    start();
-    document.addEventListener("visibilitychange", () => {
+    const handleVisibilityChange = () => {
       if (document.hidden) stop();
       else start();
-    });
+    };
+
+    start();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       stop();
       mounted = false;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 

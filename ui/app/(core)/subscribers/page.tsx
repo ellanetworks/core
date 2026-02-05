@@ -75,7 +75,7 @@ const SubscriberPage: React.FC = () => {
   const perPage = paginationModel.pageSize;
 
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ["subscribers", accessToken, pageOneBased, perPage],
+    queryKey: ["subscribers", pageOneBased, perPage],
     queryFn: (): Promise<ListSubscribersResponse> =>
       listSubscribers(accessToken || "", pageOneBased, perPage),
     enabled: authReady && !!accessToken,

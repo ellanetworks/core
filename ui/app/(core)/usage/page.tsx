@@ -120,7 +120,7 @@ const SubscriberUsage = () => {
 
   const { data: retentionPolicy, refetch: refetchRetentionPolicy } =
     useQuery<UsageRetentionPolicy>({
-      queryKey: ["usageRetentionPolicy", accessToken],
+      queryKey: ["usageRetentionPolicy"],
       enabled: authReady && !!accessToken,
       queryFn: async () => {
         return getUsageRetentionPolicy(accessToken || "");
@@ -134,7 +134,6 @@ const SubscriberUsage = () => {
   } = useQuery<UsageResult>({
     queryKey: [
       "usagePerSubscriber",
-      accessToken,
       startDate,
       endDate,
       selectedSubscriber,
@@ -203,7 +202,6 @@ const SubscriberUsage = () => {
   } = useQuery<UsageResult>({
     queryKey: [
       "usagePerDay",
-      accessToken,
       startDate,
       endDate,
       selectedSubscriber,

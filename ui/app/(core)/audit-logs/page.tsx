@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Box, Typography, Alert, Button, Collapse } from "@mui/material";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -29,9 +30,6 @@ const AuditLog: React.FC = () => {
   const gridTheme = useMemo(() => createTheme(outerTheme), [outerTheme]);
   const isSmDown = useMediaQuery(outerTheme.breakpoints.down("sm"));
 
-  const [rows, setRows] = useState<APIAuditLog[]>([]);
-  const [rowCount, setRowCount] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(false);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 25,
@@ -46,51 +44,27 @@ const AuditLog: React.FC = () => {
   });
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [retentionPolicy, setRetentionPolicy] =
-    useState<AuditLogRetentionPolicy | null>(null);
 
   const descriptionText =
     "Review security-relevant actions performed in Ella Core. The audit log records who did what and when.";
 
-  const fetchRetentionPolicy = useCallback(async () => {
-    if (!authReady || !accessToken) return;
-    try {
-      const data = await getAuditLogRetentionPolicy(accessToken);
-      setRetentionPolicy(data);
-    } catch (error) {
-      console.error("Error fetching audit log retention policy:", error);
-    }
-  }, [accessToken, authReady]);
+  const queryClient = useQueryClient();
+  const pageOneBased = paginationModel.page + 1;
 
-  const fetchAuditLogs = useCallback(
-    async (pageZeroBased: number, pageSize: number) => {
-      if (!authReady || !accessToken) return;
-      setLoading(true);
-      try {
-        const pageOneBased = pageZeroBased + 1;
-        const data: ListAuditLogsResponse = await listAuditLogs(
-          accessToken,
-          pageOneBased,
-          pageSize,
-        );
-        setRows(data.items);
-        setRowCount(data.total_count ?? 0);
-      } catch (error) {
-        console.error("Error fetching audit logs:", error);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [accessToken, authReady],
-  );
+  const { data: retentionPolicy } = useQuery<AuditLogRetentionPolicy>({
+    queryKey: ["auditLogRetention"],
+    queryFn: () => getAuditLogRetentionPolicy(accessToken || ""),
+    enabled: authReady && !!accessToken,
+  });
 
-  useEffect(() => {
-    fetchRetentionPolicy();
-  }, [fetchRetentionPolicy]);
+  const { data: auditLogsData, isLoading: loading } = useQuery<ListAuditLogsResponse>({
+    queryKey: ["auditLogs", pageOneBased, paginationModel.pageSize],
+    queryFn: () => listAuditLogs(accessToken || "", pageOneBased, paginationModel.pageSize),
+    enabled: authReady && !!accessToken,
+  });
 
-  useEffect(() => {
-    fetchAuditLogs(paginationModel.page, paginationModel.pageSize);
-  }, [fetchAuditLogs, paginationModel.page, paginationModel.pageSize]);
+  const rows: APIAuditLog[] = auditLogsData?.items ?? [];
+  const rowCount = auditLogsData?.total_count ?? 0;
 
   const columns: GridColDef<APIAuditLog>[] = useMemo(
     () => [
@@ -237,7 +211,7 @@ const AuditLog: React.FC = () => {
         open={isEditModalOpen}
         onClose={() => setEditModalOpen(false)}
         onSuccess={() => {
-          fetchRetentionPolicy();
+          queryClient.invalidateQueries({ queryKey: ["auditLogRetention"] });
           setAlert({
             message: "Retention policy updated!",
             severity: "success",
