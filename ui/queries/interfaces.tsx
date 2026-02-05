@@ -1,60 +1,37 @@
-import { HTTPStatus } from "@/queries/utils";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
-export const getInterfaces = async (authToken: string) => {
-  const response = await fetch(`/api/v1/networking/interfaces`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
+export type VlanInfo = {
+  master_interface?: string;
+  vlan_id?: number;
+};
+
+export type InterfacesInfo = {
+  n2?: { address?: string; port?: number };
+  n3?: {
+    name?: string;
+    address?: string;
+    external_address?: string;
+    vlan?: VlanInfo;
+  };
+  n6?: { name?: string; vlan?: VlanInfo };
+  api?: { address?: string; port?: number };
+};
+
+export const getInterfaces = async (
+  authToken: string,
+): Promise<InterfacesInfo> => {
+  return apiFetch<InterfacesInfo>(`/api/v1/networking/interfaces`, {
+    authToken,
   });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };
 
 export const updateN3Settings = async (
   authToken: string,
   externalAddress: string,
-) => {
-  const n3SettingsData = {
-    external_address: externalAddress,
-  };
-  const response = await fetch(`/api/v1/networking/interfaces/n3`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/networking/interfaces/n3`, {
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
-    body: JSON.stringify(n3SettingsData),
+    authToken,
+    body: { external_address: externalAddress },
   });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };

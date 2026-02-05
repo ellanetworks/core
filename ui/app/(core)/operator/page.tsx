@@ -15,20 +15,13 @@ import {
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 import { ContentCopy as CopyIcon, Edit as EditIcon } from "@mui/icons-material";
-import { getOperator } from "@/queries/operator";
+import { getOperator, type OperatorData } from "@/queries/operator";
 import EditOperatorIdModal from "@/components/EditOperatorIdModal";
 import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
 import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
 import EditOperatorHomeNetworkModal from "@/components/EditOperatorHomeNetworkModal";
 import { useAuth } from "@/contexts/AuthContext";
-
-interface OperatorData {
-  id: { mcc: string; mnc: string };
-  slice: { sst: number; sd?: string | null };
-  tracking: { supportedTacs: string[] };
-  homeNetwork: { publicKey: string };
-}
 
 const isSdSet = (sd?: string | null) =>
   typeof sd === "string" && sd.trim() !== "";
@@ -66,7 +59,7 @@ const Operator = () => {
 
   const queryClient = useQueryClient();
   const operatorQuery = useQuery<OperatorData>({
-    queryKey: ["operator", accessToken],
+    queryKey: ["operator"],
     enabled: authReady && !!accessToken && !anyModalOpen,
     queryFn: () => getOperator(accessToken!),
     placeholderData: (prev) => prev,
@@ -101,7 +94,7 @@ const Operator = () => {
     setEditOperatorHomeNetworkModalOpen(false);
 
   const handleEditOperatorIdSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ["operator", accessToken] });
+    queryClient.invalidateQueries({ queryKey: ["operator"] });
     setAlert({
       message: "Operator ID updated successfully!",
       severity: "success",
@@ -114,21 +107,21 @@ const Operator = () => {
     });
   };
   const handleEditOperatorTrackingSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ["operator", accessToken] });
+    queryClient.invalidateQueries({ queryKey: ["operator"] });
     setAlert({
       message: "Operator Tracking information updated successfully!",
       severity: "success",
     });
   };
   const handleEditOperatorSliceSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ["operator", accessToken] });
+    queryClient.invalidateQueries({ queryKey: ["operator"] });
     setAlert({
       message: "Operator Slice information updated successfully!",
       severity: "success",
     });
   };
   const handleEditOperatorHomeNetworkSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ["operator", accessToken] });
+    queryClient.invalidateQueries({ queryKey: ["operator"] });
     setAlert({
       message: "Operator Home Network information updated successfully!",
       severity: "success",

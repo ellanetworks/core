@@ -282,7 +282,7 @@ const EventsTab: React.FC = () => {
   const [isNetworkClearModalOpen, setNetworkClearModalOpen] = useState(false);
 
   const retentionQuery = useQuery<RadioEventRetentionPolicy>({
-    queryKey: ["networkLogRetention", accessToken],
+    queryKey: ["networkLogRetention"],
     enabled: authReady && !!accessToken && !isNetworkEditModalOpen,
     queryFn: () => getRadioEventRetentionPolicy(accessToken!),
   });
@@ -316,7 +316,6 @@ const EventsTab: React.FC = () => {
       pageOneBased,
       perPage,
       filtersToParams(networkFilterModel),
-      accessToken,
     ],
     enabled: authReady && !!accessToken,
     refetchInterval: autoRefresh && visible ? 3000 : false,
@@ -662,12 +661,7 @@ const Radio = () => {
   });
 
   const { data, isLoading } = useQuery<ListRadiosResponse>({
-    queryKey: [
-      "radios",
-      accessToken,
-      paginationModel.page,
-      paginationModel.pageSize,
-    ],
+    queryKey: ["radios", paginationModel.page, paginationModel.pageSize],
     queryFn: async () => {
       const pageOneBased = paginationModel.page + 1;
       return listRadios(

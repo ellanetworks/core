@@ -1,4 +1,4 @@
-import { HTTPStatus } from "@/queries/utils";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type AuditLogRetentionPolicy = {
   days: number;
@@ -26,84 +26,27 @@ export async function listAuditLogs(
   page: number,
   perPage: number,
 ): Promise<ListAuditLogsResponse> {
-  const response = await fetch(
+  return apiFetch<ListAuditLogsResponse>(
     `/api/v1/logs/audit?page=${page}&per_page=${perPage}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + authToken,
-      },
-    },
+    { authToken },
   );
-  let json: { result: ListAuditLogsResponse; error?: string };
-  try {
-    json = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
-    );
-  }
-
-  return json.result;
 }
 
-export const getAuditLogRetentionPolicy = async (authToken: string) => {
-  const response = await fetch(`/api/v1/logs/audit/retention`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
+export const getAuditLogRetentionPolicy = async (
+  authToken: string,
+): Promise<AuditLogRetentionPolicy> => {
+  return apiFetch<AuditLogRetentionPolicy>(`/api/v1/logs/audit/retention`, {
+    authToken,
   });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };
 
 export const updateAuditLogRetentionPolicy = async (
   authToken: string,
   days: number,
 ) => {
-  const response = await fetch(`/api/v1/logs/audit/retention`, {
+  return apiFetchVoid(`/api/v1/logs/audit/retention`, {
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
-    body: JSON.stringify({ days: days }),
+    authToken,
+    body: { days },
   });
-
-  if (!response.ok) {
-    let respData;
-    try {
-      respData = await response.json();
-    } catch {
-      throw new Error(
-        `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-      );
-    }
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
 };

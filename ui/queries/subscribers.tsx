@@ -1,4 +1,4 @@
-import { HTTPStatus } from "@/queries/utils";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type SubscriberStatus = {
   registered?: boolean;
@@ -26,69 +26,17 @@ export async function listSubscribers(
   page: number,
   perPage: number,
 ): Promise<ListSubscribersResponse> {
-  const response = await fetch(
+  return apiFetch<ListSubscribersResponse>(
     `/api/v1/subscribers?page=${page}&per_page=${perPage}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + authToken,
-      },
-    },
+    { authToken },
   );
-
-  let json: { result: ListSubscribersResponse; error?: string };
-  try {
-    json = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
-    );
-  }
-
-  return json.result;
 }
 
 export const getSubscriber = async (
   authToken: string,
   imsi: string,
 ): Promise<APISubscriber> => {
-  const response = await fetch(`/api/v1/subscribers/${imsi}`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
-  });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return {
-    imsi: respData.result.imsi,
-    opc: respData.result.opc,
-    sequenceNumber: respData.result.sequenceNumber,
-    key: respData.result.key,
-    policyName: respData.result.policyName,
-    status: respData.result.status,
-  };
+  return apiFetch<APISubscriber>(`/api/v1/subscribers/${imsi}`, { authToken });
 };
 
 export const createSubscriber = async (
@@ -98,100 +46,32 @@ export const createSubscriber = async (
   sequenceNumber: string,
   policyName: string,
   opc: string,
-) => {
-  const subscriberData = {
-    imsi,
-    key,
-    sequenceNumber,
-    policyName,
-    opc,
-  };
-
-  const response = await fetch(`/api/v1/subscribers`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/subscribers`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
-    body: JSON.stringify(subscriberData),
+    authToken,
+    body: { imsi, key, sequenceNumber, policyName, opc },
   });
-
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };
 
 export const updateSubscriber = async (
   authToken: string,
   imsi: string,
   policyName: string,
-) => {
-  const subscriberData = {
-    imsi: imsi,
-    policyName: policyName,
-  };
-
-  const response = await fetch(`/api/v1/subscribers/${imsi}`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/subscribers/${imsi}`, {
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
-    body: JSON.stringify(subscriberData),
+    authToken,
+    body: { imsi, policyName },
   });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };
 
-export const deleteSubscriber = async (authToken: string, name: string) => {
-  const response = await fetch(`/api/v1/subscribers/${name}`, {
+export const deleteSubscriber = async (
+  authToken: string,
+  name: string,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/subscribers/${name}`, {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
+    authToken,
   });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };

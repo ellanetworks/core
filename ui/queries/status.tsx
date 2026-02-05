@@ -1,26 +1,10 @@
-import { HTTPStatus } from "@/queries/utils";
+import { apiFetch } from "@/queries/utils";
 
-export const getStatus = async () => {
-  const response = await fetch(`/api/v1/status`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
+export type APIStatus = {
+  initialized: boolean;
+  version?: string;
+};
 
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
+export const getStatus = async (): Promise<APIStatus> => {
+  return apiFetch<APIStatus>(`/api/v1/status`);
 };

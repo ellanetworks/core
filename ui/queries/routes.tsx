@@ -1,4 +1,4 @@
-import { HTTPStatus } from "@/queries/utils";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type APIRoute = {
   id: string;
@@ -20,32 +20,10 @@ export async function listRoutes(
   page: number,
   perPage: number,
 ): Promise<ListRoutesResponse> {
-  const response = await fetch(
+  return apiFetch<ListRoutesResponse>(
     `/api/v1/networking/routes?page=${page}&per_page=${perPage}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + authToken,
-      },
-    },
+    { authToken },
   );
-  let json: { result: ListRoutesResponse; error?: string };
-  try {
-    json = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
-    );
-  }
-
-  return json.result;
 }
 
 export const createRoute = async (
@@ -54,62 +32,20 @@ export const createRoute = async (
   gateway: string,
   interfaceName: string,
   metric: number,
-) => {
-  const routeData = {
-    destination: destination,
-    gateway: gateway,
-    interface: interfaceName,
-    metric: metric,
-  };
-
-  const response = await fetch(`/api/v1/networking/routes`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/networking/routes`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
-    body: JSON.stringify(routeData),
+    authToken,
+    body: { destination, gateway, interface: interfaceName, metric },
   });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };
 
-export const deleteRoute = async (authToken: string, id: number) => {
-  const response = await fetch(`/api/v1/networking/routes/${id}`, {
+export const deleteRoute = async (
+  authToken: string,
+  id: number,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/networking/routes/${id}`, {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
+    authToken,
   });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };

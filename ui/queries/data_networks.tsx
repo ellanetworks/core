@@ -1,4 +1,4 @@
-import { HTTPStatus } from "@/queries/utils";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type DataNetworkStatus = {
   sessions: number;
@@ -24,33 +24,10 @@ export async function listDataNetworks(
   page: number,
   perPage: number,
 ): Promise<ListDataNetworksResponse> {
-  const response = await fetch(
+  return apiFetch<ListDataNetworksResponse>(
     `/api/v1/networking/data-networks?page=${page}&per_page=${perPage}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + authToken,
-      },
-    },
+    { authToken },
   );
-
-  let json: { result: ListDataNetworksResponse; error?: string };
-  try {
-    json = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${json?.error || "Unknown error"}`,
-    );
-  }
-
-  return json.result;
 }
 
 export const createDataNetwork = async (
@@ -59,38 +36,12 @@ export const createDataNetwork = async (
   ipPool: string,
   dns: string,
   mtu: number,
-) => {
-  const policyData = {
-    name: name,
-    ip_pool: ipPool,
-    dns: dns,
-    mtu: mtu,
-  };
-
-  const response = await fetch(`/api/v1/networking/data-networks`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/networking/data-networks`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
-    body: JSON.stringify(policyData),
+    authToken,
+    body: { name, ip_pool: ipPool, dns, mtu },
   });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };
 
 export const updateDataNetwork = async (
@@ -99,62 +50,20 @@ export const updateDataNetwork = async (
   ipPool: string,
   dns: string,
   mtu: number,
-) => {
-  const policyData = {
-    name: name,
-    ip_pool: ipPool,
-    dns: dns,
-    mtu: mtu,
-  };
-
-  const response = await fetch(`/api/v1/networking/data-networks/${name}`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/networking/data-networks/${name}`, {
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
-    body: JSON.stringify(policyData),
+    authToken,
+    body: { name, ip_pool: ipPool, dns, mtu },
   });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };
 
-export const deleteDataNetwork = async (authToken: string, name: string) => {
-  const response = await fetch(`/api/v1/networking/data-networks/${name}`, {
+export const deleteDataNetwork = async (
+  authToken: string,
+  name: string,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/networking/data-networks/${name}`, {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + authToken,
-    },
+    authToken,
   });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
-    );
-  }
-
-  return respData.result;
 };

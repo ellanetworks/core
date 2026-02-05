@@ -8,7 +8,7 @@ import theme from "@/utils/theme";
 import DrawerLayout from "@/components/DrawerLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
 
-export default function RootLayout({
+export default function CoreLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -16,20 +16,13 @@ export default function RootLayout({
   const [queryClient] = useState(() => new QueryClient());
 
   return (
-    <html lang="en">
-      <head>
-        <title>Ella Core</title>
-      </head>
-      <body>
-        <QueryClientProvider client={queryClient}>
-          <ThemeProvider theme={theme}>
-            <CssBaseline />
-            <AuthProvider>
-              <DrawerLayout>{children}</DrawerLayout>
-            </AuthProvider>
-          </ThemeProvider>
-        </QueryClientProvider>
-      </body>
-    </html>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <AuthProvider>
+          <DrawerLayout>{children}</DrawerLayout>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
