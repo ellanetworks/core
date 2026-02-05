@@ -1,19 +1,19 @@
-import { apiFetch } from "@/queries/utils";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type AuthTokenResponse = {
   token: string;
 };
 
-export const login = async (email: string, password: string) => {
-  return apiFetch("/api/v1/auth/login", {
+export const login = async (email: string, password: string): Promise<void> => {
+  await apiFetchVoid("/api/v1/auth/login", {
     method: "POST",
     body: { email, password },
     credentials: "include",
   });
 };
 
-export const logout = async () => {
-  return apiFetch("/api/v1/auth/logout", {
+export const logout = async (): Promise<void> => {
+  await apiFetchVoid("/api/v1/auth/logout", {
     method: "POST",
     credentials: "include",
   });
@@ -26,8 +26,8 @@ export const refresh = async (): Promise<AuthTokenResponse> => {
   });
 };
 
-export const lookupToken = async (authToken: string) => {
-  return apiFetch("/api/v1/auth/lookup-token", {
+export const lookupToken = async (authToken: string): Promise<void> => {
+  await apiFetchVoid("/api/v1/auth/lookup-token", {
     method: "POST",
     authToken,
   });

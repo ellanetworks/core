@@ -1,4 +1,4 @@
-import { apiFetch } from "@/queries/utils";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type APIRoute = {
   id: string;
@@ -32,16 +32,19 @@ export const createRoute = async (
   gateway: string,
   interfaceName: string,
   metric: number,
-) => {
-  return apiFetch(`/api/v1/networking/routes`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/networking/routes`, {
     method: "POST",
     authToken,
     body: { destination, gateway, interface: interfaceName, metric },
   });
 };
 
-export const deleteRoute = async (authToken: string, id: number) => {
-  return apiFetch(`/api/v1/networking/routes/${id}`, {
+export const deleteRoute = async (
+  authToken: string,
+  id: number,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/networking/routes/${id}`, {
     method: "DELETE",
     authToken,
   });

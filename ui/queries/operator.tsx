@@ -1,4 +1,4 @@
-import { apiFetch } from "@/queries/utils";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export interface OperatorData {
   id: { mcc: string; mnc: string };
@@ -15,8 +15,8 @@ export const updateOperatorID = async (
   authToken: string,
   mcc: string,
   mnc: string,
-) => {
-  return apiFetch(`/api/v1/operator/id`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/operator/id`, {
     method: "PUT",
     authToken,
     body: { mcc, mnc },
@@ -26,8 +26,8 @@ export const updateOperatorID = async (
 export const updateOperatorTracking = async (
   authToken: string,
   supportedTacs: string[],
-) => {
-  return apiFetch(`/api/v1/operator/tracking`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/operator/tracking`, {
     method: "PUT",
     authToken,
     body: { supportedTacs },
@@ -38,11 +38,11 @@ export const updateOperatorSlice = async (
   authToken: string,
   sst: number,
   sd?: string | null,
-) => {
+): Promise<void> => {
   if (typeof sst !== "number") {
     throw new Error("SST must be a number.");
   }
-  return apiFetch(`/api/v1/operator/slice`, {
+  await apiFetchVoid(`/api/v1/operator/slice`, {
     method: "PUT",
     authToken,
     body: { sd, sst },
@@ -52,8 +52,8 @@ export const updateOperatorSlice = async (
 export const updateOperatorCode = async (
   authToken: string,
   operatorCode: string,
-) => {
-  return apiFetch(`/api/v1/operator/code`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/operator/code`, {
     method: "PUT",
     authToken,
     body: { operatorCode },
@@ -63,8 +63,8 @@ export const updateOperatorCode = async (
 export const updateOperatorHomeNetwork = async (
   authToken: string,
   privateKey: string,
-) => {
-  return apiFetch(`/api/v1/operator/home-network`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/operator/home-network`, {
     method: "PUT",
     authToken,
     body: { privateKey },

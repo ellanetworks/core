@@ -32,8 +32,12 @@ export async function listAuditLogs(
   );
 }
 
-export const getAuditLogRetentionPolicy = async (authToken: string): Promise<AuditLogRetentionPolicy> => {
-  return apiFetch<AuditLogRetentionPolicy>(`/api/v1/logs/audit/retention`, { authToken });
+export const getAuditLogRetentionPolicy = async (
+  authToken: string,
+): Promise<AuditLogRetentionPolicy> => {
+  return apiFetch<AuditLogRetentionPolicy>(`/api/v1/logs/audit/retention`, {
+    authToken,
+  });
 };
 
 export const updateAuditLogRetentionPolicy = async (

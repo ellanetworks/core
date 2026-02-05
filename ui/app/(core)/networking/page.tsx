@@ -46,7 +46,11 @@ import CreateRouteModal from "@/components/CreateRouteModal";
 import { getNATInfo, updateNATInfo, type NatInfo } from "@/queries/nat";
 
 // Interfaces
-import { getInterfaces, type InterfacesInfo, type VlanInfo } from "@/queries/interfaces";
+import {
+  getInterfaces,
+  type InterfacesInfo,
+  type VlanInfo,
+} from "@/queries/interfaces";
 import EditInterfaceN3Modal from "@/components/EditInterfaceN3Modal";
 
 // Shared UI
@@ -64,8 +68,6 @@ import {
 const MAX_WIDTH = 1400;
 
 type TabKey = "data-networks" | "interfaces" | "routes" | "nat";
-
-
 
 export default function NetworkingPage() {
   const { role, accessToken } = useAuth();
@@ -110,11 +112,7 @@ export default function NetworkingPage() {
     isLoading: dnLoading,
     refetch: refetchDataNetworks,
   } = useQuery<ListDataNetworksResponse>({
-    queryKey: [
-      "data-networks",
-      dnPagination.page,
-      dnPagination.pageSize,
-    ],
+    queryKey: ["data-networks", dnPagination.page, dnPagination.pageSize],
     queryFn: () =>
       listDataNetworks(
         accessToken || "",

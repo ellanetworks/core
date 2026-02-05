@@ -1,4 +1,4 @@
-import { apiFetch } from "@/queries/utils";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type APIPolicy = {
   name: string;
@@ -35,8 +35,8 @@ export const createPolicy = async (
   var5qi: number,
   arp: number,
   dataNetworkName: string,
-) => {
-  return apiFetch(`/api/v1/policies`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/policies`, {
     method: "POST",
     authToken,
     body: {
@@ -58,8 +58,8 @@ export const updatePolicy = async (
   var5qi: number,
   arp: number,
   dataNetworkName: string,
-) => {
-  return apiFetch(`/api/v1/policies/${name}`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/policies/${name}`, {
     method: "PUT",
     authToken,
     body: {
@@ -73,8 +73,11 @@ export const updatePolicy = async (
   });
 };
 
-export const deletePolicy = async (authToken: string, name: string) => {
-  return apiFetch(`/api/v1/policies/${name}`, {
+export const deletePolicy = async (
+  authToken: string,
+  name: string,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/policies/${name}`, {
     method: "DELETE",
     authToken,
   });

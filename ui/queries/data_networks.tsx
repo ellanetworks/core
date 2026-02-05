@@ -1,4 +1,4 @@
-import { apiFetch } from "@/queries/utils";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type DataNetworkStatus = {
   sessions: number;
@@ -36,8 +36,8 @@ export const createDataNetwork = async (
   ipPool: string,
   dns: string,
   mtu: number,
-) => {
-  return apiFetch(`/api/v1/networking/data-networks`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/networking/data-networks`, {
     method: "POST",
     authToken,
     body: { name, ip_pool: ipPool, dns, mtu },
@@ -50,16 +50,19 @@ export const updateDataNetwork = async (
   ipPool: string,
   dns: string,
   mtu: number,
-) => {
-  return apiFetch(`/api/v1/networking/data-networks/${name}`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/networking/data-networks/${name}`, {
     method: "PUT",
     authToken,
     body: { name, ip_pool: ipPool, dns, mtu },
   });
 };
 
-export const deleteDataNetwork = async (authToken: string, name: string) => {
-  return apiFetch(`/api/v1/networking/data-networks/${name}`, {
+export const deleteDataNetwork = async (
+  authToken: string,
+  name: string,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/networking/data-networks/${name}`, {
     method: "DELETE",
     authToken,
   });

@@ -132,12 +132,7 @@ const SubscriberUsage = () => {
     isLoading: isUsagePerSubscriberLoading,
     refetch: refetchUsagePerSubscriber,
   } = useQuery<UsageResult>({
-    queryKey: [
-      "usagePerSubscriber",
-      startDate,
-      endDate,
-      selectedSubscriber,
-    ],
+    queryKey: ["usagePerSubscriber", startDate, endDate, selectedSubscriber],
     queryFn: async () => {
       return getUsage(
         accessToken || "",
@@ -200,12 +195,7 @@ const SubscriberUsage = () => {
     isLoading: isUsagePerDayLoading,
     refetch: refetchUsagePerDay,
   } = useQuery<UsageResult>({
-    queryKey: [
-      "usagePerDay",
-      startDate,
-      endDate,
-      selectedSubscriber,
-    ],
+    queryKey: ["usagePerDay", startDate, endDate, selectedSubscriber],
     queryFn: async () => {
       return getUsage(
         accessToken || "",

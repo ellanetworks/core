@@ -1,7 +1,10 @@
-import { apiFetch } from "@/queries/utils";
+import { apiFetchVoid } from "@/queries/utils";
 
-export const initialize = async (email: string, password: string) => {
-  return apiFetch(`/api/v1/init`, {
+export const initialize = async (
+  email: string,
+  password: string,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/init`, {
     method: "POST",
     body: { email, password },
   });

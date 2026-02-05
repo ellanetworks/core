@@ -69,7 +69,8 @@ const UserPage: React.FC = () => {
   const pageOneBased = paginationModel.page + 1;
   const { data: usersData, isLoading: loading } = useQuery<ListUsersResponse>({
     queryKey: ["users", pageOneBased, paginationModel.pageSize],
-    queryFn: () => listUsers(accessToken || "", pageOneBased, paginationModel.pageSize),
+    queryFn: () =>
+      listUsers(accessToken || "", pageOneBased, paginationModel.pageSize),
     enabled: authReady && !!accessToken,
   });
 

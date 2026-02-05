@@ -57,11 +57,17 @@ const AuditLog: React.FC = () => {
     enabled: authReady && !!accessToken,
   });
 
-  const { data: auditLogsData, isLoading: loading } = useQuery<ListAuditLogsResponse>({
-    queryKey: ["auditLogs", pageOneBased, paginationModel.pageSize],
-    queryFn: () => listAuditLogs(accessToken || "", pageOneBased, paginationModel.pageSize),
-    enabled: authReady && !!accessToken,
-  });
+  const { data: auditLogsData, isLoading: loading } =
+    useQuery<ListAuditLogsResponse>({
+      queryKey: ["auditLogs", pageOneBased, paginationModel.pageSize],
+      queryFn: () =>
+        listAuditLogs(
+          accessToken || "",
+          pageOneBased,
+          paginationModel.pageSize,
+        ),
+      enabled: authReady && !!accessToken,
+    });
 
   const rows: APIAuditLog[] = auditLogsData?.items ?? [];
   const rowCount = auditLogsData?.total_count ?? 0;

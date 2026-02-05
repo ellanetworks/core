@@ -76,8 +76,12 @@ export async function clearRadioEvents(authToken: string): Promise<void> {
   });
 }
 
-export const getRadioEventRetentionPolicy = async (authToken: string): Promise<RadioEventRetentionPolicy> => {
-  return apiFetch<RadioEventRetentionPolicy>(`/api/v1/ran/events/retention`, { authToken });
+export const getRadioEventRetentionPolicy = async (
+  authToken: string,
+): Promise<RadioEventRetentionPolicy> => {
+  return apiFetch<RadioEventRetentionPolicy>(`/api/v1/ran/events/retention`, {
+    authToken,
+  });
 };
 
 export const updateRadioEventRetentionPolicy = async (

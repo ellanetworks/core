@@ -1,4 +1,4 @@
-import { apiFetch } from "@/queries/utils";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export const roleIDToLabel = (role: RoleID): string => {
   switch (role) {
@@ -51,8 +51,8 @@ export const createUser = async (
   email: string,
   role_id: RoleID,
   password: string,
-) => {
-  return apiFetch(`/api/v1/users`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/users`, {
     method: "POST",
     authToken,
     body: { email, password, role_id },
@@ -63,8 +63,8 @@ export const updateUserPassword = async (
   authToken: string,
   email: string,
   password: string,
-) => {
-  return apiFetch(`/api/v1/users/${email}/password`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/users/${email}/password`, {
     method: "PUT",
     authToken,
     body: { password },
@@ -74,8 +74,8 @@ export const updateUserPassword = async (
 export const updateMyUserPassword = async (
   authToken: string,
   password: string,
-) => {
-  return apiFetch(`/api/v1/users/me/password`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/users/me/password`, {
     method: "PUT",
     authToken,
     body: { password },
@@ -86,16 +86,19 @@ export const updateUser = async (
   authToken: string,
   email: string,
   role_id: RoleID,
-) => {
-  return apiFetch(`/api/v1/users/${email}`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/users/${email}`, {
     method: "PUT",
     authToken,
     body: { role_id },
   });
 };
 
-export const deleteUser = async (authToken: string, name: string) => {
-  return apiFetch(`/api/v1/users/${name}`, {
+export const deleteUser = async (
+  authToken: string,
+  name: string,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/users/${name}`, {
     method: "DELETE",
     authToken,
   });

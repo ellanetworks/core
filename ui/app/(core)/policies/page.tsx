@@ -54,11 +54,14 @@ const PolicyPage = () => {
 
   const queryClient = useQueryClient();
   const pageOneBased = pagination.page + 1;
-  const { data: pageData, isLoading: loading } = useQuery<ListPoliciesResponse>({
-    queryKey: ["policies", pageOneBased, pagination.pageSize],
-    queryFn: () => listPolicies(accessToken || "", pageOneBased, pagination.pageSize),
-    enabled: authReady && !!accessToken,
-  });
+  const { data: pageData, isLoading: loading } = useQuery<ListPoliciesResponse>(
+    {
+      queryKey: ["policies", pageOneBased, pagination.pageSize],
+      queryFn: () =>
+        listPolicies(accessToken || "", pageOneBased, pagination.pageSize),
+      enabled: authReady && !!accessToken,
+    },
+  );
 
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
@@ -277,14 +280,18 @@ const PolicyPage = () => {
         <CreatePolicyModal
           open
           onClose={() => setCreateModalOpen(false)}
-          onSuccess={() => queryClient.invalidateQueries({ queryKey: ["policies"] })}
+          onSuccess={() =>
+            queryClient.invalidateQueries({ queryKey: ["policies"] })
+          }
         />
       )}
       {isEditModalOpen && (
         <EditPolicyModal
           open
           onClose={() => setEditModalOpen(false)}
-          onSuccess={() => queryClient.invalidateQueries({ queryKey: ["policies"] })}
+          onSuccess={() =>
+            queryClient.invalidateQueries({ queryKey: ["policies"] })
+          }
           initialData={
             editData || {
               name: "",

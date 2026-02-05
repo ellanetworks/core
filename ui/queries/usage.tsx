@@ -38,8 +38,12 @@ export async function clearUsageData(authToken: string): Promise<void> {
   });
 }
 
-export const getUsageRetentionPolicy = async (authToken: string): Promise<UsageRetentionPolicy> => {
-  return apiFetch<UsageRetentionPolicy>(`/api/v1/subscriber-usage/retention`, { authToken });
+export const getUsageRetentionPolicy = async (
+  authToken: string,
+): Promise<UsageRetentionPolicy> => {
+  return apiFetch<UsageRetentionPolicy>(`/api/v1/subscriber-usage/retention`, {
+    authToken,
+  });
 };
 
 export const updateUsageRetentionPolicy = async (

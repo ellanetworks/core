@@ -661,11 +661,7 @@ const Radio = () => {
   });
 
   const { data, isLoading } = useQuery<ListRadiosResponse>({
-    queryKey: [
-      "radios",
-      paginationModel.page,
-      paginationModel.pageSize,
-    ],
+    queryKey: ["radios", paginationModel.page, paginationModel.pageSize],
     queryFn: async () => {
       const pageOneBased = paginationModel.page + 1;
       return listRadios(

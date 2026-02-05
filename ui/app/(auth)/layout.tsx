@@ -25,12 +25,7 @@ export default function AuthLayout({
           >
             <Toolbar>
               <Logo width={50} height={50} />
-              <Typography
-                variant="h6"
-                noWrap
-                component="div"
-                sx={{ ml: 2 }}
-              >
+              <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
                 Ella Core
               </Typography>
             </Toolbar>

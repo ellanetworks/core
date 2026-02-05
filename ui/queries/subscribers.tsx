@@ -1,4 +1,4 @@
-import { apiFetch } from "@/queries/utils";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type SubscriberStatus = {
   registered?: boolean;
@@ -46,8 +46,8 @@ export const createSubscriber = async (
   sequenceNumber: string,
   policyName: string,
   opc: string,
-) => {
-  return apiFetch(`/api/v1/subscribers`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/subscribers`, {
     method: "POST",
     authToken,
     body: { imsi, key, sequenceNumber, policyName, opc },
@@ -58,16 +58,19 @@ export const updateSubscriber = async (
   authToken: string,
   imsi: string,
   policyName: string,
-) => {
-  return apiFetch(`/api/v1/subscribers/${imsi}`, {
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/subscribers/${imsi}`, {
     method: "PUT",
     authToken,
     body: { imsi, policyName },
   });
 };
 
-export const deleteSubscriber = async (authToken: string, name: string) => {
-  return apiFetch(`/api/v1/subscribers/${name}`, {
+export const deleteSubscriber = async (
+  authToken: string,
+  name: string,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/subscribers/${name}`, {
     method: "DELETE",
     authToken,
   });
