@@ -41,6 +41,10 @@ Ella Core's N2 and N3 interfaces follow 3GPP standards. This means that any radi
 - **OnePlus Nord 2 CE 5G**
 - **Huawei P40 5G**
 
+### 5G Modules
+
+- **Quectel RM520N-GL**
+
 ### Simulators
 
 - **[Aether GNBSIM](https://docs.aetherproject.org/master/onramp/gnbsim.html)**
