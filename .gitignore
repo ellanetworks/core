@@ -1,13 +1,12 @@
 # ui
 ui/node_modules/*
-ui/out/*
-ui/build/*
+ui/dist/*
 ui/npm-debug.log*
-ui/yarn-debug.log*
-ui/yarn-error.log*
 ui/*.tsbuildinfo
-ui/.vercel
 ui/.env*.local
+
+# copilot instructions
+.github/copilot-instructions.md
 
 # OCI image
 *.rock
