@@ -31,6 +31,11 @@ type LoginParams struct {
 	Password string `json:"password"`
 }
 
+type LoginResponse struct {
+	Message string `json:"message"`
+	Token   string `json:"token"`
+}
+
 type RefreshResponse struct {
 	Token string `json:"token"`
 }
@@ -64,7 +69,21 @@ func generateJWT(id int64, email string, roleID RoleID, jwtSecret []byte) (strin
 	return tokenString, nil
 }
 
-func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
+// clearSessionCookie instructs the browser to delete the session cookie.
+func clearSessionCookie(w http.ResponseWriter, secureCookie bool) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     SessionTokenCookieName,
+		Value:    "",
+		Path:     "/",
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   secureCookie,
+	})
+}
+
+func Refresh(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(SessionTokenCookieName)
 		if err != nil {
@@ -74,12 +93,16 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 
 		rawToken, err := base64.URLEncoding.DecodeString(cookie.Value)
 		if err != nil {
+			clearSessionCookie(w, secureCookie)
 			writeError(w, http.StatusUnauthorized, "Invalid token encoding", err, logger.APILog)
+
 			return
 		}
 
 		if len(rawToken) != TokenLength {
+			clearSessionCookie(w, secureCookie)
 			writeError(w, http.StatusUnauthorized, "Invalid token length", fmt.Errorf("token must be %d bytes", TokenLength), logger.APILog)
+
 			return
 		}
 
@@ -87,7 +110,9 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 
 		session, err := dbInstance.GetSessionByTokenHash(r.Context(), hashed[:])
 		if err != nil {
+			clearSessionCookie(w, secureCookie)
 			writeError(w, http.StatusUnauthorized, "Invalid session token", err, logger.APILog)
+
 			return
 		}
 
@@ -99,6 +124,7 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 				logger.APILog.Error("Error deleting expired session", zap.Error(err))
 			}
 
+			clearSessionCookie(w, secureCookie)
 			writeError(w, http.StatusUnauthorized, "Session expired", errors.New("session expired"), logger.APILog)
 
 			return
@@ -107,7 +133,9 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 		user, err := dbInstance.GetUserByID(r.Context(), session.UserID)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
+				clearSessionCookie(w, secureCookie)
 				writeError(w, http.StatusUnauthorized, "Invalid session user", nil, logger.APILog)
+
 				return
 			}
 
@@ -128,7 +156,7 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	})
 }
 
-func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
+func Login(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var success bool
 
@@ -186,9 +214,15 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 			return
 		}
 
+		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			return
+		}
+
 		success = true
 
-		writeResponse(w, SuccessResponse{Message: "Login successful"}, http.StatusOK, logger.APILog)
+		writeResponse(w, LoginResponse{Message: "Login successful", Token: token}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			r.Context(),
@@ -307,16 +341,7 @@ func Logout(dbInstance *db.Database, secureCookie bool) http.Handler {
 			}
 		}
 
-		http.SetCookie(w, &http.Cookie{
-			Name:     SessionTokenCookieName,
-			Value:    "",
-			Path:     "/",
-			Expires:  time.Unix(0, 0),
-			MaxAge:   -1,
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-			Secure:   secureCookie,
-		})
+		clearSessionCookie(w, secureCookie)
 
 		w.WriteHeader(http.StatusNoContent)
 	})

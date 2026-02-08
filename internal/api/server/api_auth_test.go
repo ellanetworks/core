@@ -22,6 +22,7 @@ type LoginParams struct {
 
 type LoginResponseResult struct {
 	Message string `json:"message"`
+	Token   string `json:"token"`
 }
 
 type LoginResponse struct {
