@@ -4,7 +4,10 @@ export type AuthTokenResponse = {
   token: string;
 };
 
-export const login = async (email: string, password: string): Promise<AuthTokenResponse> => {
+export const login = async (
+  email: string,
+  password: string,
+): Promise<AuthTokenResponse> => {
   return apiFetch<AuthTokenResponse>("/api/v1/auth/login", {
     method: "POST",
     body: { email, password },
