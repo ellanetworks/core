@@ -8,7 +8,7 @@ This section describes the RESTful API for system user authentication.
 
 ## Login
 
-This path logs the user in. It sets an httpOnly session cookie valid for 30 days and returns a short-lived JWT access token (valid for 15 minutes) that can be used immediately to authenticate API requests via the `Authorization: Bearer <token>` header.
+This path logs the user in. It sets an httpOnly session cookie valid for 30 days. To obtain a JWT access token, call the [Refresh](#refresh) endpoint after logging in.
 
 | Method | Path                 |
 | ------ | -------------------- |
@@ -24,8 +24,7 @@ This path logs the user in. It sets an httpOnly session cookie valid for 30 days
 ```json
 {
     "result": {
-        "message": "Login successful",
-        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsImV4cCI6MTczNTU4NTk0MX0.0BsZVMLCzJ6mzCXlf3qfAR2k6Fk7aUsGfHV7Tj1Dqy4"
+        "message": "Login successful"
     }
 }
 ```

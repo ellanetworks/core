@@ -11,18 +11,13 @@ type LoginOptions struct {
 	Password string
 }
 
-type LoginResponseResult struct {
-	Message string `json:"message"`
-	Token   string `json:"token"`
-}
-
 type RefreshResponseResult struct {
 	Token string `json:"token"`
 }
 
 // Login authenticates the user with the provided email and password.
-// On success it stores the returned JWT so that subsequent requests
-// are automatically authenticated without a separate Refresh call.
+// On success the server sets a session cookie. Call Refresh afterwards
+// to obtain a JWT access token for subsequent authenticated requests.
 func (c *Client) Login(ctx context.Context, opts *LoginOptions) error {
 	payload := struct {
 		Email    string `json:"email"`
@@ -43,7 +38,7 @@ func (c *Client) Login(ctx context.Context, opts *LoginOptions) error {
 		"Content-Type": "application/json",
 	}
 
-	resp, err := c.Requester.Do(ctx, &RequestOptions{
+	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:    SyncRequest,
 		Method:  "POST",
 		Path:    "api/v1/auth/login",
@@ -53,15 +48,6 @@ func (c *Client) Login(ctx context.Context, opts *LoginOptions) error {
 	if err != nil {
 		return err
 	}
-
-	var loginResponse LoginResponseResult
-
-	err = resp.DecodeResult(&loginResponse)
-	if err != nil {
-		return err
-	}
-
-	c.token = loginResponse.Token
 
 	return nil
 }

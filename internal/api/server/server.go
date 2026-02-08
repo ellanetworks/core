@@ -31,7 +31,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	registerAuthenticatedPprof(mux, jwtSecret, dbInstance)
 
 	// Authentication
-	mux.HandleFunc("POST /api/v1/auth/login", Login(dbInstance, jwtSecret, secureCookie).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/auth/login", Login(dbInstance, secureCookie).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/refresh", Refresh(dbInstance, jwtSecret, secureCookie).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/logout", Logout(dbInstance, secureCookie).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/lookup-token", LookupToken(dbInstance, jwtSecret).ServeHTTP)

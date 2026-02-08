@@ -12,13 +12,13 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// TestLogin_Success verifies that a successful login stores the token directly.
+// TestLogin_Success verifies that a successful login completes without error.
 func TestLogin_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Login successful", "token": "testtoken"}`),
+			Result:     []byte(`{"message": "Login successful"}`),
 		},
 		err: nil,
 	}
@@ -35,11 +35,6 @@ func TestLogin_Success(t *testing.T) {
 	err := clientObj.Login(ctx, loginOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-
-	token := clientObj.GetToken()
-	if token != "testtoken" {
-		t.Errorf("expected token 'testtoken', got: %s", token)
 	}
 }
 
@@ -75,7 +70,7 @@ func TestLogin_RequestParameters(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"token": "testtoken"}`),
+			Result:     []byte(`{"message": "Login successful"}`),
 		},
 		err: nil,
 	}
