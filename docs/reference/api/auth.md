@@ -8,7 +8,7 @@ This section describes the RESTful API for system user authentication.
 
 ## Login
 
-This path logs the user in. It sets an httpOnly session cookie valid for 30 days. To obtain a JWT access token, call the [Refresh](#refresh) endpoint after logging in.
+This path logs the user in and sets an httpOnly session cookie valid for 30 days.
 
 | Method | Path                 |
 | ------ | -------------------- |

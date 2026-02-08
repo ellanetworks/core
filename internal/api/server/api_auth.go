@@ -31,10 +31,6 @@ type LoginParams struct {
 	Password string `json:"password"`
 }
 
-type LoginResponse struct {
-	Message string `json:"message"`
-}
-
 type RefreshResponse struct {
 	Token string `json:"token"`
 }
@@ -215,7 +211,7 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 
 		success = true
 
-		writeResponse(w, LoginResponse{Message: "Login successful"}, http.StatusOK, logger.APILog)
+		writeResponse(w, SuccessResponse{Message: "Login successful"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			r.Context(),

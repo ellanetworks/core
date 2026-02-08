@@ -16,8 +16,6 @@ type RefreshResponseResult struct {
 }
 
 // Login authenticates the user with the provided email and password.
-// On success the server sets a session cookie. Call Refresh afterwards
-// to obtain a JWT access token for subsequent authenticated requests.
 func (c *Client) Login(ctx context.Context, opts *LoginOptions) error {
 	payload := struct {
 		Email    string `json:"email"`
