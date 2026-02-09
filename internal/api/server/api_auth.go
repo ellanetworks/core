@@ -31,6 +31,11 @@ type LoginParams struct {
 	Password string `json:"password"`
 }
 
+type LoginResponse struct {
+	Message string `json:"message"`
+	Token   string `json:"token"`
+}
+
 type RefreshResponse struct {
 	Token string `json:"token"`
 }
@@ -151,7 +156,7 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.
 	})
 }
 
-func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
+func Login(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var success bool
 
@@ -209,9 +214,15 @@ func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 			return
 		}
 
+		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			return
+		}
+
 		success = true
 
-		writeResponse(w, SuccessResponse{Message: "Login successful"}, http.StatusOK, logger.APILog)
+		writeResponse(w, LoginResponse{Message: "Login successful", Token: token}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			r.Context(),

@@ -31,13 +31,13 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	registerAuthenticatedPprof(mux, jwtSecret, dbInstance)
 
 	// Authentication
-	mux.HandleFunc("POST /api/v1/auth/login", Login(dbInstance, secureCookie).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/auth/login", Login(dbInstance, jwtSecret, secureCookie).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/refresh", Refresh(dbInstance, jwtSecret, secureCookie).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/logout", Logout(dbInstance, secureCookie).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/lookup-token", LookupToken(dbInstance, jwtSecret).ServeHTTP)
 
 	// Initialization (Unauthenticated)
-	mux.HandleFunc("POST /api/v1/init", Initialize(dbInstance, secureCookie).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/init", Initialize(dbInstance, jwtSecret, secureCookie).ServeHTTP)
 
 	// Users (Authenticated except for first user creation)
 	mux.HandleFunc("GET /api/v1/users/me", Authenticate(jwtSecret, dbInstance, GetLoggedInUser(dbInstance)).ServeHTTP)

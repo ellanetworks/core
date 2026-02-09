@@ -7,7 +7,7 @@ import React, {
   useRef,
   useCallback,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import { CircularProgress, Box } from "@mui/material";
 import { refresh } from "@/queries/auth";
@@ -71,6 +71,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const tokenRef = useRef<string | null>(null);
   const refreshTimerRef = useRef<number | null>(null);
   const refreshingRef = useRef(false);
@@ -134,9 +135,47 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, [navigate, scheduleRefresh, clearRefreshTimer]);
 
+  // Apply a token directly (from login response or navigation state).
+  // Returns true if the token was valid and applied.
+  const applyToken = useCallback(
+    (token: string): boolean => {
+      try {
+        const decoded = jwtDecode<DecodedToken>(token);
+        const role = roleToString(decoded.role_id);
+
+        tokenRef.current = token;
+        setAccessToken(token);
+        setAuthData({ email: decoded.email, role });
+
+        if (tokenExpiringSoon(token)) {
+          refreshTimerRef.current = window.setTimeout(() => {
+            void silentRefresh();
+          }, MIN_REFRESH_DELAY_MS);
+        } else {
+          scheduleRefresh(token);
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [scheduleRefresh], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
+      // If the login/initialize page passed a token via navigation state, use it directly.
+      const navToken = (location.state as { token?: string } | null)?.token;
+      if (navToken && applyToken(navToken)) {
+        // Clear the token from navigation state so it isn't reused on back-navigation.
+        window.history.replaceState({}, "");
+        if (!cancelled) setAuthReady(true);
+        return;
+      }
+
+      // Otherwise fall back to refreshing via the session cookie.
       try {
         await silentRefresh();
       } finally {
@@ -147,7 +186,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       cancelled = true;
       clearRefreshTimer();
     };
-  }, [silentRefresh, clearRefreshTimer]);
+  }, [silentRefresh, clearRefreshTimer, location.state, applyToken]);
 
   useEffect(() => {
     const onVisibility = () => {
