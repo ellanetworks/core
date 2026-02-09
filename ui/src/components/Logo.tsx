@@ -9,7 +9,7 @@ export default function Logo({
 }) {
   return (
     <img
-      src="https://raw.githubusercontent.com/yeastengine/ella-public/refs/heads/dev-logo/logo.png"
+      src="/logo.svg"
       alt="Ella Core Logo"
       width={width}
       height={height}

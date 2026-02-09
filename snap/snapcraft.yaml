@@ -18,7 +18,7 @@ website:
 grade: stable
 confinement: strict
 license: Apache-2.0
-icon: docs/images/logo.png
+icon: docs/images/logo.svg
 
 apps:
   cored:

@@ -25,6 +25,27 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          mui: [
+            "@mui/material",
+            "@mui/icons-material",
+            "@emotion/react",
+            "@emotion/styled",
+          ],
+          "mui-x": [
+            "@mui/x-data-grid",
+          ],
+          "mui-x-charts": [
+            "@mui/x-charts",
+            "@mui/x-date-pickers",
+          ],
+        },
+      },
+    },
   },
   css: {
     preprocessorOptions: {
