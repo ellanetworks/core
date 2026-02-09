@@ -24,7 +24,13 @@ func newFrontendFileServer(embedFS fs.FS) (http.Handler, error) {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Serve static assets (JS, CSS, images, etc.) directly.
 		if strings.HasPrefix(r.URL.Path, "/assets/") || strings.Contains(r.URL.Path, ".") {
+			// Vite hashed assets are immutable — cache them aggressively.
+			if strings.HasPrefix(r.URL.Path, "/assets/") {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			}
+
 			serveFileServer(w, r, fsHandler, r.URL.Path)
+
 			return
 		}
 
