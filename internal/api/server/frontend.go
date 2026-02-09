@@ -28,7 +28,9 @@ func newFrontendFileServer(embedFS fs.FS) (http.Handler, error) {
 			if strings.HasPrefix(r.URL.Path, "/assets/") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			}
+
 			serveFileServer(w, r, fsHandler, r.URL.Path)
+
 			return
 		}
 
