@@ -73,7 +73,12 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 
 	fC := client.New(fleetURL)
 
-	data, err := fC.Register(ctx, activationToken, key.PublicKey)
+	initialConfig, err := buildInitialConfig(ctx, dbInstance)
+	if err != nil {
+		return fmt.Errorf("couldn't build initial config: %w", err)
+	}
+
+	data, err := fC.Register(ctx, activationToken, key.PublicKey, initialConfig)
 	if err != nil {
 		return fmt.Errorf("couldn't register to fleet: %w", err)
 	}
@@ -115,4 +120,38 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 	logger.EllaLog.Info("Sync sent successfully")
 
 	return nil
+}
+
+func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.EllaCoreConfig, error) {
+	op, err := dbInstance.GetOperator(ctx)
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get operator from database: %w", err)
+	}
+
+	supportedTacs, err := op.GetSupportedTacs()
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get supported tacs: %w", err)
+	}
+
+	initialConfig := client.EllaCoreConfig{
+		Operator: client.Operator{
+			ID: client.OperatorID{
+				Mcc: op.Mcc,
+				Mnc: op.Mnc,
+			},
+			Slice: client.OperatorSlice{
+				Sst: op.Sst,
+				Sd:  op.Sd,
+			},
+			OperatorCode: op.OperatorCode,
+			Tracking: client.OperatorTracking{
+				SupportedTacs: supportedTacs,
+			},
+			HomeNetwork: client.OperatorHomeNetwork{
+				PrivateKey: op.HomeNetworkPrivateKey,
+			},
+		},
+	}
+
+	return initialConfig, nil
 }

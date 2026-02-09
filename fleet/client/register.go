@@ -13,9 +13,40 @@ import (
 	"net/http"
 )
 
+type OperatorTracking struct {
+	SupportedTacs []string `json:"supportedTacs"`
+}
+
+type OperatorSlice struct {
+	Sst int32  `json:"sst"`
+	Sd  []byte `json:"sd"`
+}
+
+type OperatorID struct {
+	Mcc string `json:"mcc"`
+	Mnc string `json:"mnc"`
+}
+
+type OperatorHomeNetwork struct {
+	PrivateKey string `json:"privateKey"`
+}
+
+type Operator struct {
+	ID           OperatorID          `json:"id"`
+	Slice        OperatorSlice       `json:"slice"`
+	OperatorCode string              `json:"operatorCode"`
+	Tracking     OperatorTracking    `json:"tracking"`
+	HomeNetwork  OperatorHomeNetwork `json:"homeNetwork"`
+}
+
+type EllaCoreConfig struct {
+	Operator Operator `json:"operator"`
+}
+
 type RegisterParams struct {
-	ActivationToken string `json:"activation_token"`
-	PublicKey       string `json:"public_key"`
+	ActivationToken string         `json:"activation_token"`
+	PublicKey       string         `json:"public_key"`
+	InitialConfig   EllaCoreConfig `json:"initial_config"`
 }
 
 type RegisterResponse struct {
@@ -31,7 +62,7 @@ type Response struct {
 	Result any `json:"result"`
 }
 
-func (fc *Fleet) Register(ctx context.Context, activationToken string, publicKey ecdsa.PublicKey) (*RegisterResponse, error) {
+func (fc *Fleet) Register(ctx context.Context, activationToken string, publicKey ecdsa.PublicKey, initialConfig EllaCoreConfig) (*RegisterResponse, error) {
 	pubKeyPEM, err := marshalPublicKey(&publicKey)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't marshal public key: %w", err)
@@ -40,6 +71,7 @@ func (fc *Fleet) Register(ctx context.Context, activationToken string, publicKey
 	params := &RegisterParams{
 		ActivationToken: activationToken,
 		PublicKey:       pubKeyPEM,
+		InitialConfig:   initialConfig,
 	}
 
 	body, err := json.Marshal(params)
