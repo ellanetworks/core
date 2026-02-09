@@ -4,6 +4,7 @@ import {
   Typography,
   CircularProgress,
   Alert,
+  Button,
   Card,
   CardHeader,
   CardContent,
@@ -18,6 +19,8 @@ import {
   Paper,
   Tooltip,
 } from "@mui/material";
+import HubIcon from "@mui/icons-material/Hub";
+import ConfigureFleetModal from "@/components/ConfigureFleetModal";
 import Grid from "@mui/material/Grid";
 import { PieChart } from "@mui/x-charts/PieChart";
 import { Link, useNavigate } from "react-router-dom";
@@ -211,6 +214,7 @@ const Dashboard = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fleetModalOpen, setFleetModalOpen] = useState(false);
 
   const parseMetrics = (metrics: string) => {
     const lines = metrics.split("\n");
@@ -461,7 +465,19 @@ const Dashboard = () => {
             (version ?? "—")
           )}
         </Typography>
+        <Button
+          variant="outlined"
+          startIcon={<HubIcon />}
+          onClick={() => setFleetModalOpen(true)}
+        >
+          Configure Fleet
+        </Button>
       </Box>
+
+      <ConfigureFleetModal
+        open={fleetModalOpen}
+        onClose={() => setFleetModalOpen(false)}
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>

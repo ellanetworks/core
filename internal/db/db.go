@@ -133,6 +133,12 @@ type Database struct {
 	deleteUserStmt       *sqlair.Statement
 	countUsersStmt       *sqlair.Statement
 
+	// Fleet statements
+	getFleetStmt               *sqlair.Statement
+	updateFleetKeyStmt         *sqlair.Statement
+	updateFleetCredentialsStmt *sqlair.Statement
+	initializeFleetStmt        *sqlair.Statement
+
 	conn *sqlair.DB
 }
 
@@ -278,6 +284,10 @@ func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 	}
 
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateDailyUsageTable, DailyUsageTableName)); err != nil {
+		return nil, err
+	}
+
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateFleetTable, FleetTableName)); err != nil {
 		return nil, err
 	}
 
@@ -708,6 +718,26 @@ func (db *Database) PrepareStatements() error {
 		return fmt.Errorf("failed to prepare count users statement: %v", err)
 	}
 
+	getFleetStmt, err := sqlair.Prepare(fmt.Sprintf(getFleetStmt, FleetTableName), Fleet{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare get fleet statement: %v", err)
+	}
+
+	updateFleetKeyStmt, err := sqlair.Prepare(fmt.Sprintf(updateFleetKeyStmt, FleetTableName), Fleet{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare update fleet key statement: %v", err)
+	}
+
+	updateFleetCredentialsStmt, err := sqlair.Prepare(fmt.Sprintf(updateFleetCredentialsStmt, FleetTableName), Fleet{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare update fleet credentials statement: %v", err)
+	}
+
+	initializeFleetStmt, err := sqlair.Prepare(fmt.Sprintf(initializeFleetStmt, FleetTableName), Fleet{})
+	if err != nil {
+		return fmt.Errorf("failed to prepare initialize fleet statement: %v", err)
+	}
+
 	db.listSubscribersStmt = listSubscribersStmt
 	db.countSubscribersStmt = countSubscribersStmt
 	db.getSubscriberStmt = getSubscriberStmt
@@ -803,6 +833,11 @@ func (db *Database) PrepareStatements() error {
 	db.deleteUserStmt = deleteUserStmt
 	db.countUsersStmt = countUsersStmt
 
+	db.getFleetStmt = getFleetStmt
+	db.updateFleetKeyStmt = updateFleetKeyStmt
+	db.updateFleetCredentialsStmt = updateFleetCredentialsStmt
+	db.initializeFleetStmt = initializeFleetStmt
+
 	return nil
 }
 
@@ -815,6 +850,11 @@ func (db *Database) Initialize(ctx context.Context) error {
 	err = db.InitializeN3Settings(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to initialize N3 settings: %w", err)
+	}
+
+	err = db.InitializeFleet(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize fleet: %w", err)
 	}
 
 	if !db.IsOperatorInitialized(ctx) {
