@@ -26,11 +26,4 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
   },
-  css: {
-    preprocessorOptions: {
-      scss: {
-        api: "modern-compiler",
-      },
-    },
-  },
 });
