@@ -15,11 +15,16 @@ type InitializeParams struct {
 	Password string `json:"password"`
 }
 
+type InitializeResponse struct {
+	Message string `json:"message"`
+	Token   string `json:"token"`
+}
+
 const (
 	InitializeAction = "initialize"
 )
 
-func Initialize(dbInstance *db.Database, secureCookie bool) http.Handler {
+func Initialize(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var newUser InitializeParams
 
@@ -84,7 +89,13 @@ func Initialize(dbInstance *db.Database, secureCookie bool) http.Handler {
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "System initialized successfully"}, http.StatusCreated, logger.APILog)
+		token, err := generateJWT(userID, newUser.Email, RoleID(db.RoleAdmin), jwtSecret)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			return
+		}
+
+		writeResponse(w, InitializeResponse{Message: "System initialized successfully", Token: token}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
 			r.Context(),

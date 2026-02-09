@@ -43,8 +43,8 @@ const InitializePage = () => {
     setError(null);
 
     try {
-      await initialize(email, password);
-      navigate("/login");
+      const resp = await initialize(email, password);
+      navigate("/dashboard", { state: { token: resp.token } });
     } catch (err) {
       const error = err as Error;
       setError(error.message);

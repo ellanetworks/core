@@ -14,7 +14,7 @@ func TestInitialize_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message": "System initialized successfully"}`),
+			Result:     []byte(`{"message": "System initialized successfully", "token": "inittoken"}`),
 		},
 		err: nil,
 	}
@@ -31,6 +31,11 @@ func TestInitialize_Success(t *testing.T) {
 	err := clientObj.Initialize(ctx, initializeOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	token := clientObj.GetToken()
+	if token != "inittoken" {
+		t.Errorf("expected token 'inittoken', got: %s", token)
 	}
 }
 

@@ -11,7 +11,13 @@ type InitializeOptions struct {
 	Password string `json:"password"`
 }
 
+type InitializeResponseResult struct {
+	Message string `json:"message"`
+	Token   string `json:"token"`
+}
+
 // Initialize initializes the client with the provided options.
+// On success, it stores the returned access token in the client.
 func (c *Client) Initialize(ctx context.Context, opts *InitializeOptions) error {
 	payload := struct {
 		Email    string `json:"email"`
@@ -28,7 +34,7 @@ func (c *Client) Initialize(ctx context.Context, opts *InitializeOptions) error 
 		return err
 	}
 
-	_, err = c.Requester.Do(ctx, &RequestOptions{
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
 		Path:   "api/v1/init",
@@ -37,6 +43,15 @@ func (c *Client) Initialize(ctx context.Context, opts *InitializeOptions) error 
 	if err != nil {
 		return err
 	}
+
+	var initResponse InitializeResponseResult
+
+	err = resp.DecodeResult(&initResponse)
+	if err != nil {
+		return err
+	}
+
+	c.token = initResponse.Token
 
 	return nil
 }

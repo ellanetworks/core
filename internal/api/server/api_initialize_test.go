@@ -11,6 +11,7 @@ import (
 
 type InitializeResponseResult struct {
 	Message string `json:"message"`
+	Token   string `json:"token"`
 }
 
 type InitializeResponse struct {
