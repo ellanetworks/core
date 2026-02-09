@@ -8,11 +8,6 @@ export default function Logo({
   height?: number;
 }) {
   return (
-    <img
-      src="/logo.svg"
-      alt="Ella Core Logo"
-      width={width}
-      height={height}
-    />
+    <img src="/logo.svg" alt="Ella Core Logo" width={width} height={height} />
   );
 }

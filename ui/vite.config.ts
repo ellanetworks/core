@@ -36,13 +36,8 @@ export default defineConfig({
             "@emotion/react",
             "@emotion/styled",
           ],
-          "mui-x": [
-            "@mui/x-data-grid",
-          ],
-          "mui-x-charts": [
-            "@mui/x-charts",
-            "@mui/x-date-pickers",
-          ],
+          "mui-x": ["@mui/x-data-grid"],
+          "mui-x-charts": ["@mui/x-charts", "@mui/x-date-pickers"],
         },
       },
     },
