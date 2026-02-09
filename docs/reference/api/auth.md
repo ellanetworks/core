@@ -25,6 +25,7 @@ This path logs the user in and sets an httpOnly session cookie valid for 30 days
 {
     "result": {
         "message": "Login successful"
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJhZG1pbkBlbGxhbmV0d29ya3MuY29tIiwicm9sZV9pZCI6MSwiZXhwIjoxNzcwNjgwNTA2fQ.1w9fxtLIfwY4sBOCwdXIZtSmDk8YaVEseAQHJ-5rUXI"
     }
 }
 ```

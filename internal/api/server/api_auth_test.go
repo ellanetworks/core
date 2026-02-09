@@ -22,6 +22,7 @@ type LoginParams struct {
 
 type LoginResponseResult struct {
 	Message string `json:"message"`
+	Token   string `json:"token"`
 }
 
 type LoginResponse struct {
@@ -186,7 +187,7 @@ func TestLoginEndToEnd(t *testing.T) {
 			Password: "password123",
 		}
 
-		statusCode, _, err := login(ts.URL, client, user)
+		statusCode, loginResponse, err := login(ts.URL, client, user)
 		if err != nil {
 			t.Fatalf("couldn't login admin user: %s", err)
 		}
@@ -195,20 +196,11 @@ func TestLoginEndToEnd(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
 
-		statusCode, refreshResponse, err := refresh(ts.URL, client)
-		if err != nil {
-			t.Fatalf("couldn't refresh: %s", err)
+		if loginResponse.Result.Token == "" {
+			t.Fatalf("expected token from login, got empty string")
 		}
 
-		if statusCode != http.StatusOK {
-			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
-		}
-
-		if refreshResponse.Result.Token == "" {
-			t.Fatalf("expected token, got empty string")
-		}
-
-		token, err := jwt.Parse(refreshResponse.Result.Token, func(token *jwt.Token) (any, error) {
+		token, err := jwt.Parse(loginResponse.Result.Token, func(token *jwt.Token) (any, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 			}
@@ -221,10 +213,24 @@ func TestLoginEndToEnd(t *testing.T) {
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 			if claims["email"] != FirstUserEmail {
-				t.Fatalf("expected email %q, got %q", "testuser", claims["email"])
+				t.Fatalf("expected email %q, got %q", FirstUserEmail, claims["email"])
 			}
 		} else {
 			t.Fatalf("invalid token or claims")
+		}
+
+		// Verify refresh also still works via session cookie
+		statusCode, refreshResponse, err := refresh(ts.URL, client)
+		if err != nil {
+			t.Fatalf("couldn't refresh: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected refresh status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if refreshResponse.Result.Token == "" {
+			t.Fatalf("expected token from refresh, got empty string")
 		}
 	})
 

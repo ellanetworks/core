@@ -62,11 +62,6 @@ func configureEllaCore(ctx context.Context, cl *client.Client, c EllaCoreConfig)
 		return fmt.Errorf("failed to create user: %v", err)
 	}
 
-	err = cl.Refresh(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to refresh token: %v", err)
-	}
-
 	createAPITokenOpts := &client.CreateAPITokenOptions{
 		Name:   "integration-test-token",
 		Expiry: "",

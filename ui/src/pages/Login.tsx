@@ -46,7 +46,7 @@ const LoginPage = () => {
       try {
         const r = await refresh();
         if (r?.token) {
-          navigate("/dashboard");
+          navigate("/dashboard", { state: { token: r.token } });
           return;
         }
       } catch {
@@ -62,13 +62,12 @@ const LoginPage = () => {
     setError(null);
 
     try {
-      await login(email, password);
-      const refreshResp = await refresh();
+      const loginResp = await login(email, password);
 
-      if (!refreshResp?.token)
+      if (!loginResp?.token)
         throw new Error("Login succeeded but could not obtain access token.");
 
-      navigate("/dashboard");
+      navigate("/dashboard", { state: { token: loginResp.token } });
     } catch (err) {
       const error = err as Error;
       setError(error.message || "Login failed");

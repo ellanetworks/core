@@ -118,7 +118,7 @@ func initializeAndRefresh(url string, client *http.Client) (string, error) {
 		Password: "password123",
 	}
 
-	statusCode, _, err := initialize(url, client, initParams)
+	statusCode, initResponse, err := initialize(url, client, initParams)
 	if err != nil {
 		return "", fmt.Errorf("couldn't create user: %s", err)
 	}
@@ -127,16 +127,11 @@ func initializeAndRefresh(url string, client *http.Client) (string, error) {
 		return "", fmt.Errorf("expected status %d, got %d", http.StatusCreated, statusCode)
 	}
 
-	statusCode, refreshResponse, err := refresh(url, client)
-	if err != nil {
-		return "", fmt.Errorf("couldn't refresh: %s", err)
+	if initResponse.Result.Token == "" {
+		return "", fmt.Errorf("expected non-empty token from initialize")
 	}
 
-	if statusCode != http.StatusOK {
-		return "", fmt.Errorf("expected refresh status %d, got %d", http.StatusOK, statusCode)
-	}
-
-	return refreshResponse.Result.Token, nil
+	return initResponse.Result.Token, nil
 }
 
 func createUserAndLogin(url string, token string, email string, roleID RoleID, client *http.Client) (string, error) {
@@ -160,7 +155,7 @@ func createUserAndLogin(url string, token string, email string, roleID RoleID, c
 		Password: "password123",
 	}
 
-	statusCode, _, err = login(url, client, loginParams)
+	statusCode, loginResp, err := login(url, client, loginParams)
 	if err != nil {
 		return "", fmt.Errorf("couldn't login: %s", err)
 	}
@@ -169,18 +164,9 @@ func createUserAndLogin(url string, token string, email string, roleID RoleID, c
 		return "", fmt.Errorf("expected status %d, got %d", http.StatusOK, statusCode)
 	}
 
-	statusCode, refreshResp, err := refresh(url, client)
-	if err != nil {
-		return "", fmt.Errorf("couldn't refresh: %s", err)
+	if loginResp.Result.Token == "" {
+		return "", fmt.Errorf("expected non-empty token from login")
 	}
 
-	if statusCode != http.StatusOK {
-		return "", fmt.Errorf("expected status %d, got %d", http.StatusOK, statusCode)
-	}
-
-	if refreshResp.Result.Token == "" {
-		return "", fmt.Errorf("expected non-empty token from refresh")
-	}
-
-	return refreshResp.Result.Token, nil
+	return loginResp.Result.Token, nil
 }

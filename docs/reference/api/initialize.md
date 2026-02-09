@@ -25,6 +25,7 @@ This path initializes the system by creating the first admin user. This endpoint
 {
     "result": {
         "message": "System initialized successfully"
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJhZG1pbkBlbGxhbmV0d29ya3MuY29tIiwicm9sZV9pZCI6MSwiZXhwIjoxNzcwNjgwNTU2fQ.fOdYkaC0ESZJza7THRx2N-llkij-BBhOAUP6IiPqcuQ"
     }
 }
 ```

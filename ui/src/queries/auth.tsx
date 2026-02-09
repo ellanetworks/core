@@ -4,8 +4,11 @@ export type AuthTokenResponse = {
   token: string;
 };
 
-export const login = async (email: string, password: string): Promise<void> => {
-  await apiFetchVoid("/api/v1/auth/login", {
+export const login = async (
+  email: string,
+  password: string,
+): Promise<AuthTokenResponse> => {
+  return apiFetch<AuthTokenResponse>("/api/v1/auth/login", {
     method: "POST",
     body: { email, password },
     credentials: "include",
