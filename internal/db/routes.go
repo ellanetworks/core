@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/canonical/sqlair"
@@ -27,7 +28,7 @@ const QueryCreateRoutesTable = `
 )`
 
 const (
-	listRoutesPageStmt = "SELECT &Route.* FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listRoutesPageStmt = "SELECT &Route.*, COUNT(*) OVER() AS &NumItems.count FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getRouteStmt       = "SELECT &Route.* FROM %s WHERE id==$Route.id"
 	createRouteStmt    = "INSERT INTO %s (destination, gateway, interface, metric) VALUES ($Route.destination, $Route.gateway, $Route.interface, $Route.metric)"
 	deleteRouteStmt    = "DELETE FROM %s WHERE id==$Route.id"
@@ -77,14 +78,6 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 	)
 	defer span.End()
 
-	count, err := db.CountRoutes(ctx)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "count failed")
-
-		return nil, 0, err
-	}
-
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "select"))
 	defer timer.ObserveDuration()
 
@@ -92,22 +85,35 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 
 	var routes []Route
 
+	var counts []NumItems
+
 	args := ListArgs{
 		Limit:  perPage,
 		Offset: (page - 1) * perPage,
 	}
 
-	err = db.conn.Query(ctx, db.listRoutesStmt, args).GetAll(&routes)
+	err := db.conn.Query(ctx, db.listRoutesStmt, args).GetAll(&routes, &counts)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, count, nil
+
+			fallbackCount, countErr := db.CountRoutes(ctx)
+			if countErr != nil {
+				return nil, 0, nil
+			}
+
+			return nil, fallbackCount, nil
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	count := 0
+	if len(counts) > 0 {
+		count = counts[0].Count
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -137,7 +143,7 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 
 	err := db.conn.Query(ctx, db.getRouteStmt, row).Get(&row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
@@ -145,7 +151,7 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, err
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -176,9 +182,9 @@ func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, err
 	err := t.tx.Query(ctx, t.db.createRouteStmt, route).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return 0, err
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	id, err := outcome.Result().LastInsertId()
@@ -186,7 +192,7 @@ func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, err
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving insert ID failed")
 
-		return 0, err
+		return 0, fmt.Errorf("retrieving insert ID failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -215,9 +221,9 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 	err := t.tx.Query(ctx, t.db.deleteRouteStmt, Route{ID: id}).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -249,9 +255,9 @@ func (db *Database) CountRoutes(ctx context.Context) (int, error) {
 	err := db.conn.Query(ctx, db.countRoutesStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return 0, err
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")

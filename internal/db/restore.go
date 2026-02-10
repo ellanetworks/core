@@ -4,7 +4,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"io"
 	"os"
@@ -57,24 +56,9 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		logger.DBLog.Warn("Failed to remove old SHM file", zap.String("file", shmFile), zap.Error(err))
 	}
 
-	sqlConnection, err := sql.Open("sqlite3", db.filepath)
+	sqlConnection, err := openSQLiteConnection(ctx, db.filepath)
 	if err != nil {
-		return fmt.Errorf("failed to reopen database connection: %v", err)
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, "PRAGMA journal_mode = WAL;"); err != nil {
-		_ = sqlConnection.Close()
-		return fmt.Errorf("failed to enable WAL journaling after restore: %w", err)
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, "PRAGMA synchronous = NORMAL;"); err != nil {
-		_ = sqlConnection.Close()
-		return fmt.Errorf("failed to set synchronous to NORMAL after restore: %w", err)
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, "PRAGMA foreign_keys = ON;"); err != nil {
-		_ = sqlConnection.Close()
-		return fmt.Errorf("failed to enable foreign key support after restore: %w", err)
+		return fmt.Errorf("failed to reopen database after restore: %w", err)
 	}
 
 	db.conn = sqlair.NewDB(sqlConnection)

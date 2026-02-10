@@ -697,7 +697,13 @@ func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 
 		token, err := dbInstance.GetAPITokenByTokenID(r.Context(), idParam)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "API token not found", nil, logger.APILog)
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "API token not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve API token", err, logger.APILog)
+
 			return
 		}
 

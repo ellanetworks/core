@@ -40,7 +40,7 @@ type APIToken struct {
 }
 
 const (
-	listAPITokensPagedStmt = `SELECT &APIToken.* FROM %s WHERE user_id == $APIToken.user_id ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
+	listAPITokensPagedStmt = `SELECT &APIToken.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE user_id == $APIToken.user_id ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
 	getByTokenIDStmt       = "SELECT &APIToken.* FROM %s WHERE token_id==$APIToken.token_id"
 	getByNameStmt          = "SELECT &APIToken.* FROM %s WHERE user_id==$APIToken.user_id AND name==$APIToken.name"
 	deleteAPITokenStmt     = "DELETE FROM %s WHERE id==$APIToken.id"                                                                                                                                       // #nosec: G101
@@ -63,20 +63,14 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID int64, page in
 	)
 	defer span.End()
 
-	count, err := db.CountAPITokens(ctx, userID)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "count failed")
-
-		return nil, 0, err
-	}
-
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(APITokensTableName, "select"))
 	defer timer.ObserveDuration()
 
 	DBQueriesTotal.WithLabelValues(APITokensTableName, "select").Inc()
 
 	var tokens []APIToken
+
+	var counts []NumItems
 
 	args := ListArgs{
 		Limit:  perPage,
@@ -85,17 +79,28 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID int64, page in
 
 	apiTokenArg := APIToken{UserID: userID}
 
-	err = db.conn.Query(ctx, db.listAPITokensStmt, args, apiTokenArg).GetAll(&tokens)
+	err := db.conn.Query(ctx, db.listAPITokensStmt, args, apiTokenArg).GetAll(&tokens, &counts)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, count, nil
+
+			fallbackCount, countErr := db.CountAPITokens(ctx, userID)
+			if countErr != nil {
+				return nil, 0, nil
+			}
+
+			return nil, fallbackCount, nil
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	count := 0
+	if len(counts) > 0 {
+		count = counts[0].Count
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -132,9 +137,9 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 		}
 
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -165,13 +170,14 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 	err := db.conn.Query(ctx, db.getAPITokenByIDStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, ErrNotFound
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, err
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -201,10 +207,15 @@ func (db *Database) GetAPITokenByName(ctx context.Context, userID int64, name st
 
 	err := db.conn.Query(ctx, db.getAPITokenByNameStmt, row).Get(&row)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, ErrNotFound
+		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, err
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -235,9 +246,9 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
 	err := db.conn.Query(ctx, db.deleteAPITokenStmt, arg).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -270,9 +281,9 @@ func (db *Database) CountAPITokens(ctx context.Context, userID int64) (int, erro
 	err := db.conn.Query(ctx, db.countAPITokensStmt, arg).Get(&result)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return 0, err
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")

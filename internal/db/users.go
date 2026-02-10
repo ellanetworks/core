@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/canonical/sqlair"
@@ -27,7 +28,7 @@ const QueryCreateUsersTable = `
 )`
 
 const (
-	listUsersPageStmt    = "SELECT &User.* from %s ORDER BY id LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listUsersPageStmt    = "SELECT &User.*, COUNT(*) OVER() AS &NumItems.count from %s ORDER BY id LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getUserStmt          = "SELECT &User.* from %s WHERE email==$User.email"
 	getUserByIDStmt      = "SELECT &User.* from %s WHERE id==$User.id"
 	createUserStmt       = "INSERT INTO %s (email, roleID, hashedPassword) VALUES ($User.email, $User.roleID, $User.hashedPassword)"
@@ -67,14 +68,6 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 	)
 	defer span.End()
 
-	count, err := db.CountUsers(ctx)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "count failed")
-
-		return nil, 0, err
-	}
-
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "select"))
 	defer timer.ObserveDuration()
 
@@ -87,17 +80,30 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 
 	var users []User
 
-	err = db.conn.Query(ctx, db.listUsersStmt, args).GetAll(&users)
+	var counts []NumItems
+
+	err := db.conn.Query(ctx, db.listUsersStmt, args).GetAll(&users, &counts)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, count, nil
+
+			fallbackCount, countErr := db.CountUsers(ctx)
+			if countErr != nil {
+				return nil, 0, nil
+			}
+
+			return nil, fallbackCount, nil
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	count := 0
+	if len(counts) > 0 {
+		count = counts[0].Count
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -128,7 +134,7 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 
 	err := db.conn.Query(ctx, db.getUserStmt, row).Get(&row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
@@ -167,7 +173,7 @@ func (db *Database) GetUserByID(ctx context.Context, id int64) (*User, error) {
 
 	err := db.conn.Query(ctx, db.getUserByIDStmt, row).Get(&row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
@@ -213,7 +219,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 		}
 
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
 		return 0, err
 	}
@@ -260,7 +266,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 	err := db.conn.Query(ctx, db.editUserStmt, user).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
 		return err
 	}
@@ -314,7 +320,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 	err := db.conn.Query(ctx, db.editUserPasswordStmt, user).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
 		return err
 	}
@@ -363,7 +369,7 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 	err := db.conn.Query(ctx, db.deleteUserStmt, User{Email: email}).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
 		return err
 	}
@@ -412,7 +418,7 @@ func (db *Database) CountUsers(ctx context.Context) (int, error) {
 	err := db.conn.Query(ctx, db.countUsersStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
 		return 0, err
 	}
