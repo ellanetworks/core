@@ -133,6 +133,58 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get supported tacs: %w", err)
 	}
 
+	dataNetworks, _, err := dbInstance.ListDataNetworksPage(ctx, 1, 100)
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list data networks: %w", err)
+	}
+
+	dnConfigs := make([]client.DataNetwork, len(dataNetworks))
+	for i, dn := range dataNetworks {
+		dnConfigs[i] = client.DataNetwork{
+			ID:     dn.ID,
+			Name:   dn.Name,
+			IPPool: dn.IPPool,
+			DNS:    dn.DNS,
+			MTU:    dn.MTU,
+		}
+	}
+
+	policies, _, err := dbInstance.ListPoliciesPage(ctx, 1, 100)
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list policies: %w", err)
+	}
+
+	policyConfigs := make([]client.Policy, len(policies))
+	for i, p := range policies {
+		policyConfigs[i] = client.Policy{
+			ID:              p.ID,
+			Name:            p.Name,
+			BitrateUplink:   p.BitrateUplink,
+			BitrateDownlink: p.BitrateDownlink,
+			Var5qi:          p.Var5qi,
+			Arp:             p.Arp,
+			DataNetworkID:   p.DataNetworkID,
+		}
+	}
+
+	subscribers, _, err := dbInstance.ListSubscribersPage(ctx, 1, 1000)
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list subscribers: %w", err)
+	}
+
+	subscriberConfigs := make([]client.Subscriber, len(subscribers))
+	for i, s := range subscribers {
+		subscriberConfigs[i] = client.Subscriber{
+			ID:             s.ID,
+			Imsi:           s.Imsi,
+			IPAddress:      s.IPAddress,
+			SequenceNumber: s.SequenceNumber,
+			PermanentKey:   s.PermanentKey,
+			Opc:            s.Opc,
+			PolicyID:       s.PolicyID,
+		}
+	}
+
 	initialConfig := client.EllaCoreConfig{
 		Operator: client.Operator{
 			ID: client.OperatorID{
@@ -151,6 +203,9 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 				PrivateKey: op.HomeNetworkPrivateKey,
 			},
 		},
+		DataNetworks: dnConfigs,
+		Policies:     policyConfigs,
+		Subscribers:  subscriberConfigs,
 	}
 
 	return initialConfig, nil

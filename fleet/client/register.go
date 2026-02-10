@@ -14,7 +14,7 @@ import (
 )
 
 type OperatorTracking struct {
-	SupportedTacs []string `json:"supportedTacs"`
+	SupportedTacs []string `json:"supported_tacs"`
 }
 
 type OperatorSlice struct {
@@ -28,19 +28,50 @@ type OperatorID struct {
 }
 
 type OperatorHomeNetwork struct {
-	PrivateKey string `json:"privateKey"`
+	PrivateKey string `json:"private_key"`
 }
 
 type Operator struct {
 	ID           OperatorID          `json:"id"`
 	Slice        OperatorSlice       `json:"slice"`
-	OperatorCode string              `json:"operatorCode"`
+	OperatorCode string              `json:"operator_code"`
 	Tracking     OperatorTracking    `json:"tracking"`
-	HomeNetwork  OperatorHomeNetwork `json:"homeNetwork"`
+	HomeNetwork  OperatorHomeNetwork `json:"home_network"`
+}
+
+type DataNetwork struct {
+	ID     int    `json:"id"`
+	Name   string `json:"name"`
+	IPPool string `json:"ip_pool"`
+	DNS    string `json:"dns"`
+	MTU    int32  `json:"mtu"`
+}
+
+type Policy struct {
+	ID              int    `json:"id"`
+	Name            string `json:"name"`
+	BitrateUplink   string `json:"bitrate_uplink"`
+	BitrateDownlink string `json:"bitrate_downlink"`
+	Var5qi          int32  `json:"var5qi"`
+	Arp             int32  `json:"arp"`
+	DataNetworkID   int    `json:"data_network_id"`
+}
+
+type Subscriber struct {
+	ID             int     `json:"id"`
+	Imsi           string  `json:"imsi"`
+	IPAddress      *string `json:"ip_address"`
+	SequenceNumber string  `json:"sequence_number"`
+	PermanentKey   string  `json:"permanent_key"`
+	Opc            string  `json:"opc"`
+	PolicyID       int     `json:"policy_id"`
 }
 
 type EllaCoreConfig struct {
-	Operator Operator `json:"operator"`
+	Operator     Operator      `json:"operator"`
+	DataNetworks []DataNetwork `json:"data_networks"`
+	Policies     []Policy      `json:"policies"`
+	Subscribers  []Subscriber  `json:"subscribers"`
 }
 
 type RegisterParams struct {
