@@ -36,15 +36,14 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("failed to open destination database file: %v", err)
 	}
 
-	defer func() {
-		if err := destinationFile.Close(); err != nil {
-			logger.DBLog.Error("Failed to close destination database file", zap.Error(err))
-		}
-	}()
-
 	_, err = io.Copy(destinationFile, backupFile)
 	if err != nil {
+		_ = destinationFile.Close()
 		return fmt.Errorf("failed to restore database file: %v", err)
+	}
+
+	if err := destinationFile.Close(); err != nil {
+		return fmt.Errorf("failed to close destination database file: %w", err)
 	}
 
 	walFile := db.filepath + "-wal"
@@ -63,7 +62,26 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("failed to reopen database connection: %v", err)
 	}
 
+	if _, err := sqlConnection.ExecContext(ctx, "PRAGMA journal_mode = WAL;"); err != nil {
+		_ = sqlConnection.Close()
+		return fmt.Errorf("failed to enable WAL journaling after restore: %w", err)
+	}
+
+	if _, err := sqlConnection.ExecContext(ctx, "PRAGMA synchronous = NORMAL;"); err != nil {
+		_ = sqlConnection.Close()
+		return fmt.Errorf("failed to set synchronous to NORMAL after restore: %w", err)
+	}
+
+	if _, err := sqlConnection.ExecContext(ctx, "PRAGMA foreign_keys = ON;"); err != nil {
+		_ = sqlConnection.Close()
+		return fmt.Errorf("failed to enable foreign key support after restore: %w", err)
+	}
+
 	db.conn = sqlair.NewDB(sqlConnection)
+
+	if err := db.PrepareStatements(); err != nil {
+		return fmt.Errorf("failed to re-prepare statements after restore: %w", err)
+	}
 
 	return nil
 }
