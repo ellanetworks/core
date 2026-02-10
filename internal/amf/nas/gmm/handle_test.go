@@ -71,10 +71,17 @@ type NGInitialContextSetupRequest struct {
 	CtxList     ngapType.PDUSessionResourceSetupListCxtReq
 }
 
+type NGUEContextReleaseCommand struct {
+	AmfUeNGAPID int64
+	RanUeNGAPID int64
+	cause       aper.Enumerated
+}
+
 type FakeNGAPSender struct {
 	SentDownlinkNASTransport           []*NGDLNasTransport
 	SentPDUSessionResourceSetupRequest []*NGPDUSessionResourceSetupRequest
 	SentInitialContextSetupRequest     []*NGInitialContextSetupRequest
+	SentUEContextReleaseCommand        []*NGUEContextReleaseCommand
 }
 
 func (fng *FakeNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error {
@@ -124,6 +131,15 @@ func (fng *FakeNGAPSender) SendUEContextReleaseCommand(
 	causePresent int,
 	cause aper.Enumerated,
 ) error {
+	fng.SentUEContextReleaseCommand = append(
+		fng.SentUEContextReleaseCommand,
+		&NGUEContextReleaseCommand{
+			AmfUeNGAPID: amfUeNgapID,
+			RanUeNGAPID: ranUeNgapID,
+			cause:       cause,
+		},
+	)
+
 	return nil
 }
 
@@ -242,10 +258,11 @@ func (a *FakeAusf) Auth5gAkaComfirmRequestProcedure(resStar string, suci string)
 }
 
 type FakeSmf struct {
-	Error error
+	Error             error
+	ReleasedSmContext []string
 }
 
-func (s FakeSmf) ActivateSmContext(smContextRef string) ([]byte, error) {
+func (s *FakeSmf) ActivateSmContext(smContextRef string) ([]byte, error) {
 	if s.Error != nil {
 		return nil, s.Error
 	}
@@ -253,7 +270,13 @@ func (s FakeSmf) ActivateSmContext(smContextRef string) ([]byte, error) {
 	return []byte{}, nil
 }
 
-func (s FakeSmf) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+func (s *FakeSmf) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+	if s.Error != nil {
+		return s.Error
+	}
+
+	s.ReleasedSmContext = append(s.ReleasedSmContext, smContextRef)
+
 	return nil
 }
 
