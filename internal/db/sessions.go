@@ -2,6 +2,8 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/canonical/sqlair"
@@ -73,9 +75,9 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) (int64,
 	err := db.conn.Query(ctx, db.createSessionStmt, session).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return 0, err
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	id, err := outcome.Result().LastInsertId()
@@ -83,7 +85,7 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) (int64,
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving insert ID failed")
 
-		return 0, err
+		return 0, fmt.Errorf("retrieving insert ID failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -113,10 +115,15 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 
 	err := db.conn.Query(ctx, db.getSessionByTokenHashStmt, row).Get(&row)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, ErrNotFound
+		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, err
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -147,9 +154,9 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 	err := db.conn.Query(ctx, db.deleteSessionByTokenHashStmt, arg).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -180,9 +187,9 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 	err := db.conn.Query(ctx, db.deleteExpiredSessionsStmt).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return 0, err
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	rowsAffected, err := outcome.Result().RowsAffected()
@@ -190,7 +197,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
 
-		return 0, err
+		return 0, fmt.Errorf("retrieving rows affected failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -225,7 +232,7 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID int64) (int,
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return 0, err
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -256,9 +263,9 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limi
 	err := db.conn.Query(ctx, db.deleteOldestSessionsStmt, args).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")

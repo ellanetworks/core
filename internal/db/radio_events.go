@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -47,7 +48,7 @@ const (
 )
 
 const listRadioEventsPagedFilteredStmt = `
-  SELECT &RadioEvent.*
+  SELECT &RadioEvent.*, COUNT(*) OVER() AS &NumItems.count
   FROM %s
   WHERE
     ($RadioEventFilters.protocol      IS NULL OR protocol      = $RadioEventFilters.protocol)
@@ -106,9 +107,9 @@ func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.R
 	err := db.conn.Query(ctx, db.insertRadioEventStmt, radioEvent).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -145,36 +146,39 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 		Offset: (page - 1) * perPage,
 	}
 
-	// Count with filters
-	var total NumItems
-
-	err := db.conn.Query(ctx, db.countRadioEventsStmt, filters).Get(&total)
-	if err != nil && err != sql.ErrNoRows {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "count failed")
-
-		return nil, 0, err
-	}
-
-	// Rows with filters
 	var logs []dbwriter.RadioEvent
 
-	err = db.conn.Query(ctx, db.listRadioEventsStmt, args, filters).GetAll(&logs)
+	var counts []NumItems
+
+	err := db.conn.Query(ctx, db.listRadioEventsStmt, args, filters).GetAll(&logs, &counts)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, total.Count, nil
+
+			var fallbackCount NumItems
+
+			countErr := db.conn.Query(ctx, db.countRadioEventsStmt, filters).Get(&fallbackCount)
+			if countErr != nil {
+				return nil, 0, nil
+			}
+
+			return nil, fallbackCount.Count, nil
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	count := 0
+	if len(counts) > 0 {
+		count = counts[0].Count
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return logs, total.Count, nil
+	return logs, count, nil
 }
 
 // DeleteOldRadioEvents removes logs older than the specified retention period in days.
@@ -205,9 +209,9 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 	err := db.conn.Query(ctx, db.deleteOldRadioEventsStmt, args).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -236,9 +240,9 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 	err := db.conn.Query(ctx, db.deleteAllRadioEventsStmt).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -258,6 +262,7 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 			attribute.Int("id", id),
 		),
 	)
+	defer span.End()
 
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RadioEventsTableName, "select"))
 	defer timer.ObserveDuration()
@@ -268,15 +273,15 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 
 	err := db.conn.Query(ctx, db.getRadioEventByIDStmt, log).Get(&log)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, nil
+			return nil, ErrNotFound
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, err
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")

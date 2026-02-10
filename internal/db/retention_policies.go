@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -72,7 +73,7 @@ func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCa
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return 0, err
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -104,7 +105,7 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 
 	err := db.conn.Query(ctx, db.selectRetentionPolicyStmt, row).Get(&row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 			return false
 		}
@@ -144,9 +145,9 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 	err := db.conn.Query(ctx, db.upsertRetentionPolicyStmt, *policy).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
