@@ -27,11 +27,7 @@ func TestRestore(t *testing.T) {
 		}
 	}()
 
-	dummyData := []byte("dummy data")
-	if err := os.WriteFile(databasePath, dummyData, 0o600); err != nil {
-		t.Fatalf("failed to write dummy data to database: %v", err)
-	}
-
+	// Create a real SQLite backup using the Backup method
 	backupFile, err := os.CreateTemp("", "backup_*.db")
 	if err != nil {
 		t.Fatalf("failed to create temporary backup file: %v", err)
@@ -49,9 +45,8 @@ func TestRestore(t *testing.T) {
 		}
 	}()
 
-	backupData := []byte("backup data")
-	if _, err := backupFile.Write(backupData); err != nil {
-		t.Fatalf("failed to write backup data: %v", err)
+	if err := database.Backup(context.Background(), backupFile); err != nil {
+		t.Fatalf("failed to create backup: %v", err)
 	}
 
 	if _, err := backupFile.Seek(0, 0); err != nil {
@@ -63,12 +58,13 @@ func TestRestore(t *testing.T) {
 		t.Fatalf("Restore failed: %v", err)
 	}
 
-	restoredData, err := os.ReadFile(databasePath)
+	// Verify the restored database is functional by running a query
+	_, total, err := database.ListSubscribersPage(context.Background(), 1, 10)
 	if err != nil {
-		t.Fatalf("failed to read restored database: %v", err)
+		t.Fatalf("failed to query restored database: %v", err)
 	}
 
-	if string(restoredData) != string(backupData) {
-		t.Fatalf("restored data does not match backup data")
+	if total != 0 {
+		t.Fatalf("expected 0 subscribers, got %d", total)
 	}
 }

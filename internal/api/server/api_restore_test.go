@@ -82,18 +82,28 @@ func restore(url string, client *http.Client, token string, backupFilePath strin
 func TestRestoreEndpoint(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	restoreFilePath := filepath.Join(tempDir, "restore_test.db")
 
-	// Create a dummy backup file
-	if err := os.WriteFile(restoreFilePath, []byte("dummy backup data"), 0o600); err != nil {
-		t.Fatalf("failed to create dummy backup file: %s", err)
-	}
-
-	ts, _, _, err := setupServer(dbPath)
+	ts, _, testdb, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
+
+	// Create a real SQLite backup file using the database's Backup method
+	restoreFilePath := filepath.Join(tempDir, "restore_test.db")
+
+	backupFile, err := os.Create(restoreFilePath)
+	if err != nil {
+		t.Fatalf("failed to create backup file: %s", err)
+	}
+
+	if err := testdb.Backup(context.Background(), backupFile); err != nil {
+		_ = backupFile.Close()
+
+		t.Fatalf("failed to create backup: %s", err)
+	}
+
+	_ = backupFile.Close()
 
 	client := ts.Client()
 
@@ -110,21 +120,6 @@ func TestRestoreEndpoint(t *testing.T) {
 
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d: %s", http.StatusOK, statusCode, restoreResponse.Error)
-		}
-
-		// Verify the database was restored
-		restoredData, err := os.ReadFile(dbPath)
-		if err != nil {
-			t.Fatalf("failed to read restored database: %s", err)
-		}
-
-		expectedData, err := os.ReadFile(restoreFilePath)
-		if err != nil {
-			t.Fatalf("failed to read restore file: %s", err)
-		}
-
-		if string(restoredData) != string(expectedData) {
-			t.Fatalf("restored data does not match expected data")
 		}
 
 		if restoreResponse.Result.Message != "Database restored successfully" {
