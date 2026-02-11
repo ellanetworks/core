@@ -186,6 +186,7 @@ func (ue *AmfUe) ReAllocateGuti(supportedGuami *models.Guami) error {
 func (ue *AmfUe) FreeOldGuti() {
 	tmsiGenerator.Free(ue.OldTmsi)
 	ue.OldGuti = etsi.InvalidGUTI
+	ue.OldTmsi = etsi.InvalidTMSI
 }
 
 func (ue *AmfUe) AllocateRegistrationArea(supportedTais []models.Tai) {

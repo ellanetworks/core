@@ -387,9 +387,11 @@ var CheckInterfaceExistsFunc = func(name string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	if networkInterface == nil {
 		return false, nil
 	}
+
 	return true, nil
 }
 
@@ -419,6 +421,7 @@ var GetInterfaceNameFunc = func(address string) (string, error) {
 	if address == "" {
 		return "", errors.New("address is empty")
 	}
+
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return "", fmt.Errorf("cannot list network interfaces: %w", err)
@@ -447,16 +450,20 @@ var GetVLANConfigForInterfaceFunc = func(name string) (*VlanConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if link.Type() == "vlan" {
 		vlanLink := link.(*netlink.Vlan)
+
 		parentLink, err := netlink.LinkByIndex(vlanLink.ParentIndex)
 		if err != nil {
 			return nil, err
 		}
+
 		config := VlanConfig{MasterInterface: parentLink.Attrs().Name, VlanId: vlanLink.VlanId}
 
 		return &config, nil
 	}
+
 	return nil, nil
 }
 
