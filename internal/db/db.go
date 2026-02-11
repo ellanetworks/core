@@ -428,6 +428,12 @@ func (db *Database) PrepareStatements() error {
 		{&db.editUserPasswordStmt, fmt.Sprintf(editUserPasswordStmt, UsersTableName), []any{User{}}},
 		{&db.deleteUserStmt, fmt.Sprintf(deleteUserStmt, UsersTableName), []any{User{}}},
 		{&db.countUsersStmt, fmt.Sprintf(countUsersStmt, UsersTableName), []any{NumItems{}}},
+
+		// Fleet
+		{&db.getFleetStmt, fmt.Sprintf(getFleetStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetKeyStmt, fmt.Sprintf(updateFleetKeyStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetCredentialsStmt, fmt.Sprintf(updateFleetCredentialsStmt, FleetTableName), []any{Fleet{}}},
+		{&db.initializeFleetStmt, fmt.Sprintf(initializeFleetStmt, FleetTableName), []any{Fleet{}}},
 	}
 
 	for _, s := range stmts {
