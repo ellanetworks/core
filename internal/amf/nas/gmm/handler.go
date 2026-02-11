@@ -24,7 +24,7 @@ func HandleGmmMessage(ctx context.Context, amf *amfContext.AMF, ue *amfContext.A
 	case nas.MsgTypeConfigurationUpdateComplete:
 		return handleConfigurationUpdateComplete(ue)
 	case nas.MsgTypeNotificationResponse:
-		return handleNotificationResponse(ctx, ue, msg.NotificationResponse)
+		return handleNotificationResponse(ctx, amf, ue, msg.NotificationResponse)
 	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
 		return handleDeregistrationRequestUEOriginatingDeregistration(ctx, amf, ue, msg.DeregistrationRequestUEOriginatingDeregistration)
 	case nas.MsgTypeStatus5GMM:
