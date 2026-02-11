@@ -44,6 +44,7 @@ Ella Core's N2 and N3 interfaces follow 3GPP standards. This means that any radi
 ### 5G Modules
 
 - **Quectel RM520N-GL**
+- **Quectel RedCap RG255C-GL**
 
 ### Simulators
 
