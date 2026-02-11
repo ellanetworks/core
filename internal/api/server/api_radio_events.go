@@ -226,7 +226,13 @@ func GetRadioEvent(dbInstance *db.Database) http.Handler {
 
 		networkLog, err := dbInstance.GetRadioEventByID(ctx, networkID)
 		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "Radio event not found", nil, logger.APILog)
+				return
+			}
+
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve radio event", err, logger.APILog)
+
 			return
 		}
 

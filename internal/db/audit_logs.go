@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -32,7 +33,7 @@ const QueryCreateAuditLogsTable = `
 
 const (
 	insertAuditLogStmt     = "INSERT INTO %s (timestamp, level, actor, action, ip, details) VALUES ($AuditLog.timestamp, $AuditLog.level, $AuditLog.actor, $AuditLog.action, $AuditLog.ip, $AuditLog.details)"
-	listAuditLogsPageStmt  = "SELECT &AuditLog.* FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listAuditLogsPageStmt  = "SELECT &AuditLog.*, COUNT(*) OVER() AS &NumItems.count FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	deleteOldAuditLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
 	countAuditLogsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
@@ -59,9 +60,9 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 	err := db.conn.Query(ctx, db.insertAuditLogStmt, auditLog).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -84,14 +85,6 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, page, perPage int) ([
 	)
 	defer span.End()
 
-	count, err := db.CountAuditLogs(ctx)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "count failed")
-
-		return nil, 0, err
-	}
-
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(AuditLogsTableName, "select"))
 	defer timer.ObserveDuration()
 
@@ -104,17 +97,30 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, page, perPage int) ([
 
 	var logs []dbwriter.AuditLog
 
-	err = db.conn.Query(ctx, db.listAuditLogsStmt, args).GetAll(&logs)
+	var counts []NumItems
+
+	err := db.conn.Query(ctx, db.listAuditLogsStmt, args).GetAll(&logs, &counts)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, count, nil
+
+			fallbackCount, countErr := db.CountAuditLogs(ctx)
+			if countErr != nil {
+				return nil, 0, nil
+			}
+
+			return nil, fallbackCount, nil
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	count := 0
+	if len(counts) > 0 {
+		count = counts[0].Count
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -149,9 +155,9 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 
 	if err := db.conn.Query(ctx, db.deleteOldAuditLogsStmt, args).Run(); err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -181,7 +187,7 @@ func (db *Database) CountAuditLogs(ctx context.Context) (int, error) {
 
 	err := db.conn.Query(ctx, db.countAuditLogsStmt).Get(&result)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 			return 0, nil
 		}
@@ -189,7 +195,7 @@ func (db *Database) CountAuditLogs(ctx context.Context) (int, error) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return 0, err
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")

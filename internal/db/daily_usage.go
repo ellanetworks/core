@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -131,9 +132,9 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 	err := db.conn.Query(ctx, db.incrementDailyUsageStmt, usage).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -172,7 +173,7 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 
 	err := db.conn.Query(ctx, db.getUsagePerDayStmt, dailyUsageFilters).GetAll(&dailyUsage)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
@@ -180,7 +181,7 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, fmt.Errorf("couldn't query: %w", err)
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -219,7 +220,7 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 
 	err := db.conn.Query(ctx, db.getUsagePerSubscriberStmt, dailyUsageFilters).GetAll(&dailyUsage)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
@@ -227,7 +228,7 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, fmt.Errorf("couldn't query: %w", err)
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -256,9 +257,9 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 	err := db.conn.Query(ctx, db.deleteAllDailyUsageStmt).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -292,9 +293,9 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 	err := db.conn.Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: cutoffDay}).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")

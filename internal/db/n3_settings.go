@@ -63,9 +63,9 @@ func (db *Database) InitializeN3Settings(ctx context.Context) error {
 
 	if err := db.conn.Query(ctx, db.insertDefaultN3SettingsStmt, n3Settings).Run(); err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return fmt.Errorf("failed to insert default N3 settings: %w", err)
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -96,9 +96,9 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 	err := db.conn.Query(ctx, db.updateN3SettingsStmt, arg).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return fmt.Errorf("failed to upsert N3 settings: %w", err)
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -128,7 +128,7 @@ func (db *Database) GetN3Settings(ctx context.Context) (*N3Settings, error) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, fmt.Errorf("failed to get N3 settings: %w", err)
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")

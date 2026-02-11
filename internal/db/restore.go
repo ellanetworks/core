@@ -4,7 +4,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"io"
 	"os"
@@ -36,15 +35,14 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("failed to open destination database file: %v", err)
 	}
 
-	defer func() {
-		if err := destinationFile.Close(); err != nil {
-			logger.DBLog.Error("Failed to close destination database file", zap.Error(err))
-		}
-	}()
-
 	_, err = io.Copy(destinationFile, backupFile)
 	if err != nil {
+		_ = destinationFile.Close()
 		return fmt.Errorf("failed to restore database file: %v", err)
+	}
+
+	if err := destinationFile.Close(); err != nil {
+		return fmt.Errorf("failed to close destination database file: %w", err)
 	}
 
 	walFile := db.filepath + "-wal"
@@ -58,12 +56,16 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		logger.DBLog.Warn("Failed to remove old SHM file", zap.String("file", shmFile), zap.Error(err))
 	}
 
-	sqlConnection, err := sql.Open("sqlite3", db.filepath)
+	sqlConnection, err := openSQLiteConnection(ctx, db.filepath)
 	if err != nil {
-		return fmt.Errorf("failed to reopen database connection: %v", err)
+		return fmt.Errorf("failed to reopen database after restore: %w", err)
 	}
 
 	db.conn = sqlair.NewDB(sqlConnection)
+
+	if err := db.PrepareStatements(); err != nil {
+		return fmt.Errorf("failed to re-prepare statements after restore: %w", err)
+	}
 
 	return nil
 }

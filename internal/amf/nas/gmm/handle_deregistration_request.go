@@ -7,14 +7,13 @@ import (
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
 // TS 23.502 4.2.2.3
-func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amfContext.AmfUe, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration) error {
+func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration) error {
 	if ue.State != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", ue.State)
 	}
@@ -22,7 +21,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	ue.State = amfContext.Deregistered
 
 	for _, smContext := range ue.SmContextList {
-		err := pdusession.ReleaseSmContext(ctx, smContext.Ref)
+		err := amf.Smf.ReleaseSmContext(ctx, smContext.Ref)
 		if err != nil {
 			ue.Log.Error("Release SmContext Error", zap.Error(err))
 		}
@@ -46,7 +45,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	// TS 23.502 4.2.6, 4.12.3
 	targetDeregistrationAccessType := msg.GetAccessType()
 	if targetDeregistrationAccessType != nasMessage.AccessType3GPP {
-		return fmt.Errorf("only 3gpp access type is supported")
+		return nil
 	}
 
 	ue.RanUe.ReleaseAction = amfContext.UeContextReleaseUeContext

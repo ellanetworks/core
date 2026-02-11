@@ -39,7 +39,7 @@ const QueryCreateSubscribersTable = `
 )`
 
 const (
-	listSubscribersPagedStmt     = "SELECT &Subscriber.* from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listSubscribersPagedStmt     = "SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getSubscriberStmt            = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
 	createSubscriberStmt         = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKey, opc, policyID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.policyID)"
 	editSubscriberPolicyStmt     = "UPDATE %s SET policyID=$Subscriber.policyID WHERE imsi==$Subscriber.imsi"
@@ -78,14 +78,6 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 	)
 	defer span.End()
 
-	count, err := db.CountSubscribers(ctx)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "count failed")
-
-		return nil, 0, err
-	}
-
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
 	defer timer.ObserveDuration()
 
@@ -93,22 +85,35 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 
 	var subs []Subscriber
 
+	var counts []NumItems
+
 	args := ListArgs{
 		Limit:  perPage,
 		Offset: (page - 1) * perPage,
 	}
 
-	err = db.conn.Query(ctx, db.listSubscribersStmt, args).GetAll(&subs)
+	err := db.conn.Query(ctx, db.listSubscribersStmt, args).GetAll(&subs, &counts)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, count, nil
+
+			fallbackCount, countErr := db.CountSubscribers(ctx)
+			if countErr != nil {
+				return nil, 0, nil
+			}
+
+			return nil, fallbackCount, nil
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	count := 0
+	if len(counts) > 0 {
+		count = counts[0].Count
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -138,7 +143,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 
 	err := db.conn.Query(ctx, db.getSubscriberStmt, row).Get(&row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
@@ -146,7 +151,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, err
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -182,9 +187,9 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 		}
 
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -215,9 +220,9 @@ func (db *Database) UpdateSubscriberPolicy(ctx context.Context, subscriber *Subs
 	err := db.conn.Query(ctx, db.updateSubscriberPolicyStmt, subscriber).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	rowsAffected, err := outcome.Result().RowsAffected()
@@ -225,7 +230,7 @@ func (db *Database) UpdateSubscriberPolicy(ctx context.Context, subscriber *Subs
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
 
-		return err
+		return fmt.Errorf("retrieving rows affected failed: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -263,12 +268,29 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 		SequenceNumber: sequenceNumber,
 	}
 
-	err := db.conn.Query(ctx, db.updateSubscriberSqnNumStmt, subscriber).Run()
+	var outcome sqlair.Outcome
+
+	err := db.conn.Query(ctx, db.updateSubscriberSqnNumStmt, subscriber).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving rows affected failed")
+
+		return fmt.Errorf("retrieving rows affected failed: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		span.RecordError(ErrNotFound)
+		span.SetStatus(codes.Error, "not found")
+
+		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -299,9 +321,9 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 	err := db.conn.Query(ctx, db.deleteSubscriberStmt, Subscriber{Imsi: imsi}).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	rowsAffected, err := outcome.Result().RowsAffected()
@@ -309,7 +331,7 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
 
-		return err
+		return fmt.Errorf("retrieving rows affected failed: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -347,7 +369,7 @@ func (db *Database) SubscribersInPolicy(ctx context.Context, name string) (bool,
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "policy not found")
 
-		return false, err
+		return false, fmt.Errorf("policy not found: %w", err)
 	}
 
 	count, err := db.CountSubscribersInPolicy(ctx, policy.ID)
@@ -355,7 +377,7 @@ func (db *Database) SubscribersInPolicy(ctx context.Context, name string) (bool,
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "counting failed")
 
-		return false, err
+		return false, fmt.Errorf("counting failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -379,7 +401,7 @@ func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (boo
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "data network not found")
 
-		return false, err
+		return false, fmt.Errorf("data network not found: %w", err)
 	}
 
 	policies, _, err := db.ListPoliciesPage(ctx, 1, 1000)
@@ -387,7 +409,7 @@ func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (boo
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "listing failed")
 
-		return false, err
+		return false, fmt.Errorf("listing failed: %w", err)
 	}
 
 	for _, p := range policies {
@@ -447,7 +469,7 @@ func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error)
 		var existing Subscriber
 
 		err = db.conn.Query(ctx, db.checkSubscriberIPStmt, Subscriber{IPAddress: &ipStr}).Get(&existing)
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			// IP is not allocated, assign it to the subscriber
 			subscriber.IPAddress = &ipStr
 
@@ -556,9 +578,9 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 	err := db.conn.Query(ctx, db.countSubscribersStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return 0, err
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -592,9 +614,9 @@ func (db *Database) CountSubscribersInPolicy(ctx context.Context, policyID int) 
 	err := db.conn.Query(ctx, db.countSubscribersByPolicyStmt, subscriber).Get(&result)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return 0, err
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -625,9 +647,9 @@ func (db *Database) CountSubscribersWithIP(ctx context.Context) (int, error) {
 	err := db.conn.Query(ctx, db.countSubscribersWithIPStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return 0, err
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")

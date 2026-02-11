@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/canonical/sqlair"
@@ -29,7 +30,7 @@ const QueryCreateDataNetworksTable = `
 )`
 
 const (
-	listDataNetworksPagedStmt = "SELECT &DataNetwork.* from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listDataNetworksPagedStmt = "SELECT &DataNetwork.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getDataNetworkStmt        = "SELECT &DataNetwork.* from %s WHERE name==$DataNetwork.name"
 	getDataNetworkByIDStmt    = "SELECT &DataNetwork.* FROM %s WHERE id==$DataNetwork.id"
 	createDataNetworkStmt     = "INSERT INTO %s (name, ipPool, dns, mtu) VALUES ($DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.dns, $DataNetwork.mtu)"
@@ -61,14 +62,6 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 	)
 	defer span.End()
 
-	count, err := db.CountDataNetworks(ctx)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "count failed")
-
-		return nil, 0, err
-	}
-
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "select"))
 	defer timer.ObserveDuration()
 
@@ -76,22 +69,35 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 
 	var dataNetworks []DataNetwork
 
+	var counts []NumItems
+
 	args := ListArgs{
 		Limit:  perPage,
 		Offset: (page - 1) * perPage,
 	}
 
-	err = db.conn.Query(ctx, db.listDataNetworksStmt, args).GetAll(&dataNetworks)
+	err := db.conn.Query(ctx, db.listDataNetworksStmt, args).GetAll(&dataNetworks, &counts)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, count, nil
+
+			fallbackCount, countErr := db.CountDataNetworks(ctx)
+			if countErr != nil {
+				return nil, 0, nil
+			}
+
+			return nil, fallbackCount, nil
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	count := 0
+	if len(counts) > 0 {
+		count = counts[0].Count
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -121,7 +127,7 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 
 	err := db.conn.Query(ctx, db.getDataNetworkStmt, row).Get(&row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "not found")
 
@@ -131,7 +137,7 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, err
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -161,7 +167,7 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwor
 
 	err := db.conn.Query(ctx, db.getDataNetworkByIDStmt, row).Get(&row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "not found")
 
@@ -171,7 +177,7 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwor
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, err
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -207,9 +213,9 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 		}
 
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -240,9 +246,9 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 	err := db.conn.Query(ctx, db.editDataNetworkStmt, dataNetwork).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	rowsAffected, err := outcome.Result().RowsAffected()
@@ -250,7 +256,7 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
 
-		return err
+		return fmt.Errorf("retrieving rows affected failed: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -288,9 +294,9 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 	err := db.conn.Query(ctx, db.deleteDataNetworkStmt, DataNetwork{Name: name}).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	rowsAffected, err := outcome.Result().RowsAffected()
@@ -298,7 +304,7 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
 
-		return err
+		return fmt.Errorf("retrieving rows affected failed: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -336,9 +342,9 @@ func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
 	err := db.conn.Query(ctx, db.countDataNetworksStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return 0, err
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")

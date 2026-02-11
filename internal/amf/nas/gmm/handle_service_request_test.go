@@ -854,7 +854,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		},
 		UEs:      make(map[string]*context.AmfUe),
 		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
-		Smf:      FakeSmf{Error: fmt.Errorf("error activating PDU session")},
+		Smf:      &FakeSmf{Error: fmt.Errorf("error activating PDU session")},
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -992,7 +992,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		},
 		UEs:      make(map[string]*context.AmfUe),
 		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
-		Smf:      FakeSmf{Error: nil},
+		Smf:      &FakeSmf{Error: nil},
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -1138,7 +1138,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		},
 		UEs:      make(map[string]*context.AmfUe),
 		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
-		Smf:      FakeSmf{Error: nil},
+		Smf:      &FakeSmf{Error: nil},
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -1273,7 +1273,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		},
 		UEs:      make(map[string]*context.AmfUe),
 		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
-		Smf:      FakeSmf{Error: nil},
+		Smf:      &FakeSmf{Error: nil},
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()

@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/canonical/sqlair"
@@ -34,7 +35,7 @@ const QueryCreatePoliciesTable = `
 )`
 
 const (
-	listPoliciesPagedStmt = "SELECT &Policy.* from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listPoliciesPagedStmt = "SELECT &Policy.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getPolicyStmt         = "SELECT &Policy.* from %s WHERE name==$Policy.name"
 	getPolicyByIDStmt     = "SELECT &Policy.* FROM %s WHERE id==$Policy.id"
 	createPolicyStmt      = "INSERT INTO %s (name, bitrateUplink, bitrateDownlink, var5qi, arp, dataNetworkID) VALUES ($Policy.name, $Policy.bitrateUplink, $Policy.bitrateDownlink, $Policy.var5qi, $Policy.arp, $Policy.dataNetworkID)"
@@ -68,14 +69,6 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 	)
 	defer span.End()
 
-	count, err := db.CountPolicies(ctx)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "count failed")
-
-		return nil, 0, err
-	}
-
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
 	defer timer.ObserveDuration()
 
@@ -83,22 +76,35 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 
 	var policies []Policy
 
+	var counts []NumItems
+
 	args := ListArgs{
 		Limit:  perPage,
 		Offset: (page - 1) * perPage,
 	}
 
-	err = db.conn.Query(ctx, db.listPoliciesStmt, args).GetAll(&policies)
+	err := db.conn.Query(ctx, db.listPoliciesStmt, args).GetAll(&policies, &counts)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
-			return nil, count, nil
+
+			fallbackCount, countErr := db.CountPolicies(ctx)
+			if countErr != nil {
+				return nil, 0, nil
+			}
+
+			return nil, fallbackCount, nil
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	count := 0
+	if len(counts) > 0 {
+		count = counts[0].Count
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -128,10 +134,15 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 
 	err := db.conn.Query(ctx, db.getPolicyStmt, row).Get(&row)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, ErrNotFound
+		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, err
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -161,7 +172,7 @@ func (db *Database) GetPolicyByID(ctx context.Context, id int) (*Policy, error) 
 
 	err := db.conn.Query(ctx, db.getPolicyByIDStmt, row).Get(&row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "not found")
 
@@ -171,7 +182,7 @@ func (db *Database) GetPolicyByID(ctx context.Context, id int) (*Policy, error) 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return nil, err
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -207,9 +218,9 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 		}
 
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -240,9 +251,9 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 	err := db.conn.Query(ctx, db.editPolicyStmt, policy).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	rowsAffected, err := outcome.Result().RowsAffected()
@@ -250,7 +261,7 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
 
-		return err
+		return fmt.Errorf("retrieving rows affected failed: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -288,9 +299,9 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 	err := db.conn.Query(ctx, db.deletePolicyStmt, Policy{Name: name}).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return err
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	rowsAffected, err := outcome.Result().RowsAffected()
@@ -298,7 +309,7 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "retrieving rows affected failed")
 
-		return err
+		return fmt.Errorf("retrieving rows affected failed: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -337,9 +348,9 @@ func (db *Database) CountPolicies(ctx context.Context) (int, error) {
 	err := db.conn.Query(ctx, db.countPoliciesStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
+		span.SetStatus(codes.Error, "query failed")
 
-		return 0, err
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
