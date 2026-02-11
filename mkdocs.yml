@@ -64,6 +64,7 @@ nav:
     - Backup and Restore: how_to/backup_and_restore.md
     - Use VLANs: how_to/vlan.md
     - Tune Network Performance: how_to/performance_tuning.md
+    - Co-host with srsRAN: how_to/co_host_with_srsran.md
   - Reference:
     - reference/index.md
     - API:
