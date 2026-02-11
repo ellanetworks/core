@@ -95,12 +95,13 @@ cu_cp:
             tai_slice_support_list:
               - sst: 1
   inactivity_timer: 300
-
+  security:
+    nea_pref_list: nea2,nea1
+    nia_pref_list: nia2,nia1
 cu_up:
   ngu:
     socket:
       - bind_addr: 10.202.0.5
-
 ru_sdr:
   device_driver: uhd
   device_args: type=b200
@@ -120,11 +121,8 @@ cell_cfg:
     dedicated:
       ss2_type: common
       dci_format_0_1_and_1_1: false
-    common:
-      ss0_index: 0
-      coreset0_index: 12
   prach:
-    prach_config_index: 1
+    prach_config_index: 160
   pdsch:
     mcs_table: qam64
   pusch:
