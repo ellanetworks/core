@@ -71,6 +71,13 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 
+	if cause == nil {
+		ran.Log.Error("cause is nil")
+
+		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDCause)
+		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
+	}
+
 	if targetID == nil {
 		ran.Log.Error("targetID is nil")
 
@@ -123,6 +130,26 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		}
 
 		ran.Log.Info("sent error indication to source UE")
+
+		return
+	}
+
+	if sourceUe.AmfUeNgapID != aMFUENGAPID.Value {
+		ran.Log.Error("AMF UE NGAP ID mismatch", zap.Int64("expected", sourceUe.AmfUeNgapID), zap.Int64("received", aMFUENGAPID.Value))
+		cause := ngapType.Cause{
+			Present: ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{
+				Value: ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID,
+			},
+		}
+
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
+		if err != nil {
+			ran.Log.Error("error sending error indication", zap.Error(err))
+			return
+		}
+
+		ran.Log.Info("sent error indication for AMF UE NGAP ID mismatch")
 
 		return
 	}
@@ -241,7 +268,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 	err = targetUe.Radio.NGAPSender.SendHandoverRequest(
 		ctx,
 		targetUe.AmfUeNgapID,
-		targetUe.HandOverType,
+		sourceUe.HandOverType,
 		targetUe.AmfUe.Ambr.Uplink,
 		targetUe.AmfUe.Ambr.Downlink,
 		targetUe.AmfUe.UESecurityCapability,
