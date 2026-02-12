@@ -340,10 +340,28 @@ type NGResetAcknowledge struct {
 	PartOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList
 }
 
+type ErrorIndication struct {
+	Cause                  *ngapType.Cause
+	CriticalityDiagnostics *ngapType.CriticalityDiagnostics
+}
+
+type HandoverPreparationFailure struct {
+	AmfUeNgapID int64
+	RanUeNgapID int64
+	Cause       ngapType.Cause
+}
+
+type HandoverRequest struct {
+	AmfUeNgapID int64
+}
+
 type FakeNGAPSender struct {
-	SentNGSetupFailures     []*NGSetupFailure
-	SentNGSetupResponses    []*NGSetupResponse
-	SentNGResetAcknowledges []*NGResetAcknowledge
+	SentNGSetupFailures             []*NGSetupFailure
+	SentNGSetupResponses            []*NGSetupResponse
+	SentNGResetAcknowledges         []*NGResetAcknowledge
+	SentHandoverRequests            []*HandoverRequest
+	SentErrorIndications            []*ErrorIndication
+	SentHandoverPreparationFailures []*HandoverPreparationFailure
 }
 
 func (fng *FakeNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error {
@@ -375,6 +393,11 @@ func (fng *FakeNGAPSender) SendNGResetAcknowledge(ctx context.Context, partOfNGI
 }
 
 func (fng *FakeNGAPSender) SendErrorIndication(ctx context.Context, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	fng.SentErrorIndications = append(fng.SentErrorIndications, &ErrorIndication{
+		Cause:                  cause,
+		CriticalityDiagnostics: criticalityDiagnostics,
+	})
+
 	return nil
 }
 
@@ -429,6 +452,12 @@ func (fng *FakeNGAPSender) SendPDUSessionResourceSetupRequest(ctx context.Contex
 }
 
 func (fng *FakeNGAPSender) SendHandoverPreparationFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	fng.SentHandoverPreparationFailures = append(fng.SentHandoverPreparationFailures, &HandoverPreparationFailure{
+		AmfUeNgapID: amfUeNgapID,
+		RanUeNgapID: ranUeNgapID,
+		Cause:       cause,
+	})
+
 	return nil
 }
 
@@ -463,5 +492,9 @@ func (fng *FakeNGAPSender) SendHandoverRequest(
 	supportedPLMN *models.PlmnSupportItem,
 	supportedGUAMI *models.Guami,
 ) error {
+	fng.SentHandoverRequests = append(fng.SentHandoverRequests, &HandoverRequest{
+		AmfUeNgapID: amfUeNgapID,
+	})
+
 	return nil
 }
