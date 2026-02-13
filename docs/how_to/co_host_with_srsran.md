@@ -130,13 +130,11 @@ cell_cfg:
 
 log:
   filename: /tmp/gnb.log
-  all_level: info
+  all_level: warning
 
 pcap:
-  mac_enable: enable
-  mac_filename: /tmp/gnb_mac.pcap
-  ngap_enable: enable
-  ngap_filename: /tmp/gnb_ngap.pcap
+  mac_enable: disable
+  ngap_enable: disable
 ```
 
 Start srsRAN in the `n3ns` namespace:
