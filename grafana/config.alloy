@@ -20,7 +20,7 @@ local.file "ella_core_token" {
 
 prometheus.scrape "ella_core" {
   targets = [{
-    __address__ = "192.168.40.9:5002",
+    __address__ = "127.0.0.1:5002",
   }]
 
   job_name     = "ella-core"
@@ -56,7 +56,7 @@ loki.source.journal "ella_core" {
   matches        = "_SYSTEMD_UNIT=ella-core.service"
   labels         = {
     job      = "ella-core",
-    instance = "192.168.40.9:5002",
+    instance = "127.0.0.1:5002",
   }
   forward_to = [loki.process.ella_core.receiver]
 }
@@ -142,7 +142,7 @@ otelcol.exporter.otlp "jaeger" {
 
 pyroscope.scrape "ella_core" {
   targets = [{
-    __address__  = "192.168.40.9:5002",
+    __address__  = "127.0.0.1:5002",
     service_name = "ella-core",
   }]
 
