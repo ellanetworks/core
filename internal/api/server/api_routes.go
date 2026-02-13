@@ -360,8 +360,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 		}
 
 		if err := kernelInt.DeleteRoute(ipNetwork, gateway, route.Metric, kernelInterface); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to delete kernel route", err, logger.APILog)
-			return
+			logger.APILog.Warn("Failed to delete kernel route, proceeding with DB cleanup", zap.Error(err))
 		}
 
 		if err := tx.Commit(); err != nil {
