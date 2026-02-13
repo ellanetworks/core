@@ -26,7 +26,7 @@ Install Ella Core using the [How-to Install guide](install.md) and install srsRA
 
 ## 2. Create a network namespace for N3
 
-Create a linux network namespace `n3ns` for the N3 interface between srsRAN and Ella Core's N6 interface.
+Create a linux network namespace `n3ns` for the N3 interface between srsRAN and Ella Core.
 
 ```shell
 ip netns add n3ns
@@ -82,7 +82,7 @@ sudo snap start ella-core
 
 Configure srsRAN's CU to use the `n3ns` namespace:
 
-```yaml hl_lines="3 5 17"
+```yaml hl_lines="3 5 19"
 cu_cp:
   amf:
     addr: 10.202.0.3
