@@ -2,8 +2,9 @@
 description: Exchange routes through BGP
 ---
 
-This guide describes the steps required to install and configure FRR to
-exchange routes through BGP with other routers on your network.
+Ella Core uses kernel routes to forward user-plane traffic. These routes can be configured using BGP with tools such as FRR or BIRD.
+
+This guide describes the steps required to install and configure FRR to exchange routes through BGP with other routers on your network.
 
 ## Install FRR on the Ella Core host
 
