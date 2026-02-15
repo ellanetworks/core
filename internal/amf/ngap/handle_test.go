@@ -355,11 +355,18 @@ type HandoverRequest struct {
 	AmfUeNgapID int64
 }
 
+type HandoverCommand struct {
+	AmfUeNgapID int64
+	RanUeNgapID int64
+	Container   ngapType.TargetToSourceTransparentContainer
+}
+
 type FakeNGAPSender struct {
 	SentNGSetupFailures             []*NGSetupFailure
 	SentNGSetupResponses            []*NGSetupResponse
 	SentNGResetAcknowledges         []*NGResetAcknowledge
 	SentHandoverRequests            []*HandoverRequest
+	SentHandoverCommands            []*HandoverCommand
 	SentErrorIndications            []*ErrorIndication
 	SentHandoverPreparationFailures []*HandoverPreparationFailure
 }
@@ -466,6 +473,12 @@ func (fng *FakeNGAPSender) SendLocationReportingControl(ctx context.Context, amf
 }
 
 func (fng *FakeNGAPSender) SendHandoverCommand(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, handOverType ngapType.HandoverType, pduSessionResourceHandoverList ngapType.PDUSessionResourceHandoverList, pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd, container ngapType.TargetToSourceTransparentContainer) error {
+	fng.SentHandoverCommands = append(fng.SentHandoverCommands, &HandoverCommand{
+		AmfUeNgapID: amfUeNgapID,
+		RanUeNgapID: ranUeNgapID,
+		Container:   container,
+	})
+
 	return nil
 }
 

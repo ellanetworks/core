@@ -54,15 +54,19 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amf *amfContext.AMF, 
 		err := ran.NGAPSender.SendErrorIndication(ctx, nil, &criticalityDiagnostics)
 		if err != nil {
 			ran.Log.Error("error sending error indication", zap.Error(err))
-			return
 		}
 
-		ran.Log.Info("sent error indication")
+		return
+	}
+
+	if aMFUENGAPID == nil {
+		ran.Log.Error("AMF UE NGAP ID is nil")
+		return
 	}
 
 	targetUe := amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if targetUe == nil {
-		ran.Log.Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		ran.Log.Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 		return
 	}
 
