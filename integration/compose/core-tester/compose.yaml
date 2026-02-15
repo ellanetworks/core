@@ -48,6 +48,10 @@ services:
         ipv4_address: 10.6.0.2
   ella-core-tester:
     image: ghcr.io/ellanetworks/ella-core-tester@sha256:69feaa9dff3a16f16aff35232ea3963206971d4f5e7b87d1c74bb630734e87cb
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "ip addr add 10.3.0.4/24 dev n3 || true; sleep infinity"
     restart: unless-stopped
     privileged: true
     networks:
