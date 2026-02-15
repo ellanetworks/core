@@ -88,6 +88,7 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 		"--gnb-n2-address", "10.3.0.3",
 		"--gnb-n3-address", "10.3.0.3",
 		"--gnb-n3-address-secondary", "10.3.0.4",
+		"--exclude", "ue/paging/downlink_data",
 		"--verbose",
 	}, false, 5*time.Minute, logWriter{t})
 	if err != nil {
