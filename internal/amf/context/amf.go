@@ -40,6 +40,8 @@ var (
 type SmfSbi interface {
 	ActivateSmContext(smContextRef string) ([]byte, error)
 	ReleaseSmContext(ctx context.Context, smContextRef string) error
+	UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
+	UpdateSmContextHandoverFailed(smContextRef string, n2Data []byte) error
 }
 
 func init() {

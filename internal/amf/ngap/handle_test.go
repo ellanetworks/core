@@ -66,6 +66,50 @@ type FakeDBInstance struct {
 	Operator *db.Operator
 }
 
+type SmfPathSwitchCall struct {
+	SmContextRef string
+	N2Data       []byte
+}
+
+type SmfHandoverFailedCall struct {
+	SmContextRef string
+	N2Data       []byte
+}
+
+type FakeSmfSbi struct {
+	PathSwitchResponse  []byte
+	PathSwitchErr       error
+	HandoverFailedErr   error
+	PathSwitchCalls     []*SmfPathSwitchCall
+	HandoverFailedCalls []*SmfHandoverFailedCall
+}
+
+func (f *FakeSmfSbi) ActivateSmContext(smContextRef string) ([]byte, error) {
+	return nil, nil
+}
+
+func (f *FakeSmfSbi) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+	return nil
+}
+
+func (f *FakeSmfSbi) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
+	f.PathSwitchCalls = append(f.PathSwitchCalls, &SmfPathSwitchCall{
+		SmContextRef: smContextRef,
+		N2Data:       n2Data,
+	})
+
+	return f.PathSwitchResponse, f.PathSwitchErr
+}
+
+func (f *FakeSmfSbi) UpdateSmContextHandoverFailed(smContextRef string, n2Data []byte) error {
+	f.HandoverFailedCalls = append(f.HandoverFailedCalls, &SmfHandoverFailedCall{
+		SmContextRef: smContextRef,
+		N2Data:       n2Data,
+	})
+
+	return f.HandoverFailedErr
+}
+
 func (fdb *FakeDBInstance) GetOperator(ctx context.Context) (*db.Operator, error) {
 	return fdb.Operator, nil
 }
@@ -133,15 +177,35 @@ type UEContextReleaseCommand struct {
 	Cause        aper.Enumerated
 }
 
+type PathSwitchRequestFailure struct {
+	AmfUeNgapID                    int64
+	RanUeNgapID                    int64
+	PduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail
+	CriticalityDiagnostics         *ngapType.CriticalityDiagnostics
+}
+
+type PathSwitchRequestAcknowledge struct {
+	AmfUeNgapID                       int64
+	RanUeNgapID                       int64
+	UESecurityCapability              *nasType.UESecurityCapability
+	NCC                               uint8
+	NH                                []byte
+	PDUSessionResourceSwitchedList    ngapType.PDUSessionResourceSwitchedList
+	PDUSessionResourceReleasedListAck ngapType.PDUSessionResourceReleasedListPSAck
+	SupportedPLMN                     *models.PlmnSupportItem
+}
+
 type FakeNGAPSender struct {
-	SentNGSetupFailures             []*NGSetupFailure
-	SentNGSetupResponses            []*NGSetupResponse
-	SentNGResetAcknowledges         []*NGResetAcknowledge
-	SentHandoverRequests            []*HandoverRequest
-	SentHandoverCommands            []*HandoverCommand
-	SentErrorIndications            []*ErrorIndication
-	SentHandoverPreparationFailures []*HandoverPreparationFailure
-	SentUEContextReleaseCommands    []*UEContextReleaseCommand
+	SentNGSetupFailures               []*NGSetupFailure
+	SentNGSetupResponses              []*NGSetupResponse
+	SentNGResetAcknowledges           []*NGResetAcknowledge
+	SentHandoverRequests              []*HandoverRequest
+	SentHandoverCommands              []*HandoverCommand
+	SentErrorIndications              []*ErrorIndication
+	SentHandoverPreparationFailures   []*HandoverPreparationFailure
+	SentUEContextReleaseCommands      []*UEContextReleaseCommand
+	SentPathSwitchRequestFailures     []*PathSwitchRequestFailure
+	SentPathSwitchRequestAcknowledges []*PathSwitchRequestAcknowledge
 }
 
 func (fng *FakeNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error {
@@ -194,6 +258,13 @@ func (fng *FakeNGAPSender) SendDownlinkRanConfigurationTransfer(ctx context.Cont
 }
 
 func (fng *FakeNGAPSender) SendPathSwitchRequestFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	fng.SentPathSwitchRequestFailures = append(fng.SentPathSwitchRequestFailures, &PathSwitchRequestFailure{
+		AmfUeNgapID:                    amfUeNgapID,
+		RanUeNgapID:                    ranUeNgapID,
+		PduSessionResourceReleasedList: pduSessionResourceReleasedList,
+		CriticalityDiagnostics:         criticalityDiagnostics,
+	})
+
 	return nil
 }
 
@@ -267,6 +338,17 @@ func (fng *FakeNGAPSender) SendInitialContextSetupRequest(ctx context.Context, a
 }
 
 func (fng *FakeNGAPSender) SendPathSwitchRequestAcknowledge(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList, pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck, supportedPLMN *models.PlmnSupportItem) error {
+	fng.SentPathSwitchRequestAcknowledges = append(fng.SentPathSwitchRequestAcknowledges, &PathSwitchRequestAcknowledge{
+		AmfUeNgapID:                       amfUeNgapID,
+		RanUeNgapID:                       ranUeNgapID,
+		UESecurityCapability:              ueSecurityCapability,
+		NCC:                               ncc,
+		NH:                                nh,
+		PDUSessionResourceSwitchedList:    pduSessionResourceSwitchedList,
+		PDUSessionResourceReleasedListAck: pduSessionResourceReleasedList,
+		SupportedPLMN:                     supportedPLMN,
+	})
+
 	return nil
 }
 
