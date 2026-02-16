@@ -12,245 +12,10 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 )
 
 type FakeSCTPConn struct{}
-
-type NGSetupRequestOpts struct {
-	Name  string
-	GnbID string
-	ID    int64
-	Mcc   string
-	Mnc   string
-	Tac   string
-	Sst   int32
-	Sd    string
-}
-
-func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngapType.NGAPPDU, error) {
-	if opts.Mcc == "" {
-		return nil, fmt.Errorf("MCC is required to build NGSetupRequest")
-	}
-
-	if opts.Mnc == "" {
-		return nil, fmt.Errorf("MNC is required to build NGSetupRequest")
-	}
-
-	plmnID, err := getMccAndMncInOctets(opts.Mcc, opts.Mnc)
-	if err != nil {
-		return nil, fmt.Errorf("could not get plmnID in octets: %v", err)
-	}
-
-	if opts.Sst == 0 {
-		return nil, fmt.Errorf("SST is required to build NGSetupRequest")
-	}
-
-	sst, sd, err := getSliceInBytes(opts.Sst, opts.Sd)
-	if err != nil {
-		return nil, fmt.Errorf("could not get slice info in bytes: %v", err)
-	}
-
-	pdu := ngapType.NGAPPDU{}
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-
-	initiatingMessage := pdu.InitiatingMessage
-	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeNGSetup
-	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentReject
-
-	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentNGSetupRequest
-	initiatingMessage.Value.NGSetupRequest = new(ngapType.NGSetupRequest)
-
-	nGSetupRequest := initiatingMessage.Value.NGSetupRequest
-	nGSetupRequestIEs := &nGSetupRequest.ProtocolIEs
-
-	ie := ngapType.NGSetupRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDGlobalRANNodeID
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.NGSetupRequestIEsPresentGlobalRANNodeID
-	ie.Value.GlobalRANNodeID = new(ngapType.GlobalRANNodeID)
-
-	globalRANNodeID := ie.Value.GlobalRANNodeID
-	globalRANNodeID.Present = ngapType.GlobalRANNodeIDPresentGlobalGNBID
-	globalRANNodeID.GlobalGNBID = new(ngapType.GlobalGNBID)
-
-	globalGNBID := globalRANNodeID.GlobalGNBID
-	globalGNBID.PLMNIdentity.Value = plmnID
-	globalGNBID.GNBID.Present = ngapType.GNBIDPresentGNBID
-	globalGNBID.GNBID.GNBID = new(aper.BitString)
-
-	gNBID := globalGNBID.GNBID.GNBID
-
-	*gNBID = ngapConvert.HexToBitString(opts.GnbID, 24)
-
-	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
-
-	// RANNodeName
-	ie = ngapType.NGSetupRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDRANNodeName
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.NGSetupRequestIEsPresentRANNodeName
-	ie.Value.RANNodeName = new(ngapType.RANNodeName)
-
-	rANNodeName := ie.Value.RANNodeName
-	rANNodeName.Value = opts.Name
-
-	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
-
-	if opts.Tac != "" {
-		tac, err := hex.DecodeString(opts.Tac)
-		if err != nil {
-			return nil, fmt.Errorf("could not get tac in bytes: %v", err)
-		}
-
-		ie = ngapType.NGSetupRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDSupportedTAList
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.NGSetupRequestIEsPresentSupportedTAList
-		ie.Value.SupportedTAList = new(ngapType.SupportedTAList)
-
-		supportedTAList := ie.Value.SupportedTAList
-
-		supportedTAItem := ngapType.SupportedTAItem{}
-		supportedTAItem.TAC.Value = tac
-
-		broadcastPLMNList := &supportedTAItem.BroadcastPLMNList
-		broadcastPLMNItem := ngapType.BroadcastPLMNItem{}
-		broadcastPLMNItem.PLMNIdentity.Value = plmnID
-		sliceSupportList := &broadcastPLMNItem.TAISliceSupportList
-		sliceSupportItem := ngapType.SliceSupportItem{}
-		sliceSupportItem.SNSSAI.SST.Value = sst
-
-		if sd != nil {
-			sliceSupportItem.SNSSAI.SD = new(ngapType.SD)
-			sliceSupportItem.SNSSAI.SD.Value = sd
-		}
-
-		sliceSupportList.List = append(sliceSupportList.List, sliceSupportItem)
-
-		broadcastPLMNList.List = append(broadcastPLMNList.List, broadcastPLMNItem)
-
-		supportedTAList.List = append(supportedTAList.List, supportedTAItem)
-
-		nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
-	}
-
-	// PagingDRX
-	ie = ngapType.NGSetupRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDDefaultPagingDRX
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.NGSetupRequestIEsPresentDefaultPagingDRX
-	ie.Value.DefaultPagingDRX = new(ngapType.PagingDRX)
-
-	pagingDRX := ie.Value.DefaultPagingDRX
-	pagingDRX.Value = ngapType.PagingDRXPresentV128
-
-	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
-
-	return &pdu, nil
-}
-
-type ResetType int
-
-const (
-	ResetTypePresentNGInterface ResetType = iota
-	ResetTypePresentPartOfNGInterface
-)
-
-type NGInterface struct {
-	RanUENgapID int64
-	AmfUENgapID int64
-}
-
-type NGResetOpts struct {
-	ResetType         ResetType
-	PartOfNGInterface []NGInterface
-}
-
-func buildNGReset(opts *NGResetOpts) (*ngapType.NGAPPDU, error) {
-	pdu := ngapType.NGAPPDU{
-		Present: ngapType.NGAPPDUPresentInitiatingMessage,
-		InitiatingMessage: &ngapType.InitiatingMessage{
-			ProcedureCode: ngapType.ProcedureCode{
-				Value: ngapType.ProcedureCodeNGReset,
-			},
-			Criticality: ngapType.Criticality{
-				Value: ngapType.CriticalityPresentReject,
-			},
-			Value: ngapType.InitiatingMessageValue{
-				Present: ngapType.InitiatingMessagePresentNGReset,
-				NGReset: &ngapType.NGReset{},
-			},
-		},
-	}
-
-	nGResetIEs := &pdu.InitiatingMessage.Value.NGReset.ProtocolIEs
-
-	ie := ngapType.NGResetIEs{
-		Id: ngapType.ProtocolIEID{
-			Value: ngapType.ProtocolIEIDResetType,
-		},
-		Criticality: ngapType.Criticality{
-			Value: ngapType.CriticalityPresentReject,
-		},
-		Value: ngapType.NGResetIEsValue{
-			Present: ngapType.NGResetIEsPresentResetType,
-		},
-	}
-
-	switch opts.ResetType {
-	case ResetTypePresentNGInterface:
-		ie.Value.ResetType = &ngapType.ResetType{
-			Present: ngapType.ResetTypePresentNGInterface,
-			NGInterface: &ngapType.ResetAll{
-				Value: ngapType.ResetAllPresentResetAll,
-			},
-		}
-	case ResetTypePresentPartOfNGInterface:
-		ie.Value.ResetType = &ngapType.ResetType{
-			Present:           ngapType.ResetTypePresentPartOfNGInterface,
-			PartOfNGInterface: &ngapType.UEAssociatedLogicalNGConnectionList{},
-		}
-		for _, ngInterface := range opts.PartOfNGInterface {
-			ueAssociatedLogicalNGConnectionItem := ngapType.UEAssociatedLogicalNGConnectionItem{}
-			ueAssociatedLogicalNGConnectionItem.RANUENGAPID = &ngapType.RANUENGAPID{
-				Value: ngInterface.RanUENgapID,
-			}
-			ueAssociatedLogicalNGConnectionItem.AMFUENGAPID = &ngapType.AMFUENGAPID{
-				Value: ngInterface.AmfUENgapID,
-			}
-			ie.Value.ResetType.PartOfNGInterface.List = append(ie.Value.ResetType.PartOfNGInterface.List, ueAssociatedLogicalNGConnectionItem)
-		}
-	default:
-		return nil, fmt.Errorf("unsupported ResetType: %v", opts.ResetType)
-	}
-
-	nGResetIEs.List = append(nGResetIEs.List, ie)
-
-	ie = ngapType.NGResetIEs{
-		Id: ngapType.ProtocolIEID{
-			Value: ngapType.ProtocolIEIDCause,
-		},
-		Criticality: ngapType.Criticality{
-			Value: ngapType.CriticalityPresentIgnore,
-		},
-		Value: ngapType.NGResetIEsValue{
-			Present: ngapType.NGResetIEsPresentCause,
-			Cause: &ngapType.Cause{
-				Present: ngapType.CausePresentMisc,
-				Misc: &ngapType.CauseMisc{
-					Value: ngapType.CauseMiscPresentHardwareFailure,
-				},
-			},
-		},
-	}
-
-	nGResetIEs.List = append(nGResetIEs.List, ie)
-
-	return &pdu, nil
-}
 
 func getMccAndMncInOctets(mccStr string, mncStr string) ([]byte, error) {
 	mcc := reverse(mccStr)
@@ -301,6 +66,50 @@ type FakeDBInstance struct {
 	Operator *db.Operator
 }
 
+type SmfPathSwitchCall struct {
+	SmContextRef string
+	N2Data       []byte
+}
+
+type SmfHandoverFailedCall struct {
+	SmContextRef string
+	N2Data       []byte
+}
+
+type FakeSmfSbi struct {
+	PathSwitchResponse  []byte
+	PathSwitchErr       error
+	HandoverFailedErr   error
+	PathSwitchCalls     []*SmfPathSwitchCall
+	HandoverFailedCalls []*SmfHandoverFailedCall
+}
+
+func (f *FakeSmfSbi) ActivateSmContext(smContextRef string) ([]byte, error) {
+	return nil, nil
+}
+
+func (f *FakeSmfSbi) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+	return nil
+}
+
+func (f *FakeSmfSbi) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
+	f.PathSwitchCalls = append(f.PathSwitchCalls, &SmfPathSwitchCall{
+		SmContextRef: smContextRef,
+		N2Data:       n2Data,
+	})
+
+	return f.PathSwitchResponse, f.PathSwitchErr
+}
+
+func (f *FakeSmfSbi) UpdateSmContextHandoverFailed(smContextRef string, n2Data []byte) error {
+	f.HandoverFailedCalls = append(f.HandoverFailedCalls, &SmfHandoverFailedCall{
+		SmContextRef: smContextRef,
+		N2Data:       n2Data,
+	})
+
+	return f.HandoverFailedErr
+}
+
 func (fdb *FakeDBInstance) GetOperator(ctx context.Context) (*db.Operator, error) {
 	return fdb.Operator, nil
 }
@@ -340,10 +149,63 @@ type NGResetAcknowledge struct {
 	PartOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList
 }
 
+type ErrorIndication struct {
+	Cause                  *ngapType.Cause
+	CriticalityDiagnostics *ngapType.CriticalityDiagnostics
+}
+
+type HandoverPreparationFailure struct {
+	AmfUeNgapID int64
+	RanUeNgapID int64
+	Cause       ngapType.Cause
+}
+
+type HandoverRequest struct {
+	AmfUeNgapID int64
+}
+
+type HandoverCommand struct {
+	AmfUeNgapID int64
+	RanUeNgapID int64
+	Container   ngapType.TargetToSourceTransparentContainer
+}
+
+type UEContextReleaseCommand struct {
+	AmfUeNgapID  int64
+	RanUeNgapID  int64
+	CausePresent int
+	Cause        aper.Enumerated
+}
+
+type PathSwitchRequestFailure struct {
+	AmfUeNgapID                    int64
+	RanUeNgapID                    int64
+	PduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail
+	CriticalityDiagnostics         *ngapType.CriticalityDiagnostics
+}
+
+type PathSwitchRequestAcknowledge struct {
+	AmfUeNgapID                       int64
+	RanUeNgapID                       int64
+	UESecurityCapability              *nasType.UESecurityCapability
+	NCC                               uint8
+	NH                                []byte
+	PDUSessionResourceSwitchedList    ngapType.PDUSessionResourceSwitchedList
+	PDUSessionResourceReleasedListAck ngapType.PDUSessionResourceReleasedListPSAck
+	SupportedPLMN                     *models.PlmnSupportItem
+}
+
 type FakeNGAPSender struct {
-	SentNGSetupFailures     []*NGSetupFailure
-	SentNGSetupResponses    []*NGSetupResponse
-	SentNGResetAcknowledges []*NGResetAcknowledge
+	SentNGSetupFailures               []*NGSetupFailure
+	SentNGSetupResponses              []*NGSetupResponse
+	SentNGResetAcknowledges           []*NGResetAcknowledge
+	SentHandoverRequests              []*HandoverRequest
+	SentHandoverCommands              []*HandoverCommand
+	SentErrorIndications              []*ErrorIndication
+	SentHandoverPreparationFailures   []*HandoverPreparationFailure
+	SentUEContextReleaseCommands      []*UEContextReleaseCommand
+	SentPathSwitchRequestFailures     []*PathSwitchRequestFailure
+	SentPathSwitchRequestAcknowledges []*PathSwitchRequestAcknowledge
 }
 
 func (fng *FakeNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error {
@@ -375,6 +237,11 @@ func (fng *FakeNGAPSender) SendNGResetAcknowledge(ctx context.Context, partOfNGI
 }
 
 func (fng *FakeNGAPSender) SendErrorIndication(ctx context.Context, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	fng.SentErrorIndications = append(fng.SentErrorIndications, &ErrorIndication{
+		Cause:                  cause,
+		CriticalityDiagnostics: criticalityDiagnostics,
+	})
+
 	return nil
 }
 
@@ -391,6 +258,13 @@ func (fng *FakeNGAPSender) SendDownlinkRanConfigurationTransfer(ctx context.Cont
 }
 
 func (fng *FakeNGAPSender) SendPathSwitchRequestFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	fng.SentPathSwitchRequestFailures = append(fng.SentPathSwitchRequestFailures, &PathSwitchRequestFailure{
+		AmfUeNgapID:                    amfUeNgapID,
+		RanUeNgapID:                    ranUeNgapID,
+		PduSessionResourceReleasedList: pduSessionResourceReleasedList,
+		CriticalityDiagnostics:         criticalityDiagnostics,
+	})
+
 	return nil
 }
 
@@ -405,6 +279,13 @@ func (fng *FakeNGAPSender) SendUEContextReleaseCommand(
 	causePresent int,
 	cause aper.Enumerated,
 ) error {
+	fng.SentUEContextReleaseCommands = append(fng.SentUEContextReleaseCommands, &UEContextReleaseCommand{
+		AmfUeNgapID:  amfUeNgapID,
+		RanUeNgapID:  ranUeNgapID,
+		CausePresent: causePresent,
+		Cause:        cause,
+	})
+
 	return nil
 }
 
@@ -429,6 +310,12 @@ func (fng *FakeNGAPSender) SendPDUSessionResourceSetupRequest(ctx context.Contex
 }
 
 func (fng *FakeNGAPSender) SendHandoverPreparationFailure(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	fng.SentHandoverPreparationFailures = append(fng.SentHandoverPreparationFailures, &HandoverPreparationFailure{
+		AmfUeNgapID: amfUeNgapID,
+		RanUeNgapID: ranUeNgapID,
+		Cause:       cause,
+	})
+
 	return nil
 }
 
@@ -437,6 +324,12 @@ func (fng *FakeNGAPSender) SendLocationReportingControl(ctx context.Context, amf
 }
 
 func (fng *FakeNGAPSender) SendHandoverCommand(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, handOverType ngapType.HandoverType, pduSessionResourceHandoverList ngapType.PDUSessionResourceHandoverList, pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd, container ngapType.TargetToSourceTransparentContainer) error {
+	fng.SentHandoverCommands = append(fng.SentHandoverCommands, &HandoverCommand{
+		AmfUeNgapID: amfUeNgapID,
+		RanUeNgapID: ranUeNgapID,
+		Container:   container,
+	})
+
 	return nil
 }
 
@@ -445,6 +338,17 @@ func (fng *FakeNGAPSender) SendInitialContextSetupRequest(ctx context.Context, a
 }
 
 func (fng *FakeNGAPSender) SendPathSwitchRequestAcknowledge(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList, pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck, supportedPLMN *models.PlmnSupportItem) error {
+	fng.SentPathSwitchRequestAcknowledges = append(fng.SentPathSwitchRequestAcknowledges, &PathSwitchRequestAcknowledge{
+		AmfUeNgapID:                       amfUeNgapID,
+		RanUeNgapID:                       ranUeNgapID,
+		UESecurityCapability:              ueSecurityCapability,
+		NCC:                               ncc,
+		NH:                                nh,
+		PDUSessionResourceSwitchedList:    pduSessionResourceSwitchedList,
+		PDUSessionResourceReleasedListAck: pduSessionResourceReleasedList,
+		SupportedPLMN:                     supportedPLMN,
+	})
+
 	return nil
 }
 
@@ -463,5 +367,9 @@ func (fng *FakeNGAPSender) SendHandoverRequest(
 	supportedPLMN *models.PlmnSupportItem,
 	supportedGUAMI *models.Guami,
 ) error {
+	fng.SentHandoverRequests = append(fng.SentHandoverRequests, &HandoverRequest{
+		AmfUeNgapID: amfUeNgapID,
+	})
+
 	return nil
 }

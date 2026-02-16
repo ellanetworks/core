@@ -20,7 +20,7 @@ Ella Core's N2 and N3 interfaces follow 3GPP standards. This means that any radi
 
 - **[Ettus Research USRP](https://www.ettus.com/all-products/)**
 - **[OpenAirInterface 5G RAN](https://openairinterface.org/)**
-- **[srsRAN 5G](https://www.srslte.com/5g)**
+- **[OCUDU](https://ocudu.org/)** (previously srsRAN 5G)
 
 ### Simulators
 
@@ -44,6 +44,7 @@ Ella Core's N2 and N3 interfaces follow 3GPP standards. This means that any radi
 ### 5G Modules
 
 - **Quectel RM520N-GL**
+- **Quectel RedCap RG255C-GL**
 
 ### Simulators
 
