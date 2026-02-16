@@ -1,14 +1,14 @@
 ---
-description: Step-by-step instructions to deploy Ella Core alongside srsRAN for an all-in-one 5G network.
+description: Step-by-step instructions to deploy Ella Core alongside OCUDU for an all-in-one 5G network.
 ---
 
-# Co-host with srsRAN
+# Co-host with OCUDU
 
-Ella Core can be hosted with 5G radio software like srsRAN to operate an all-in-one private 5G network. This guide provides step-by-step instructions to deploy Ella Core alongside srsRAN using a Linux network namespace.
+Ella Core can be hosted with 5G radio software like [OCUDU](https://ocudu.org/) (previously known as srsRAN 5G) to operate an all-in-one private 5G network. This guide provides step-by-step instructions to deploy Ella Core alongside OCUDU using a Linux network namespace.
 
 <figure markdown="span">
-  ![Connectivity](../images/srsran.svg){ width="800" }
-  <figcaption>Co-host Ella Core with srsRAN</figcaption>
+  ![Connectivity](../images/ocudu.svg){ width="800" }
+  <figcaption>Co-host Ella Core with OCUDU</figcaption>
 </figure>
 
 ## Pre-requisites
@@ -16,17 +16,25 @@ Ella Core can be hosted with 5G radio software like srsRAN to operate an all-in-
 To follow this guide, you will need:
 
 - A host with a network interface
-- An srsRAN-compatible SDR
+- An OCUDU-compatible SDR
 
 The instructions below were written for a Raspberry Pi 5 running Ubuntu 24.04 as the host and the Ettus Research B205-mini as the SDR. Please adapt the interface names and SDR configuration as needed for your setup.
 
-## 1. Install Ella Core and srsRAN
+!!! tip
+    OCUDU requires some performance tuning for stable operation, especially on resource-constrained hosts like a Raspberry Pi. We recommend the following optimizations for OCUDU performance:
+    
+    - Use Ubuntu Real-Time (with [pro client](https://documentation.ubuntu.com/pro-client/en/latest/howtoguides/enable_realtime_kernel/#enable-and-install-automatically))
+    - Use a high real-time scheduling priority (with [chrt](https://man7.org/linux/man-pages/man1/chrt.1.html))
+    - Set scaling governor to Performance (with [OCUDU performance script](https://gitlab.com/ocudu/ocudu/-/blob/dev/scripts/ocudu_performance?ref_type=heads))
+    - Disable DRM KMS polling (with [OCUDU performance script](https://gitlab.com/ocudu/ocudu/-/blob/dev/scripts/ocudu_performance?ref_type=heads))
 
-Install Ella Core using the [How-to Install guide](install.md) and install srsRAN using the [official documentation](https://docs.srsran.com/projects/project/en/latest/user_manuals/source/installation.html).
+## 1. Install Ella Core and OCUDU
+
+Install Ella Core using the [How-to Install guide](install.md) and install OCUDU using the [official documentation](https://ocudu.gitlab.io/ocudu_docs/user_manual/installation/).
 
 ## 2. Create a network namespace for N3
 
-Create a linux network namespace `n3ns` for the N3 interface between srsRAN and Ella Core.
+Create a linux network namespace `n3ns` for the N3 interface between OCUDU and Ella Core.
 
 ```shell
 ip netns add n3ns
@@ -78,9 +86,9 @@ Start Ella Core:
 sudo snap start ella-core
 ```
 
-## 4. Configure srsRAN
+## 4. Configure OCUDU
 
-Configure srsRAN's CU to use the `n3ns` namespace:
+Configure OCUDU's CU to use the `n3ns` namespace:
 
 ```yaml hl_lines="3 5 19"
 cu_cp:
@@ -137,23 +145,23 @@ pcap:
   ngap_enable: disable
 ```
 
-Start srsRAN in the `n3ns` namespace:
+Start OCUDU in the `n3ns` namespace:
 
 ```shell
 sudo ip netns exec n3ns ./gnb -c gnb.yaml
 ```
 
-You should see srsRAN logs indicating successful connection to Ella Core
+You should see OCUDU logs indicating successful connection to Ella Core
 
 ```shell
---== srsRAN gNB (commit 3ed363dabf) ==--
+--== OCUDU gNB (commit d1ca6d2744) ==--
 
-srsLog error - Unable to create log file "/tmp/gnb.log": Permission denied
+2026-02-16T18:34:35.963576 [GNB     ] [I] Built in Release mode using commit d1ca6d2744 on branch dev
 Lower PHY in dual baseband executor mode.
 Available radio types: uhd.
 [INFO] [UHD] linux; GNU C++ version 13.2.0; Boost_108300; UHD_4.6.0.0+ds1-5.1ubuntu0.24.04.1
-[INFO] [LOGGING] Fastpath logging disabled at runtime.
 Making USRP object with args 'type=b200'
+[INFO] [LOGGING] Fastpath logging disabled at runtime.
 [INFO] [B200] Detected Device: B205mini
 [INFO] [B200] Operating over USB 3.
 [INFO] [B200] Initialize CODEC control...
@@ -166,8 +174,9 @@ Making USRP object with args 'type=b200'
 [INFO] [MULTI_USRP] Setting master clock rate selection to 'manual'.
 [INFO] [B200] Asking for clock rate 23.040000 MHz... 
 [INFO] [B200] Actually got clock rate 23.040000 MHz.
-Cell pci=1, bw=20 MHz, 1T1R, dl_arfcn=665000 (n77), dl_freq=3975 MHz, dl_ssb_arfcn=665088, ul_freq=3975 MHz
+Cell pci=1, bw=20 MHz, 1T1R, dl_arfcn=665000 (n77), dl_freq=3975 MHz, dl_ssb_arfcn=664704, ul_freq=3975 MHz
 
 N2: Connection to AMF on 10.202.0.3:38412 completed
+Remote control server listening on 0.0.0.0:8001
 ==== gNB started ===
 ```
