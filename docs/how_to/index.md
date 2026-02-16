@@ -7,5 +7,5 @@ These how-to guides cover key operations and common tasks in Ella Core.
 - [Backup and Restore](backup_and_restore.md)
 - [Use VLANs](vlan.md)
 - [Tune Network Performance](performance_tuning.md)
-- [Co-host with srsRAN](co_host_with_srsran.md)
+- [Co-host with OCUDU](co_host_with_ocudu.md)
 - [Exchange routes through BGP](bgp.md)
