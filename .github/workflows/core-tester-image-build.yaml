@@ -1,0 +1,40 @@
+name: Core Tester Image Build
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  build-image:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-24.04-arm') || 'ubuntu-24.04' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Prepare rockcraft file
+        run: |
+          cp core-tester/rockcraft-core-tester.yaml rockcraft.yaml
+
+      - uses: canonical/craft-actions/rockcraft-pack@61c29f28433cce029d2466291c117b995fae72bb # main
+        id: rockcraft
+        with:
+          rockcraft-channel: stable
+
+      - name: Save container image to file
+        run: |
+          rock_file=$(ls *.rock | tail -n 1)
+          sudo rockcraft.skopeo --insecure-policy copy oci-archive:"${rock_file}" docker-daemon:ella-core-tester:latest
+          docker save -o ella-core-tester-${{ matrix.arch }}.tar ella-core-tester:latest
+
+      - name: Upload container image to GitHub Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ella-core-tester-image-${{ matrix.arch }}
+          path: ella-core-tester-${{ matrix.arch }}.tar

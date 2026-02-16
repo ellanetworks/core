@@ -23,6 +23,12 @@ jobs:
   image-scan:
     needs: [image-build, image-publish]
     uses: ./.github/workflows/image-scan.yaml
+  core-tester-image-build:
+    uses: ./.github/workflows/core-tester-image-build.yaml
+  core-tester-image-publish:
+    needs: [core-tester-image-build]
+    uses: ./.github/workflows/core-tester-image-publish.yaml
+    secrets: inherit
   snap-build:
     uses: ./.github/workflows/snap-build.yaml
   snap-publish:

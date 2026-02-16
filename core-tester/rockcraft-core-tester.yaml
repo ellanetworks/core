@@ -1,0 +1,37 @@
+name: ella-core-tester
+base: ubuntu@24.04
+build-base: ubuntu@24.04
+adopt-info: core-tester-release-data
+summary: Ella Core Tester - A tool for testing Ella Core.
+description: |
+  Ella Core Tester is a tool for testing Ella Core's functionality, reliability, and performance.
+  It acts as a 5G radio (gNodeB) and User Equipment (UE) to simulate real-world 3GPP-compliant interactions between the radio/UE and Ella Core.
+license: Apache-2.0
+platforms:
+  amd64:
+  arm64:
+
+parts:
+  ella-core-tester:
+    plugin: go
+    source: .
+    source-type: local
+    build-packages:
+      - git
+      - libpcap-dev
+    build-snaps:
+      - go/1.25/stable
+    override-build: |
+      go build -v -o ${CRAFT_PART_INSTALL}/bin/core-tester ./core-tester/cmd/core-tester
+    stage-packages:
+      - iptables
+      - iproute2
+      - iputils-ping
+      - libpcap0.8t64
+
+  core-tester-release-data:
+    plugin: nil
+    source: .
+    override-build: |
+      version="$(cat version/VERSION)"
+      craftctl set version="$version"

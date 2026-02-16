@@ -8,11 +8,17 @@ require (
 	github.com/free5gc/aper v1.1.0
 	github.com/free5gc/nas v1.2.2
 	github.com/free5gc/ngap v1.1.2
+	github.com/free5gc/util v1.3.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/google/gopacket v1.1.20-0.20220810144506-32ee38206866
 	github.com/google/nftables v0.3.0
+	github.com/ishidawataru/sctp v0.0.0-20250303034628-ecf9ed6df987
 	github.com/mattn/go-sqlite3 v1.14.33
 	github.com/moby/moby/client v0.2.2
 	github.com/prometheus/client_golang v1.23.2
+	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
+	github.com/spf13/cobra v1.10.2
+	github.com/tiagomdiogo/ScaGo v0.0.0-20250909151929-0aed579be48e
 	github.com/vishvananda/netlink v1.3.1
 	github.com/wmnsk/go-pfcp v0.0.24
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.65.0
@@ -24,6 +30,12 @@ require (
 	golang.org/x/net v0.49.0
 	golang.org/x/sys v0.41.0
 	gopkg.in/yaml.v2 v2.4.0
+)
+
+require (
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 )
 
 require (
@@ -39,7 +51,7 @@ require (
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/free5gc/openapi v1.2.3 // indirect
+	github.com/free5gc/openapi v1.2.3
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
@@ -66,7 +78,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sync v0.19.0
 	golang.org/x/text v0.33.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409 // indirect

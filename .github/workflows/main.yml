@@ -30,6 +30,9 @@ jobs:
   image-build:
     needs: [go-unit-test, go-vet, go-lint, clang-format, clang-tidy]
     uses: ./.github/workflows/image-build.yaml
+  core-tester-image-build:
+    needs: [go-unit-test, go-vet, go-lint]
+    uses: ./.github/workflows/core-tester-image-build.yaml
   integration-tests:
-    needs: [go-unit-test, go-vet, go-lint, image-build]
+    needs: [go-unit-test, go-vet, go-lint, image-build, core-tester-image-build]
     uses: ./.github/workflows/integration-tests.yaml

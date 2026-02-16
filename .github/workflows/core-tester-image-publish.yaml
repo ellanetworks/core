@@ -1,0 +1,69 @@
+name: Core Tester Image Publish
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  workflow_call:
+
+jobs:
+  publish-image:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: ella-core-tester-image-${{ matrix.arch }}
+
+      - name: Import and push to github package (${{ matrix.arch }})
+        run: |
+          version="$(cat version/VERSION)"
+
+          docker load -i ella-core-tester-${{ matrix.arch }}.tar
+
+          docker tag ella-core-tester:latest ghcr.io/ellanetworks/ella-core-tester:${version}-${{ matrix.arch }}
+
+          docker push ghcr.io/ellanetworks/ella-core-tester:${version}-${{ matrix.arch }}
+
+  make-manifest:
+    needs: publish-image
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push manifest
+        run: |
+          version="$(cat version/VERSION)"
+
+          docker manifest create ghcr.io/ellanetworks/ella-core-tester:${version} \
+            ghcr.io/ellanetworks/ella-core-tester:${version}-amd64 \
+            ghcr.io/ellanetworks/ella-core-tester:${version}-arm64
+
+          docker manifest create ghcr.io/ellanetworks/ella-core-tester:latest \
+            ghcr.io/ellanetworks/ella-core-tester:${version}-amd64 \
+            ghcr.io/ellanetworks/ella-core-tester:${version}-arm64
+
+          docker manifest push ghcr.io/ellanetworks/ella-core-tester:${version}
+          docker manifest push ghcr.io/ellanetworks/ella-core-tester:latest
