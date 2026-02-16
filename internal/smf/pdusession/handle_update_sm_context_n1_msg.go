@@ -66,7 +66,7 @@ func handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *smfContext.
 		return nil, false, fmt.Errorf("error decoding N1SmMessage: %v", err)
 	}
 
-	logger.SmfLog.Debug("Update SM Context Request N1SmMessage", zap.Any("N1SmMessage", m), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+	logger.SmfLog.Debug("Update SM Context Request N1SmMessage", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
 	switch m.GsmHeader.GetMessageType() {
 	case nas.MsgTypePDUSessionReleaseRequest:
