@@ -105,6 +105,20 @@ go tool cover -func coverage.out
 
 ## References
 
+### Backend
+
+Ella Core's backend is written in Go. Please follow standard Go conventions for code structure, formatting, and documentation.
+- Lint: `golangci-lint run`
+- Vet: `go vet ./...`
+
 ### Embedded Database
 
 Ella uses an embedded [SQLite](https://www.sqlite.org/) database to store its data. Type mappings between Go and SQLite are managed using [sqlair](https://github.com/canonical/sqlair).
+
+### Frontend
+
+Ella Core's frontend is built with [Vite](https://vite.dev/) and static files are embedded into the Go binary.
+
+### Troubleshooting
+
+Running Docker in the same system as Ella Core can cause some issues because of IP forwarding. If your containers lose internal connectivity, you can restore Docker networking via `sudo nft delete table inet filter`.
