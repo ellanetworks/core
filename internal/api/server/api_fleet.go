@@ -5,13 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
+	"github.com/ellanetworks/core/fleet"
 	"github.com/ellanetworks/core/fleet/client"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/version"
-	"go.uber.org/zap"
 )
 
 type RegisterFleetParams struct {
@@ -83,43 +81,19 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 		return fmt.Errorf("couldn't register to fleet: %w", err)
 	}
 
+	logger.EllaLog.Info("Registered to fleet successfully")
+
 	err = dbInstance.UpdateFleetCredentials(ctx, []byte(data.Certificate), []byte(data.CACertificate))
 	if err != nil {
 		return fmt.Errorf("couldn't store fleet credentials in database: %w", err)
 	}
 
-	err = fC.ConfigureMTLS(data.Certificate, key, data.CACertificate)
+	logger.EllaLog.Info("Fleet credentials stored successfully")
+
+	err = fleet.ResumeSync(ctx, fleetURL, key, []byte(data.Certificate), []byte(data.CACertificate))
 	if err != nil {
-		return fmt.Errorf("couldn't configure mTLS: %w", err)
+		return fmt.Errorf("couldn't start fleet sync: %w", err)
 	}
-
-	ticker := time.NewTicker(5 * time.Second)
-
-	syncParams := &client.SyncParams{
-		Version: version.GetVersion().Version,
-	}
-
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				if err := fC.Sync(ctx, syncParams); err != nil {
-					logger.EllaLog.Error("sync failed", zap.Error(err))
-				}
-
-				logger.EllaLog.Info("Sync sent successfully to fleet")
-			case <-ctx.Done():
-				ticker.Stop()
-				return
-			}
-		}
-	}()
-
-	if err := fC.Sync(ctx, syncParams); err != nil {
-		return fmt.Errorf("initial sync failed: %w", err)
-	}
-
-	logger.EllaLog.Info("Sync sent successfully")
 
 	return nil
 }
