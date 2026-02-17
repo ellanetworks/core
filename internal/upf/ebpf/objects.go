@@ -27,6 +27,7 @@ type DataNotification struct {
 type BpfObjects struct {
 	N3N6EntrypointObjects
 
+	FlowAccounting   bool
 	Masquerade       bool
 	N3InterfaceIndex uint32
 	N6InterfaceIndex uint32
@@ -35,8 +36,9 @@ type BpfObjects struct {
 	pagingList       map[DataNotification]bool
 }
 
-func NewBpfObjects(masquerade bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
+func NewBpfObjects(flowact bool, masquerade bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
 	return &BpfObjects{
+		FlowAccounting:   flowact,
 		Masquerade:       masquerade,
 		N3InterfaceIndex: uint32(n3ifindex),
 		N6InterfaceIndex: uint32(n6ifindex),
@@ -68,6 +70,11 @@ func (bpfObjects *BpfObjects) Load() error {
 }
 
 func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, to any, opts *ebpf.CollectionOptions) error {
+	if err := spec.Variables["flowact"].Set(bpfObjects.FlowAccounting); err != nil {
+		logger.UpfLog.Error("failed to set flow accounting value", zap.Error(err))
+		return err
+	}
+
 	if err := spec.Variables["masquerade"].Set(bpfObjects.Masquerade); err != nil {
 		logger.UpfLog.Error("failed to set masquerade value", zap.Error(err))
 		return err

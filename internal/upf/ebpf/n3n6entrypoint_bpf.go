@@ -34,6 +34,27 @@ type N3N6EntrypointFiveTuple struct {
 	_     [2]byte
 }
 
+type N3N6EntrypointFlow struct {
+	_              structs.HostLayout
+	Saddr          uint32
+	Daddr          uint32
+	Sport          uint16
+	Dport          uint16
+	IngressIfindex uint32
+	EgressIfindex  uint32
+	Proto          uint8
+	Tos            uint8
+	_              [2]byte
+}
+
+type N3N6EntrypointFlowStats struct {
+	_       structs.HostLayout
+	FirstTs uint64
+	LastTs  uint64
+	Bytes   uint64
+	Packets uint64
+}
+
 type N3N6EntrypointIn6Addr struct {
 	_    structs.HostLayout
 	In6U struct {
@@ -149,6 +170,7 @@ type N3N6EntrypointMapSpecs struct {
 	DownlinkRouteStats *ebpf.MapSpec `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.MapSpec `ebpf:"downlink_statistics"`
 	FarMap             *ebpf.MapSpec `ebpf:"far_map"`
+	FlowStats          *ebpf.MapSpec `ebpf:"flow_stats"`
 	NatCt              *ebpf.MapSpec `ebpf:"nat_ct"`
 	NoNeighMap         *ebpf.MapSpec `ebpf:"no_neigh_map"`
 	NocpMap            *ebpf.MapSpec `ebpf:"nocp_map"`
@@ -165,6 +187,7 @@ type N3N6EntrypointMapSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3N6EntrypointVariableSpecs struct {
+	Flowact    *ebpf.VariableSpec `ebpf:"flowact"`
 	Masquerade *ebpf.VariableSpec `ebpf:"masquerade"`
 	N3Ifindex  *ebpf.VariableSpec `ebpf:"n3_ifindex"`
 	N3Vlan     *ebpf.VariableSpec `ebpf:"n3_vlan"`
@@ -195,6 +218,7 @@ type N3N6EntrypointMaps struct {
 	DownlinkRouteStats *ebpf.Map `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.Map `ebpf:"downlink_statistics"`
 	FarMap             *ebpf.Map `ebpf:"far_map"`
+	FlowStats          *ebpf.Map `ebpf:"flow_stats"`
 	NatCt              *ebpf.Map `ebpf:"nat_ct"`
 	NoNeighMap         *ebpf.Map `ebpf:"no_neigh_map"`
 	NocpMap            *ebpf.Map `ebpf:"nocp_map"`
@@ -212,6 +236,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.DownlinkRouteStats,
 		m.DownlinkStatistics,
 		m.FarMap,
+		m.FlowStats,
 		m.NatCt,
 		m.NoNeighMap,
 		m.NocpMap,
@@ -229,6 +254,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 //
 // It can be passed to LoadN3N6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3N6EntrypointVariables struct {
+	Flowact    *ebpf.Variable `ebpf:"flowact"`
 	Masquerade *ebpf.Variable `ebpf:"masquerade"`
 	N3Ifindex  *ebpf.Variable `ebpf:"n3_ifindex"`
 	N3Vlan     *ebpf.Variable `ebpf:"n3_vlan"`

@@ -27,10 +27,12 @@ import (
 )
 
 const (
-	PfcpAddress      = "0.0.0.0"
-	PfcpNodeID       = "0.0.0.0"
-	FTEIDPool        = 65535
-	ConnTrackTimeout = 10 * time.Minute
+	PfcpAddress         = "0.0.0.0"
+	PfcpNodeID          = "0.0.0.0"
+	FTEIDPool           = 65535
+	ConnTrackTimeout    = 10 * time.Minute
+	InactiveFlowTimeout = 30 * time.Second
+	ActiveFlowTimeout   = 30 * time.Minute
 )
 
 var bpfObjects *ebpf.BpfObjects
@@ -42,10 +44,12 @@ type UPF struct {
 	notificationReader *ringbuf.Reader
 	noNeighReader      *ringbuf.Reader
 
+	ctx      context.Context
 	gcCancel context.CancelFunc
+	fcCancel context.CancelFunc
 }
 
-func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string, advertisedN3Address string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool) (*UPF, error) {
+func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string, advertisedN3Address string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool, flowact bool) (*UPF, error) {
 	var (
 		n3Vlan uint32
 		n6Vlan uint32
@@ -79,7 +83,7 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 		return nil, err
 	}
 
-	bpfObjects = ebpf.NewBpfObjects(masquerade, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
+	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
 
 	if err := bpfObjects.Load(); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
@@ -136,6 +140,7 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 		pfcpConn:           pfcpConn,
 		notificationReader: notificationReader,
 		noNeighReader:      noNeighReader,
+		ctx:                ctx,
 	}
 
 	go upf.listenForTrafficNotifications()
@@ -145,7 +150,11 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 	go upf.listenForMissingNeighbours()
 
 	if masquerade {
-		upf.startGC()
+		upf.startGC(ctx)
+	}
+
+	if flowact {
+		upf.startFlowCollection(ctx)
 	}
 
 	return upf, nil
@@ -174,6 +183,9 @@ func (u *UPF) Close() {
 		logger.UpfLog.Warn("Failed to close missing neighbour reader", zap.Error(err))
 	}
 
+	u.stopGC()
+	u.stopFlowCollection()
+
 	logger.UpfLog.Info("UPF resources released")
 }
 
@@ -181,7 +193,7 @@ func (u *UPF) UpdateAdvertisedN3Address(newN3Addr net.IP) {
 	u.pfcpConn.SetAdvertisedN3Address(newN3Addr)
 }
 
-func (u *UPF) Reload(masquerade bool) error {
+func (u *UPF) Reload(masquerade bool, flowact bool) error {
 	u.pfcpConn.BpfObjects.Masquerade = masquerade
 
 	err := u.pfcpConn.BpfObjects.Load()
@@ -200,9 +212,15 @@ func (u *UPF) Reload(masquerade bool) error {
 	}
 
 	if masquerade {
-		u.startGC()
+		u.startGC(u.ctx)
 	} else {
 		u.stopGC()
+	}
+
+	if flowact {
+		u.startFlowCollection(u.ctx)
+	} else {
+		u.stopFlowCollection()
 	}
 
 	return nil
@@ -221,22 +239,41 @@ func StringToXDPAttachMode(Mode string) link.XDPAttachFlags {
 	}
 }
 
-func (u *UPF) startGC() {
+func (u *UPF) startGC(ctx context.Context) {
 	if u.gcCancel != nil {
 		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	cctx, cancel := context.WithCancel(ctx)
 
 	u.gcCancel = cancel
 
-	go u.collectCollectionTrackingGarbage(ctx)
+	go u.collectCollectionTrackingGarbage(cctx)
 }
 
 func (u *UPF) stopGC() {
 	if u.gcCancel != nil {
 		u.gcCancel()
 		u.gcCancel = nil
+	}
+}
+
+func (u *UPF) startFlowCollection(ctx context.Context) {
+	if u.fcCancel != nil {
+		return
+	}
+
+	cctx, cancel := context.WithCancel(ctx)
+
+	u.fcCancel = cancel
+
+	go u.collectExpiredFlows(cctx)
+}
+
+func (u *UPF) stopFlowCollection() {
+	if u.fcCancel != nil {
+		u.fcCancel()
+		u.fcCancel = nil
 	}
 }
 
@@ -432,5 +469,90 @@ func (u *UPF) listenForMissingNeighbours() {
 			logger.UpfLog.Warn("could not add neighbour", zap.String("destination", ip.String()), zap.Error(err))
 			continue
 		}
+	}
+}
+
+func int2ip(nn uint32) net.IP {
+	ip := make(net.IP, 4)
+	binary.NativeEndian.PutUint32(ip, nn)
+
+	return ip
+}
+
+func u16NtoHS(n uint16) uint16 {
+	b := make([]byte, 2)
+	binary.BigEndian.PutUint16(b, n)
+
+	return binary.NativeEndian.Uint16(b)
+}
+
+func logFlow(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6EntrypointFlowStats) {
+	saddr := int2ip(flow.Saddr)
+	daddr := int2ip(flow.Daddr)
+	sport := u16NtoHS(flow.Sport)
+	dport := u16NtoHS(flow.Dport)
+	proto := flow.Proto
+	startTime := time.Unix(0, int64(stats.FirstTs))
+	endTime := time.Unix(0, int64(stats.LastTs))
+
+	logger.UpfLog.Debug(
+		"Flow expired",
+		zap.String("Source", saddr.String()),
+		zap.String("Destination", daddr.String()),
+		zap.Uint16("Source Port", sport),
+		zap.Uint16("Destination Port", dport),
+		zap.Uint8("Protocol", proto),
+		zap.Uint64("Packets", stats.Packets),
+		zap.Uint64("Bytes", stats.Bytes),
+		zap.Time("Start", startTime),
+		zap.Time("End", endTime),
+	)
+}
+
+func (u *UPF) collectExpiredFlows(ctx context.Context) {
+	var (
+		key     ebpf.N3N6EntrypointFlow
+		value   ebpf.N3N6EntrypointFlowStats
+		sysInfo unix.Sysinfo_t
+	)
+
+	expiredKeys := make([]ebpf.N3N6EntrypointFlow, 0)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(1 * time.Minute):
+		}
+
+		err := unix.Sysinfo(&sysInfo)
+		if err != nil {
+			logger.UpfLog.Warn("Failed to query sysinfo", zap.Error(err))
+			return
+		}
+
+		nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
+		expiryThreshold := nsSinceBoot - InactiveFlowTimeout.Nanoseconds()
+
+		flow_entries := u.pfcpConn.BpfObjects.FlowStats.Iterate()
+		for flow_entries.Next(&key, &value) {
+			if value.LastTs < uint64(expiryThreshold) || (value.LastTs-value.FirstTs) > uint64(ActiveFlowTimeout.Nanoseconds()) {
+				expiredKeys = append(expiredKeys, key)
+				go logFlow(key, value)
+			}
+		}
+
+		if err := flow_entries.Err(); err != nil {
+			logger.UpfLog.Debug("Error while iterating over flow entries", zap.Error(err))
+		}
+
+		count, err := u.pfcpConn.BpfObjects.FlowStats.BatchDelete(expiredKeys, &bpf.BatchOptions{})
+		if err != nil {
+			logger.UpfLog.Warn("Failed to delete expired flow entries", zap.Error(err))
+		}
+
+		logger.UpfLog.Debug("Deleted expired flow entries", zap.Int("count", count))
+
+		expiredKeys = expiredKeys[:0]
 	}
 }

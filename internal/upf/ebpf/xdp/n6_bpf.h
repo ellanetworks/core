@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "xdp/utils/flow.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 #include <linux/ipv6.h>
@@ -157,6 +158,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	}
 
 	update_urr_bytes(ctx, urr_id);
+	account_flow(ctx, n6_ifindex);
 
 	return send_to_gtp_tunnel(ctx, far->localip, far->remoteip, tos,
 				  qer->qfi, far->teid);

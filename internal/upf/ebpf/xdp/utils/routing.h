@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "xdp/utils/flow.h"
 #include "xdp/utils/packet_context.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_endian.h>
@@ -63,6 +64,7 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params)
 	__u32 ifindex = fib_params->ifindex; // NOLINT(clang-analyzer-deadcode.DeadStores)
 
 	if (ctx->interface == INTERFACE_N3) {
+		account_flow(ctx, n6_ifindex);
 		if (masquerade) {
 			if (!source_nat(ctx, fib_params)) {
 				return XDP_DROP;
@@ -163,7 +165,8 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 		// The fall-through is voluntary here
 	case BPF_FIB_LKUP_RET_SUCCESS:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: nexthop: %pI4",
-			   &ctx->ip6->saddr, &ctx->ip6->daddr, fib_params.ipv4_dst);
+			   &ctx->ip6->saddr, &ctx->ip6->daddr,
+			   fib_params.ipv4_dst);
 		statistic->fib_lookup_ip6_ok += 1;
 		//_decr_ttl(ether_proto, l3hdr);
 		__builtin_memcpy(ctx->eth->h_dest, fib_params.dmac, ETH_ALEN);
