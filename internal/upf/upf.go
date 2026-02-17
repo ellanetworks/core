@@ -193,7 +193,7 @@ func (u *UPF) UpdateAdvertisedN3Address(newN3Addr net.IP) {
 	u.pfcpConn.SetAdvertisedN3Address(newN3Addr)
 }
 
-func (u *UPF) Reload(masquerade bool, flowact bool) error {
+func (u *UPF) ReloadNAT(masquerade bool) error {
 	u.pfcpConn.BpfObjects.Masquerade = masquerade
 
 	err := u.pfcpConn.BpfObjects.Load()
@@ -215,6 +215,27 @@ func (u *UPF) Reload(masquerade bool, flowact bool) error {
 		u.startGC(u.ctx)
 	} else {
 		u.stopGC()
+	}
+
+	return nil
+}
+
+func (u *UPF) ReloadFlowAccounting(flowact bool) error {
+	u.pfcpConn.BpfObjects.FlowAccounting = flowact
+
+	err := u.pfcpConn.BpfObjects.Load()
+	if err != nil {
+		return fmt.Errorf("couldn't load BPF objects: %w", err)
+	}
+
+	if err := u.n3Link.Update(u.pfcpConn.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
+		return err
+	}
+
+	if u.n6Link != nil {
+		if err := (*u.n6Link).Update(u.pfcpConn.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
+			return err
+		}
 	}
 
 	if flowact {

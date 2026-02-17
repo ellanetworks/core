@@ -11,7 +11,7 @@
 #include <linux/in.h>
 #include <sys/cdefs.h>
 
-#define MAX_FLOW_PER_UE 500
+#define MAX_FLOW_PER_UE 100
 #define FLOWACC_MAP_SIZE (MAX_PDU_SESSIONS * MAX_FLOW_PER_UE)
 
 volatile const bool flowact;

@@ -21,8 +21,6 @@ const (
 	UpdateNATSettingsAction = "update_nat_settings"
 )
 
-const isFlowAccountingEnabled = false
-
 func GetNATInfo(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		isNATEnabled, err := dbInstance.IsNATEnabled(r.Context())
@@ -60,7 +58,7 @@ func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater) http.Handler {
 			return
 		}
 
-		err := upf.Reload(params.Enabled, isFlowAccountingEnabled)
+		err := upf.ReloadNAT(params.Enabled)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to reload UPF with new NAT settings", err, logger.APILog)
 			return

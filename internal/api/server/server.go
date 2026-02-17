@@ -14,7 +14,7 @@ import (
 )
 
 type UPFUpdater interface {
-	Reload(natEnabled bool, flowAccountingEnabled bool) error
+	ReloadNAT(natEnabled bool) error
 	UpdateAdvertisedN3Address(net.IP)
 }
 

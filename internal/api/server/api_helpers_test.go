@@ -59,7 +59,7 @@ func (dummyFS) Open(name string) (fs.File, error) {
 
 type FakeUPF struct{}
 
-func (f FakeUPF) Reload(natEnabled bool, flowActEnabled bool) error {
+func (f FakeUPF) ReloadNAT(natEnabled bool) error {
 	return nil
 }
 

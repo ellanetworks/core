@@ -34,8 +34,6 @@ type RuntimeConfig struct {
 	EmbedFS             fs.FS
 }
 
-const isFlowAccountingEnabled = false
-
 func Start(ctx context.Context, rc RuntimeConfig) error {
 	cfg, err := config.Validate(rc.ConfigPath)
 	if err != nil {
@@ -87,6 +85,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't determine if NAT is enabled: %w", err)
+	}
+
+	isFlowAccountingEnabled, err := dbInstance.IsFlowAccountingEnabled(ctx)
+	if err != nil {
+		return fmt.Errorf("couldn't determine if flow accounting is enabled: %w", err)
 	}
 
 	n3Address := cfg.Interfaces.N3.Address
