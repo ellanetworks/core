@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
+	"syscall"
 	"time"
 
 	bpf "github.com/cilium/ebpf"
@@ -37,6 +38,8 @@ const (
 
 var bpfObjects *ebpf.BpfObjects
 
+var bootTime = mustGetBootTime()
+
 type UPF struct {
 	n3Link             link.Link
 	n6Link             *link.Link
@@ -47,6 +50,17 @@ type UPF struct {
 	ctx      context.Context
 	gcCancel context.CancelFunc
 	fcCancel context.CancelFunc
+}
+
+func mustGetBootTime() time.Time {
+	var info syscall.Sysinfo_t
+	if err := syscall.Sysinfo(&info); err != nil {
+		panic(err)
+	}
+
+	bootTime := time.Now().Add(-time.Duration(info.Uptime) * time.Second)
+
+	return bootTime
 }
 
 func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string, advertisedN3Address string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool, flowact bool) (*UPF, error) {
@@ -513,8 +527,8 @@ func logFlow(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6EntrypointFlowStats) {
 	sport := u16NtoHS(flow.Sport)
 	dport := u16NtoHS(flow.Dport)
 	proto := flow.Proto
-	startTime := time.Unix(0, int64(stats.FirstTs))
-	endTime := time.Unix(0, int64(stats.LastTs))
+	startTime := bootTime.Add(time.Duration(stats.FirstTs))
+	endTime := bootTime.Add(time.Duration(stats.LastTs))
 
 	logger.UpfLog.Debug(
 		"Flow expired",
