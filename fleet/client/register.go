@@ -67,11 +67,60 @@ type Subscriber struct {
 	PolicyID       int     `json:"policy_id"`
 }
 
+type Route struct {
+	ID          int64  `json:"id"`
+	Destination string `json:"destination"`
+	Gateway     string `json:"gateway"`
+	Interface   string `json:"interface"`
+	Metric      int    `json:"metric"`
+}
+
+type N2Interface struct {
+	Address string `json:"address"`
+	Port    int    `json:"port"`
+}
+
+type Vlan struct {
+	MasterInterface string `json:"master_interface"`
+	VlanId          int    `json:"vlan_id"`
+}
+
+type N3Interface struct {
+	Name            string `json:"name"`
+	Address         string `json:"address"`
+	ExternalAddress string `json:"external_address"`
+	Vlan            *Vlan  `json:"vlan,omitempty"`
+}
+
+type N6Interface struct {
+	Name string `json:"name"`
+	Vlan *Vlan  `json:"vlan,omitempty"`
+}
+
+type APIInterface struct {
+	Address string `json:"address"`
+	Port    int    `json:"port"`
+}
+
+type NetworkInterfaces struct {
+	N2  N2Interface  `json:"n2"`
+	N3  N3Interface  `json:"n3"`
+	N6  N6Interface  `json:"n6"`
+	API APIInterface `json:"api"`
+}
+
+type Networking struct {
+	DataNetworks      []DataNetwork     `json:"data_networks"`
+	Routes            []Route           `json:"routes"`
+	NAT               bool              `json:"nat"`
+	NetworkInterfaces NetworkInterfaces `json:"network_interfaces"`
+}
+
 type EllaCoreConfig struct {
-	Operator     Operator      `json:"operator"`
-	DataNetworks []DataNetwork `json:"data_networks"`
-	Policies     []Policy      `json:"policies"`
-	Subscribers  []Subscriber  `json:"subscribers"`
+	Operator    Operator     `json:"operator"`
+	Networking  Networking   `json:"networking"`
+	Policies    []Policy     `json:"policies"`
+	Subscribers []Subscriber `json:"subscribers"`
 }
 
 type RegisterParams struct {

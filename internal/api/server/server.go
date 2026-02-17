@@ -125,7 +125,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("GET /api/v1/logs/audit", Authenticate(jwtSecret, dbInstance, Authorize(PermListAuditLogs, ListAuditLogs(dbInstance))).ServeHTTP)
 
 	// Fleet (Authenticated)
-	mux.HandleFunc("POST /api/v1/fleet/register", Authenticate(jwtSecret, dbInstance, Authorize(PermRegisterFleet, RegisterFleet(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/fleet/register", Authenticate(jwtSecret, dbInstance, Authorize(PermRegisterFleet, RegisterFleet(dbInstance, cfg))).ServeHTTP)
 
 	// Fallback to UI
 	frontendHandler, err := newFrontendFileServer(embedFS)
