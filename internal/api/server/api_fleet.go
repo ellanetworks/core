@@ -106,6 +106,8 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 				if err := fC.Sync(ctx, syncParams); err != nil {
 					logger.EllaLog.Error("sync failed", zap.Error(err))
 				}
+
+				logger.EllaLog.Info("Sync sent successfully to fleet")
 			case <-ctx.Done():
 				ticker.Stop()
 				return

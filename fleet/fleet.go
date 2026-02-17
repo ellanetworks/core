@@ -27,6 +27,8 @@ func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, cer
 		return fmt.Errorf("initial sync failed: %w", err)
 	}
 
+	logger.EllaLog.Info("Initial sync sent successfully to fleet")
+
 	ticker := time.NewTicker(5 * time.Second)
 
 	go func() {
@@ -36,6 +38,8 @@ func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, cer
 				if err := fC.Sync(ctx, syncParams); err != nil {
 					logger.EllaLog.Error("sync failed", zap.Error(err))
 				}
+
+				logger.EllaLog.Info("Sync sent successfully to fleet")
 			case <-ctx.Done():
 				ticker.Stop()
 				return
