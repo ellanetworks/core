@@ -20,6 +20,9 @@ volatile const bool flowact = false;
 struct flow {
 	__u32 saddr;
 	__u32 daddr;
+	__u32 ingress_ifindex;
+	__u32 egress_ifindex;
+	__u32 pdr_id;
 	union {
 		__u16 sport;
 		__u16 identifier;
@@ -31,8 +34,6 @@ struct flow {
 			__u8 code;
 		};
 	};
-	__u32 ingress_ifindex;
-	__u32 egress_ifindex;
 	__u8 proto;
 	__u8 tos;
 };
@@ -52,7 +53,7 @@ struct {
 } flow_stats SEC(".maps");
 
 static __always_inline void account_flow(struct packet_context *ctx,
-					 __u32 egress_ifindex)
+					 __u32 egress_ifindex, __u32 pdr_id)
 {
 	if (!flowact) return;
 
@@ -63,6 +64,7 @@ static __always_inline void account_flow(struct packet_context *ctx,
 	f.tos = ctx->ip4->tos;
 	f.ingress_ifindex = ctx->xdp_ctx->ingress_ifindex;
 	f.egress_ifindex = egress_ifindex;
+	f.pdr_id = pdr_id;
 
 	switch (f.proto) {
 	case IPPROTO_TCP:

@@ -38,10 +38,11 @@ type N3N6EntrypointFlow struct {
 	_              structs.HostLayout
 	Saddr          uint32
 	Daddr          uint32
-	Sport          uint16
-	Dport          uint16
 	IngressIfindex uint32
 	EgressIfindex  uint32
+	PdrId          uint32
+	Sport          uint16
+	Dport          uint16
 	Proto          uint8
 	Tos            uint8
 	_              [2]byte

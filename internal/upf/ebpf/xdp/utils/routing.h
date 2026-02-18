@@ -64,7 +64,6 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params)
 	__u32 ifindex = fib_params->ifindex; // NOLINT(clang-analyzer-deadcode.DeadStores)
 
 	if (ctx->interface == INTERFACE_N3) {
-		account_flow(ctx, n6_ifindex);
 		if (masquerade) {
 			if (!source_nat(ctx, fib_params)) {
 				return XDP_DROP;

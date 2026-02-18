@@ -532,6 +532,7 @@ func logFlow(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6EntrypointFlowStats) {
 
 	logger.UpfLog.Debug(
 		"Flow expired",
+		zap.Uint32("PDR ID", flow.PdrId),
 		zap.String("Source", saddr.String()),
 		zap.String("Destination", daddr.String()),
 		zap.Uint16("Source Port", sport),
