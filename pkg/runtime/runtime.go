@@ -87,6 +87,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't determine if NAT is enabled: %w", err)
 	}
 
+	isFlowAccountingEnabled, err := dbInstance.IsFlowAccountingEnabled(ctx)
+	if err != nil {
+		return fmt.Errorf("couldn't determine if flow accounting is enabled: %w", err)
+	}
+
 	n3Address := cfg.Interfaces.N3.Address
 
 	n3Settings, err := dbInstance.GetN3Settings(ctx)
@@ -102,7 +107,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	pfcp_dispatcher.Dispatcher = pfcp_dispatcher.NewPfcpDispatcher(smf_pfcp.SmfPfcpHandler{}, upf_pfcp.UpfPfcpHandler{})
 
-	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3, n3Address, advertisedN3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled)
+	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3, n3Address, advertisedN3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled, isFlowAccountingEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}

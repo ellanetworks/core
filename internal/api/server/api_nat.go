@@ -58,7 +58,7 @@ func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater) http.Handler {
 			return
 		}
 
-		err := upf.Reload(params.Enabled)
+		err := upf.ReloadNAT(params.Enabled)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to reload UPF with new NAT settings", err, logger.APILog)
 			return
