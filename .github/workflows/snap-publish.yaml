@@ -34,4 +34,4 @@ jobs:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
         with:
           snap: ${{ steps.find-snap.outputs.snap_file }}
-          release: 1.2/edge
+          release: 1.3/edge

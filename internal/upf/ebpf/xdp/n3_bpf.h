@@ -127,12 +127,14 @@ handle_gtp_packet(struct packet_context *ctx)
 	if (!route_statistic)
 		return XDP_ABORTED;
 
-	if (ctx->ip4)
+	if (ctx->ip4) {
+		account_flow(ctx, n6_ifindex, pdr->pdr_id);
 		return route_ipv4(ctx, route_statistic);
-	else if (ctx->ip6)
+	} else if (ctx->ip6) {
 		return route_ipv6(ctx, route_statistic);
-	else
+	} else {
 		return XDP_ABORTED;
+	}
 }
 
 static __always_inline enum xdp_action handle_gtpu(struct packet_context *ctx)
