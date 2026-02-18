@@ -208,7 +208,7 @@ func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 
 		pass, err := authenticationProcedure(ctx, amf, ue)
 		if err != nil {
-			ue.State = amfContext.Deregistered
+			defer ue.Deregister()
 
 			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()
 
@@ -228,11 +228,12 @@ func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 		ue.SecurityContextAvailable = false
 		ue.T3560.Stop()
 		ue.T3560 = nil
-		ue.State = amfContext.Deregistered
+		ue.Deregister()
 
 		return HandleGmmMessage(ctx, amf, ue, msg)
 	case amfContext.ContextSetup:
-		ue.State = amfContext.Deregistered
+		defer ue.Deregister()
+
 		ue.Log.Info("state reset to Deregistered")
 
 		return nil

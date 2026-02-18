@@ -118,7 +118,7 @@ func SendAuthenticationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 			}
 		}, func() {
 			amfUe.Log.Warn("T3560 Expires, abort authentication procedure & ongoing 5GMM procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
-			amf.RemoveAMFUE(amfUe)
+			amf.DeregisterAndRemoveAMFUE(amfUe)
 		})
 	}
 
@@ -226,7 +226,7 @@ func SendRegistrationReject(ctx context.Context, ue *amfContext.RanUe, cause5GMM
 	)
 	defer span.End()
 
-	nasMsg, err := BuildRegistrationReject(ue.AmfUe.T3502Value, cause5GMM)
+	nasMsg, err := BuildRegistrationReject(int(ue.AmfUe.T3502Value.Seconds()), cause5GMM)
 	if err != nil {
 		return fmt.Errorf("error building registration reject: %s", err.Error())
 	}
@@ -279,7 +279,7 @@ func SendSecurityModeCommand(ctx context.Context, amf *amfContext.AMF, ue *amfCo
 		}, func() {
 			amfUe.Log.Warn("T3560 Expires, abort security mode control procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
 			// amfUe.Remove()
-			amf.RemoveAMFUE(amfUe)
+			amf.DeregisterAndRemoveAMFUE(amfUe)
 		})
 	}
 

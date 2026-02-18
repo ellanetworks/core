@@ -94,7 +94,7 @@ func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfCon
 
 		pass, err := authenticationProcedure(ctx, amf, ue)
 		if err != nil {
-			ue.State = amfContext.Deregistered
+			ue.Deregister()
 			return fmt.Errorf("error in authentication procedure: %v", err)
 		}
 
@@ -114,14 +114,14 @@ func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfCon
 		switch ue.RegistrationType5GS {
 		case nasMessage.RegistrationType5GSInitialRegistration:
 			if err := HandleInitialRegistration(ctx, amf, ue); err != nil {
-				ue.State = amfContext.Deregistered
+				ue.Deregister()
 				return fmt.Errorf("error handling initial registration: %v", err)
 			}
 		case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
 			fallthrough
 		case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
 			if err := HandleMobilityAndPeriodicRegistrationUpdating(ctx, amf, ue); err != nil {
-				ue.State = amfContext.Deregistered
+				ue.Deregister()
 				return fmt.Errorf("error handling mobility and periodic registration updating: %v", err)
 			}
 		}

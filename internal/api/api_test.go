@@ -80,9 +80,12 @@ func TestStartServerStandup(t *testing.T) {
 
 	// Start the server in a separate goroutine.
 	dummyFS := dummyFS{}
-	if err := Start(testdb, cfg, nil, dummyFS, nil); err != nil {
+
+	cctx, cancel := context.WithCancel(t.Context())
+	if err := Start(cctx, testdb, cfg, nil, dummyFS, nil); err != nil {
 		t.Fatalf("Start returned error: %v", err)
 	}
+	defer cancel()
 
 	// Poll the server until it responds or timeout occurs.
 	baseURL := "http://127.0.0.1:" + strconv.Itoa(port)
