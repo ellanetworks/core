@@ -55,7 +55,7 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 			return nil
 		}
 
-		ue.State = amfContext.Deregistered
+		defer ue.Deregister()
 
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {
@@ -80,7 +80,7 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 			return nil
 		}
 
-		ue.State = amfContext.Deregistered
+		defer ue.Deregister()
 
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
 		if err != nil {

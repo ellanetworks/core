@@ -110,8 +110,8 @@ type AMF struct {
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
 	SecurityAlgorithm        SecurityAlgorithm
 	NetworkName              NetworkName
-	T3502Value               int    // unit is second
-	T3512Value               int    // unit is second
+	T3502Value               time.Duration
+	T3512Value               time.Duration
 	TimeZone                 string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 - 5.2.2 Simple Data Types
 	T3513Cfg                 TimerValue
 	T3522Cfg                 TimerValue
@@ -161,7 +161,9 @@ func (amf *AMF) AddAmfUeToUePool(ue *AmfUe) error {
 	return nil
 }
 
-func (amf *AMF) RemoveAMFUE(ue *AmfUe) {
+func (amf *AMF) DeregisterAndRemoveAMFUE(ue *AmfUe) {
+	ue.Deregister()
+
 	if ue.RanUe != nil {
 		err := ue.RanUe.Remove()
 		if err != nil {
@@ -170,6 +172,16 @@ func (amf *AMF) RemoveAMFUE(ue *AmfUe) {
 	}
 
 	tmsiGenerator.Free(ue.Tmsi)
+
+	if ue.implicitDeregistrationTimer != nil {
+		ue.implicitDeregistrationTimer.Stop()
+		ue.implicitDeregistrationTimer = nil
+	}
+
+	if ue.mobileReachableTimer != nil {
+		ue.mobileReachableTimer.Stop()
+		ue.mobileReachableTimer = nil
+	}
 
 	if ue.Supi == "" {
 		return

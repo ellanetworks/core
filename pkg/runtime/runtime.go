@@ -113,6 +113,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	if err := api.Start(
+		ctx,
 		dbInstance,
 		cfg,
 		upfInstance,

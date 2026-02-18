@@ -8,12 +8,14 @@
 package context
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"reflect"
 	"regexp"
 	"sync"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
@@ -124,8 +126,11 @@ type AmfUe struct {
 	/* T3522 (for deregistration request) */
 	T3522 *Timer
 	/* T3502 (Assigned by AMF, and used by UE to initialize registration procedure) */
-	T3502Value int // Second
-	T3512Value int // default 54 min
+	T3502Value time.Duration
+	T3512Value time.Duration
+	/* Linked to T3512, should be 4 minutes longer */
+	mobileReachableTimer        *Timer
+	implicitDeregistrationTimer *Timer
 
 	Log *zap.Logger
 }
@@ -419,6 +424,8 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 }
 
 func (ue *AmfUe) ClearRegistrationData() {
+	ue.releaseSmContexts()
+
 	ue.SmContextList = make(map[uint8]*SmContext)
 }
 
@@ -521,6 +528,9 @@ payload either a security protected 5GS NAS message or a plain 5GS NAS message w
 format is followed TS 24.501 9.1.1
 */
 func (ue *AmfUe) DecodeNASMessage(payload []byte) (*nas.Message, error) {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
 	if payload == nil {
 		return nil, fmt.Errorf("nas payload is empty")
 	}
@@ -663,5 +673,90 @@ func (ue *AmfUe) DecodeNASMessage(payload []byte) (*nas.Message, error) {
 		}
 
 		return msg, err
+	}
+}
+
+func (ue *AmfUe) ResetMobileReachableTimer() {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	if ue.implicitDeregistrationTimer != nil {
+		ue.implicitDeregistrationTimer.Stop()
+		ue.implicitDeregistrationTimer = nil
+	}
+
+	ue.Log.Debug("starting mobile reachable timer")
+
+	ue.mobileReachableTimer = NewTimer(
+		ue.T3512Value+(4*time.Minute),
+		1,
+		func(expireTimes int32) {
+			ue.Log.Debug("mobile reachable timer expired", zap.String("SUPI", ue.Supi))
+			ue.startImplicitDeregistrationTimer()
+		},
+		func() {},
+	)
+}
+
+func (ue *AmfUe) StopMobileReachableTimer() {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	ue.Log.Debug("stopping mobile reachable timer")
+
+	if ue.mobileReachableTimer != nil {
+		ue.mobileReachableTimer.Stop()
+		ue.mobileReachableTimer = nil
+	}
+}
+
+func (ue *AmfUe) StopImplicitDeregistrationTimer() {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	ue.Log.Debug("stopping implicit deregistration timer")
+
+	if ue.implicitDeregistrationTimer != nil {
+		ue.implicitDeregistrationTimer.Stop()
+		ue.implicitDeregistrationTimer = nil
+	}
+}
+
+func (ue *AmfUe) startImplicitDeregistrationTimer() {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	ue.Log.Debug("starting implicit deregistration timer")
+
+	ue.implicitDeregistrationTimer = NewTimer(2*time.Minute, 1, func(expireTimes int32) { ue.Deregister() }, func() {})
+}
+
+func (ue *AmfUe) Deregister() {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	if ue.implicitDeregistrationTimer != nil {
+		ue.implicitDeregistrationTimer.Stop()
+		ue.implicitDeregistrationTimer = nil
+	}
+
+	if ue.mobileReachableTimer != nil {
+		ue.mobileReachableTimer.Stop()
+		ue.mobileReachableTimer = nil
+	}
+
+	ue.State = Deregistered
+
+	ue.releaseSmContexts()
+
+	ue.Log.Debug("ue deregistered", zap.String("SUPI", ue.Supi))
+}
+
+func (ue *AmfUe) releaseSmContexts() {
+	for _, smContext := range ue.SmContextList {
+		err := AMFSelf().Smf.ReleaseSmContext(context.TODO(), smContext.Ref)
+		if err != nil {
+			ue.Log.Error("Release SmContext Error", zap.Error(err))
+		}
 	}
 }

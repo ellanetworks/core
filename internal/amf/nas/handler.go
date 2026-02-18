@@ -51,9 +51,6 @@ func HandleNAS(ctx context.Context, amf *amfContext.AMF, ue *amfContext.RanUe, n
 		ue.AmfUe.AttachRanUe(ue)
 	}
 
-	ue.AmfUe.Mutex.Lock()
-	defer ue.AmfUe.Mutex.Unlock()
-
 	msg, err := ue.AmfUe.DecodeNASMessage(nasPdu)
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
