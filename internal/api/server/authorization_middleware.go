@@ -134,7 +134,8 @@ const (
 	PermListAuditLogs              = "audit_logs:list"
 
 	// Fleet permissions
-	PermRegisterFleet = "fleet:register"
+	PermRegisterFleet   = "fleet:register"
+	PermUnregisterFleet = "fleet:unregister"
 )
 
 func Authorize(permission string, next http.Handler) http.Handler {

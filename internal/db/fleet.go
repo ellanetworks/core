@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"fmt"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -24,6 +25,7 @@ CREATE TABLE IF NOT EXISTS %s (
 	private_key BLOB NOT NULL,
 	certificate BLOB NOT NULL,
 	ca_certificate BLOB NOT NULL,
+	last_sync_at TEXT NOT NULL DEFAULT '',
   CHECK (singleton)
 );
 `
@@ -32,7 +34,9 @@ const (
 	getFleetStmt               = "SELECT &Fleet.* FROM %s WHERE singleton"
 	updateFleetKeyStmt         = "UPDATE %s SET private_key=$Fleet.private_key WHERE singleton"
 	updateFleetCredentialsStmt = "UPDATE %s SET certificate=$Fleet.certificate, ca_certificate=$Fleet.ca_certificate WHERE singleton"
-	initializeFleetStmt        = "INSERT OR IGNORE INTO %s (singleton, enabled, private_key, certificate, ca_certificate) VALUES (TRUE, TRUE, $Fleet.private_key, $Fleet.certificate, $Fleet.ca_certificate)"
+	clearFleetCredentialsStmt  = "UPDATE %s SET certificate=$Fleet.certificate, ca_certificate=$Fleet.ca_certificate, last_sync_at=$Fleet.last_sync_at WHERE singleton"
+	initializeFleetStmt        = "INSERT OR IGNORE INTO %s (singleton, enabled, private_key, certificate, ca_certificate, last_sync_at) VALUES (TRUE, TRUE, $Fleet.private_key, $Fleet.certificate, $Fleet.ca_certificate, $Fleet.last_sync_at)"
+	updateFleetSyncStatusStmt  = "UPDATE %s SET last_sync_at=$Fleet.last_sync_at WHERE singleton"
 )
 
 type Fleet struct {
@@ -40,6 +44,7 @@ type Fleet struct {
 	PrivateKey    []byte `db:"private_key"`
 	Certificate   []byte `db:"certificate"`
 	CACertificate []byte `db:"ca_certificate"`
+	LastSyncAt    string `db:"last_sync_at"`
 }
 
 // InitializeFleet inserts the default fleet row if it does not exist.
@@ -65,6 +70,7 @@ func (db *Database) InitializeFleet(ctx context.Context) error {
 		PrivateKey:    []byte{},
 		Certificate:   []byte{},
 		CACertificate: []byte{},
+		LastSyncAt:    "",
 	}
 
 	err := db.conn.Query(ctx, db.initializeFleetStmt, fleet).Run()
@@ -207,6 +213,92 @@ func (db *Database) UpdateFleetCredentials(ctx context.Context, certificate []by
 		span.SetStatus(codes.Error, "execution failed")
 
 		return fmt.Errorf("failed to update fleet credentials: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// IsFleetManaged returns true when the Core has been registered to a Fleet
+// (i.e. it has non-empty certificate and CA certificate).
+func (db *Database) IsFleetManaged(ctx context.Context) (bool, error) {
+	fleet, err := db.GetFleet(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	return len(fleet.Certificate) > 0 && len(fleet.CACertificate) > 0, nil
+}
+
+// UpdateFleetSyncStatus records the timestamp of the last successful sync.
+func (db *Database) UpdateFleetSyncStatus(ctx context.Context) error {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPDATE", FleetTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("UPDATE"),
+			attribute.String("db.collection", FleetTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FleetTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(FleetTableName, "update").Inc()
+
+	fleet := Fleet{
+		LastSyncAt: time.Now().UTC().Format(time.RFC3339),
+	}
+
+	err := db.conn.Query(ctx, db.updateFleetSyncStatusStmt, fleet).Run()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+
+		return fmt.Errorf("failed to update fleet sync status: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// ClearFleetCredentials removes the certificate and CA certificate,
+// effectively unregistering the Core from Fleet.
+func (db *Database) ClearFleetCredentials(ctx context.Context) error {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPDATE", FleetTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("UPDATE"),
+			attribute.String("db.collection", FleetTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FleetTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(FleetTableName, "update").Inc()
+
+	fleet := Fleet{
+		Certificate:   []byte{},
+		CACertificate: []byte{},
+		LastSyncAt:    "",
+	}
+
+	err := db.conn.Query(ctx, db.clearFleetCredentialsStmt, fleet).Run()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+
+		return fmt.Errorf("failed to clear fleet credentials: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")

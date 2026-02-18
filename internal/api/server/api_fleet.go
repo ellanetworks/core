@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 type RegisterFleetParams struct {
@@ -18,7 +19,8 @@ type RegisterFleetParams struct {
 }
 
 const (
-	RegisterFleetAction = "register_fleet"
+	RegisterFleetAction   = "register_fleet"
+	UnregisterFleetAction = "unregister_fleet"
 )
 
 const (
@@ -91,7 +93,13 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 
 	logger.EllaLog.Info("Fleet credentials stored successfully")
 
-	err = fleet.ResumeSync(ctx, fleetURL, key, []byte(data.Certificate), []byte(data.CACertificate))
+	err = fleet.ResumeSync(context.Background(), fleetURL, key, []byte(data.Certificate), []byte(data.CACertificate), func(syncCtx context.Context, success bool) {
+		if success {
+			if err := dbInstance.UpdateFleetSyncStatus(syncCtx); err != nil {
+				logger.EllaLog.Error("couldn't update fleet sync status", zap.Error(err))
+			}
+		}
+	})
 	if err != nil {
 		return fmt.Errorf("couldn't start fleet sync: %w", err)
 	}
@@ -250,4 +258,69 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database, cfg config
 	}
 
 	return initialConfig, nil
+}
+
+func UnregisterFleet(dbInstance *db.Database) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		email := r.Context().Value(contextKeyEmail)
+
+		emailStr, ok := email.(string)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			return
+		}
+
+		managed, err := dbInstance.IsFleetManaged(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to check fleet status", err, logger.APILog)
+			return
+		}
+
+		if !managed {
+			writeError(w, http.StatusBadRequest, "Core is not registered to a Fleet", nil, logger.APILog)
+			return
+		}
+
+		// Notify the fleet server about the unregistration.
+		fleetData, err := dbInstance.GetFleet(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to load fleet data", err, logger.APILog)
+			return
+		}
+
+		key, err := dbInstance.LoadOrGenerateFleetKey(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to load fleet key", err, logger.APILog)
+			return
+		}
+
+		fC := client.New(FleetURL)
+
+		if err := fC.ConfigureMTLS(string(fleetData.Certificate), key, string(fleetData.CACertificate)); err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to configure mTLS for fleet", err, logger.APILog)
+			return
+		}
+
+		if err := fC.Unregister(r.Context()); err != nil {
+			logger.APILog.Warn("couldn't notify fleet server about unregistration", zap.Error(err))
+		}
+
+		fleet.StopSync()
+
+		err = dbInstance.ClearFleetCredentials(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to unregister from Fleet", err, logger.APILog)
+			return
+		}
+
+		logger.LogAuditEvent(
+			r.Context(),
+			UnregisterFleetAction,
+			emailStr,
+			getClientIP(r),
+			"User unregistered Core from Fleet",
+		)
+
+		writeResponse(w, SuccessResponse{Message: "Core unregistered from Fleet successfully"}, http.StatusOK, logger.APILog)
+	}
 }

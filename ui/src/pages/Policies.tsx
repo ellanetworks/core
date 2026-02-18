@@ -29,12 +29,15 @@ import EditPolicyModal from "@/components/EditPolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 
 const MAX_WIDTH = 1400;
 
 const PolicyPage = () => {
   const { role, accessToken, authReady } = useAuth();
-  const canEdit = role === "Admin" || role === "Network Manager";
+  const { isFleetManaged } = useFleet();
+  const canEdit =
+    (role === "Admin" || role === "Network Manager") && !isFleetManaged;
 
   const theme = useTheme();
   const gridTheme = useMemo(

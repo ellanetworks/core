@@ -91,7 +91,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		if err != nil {
 			logger.EllaLog.Error("couldn't load fleet key for sync resume", zap.Error(err))
 		} else {
-			err = fleet.ResumeSync(ctx, server.FleetURL, key, fleetData.Certificate, fleetData.CACertificate)
+			onSync := func(syncCtx context.Context, success bool) {
+				if success {
+					if err := dbInstance.UpdateFleetSyncStatus(syncCtx); err != nil {
+						logger.EllaLog.Error("couldn't update fleet sync status", zap.Error(err))
+					}
+				}
+			}
+
+			err = fleet.ResumeSync(ctx, server.FleetURL, key, fleetData.Certificate, fleetData.CACertificate, onSync)
 			if err != nil {
 				logger.EllaLog.Error("couldn't resume fleet sync", zap.Error(err))
 			}

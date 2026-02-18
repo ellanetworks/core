@@ -20,13 +20,17 @@ import {
   Tooltip,
 } from "@mui/material";
 import HubIcon from "@mui/icons-material/Hub";
+import LinkOffIcon from "@mui/icons-material/LinkOff";
 import ConfigureFleetModal from "@/components/ConfigureFleetModal";
 import Grid from "@mui/material/Grid";
 import { PieChart } from "@mui/x-charts/PieChart";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { getStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
+import { unregisterFleet } from "@/queries/fleet";
+import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import {
   listSubscribers,
   type ListSubscribersResponse,
@@ -215,6 +219,9 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fleetModalOpen, setFleetModalOpen] = useState(false);
+  const [unregisterLoading, setUnregisterLoading] = useState(false);
+  const [unregisterConfirmOpen, setUnregisterConfirmOpen] = useState(false);
+  const { isFleetManaged } = useFleet();
 
   const parseMetrics = (metrics: string) => {
     const lines = metrics.split("\n");
@@ -465,18 +472,54 @@ const Dashboard = () => {
             (version ?? "—")
           )}
         </Typography>
-        <Button
-          variant="outlined"
-          startIcon={<HubIcon />}
-          onClick={() => setFleetModalOpen(true)}
-        >
-          Configure Fleet
-        </Button>
+        {isFleetManaged ? (
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<LinkOffIcon />}
+            disabled={unregisterLoading}
+            onClick={() => setUnregisterConfirmOpen(true)}
+          >
+            {unregisterLoading ? "Unregistering..." : "Unregister from Fleet"}
+          </Button>
+        ) : (
+          <Button
+            variant="outlined"
+            startIcon={<HubIcon />}
+            onClick={() => setFleetModalOpen(true)}
+          >
+            Configure Fleet
+          </Button>
+        )}
       </Box>
 
       <ConfigureFleetModal
         open={fleetModalOpen}
         onClose={() => setFleetModalOpen(false)}
+      />
+
+      <DeleteConfirmationModal
+        open={unregisterConfirmOpen}
+        onClose={() => setUnregisterConfirmOpen(false)}
+        title="Unregister from Fleet"
+        description="Are you sure you want to unregister this Core from Fleet? This will stop syncing and allow local changes again."
+        onConfirm={async () => {
+          setUnregisterConfirmOpen(false);
+          if (!accessToken) return;
+          setUnregisterLoading(true);
+          setError(null);
+          try {
+            await unregisterFleet(accessToken);
+          } catch (e) {
+            setError(
+              e instanceof Error
+                ? e.message
+                : "Failed to unregister from Fleet.",
+            );
+          } finally {
+            setUnregisterLoading(false);
+          }
+        }}
       />
 
       {error && (
