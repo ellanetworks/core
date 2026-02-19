@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/fleet/client"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/version"
 	"go.uber.org/zap"
@@ -22,7 +23,7 @@ var (
 	cancelPrevSync context.CancelFunc
 )
 
-func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, certPEM []byte, caPEM []byte, onSync SyncCallback) error {
+func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, certPEM []byte, caPEM []byte, dbInstance *db.Database, onSync SyncCallback) error {
 	fC := client.New(fleetURL)
 
 	if err := fC.ConfigureMTLS(string(certPEM), key, string(caPEM)); err != nil {
@@ -33,7 +34,7 @@ func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, cer
 		Version: version.GetVersion().Version,
 	}
 
-	if err := fC.Sync(ctx, syncParams); err != nil {
+	if resp, err := fC.Sync(ctx, syncParams); err != nil {
 		logger.EllaLog.Error("initial sync failed", zap.Error(err))
 
 		if onSync != nil {
@@ -41,6 +42,10 @@ func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, cer
 		}
 	} else {
 		logger.EllaLog.Info("Initial sync sent successfully to fleet")
+
+		if err := dbInstance.UpdateConfig(ctx, resp.Config); err != nil {
+			logger.EllaLog.Error("failed to apply fleet config", zap.Error(err))
+		}
 
 		if onSync != nil {
 			onSync(ctx, true)
@@ -64,7 +69,8 @@ func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, cer
 		for {
 			select {
 			case <-ticker.C:
-				if err := fC.Sync(syncCtx, syncParams); err != nil {
+				resp, err := fC.Sync(syncCtx, syncParams)
+				if err != nil {
 					logger.EllaLog.Error("sync failed", zap.Error(err))
 
 					if onSync != nil {
@@ -72,6 +78,10 @@ func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, cer
 					}
 				} else {
 					logger.EllaLog.Info("Sync sent successfully to fleet")
+
+					if err := dbInstance.UpdateConfig(syncCtx, resp.Config); err != nil {
+						logger.EllaLog.Error("failed to apply fleet config", zap.Error(err))
+					}
 
 					if onSync != nil {
 						onSync(syncCtx, true)

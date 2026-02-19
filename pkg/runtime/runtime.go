@@ -99,7 +99,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 				}
 			}
 
-			err = fleet.ResumeSync(ctx, server.FleetURL, key, fleetData.Certificate, fleetData.CACertificate, onSync)
+			err = fleet.ResumeSync(ctx, server.FleetURL, key, fleetData.Certificate, fleetData.CACertificate, dbInstance, onSync)
 			if err != nil {
 				logger.EllaLog.Error("couldn't resume fleet sync", zap.Error(err))
 			}

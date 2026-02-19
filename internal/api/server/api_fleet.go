@@ -93,7 +93,7 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 
 	logger.EllaLog.Info("Fleet credentials stored successfully")
 
-	err = fleet.ResumeSync(context.Background(), fleetURL, key, []byte(data.Certificate), []byte(data.CACertificate), func(syncCtx context.Context, success bool) {
+	err = fleet.ResumeSync(context.Background(), fleetURL, key, []byte(data.Certificate), []byte(data.CACertificate), dbInstance, func(syncCtx context.Context, success bool) {
 		if success {
 			if err := dbInstance.UpdateFleetSyncStatus(syncCtx); err != nil {
 				logger.EllaLog.Error("couldn't update fleet sync status", zap.Error(err))
