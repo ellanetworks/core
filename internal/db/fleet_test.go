@@ -53,6 +53,10 @@ func TestGetFleet_Default(t *testing.T) {
 	if len(fleet.CACertificate) != 0 {
 		t.Fatalf("Fleet CA certificate should be empty by default, got %d bytes", len(fleet.CACertificate))
 	}
+
+	if fleet.ConfigRevision != 0 {
+		t.Fatalf("Fleet config revision should be 0 by default, got %d", fleet.ConfigRevision)
+	}
 }
 
 func TestUpdateFleetKey(t *testing.T) {
@@ -350,5 +354,153 @@ func TestFleet_RestartDatabase(t *testing.T) {
 
 	if !loadedKey.PublicKey.Equal(&key.PublicKey) {
 		t.Fatalf("Fleet key didn't survive restart")
+	}
+}
+
+func TestUpdateFleetConfigRevision(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	// Default revision should be 0
+	fleet, err := database.GetFleet(context.Background())
+	if err != nil {
+		t.Fatalf("Couldn't complete GetFleet: %s", err)
+	}
+
+	if fleet.ConfigRevision != 0 {
+		t.Fatalf("Expected default config revision 0, got %d", fleet.ConfigRevision)
+	}
+
+	// Update to revision 5
+	err = database.UpdateFleetConfigRevision(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("Couldn't complete UpdateFleetConfigRevision: %s", err)
+	}
+
+	fleet, err = database.GetFleet(context.Background())
+	if err != nil {
+		t.Fatalf("Couldn't complete GetFleet: %s", err)
+	}
+
+	if fleet.ConfigRevision != 5 {
+		t.Fatalf("Expected config revision 5, got %d", fleet.ConfigRevision)
+	}
+
+	// Update to a higher revision
+	err = database.UpdateFleetConfigRevision(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("Couldn't complete UpdateFleetConfigRevision: %s", err)
+	}
+
+	fleet, err = database.GetFleet(context.Background())
+	if err != nil {
+		t.Fatalf("Couldn't complete GetFleet: %s", err)
+	}
+
+	if fleet.ConfigRevision != 42 {
+		t.Fatalf("Expected config revision 42, got %d", fleet.ConfigRevision)
+	}
+}
+
+func TestClearFleetCredentials_ResetsConfigRevision(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	// Set credentials and a config revision
+	cert := []byte("test-cert")
+	caCert := []byte("test-ca-cert")
+
+	err = database.UpdateFleetCredentials(context.Background(), cert, caCert)
+	if err != nil {
+		t.Fatalf("Couldn't complete UpdateFleetCredentials: %s", err)
+	}
+
+	err = database.UpdateFleetConfigRevision(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("Couldn't complete UpdateFleetConfigRevision: %s", err)
+	}
+
+	// Clear credentials should reset config revision to 0
+	err = database.ClearFleetCredentials(context.Background())
+	if err != nil {
+		t.Fatalf("Couldn't complete ClearFleetCredentials: %s", err)
+	}
+
+	fleet, err := database.GetFleet(context.Background())
+	if err != nil {
+		t.Fatalf("Couldn't complete GetFleet: %s", err)
+	}
+
+	if fleet.ConfigRevision != 0 {
+		t.Fatalf("Expected config revision to be reset to 0 after clearing credentials, got %d", fleet.ConfigRevision)
+	}
+
+	if len(fleet.Certificate) != 0 {
+		t.Fatalf("Expected certificate to be empty after clearing credentials")
+	}
+
+	if len(fleet.CACertificate) != 0 {
+		t.Fatalf("Expected CA certificate to be empty after clearing credentials")
+	}
+}
+
+func TestFleetConfigRevision_SurvivesRestart(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	database, err := db.NewDatabase(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	err = database.UpdateFleetConfigRevision(context.Background(), 99)
+	if err != nil {
+		t.Fatalf("Couldn't complete UpdateFleetConfigRevision: %s", err)
+	}
+
+	err = database.Close()
+	if err != nil {
+		t.Fatalf("Couldn't complete Close: %s", err)
+	}
+
+	// Reopen the database
+	database2, err := db.NewDatabase(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("Couldn't complete second NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database2.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	fleet, err := database2.GetFleet(context.Background())
+	if err != nil {
+		t.Fatalf("Couldn't complete GetFleet: %s", err)
+	}
+
+	if fleet.ConfigRevision != 99 {
+		t.Fatalf("Expected config revision 99 after restart, got %d", fleet.ConfigRevision)
 	}
 }

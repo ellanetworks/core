@@ -74,12 +74,14 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 
 	fC := client.New(fleetURL)
 
-	initialConfig, err := buildInitialConfig(ctx, dbInstance, cfg)
+	initialConfig, err := buildInitialConfig(ctx, dbInstance)
 	if err != nil {
 		return fmt.Errorf("couldn't build initial config: %w", err)
 	}
 
-	data, err := fC.Register(ctx, activationToken, key.PublicKey, initialConfig)
+	initialStatus := buildInitialStatus(cfg)
+
+	data, err := fC.Register(ctx, activationToken, key.PublicKey, initialConfig, initialStatus)
 	if err != nil {
 		return fmt.Errorf("couldn't register to fleet: %w", err)
 	}
@@ -107,7 +109,45 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 	return nil
 }
 
-func buildInitialConfig(ctx context.Context, dbInstance *db.Database, cfg config.Config) (client.EllaCoreConfig, error) {
+func buildInitialStatus(cfg config.Config) client.EllaCoreStatus {
+	networkInterfacesConfigs := client.StatusNetworkInterfaces{
+		N2: client.N2Interface{
+			Address: cfg.Interfaces.N2.Address,
+			Port:    cfg.Interfaces.N2.Port,
+		},
+		N3: client.N3Interface{
+			Name:    cfg.Interfaces.N3.Name,
+			Address: cfg.Interfaces.N3.Address,
+		},
+		N6: client.N6Interface{
+			Name: cfg.Interfaces.N6.Name,
+		},
+		API: client.APIInterface{
+			Address: cfg.Interfaces.API.Address,
+			Port:    cfg.Interfaces.API.Port,
+		},
+	}
+
+	if cfg.Interfaces.N3.VlanConfig != nil {
+		networkInterfacesConfigs.N3.Vlan = &client.Vlan{
+			MasterInterface: cfg.Interfaces.N3.VlanConfig.MasterInterface,
+			VlanId:          cfg.Interfaces.N3.VlanConfig.VlanId,
+		}
+	}
+
+	if cfg.Interfaces.N6.VlanConfig != nil {
+		networkInterfacesConfigs.N6.Vlan = &client.Vlan{
+			MasterInterface: cfg.Interfaces.N6.VlanConfig.MasterInterface,
+			VlanId:          cfg.Interfaces.N6.VlanConfig.VlanId,
+		}
+	}
+
+	return client.EllaCoreStatus{
+		NetworkInterfaces: networkInterfacesConfigs,
+	}
+}
+
+func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.EllaCoreConfig, error) {
 	op, err := dbInstance.GetOperator(ctx)
 	if err != nil {
 		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get operator from database: %w", err)
@@ -142,39 +182,6 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database, cfg config
 	n3Settings, err := dbInstance.GetN3Settings(ctx)
 	if err != nil {
 		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get N3 settings: %w", err)
-	}
-
-	networkInterfacesConfigs := client.NetworkInterfaces{
-		N2: client.N2Interface{
-			Address: cfg.Interfaces.N2.Address,
-			Port:    cfg.Interfaces.N2.Port,
-		},
-		N3: client.N3Interface{
-			Name:            cfg.Interfaces.N3.Name,
-			Address:         cfg.Interfaces.N3.Address,
-			ExternalAddress: n3Settings.ExternalAddress,
-		},
-		N6: client.N6Interface{
-			Name: cfg.Interfaces.N6.Name,
-		},
-		API: client.APIInterface{
-			Address: cfg.Interfaces.API.Address,
-			Port:    cfg.Interfaces.API.Port,
-		},
-	}
-
-	if cfg.Interfaces.N3.VlanConfig != nil {
-		networkInterfacesConfigs.N3.Vlan = &client.Vlan{
-			MasterInterface: cfg.Interfaces.N3.VlanConfig.MasterInterface,
-			VlanId:          cfg.Interfaces.N3.VlanConfig.VlanId,
-		}
-	}
-
-	if cfg.Interfaces.N6.VlanConfig != nil {
-		networkInterfacesConfigs.N6.Vlan = &client.Vlan{
-			MasterInterface: cfg.Interfaces.N6.VlanConfig.MasterInterface,
-			VlanId:          cfg.Interfaces.N6.VlanConfig.VlanId,
-		}
 	}
 
 	dataNetworks, _, err := dbInstance.ListDataNetworksPage(ctx, 1, 100)
@@ -251,7 +258,7 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database, cfg config
 			DataNetworks:      dnConfigs,
 			Routes:            routesConfigs,
 			NAT:               natEnabled,
-			NetworkInterfaces: networkInterfacesConfigs,
+			N3ExternalAddress: n3Settings.ExternalAddress,
 		},
 		Policies:    policyConfigs,
 		Subscribers: subscriberConfigs,

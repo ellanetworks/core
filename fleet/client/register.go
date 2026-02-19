@@ -102,7 +102,7 @@ type APIInterface struct {
 	Port    int    `json:"port"`
 }
 
-type NetworkInterfaces struct {
+type StatusNetworkInterfaces struct {
 	N2  N2Interface  `json:"n2"`
 	N3  N3Interface  `json:"n3"`
 	N6  N6Interface  `json:"n6"`
@@ -110,10 +110,10 @@ type NetworkInterfaces struct {
 }
 
 type Networking struct {
-	DataNetworks      []DataNetwork     `json:"data_networks"`
-	Routes            []Route           `json:"routes"`
-	NAT               bool              `json:"nat"`
-	NetworkInterfaces NetworkInterfaces `json:"network_interfaces"`
+	DataNetworks      []DataNetwork `json:"data_networks"`
+	Routes            []Route       `json:"routes"`
+	NAT               bool          `json:"nat"`
+	N3ExternalAddress string        `json:"n3_external_address"`
 }
 
 type EllaCoreConfig struct {
@@ -123,10 +123,15 @@ type EllaCoreConfig struct {
 	Subscribers []Subscriber `json:"subscribers"`
 }
 
+type EllaCoreStatus struct {
+	NetworkInterfaces StatusNetworkInterfaces `json:"network_interfaces"`
+}
+
 type RegisterParams struct {
 	ActivationToken string         `json:"activation_token"`
 	PublicKey       string         `json:"public_key"`
 	InitialConfig   EllaCoreConfig `json:"initial_config"`
+	InitialStatus   EllaCoreStatus `json:"initial_status"`
 }
 
 type RegisterResponse struct {
@@ -142,7 +147,7 @@ type Response struct {
 	Result any `json:"result"`
 }
 
-func (fc *Fleet) Register(ctx context.Context, activationToken string, publicKey ecdsa.PublicKey, initialConfig EllaCoreConfig) (*RegisterResponse, error) {
+func (fc *Fleet) Register(ctx context.Context, activationToken string, publicKey ecdsa.PublicKey, initialConfig EllaCoreConfig, initialStatus EllaCoreStatus) (*RegisterResponse, error) {
 	pubKeyPEM, err := marshalPublicKey(&publicKey)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't marshal public key: %w", err)
@@ -152,6 +157,7 @@ func (fc *Fleet) Register(ctx context.Context, activationToken string, publicKey
 		ActivationToken: activationToken,
 		PublicKey:       pubKeyPEM,
 		InitialConfig:   initialConfig,
+		InitialStatus:   initialStatus,
 	}
 
 	body, err := json.Marshal(params)

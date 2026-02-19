@@ -26,25 +26,28 @@ CREATE TABLE IF NOT EXISTS %s (
 	certificate BLOB NOT NULL,
 	ca_certificate BLOB NOT NULL,
 	last_sync_at TEXT NOT NULL DEFAULT '',
+	config_revision INTEGER NOT NULL DEFAULT 0,
   CHECK (singleton)
 );
 `
 
 const (
-	getFleetStmt               = "SELECT &Fleet.* FROM %s WHERE singleton"
-	updateFleetKeyStmt         = "UPDATE %s SET private_key=$Fleet.private_key WHERE singleton"
-	updateFleetCredentialsStmt = "UPDATE %s SET certificate=$Fleet.certificate, ca_certificate=$Fleet.ca_certificate WHERE singleton"
-	clearFleetCredentialsStmt  = "UPDATE %s SET certificate=$Fleet.certificate, ca_certificate=$Fleet.ca_certificate, last_sync_at=$Fleet.last_sync_at WHERE singleton"
-	initializeFleetStmt        = "INSERT OR IGNORE INTO %s (singleton, enabled, private_key, certificate, ca_certificate, last_sync_at) VALUES (TRUE, TRUE, $Fleet.private_key, $Fleet.certificate, $Fleet.ca_certificate, $Fleet.last_sync_at)"
-	updateFleetSyncStatusStmt  = "UPDATE %s SET last_sync_at=$Fleet.last_sync_at WHERE singleton"
+	getFleetStmt                  = "SELECT &Fleet.* FROM %s WHERE singleton"
+	updateFleetKeyStmt            = "UPDATE %s SET private_key=$Fleet.private_key WHERE singleton"
+	updateFleetCredentialsStmt    = "UPDATE %s SET certificate=$Fleet.certificate, ca_certificate=$Fleet.ca_certificate WHERE singleton"
+	clearFleetCredentialsStmt     = "UPDATE %s SET certificate=$Fleet.certificate, ca_certificate=$Fleet.ca_certificate, last_sync_at=$Fleet.last_sync_at, config_revision=$Fleet.config_revision WHERE singleton"
+	initializeFleetStmt           = "INSERT OR IGNORE INTO %s (singleton, enabled, private_key, certificate, ca_certificate, last_sync_at, config_revision) VALUES (TRUE, TRUE, $Fleet.private_key, $Fleet.certificate, $Fleet.ca_certificate, $Fleet.last_sync_at, $Fleet.config_revision)"
+	updateFleetSyncStatusStmt     = "UPDATE %s SET last_sync_at=$Fleet.last_sync_at WHERE singleton"
+	updateFleetConfigRevisionStmt = "UPDATE %s SET config_revision=$Fleet.config_revision WHERE singleton"
 )
 
 type Fleet struct {
-	Enabled       bool   `db:"enabled"`
-	PrivateKey    []byte `db:"private_key"`
-	Certificate   []byte `db:"certificate"`
-	CACertificate []byte `db:"ca_certificate"`
-	LastSyncAt    string `db:"last_sync_at"`
+	Enabled        bool   `db:"enabled"`
+	PrivateKey     []byte `db:"private_key"`
+	Certificate    []byte `db:"certificate"`
+	CACertificate  []byte `db:"ca_certificate"`
+	LastSyncAt     string `db:"last_sync_at"`
+	ConfigRevision int64  `db:"config_revision"`
 }
 
 // InitializeFleet inserts the default fleet row if it does not exist.
@@ -67,10 +70,11 @@ func (db *Database) InitializeFleet(ctx context.Context) error {
 	DBQueriesTotal.WithLabelValues(FleetTableName, "insert").Inc()
 
 	fleet := Fleet{
-		PrivateKey:    []byte{},
-		Certificate:   []byte{},
-		CACertificate: []byte{},
-		LastSyncAt:    "",
+		PrivateKey:     []byte{},
+		Certificate:    []byte{},
+		CACertificate:  []byte{},
+		LastSyncAt:     "",
+		ConfigRevision: 0,
 	}
 
 	err := db.conn.Query(ctx, db.initializeFleetStmt, fleet).Run()
@@ -288,9 +292,10 @@ func (db *Database) ClearFleetCredentials(ctx context.Context) error {
 	DBQueriesTotal.WithLabelValues(FleetTableName, "update").Inc()
 
 	fleet := Fleet{
-		Certificate:   []byte{},
-		CACertificate: []byte{},
-		LastSyncAt:    "",
+		Certificate:    []byte{},
+		CACertificate:  []byte{},
+		LastSyncAt:     "",
+		ConfigRevision: 0,
 	}
 
 	err := db.conn.Query(ctx, db.clearFleetCredentialsStmt, fleet).Run()
@@ -299,6 +304,42 @@ func (db *Database) ClearFleetCredentials(ctx context.Context) error {
 		span.SetStatus(codes.Error, "execution failed")
 
 		return fmt.Errorf("failed to clear fleet credentials: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// UpdateFleetConfigRevision stores the latest config revision received from Fleet.
+func (db *Database) UpdateFleetConfigRevision(ctx context.Context, revision int64) error {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPDATE", FleetTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("UPDATE"),
+			attribute.String("db.collection", FleetTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FleetTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(FleetTableName, "update").Inc()
+
+	fleet := Fleet{
+		ConfigRevision: revision,
+	}
+
+	err := db.conn.Query(ctx, db.updateFleetConfigRevisionStmt, fleet).Run()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+
+		return fmt.Errorf("failed to update fleet config revision: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")

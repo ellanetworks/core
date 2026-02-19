@@ -30,8 +30,16 @@ func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, cer
 		return fmt.Errorf("couldn't configure mTLS: %w", err)
 	}
 
+	fleetData, err := dbInstance.GetFleet(ctx)
+	if err != nil {
+		return fmt.Errorf("couldn't get fleet data: %w", err)
+	}
+
+	lastKnownRevision := fleetData.ConfigRevision
+
 	syncParams := &client.SyncParams{
-		Version: version.GetVersion().Version,
+		Version:           version.GetVersion().Version,
+		LastKnownRevision: lastKnownRevision,
 	}
 
 	if resp, err := fC.Sync(ctx, syncParams); err != nil {
@@ -41,10 +49,19 @@ func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, cer
 			onSync(ctx, false)
 		}
 	} else {
-		logger.EllaLog.Info("Initial sync sent successfully to fleet")
+		if resp.Config != nil {
+			if err := dbInstance.UpdateConfig(ctx, *resp.Config); err != nil {
+				logger.EllaLog.Error("failed to apply fleet config", zap.Error(err))
+			} else {
+				lastKnownRevision = resp.ConfigRevision
+				syncParams.LastKnownRevision = lastKnownRevision
 
-		if err := dbInstance.UpdateConfig(ctx, resp.Config); err != nil {
-			logger.EllaLog.Error("failed to apply fleet config", zap.Error(err))
+				if err := dbInstance.UpdateFleetConfigRevision(ctx, resp.ConfigRevision); err != nil {
+					logger.EllaLog.Error("failed to update config revision", zap.Error(err))
+				}
+			}
+		} else {
+			logger.EllaLog.Info("Fleet config is up to date, no changes applied")
 		}
 
 		if onSync != nil {
@@ -77,10 +94,19 @@ func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, cer
 						onSync(syncCtx, false)
 					}
 				} else {
-					logger.EllaLog.Info("Sync sent successfully to fleet")
+					if resp.Config != nil {
+						if err := dbInstance.UpdateConfig(syncCtx, *resp.Config); err != nil {
+							logger.EllaLog.Error("failed to apply fleet config", zap.Error(err))
+						} else {
+							lastKnownRevision = resp.ConfigRevision
+							syncParams.LastKnownRevision = lastKnownRevision
 
-					if err := dbInstance.UpdateConfig(syncCtx, resp.Config); err != nil {
-						logger.EllaLog.Error("failed to apply fleet config", zap.Error(err))
+							if err := dbInstance.UpdateFleetConfigRevision(syncCtx, resp.ConfigRevision); err != nil {
+								logger.EllaLog.Error("failed to update config revision", zap.Error(err))
+							}
+						}
+					} else {
+						logger.EllaLog.Debug("Fleet config is up to date, no changes applied")
 					}
 
 					if onSync != nil {

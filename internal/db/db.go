@@ -134,12 +134,13 @@ type Database struct {
 	countUsersStmt       *sqlair.Statement
 
 	// Fleet statements
-	getFleetStmt               *sqlair.Statement
-	updateFleetKeyStmt         *sqlair.Statement
-	updateFleetCredentialsStmt *sqlair.Statement
-	clearFleetCredentialsStmt  *sqlair.Statement
-	updateFleetSyncStatusStmt  *sqlair.Statement
-	initializeFleetStmt        *sqlair.Statement
+	getFleetStmt                  *sqlair.Statement
+	updateFleetKeyStmt            *sqlair.Statement
+	updateFleetCredentialsStmt    *sqlair.Statement
+	clearFleetCredentialsStmt     *sqlair.Statement
+	updateFleetSyncStatusStmt     *sqlair.Statement
+	updateFleetConfigRevisionStmt *sqlair.Statement
+	initializeFleetStmt           *sqlair.Statement
 
 	conn *sqlair.DB
 }
@@ -437,6 +438,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.updateFleetCredentialsStmt, fmt.Sprintf(updateFleetCredentialsStmt, FleetTableName), []any{Fleet{}}},
 		{&db.clearFleetCredentialsStmt, fmt.Sprintf(clearFleetCredentialsStmt, FleetTableName), []any{Fleet{}}},
 		{&db.updateFleetSyncStatusStmt, fmt.Sprintf(updateFleetSyncStatusStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetConfigRevisionStmt, fmt.Sprintf(updateFleetConfigRevisionStmt, FleetTableName), []any{Fleet{}}},
 		{&db.initializeFleetStmt, fmt.Sprintf(initializeFleetStmt, FleetTableName), []any{Fleet{}}},
 	}
 

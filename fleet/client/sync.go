@@ -11,7 +11,8 @@ import (
 )
 
 type SyncParams struct {
-	Version string `json:"version"`
+	Version           string `json:"version"`
+	LastKnownRevision int64  `json:"last_known_revision"`
 }
 
 type SyncNetworkInterfaces struct {
@@ -33,7 +34,8 @@ type SyncConfig struct {
 }
 
 type SyncResponse struct {
-	Config SyncConfig `json:"config"`
+	Config         *SyncConfig `json:"config,omitempty"`
+	ConfigRevision int64       `json:"config_revision"`
 }
 
 func (fc *Fleet) Sync(ctx context.Context, params *SyncParams) (*SyncResponse, error) {
