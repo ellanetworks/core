@@ -208,7 +208,8 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 		}
 
 		if numDataNetworks >= MaxNumDataNetworks {
-			writeError(w, http.StatusBadRequest, "Maximum number of data networks reached ("+strconv.Itoa(MaxNumPolicies)+")", nil, logger.APILog)
+			writeError(w, http.StatusBadRequest, "Maximum number of data networks reached ("+strconv.Itoa(MaxNumDataNetworks)+")", nil, logger.APILog)
+			return
 		}
 
 		dbDataNetwork := &db.DataNetwork{
