@@ -93,20 +93,17 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 
 	// Reconcile routes on startup and every 5 minutes.
 	go func() {
-		err := routeReconciler(dbInstance, kernelInt)
-		if err != nil {
-			logger.APILog.Error("couldn't reconcile routes", zap.Error(err))
-		}
-
 		for {
+			err := routeReconciler(dbInstance, kernelInt)
+			if err != nil {
+				logger.APILog.Error("couldn't reconcile routes", zap.Error(err))
+			}
+
 			select {
 			case <-ctx.Done():
 				return
 			case <-time.After(5 * time.Minute):
-				err := routeReconciler(dbInstance, kernelInt)
-				if err != nil {
-					logger.APILog.Error("couldn't reconcile routes", zap.Error(err))
-				}
+				continue
 			}
 		}
 	}()
