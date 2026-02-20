@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   Box,
   Typography,
@@ -21,17 +21,17 @@ import {
 import Grid from "@mui/material/Grid";
 import { PieChart } from "@mui/x-charts/PieChart";
 import { Link, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { getStatus } from "@/queries/status";
+import { getStatus, type APIStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
 import {
   listSubscribers,
   type ListSubscribersResponse,
 } from "@/queries/subscribers";
-import { listRadios } from "@/queries/radios";
+import { listRadios, type ListRadiosResponse } from "@/queries/radios";
 import {
   listRadioEvents,
-  type APIRadioEvent,
   type ListRadioEventsResponse,
 } from "@/queries/radio_events";
 
@@ -98,6 +98,76 @@ const formatTimestamp = (s: string) => {
     minute: "2-digit",
     hour12: false,
   });
+};
+
+type ParsedMetrics = {
+  pduSessions: number | null;
+  heapMemoryBytes: number | null;
+  totalMemoryBytes: number | null;
+  databaseSizeBytes: number | null;
+  routines: number | null;
+  allocatedIPs: number | null;
+  totalIPs: number | null;
+  uplinkBytes: number | null;
+  downlinkBytes: number | null;
+  n3Drops: number | null;
+  n6Drops: number | null;
+  n3Pass: number | null;
+  n6Pass: number | null;
+  n3Tx: number | null;
+  n6Tx: number | null;
+  n3Redirect: number | null;
+  n6Redirect: number | null;
+  n3Aborted: number | null;
+  n6Aborted: number | null;
+  processStart: number | null;
+};
+
+const parseMetrics = (raw: string): ParsedMetrics => {
+  const map = new Map<string, number>();
+  for (const line of raw.split("\n")) {
+    if (line.startsWith("#") || line === "") continue;
+    const spaceIdx = line.lastIndexOf(" ");
+    if (spaceIdx === -1) continue;
+    const key = line.slice(0, spaceIdx + 1);
+    const n = Number(line.slice(spaceIdx + 1));
+    if (Number.isFinite(n)) map.set(key, n);
+  }
+
+  const g = (k: string) => map.get(k) ?? null;
+
+  return {
+    pduSessions: g("app_pdu_sessions_total "),
+    heapMemoryBytes: g("go_memstats_heap_inuse_bytes "),
+    totalMemoryBytes: g("process_resident_memory_bytes "),
+    databaseSizeBytes: g("app_database_storage_bytes "),
+    routines: g("go_goroutines "),
+    allocatedIPs:
+      g("app_ip_addresses_allocated_total ") != null
+        ? Math.round(g("app_ip_addresses_allocated_total ")!)
+        : null,
+    totalIPs:
+      g("app_ip_addresses_total ") != null
+        ? Math.round(g("app_ip_addresses_total ")!)
+        : null,
+    uplinkBytes: g("app_uplink_bytes "),
+    downlinkBytes: g("app_downlink_bytes "),
+    n3Drops: g('app_xdp_action_total{action="XDP_DROP",interface="n3"} '),
+    n6Drops: g('app_xdp_action_total{action="XDP_DROP",interface="n6"} '),
+    n3Pass: g('app_xdp_action_total{action="XDP_PASS",interface="n3"} '),
+    n6Pass: g('app_xdp_action_total{action="XDP_PASS",interface="n6"} '),
+    n3Tx: g('app_xdp_action_total{action="XDP_TX",interface="n3"} '),
+    n6Tx: g('app_xdp_action_total{action="XDP_TX",interface="n6"} '),
+    n3Redirect: g(
+      'app_xdp_action_total{action="XDP_REDIRECT",interface="n3"} ',
+    ),
+    n6Redirect: g(
+      'app_xdp_action_total{action="XDP_REDIRECT",interface="n6"} ',
+    ),
+    n3Aborted: g('app_xdp_action_total{action="XDP_ABORTED",interface="n3"} '),
+    n6Aborted: g('app_xdp_action_total{action="XDP_ABORTED",interface="n6"} '),
+    processStart: g("process_start_time_seconds "),
+  };
 };
 
 type KpiCardProps = {
@@ -179,260 +249,85 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
-  const [version, setVersion] = useState<string | null>(null);
-  const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
-  const [radioCount, setRadioCount] = useState<number | null>(null);
+  const statusQuery = useQuery<APIStatus>({
+    queryKey: ["dashboardStatus"],
+    queryFn: () => getStatus(),
+    enabled: authReady,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
+  });
 
-  const [activeSessions, setActiveSessions] = useState<number | null>(null);
-  const [heapMemory, setHeapMemory] = useState<number | null>(null);
-  const [totalMemory, setTotalMemory] = useState<number | null>(null);
-  const [databaseSize, setDatabaseSize] = useState<number | null>(null);
-  const [routines, setRoutines] = useState<number | null>(null);
-  const [allocatedIPs, setAllocatedIPs] = useState<number | null>(null);
-  const [totalIPs, setTotalIPs] = useState<number | null>(null);
+  const subscribersQuery = useQuery<ListSubscribersResponse>({
+    queryKey: ["dashboardSubscribers"],
+    queryFn: () => listSubscribers(accessToken!, 1, 1),
+    enabled: authReady && !!accessToken,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
+  });
 
-  const [uplinkBytes, setUplinkBytes] = useState<number | null>(null);
-  const [downlinkBytes, setDownlinkBytes] = useState<number | null>(null);
-  const [n3Drops, setN3Drops] = useState<number | null>(null);
-  const [n6Drops, setN6Drops] = useState<number | null>(null);
-  const [n3Pass, setN3Pass] = useState<number | null>(null);
-  const [n6Pass, setN6Pass] = useState<number | null>(null);
-  const [n3Tx, setN3Tx] = useState<number | null>(null);
-  const [n6Tx, setN6Tx] = useState<number | null>(null);
-  const [n3Redirect, setN3Redirect] = useState<number | null>(null);
-  const [n6Redirect, setN6Redirect] = useState<number | null>(null);
-  const [n3Aborted, setN3Aborted] = useState<number | null>(null);
-  const [n6Aborted, setN6Aborted] = useState<number | null>(null);
+  const radiosQuery = useQuery<ListRadiosResponse>({
+    queryKey: ["dashboardRadios"],
+    queryFn: () => listRadios(accessToken!, 1, 1),
+    enabled: authReady && !!accessToken,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
+  });
 
-  const [upSince, setUpSince] = useState<Date | null>(null);
+  const metricsQuery = useQuery<ParsedMetrics>({
+    queryKey: ["dashboardMetrics"],
+    queryFn: async () => parseMetrics(await getMetrics()),
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
+  });
 
-  const [networkLogs, setRadioEvents] = useState<APIRadioEvent[]>([]);
-  const [logsError, setLogsError] = useState<string | null>(null);
+  const radioEventsQuery = useQuery<ListRadioEventsResponse>({
+    queryKey: ["dashboardRadioEvents"],
+    queryFn: () => listRadioEvents(accessToken!, 1, 10),
+    enabled: authReady && !!accessToken,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
+  });
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const version = statusQuery.data?.version ?? null;
+  const subscriberCount = subscribersQuery.data?.total_count ?? null;
+  const radioCount = radiosQuery.data?.total_count ?? null;
+  const m = metricsQuery.data;
+  const networkLogs = radioEventsQuery.data?.items ?? [];
+  const logsError = radioEventsQuery.error
+    ? "Failed to fetch radio events."
+    : null;
 
-  const parseMetrics = (metrics: string) => {
-    const lines = metrics.split("\n");
-    const getValue = (prefix: string): number | null => {
-      const line = lines.find((l) => l.startsWith(prefix));
-      if (!line) return null;
-      const parts = line.split(" ");
-      const n = Number(parts[1]);
-      return Number.isFinite(n) ? n : null;
-    };
+  const loading = metricsQuery.isLoading;
+  const error =
+    statusQuery.error || subscribersQuery.error || metricsQuery.error
+      ? "Failed to fetch dashboard data."
+      : null;
 
-    const pduSessions = getValue("app_pdu_sessions_total ");
-    const heapBytes = getValue("go_memstats_heap_inuse_bytes ");
-    const sysBytes = getValue("process_resident_memory_bytes ");
-    const goGoroutines = getValue("go_goroutines ");
-    const dbBytes = getValue("app_database_storage_bytes ");
-    const allocIPs = getValue("app_ip_addresses_allocated_total ");
-    const totalIPsV = getValue("app_ip_addresses_total ");
-    const ulBytes = getValue("app_uplink_bytes ");
-    const dlBytes = getValue("app_downlink_bytes ");
-    const n3Drop = getValue(
-      'app_xdp_action_total{action="XDP_DROP",interface="n3"} ',
-    );
-    const n6Drop = getValue(
-      'app_xdp_action_total{action="XDP_DROP",interface="n6"} ',
-    );
-    const n3PassV = getValue(
-      'app_xdp_action_total{action="XDP_PASS",interface="n3"} ',
-    );
-    const n6PassV = getValue(
-      'app_xdp_action_total{action="XDP_PASS",interface="n6"} ',
-    );
-    const n3TxV = getValue(
-      'app_xdp_action_total{action="XDP_TX",interface="n3"} ',
-    );
-    const n6TxV = getValue(
-      'app_xdp_action_total{action="XDP_TX",interface="n6"} ',
-    );
-    const n3RedirectV = getValue(
-      'app_xdp_action_total{action="XDP_REDIRECT",interface="n3"} ',
-    );
-    const n6RedirectV = getValue(
-      'app_xdp_action_total{action="XDP_REDIRECT",interface="n6"} ',
-    );
-    const n3AbortedV = getValue(
-      'app_xdp_action_total{action="XDP_ABORTED",interface="n3"} ',
-    );
-    const n6AbortedV = getValue(
-      'app_xdp_action_total{action="XDP_ABORTED",interface="n6"} ',
-    );
-    const startTime = getValue("process_start_time_seconds ");
-
-    return {
-      pduSessions: pduSessions ?? null,
-      heapMemoryBytes: heapBytes,
-      totalMemoryBytes: sysBytes,
-      databaseSizeBytes: dbBytes,
-      routines: goGoroutines ?? null,
-      allocatedIPs: allocIPs == null ? null : Math.round(allocIPs),
-      totalIPs: totalIPsV == null ? null : Math.round(totalIPsV),
-      uplinkBytes: ulBytes ?? null,
-      downlinkBytes: dlBytes ?? null,
-      n3Drops: n3Drop ?? null,
-      n6Drops: n6Drop ?? null,
-      n3Pass: n3PassV ?? null,
-      n6Pass: n6PassV ?? null,
-      n3Tx: n3TxV ?? null,
-      n6Tx: n6TxV ?? null,
-      n3Redirect: n3RedirectV ?? null,
-      n6Redirect: n6RedirectV ?? null,
-      n3Aborted: n3AbortedV ?? null,
-      n6Aborted: n6AbortedV ?? null,
-      processStart: startTime ?? null,
-    };
-  };
-
-  useEffect(() => {
-    if (!authReady) return;
-    if (!accessToken) return;
-    let mounted = true;
-
-    (async () => {
-      try {
-        const [status, subsPage, radiosPage] = await Promise.all([
-          getStatus(),
-          listSubscribers(
-            accessToken,
-            1,
-            1,
-          ) as Promise<ListSubscribersResponse>,
-          listRadios(accessToken, 1, 1),
-        ]);
-        if (!mounted) return;
-
-        setVersion(status.version ?? null);
-        setSubscriberCount(subsPage.total_count ?? 0);
-        setRadioCount(radiosPage.total_count ?? 0);
-      } catch {
-        if (mounted) setError("Failed to fetch initial data.");
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
-  }, [authReady, accessToken]);
-
-  useEffect(() => {
-    let interval: number | undefined;
-    let mounted = true;
-
-    const tick = async () => {
-      try {
-        const raw = await getMetrics();
-        if (!mounted) return;
-
-        const {
-          pduSessions,
-          heapMemoryBytes,
-          totalMemoryBytes,
-          databaseSizeBytes,
-          routines,
-          allocatedIPs,
-          totalIPs,
-          uplinkBytes,
-          downlinkBytes,
-          n3Drops,
-          n6Drops,
-          n3Pass,
-          n6Pass,
-          n3Tx,
-          n6Tx,
-          n3Redirect,
-          n6Redirect,
-          n3Aborted,
-          n6Aborted,
-          processStart,
-        } = parseMetrics(raw);
-
-        setActiveSessions(pduSessions);
-        setHeapMemory(heapMemoryBytes);
-        setTotalMemory(totalMemoryBytes);
-        setDatabaseSize(databaseSizeBytes);
-        setRoutines(routines);
-        setAllocatedIPs(allocatedIPs);
-        setTotalIPs(totalIPs);
-        setUplinkBytes(uplinkBytes);
-        setDownlinkBytes(downlinkBytes);
-        setN3Drops(n3Drops);
-        setN6Drops(n6Drops);
-        setN3Pass(n3Pass);
-        setN6Pass(n6Pass);
-        setN3Tx(n3Tx);
-        setN6Tx(n6Tx);
-        setN3Redirect(n3Redirect);
-        setN6Redirect(n6Redirect);
-        setN3Aborted(n3Aborted);
-        setN6Aborted(n6Aborted);
-
-        if (processStart) {
-          setUpSince(new Date(processStart * 1000));
-        }
-
-        setError(null);
-      } catch (e) {
-        console.error("Failed to update metrics:", e);
-        setError((prev) => prev ?? "Failed to update metrics.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const start = () => {
-      tick();
-      interval = window.setInterval(tick, 5000);
-    };
-    const stop = () => {
-      if (interval) window.clearInterval(interval);
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) stop();
-      else start();
-    };
-
-    start();
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      stop();
-      mounted = false;
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!authReady) return;
-    if (!accessToken) return;
-
-    let mounted = true;
-
-    const fetchLogs = async () => {
-      try {
-        const res: ListRadioEventsResponse = await listRadioEvents(
-          accessToken,
-          1,
-          10,
-        );
-        if (!mounted) return;
-        setRadioEvents(res.items ?? []);
-        setLogsError(null);
-      } catch (e) {
-        if (!mounted) return;
-        console.error("Error fetching radio events:", e);
-        setLogsError("Failed to fetch radio events.");
-      }
-    };
-
-    fetchLogs();
-    return () => {
-      mounted = false;
-    };
-  }, [authReady, accessToken]);
+  const activeSessions = m?.pduSessions ?? null;
+  const heapMemory = m?.heapMemoryBytes ?? null;
+  const totalMemory = m?.totalMemoryBytes ?? null;
+  const databaseSize = m?.databaseSizeBytes ?? null;
+  const routines = m?.routines ?? null;
+  const allocatedIPs = m?.allocatedIPs ?? null;
+  const totalIPs = m?.totalIPs ?? null;
+  const uplinkBytes = m?.uplinkBytes ?? null;
+  const downlinkBytes = m?.downlinkBytes ?? null;
+  const n3Drops = m?.n3Drops ?? null;
+  const n6Drops = m?.n6Drops ?? null;
+  const n3Pass = m?.n3Pass ?? null;
+  const n6Pass = m?.n6Pass ?? null;
+  const n3Tx = m?.n3Tx ?? null;
+  const n6Tx = m?.n6Tx ?? null;
+  const n3Redirect = m?.n3Redirect ?? null;
+  const n6Redirect = m?.n6Redirect ?? null;
+  const n3Aborted = m?.n3Aborted ?? null;
+  const n6Aborted = m?.n6Aborted ?? null;
+  const upSince = m?.processStart ? new Date(m.processStart * 1000) : null;
 
   const ipChart = useMemo(() => {
     const alloc = allocatedIPs ?? 0;

@@ -65,6 +65,7 @@ const AuditLog: React.FC = () => {
           paginationModel.pageSize,
         ),
       enabled: authReady && !!accessToken,
+      placeholderData: (prev) => prev,
     });
 
   const rows: APIAuditLog[] = auditLogsData?.items ?? [];
@@ -178,7 +179,6 @@ const AuditLog: React.FC = () => {
             rows={rows}
             columns={columns}
             getRowId={(row) => row.id}
-            loading={loading}
             paginationMode="server"
             rowCount={rowCount}
             paginationModel={paginationModel}

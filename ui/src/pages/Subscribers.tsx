@@ -276,7 +276,11 @@ const SubscriberPage: React.FC = () => {
         </Collapse>
       </Box>
 
-      {!isLoading && rowCount === 0 ? (
+      {isLoading && !data ? (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
+          <CircularProgress />
+        </Box>
+      ) : !isLoading && rowCount === 0 ? (
         <EmptyState
           primaryText="No subscriber found."
           secondaryText="Create a new subscriber."

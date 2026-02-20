@@ -119,6 +119,7 @@ export default function NetworkingPage() {
     refetchInterval: 5000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
   });
 
   const dnRows: APIDataNetwork[] = dnPage?.items ?? [];
@@ -276,6 +277,7 @@ export default function NetworkingPage() {
       ),
     enabled: !!accessToken,
     refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
   });
 
   const rtRows: APIRoute[] = rtPage?.items ?? [];
@@ -505,7 +507,6 @@ export default function NetworkingPage() {
                   rows={dnRows}
                   columns={dnColumns}
                   getRowId={(row) => row.name}
-                  loading={dnLoading}
                   paginationMode="server"
                   rowCount={dnRowCount}
                   paginationModel={dnPagination}
@@ -514,7 +515,6 @@ export default function NetworkingPage() {
                   sortingMode="server"
                   disableColumnMenu
                   disableRowSelectionOnClick
-                  autoHeight
                   sx={{
                     width: "100%",
                     border: 1,
@@ -825,7 +825,6 @@ export default function NetworkingPage() {
                   rows={rtRows}
                   columns={rtColumns}
                   getRowId={(row) => row.id}
-                  loading={rtLoading}
                   paginationMode="server"
                   rowCount={rtRowCount}
                   paginationModel={rtPagination}
@@ -834,7 +833,6 @@ export default function NetworkingPage() {
                   sortingMode="server"
                   disableColumnMenu
                   disableRowSelectionOnClick
-                  autoHeight
                   sx={{
                     width: "100%",
                     border: 1,
