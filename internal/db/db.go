@@ -133,6 +133,15 @@ type Database struct {
 	deleteUserStmt       *sqlair.Statement
 	countUsersStmt       *sqlair.Statement
 
+	// Fleet statements
+	getFleetStmt                  *sqlair.Statement
+	updateFleetKeyStmt            *sqlair.Statement
+	updateFleetCredentialsStmt    *sqlair.Statement
+	clearFleetCredentialsStmt     *sqlair.Statement
+	updateFleetSyncStatusStmt     *sqlair.Statement
+	updateFleetConfigRevisionStmt *sqlair.Statement
+	initializeFleetStmt           *sqlair.Statement
+
 	conn *sqlair.DB
 }
 
@@ -281,6 +290,10 @@ func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 		return nil, err
 	}
 
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateFleetTable, FleetTableName)); err != nil {
+		return nil, err
+	}
+
 	db := new(Database)
 	db.conn = sqlair.NewDB(sqlConnection)
 	db.filepath = databasePath
@@ -418,6 +431,15 @@ func (db *Database) PrepareStatements() error {
 		{&db.editUserPasswordStmt, fmt.Sprintf(editUserPasswordStmt, UsersTableName), []any{User{}}},
 		{&db.deleteUserStmt, fmt.Sprintf(deleteUserStmt, UsersTableName), []any{User{}}},
 		{&db.countUsersStmt, fmt.Sprintf(countUsersStmt, UsersTableName), []any{NumItems{}}},
+
+		// Fleet
+		{&db.getFleetStmt, fmt.Sprintf(getFleetStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetKeyStmt, fmt.Sprintf(updateFleetKeyStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetCredentialsStmt, fmt.Sprintf(updateFleetCredentialsStmt, FleetTableName), []any{Fleet{}}},
+		{&db.clearFleetCredentialsStmt, fmt.Sprintf(clearFleetCredentialsStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetSyncStatusStmt, fmt.Sprintf(updateFleetSyncStatusStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetConfigRevisionStmt, fmt.Sprintf(updateFleetConfigRevisionStmt, FleetTableName), []any{Fleet{}}},
+		{&db.initializeFleetStmt, fmt.Sprintf(initializeFleetStmt, FleetTableName), []any{Fleet{}}},
 	}
 
 	for _, s := range stmts {
@@ -441,6 +463,11 @@ func (db *Database) Initialize(ctx context.Context) error {
 	err = db.InitializeN3Settings(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to initialize N3 settings: %w", err)
+	}
+
+	err = db.InitializeFleet(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize fleet: %w", err)
 	}
 
 	if !db.IsOperatorInitialized(ctx) {

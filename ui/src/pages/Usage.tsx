@@ -28,6 +28,7 @@ import {
   type UsageRetentionPolicy,
 } from "@/queries/usage";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { useQuery } from "@tanstack/react-query";
 import EditUsageRetentionPolicyModal from "@/components/EditUsageRetentionPolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -96,8 +97,9 @@ const getDefaultDateRange = () => {
 
 const SubscriberUsage = () => {
   const { role, accessToken, authReady } = useAuth();
+  const { isFleetManaged } = useFleet();
 
-  const canEdit = role === "Admin";
+  const canEdit = role === "Admin" && !isFleetManaged;
 
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));

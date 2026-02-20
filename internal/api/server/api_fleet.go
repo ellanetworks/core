@@ -1,0 +1,421 @@
+package server
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"github.com/ellanetworks/core/fleet"
+	"github.com/ellanetworks/core/fleet/client"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/config"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
+)
+
+type RegisterFleetParams struct {
+	ActivationToken string `json:"activationToken"`
+}
+
+const (
+	RegisterFleetAction   = "register_fleet"
+	UnregisterFleetAction = "unregister_fleet"
+)
+
+const (
+	FleetURL = "https://127.0.0.1:5003"
+)
+
+func RegisterFleet(dbInstance *db.Database, cfg config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		email := r.Context().Value(contextKeyEmail)
+
+		emailStr, ok := email.(string)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			return
+		}
+
+		var params RegisterFleetParams
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			return
+		}
+
+		if params.ActivationToken == "" {
+			writeError(w, http.StatusBadRequest, "activationToken is missing", nil, logger.APILog)
+			return
+		}
+
+		err := register(r.Context(), dbInstance, FleetURL, params.ActivationToken, cfg)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to register to fleet", err, logger.APILog)
+			return
+		}
+
+		logger.LogAuditEvent(
+			r.Context(),
+			RegisterFleetAction,
+			emailStr,
+			getClientIP(r),
+			"User registered Core to Fleet",
+		)
+
+		writeResponse(w, SuccessResponse{Message: "Core registered to Fleet successfully"}, http.StatusCreated, logger.APILog)
+	}
+}
+
+func register(ctx context.Context, dbInstance *db.Database, fleetURL string, activationToken string, cfg config.Config) error {
+	key, err := dbInstance.LoadOrGenerateFleetKey(ctx)
+	if err != nil {
+		return fmt.Errorf("couldn't load or generate key: %w", err)
+	}
+
+	fC := client.New(fleetURL)
+
+	initialConfig, err := buildInitialConfig(ctx, dbInstance)
+	if err != nil {
+		return fmt.Errorf("couldn't build initial config: %w", err)
+	}
+
+	initialStatus := BuildStatus(ctx, dbInstance, cfg)
+
+	data, err := fC.Register(ctx, activationToken, key.PublicKey, initialConfig, initialStatus)
+	if err != nil {
+		return fmt.Errorf("couldn't register to fleet: %w", err)
+	}
+
+	logger.EllaLog.Info("Registered to fleet successfully")
+
+	err = dbInstance.UpdateFleetCredentials(ctx, []byte(data.Certificate), []byte(data.CACertificate))
+	if err != nil {
+		return fmt.Errorf("couldn't store fleet credentials in database: %w", err)
+	}
+
+	logger.EllaLog.Info("Fleet credentials stored successfully")
+
+	statusProvider := func() client.EllaCoreStatus {
+		return BuildStatus(context.Background(), dbInstance, cfg)
+	}
+
+	err = fleet.ResumeSync(context.Background(), fleetURL, key, []byte(data.Certificate), []byte(data.CACertificate), dbInstance, statusProvider, func(syncCtx context.Context, success bool) {
+		if success {
+			if err := dbInstance.UpdateFleetSyncStatus(syncCtx); err != nil {
+				logger.EllaLog.Error("couldn't update fleet sync status", zap.Error(err))
+			}
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't start fleet sync: %w", err)
+	}
+
+	return nil
+}
+
+func BuildStatus(ctx context.Context, dbInstance *db.Database, cfg config.Config) client.EllaCoreStatus {
+	networkInterfacesConfigs := client.StatusNetworkInterfaces{
+		N2: client.N2Interface{
+			Address: cfg.Interfaces.N2.Address,
+			Port:    cfg.Interfaces.N2.Port,
+		},
+		N3: client.N3Interface{
+			Name:    cfg.Interfaces.N3.Name,
+			Address: cfg.Interfaces.N3.Address,
+		},
+		N6: client.N6Interface{
+			Name: cfg.Interfaces.N6.Name,
+		},
+		API: client.APIInterface{
+			Address: cfg.Interfaces.API.Address,
+			Port:    cfg.Interfaces.API.Port,
+		},
+	}
+
+	if cfg.Interfaces.N3.VlanConfig != nil {
+		networkInterfacesConfigs.N3.Vlan = &client.Vlan{
+			MasterInterface: cfg.Interfaces.N3.VlanConfig.MasterInterface,
+			VlanId:          cfg.Interfaces.N3.VlanConfig.VlanId,
+		}
+	}
+
+	if cfg.Interfaces.N6.VlanConfig != nil {
+		networkInterfacesConfigs.N6.Vlan = &client.Vlan{
+			MasterInterface: cfg.Interfaces.N6.VlanConfig.MasterInterface,
+			VlanId:          cfg.Interfaces.N6.VlanConfig.VlanId,
+		}
+	}
+
+	radios := getRadiosStatus()
+	subscribers := getSubscribersStatus(ctx, dbInstance)
+
+	return client.EllaCoreStatus{
+		NetworkInterfaces: networkInterfacesConfigs,
+		Radios:            radios,
+		Subscribers:       subscribers,
+	}
+}
+
+func getRadiosStatus() []client.Radio {
+	amf := amfContext.AMFSelf()
+	_, ranList := amf.ListAmfRan(1, 1000)
+
+	radios := make([]client.Radio, 0, len(ranList))
+	for _, radio := range ranList {
+		supportedTAIs := make([]client.SupportedTAI, 0, len(radio.SupportedTAIs))
+		for _, tai := range radio.SupportedTAIs {
+			snssais := make([]client.Snssai, 0, len(tai.SNssaiList))
+			for _, snssai := range tai.SNssaiList {
+				snssais = append(snssais, client.Snssai{
+					Sst: snssai.Sst,
+					Sd:  snssai.Sd,
+				})
+			}
+
+			supportedTAIs = append(supportedTAIs, client.SupportedTAI{
+				Tai: client.Tai{
+					PlmnID: client.PlmnID{
+						Mcc: tai.Tai.PlmnID.Mcc,
+						Mnc: tai.Tai.PlmnID.Mnc,
+					},
+					Tac: tai.Tai.Tac,
+				},
+				SNssais: snssais,
+			})
+		}
+
+		radioAddress := ""
+
+		if radio.Conn != nil {
+			if addr := radio.Conn.RemoteAddr(); addr != nil {
+				radioAddress = addr.String()
+			}
+		}
+
+		radioID := ""
+		if radio.RanID.GNbID != nil {
+			radioID = radio.RanID.GNbID.GNBValue
+		}
+
+		radios = append(radios, client.Radio{
+			Name:          radio.Name,
+			ID:            radioID,
+			Address:       radioAddress,
+			SupportedTAIs: supportedTAIs,
+		})
+	}
+
+	return radios
+}
+
+func getSubscribersStatus(ctx context.Context, dbInstance *db.Database) []client.SubscriberStatus {
+	subscribers, _, err := dbInstance.ListSubscribersPage(ctx, 1, 1000)
+	if err != nil {
+		logger.EllaLog.Error("failed to list subscribers for status", zap.Error(err))
+		return nil
+	}
+
+	amf := amfContext.AMFSelf()
+
+	statuses := make([]client.SubscriberStatus, 0, len(subscribers))
+	for _, s := range subscribers {
+		ipAddress := ""
+		if s.IPAddress != nil {
+			ipAddress = *s.IPAddress
+		}
+
+		statuses = append(statuses, client.SubscriberStatus{
+			Imsi:       s.Imsi,
+			Registered: amf.IsSubscriberRegistered(s.Imsi),
+			IPAddress:  ipAddress,
+		})
+	}
+
+	return statuses
+}
+
+func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.EllaCoreConfig, error) {
+	op, err := dbInstance.GetOperator(ctx)
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get operator from database: %w", err)
+	}
+
+	supportedTacs, err := op.GetSupportedTacs()
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get supported tacs: %w", err)
+	}
+
+	routes, _, err := dbInstance.ListRoutesPage(ctx, 1, 100)
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list routes: %w", err)
+	}
+
+	routesConfigs := make([]client.Route, len(routes))
+	for i, r := range routes {
+		routesConfigs[i] = client.Route{
+			ID:          r.ID,
+			Destination: r.Destination,
+			Gateway:     r.Gateway,
+			Interface:   r.Interface.String(),
+			Metric:      r.Metric,
+		}
+	}
+
+	natEnabled, err := dbInstance.IsNATEnabled(ctx)
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get NAT configuration: %w", err)
+	}
+
+	n3Settings, err := dbInstance.GetN3Settings(ctx)
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get N3 settings: %w", err)
+	}
+
+	dataNetworks, _, err := dbInstance.ListDataNetworksPage(ctx, 1, 100)
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list data networks: %w", err)
+	}
+
+	dnConfigs := make([]client.DataNetwork, len(dataNetworks))
+	for i, dn := range dataNetworks {
+		dnConfigs[i] = client.DataNetwork{
+			ID:     dn.ID,
+			Name:   dn.Name,
+			IPPool: dn.IPPool,
+			DNS:    dn.DNS,
+			MTU:    dn.MTU,
+		}
+	}
+
+	policies, _, err := dbInstance.ListPoliciesPage(ctx, 1, 100)
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list policies: %w", err)
+	}
+
+	policyConfigs := make([]client.Policy, len(policies))
+	for i, p := range policies {
+		policyConfigs[i] = client.Policy{
+			ID:              p.ID,
+			Name:            p.Name,
+			BitrateUplink:   p.BitrateUplink,
+			BitrateDownlink: p.BitrateDownlink,
+			Var5qi:          p.Var5qi,
+			Arp:             p.Arp,
+			DataNetworkID:   p.DataNetworkID,
+		}
+	}
+
+	subscribers, _, err := dbInstance.ListSubscribersPage(ctx, 1, 1000)
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list subscribers: %w", err)
+	}
+
+	subscriberConfigs := make([]client.Subscriber, len(subscribers))
+	for i, s := range subscribers {
+		subscriberConfigs[i] = client.Subscriber{
+			ID:             s.ID,
+			Imsi:           s.Imsi,
+			IPAddress:      s.IPAddress,
+			SequenceNumber: s.SequenceNumber,
+			PermanentKey:   s.PermanentKey,
+			Opc:            s.Opc,
+			PolicyID:       s.PolicyID,
+		}
+	}
+
+	initialConfig := client.EllaCoreConfig{
+		Operator: client.Operator{
+			ID: client.OperatorID{
+				Mcc: op.Mcc,
+				Mnc: op.Mnc,
+			},
+			Slice: client.OperatorSlice{
+				Sst: op.Sst,
+				Sd:  op.Sd,
+			},
+			OperatorCode: op.OperatorCode,
+			Tracking: client.OperatorTracking{
+				SupportedTacs: supportedTacs,
+			},
+			HomeNetwork: client.OperatorHomeNetwork{
+				PrivateKey: op.HomeNetworkPrivateKey,
+			},
+		},
+		Networking: client.Networking{
+			DataNetworks:      dnConfigs,
+			Routes:            routesConfigs,
+			NAT:               natEnabled,
+			N3ExternalAddress: n3Settings.ExternalAddress,
+		},
+		Policies:    policyConfigs,
+		Subscribers: subscriberConfigs,
+	}
+
+	return initialConfig, nil
+}
+
+func UnregisterFleet(dbInstance *db.Database) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		email := r.Context().Value(contextKeyEmail)
+
+		emailStr, ok := email.(string)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			return
+		}
+
+		managed, err := dbInstance.IsFleetManaged(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to check fleet status", err, logger.APILog)
+			return
+		}
+
+		if !managed {
+			writeError(w, http.StatusBadRequest, "Core is not registered to a Fleet", nil, logger.APILog)
+			return
+		}
+
+		// Notify the fleet server about the unregistration.
+		fleetData, err := dbInstance.GetFleet(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to load fleet data", err, logger.APILog)
+			return
+		}
+
+		key, err := dbInstance.LoadOrGenerateFleetKey(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to load fleet key", err, logger.APILog)
+			return
+		}
+
+		fC := client.New(FleetURL)
+
+		if err := fC.ConfigureMTLS(string(fleetData.Certificate), key, string(fleetData.CACertificate)); err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to configure mTLS for fleet", err, logger.APILog)
+			return
+		}
+
+		if err := fC.Unregister(r.Context()); err != nil {
+			logger.APILog.Warn("couldn't notify fleet server about unregistration", zap.Error(err))
+		}
+
+		fleet.StopSync()
+
+		err = dbInstance.ClearFleetCredentials(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to unregister from Fleet", err, logger.APILog)
+			return
+		}
+
+		logger.LogAuditEvent(
+			r.Context(),
+			UnregisterFleetAction,
+			emailStr,
+			getClientIP(r),
+			"User unregistered Core from Fleet",
+		)
+
+		writeResponse(w, SuccessResponse{Message: "Core unregistered from Fleet successfully"}, http.StatusOK, logger.APILog)
+	}
+}
