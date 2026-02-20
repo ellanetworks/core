@@ -685,7 +685,7 @@ func (ue *AmfUe) ResetMobileReachableTimer() {
 		ue.implicitDeregistrationTimer = nil
 	}
 
-	ue.Log.Debug("starting mobile reachable timer")
+	ue.Log.Debug("starting mobile reachable timer", zap.String("SUPI", ue.Supi))
 
 	ue.mobileReachableTimer = NewTimer(
 		ue.T3512Value+(4*time.Minute),
