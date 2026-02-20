@@ -17,7 +17,7 @@ func handleDeregistrationAccept(ctx context.Context, ue *amfContext.AmfUe) error
 		ue.T3522 = nil // clear the timer
 	}
 
-	ue.State = amfContext.Deregistered
+	defer ue.Deregister()
 
 	if ue.RanUe == nil {
 		logger.AmfLog.Warn("RanUe is nil, cannot send UE Context Release Command", zap.String("supi", ue.Supi))

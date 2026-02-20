@@ -46,7 +46,7 @@ func GenerateJWTSecret() ([]byte, error) {
 	return bytes, nil
 }
 
-func Start(dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) error {
+func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) error {
 	jwtSecret, err := GenerateJWTSecret()
 	if err != nil {
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
@@ -99,7 +99,12 @@ func Start(dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, em
 				logger.APILog.Error("couldn't reconcile routes", zap.Error(err))
 			}
 
-			time.Sleep(5 * time.Minute)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Minute):
+				continue
+			}
 		}
 	}()
 

@@ -156,6 +156,8 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 		}
 	}
 
+	amfUe.ResetMobileReachableTimer()
+
 	switch ranUe.ReleaseAction {
 	case amfContext.UeContextN2NormalRelease:
 		ran.Log.Info("Release UE Context: N2 Connection Release", zap.String("supi", amfUe.Supi))
@@ -175,7 +177,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 		// Valid Security is not exist for this UE then only delete AMfUe Context
 		if !amfUe.SecurityContextAvailable {
 			ran.Log.Info("Valid Security is not exist for the UE, so deleting AmfUe Context", zap.String("supi", amfUe.Supi))
-			amf.RemoveAMFUE(amfUe)
+			amf.DeregisterAndRemoveAMFUE(amfUe)
 		}
 	case amfContext.UeContextReleaseDueToNwInitiatedDeregistraion:
 		ran.Log.Info("Release UE Context Due to Nw Initiated: Release Ue Context", zap.String("supi", amfUe.Supi))
@@ -185,7 +187,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 			ran.Log.Error(err.Error())
 		}
 
-		amf.RemoveAMFUE(amfUe)
+		amf.DeregisterAndRemoveAMFUE(amfUe)
 	case amfContext.UeContextReleaseHandover:
 		ran.Log.Info("Release UE Context : Release for Handover", zap.String("supi", amfUe.Supi))
 

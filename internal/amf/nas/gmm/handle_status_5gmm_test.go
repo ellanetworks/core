@@ -14,7 +14,7 @@ func TestHandleStatus5GMM_UEDeregistered_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = context.Deregistered
+	ue.Deregister()
 
 	m := buildTestStatus5gmm()
 

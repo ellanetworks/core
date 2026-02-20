@@ -17,6 +17,8 @@ jobs:
     uses: ./.github/workflows/ui-lint.yaml
   go-unit-test:
     uses: ./.github/workflows/go-unittest.yaml
+  go-race-detection-test:
+    uses: ./.github/workflows/go-racedetect.yaml
   go-vet:
     uses: ./.github/workflows/go-vet.yaml
   go-lint:

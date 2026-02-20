@@ -13,19 +13,12 @@ import (
 )
 
 // TS 23.502 4.2.2.3
-func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration) error {
+func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amfContext.AmfUe, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration) error {
 	if ue.State != amfContext.Registered {
 		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", ue.State)
 	}
 
-	ue.State = amfContext.Deregistered
-
-	for _, smContext := range ue.SmContextList {
-		err := amf.Smf.ReleaseSmContext(ctx, smContext.Ref)
-		if err != nil {
-			ue.Log.Error("Release SmContext Error", zap.Error(err))
-		}
-	}
+	ue.Deregister()
 
 	if ue.RanUe == nil {
 		logger.AmfLog.Warn("RanUe is nil, cannot send UE Context Release Command", zap.String("supi", ue.Supi))

@@ -51,6 +51,7 @@ const (
 	checkIPStmt                  = "SELECT &Subscriber.* FROM %s WHERE ipAddress=$Subscriber.ipAddress"
 	allocateIPStmt               = "UPDATE %s SET ipAddress=$Subscriber.ipAddress WHERE imsi=$Subscriber.imsi"
 	releaseIPStmt                = "UPDATE %s SET ipAddress=NULL WHERE imsi=$Subscriber.imsi"
+	releaseAllIPStmt             = "UPDATE %s SET ipAddress=NULL"
 )
 
 type Subscriber struct {
@@ -535,6 +536,37 @@ func (db *Database) ReleaseIP(ctx context.Context, imsi string) error {
 		span.SetStatus(codes.Error, "release failed")
 
 		return fmt.Errorf("failed to release IP: %v", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// ReleaseAllIPs removes all assigned IPs for all subscribers.
+// This is meant to be called only on startup or shutdown.
+func (db *Database) ReleaseAllIPs(ctx context.Context) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"ReleaseAllIPs",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
+
+	err := db.conn.Query(ctx, db.releaseAllIPStmt).Run()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "release failed")
+
+		return fmt.Errorf("failed to release all IPs: %v", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
