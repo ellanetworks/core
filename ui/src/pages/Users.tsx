@@ -70,6 +70,7 @@ const UserPage: React.FC = () => {
     queryFn: () =>
       listUsers(accessToken || "", pageOneBased, paginationModel.pageSize),
     enabled: authReady && !!accessToken,
+    placeholderData: (prev) => prev,
   });
 
   const rows: APIUser[] = usersData?.items ?? [];
@@ -229,7 +230,6 @@ const UserPage: React.FC = () => {
                 rows={rows}
                 columns={columns}
                 getRowId={(row) => row.email}
-                loading={loading}
                 paginationMode="server"
                 rowCount={rowCount}
                 paginationModel={paginationModel}

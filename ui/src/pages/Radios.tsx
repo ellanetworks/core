@@ -669,6 +669,7 @@ const Radio = () => {
     refetchInterval: 5000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
   });
 
   const rows: APIRadio[] = data?.items ?? [];

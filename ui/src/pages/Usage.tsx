@@ -141,6 +141,7 @@ const SubscriberUsage = () => {
       );
     },
     enabled: !!accessToken && !!startDate && !!endDate,
+    placeholderData: (prev) => prev,
   });
 
   const rows: UsageRow[] = useMemo(() => {
@@ -204,6 +205,7 @@ const SubscriberUsage = () => {
       );
     },
     enabled: !!accessToken && !!startDate && !!endDate,
+    placeholderData: (prev) => prev,
   });
 
   const dailyRows: UsagePerDayRow[] = useMemo(() => {

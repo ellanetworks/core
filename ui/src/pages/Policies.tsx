@@ -58,6 +58,7 @@ const PolicyPage = () => {
       queryFn: () =>
         listPolicies(accessToken || "", pageOneBased, pagination.pageSize),
       enabled: authReady && !!accessToken,
+      placeholderData: (prev) => prev,
     },
   );
 
@@ -239,7 +240,6 @@ const PolicyPage = () => {
                 rows={rows}
                 columns={columns}
                 getRowId={(row) => row.name}
-                loading={loading}
                 paginationMode="server"
                 rowCount={rowCount}
                 paginationModel={pagination}
@@ -247,7 +247,6 @@ const PolicyPage = () => {
                 pageSizeOptions={[10, 25, 50, 100]}
                 disableRowSelectionOnClick
                 disableColumnMenu
-                autoHeight
                 sx={{
                   width: "100%",
                   border: 1,
