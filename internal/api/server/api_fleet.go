@@ -80,7 +80,7 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 		return fmt.Errorf("couldn't build initial config: %w", err)
 	}
 
-	initialStatus := BuildStatus(cfg)
+	initialStatus := BuildStatus(ctx, dbInstance, cfg)
 
 	data, err := fC.Register(ctx, activationToken, key.PublicKey, initialConfig, initialStatus)
 	if err != nil {
@@ -97,7 +97,7 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 	logger.EllaLog.Info("Fleet credentials stored successfully")
 
 	statusProvider := func() client.EllaCoreStatus {
-		return BuildStatus(cfg)
+		return BuildStatus(context.Background(), dbInstance, cfg)
 	}
 
 	err = fleet.ResumeSync(context.Background(), fleetURL, key, []byte(data.Certificate), []byte(data.CACertificate), dbInstance, statusProvider, func(syncCtx context.Context, success bool) {
@@ -114,7 +114,7 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 	return nil
 }
 
-func BuildStatus(cfg config.Config) client.EllaCoreStatus {
+func BuildStatus(ctx context.Context, dbInstance *db.Database, cfg config.Config) client.EllaCoreStatus {
 	networkInterfacesConfigs := client.StatusNetworkInterfaces{
 		N2: client.N2Interface{
 			Address: cfg.Interfaces.N2.Address,
@@ -148,10 +148,12 @@ func BuildStatus(cfg config.Config) client.EllaCoreStatus {
 	}
 
 	radios := getRadiosStatus()
+	subscribers := getSubscribersStatus(ctx, dbInstance)
 
 	return client.EllaCoreStatus{
 		NetworkInterfaces: networkInterfacesConfigs,
 		Radios:            radios,
+		Subscribers:       subscribers,
 	}
 }
 
@@ -205,6 +207,32 @@ func getRadiosStatus() []client.Radio {
 	}
 
 	return radios
+}
+
+func getSubscribersStatus(ctx context.Context, dbInstance *db.Database) []client.SubscriberStatus {
+	subscribers, _, err := dbInstance.ListSubscribersPage(ctx, 1, 1000)
+	if err != nil {
+		logger.EllaLog.Error("failed to list subscribers for status", zap.Error(err))
+		return nil
+	}
+
+	amf := amfContext.AMFSelf()
+
+	statuses := make([]client.SubscriberStatus, 0, len(subscribers))
+	for _, s := range subscribers {
+		ipAddress := ""
+		if s.IPAddress != nil {
+			ipAddress = *s.IPAddress
+		}
+
+		statuses = append(statuses, client.SubscriberStatus{
+			Imsi:       s.Imsi,
+			Registered: amf.IsSubscriberRegistered(s.Imsi),
+			IPAddress:  ipAddress,
+		})
+	}
+
+	return statuses
 }
 
 func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.EllaCoreConfig, error) {

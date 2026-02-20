@@ -150,9 +150,16 @@ type Radio struct {
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
+type SubscriberStatus struct {
+	Imsi       string `json:"imsi"`
+	Registered bool   `json:"registered"`
+	IPAddress  string `json:"ipAddress"`
+}
+
 type EllaCoreStatus struct {
 	NetworkInterfaces StatusNetworkInterfaces `json:"network_interfaces"`
 	Radios            []Radio                 `json:"radios"`
+	Subscribers       []SubscriberStatus      `json:"subscribers"`
 }
 
 type RegisterParams struct {

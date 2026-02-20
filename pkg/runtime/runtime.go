@@ -101,7 +101,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			}
 
 			statusProvider := func() client.EllaCoreStatus {
-				return server.BuildStatus(cfg)
+				return server.BuildStatus(context.Background(), dbInstance, cfg)
 			}
 
 			err = fleet.ResumeSync(ctx, server.FleetURL, key, fleetData.Certificate, fleetData.CACertificate, dbInstance, statusProvider, onSync)
