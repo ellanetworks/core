@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/fleet"
+	"github.com/ellanetworks/core/fleet/client"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/api"
 	"github.com/ellanetworks/core/internal/api/server"
@@ -99,7 +100,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 				}
 			}
 
-			err = fleet.ResumeSync(ctx, server.FleetURL, key, fleetData.Certificate, fleetData.CACertificate, dbInstance, onSync)
+			statusProvider := func() client.EllaCoreStatus {
+				return server.BuildStatus(cfg)
+			}
+
+			err = fleet.ResumeSync(ctx, server.FleetURL, key, fleetData.Certificate, fleetData.CACertificate, dbInstance, statusProvider, onSync)
 			if err != nil {
 				logger.EllaLog.Error("couldn't resume fleet sync", zap.Error(err))
 			}

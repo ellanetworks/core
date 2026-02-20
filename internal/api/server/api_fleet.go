@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/fleet"
 	"github.com/ellanetworks/core/fleet/client"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -79,7 +80,7 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 		return fmt.Errorf("couldn't build initial config: %w", err)
 	}
 
-	initialStatus := buildInitialStatus(cfg)
+	initialStatus := BuildStatus(cfg)
 
 	data, err := fC.Register(ctx, activationToken, key.PublicKey, initialConfig, initialStatus)
 	if err != nil {
@@ -95,7 +96,11 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 
 	logger.EllaLog.Info("Fleet credentials stored successfully")
 
-	err = fleet.ResumeSync(context.Background(), fleetURL, key, []byte(data.Certificate), []byte(data.CACertificate), dbInstance, func(syncCtx context.Context, success bool) {
+	statusProvider := func() client.EllaCoreStatus {
+		return BuildStatus(cfg)
+	}
+
+	err = fleet.ResumeSync(context.Background(), fleetURL, key, []byte(data.Certificate), []byte(data.CACertificate), dbInstance, statusProvider, func(syncCtx context.Context, success bool) {
 		if success {
 			if err := dbInstance.UpdateFleetSyncStatus(syncCtx); err != nil {
 				logger.EllaLog.Error("couldn't update fleet sync status", zap.Error(err))
@@ -109,7 +114,7 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 	return nil
 }
 
-func buildInitialStatus(cfg config.Config) client.EllaCoreStatus {
+func BuildStatus(cfg config.Config) client.EllaCoreStatus {
 	networkInterfacesConfigs := client.StatusNetworkInterfaces{
 		N2: client.N2Interface{
 			Address: cfg.Interfaces.N2.Address,
@@ -142,9 +147,64 @@ func buildInitialStatus(cfg config.Config) client.EllaCoreStatus {
 		}
 	}
 
+	radios := getRadiosStatus()
+
 	return client.EllaCoreStatus{
 		NetworkInterfaces: networkInterfacesConfigs,
+		Radios:            radios,
 	}
+}
+
+func getRadiosStatus() []client.Radio {
+	amf := amfContext.AMFSelf()
+	_, ranList := amf.ListAmfRan(1, 1000)
+
+	radios := make([]client.Radio, 0, len(ranList))
+	for _, radio := range ranList {
+		supportedTAIs := make([]client.SupportedTAI, 0, len(radio.SupportedTAIs))
+		for _, tai := range radio.SupportedTAIs {
+			snssais := make([]client.Snssai, 0, len(tai.SNssaiList))
+			for _, snssai := range tai.SNssaiList {
+				snssais = append(snssais, client.Snssai{
+					Sst: snssai.Sst,
+					Sd:  snssai.Sd,
+				})
+			}
+
+			supportedTAIs = append(supportedTAIs, client.SupportedTAI{
+				Tai: client.Tai{
+					PlmnID: client.PlmnID{
+						Mcc: tai.Tai.PlmnID.Mcc,
+						Mnc: tai.Tai.PlmnID.Mnc,
+					},
+					Tac: tai.Tai.Tac,
+				},
+				SNssais: snssais,
+			})
+		}
+
+		radioAddress := ""
+
+		if radio.Conn != nil {
+			if addr := radio.Conn.RemoteAddr(); addr != nil {
+				radioAddress = addr.String()
+			}
+		}
+
+		radioID := ""
+		if radio.RanID.GNbID != nil {
+			radioID = radio.RanID.GNbID.GNBValue
+		}
+
+		radios = append(radios, client.Radio{
+			Name:          radio.Name,
+			ID:            radioID,
+			Address:       radioAddress,
+			SupportedTAIs: supportedTAIs,
+		})
+	}
+
+	return radios
 }
 
 func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.EllaCoreConfig, error) {

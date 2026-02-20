@@ -123,8 +123,36 @@ type EllaCoreConfig struct {
 	Subscribers []Subscriber `json:"subscribers"`
 }
 
+type PlmnID struct {
+	Mcc string `json:"mcc"`
+	Mnc string `json:"mnc"`
+}
+
+type Tai struct {
+	PlmnID PlmnID `json:"plmnID"`
+	Tac    string `json:"tac"`
+}
+
+type Snssai struct {
+	Sst int32  `json:"sst"`
+	Sd  string `json:"sd"`
+}
+
+type SupportedTAI struct {
+	Tai     Tai      `json:"tai"`
+	SNssais []Snssai `json:"snssais"`
+}
+
+type Radio struct {
+	Name          string         `json:"name"`
+	ID            string         `json:"id"`
+	Address       string         `json:"address"`
+	SupportedTAIs []SupportedTAI `json:"supported_tais"`
+}
+
 type EllaCoreStatus struct {
 	NetworkInterfaces StatusNetworkInterfaces `json:"network_interfaces"`
+	Radios            []Radio                 `json:"radios"`
 }
 
 type RegisterParams struct {

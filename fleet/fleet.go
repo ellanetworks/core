@@ -23,7 +23,11 @@ var (
 	cancelPrevSync context.CancelFunc
 )
 
-func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, certPEM []byte, caPEM []byte, dbInstance *db.Database, onSync SyncCallback) error {
+// StatusProvider returns the current status of the Ella Core instance.
+// It is called before each sync to send fresh status information to the fleet.
+type StatusProvider func() client.EllaCoreStatus
+
+func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, certPEM []byte, caPEM []byte, dbInstance *db.Database, statusProvider StatusProvider, onSync SyncCallback) error {
 	fC := client.New(fleetURL)
 
 	if err := fC.ConfigureMTLS(string(certPEM), key, string(caPEM)); err != nil {
@@ -40,6 +44,7 @@ func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, cer
 	syncParams := &client.SyncParams{
 		Version:           version.GetVersion().Version,
 		LastKnownRevision: lastKnownRevision,
+		Status:            statusProvider(),
 	}
 
 	if resp, err := fC.Sync(ctx, syncParams); err != nil {
@@ -86,6 +91,8 @@ func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, cer
 		for {
 			select {
 			case <-ticker.C:
+				syncParams.Status = statusProvider()
+
 				resp, err := fC.Sync(syncCtx, syncParams)
 				if err != nil {
 					logger.EllaLog.Error("sync failed", zap.Error(err))
