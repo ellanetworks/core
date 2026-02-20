@@ -76,6 +76,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
 
+	err = dbInstance.ReleaseAllIPs(ctx)
+	if err != nil {
+		return fmt.Errorf("couldn't release all IPs: %w", err)
+	}
+
 	logger.SetDb(dbInstance)
 
 	jobs.StartDataRetentionWorker(dbInstance)
