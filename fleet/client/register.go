@@ -163,21 +163,24 @@ type EllaCoreStatus struct {
 }
 
 type EllaCoreMetrics struct {
-	UplinkBytesTotal           int64   `json:"uplink_bytes_total"`
-	DownlinkBytesTotal         int64   `json:"downlink_bytes_total"`
-	PDUSessionsTotal           int64   `json:"pdu_sessions_total"`
-	ProcessCPUSecondsTotal     float64 `json:"process_cpu_seconds_total"`
-	ProcessResidentMemoryBytes int64   `json:"process_resident_memory_bytes"`
-	GoGoroutines               int64   `json:"go_goroutines"`
-	ProcessStartTimeSeconds    float64 `json:"process_start_time_seconds"`
-	AppDatabaseStorageBytes    int64   `json:"app_database_storage_bytes"`
+	UplinkBytesTotal             int64   `json:"uplink_bytes_total"`
+	DownlinkBytesTotal           int64   `json:"downlink_bytes_total"`
+	PDUSessionsTotal             int64   `json:"pdu_sessions_total"`
+	ProcessCPUSecondsTotal       float64 `json:"process_cpu_seconds_total"`
+	ProcessResidentMemoryBytes   int64   `json:"process_resident_memory_bytes"`
+	GoGoroutines                 int64   `json:"go_goroutines"`
+	ProcessStartTimeSeconds      float64 `json:"process_start_time_seconds"`
+	AppDatabaseStorageBytes      int64   `json:"app_database_storage_bytes"`
+	RegistrationAttemptsAccepted int64   `json:"registration_attempts_accepted"`
+	RegistrationAttemptsRejected int64   `json:"registration_attempts_rejected"`
 }
 
 type RegisterParams struct {
-	ActivationToken string         `json:"activation_token"`
-	PublicKey       string         `json:"public_key"`
-	InitialConfig   EllaCoreConfig `json:"initial_config"`
-	InitialStatus   EllaCoreStatus `json:"initial_status"`
+	ActivationToken string          `json:"activation_token"`
+	PublicKey       string          `json:"public_key"`
+	InitialConfig   EllaCoreConfig  `json:"initial_config"`
+	InitialStatus   EllaCoreStatus  `json:"initial_status"`
+	InitialMetrics  EllaCoreMetrics `json:"initial_metrics"`
 }
 
 type RegisterResponse struct {
@@ -193,7 +196,7 @@ type Response struct {
 	Result any `json:"result"`
 }
 
-func (fc *Fleet) Register(ctx context.Context, activationToken string, publicKey ecdsa.PublicKey, initialConfig EllaCoreConfig, initialStatus EllaCoreStatus) (*RegisterResponse, error) {
+func (fc *Fleet) Register(ctx context.Context, activationToken string, publicKey ecdsa.PublicKey, initialConfig EllaCoreConfig, initialStatus EllaCoreStatus, initialMetrics EllaCoreMetrics) (*RegisterResponse, error) {
 	pubKeyPEM, err := marshalPublicKey(&publicKey)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't marshal public key: %w", err)
@@ -204,6 +207,7 @@ func (fc *Fleet) Register(ctx context.Context, activationToken string, publicKey
 		PublicKey:       pubKeyPEM,
 		InitialConfig:   initialConfig,
 		InitialStatus:   initialStatus,
+		InitialMetrics:  initialMetrics,
 	}
 
 	body, err := json.Marshal(params)

@@ -83,8 +83,9 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 	}
 
 	initialStatus := BuildStatus(ctx, dbInstance, cfg)
+	initialMetrics := BuildMetrics()
 
-	data, err := fC.Register(ctx, activationToken, key.PublicKey, initialConfig, initialStatus)
+	data, err := fC.Register(ctx, activationToken, key.PublicKey, initialConfig, initialStatus, initialMetrics)
 	if err != nil {
 		return fmt.Errorf("couldn't register to fleet: %w", err)
 	}
@@ -214,6 +215,23 @@ func BuildMetrics() client.EllaCoreMetrics {
 		case "app_database_storage_bytes":
 			if g := m.GetGauge(); g != nil {
 				metrics.AppDatabaseStorageBytes = int64(math.Round(g.GetValue()))
+			}
+		case "app_registration_attempts_total":
+			for _, sample := range ms {
+				var result string
+				for _, lp := range sample.GetLabel() {
+					if lp.GetName() == "result" {
+						result = lp.GetValue()
+					}
+				}
+				if c := sample.GetCounter(); c != nil {
+					switch result {
+					case "accept":
+						metrics.RegistrationAttemptsAccepted += int64(math.Round(c.GetValue()))
+					case "reject":
+						metrics.RegistrationAttemptsRejected += int64(math.Round(c.GetValue()))
+					}
+				}
 			}
 		}
 	}
