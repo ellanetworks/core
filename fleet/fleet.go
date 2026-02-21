@@ -27,7 +27,11 @@ var (
 // It is called before each sync to send fresh status information to the fleet.
 type StatusProvider func() client.EllaCoreStatus
 
-func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, certPEM []byte, caPEM []byte, dbInstance *db.Database, statusProvider StatusProvider, onSync SyncCallback) error {
+// MetricsProvider returns the current metrics of the Ella Core instance.
+// It is called before each sync to send fresh metrics to the fleet.
+type MetricsProvider func() client.EllaCoreMetrics
+
+func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, certPEM []byte, caPEM []byte, dbInstance *db.Database, statusProvider StatusProvider, metricsProvider MetricsProvider, onSync SyncCallback) error {
 	fC := client.New(fleetURL)
 
 	if err := fC.ConfigureMTLS(string(certPEM), key, string(caPEM)); err != nil {
@@ -45,6 +49,7 @@ func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, cer
 		Version:           version.GetVersion().Version,
 		LastKnownRevision: lastKnownRevision,
 		Status:            statusProvider(),
+		Metrics:           metricsProvider(),
 	}
 
 	if resp, err := fC.Sync(ctx, syncParams); err != nil {
@@ -92,6 +97,7 @@ func ResumeSync(ctx context.Context, fleetURL string, key *ecdsa.PrivateKey, cer
 			select {
 			case <-ticker.C:
 				syncParams.Status = statusProvider()
+				syncParams.Metrics = metricsProvider()
 
 				resp, err := fC.Sync(syncCtx, syncParams)
 				if err != nil {

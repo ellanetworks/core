@@ -162,6 +162,17 @@ type EllaCoreStatus struct {
 	Subscribers       []SubscriberStatus      `json:"subscribers"`
 }
 
+type EllaCoreMetrics struct {
+	UplinkBytesTotal           int64   `json:"uplink_bytes_total"`
+	DownlinkBytesTotal         int64   `json:"downlink_bytes_total"`
+	PDUSessionsTotal           int64   `json:"pdu_sessions_total"`
+	ProcessCPUSecondsTotal     float64 `json:"process_cpu_seconds_total"`
+	ProcessResidentMemoryBytes int64   `json:"process_resident_memory_bytes"`
+	GoGoroutines               int64   `json:"go_goroutines"`
+	ProcessStartTimeSeconds    float64 `json:"process_start_time_seconds"`
+	AppDatabaseStorageBytes    int64   `json:"app_database_storage_bytes"`
+}
+
 type RegisterParams struct {
 	ActivationToken string         `json:"activation_token"`
 	PublicKey       string         `json:"public_key"`

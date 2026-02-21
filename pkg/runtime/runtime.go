@@ -104,7 +104,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 				return server.BuildStatus(context.Background(), dbInstance, cfg)
 			}
 
-			err = fleet.ResumeSync(ctx, server.FleetURL, key, fleetData.Certificate, fleetData.CACertificate, dbInstance, statusProvider, onSync)
+			metricsProvider := func() client.EllaCoreMetrics {
+				return server.BuildMetrics()
+			}
+
+			err = fleet.ResumeSync(ctx, server.FleetURL, key, fleetData.Certificate, fleetData.CACertificate, dbInstance, statusProvider, metricsProvider, onSync)
 			if err != nil {
 				logger.EllaLog.Error("couldn't resume fleet sync", zap.Error(err))
 			}

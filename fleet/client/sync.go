@@ -11,9 +11,10 @@ import (
 )
 
 type SyncParams struct {
-	Version           string         `json:"version"`
-	LastKnownRevision int64          `json:"last_known_revision"`
-	Status            EllaCoreStatus `json:"status"`
+	Version           string          `json:"version"`
+	LastKnownRevision int64           `json:"last_known_revision"`
+	Status            EllaCoreStatus  `json:"status"`
+	Metrics           EllaCoreMetrics `json:"metrics"`
 }
 
 type SyncNetworkInterfaces struct {

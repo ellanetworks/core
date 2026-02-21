@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 
 	"github.com/ellanetworks/core/fleet"
@@ -12,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -100,7 +102,11 @@ func register(ctx context.Context, dbInstance *db.Database, fleetURL string, act
 		return BuildStatus(context.Background(), dbInstance, cfg)
 	}
 
-	err = fleet.ResumeSync(context.Background(), fleetURL, key, []byte(data.Certificate), []byte(data.CACertificate), dbInstance, statusProvider, func(syncCtx context.Context, success bool) {
+	metricsProvider := func() client.EllaCoreMetrics {
+		return BuildMetrics()
+	}
+
+	err = fleet.ResumeSync(context.Background(), fleetURL, key, []byte(data.Certificate), []byte(data.CACertificate), dbInstance, statusProvider, metricsProvider, func(syncCtx context.Context, success bool) {
 		if success {
 			if err := dbInstance.UpdateFleetSyncStatus(syncCtx); err != nil {
 				logger.EllaLog.Error("couldn't update fleet sync status", zap.Error(err))
@@ -155,6 +161,64 @@ func BuildStatus(ctx context.Context, dbInstance *db.Database, cfg config.Config
 		Radios:            radios,
 		Subscribers:       subscribers,
 	}
+}
+
+func BuildMetrics() client.EllaCoreMetrics {
+	metrics := client.EllaCoreMetrics{}
+
+	mfs, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		logger.EllaLog.Warn("failed to gather prometheus metrics", zap.Error(err))
+		return metrics
+	}
+
+	for _, mf := range mfs {
+		name := mf.GetName()
+
+		ms := mf.GetMetric()
+		if len(ms) == 0 {
+			continue
+		}
+
+		m := ms[0]
+
+		switch name {
+		case "app_uplink_bytes":
+			if c := m.GetCounter(); c != nil {
+				metrics.UplinkBytesTotal = int64(math.Round(c.GetValue()))
+			}
+		case "app_downlink_bytes":
+			if c := m.GetCounter(); c != nil {
+				metrics.DownlinkBytesTotal = int64(math.Round(c.GetValue()))
+			}
+		case "app_pdu_sessions_total":
+			if g := m.GetGauge(); g != nil {
+				metrics.PDUSessionsTotal = int64(math.Round(g.GetValue()))
+			}
+		case "process_cpu_seconds_total":
+			if c := m.GetCounter(); c != nil {
+				metrics.ProcessCPUSecondsTotal = c.GetValue()
+			}
+		case "process_resident_memory_bytes":
+			if g := m.GetGauge(); g != nil {
+				metrics.ProcessResidentMemoryBytes = int64(math.Round(g.GetValue()))
+			}
+		case "go_goroutines":
+			if g := m.GetGauge(); g != nil {
+				metrics.GoGoroutines = int64(math.Round(g.GetValue()))
+			}
+		case "process_start_time_seconds":
+			if g := m.GetGauge(); g != nil {
+				metrics.ProcessStartTimeSeconds = g.GetValue()
+			}
+		case "app_database_storage_bytes":
+			if g := m.GetGauge(); g != nil {
+				metrics.AppDatabaseStorageBytes = int64(math.Round(g.GetValue()))
+			}
+		}
+	}
+
+	return metrics
 }
 
 func getRadiosStatus() []client.Radio {
