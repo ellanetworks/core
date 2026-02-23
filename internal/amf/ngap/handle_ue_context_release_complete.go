@@ -156,7 +156,9 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 		}
 	}
 
-	amfUe.ResetMobileReachableTimer()
+	if amfUe.State == amfContext.Registered {
+		amfUe.ResetMobileReachableTimer()
+	}
 
 	switch ranUe.ReleaseAction {
 	case amfContext.UeContextN2NormalRelease:
