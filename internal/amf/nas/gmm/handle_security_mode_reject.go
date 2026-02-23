@@ -15,7 +15,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amfContext.AmfUe, msg *na
 		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", ue.State)
 	}
 
-	ue.State = amfContext.Deregistered
+	defer ue.Deregister()
 
 	if ue.T3560 != nil {
 		ue.T3560.Stop()

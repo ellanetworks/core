@@ -50,12 +50,12 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 
-	if ue.SecurityContextAvailable {
-		t.Fatal("expected UE security context available to be reset to false")
+	if ue.State != context.Deregistered {
+		t.Fatalf("expected UE to be deregistered but was: %v", ue.State)
 	}
 
-	if ue.RanUe.ReleaseAction != context.UeContextReleaseUeContext {
-		t.Fatalf("expected RanUE release action to be set to UeContextReleaseUeContext, got: %v", ue.RanUe.ReleaseAction)
+	if ue.SecurityContextAvailable {
+		t.Fatal("expected UE security context available to be reset to false")
 	}
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 1 {

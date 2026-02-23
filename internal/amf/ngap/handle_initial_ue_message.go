@@ -186,6 +186,11 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		ranUe.UeContextRequest = false
 	}
 
+	if ranUe.AmfUe != nil {
+		ranUe.AmfUe.StopImplicitDeregistrationTimer()
+		ranUe.AmfUe.StopMobileReachableTimer()
+	}
+
 	err := nas.HandleNAS(ctx, amf, ranUe, nASPDU.Value)
 	if err != nil {
 		ran.Log.Error("error handling NAS Message", zap.Error(err))

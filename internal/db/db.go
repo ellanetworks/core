@@ -35,6 +35,7 @@ type Database struct {
 	checkSubscriberIPStmt        *sqlair.Statement
 	allocateSubscriberIPStmt     *sqlair.Statement
 	releaseSubscriberIPStmt      *sqlair.Statement
+	releaseAllIPStmt             *sqlair.Statement
 	countSubscribersByPolicyStmt *sqlair.Statement
 	countSubscribersWithIPStmt   *sqlair.Statement
 
@@ -321,6 +322,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.checkSubscriberIPStmt, fmt.Sprintf(checkIPStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.allocateSubscriberIPStmt, fmt.Sprintf(allocateIPStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.releaseSubscriberIPStmt, fmt.Sprintf(releaseIPStmt, SubscribersTableName), []any{Subscriber{}}},
+		{&db.releaseAllIPStmt, fmt.Sprintf(releaseAllIPStmt, SubscribersTableName), nil},
 		{&db.countSubscribersByPolicyStmt, fmt.Sprintf(countSubscribersInPolicyStmt, SubscribersTableName), []any{NumItems{}, Subscriber{}}},
 		{&db.countSubscribersWithIPStmt, fmt.Sprintf(countSubscribersWithIPStmt, SubscribersTableName), []any{NumItems{}}},
 
