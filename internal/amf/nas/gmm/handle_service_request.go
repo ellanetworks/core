@@ -116,8 +116,8 @@ func sendServiceAccept(
 
 // TS 24501 5.6.1
 func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.ServiceRequest) error {
-	if ue.State != amfContext.Deregistered && ue.State != amfContext.Registered {
-		return fmt.Errorf("state mismatch: receive Service Request message in state %s", ue.State)
+	if ue.GetState() != amfContext.Deregistered && ue.GetState() != amfContext.Registered {
+		return fmt.Errorf("state mismatch: receive Service Request message in state %s", ue.GetState())
 	}
 
 	if ue.T3513 != nil {
@@ -170,7 +170,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	}
 
 	// Service Reject if the SecurityContext is invalid or the UE is Deregistered
-	if !ue.SecurityContextIsValid() || ue.State == amfContext.Deregistered {
+	if !ue.SecurityContextIsValid() || ue.GetState() == amfContext.Deregistered {
 		ue.Log.Warn("No security context", zap.String("supi", ue.Supi))
 		ue.SecurityContextAvailable = false
 

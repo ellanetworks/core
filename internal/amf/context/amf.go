@@ -310,7 +310,7 @@ func (amf *AMF) CountRegisteredSubscribers() int {
 	count := 0
 
 	for _, ue := range amf.UEs {
-		if ue.State == Registered {
+		if ue.GetState() == Registered {
 			count++
 		}
 	}

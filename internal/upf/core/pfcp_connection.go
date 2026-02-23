@@ -3,6 +3,7 @@ package core
 
 import (
 	"fmt"
+	"maps"
 	"net"
 	"sync"
 
@@ -27,7 +28,9 @@ func (pc *PfcpConnection) ListSessions() map[uint64]*Session {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
-	return pc.sessions
+	copy := make(map[uint64]*Session, len(pc.sessions))
+	maps.Copy(copy, pc.sessions)
+	return copy
 }
 
 func (pc *PfcpConnection) GetSession(seid uint64) *Session {
