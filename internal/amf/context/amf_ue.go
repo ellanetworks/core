@@ -147,12 +147,14 @@ func NewAmfUe() *AmfUe {
 func (ue *AmfUe) GetState() StateType {
 	ue.Mutex.Lock()
 	defer ue.Mutex.Unlock()
+
 	return ue.State
 }
 
 func (ue *AmfUe) SetState(s StateType) {
 	ue.Mutex.Lock()
 	defer ue.Mutex.Unlock()
+
 	ue.State = s
 }
 
