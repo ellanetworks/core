@@ -66,11 +66,11 @@ func handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *smfContext.
 		return nil, false, fmt.Errorf("error decoding N1SmMessage: %v", err)
 	}
 
-	logger.SmfLog.Debug("Update SM Context Request N1SmMessage", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+	logger.WithTrace(ctx, logger.SmfLog).Debug("Update SM Context Request N1SmMessage", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
 	switch m.GsmHeader.GetMessageType() {
 	case nas.MsgTypePDUSessionReleaseRequest:
-		logger.SmfLog.Info("N1 Msg PDU Session Release Request received", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Request received", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
 		smf := smfContext.SMFSelf()
 
@@ -105,7 +105,7 @@ func handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *smfContext.
 		return response, sendPfcpDelete, nil
 
 	default:
-		logger.SmfLog.Warn("N1 Msg type not supported in SM Context Update", zap.Uint8("MessageType", m.GsmHeader.GetMessageType()), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg type not supported in SM Context Update", zap.Uint8("MessageType", m.GsmHeader.GetMessageType()), zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 		return nil, false, nil
 	}
 }

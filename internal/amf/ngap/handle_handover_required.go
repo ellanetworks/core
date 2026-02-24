@@ -255,13 +255,13 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 	targetUe, err := targetRan.NewUe(models.RanUeNgapIDUnspecified)
 	if err != nil {
-		logger.AmfLog.Error("error creating target ue", zap.Error(err))
+		logger.WithTrace(ctx, logger.AmfLog).Error("error creating target ue", zap.Error(err))
 		return
 	}
 
 	err = amfContext.AttachSourceUeTargetUe(sourceUe, targetUe)
 	if err != nil {
-		logger.AmfLog.Error("attach source ue target ue error", zap.Error(err))
+		logger.WithTrace(ctx, logger.AmfLog).Error("attach source ue target ue error", zap.Error(err))
 		return
 	}
 

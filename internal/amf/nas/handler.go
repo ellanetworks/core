@@ -75,7 +75,7 @@ func HandleNAS(ctx context.Context, amf *amfContext.AMF, ue *amfContext.RanUe, n
 	)
 	defer span.End()
 
-	logger.AmfLog.Info(
+	logger.WithTrace(ctx, logger.AmfLog).Info(
 		"Received NAS message",
 		zap.String("MessageType", msgTypeName),
 		zap.String("SUPI", ue.AmfUe.Supi),
@@ -129,7 +129,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 
 		if nasMessage.MobileIdentity5GSType5gGuti == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
 			guti, _ = etsi.NewGUTIFromBytes(mobileIdentity5GSContents)
-			logger.AmfLog.Debug("Guti received in Registration Request Message", zap.String("guti", guti.String()))
+			logger.WithTrace(ctx, logger.AmfLog).Debug("Guti received in Registration Request Message", zap.String("guti", guti.String()))
 		} else if nasMessage.MobileIdentity5GSTypeSuci == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
 			suci, _ := nasConvert.SuciToString(mobileIdentity5GSContents)
 			/* UeContext found based on SUCI which means context is exist in Network(AMF) but not
@@ -155,7 +155,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 				return nil, fmt.Errorf("error converting 5G-S-TMSI to GUTI: %+v", err)
 			}
 
-			logger.AmfLog.Debug("Guti derived from Service Request Message", zap.String("guti", guti.String()))
+			logger.WithTrace(ctx, logger.AmfLog).Debug("Guti derived from Service Request Message", zap.String("guti", guti.String()))
 		}
 	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
 		mobileIdentity5GSContents := msg.DeregistrationRequestUEOriginatingDeregistration.GetMobileIdentity5GSContents()
@@ -165,7 +165,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 				return nil, nil
 			}
 
-			logger.AmfLog.Debug("Guti received in Deregistraion Request Message", zap.String("guti", guti.String()))
+			logger.WithTrace(ctx, logger.AmfLog).Debug("Guti received in Deregistraion Request Message", zap.String("guti", guti.String()))
 		}
 	}
 
@@ -175,7 +175,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 
 	ue, _ := amf.FindAmfUeByGuti(guti)
 	if ue == nil {
-		logger.AmfLog.Warn("UE Context not found", zap.String("guti", guti.String()))
+		logger.WithTrace(ctx, logger.AmfLog).Warn("UE Context not found", zap.String("guti", guti.String()))
 		return nil, nil
 	}
 

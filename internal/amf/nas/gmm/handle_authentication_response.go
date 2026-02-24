@@ -67,7 +67,7 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 
 	supi, kseaf, err := amf.Ausf.Auth5gAkaComfirmRequestProcedure(hex.EncodeToString(resStar[:]), ue.Suci)
 	if err != nil {
-		logger.AmfLog.Error("5G AKA Confirmation Request Procedure failed", zap.Error(err))
+		logger.WithTrace(ctx, logger.AmfLog).Error("5G AKA Confirmation Request Procedure failed", zap.Error(err))
 
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 			err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)

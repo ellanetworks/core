@@ -50,7 +50,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 	remoteSEID, err := validateRequest(msg.NodeID, msg.CPFSEID)
 	if err != nil {
-		logger.UpfLog.Info("Rejecting Session Establishment Request", zap.Error(err))
+		logger.WithTrace(ctx, logger.UpfLog).Info("Rejecting Session Establishment Request", zap.Error(err))
 		return message.NewSessionEstablishmentResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), convertErrorToIeCause(err)), nil
 	}
 
@@ -58,7 +58,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 	session := NewSession(seid)
 
-	logger.UpfLog.Debug("Tracking new session", zap.Uint64("SEID", seid))
+	logger.WithTrace(ctx, logger.UpfLog).Debug("Tracking new session", zap.Uint64("SEID", seid))
 
 	printSessionEstablishmentRequest(msg)
 
@@ -85,7 +85,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 			session.NewFar(farid, farInfo)
 
-			logger.UpfLog.Info("Created Forwarding Action Rule", zap.Uint32("farID", farid), zap.Any("farInfo", farInfo))
+			logger.WithTrace(ctx, logger.UpfLog).Info("Created Forwarding Action Rule", zap.Uint32("farID", farid), zap.Any("farInfo", farInfo))
 		}
 
 		for _, qer := range msg.CreateQER {
@@ -105,7 +105,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 			session.NewQer(qerID, qerInfo)
 
-			logger.UpfLog.Info("Created QoS Enforcement Rule", zap.Uint32("qerID", qerID), zap.Any("qerInfo", qerInfo))
+			logger.WithTrace(ctx, logger.UpfLog).Info("Created QoS Enforcement Rule", zap.Uint32("qerID", qerID), zap.Any("qerInfo", qerInfo))
 		}
 
 		for _, urr := range msg.CreateURR {
@@ -128,7 +128,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 				return fmt.Errorf("can't put URR: %s", err.Error())
 			}
 
-			logger.UpfLog.Debug(
+			logger.WithTrace(ctx, logger.UpfLog).Debug(
 				"Received Usage Reporting Rule create",
 				zap.Uint32("urr_id", urrId),
 				zap.String("measurement_method", "Volume"),
@@ -157,7 +157,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 				return fmt.Errorf("couldn't apply PDR: %s", err.Error())
 			}
 
-			logger.UpfLog.Info("Applied packet detection rule", zap.Uint32("pdrID", spdrInfo.PdrID))
+			logger.WithTrace(ctx, logger.UpfLog).Info("Applied packet detection rule", zap.Uint32("pdrID", spdrInfo.PdrID))
 			createdPDRs = append(createdPDRs, spdrInfo)
 			bpfObjects.ClearNotified(seid, pdrID, session.GetQer(spdrInfo.PdrInfo.QerID).Qfi)
 		}
@@ -165,7 +165,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 		return nil
 	}()
 	if err != nil {
-		logger.UpfLog.Info("Rejecting Session Establishment Request (error in applying IEs)", zap.Error(err))
+		logger.WithTrace(ctx, logger.UpfLog).Info("Rejecting Session Establishment Request (error in applying IEs)", zap.Error(err))
 		return message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), nil
 	}
 
@@ -182,13 +182,13 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 	estResp := message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, additionalIEs...)
 
-	logger.UpfLog.Debug("Accepted Session Establishment Request")
+	logger.WithTrace(ctx, logger.UpfLog).Debug("Accepted Session Establishment Request")
 
 	return estResp, nil
 }
 
 func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionDeletionRequest) (*message.SessionDeletionResponse, error) {
-	_, span := tracer.Start(ctx, "UPF delete session",
+	ctx, span := tracer.Start(ctx, "UPF delete session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
@@ -202,7 +202,7 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 
 	session := conn.GetSession(msg.SEID())
 	if session == nil {
-		logger.UpfLog.Info("Rejecting Session Deletion Request (unknown SEID)")
+		logger.WithTrace(ctx, logger.UpfLog).Info("Rejecting Session Deletion Request (unknown SEID)")
 		return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseSessionContextNotFound)), nil
 	}
 
@@ -229,7 +229,7 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 
 	conn.DeleteSession(msg.SEID())
 
-	logger.UpfLog.Info("Deleted session", zap.Uint64("seid", msg.SEID()))
+	logger.WithTrace(ctx, logger.UpfLog).Info("Deleted session", zap.Uint64("seid", msg.SEID()))
 
 	conn.ReleaseResources(msg.SEID())
 
@@ -249,7 +249,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 	session := conn.GetSession(msg.SEID())
 	if session == nil {
-		logger.UpfLog.Info("Rejecting Session Modification Request (unknown SEID)")
+		logger.WithTrace(ctx, logger.UpfLog).Info("Rejecting Session Modification Request (unknown SEID)")
 		return message.NewSessionModificationResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseSessionContextNotFound)), nil
 	}
 
@@ -289,7 +289,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 			session.NewFar(farid, farInfo)
 
-			logger.UpfLog.Info("Created Forwarding Action Rule", zap.Uint32("farID", farid), zap.Any("farInfo", farInfo))
+			logger.WithTrace(ctx, logger.UpfLog).Info("Created Forwarding Action Rule", zap.Uint32("farID", farid), zap.Any("farInfo", farInfo))
 		}
 
 		for _, far := range msg.UpdateFAR {
@@ -342,7 +342,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 			session.NewQer(qerID, qerInfo)
 
-			logger.UpfLog.Info("Created QoS Enforcement Rule", zap.Uint32("qerID", qerID), zap.Any("qerInfo", qerInfo))
+			logger.WithTrace(ctx, logger.UpfLog).Info("Created QoS Enforcement Rule", zap.Uint32("qerID", qerID), zap.Any("qerInfo", qerInfo))
 		}
 
 		for _, qer := range msg.UpdateQER {
@@ -390,7 +390,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				return fmt.Errorf("measurement period is invalid: %s", err.Error())
 			}
 
-			logger.UpfLog.Debug(
+			logger.WithTrace(ctx, logger.UpfLog).Debug(
 				"Received Usage Reporting Rule create",
 				zap.Uint32("urrID", urrId),
 				zap.String("measurement_method", "Volume"),
@@ -413,7 +413,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				return fmt.Errorf("measurement period is invalid: %s", err.Error())
 			}
 
-			logger.UpfLog.Debug(
+			logger.WithTrace(ctx, logger.UpfLog).Debug(
 				"Received Usage Reporting Rule update - Not yet supported",
 				zap.Uint32("urrID", urrId),
 				zap.String("measurement_method", "Volume"),
@@ -427,7 +427,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				return fmt.Errorf("URR ID missing")
 			}
 
-			logger.UpfLog.Debug("Received Usage Reporting Rule remove - Not yet supported", zap.Uint32("urrID", urrId))
+			logger.WithTrace(ctx, logger.UpfLog).Debug("Received Usage Reporting Rule remove - Not yet supported", zap.Uint32("urrID", urrId))
 		}
 
 		for _, pdr := range msg.CreatePDR {
@@ -489,12 +489,12 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			}
 		}
 
-		logger.UpfLog.Debug("Session modification successful")
+		logger.WithTrace(ctx, logger.UpfLog).Debug("Session modification successful")
 
 		return nil
 	}()
 	if err != nil {
-		logger.UpfLog.Info("Rejecting Session Modification Request (failed to apply rules)", zap.Error(err))
+		logger.WithTrace(ctx, logger.UpfLog).Info("Rejecting Session Modification Request (failed to apply rules)", zap.Error(err))
 		return message.NewSessionModificationResponse(0, 0, session.SEID, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), nil
 	}
 

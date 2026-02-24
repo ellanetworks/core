@@ -167,7 +167,7 @@ func jsonEncoderConfig() zapcore.EncoderConfig {
 
 // LogAuditEvent logs an audit event to the audit logger.
 func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
-	AuditLog.Info("Audit event",
+	WithTrace(ctx, AuditLog).Info("Audit event",
 		zap.String("action", action),
 		zap.String("actor", actor),
 		zap.String("ip", ip),
@@ -231,7 +231,7 @@ func LogNetworkEvent(
 		return
 	}
 
-	NetworkLog.Info("network_event",
+	WithTrace(ctx, NetworkLog).Info("network_event",
 		zap.String("protocol", string(protocol)),
 		zap.String("message_type", messageType),
 		zap.String("direction", string(dir)),
