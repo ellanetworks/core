@@ -110,12 +110,12 @@ func ListUsers(dbInstance *db.Database) http.Handler {
 		perPage := atoiDefault(q.Get("per_page"), 25)
 
 		if page < 1 {
-			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
 			return
 		}
 
 		if perPage < 1 || perPage > 100 {
-			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
 			return
 		}
 
@@ -123,13 +123,13 @@ func ListUsers(dbInstance *db.Database) http.Handler {
 
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 
 		dbUsers, total, err := dbInstance.ListUsersPage(r.Context(), page, perPage)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Unable to retrieve users", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Unable to retrieve users", err, logger.APILog)
 			return
 		}
 
@@ -149,7 +149,7 @@ func ListUsers(dbInstance *db.Database) http.Handler {
 			TotalCount: total,
 		}
 
-		writeResponse(w, users, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, users, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -157,18 +157,18 @@ func GetUser(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailParam := r.PathValue("email")
 		if emailParam == "" {
-			writeError(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
 			return
 		}
 
 		dbUser, err := dbInstance.GetUser(r.Context(), emailParam)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusNotFound, "User not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
 
 			return
 		}
@@ -178,7 +178,7 @@ func GetUser(dbInstance *db.Database) http.Handler {
 			RoleID: RoleID(dbUser.RoleID),
 		}
 
-		writeResponse(w, resp, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -188,18 +188,18 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
-			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
 			return
 		}
 
 		dbUser, err := dbInstance.GetUser(r.Context(), email)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusNotFound, "User not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
 
 			return
 		}
@@ -209,7 +209,7 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 			RoleID: RoleID(dbUser.RoleID),
 		}
 
-		writeResponse(w, user, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, user, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -221,44 +221,44 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 		var newUser CreateUserParams
 
 		if err := json.NewDecoder(r.Body).Decode(&newUser); err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
 		if newUser.Email == "" {
-			writeError(w, http.StatusBadRequest, "email is missing", errors.New("missing email"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "email is missing", errors.New("missing email"), logger.APILog)
 			return
 		}
 
 		if newUser.Password == "" {
-			writeError(w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
 			return
 		}
 
 		if !isValidEmail(newUser.Email) {
-			writeError(w, http.StatusBadRequest, "Invalid email format", errors.New("invalid email format"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid email format", errors.New("invalid email format"), logger.APILog)
 			return
 		}
 
 		if !isValidRoleID(newUser.RoleID) {
-			writeError(w, http.StatusBadRequest, "Invalid role ID", errors.New("invalid role ID"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid role ID", errors.New("invalid role ID"), logger.APILog)
 			return
 		}
 
 		hashedPassword, err := hashPassword(newUser.Password)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
 			return
 		}
 
 		numUsers, err := dbInstance.CountUsers(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to count users", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count users", err, logger.APILog)
 			return
 		}
 
 		if numUsers >= MaxNumUsers {
-			writeError(w, http.StatusBadRequest, "Maximum number of users reached ("+strconv.Itoa(MaxNumUsers)+")", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of users reached ("+strconv.Itoa(MaxNumUsers)+")", nil, logger.APILog)
 			return
 		}
 
@@ -271,16 +271,16 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 		_, err = dbInstance.CreateUser(r.Context(), dbUser)
 		if err != nil {
 			if errors.Is(err, db.ErrAlreadyExists) {
-				writeError(w, http.StatusBadRequest, "User already exists", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusBadRequest, "User already exists", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to create user", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create user", err, logger.APILog)
 
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "User created successfully"}, http.StatusCreated, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "User created successfully"}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
 			r.Context(),
@@ -298,13 +298,13 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 
 		requester, ok := emailAny.(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
 			return
 		}
 
 		emailParam := r.PathValue("email")
 		if emailParam == "" {
-			writeError(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
 			return
 		}
 
@@ -312,28 +312,28 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 
 		err := json.NewDecoder(r.Body).Decode(&updateUserParams)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
 		if !isValidRoleID(updateUserParams.RoleID) {
-			writeError(w, http.StatusBadRequest, "Invalid role ID", errors.New("invalid role ID"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid role ID", errors.New("invalid role ID"), logger.APILog)
 			return
 		}
 
 		err = dbInstance.UpdateUser(r.Context(), emailParam, db.RoleID(updateUserParams.RoleID))
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusNotFound, "User not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to update user", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update user", err, logger.APILog)
 
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "User updated successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "User updated successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), UpdateUserAction, requester, getClientIP(r), "User updated user: "+emailParam)
 	})
@@ -345,47 +345,47 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 
 		requester, ok := emailAny.(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
 			return
 		}
 
 		emailParam := r.PathValue("email")
 		if emailParam == "" {
-			writeError(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
 			return
 		}
 
 		var updateUserParams UpdateUserPasswordParams
 
 		if err := json.NewDecoder(r.Body).Decode(&updateUserParams); err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
 		if updateUserParams.Password == "" {
-			writeError(w, http.StatusBadRequest, "password is missing", errors.New("password is missing"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "password is missing", errors.New("password is missing"), logger.APILog)
 			return
 		}
 
 		hashedPassword, err := hashPassword(updateUserParams.Password)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
 			return
 		}
 
 		err = dbInstance.UpdateUserPassword(r.Context(), emailParam, hashedPassword)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusNotFound, "User not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to update password", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update password", err, logger.APILog)
 
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), UpdateUserPasswordAction, requester, getClientIP(r), "User updated password for user: "+emailParam)
 	})
@@ -397,7 +397,7 @@ func UpdateMyUserPassword(dbInstance *db.Database) http.Handler {
 
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
-			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
 			return
 		}
 
@@ -405,28 +405,28 @@ func UpdateMyUserPassword(dbInstance *db.Database) http.Handler {
 
 		err := json.NewDecoder(r.Body).Decode(&updateUserParams)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
 		if updateUserParams.Password == "" {
-			writeError(w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
 			return
 		}
 
 		hashedPassword, err := hashPassword(updateUserParams.Password)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
 			return
 		}
 
 		err = dbInstance.UpdateUserPassword(r.Context(), email, hashedPassword)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to update password", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update password", err, logger.APILog)
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), UpdateUserPasswordAction, email, getClientIP(r), "User updated own password")
 	})
@@ -438,29 +438,29 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 
 		requester, ok := emailAny.(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
 			return
 		}
 
 		emailParam := r.PathValue("email")
 		if emailParam == "" {
-			writeError(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
 			return
 		}
 
 		err := dbInstance.DeleteUser(r.Context(), emailParam)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusNotFound, "User not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to delete user", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete user", err, logger.APILog)
 
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "User deleted successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "User deleted successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), DeleteUserAction, requester, getClientIP(r), "User deleted user: "+emailParam)
 	})
@@ -473,12 +473,12 @@ func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 		perPage := atoiDefault(q.Get("per_page"), 25)
 
 		if page < 1 {
-			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
 			return
 		}
 
 		if perPage < 1 || perPage > 100 {
-			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
 			return
 		}
 
@@ -486,7 +486,7 @@ func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
-			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
 			return
 		}
 
@@ -494,13 +494,13 @@ func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 
 		userID, ok := userIDAny.(int64)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
 			return
 		}
 
 		tokens, total, err := dbInstance.ListAPITokensPage(r.Context(), userID, page, perPage)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Unable to retrieve API tokens", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Unable to retrieve API tokens", err, logger.APILog)
 			return
 		}
 
@@ -525,7 +525,7 @@ func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 			TotalCount: total,
 		}
 
-		writeResponse(w, response, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, response, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -559,23 +559,23 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
-			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
 			return
 		}
 
 		var params CreateAPITokenParams
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
 			return
 		}
 
 		if params.Name == "" {
-			writeError(w, http.StatusBadRequest, "Token name is required", errors.New("missing token name"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Token name is required", errors.New("missing token name"), logger.APILog)
 			return
 		}
 
 		if len(params.Name) < 3 || len(params.Name) > 50 {
-			writeError(w, http.StatusBadRequest, "Token name must be between 3 and 50 characters", errors.New("invalid token name length"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Token name must be between 3 and 50 characters", errors.New("invalid token name length"), logger.APILog)
 			return
 		}
 
@@ -583,7 +583,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 
 		userID, ok := userIDAny.(int64)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
 			return
 		}
 
@@ -592,12 +592,12 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 		if params.ExpiresAt != "" {
 			t, err := time.Parse(time.RFC3339, params.ExpiresAt)
 			if err != nil {
-				writeError(w, http.StatusBadRequest, "Invalid expiration time format", err, logger.APILog)
+				writeError(r.Context(), w, http.StatusBadRequest, "Invalid expiration time format", err, logger.APILog)
 				return
 			}
 
 			if t.Before(time.Now()) {
-				writeError(w, http.StatusBadRequest, "Expiration time must be in the future", errors.New("invalid expiration time"), logger.APILog)
+				writeError(r.Context(), w, http.StatusBadRequest, "Expiration time must be in the future", errors.New("invalid expiration time"), logger.APILog)
 				return
 			}
 
@@ -606,19 +606,19 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 
 		numTokens, err := dbInstance.CountAPITokens(r.Context(), userID)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to count API tokens", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count API tokens", err, logger.APILog)
 			return
 		}
 
 		if numTokens >= MaxNumAPITokens {
-			writeError(w, http.StatusBadRequest, "Maximum number of API tokens reached ("+strconv.Itoa(MaxNumAPITokens)+")", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of API tokens reached ("+strconv.Itoa(MaxNumAPITokens)+")", nil, logger.APILog)
 			return
 		}
 
 		tokenID, err := randAlphaNum(12)
 		if err != nil {
 			logger.APILog.Error("Failed to generate token ID", zap.Error(err))
-			writeError(w, http.StatusInternalServerError, "Failed to generate token ID", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to generate token ID", err, logger.APILog)
 
 			return
 		}
@@ -626,7 +626,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 		secret, err := randAlphaNum(24)
 		if err != nil {
 			logger.APILog.Error("Failed to generate secret", zap.Error(err))
-			writeError(w, http.StatusInternalServerError, "Failed to generate secret", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to generate secret", err, logger.APILog)
 
 			return
 		}
@@ -646,11 +646,11 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 		err = dbInstance.CreateAPIToken(r.Context(), apiToken)
 		if err != nil {
 			if errors.Is(err, db.ErrAlreadyExists) {
-				writeError(w, http.StatusConflict, "API token already exists", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusConflict, "API token already exists", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to create API token", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create API token", err, logger.APILog)
 
 			return
 		}
@@ -659,7 +659,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 			Token: token,
 		}
 
-		writeResponse(w, response, http.StatusCreated, logger.APILog)
+		writeResponse(r.Context(), w, response, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
 			r.Context(),
@@ -677,13 +677,13 @@ func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
-			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
 			return
 		}
 
 		idParam := r.PathValue("id")
 		if idParam == "" {
-			writeError(w, http.StatusBadRequest, "Missing token ID parameter", errors.New("missing param"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing token ID parameter", errors.New("missing param"), logger.APILog)
 			return
 		}
 
@@ -691,35 +691,35 @@ func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 
 		userID, ok := userIDAny.(int64)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
 			return
 		}
 
 		token, err := dbInstance.GetAPITokenByTokenID(r.Context(), idParam)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "API token not found", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusNotFound, "API token not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve API token", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve API token", err, logger.APILog)
 
 			return
 		}
 
 		if token.UserID != userID {
-			writeError(w, http.StatusForbidden, "You do not have permission to delete this token", errors.New("forbidden"), logger.APILog)
+			writeError(r.Context(), w, http.StatusForbidden, "You do not have permission to delete this token", errors.New("forbidden"), logger.APILog)
 			return
 		}
 
 		if err := dbInstance.DeleteAPIToken(r.Context(), token.ID); err != nil {
 			logger.APILog.Warn("Failed to delete API token", zap.Error(err))
-			writeError(w, http.StatusInternalServerError, "Failed to delete API token", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete API token", err, logger.APILog)
 
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "API token deleted successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "API token deleted successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			r.Context(),

@@ -78,12 +78,12 @@ func ListRadios() http.HandlerFunc {
 		perPage := atoiDefault(q.Get("per_page"), 25)
 
 		if page < 1 {
-			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
 			return
 		}
 
 		if perPage < 1 || perPage > 100 {
-			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
 			return
 		}
 
@@ -126,7 +126,7 @@ func ListRadios() http.HandlerFunc {
 			TotalCount: total,
 		}
 
-		writeResponse(w, resp, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
 	}
 }
 
@@ -134,7 +134,7 @@ func GetRadio() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		radioName := r.PathValue("name")
 		if radioName == "" {
-			writeError(w, http.StatusBadRequest, "Missing name parameter", fmt.Errorf("name parameter is required"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing name parameter", fmt.Errorf("name parameter is required"), logger.APILog)
 			return
 		}
 
@@ -165,12 +165,12 @@ func GetRadio() http.HandlerFunc {
 					Address:       radioAddress,
 					SupportedTAIs: supportedTais,
 				}
-				writeResponse(w, result, http.StatusOK, logger.APILog)
+				writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
 
 				return
 			}
 		}
 
-		writeError(w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
+		writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
 	}
 }

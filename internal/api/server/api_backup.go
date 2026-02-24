@@ -17,13 +17,13 @@ func Backup(dbInstance *db.Database) http.HandlerFunc {
 
 		emailStr, ok := email.(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
 
 		tempFile, err := os.CreateTemp("", "backup_*.db")
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to create temp backup file", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create temp backup file", err, logger.APILog)
 			return
 		}
 
@@ -33,12 +33,12 @@ func Backup(dbInstance *db.Database) http.HandlerFunc {
 		}()
 
 		if err := dbInstance.Backup(r.Context(), tempFile); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to backup database", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to backup database", err, logger.APILog)
 			return
 		}
 
 		if _, err := tempFile.Seek(0, 0); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to reset file pointer", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to reset file pointer", err, logger.APILog)
 			return
 		}
 

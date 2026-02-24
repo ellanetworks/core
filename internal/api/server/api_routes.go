@@ -75,18 +75,18 @@ func ListRoutes(dbInstance *db.Database) http.Handler {
 		perPage := atoiDefault(q.Get("per_page"), 25)
 
 		if page < 1 {
-			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
 			return
 		}
 
 		if perPage < 1 || perPage > 100 {
-			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
 			return
 		}
 
 		dbRoutes, total, err := dbInstance.ListRoutesPage(r.Context(), page, perPage)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Routes not found", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Routes not found", err, logger.APILog)
 			return
 		}
 
@@ -109,7 +109,7 @@ func ListRoutes(dbInstance *db.Database) http.Handler {
 			TotalCount: total,
 		}
 
-		writeResponse(w, resp, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -119,18 +119,18 @@ func GetRoute(dbInstance *db.Database) http.Handler {
 
 		idNum, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid id format", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid id format", err, logger.APILog)
 			return
 		}
 
 		dbRoute, err := dbInstance.GetRoute(r.Context(), idNum)
 		if err != nil {
 			if err == db.ErrNotFound {
-				writeError(w, http.StatusNotFound, "Route not found", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusNotFound, "Route not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to get route", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get route", err, logger.APILog)
 
 			return
 		}
@@ -143,7 +143,7 @@ func GetRoute(dbInstance *db.Database) http.Handler {
 			Metric:      dbRoute.Metric,
 		}
 
-		writeResponse(w, routeResponse, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, routeResponse, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -153,61 +153,61 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 
 		email, ok := emailAny.(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
 
 		var createRouteParams CreateRouteParams
 		if err := json.NewDecoder(r.Body).Decode(&createRouteParams); err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
 		if createRouteParams.Destination == "" {
-			writeError(w, http.StatusBadRequest, "destination is missing", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "destination is missing", nil, logger.APILog)
 			return
 		}
 
 		if createRouteParams.Gateway == "" {
-			writeError(w, http.StatusBadRequest, "gateway is missing", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "gateway is missing", nil, logger.APILog)
 			return
 		}
 
 		if createRouteParams.Interface == "" {
-			writeError(w, http.StatusBadRequest, "interface is missing", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "interface is missing", nil, logger.APILog)
 			return
 		}
 
 		if !isRouteDestinationValid(createRouteParams.Destination) {
-			writeError(w, http.StatusBadRequest, "invalid destination format: expecting CIDR notation", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "invalid destination format: expecting CIDR notation", nil, logger.APILog)
 			return
 		}
 
 		if !isRouteGatewayValid(createRouteParams.Gateway) {
-			writeError(w, http.StatusBadRequest, "invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
 			return
 		}
 
 		if createRouteParams.Metric < 0 {
-			writeError(w, http.StatusBadRequest, "Invalid metric value", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid metric value", nil, logger.APILog)
 			return
 		}
 
 		kernelNetworkInterface, ok := interfaceKernelMap[createRouteParams.Interface]
 		if !ok {
-			writeError(w, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed", nil, logger.APILog)
 			return
 		}
 
 		_, ipNetwork, err := net.ParseCIDR(createRouteParams.Destination)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid destination format", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid destination format", err, logger.APILog)
 			return
 		}
 
 		ipGateway := net.ParseIP(createRouteParams.Gateway)
 		if ipGateway == nil || ipGateway.To4() == nil {
-			writeError(w, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
 			return
 		}
 
@@ -215,29 +215,29 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 
 		routeExists, err := kernelInt.RouteExists(ipNetwork, ipGateway, createRouteParams.Metric, kernelNetworkInterface)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to check if route exists", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check if route exists", err, logger.APILog)
 			return
 		}
 
 		if routeExists {
-			writeError(w, http.StatusBadRequest, "Route already exists", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Route already exists", nil, logger.APILog)
 			return
 		}
 
 		dbNetworkInterface, ok := interfaceDBMap[createRouteParams.Interface]
 		if !ok {
-			writeError(w, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed", nil, logger.APILog)
 			return
 		}
 
 		numRoutes, err := dbInstance.CountRoutes(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to count routes", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count routes", err, logger.APILog)
 			return
 		}
 
 		if numRoutes >= MaxNumRoutes {
-			writeError(w, http.StatusBadRequest, "Maximum number of routes reached ("+strconv.Itoa(MaxNumRoutes)+")", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of routes reached ("+strconv.Itoa(MaxNumRoutes)+")", nil, logger.APILog)
 			return
 		}
 
@@ -250,7 +250,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 
 		tx, err := dbInstance.BeginTransaction()
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
 			return
 		}
 
@@ -266,24 +266,24 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 
 		routeID, err := tx.CreateRoute(r.Context(), dbRoute)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to create route in DB", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create route in DB", err, logger.APILog)
 			return
 		}
 
 		if err := kernelInt.CreateRoute(ipNetwork, ipGateway, createRouteParams.Metric, kernelNetworkInterface); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to create kernel route: "+err.Error(), nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create kernel route: "+err.Error(), nil, logger.APILog)
 			return
 		}
 
 		if err := tx.Commit(); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to commit transaction", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to commit transaction", err, logger.APILog)
 			return
 		}
 
 		committed = true
 
 		response := CreateSuccessResponse{Message: "Route created successfully", ID: routeID}
-		writeResponse(w, response, http.StatusCreated, logger.APILog)
+		writeResponse(r.Context(), w, response, http.StatusCreated, logger.APILog)
 		logger.LogAuditEvent(r.Context(), CreateRouteAction, email, getClientIP(r), "User created route: "+fmt.Sprint(routeID))
 	})
 }
@@ -294,7 +294,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 
 		email, ok := emailAny.(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
 
@@ -302,31 +302,31 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 
 		routeID, err := strconv.ParseInt(routeIDStr, 10, 64)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid id format", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid id format", err, logger.APILog)
 			return
 		}
 
 		route, err := dbInstance.GetRoute(r.Context(), routeID)
 		if err != nil {
 			if err == db.ErrNotFound {
-				writeError(w, http.StatusNotFound, "Route not found", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusNotFound, "Route not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to get route", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get route", err, logger.APILog)
 
 			return
 		}
 
 		_, ipNetwork, err := net.ParseCIDR(route.Destination)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid destination format: expecting CIDR notation.", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid destination format: expecting CIDR notation.", err, logger.APILog)
 			return
 		}
 
 		gateway := net.ParseIP(route.Gateway)
 		if gateway == nil || gateway.To4() == nil {
-			writeError(w, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
 			return
 		}
 
@@ -334,7 +334,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 
 		tx, err := dbInstance.BeginTransaction()
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
 			return
 		}
 
@@ -349,13 +349,13 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 		}()
 
 		if err := tx.DeleteRoute(r.Context(), routeID); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to delete route from DB", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete route from DB", err, logger.APILog)
 			return
 		}
 
 		kernelInterface, ok := interfaceKernelMap[route.Interface.String()]
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "invalid interface: abcdef: only n3 and n6 are allowed", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "invalid interface: abcdef: only n3 and n6 are allowed", nil, logger.APILog)
 			return
 		}
 
@@ -364,13 +364,13 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 		}
 
 		if err := tx.Commit(); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to commit transaction", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to commit transaction", err, logger.APILog)
 			return
 		}
 
 		committed = true
 
-		writeResponse(w, SuccessResponse{Message: "Route deleted successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Route deleted successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			r.Context(),

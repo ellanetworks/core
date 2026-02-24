@@ -79,6 +79,7 @@ loki.process "ella_core" {
       component = "component",
       msg       = "msg",
       caller    = "caller",
+      traceID   = "traceID",
     }
   }
 
@@ -87,6 +88,13 @@ loki.process "ella_core" {
     values = {
       level     = "level",
       component = "component",
+    }
+  }
+
+  // Store traceID as structured metadata (avoids high-cardinality labels)
+  stage.structured_metadata {
+    values = {
+      traceID = "",
     }
   }
 

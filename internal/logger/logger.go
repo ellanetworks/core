@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -97,6 +98,21 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 
 func SetDb(db dbwriter.DBWriter) {
 	dbInstance = db
+}
+
+// WithTrace returns a logger enriched with traceID and spanID fields
+// extracted from the given context. If the context has no active span,
+// the original logger is returned unchanged.
+func WithTrace(ctx context.Context, l *zap.Logger) *zap.Logger {
+	sc := trace.SpanFromContext(ctx).SpanContext()
+	if !sc.IsValid() {
+		return l
+	}
+
+	return l.With(
+		zap.String("traceID", sc.TraceID().String()),
+		zap.String("spanID", sc.SpanID().String()),
+	)
 }
 
 // makeCores returns JSON cores for stdout and optional file output.

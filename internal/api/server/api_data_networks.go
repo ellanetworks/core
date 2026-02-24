@@ -57,12 +57,12 @@ func ListDataNetworks(dbInstance *db.Database) http.Handler {
 		perPage := atoiDefault(q.Get("per_page"), 25)
 
 		if page < 1 {
-			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
 			return
 		}
 
 		if perPage < 1 || perPage > 100 {
-			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
 			return
 		}
 
@@ -70,7 +70,7 @@ func ListDataNetworks(dbInstance *db.Database) http.Handler {
 
 		dbDataNetworks, total, err := dbInstance.ListDataNetworksPage(ctx, page, perPage)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to list data networks", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list data networks", err, logger.APILog)
 			return
 		}
 
@@ -99,7 +99,7 @@ func ListDataNetworks(dbInstance *db.Database) http.Handler {
 			TotalCount: total,
 		}
 
-		writeResponse(w, dataNetworks, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, dataNetworks, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -107,13 +107,13 @@ func GetDataNetwork(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
 		if name == "" {
-			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
 		}
 
 		dbDataNetwork, err := dbInstance.GetDataNetwork(r.Context(), name)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 			return
 		}
 
@@ -130,7 +130,7 @@ func GetDataNetwork(dbInstance *db.Database) http.Handler {
 				Sessions: len(smfSessions),
 			},
 		}
-		writeResponse(w, dataNetwork, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, dataNetwork, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -138,45 +138,45 @@ func DeleteDataNetwork(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 
 		name := r.PathValue("name")
 		if name == "" {
-			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
 		}
 
 		policiesInDataNetwork, err := dbInstance.PoliciesInDataNetwork(r.Context(), name)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to check policies", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check policies", err, logger.APILog)
 
 			return
 		}
 
 		if policiesInDataNetwork {
-			writeError(w, http.StatusConflict, "Data Network has policies", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusConflict, "Data Network has policies", nil, logger.APILog)
 			return
 		}
 
 		if err := dbInstance.DeleteDataNetwork(r.Context(), name); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to delete data network", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete data network", err, logger.APILog)
 
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "DataNetwork deleted successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "DataNetwork deleted successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), DeleteDataNetworkAction, email, getClientIP(r), "User deleted data network: "+name)
 	})
@@ -186,29 +186,29 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 
 		var createDataNetworkParams CreateDataNetworkParams
 		if err := json.NewDecoder(r.Body).Decode(&createDataNetworkParams); err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
 		if err := validateDataNetworkParams(createDataNetworkParams); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
 
 		numDataNetworks, err := dbInstance.CountDataNetworks(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to count data networks", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count data networks", err, logger.APILog)
 			return
 		}
 
 		if numDataNetworks >= MaxNumDataNetworks {
-			writeError(w, http.StatusBadRequest, "Maximum number of data networks reached ("+strconv.Itoa(MaxNumDataNetworks)+")", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of data networks reached ("+strconv.Itoa(MaxNumDataNetworks)+")", nil, logger.APILog)
 			return
 		}
 
@@ -221,16 +221,16 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 
 		if err := dbInstance.CreateDataNetwork(r.Context(), dbDataNetwork); err != nil {
 			if errors.Is(err, db.ErrAlreadyExists) {
-				writeError(w, http.StatusConflict, "Data Network already exists", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusConflict, "Data Network already exists", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to create data network", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create data network", err, logger.APILog)
 
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "Data Network created successfully"}, http.StatusCreated, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Data Network created successfully"}, http.StatusCreated, logger.APILog)
 		logger.LogAuditEvent(r.Context(), CreateDataNetworkAction, email, getClientIP(r), "User created data network: "+createDataNetworkParams.Name)
 	})
 }
@@ -239,25 +239,25 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 
 		name := r.PathValue("name")
 		if name == "" || strings.ContainsRune(name, '/') {
-			writeError(w, http.StatusBadRequest, "Invalid or missing name parameter", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid or missing name parameter", nil, logger.APILog)
 			return
 		}
 
 		var updateDataNetworkParams CreateDataNetworkParams
 
 		if err := json.NewDecoder(r.Body).Decode(&updateDataNetworkParams); err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
 		if err := validateDataNetworkParams(updateDataNetworkParams); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
 
@@ -270,16 +270,16 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 
 		if err := dbInstance.UpdateDataNetwork(r.Context(), dn); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to update data network", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update data network", err, logger.APILog)
 
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "Data Network updated successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Data Network updated successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), UpdateDataNetworkAction, email, getClientIP(r), "User updated data network: "+updateDataNetworkParams.Name)
 	})
