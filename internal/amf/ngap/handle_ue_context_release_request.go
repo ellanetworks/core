@@ -90,7 +90,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 
 	amfUe := ranUe.AmfUe
 	if amfUe != nil {
-		if amfUe.State == amfContext.Registered {
+		if amfUe.GetState() == amfContext.Registered {
 			ranUe.Log.Info("Ue Context in GMM-Registered")
 
 			if pDUSessionResourceList != nil {

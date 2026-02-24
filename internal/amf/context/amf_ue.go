@@ -144,6 +144,20 @@ func NewAmfUe() *AmfUe {
 	}
 }
 
+func (ue *AmfUe) GetState() StateType {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	return ue.State
+}
+
+func (ue *AmfUe) SetState(s StateType) {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	ue.State = s
+}
+
 func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	if ranUe == nil || ranUe.Radio == nil {
 		return
@@ -745,7 +759,7 @@ func (ue *AmfUe) Deregister() {
 		ue.mobileReachableTimer = nil
 	}
 
-	ue.State = Deregistered
+	ue.State = Deregistered // direct write: ue.Mutex is already held
 
 	ue.releaseSmContexts()
 
