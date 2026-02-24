@@ -15,6 +15,7 @@ type fakeDBWriter struct {
 	mu          sync.Mutex
 	radioEvents []*dbwriter.RadioEvent
 	auditLogs   []*dbwriter.AuditLog
+	flowReports []*dbwriter.FlowReport
 	insertErr   error
 	insertDelay time.Duration
 }
@@ -41,6 +42,15 @@ func (f *fakeDBWriter) InsertAuditLog(_ context.Context, log *dbwriter.AuditLog)
 	defer f.mu.Unlock()
 
 	f.auditLogs = append(f.auditLogs, log)
+
+	return nil
+}
+
+func (f *fakeDBWriter) InsertFlowReport(_ context.Context, flow *dbwriter.FlowReport) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.flowReports = append(f.flowReports, flow)
 
 	return nil
 }

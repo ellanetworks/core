@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
@@ -26,6 +27,10 @@ func getSeqNumber() uint32 {
 	return atomic.AddUint32(&seq, 1)
 }
 
+func extractImsiFromSupi(supi string) string {
+	return strings.TrimPrefix(supi, "imsi-")
+}
+
 type PFCPSessionEstablishmentResult struct {
 	RemoteSEID uint64
 	TEID       uint32
@@ -40,7 +45,10 @@ func SendPfcpSessionEstablishmentRequest(
 	farList []*smfContext.FAR,
 	qerList []*smfContext.QER,
 	urrList []*smfContext.URR,
+	supi string,
 ) (*PFCPSessionEstablishmentResult, error) {
+	imsi := extractImsiFromSupi(supi)
+
 	pfcpMsg, err := BuildPfcpSessionEstablishmentRequest(
 		getSeqNumber(),
 		cpNodeID.String(),
@@ -50,6 +58,7 @@ func SendPfcpSessionEstablishmentRequest(
 		farList,
 		qerList,
 		urrList,
+		imsi,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build PFCP Session Establishment Request: %v", err)

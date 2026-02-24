@@ -128,7 +128,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		return XDP_ABORTED;
 
 	if (ctx->ip4) {
-		account_flow(ctx, n6_ifindex, pdr->pdr_id);
+		account_flow(ctx, n6_ifindex, pdr->imsi);
 		return route_ipv4(ctx, route_statistic);
 	} else if (ctx->ip6) {
 		return route_ipv6(ctx, route_statistic);

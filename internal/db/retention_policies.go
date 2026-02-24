@@ -37,6 +37,7 @@ const (
 	CategoryAuditLogs       RetentionCategory = "audit"
 	CategoryRadioLogs       RetentionCategory = "radio"
 	CategorySubscriberUsage RetentionCategory = "usage"
+	CategoryFlowReports     RetentionCategory = "flow_reports"
 )
 
 type RetentionPolicy struct {

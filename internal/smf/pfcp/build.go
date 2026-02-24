@@ -329,10 +329,15 @@ func BuildPfcpSessionEstablishmentRequest(
 	farList []*context.FAR,
 	qerList []*context.QER,
 	urrList []*context.URR,
+	imsi string,
 ) (*message.SessionEstablishmentRequest, error) {
 	ies := make([]*ie.IE, 0)
 	ies = append(ies, ie.NewNodeIDHeuristic(nodeID))
 	ies = append(ies, ie.NewFSEID(localSeid, fseidIPv4Address, nil))
+
+	if imsi != "" {
+		ies = append(ies, ie.NewUserID(1, imsi, "", "", ""))
+	}
 
 	for _, pdr := range pdrList {
 		if pdr.State == context.RuleInitial {

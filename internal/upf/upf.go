@@ -12,7 +12,6 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
-	"syscall"
 	"time"
 
 	bpf "github.com/cilium/ebpf"
@@ -38,8 +37,6 @@ const (
 
 var bpfObjects *ebpf.BpfObjects
 
-var bootTime = mustGetBootTime()
-
 type UPF struct {
 	n3Link             link.Link
 	n6Link             *link.Link
@@ -50,17 +47,6 @@ type UPF struct {
 	ctx      context.Context
 	gcCancel context.CancelFunc
 	fcCancel context.CancelFunc
-}
-
-func mustGetBootTime() time.Time {
-	var info syscall.Sysinfo_t
-	if err := syscall.Sysinfo(&info); err != nil {
-		panic(err)
-	}
-
-	bootTime := time.Now().Add(-time.Duration(info.Uptime) * time.Second)
-
-	return bootTime
 }
 
 func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string, advertisedN3Address string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool, flowact bool) (*UPF, error) {
@@ -507,44 +493,6 @@ func (u *UPF) listenForMissingNeighbours() {
 	}
 }
 
-func int2ip(nn uint32) net.IP {
-	ip := make(net.IP, 4)
-	binary.NativeEndian.PutUint32(ip, nn)
-
-	return ip
-}
-
-func u16NtoHS(n uint16) uint16 {
-	b := make([]byte, 2)
-	binary.BigEndian.PutUint16(b, n)
-
-	return binary.NativeEndian.Uint16(b)
-}
-
-func logFlow(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6EntrypointFlowStats) {
-	saddr := int2ip(flow.Saddr)
-	daddr := int2ip(flow.Daddr)
-	sport := u16NtoHS(flow.Sport)
-	dport := u16NtoHS(flow.Dport)
-	proto := flow.Proto
-	startTime := bootTime.Add(time.Duration(stats.FirstTs))
-	endTime := bootTime.Add(time.Duration(stats.LastTs))
-
-	logger.UpfLog.Debug(
-		"Flow expired",
-		zap.Uint32("PDR ID", flow.PdrId),
-		zap.String("Source", saddr.String()),
-		zap.String("Destination", daddr.String()),
-		zap.Uint16("Source Port", sport),
-		zap.Uint16("Destination Port", dport),
-		zap.Uint8("Protocol", proto),
-		zap.Uint64("Packets", stats.Packets),
-		zap.Uint64("Bytes", stats.Bytes),
-		zap.Time("Start", startTime),
-		zap.Time("End", endTime),
-	)
-}
-
 func (u *UPF) collectExpiredFlows(ctx context.Context) {
 	var (
 		key     ebpf.N3N6EntrypointFlow
@@ -574,7 +522,7 @@ func (u *UPF) collectExpiredFlows(ctx context.Context) {
 		for flow_entries.Next(&key, &value) {
 			if value.LastTs < uint64(expiryThreshold) || (value.LastTs-value.FirstTs) > uint64(ActiveFlowTimeout.Nanoseconds()) {
 				expiredKeys = append(expiredKeys, key)
-				go logFlow(key, value)
+				go core.SendFlowReport(u.ctx, key, value)
 			}
 		}
 

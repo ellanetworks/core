@@ -79,7 +79,7 @@ func TestBuildPfcpSessionEstablishmentRequest(t *testing.T) {
 	qerList := []*context.QER{}
 	urrList := []*context.URR{}
 
-	msg, err := pfcp.BuildPfcpSessionEstablishmentRequest(43, cpNodeID, net.ParseIP(cpNodeID), 1, pdrList, farList, qerList, urrList)
+	msg, err := pfcp.BuildPfcpSessionEstablishmentRequest(43, cpNodeID, net.ParseIP(cpNodeID), 1, pdrList, farList, qerList, urrList, "")
 	if err != nil {
 		t.Fatalf("error building PFCP session establishment request: %v", err)
 	}

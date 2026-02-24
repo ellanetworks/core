@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"runtime"
+	"strconv"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -23,6 +24,7 @@ type PdrInfo struct {
 	FarID              uint32
 	QerID              uint32
 	UrrID              uint32
+	IMSI               string
 }
 
 type IPWMask struct {
@@ -171,6 +173,14 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 	pdrToStore.FarId = defaultPdr.FarID
 	pdrToStore.QerId = defaultPdr.QerID
 	pdrToStore.UrrId = defaultPdr.UrrID
+
+	imsiUint64, err := strconv.ParseUint(defaultPdr.IMSI, 10, 64)
+	if err != nil {
+		logger.UpfLog.Error("failed to parse IMSI", zap.String("imsi", defaultPdr.IMSI), zap.Error(err))
+		return pdrToStore
+	}
+
+	pdrToStore.Imsi = imsiUint64
 
 	return pdrToStore
 }

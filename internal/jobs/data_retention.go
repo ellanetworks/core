@@ -30,6 +30,10 @@ func StartDataRetentionWorker(database *db.Database) {
 				logger.EllaLog.Error("error enforcing subscriber usage data retention", zap.Error(err))
 			}
 
+			if err := enforceFlowReportsDataRetention(ctx, database); err != nil {
+				logger.EllaLog.Error("error enforcing flow reports retention", zap.Error(err))
+			}
+
 			<-ticker.C
 		}
 	}()
@@ -69,6 +73,19 @@ func enforceSubscriberUsageDataRetention(ctx context.Context, database *db.Datab
 
 	if err := database.DeleteOldDailyUsage(ctx, days); err != nil {
 		return fmt.Errorf("failed to delete old daily usage data: %v", err)
+	}
+
+	return nil
+}
+
+func enforceFlowReportsDataRetention(ctx context.Context, database *db.Database) error {
+	days, err := database.GetRetentionPolicy(ctx, db.CategoryFlowReports)
+	if err != nil {
+		return fmt.Errorf("failed to get flow reports retention policy: %v", err)
+	}
+
+	if err := database.DeleteOldFlowReports(ctx, days); err != nil {
+		return fmt.Errorf("failed to delete old flow reports: %v", err)
 	}
 
 	return nil

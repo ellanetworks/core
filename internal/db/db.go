@@ -116,6 +116,14 @@ type Database struct {
 	deleteOldAuditLogsStmt *sqlair.Statement
 	countAuditLogsStmt     *sqlair.Statement
 
+	// Flow Report statements
+	insertFlowReportStmt     *sqlair.Statement
+	listFlowReportsStmt      *sqlair.Statement
+	countFlowReportsStmt     *sqlair.Statement
+	deleteOldFlowReportsStmt *sqlair.Statement
+	deleteAllFlowReportsStmt *sqlair.Statement
+	getFlowReportByIDStmt    *sqlair.Statement
+
 	// Session statements
 	createSessionStmt            *sqlair.Statement
 	getSessionByTokenHashStmt    *sqlair.Statement
@@ -282,6 +290,14 @@ func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 		return nil, err
 	}
 
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateFlowReportsTable, FlowReportsTableName)); err != nil {
+		return nil, err
+	}
+
+	if _, err := sqlConnection.ExecContext(ctx, QueryCreateFlowReportsIndex); err != nil {
+		return nil, err
+	}
+
 	db := new(Database)
 	db.conn = sqlair.NewDB(sqlConnection)
 	db.filepath = databasePath
@@ -403,6 +419,14 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteOldAuditLogsStmt, fmt.Sprintf(deleteOldAuditLogsStmt, AuditLogsTableName), []any{cutoffArgs{}}},
 		{&db.countAuditLogsStmt, fmt.Sprintf(countAuditLogsStmt, AuditLogsTableName), []any{NumItems{}}},
 
+		// Flow Reports
+		{&db.insertFlowReportStmt, fmt.Sprintf(insertFlowReportStmt, FlowReportsTableName), []any{dbwriter.FlowReport{}}},
+		{&db.listFlowReportsStmt, fmt.Sprintf(listFlowReportsPagedFilteredStmt, FlowReportsTableName), []any{ListArgs{}, FlowReportFilters{}, dbwriter.FlowReport{}, NumItems{}}},
+		{&db.countFlowReportsStmt, fmt.Sprintf(countFlowReportsFilteredStmt, FlowReportsTableName), []any{FlowReportFilters{}, NumItems{}}},
+		{&db.deleteOldFlowReportsStmt, fmt.Sprintf(deleteOldFlowReportsStmt, FlowReportsTableName), []any{cutoffArgs{}}},
+		{&db.deleteAllFlowReportsStmt, fmt.Sprintf(deleteAllFlowReportsStmt, FlowReportsTableName), nil},
+		{&db.getFlowReportByIDStmt, fmt.Sprintf(getFlowReportByIDStmt, FlowReportsTableName), []any{dbwriter.FlowReport{}}},
+
 		// Sessions
 		{&db.createSessionStmt, fmt.Sprintf(createSessionStmt, SessionsTableName), []any{Session{}}},
 		{&db.getSessionByTokenHashStmt, fmt.Sprintf(getSessionByTokenHashStmt, SessionsTableName), []any{Session{}}},
@@ -513,6 +537,19 @@ func (db *Database) Initialize(ctx context.Context) error {
 		}
 
 		logger.WithTrace(ctx, logger.DBLog).Info("Initialized subscriber usage retention policy", zap.Int("days", DefaultSubscriberUsageRetentionDays))
+	}
+
+	if !db.IsRetentionPolicyInitialized(context.Background(), CategoryFlowReports) {
+		initialPolicy := &RetentionPolicy{
+			Category: CategoryFlowReports,
+			Days:     DefaultLogRetentionDays,
+		}
+
+		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
+			return fmt.Errorf("failed to initialize flow reports retention policy: %v", err)
+		}
+
+		logger.DBLog.Info("Initialized flow reports retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
 	numDataNetworks, err := db.CountDataNetworks(context.Background())
