@@ -23,25 +23,32 @@ func (f *fakeDBWriter) InsertRadioEvent(_ context.Context, event *dbwriter.Radio
 	if f.insertDelay > 0 {
 		time.Sleep(f.insertDelay)
 	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if f.insertErr != nil {
 		return f.insertErr
 	}
+
 	f.radioEvents = append(f.radioEvents, event)
+
 	return nil
 }
 
 func (f *fakeDBWriter) InsertAuditLog(_ context.Context, log *dbwriter.AuditLog) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	f.auditLogs = append(f.auditLogs, log)
+
 	return nil
 }
 
 func (f *fakeDBWriter) radioEventCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	return len(f.radioEvents)
 }
 
@@ -99,6 +106,7 @@ func TestBufferedDBWriter_DropsWhenBufferFull(t *testing.T) {
 	if got >= 20 {
 		t.Fatalf("expected some events to be dropped, but all %d were written", got)
 	}
+
 	if got == 0 {
 		t.Fatal("expected at least some events to be written")
 	}
@@ -136,6 +144,7 @@ func TestBufferedDBWriter_AuditLogIsSynchronous(t *testing.T) {
 
 func TestBufferedDBWriter_ReturnsNilErrorOnInsert(t *testing.T) {
 	fake := &fakeDBWriter{}
+
 	buf := dbwriter.NewBufferedDBWriter(fake, 10, zap.NewNop())
 	defer buf.Stop()
 

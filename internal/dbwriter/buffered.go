@@ -29,7 +29,9 @@ func NewBufferedDBWriter(delegate DBWriter, bufferSize int, logger *zap.Logger) 
 		eventCh:  make(chan *RadioEvent, bufferSize),
 	}
 	b.wg.Add(1)
+
 	go b.drainLoop()
+
 	return b
 }
 
@@ -43,6 +45,7 @@ func (b *BufferedDBWriter) InsertRadioEvent(_ context.Context, radioEvent *Radio
 			zap.String("message_type", radioEvent.MessageType),
 		)
 	}
+
 	return nil
 }
 
@@ -61,6 +64,7 @@ func (b *BufferedDBWriter) Stop() {
 // drainLoop reads events from the channel and writes them to the database.
 func (b *BufferedDBWriter) drainLoop() {
 	defer b.wg.Done()
+
 	for event := range b.eventCh {
 		err := b.delegate.InsertRadioEvent(context.Background(), event)
 		if err != nil {
