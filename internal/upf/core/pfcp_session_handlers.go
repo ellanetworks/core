@@ -209,19 +209,19 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 	bpfObjects := conn.BpfObjects
 
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
-	for _, pdrInfo := range session.PDRs {
+	for _, pdrInfo := range session.ListPDRs() {
 		if err := pdrContext.deletePDR(pdrInfo, bpfObjects); err != nil {
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
 
-	for id := range session.FARs {
+	for id := range session.ListFARs() {
 		if err := bpfObjects.DeleteFar(id); err != nil {
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
 
-	for id := range session.QERs {
+	for id := range session.ListQERs() {
 		if err := bpfObjects.DeleteQer(id); err != nil {
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
@@ -480,7 +480,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 		for _, pdr := range msg.RemovePDR {
 			pdrID, _ := pdr.PDRID()
-			if _, ok := session.PDRs[uint32(pdrID)]; ok {
+			if session.HasPDR(uint32(pdrID)) {
 				sPDRInfo := session.RemovePDR(uint32(pdrID))
 
 				if err := pdrContext.deletePDR(sPDRInfo, bpfObjects); err != nil {

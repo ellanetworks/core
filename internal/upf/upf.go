@@ -440,7 +440,7 @@ func (u *UPF) pollUsageAndResetCounters() error {
 	}
 
 	for localSeid, session := range u.pfcpConn.ListSessions() {
-		for _, pdr := range session.PDRs {
+		for _, pdr := range session.ListPDRs() {
 			urrID := pdr.PdrInfo.UrrID
 			if urrID == 0 {
 				logger.UpfLog.Debug("URR ID is 0, skipping usage report", zap.Uint64("local_seid", localSeid), zap.Uint32("pdr_id", pdr.PdrInfo.PdrID))

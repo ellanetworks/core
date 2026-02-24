@@ -117,6 +117,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
 
+	server.RegisterMetrics()
+	amf.RegisterMetrics()
+	smf.RegisterMetrics()
+	upf.RegisterMetrics()
+
 	if err := api.Start(
 		ctx,
 		dbInstance,
@@ -129,17 +134,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	smf.Start(dbInstance)
+	ausf.Start(dbInstance)
 
 	if err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, &pdusession.EllaSmfSbi{}); err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}
-
-	ausf.Start(dbInstance)
-
-	server.RegisterMetrics()
-	amf.RegisterMetrics()
-	smf.RegisterMetrics()
-	upf.RegisterMetrics()
 
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)

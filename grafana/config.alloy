@@ -15,7 +15,7 @@ local.file "ella_core_token" {
 }
 
 // ============================================================================
-// Prometheus Metrics - Scrape from Ella Core and remote write to Prometheus
+// Prometheus Metrics - Scrape from Ella Core and remote write to Mimir
 // ============================================================================
 
 prometheus.scrape "ella_core" {
@@ -41,7 +41,7 @@ prometheus.scrape "ella_core" {
 
 prometheus.remote_write "default" {
   endpoint {
-    url = "http://192.168.40.6:9090/api/v1/write"
+    url = "http://192.168.40.6:9009/api/v1/push"
   }
 }
 
@@ -103,7 +103,7 @@ loki.write "default" {
 }
 
 // ============================================================================
-// OpenTelemetry Traces - Receive OTLP from Ella Core and forward to Jaeger
+// OpenTelemetry Traces - Receive OTLP from Ella Core and forward to Tempo
 // ============================================================================
 
 // Receive OTLP traces from Ella Core (gRPC on 4317, HTTP on 4318)
@@ -122,12 +122,12 @@ otelcol.receiver.otlp "default" {
 // Batch traces for efficient export
 otelcol.processor.batch "default" {
   output {
-    traces = [otelcol.exporter.otlp.jaeger.input]
+    traces = [otelcol.exporter.otlp.tempo.input]
   }
 }
 
-// Export traces to Jaeger via OTLP
-otelcol.exporter.otlp "jaeger" {
+// Export traces to Tempo via OTLP
+otelcol.exporter.otlp "tempo" {
   client {
     endpoint = "192.168.40.6:4317"
     tls {
