@@ -3,6 +3,7 @@ package ebpf
 import (
 	"errors"
 	"io"
+	"sync"
 
 	"github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
@@ -33,6 +34,7 @@ type BpfObjects struct {
 	N6InterfaceIndex uint32
 	N3Vlan           uint32
 	N6Vlan           uint32
+	pagingMu         sync.Mutex
 	pagingList       map[DataNotification]bool
 }
 
@@ -115,15 +117,25 @@ func (bpfObjects *BpfObjects) Close() error {
 }
 
 func (bpfObjects *BpfObjects) IsAlreadyNotified(d DataNotification) bool {
+	bpfObjects.pagingMu.Lock()
+	defer bpfObjects.pagingMu.Unlock()
+
 	_, ok := bpfObjects.pagingList[d]
+
 	return ok
 }
 
 func (bpfObjects *BpfObjects) MarkNotified(d DataNotification) {
+	bpfObjects.pagingMu.Lock()
+	defer bpfObjects.pagingMu.Unlock()
+
 	bpfObjects.pagingList[d] = true
 }
 
 func (bpfObjects *BpfObjects) ClearNotified(seid uint64, pdrid uint16, qfi uint8) {
+	bpfObjects.pagingMu.Lock()
+	defer bpfObjects.pagingMu.Unlock()
+
 	delete(bpfObjects.pagingList, DataNotification{LocalSEID: seid, PdrID: pdrid, QFI: qfi})
 }
 
