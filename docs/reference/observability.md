@@ -99,6 +99,6 @@ This dashboard uses metrics, logs, traces, and profiles to provide deep insights
   <figcaption>Grafana dashboard for Deep Dive.</figcaption>
 </figure>
 
-- Data Sources: Prometheus, Loki, Jaeger, Pyroscope
+- Data Sources: Mimir, Loki, Jaeger, Pyroscope
 - Dashboard ID: 24770
 - View online: [grafana.com/grafana/dashboards/24770/](https://grafana.com/grafana/dashboards/24770/)
