@@ -1,0 +1,633 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: network-health
+    folder: Ella Core Alerts
+    interval: 1m
+    rules:
+      - uid: ella-no-radios
+        title: No Radios Connected
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: app_connected_radios
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: lt
+                    params:
+                      - 1
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 2m
+        labels:
+          severity: critical
+          component: amf
+        annotations:
+          summary: No radios are connected to the 5G core.
+          description: "The metric `app_connected_radios` has been {{ $values.A }} for more than 2 minutes. No UEs can attach to the network without a connected radio."
+
+      - uid: ella-registration-failure-rate
+        title: High Registration Failure Rate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: |
+                (
+                  sum(rate(app_registration_attempts_total{result="reject"}[5m]))
+                  /
+                  clamp_min(sum(rate(app_registration_attempts_total[5m])), 1e-10)
+                ) * 100
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 10
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 5m
+        labels:
+          severity: critical
+          component: amf
+        annotations:
+          summary: More than 10% of subscriber registrations are failing.
+          description: "Registration failure rate is {{ $values.A | printf \"%.1f\" }}%. This indicates authentication issues (check AUSF/subscriber credentials), missing subscriber profiles, or policy misconfigurations."
+
+      - uid: ella-pdu-session-failure-rate
+        title: High PDU Session Failure Rate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: |
+                (
+                  sum(rate(app_pdu_session_establishment_attempts_total{result="reject"}[5m]))
+                  /
+                  clamp_min(sum(rate(app_pdu_session_establishment_attempts_total[5m])), 1e-10)
+                ) * 100
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 10
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 5m
+        labels:
+          severity: critical
+          component: smf
+        annotations:
+          summary: More than 10% of PDU session establishments are failing.
+          description: "PDU session failure rate is {{ $values.A | printf \"%.1f\" }}%. Subscribers may be unable to get data connectivity."
+
+      - uid: ella-ip-pool-exhaustion
+        title: IP Address Pool Near Exhaustion
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: |
+                (app_ip_addresses_allocated_total / clamp_min(app_ip_addresses_total, 1)) * 100
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 90
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 5m
+        labels:
+          severity: warning
+          component: smf
+        annotations:
+          summary: IP address pool is more than 90% allocated.
+          description: "IP pool utilization is {{ $values.A | printf \"%.1f\" }}% ({{ $values.A }} allocated). New PDU sessions will fail once the pool is exhausted."
+
+  - orgId: 1
+    name: api-health
+    folder: Ella Core Alerts
+    interval: 1m
+    rules:
+      - uid: ella-api-error-rate
+        title: High API Error Rate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: |
+                (
+                  sum(rate(app_api_requests_total{status=~"5.."}[5m]))
+                  /
+                  clamp_min(sum(rate(app_api_requests_total[5m])), 1e-10)
+                ) * 100
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 5
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: API server error rate exceeds 5%.
+          description: "API 5xx error rate is {{ $values.A | printf \"%.1f\" }}%. Check `app_api_requests_total` by endpoint to identify which endpoints are failing."
+
+      - uid: ella-api-latency
+        title: High API Latency (P99)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: |
+                histogram_quantile(0.99, sum(rate(app_api_request_duration_seconds_bucket{endpoint!="/api/v1/pprof"}[5m])) by (le))
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 2
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: API P99 latency exceeds 2 seconds.
+          description: "API P99 latency is {{ $values.A | printf \"%.3f\" }}s. This may indicate database contention, resource exhaustion, or slow downstream operations."
+
+      - uid: ella-auth-failure-spike
+        title: Authentication Failure Spike
+        condition: C
+        data:
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: |
+                (
+                  sum(rate(app_api_authentication_attempts_total{result="failure"}[5m]))
+                  /
+                  clamp_min(sum(rate(app_api_authentication_attempts_total[5m])), 1e-10)
+                ) * 100
+              instant: true
+              refId: B
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 25
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - B
+                  reducer:
+                    type: last
+              expression: B
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: More than 25% of API authentication attempts are failing.
+          description: "API authentication failure rate is {{ $values.B | printf \"%.1f\" }}%. This could indicate credential issues, token expiry problems, or unauthorized access attempts."
+
+  - orgId: 1
+    name: infrastructure-health
+    folder: Ella Core Alerts
+    interval: 1m
+    rules:
+      - uid: ella-high-memory
+        title: High Memory Usage
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: process_resident_memory_bytes
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 1073741824
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 5m
+        labels:
+          severity: warning
+          component: runtime
+        annotations:
+          summary: Process memory usage exceeds 1 GiB.
+          description: "Resident memory is {{ $values.A | humanize1024 }}B. Check for memory leaks using the Pyroscope heap profile."
+
+      - uid: ella-high-goroutines
+        title: High Goroutine Count
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: go_goroutines
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 10000
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 5m
+        labels:
+          severity: warning
+          component: runtime
+        annotations:
+          summary: Goroutine count exceeds 10,000.
+          description: "Current goroutine count is {{ $values.A }}. This may indicate a goroutine leak, likely from unclean session teardowns."
+
+      - uid: ella-db-query-latency
+        title: High Database Query Latency (P99)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: |
+                histogram_quantile(0.99, sum(rate(app_database_query_duration_seconds_bucket[5m])) by (le))
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 0.5
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 5m
+        labels:
+          severity: warning
+          component: db
+        annotations:
+          summary: Database P99 query latency exceeds 500ms.
+          description: "DB P99 latency is {{ $values.A | printf \"%.3f\" }}s. This impacts API response times and session establishment."
+
+      - uid: ella-db-storage-large
+        title: Large Database Size
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: app_database_storage_bytes
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 1073741824
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 10m
+        labels:
+          severity: warning
+          component: db
+        annotations:
+          summary: Database size exceeds 1 GiB.
+          description: "Database file is {{ $values.A | humanize1024 }}B. Large databases slow down queries and backups."
+
+  - orgId: 1
+    name: data-plane-health
+    folder: Ella Core Alerts
+    interval: 1m
+    rules:
+      - uid: ella-xdp-drops
+        title: High XDP Packet Drop Rate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: |
+                sum(rate(app_xdp_action_total{action="XDP_DROP"}[5m]))
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 10
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 5m
+        labels:
+          severity: warning
+          component: upf
+        annotations:
+          summary: XDP is dropping more than 10 packets/sec.
+          description: "XDP drop rate is {{ $values.A | printf \"%.1f\" }} pkt/s. Check `app_xdp_action_total` by interface (n3/n6) to localize the issue."
+
+      - uid: ella-no-traffic-flow
+        title: No Data Plane Traffic
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: |
+                rate(app_uplink_bytes[10m]) + rate(app_downlink_bytes[10m])
+              instant: true
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: app_connected_radios > 0
+              instant: true
+              refId: B
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: math
+              refId: C
+              expression: ($B > 0) && ($A == 0)
+        for: 10m
+        labels:
+          severity: critical
+          component: upf
+        annotations:
+          summary: Radios are connected but no data is flowing through the user plane.
+          description: "Radios are connected (app_connected_radios > 0) but uplink + downlink throughput has been zero for 10 minutes. The data plane may be broken."
+
+      - uid: ella-xdp-aborted
+        title: XDP Aborted Actions Detected
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: |
+                sum(rate(app_xdp_action_total{action="XDP_ABORTED"}[5m]))
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 0
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 2m
+        labels:
+          severity: critical
+          component: upf
+        annotations:
+          summary: XDP_ABORTED actions detected — the eBPF program is hitting errors.
+          description: "XDP_ABORTED rate is {{ $values.A | printf \"%.1f\" }} pkt/s. This indicates the eBPF/XDP program encountered an unrecoverable error during packet processing."
