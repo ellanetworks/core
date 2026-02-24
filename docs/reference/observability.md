@@ -86,6 +86,14 @@ Ella Core ships with pre-configured [Grafana alert rules](https://github.com/ell
 | High PDU Session Failure Rate | Critical | More than 10% of PDU session establishments rejected over 5 minutes |
 | IP Address Pool Near Exhaustion | Warning | More than 90% of the UE IP pool is allocated |
 
+### Data Plane Health
+
+| Alert | Severity | Condition |
+|-------|----------|-----------|
+| High XDP Packet Drop Rate | Warning | More than 10 packets/s dropped by XDP for 5 minutes |
+| No Data Plane Traffic | Critical | Radios connected but zero throughput for 10 minutes |
+| XDP Aborted Actions | Critical | Any XDP_ABORTED events for 2 minutes (indicates eBPF program errors) |
+
 ### API Health
 
 | Alert | Severity | Condition |
@@ -102,14 +110,6 @@ Ella Core ships with pre-configured [Grafana alert rules](https://github.com/ell
 | High Goroutine Count | Warning | More than 10,000 goroutines for 5 minutes |
 | High Database Query Latency | Warning | P99 database query latency exceeds 500ms over 5 minutes |
 | Large Database Size | Warning | Database file exceeds 1 GiB for 10 minutes |
-
-### Data Plane Health
-
-| Alert | Severity | Condition |
-|-------|----------|-----------|
-| High XDP Packet Drop Rate | Warning | More than 10 packets/s dropped by XDP for 5 minutes |
-| No Data Plane Traffic | Critical | Radios connected but zero throughput for 10 minutes |
-| XDP Aborted Actions | Critical | Any XDP_ABORTED events for 2 minutes (indicates eBPF program errors) |
 
 ## Dashboards
 
