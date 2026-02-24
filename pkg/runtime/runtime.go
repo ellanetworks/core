@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
@@ -81,7 +82,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't release all IPs: %w", err)
 	}
 
-	logger.SetDb(dbInstance)
+	bufferedWriter := dbwriter.NewBufferedDBWriter(dbInstance, 1000, logger.NetworkLog)
+	logger.SetDb(bufferedWriter)
 
 	jobs.StartDataRetentionWorker(dbInstance)
 
@@ -146,6 +148,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		amf.Close(shutdownCtx)
 		upfInstance.Close()
+
+		bufferedWriter.Stop()
 
 		err := dbInstance.Close()
 		if err != nil {
