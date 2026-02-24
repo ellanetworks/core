@@ -87,21 +87,21 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(SessionTokenCookieName)
 		if err != nil {
-			writeError(w, http.StatusUnauthorized, "No session token", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusUnauthorized, "No session token", err, logger.APILog)
 			return
 		}
 
 		rawToken, err := base64.URLEncoding.DecodeString(cookie.Value)
 		if err != nil {
 			clearSessionCookie(w, secureCookie)
-			writeError(w, http.StatusUnauthorized, "Invalid token encoding", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusUnauthorized, "Invalid token encoding", err, logger.APILog)
 
 			return
 		}
 
 		if len(rawToken) != TokenLength {
 			clearSessionCookie(w, secureCookie)
-			writeError(w, http.StatusUnauthorized, "Invalid token length", fmt.Errorf("token must be %d bytes", TokenLength), logger.APILog)
+			writeError(r.Context(), w, http.StatusUnauthorized, "Invalid token length", fmt.Errorf("token must be %d bytes", TokenLength), logger.APILog)
 
 			return
 		}
@@ -111,7 +111,7 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.
 		session, err := dbInstance.GetSessionByTokenHash(r.Context(), hashed[:])
 		if err != nil {
 			clearSessionCookie(w, secureCookie)
-			writeError(w, http.StatusUnauthorized, "Invalid session token", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusUnauthorized, "Invalid session token", err, logger.APILog)
 
 			return
 		}
@@ -125,7 +125,7 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.
 			}
 
 			clearSessionCookie(w, secureCookie)
-			writeError(w, http.StatusUnauthorized, "Session expired", errors.New("session expired"), logger.APILog)
+			writeError(r.Context(), w, http.StatusUnauthorized, "Session expired", errors.New("session expired"), logger.APILog)
 
 			return
 		}
@@ -134,25 +134,25 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				clearSessionCookie(w, secureCookie)
-				writeError(w, http.StatusUnauthorized, "Invalid session user", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusUnauthorized, "Invalid session user", nil, logger.APILog)
 
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 
 			return
 		}
 
 		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
 		}
 
 		resp := RefreshResponse{Token: token}
 
-		writeResponse(w, resp, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -167,17 +167,17 @@ func Login(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.Ha
 		var loginParams LoginParams
 
 		if err := json.NewDecoder(r.Body).Decode(&loginParams); err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid JSON format", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid JSON format", err, logger.APILog)
 			return
 		}
 
 		if loginParams.Email == "" {
-			writeError(w, http.StatusBadRequest, "Email is required", fmt.Errorf("email is missing"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Email is required", fmt.Errorf("email is missing"), logger.APILog)
 			return
 		}
 
 		if loginParams.Password == "" {
-			writeError(w, http.StatusBadRequest, "Password is required", fmt.Errorf("password is missing"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Password is required", fmt.Errorf("password is missing"), logger.APILog)
 			return
 		}
 
@@ -190,7 +190,7 @@ func Login(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.Ha
 				getClientIP(r),
 				"User failed to log in",
 			)
-			writeError(w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", err, logger.APILog)
 
 			return
 		}
@@ -203,26 +203,26 @@ func Login(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.Ha
 				getClientIP(r),
 				"User failed to log in",
 			)
-			writeError(w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", fmt.Errorf("password mismatch"), logger.APILog)
+			writeError(r.Context(), w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", fmt.Errorf("password mismatch"), logger.APILog)
 
 			return
 		}
 
 		err = createSessionAndSetCookie(r.Context(), dbInstance, user.ID, secureCookie, w)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
 		}
 
 		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
 		}
 
 		success = true
 
-		writeResponse(w, LoginResponse{Message: "Login successful", Token: token}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, LoginResponse{Message: "Login successful", Token: token}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			r.Context(),
@@ -292,7 +292,7 @@ func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, use
 func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") == "" {
-			writeError(w, http.StatusBadRequest, "Authorization header is required",
+			writeError(r.Context(), w, http.StatusBadRequest, "Authorization header is required",
 				errors.New("missing Authorization header"), logger.APILog)
 
 			return
@@ -301,7 +301,7 @@ func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 		_, _, _, err := authenticateRequest(r, jwtSecret, dbInstance)
 		lookupTokenResponse := LookupTokenResponse{Valid: err == nil}
 
-		writeResponse(w, lookupTokenResponse, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, lookupTokenResponse, http.StatusOK, logger.APILog)
 	})
 }
 

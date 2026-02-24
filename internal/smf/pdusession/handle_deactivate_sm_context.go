@@ -49,7 +49,7 @@ func DeactivateSmContext(ctx context.Context, smContextRef string) error {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
-	logger.SmfLog.Info("Sent PFCP session modification request", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+	logger.WithTrace(ctx, logger.SmfLog).Info("Sent PFCP session modification request", zap.String("supi", smContext.Supi), zap.Uint8("pduSessionID", smContext.PDUSessionID))
 
 	return nil
 }

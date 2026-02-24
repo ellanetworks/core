@@ -58,7 +58,7 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n3Settings, err := dbInstance.GetN3Settings(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to get N3 settings", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get N3 settings", err, logger.APILog)
 			return
 		}
 
@@ -95,7 +95,7 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 			}
 		}
 
-		writeResponse(w, resp, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -105,23 +105,23 @@ func UpdateN3Interface(dbInstance *db.Database, upf UPFUpdater, cfg config.Confi
 
 		email, ok := emailAny.(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
 
 		var params UpdateN3SettingsParams
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
 		if !isValidExternalAddress(params.ExternalAddress) {
-			writeError(w, http.StatusBadRequest, "Invalid external address. Must be a valid IP address", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid external address. Must be a valid IP address", nil, logger.APILog)
 			return
 		}
 
 		if err := dbInstance.UpdateN3Settings(r.Context(), params.ExternalAddress); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to update N3 settings", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update N3 settings", err, logger.APILog)
 			return
 		}
 
@@ -135,7 +135,7 @@ func UpdateN3Interface(dbInstance *db.Database, upf UPFUpdater, cfg config.Confi
 
 		logger.APILog.Info("N3 interface updated", zap.String("n3_address", n3Address))
 
-		writeResponse(w, SuccessResponse{Message: "N3 interface updated"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "N3 interface updated"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			r.Context(),

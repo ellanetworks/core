@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -99,6 +100,21 @@ func SetDb(db dbwriter.DBWriter) {
 	dbInstance = db
 }
 
+// WithTrace returns a logger enriched with traceID and spanID fields
+// extracted from the given context. If the context has no active span,
+// the original logger is returned unchanged.
+func WithTrace(ctx context.Context, l *zap.Logger) *zap.Logger {
+	sc := trace.SpanFromContext(ctx).SpanContext()
+	if !sc.IsValid() {
+		return l
+	}
+
+	return l.With(
+		zap.String("traceID", sc.TraceID().String()),
+		zap.String("spanID", sc.SpanID().String()),
+	)
+}
+
 // makeCores returns JSON cores for stdout and optional file output.
 func makeCores(mode, filePath string, enc zapcore.Encoder) ([]zapcore.Core, error) {
 	cores := []zapcore.Core{
@@ -151,7 +167,7 @@ func jsonEncoderConfig() zapcore.EncoderConfig {
 
 // LogAuditEvent logs an audit event to the audit logger.
 func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
-	AuditLog.Info("Audit event",
+	WithTrace(ctx, AuditLog).Info("Audit event",
 		zap.String("action", action),
 		zap.String("actor", actor),
 		zap.String("ip", ip),
@@ -215,7 +231,7 @@ func LogNetworkEvent(
 		return
 	}
 
-	NetworkLog.Info("network_event",
+	WithTrace(ctx, NetworkLog).Info("network_event",
 		zap.String("protocol", string(protocol)),
 		zap.String("message_type", messageType),
 		zap.String("direction", string(dir)),

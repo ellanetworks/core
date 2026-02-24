@@ -192,7 +192,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 	serviceType := msg.GetServiceTypeValue()
 
-	logger.AmfLog.Debug("Handle Service Request", zap.String("supi", ue.Supi), zap.String("serviceType", serviceTypeToString(serviceType)))
+	logger.WithTrace(ctx, logger.AmfLog).Debug("Handle Service Request", zap.String("supi", ue.Supi), zap.String("serviceType", serviceTypeToString(serviceType)))
 
 	var (
 		reactivationResult, acceptPduSessionPsi *[16]bool

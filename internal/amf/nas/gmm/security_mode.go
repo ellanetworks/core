@@ -11,7 +11,7 @@ import (
 )
 
 func securityMode(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) error {
-	logger.AmfLog.Debug("Security Mode Procedure", zap.String("supi", ue.Supi))
+	logger.WithTrace(ctx, logger.AmfLog).Debug("Security Mode Procedure", zap.String("supi", ue.Supi))
 
 	ctx, span := tracer.Start(ctx, "securityMode")
 	defer span.End()

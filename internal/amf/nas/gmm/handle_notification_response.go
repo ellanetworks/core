@@ -27,7 +27,7 @@ func handleNotificationResponse(ctx context.Context, amf *amfContext.AMF, ue *am
 	}
 
 	if msg.PDUSessionStatus == nil {
-		logger.AmfLog.Debug("PDUSessionStatus IE is not present in Notification Response message, no PDU session to release", zap.String("supi", ue.Supi))
+		logger.WithTrace(ctx, logger.AmfLog).Debug("PDUSessionStatus IE is not present in Notification Response message, no PDU session to release", zap.String("supi", ue.Supi))
 		return nil
 	}
 

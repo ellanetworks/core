@@ -29,39 +29,39 @@ func Initialize(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) ht
 		var newUser InitializeParams
 
 		if err := json.NewDecoder(r.Body).Decode(&newUser); err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
 		if newUser.Email == "" {
-			writeError(w, http.StatusBadRequest, "email is missing", errors.New("missing email"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "email is missing", errors.New("missing email"), logger.APILog)
 			return
 		}
 
 		if newUser.Password == "" {
-			writeError(w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
 			return
 		}
 
 		if !isValidEmail(newUser.Email) {
-			writeError(w, http.StatusBadRequest, "Invalid email format", errors.New("bad format"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid email format", errors.New("bad format"), logger.APILog)
 			return
 		}
 
 		numUsers, err := dbInstance.CountUsers(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to count users", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count users", err, logger.APILog)
 			return
 		}
 
 		if numUsers != 0 {
-			writeError(w, http.StatusForbidden, "System already initialized", errors.New("users already exist"), logger.APILog)
+			writeError(r.Context(), w, http.StatusForbidden, "System already initialized", errors.New("users already exist"), logger.APILog)
 			return
 		}
 
 		hashedPassword, err := hashPassword(newUser.Password)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
 			return
 		}
 
@@ -74,28 +74,28 @@ func Initialize(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) ht
 		userID, err := dbInstance.CreateUser(r.Context(), dbUser)
 		if err != nil {
 			if errors.Is(err, db.ErrAlreadyExists) {
-				writeError(w, http.StatusConflict, "User already exists", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusConflict, "User already exists", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to create user", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create user", err, logger.APILog)
 
 			return
 		}
 
 		err = createSessionAndSetCookie(r.Context(), dbInstance, userID, secureCookie, w)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
 		}
 
 		token, err := generateJWT(userID, newUser.Email, RoleID(db.RoleAdmin), jwtSecret)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
 		}
 
-		writeResponse(w, InitializeResponse{Message: "System initialized successfully", Token: token}, http.StatusCreated, logger.APILog)
+		writeResponse(r.Context(), w, InitializeResponse{Message: "System initialized successfully", Token: token}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
 			r.Context(),

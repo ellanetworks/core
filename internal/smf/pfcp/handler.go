@@ -127,7 +127,7 @@ func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionRep
 				), fmt.Errorf("failed to update uplink data volume in db for imsi %s: %v", smContext.Supi, err)
 			}
 
-			logger.SmfLog.Debug(
+			logger.WithTrace(ctx, logger.SmfLog).Debug(
 				"Processed usage report",
 				zap.String("supi", smContext.Supi),
 				zap.Uint32("urrID", urrId),

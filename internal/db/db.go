@@ -298,7 +298,7 @@ func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	logger.DBLog.Debug("Database Initialized")
+	logger.WithTrace(ctx, logger.DBLog).Debug("Database Initialized")
 
 	return db, nil
 }
@@ -486,7 +486,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize log retention policy: %v", err)
 		}
 
-		logger.DBLog.Info("Initialized audit log retention policy", zap.Int("days", DefaultLogRetentionDays))
+		logger.WithTrace(ctx, logger.DBLog).Info("Initialized audit log retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
 	if !db.IsRetentionPolicyInitialized(context.Background(), CategoryRadioLogs) {
@@ -499,7 +499,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize radio event retention policy: %v", err)
 		}
 
-		logger.DBLog.Info("Initialized radio event retention policy", zap.Int("days", DefaultLogRetentionDays))
+		logger.WithTrace(ctx, logger.DBLog).Info("Initialized radio event retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
 	if !db.IsRetentionPolicyInitialized(context.Background(), CategorySubscriberUsage) {
@@ -512,7 +512,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize subscriber usage retention policy: %v", err)
 		}
 
-		logger.DBLog.Info("Initialized subscriber usage retention policy", zap.Int("days", DefaultSubscriberUsageRetentionDays))
+		logger.WithTrace(ctx, logger.DBLog).Info("Initialized subscriber usage retention policy", zap.Int("days", DefaultSubscriberUsageRetentionDays))
 	}
 
 	numDataNetworks, err := db.CountDataNetworks(context.Background())

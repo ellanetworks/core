@@ -1,9 +1,11 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
 
@@ -24,12 +26,13 @@ type Response struct {
 	Result any `json:"result,omitempty"`
 }
 
-func writeResponse(w http.ResponseWriter, v any, status int, logger *zap.Logger) {
+func writeResponse(ctx context.Context, w http.ResponseWriter, v any, status int, l *zap.Logger) {
+	log := logger.WithTrace(ctx, l)
 	resp := Response{Result: v}
 
 	respBytes, err := json.Marshal(&resp)
 	if err != nil {
-		logger.Error("Error marshalling response", zap.Error(err))
+		log.Error("Error marshalling response", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 
 		return
@@ -40,7 +43,7 @@ func writeResponse(w http.ResponseWriter, v any, status int, logger *zap.Logger)
 	w.WriteHeader(status)
 
 	if _, err := w.Write(respBytes); err != nil {
-		logger.Error("Error writing response", zap.Error(err))
+		log.Error("Error writing response", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 
 		return
@@ -48,14 +51,15 @@ func writeResponse(w http.ResponseWriter, v any, status int, logger *zap.Logger)
 }
 
 // writeError is a helper function that logs errors and writes http response for errors
-func writeError(w http.ResponseWriter, status int, message string, err error, logger *zap.Logger) {
-	logger.Debug(message, zap.Error(err))
+func writeError(ctx context.Context, w http.ResponseWriter, status int, message string, err error, l *zap.Logger) {
+	log := logger.WithTrace(ctx, l)
+	log.Debug(message, zap.Error(err))
 
 	resp := ErrorResponse{Error: message}
 
 	respBytes, err := json.Marshal(&resp)
 	if err != nil {
-		logger.Error("Error marshalling error response", zap.Error(err))
+		log.Error("Error marshalling error response", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 
 		return
@@ -67,6 +71,6 @@ func writeError(w http.ResponseWriter, status int, message string, err error, lo
 
 	_, err = w.Write(respBytes)
 	if err != nil {
-		logger.Error("Error writing error response", zap.Error(err))
+		log.Error("Error writing error response", zap.Error(err))
 	}
 }

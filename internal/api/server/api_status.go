@@ -20,7 +20,7 @@ func GetStatus(dbInstance *db.Database) http.Handler {
 
 		numUsers, err := dbInstance.CountUsers(ctx)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Unable to retrieve number of users", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Unable to retrieve number of users", err, logger.APILog)
 			return
 		}
 
@@ -34,6 +34,6 @@ func GetStatus(dbInstance *db.Database) http.Handler {
 			Initialized: initialized,
 		}
 
-		writeResponse(w, statusResponse, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, statusResponse, http.StatusOK, logger.APILog)
 	})
 }

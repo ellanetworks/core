@@ -89,12 +89,12 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 		perPage := atoiDefault(q.Get("per_page"), 25)
 
 		if page < 1 {
-			writeError(w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
 			return
 		}
 
 		if perPage < 1 || perPage > 100 {
-			writeError(w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
 			return
 		}
 
@@ -102,7 +102,7 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 
 		dbPolicies, total, err := dbInstance.ListPoliciesPage(ctx, page, perPage)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Policies not found", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Policies not found", err, logger.APILog)
 			return
 		}
 
@@ -111,7 +111,7 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 		for _, dbPolicy := range dbPolicies {
 			dataNetwork, err := dbInstance.GetDataNetworkByID(ctx, dbPolicy.DataNetworkID)
 			if err != nil {
-				writeError(w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 				return
 			}
 
@@ -132,7 +132,7 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 			TotalCount: total,
 		}
 
-		writeResponse(w, resp, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -140,19 +140,19 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
 		if name == "" {
-			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
 		}
 
 		dbPolicy, err := dbInstance.GetPolicy(r.Context(), name)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 			return
 		}
 
 		dataNetwork, err := dbInstance.GetDataNetworkByID(r.Context(), dbPolicy.DataNetworkID)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 			return
 		}
 
@@ -164,7 +164,7 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 			Arp:             dbPolicy.Arp,
 			DataNetworkName: dataNetwork.Name,
 		}
-		writeResponse(w, policy, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, policy, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -172,51 +172,51 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 
 		name := r.PathValue("name")
 		if name == "" {
-			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
 		}
 
 		_, err := dbInstance.GetPolicy(r.Context(), name)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 			return
 		}
 
 		subsInPolicy, err := dbInstance.SubscribersInPolicy(r.Context(), name)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to check subscribers", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check subscribers", err, logger.APILog)
 
 			return
 		}
 
 		if subsInPolicy {
-			writeError(w, http.StatusConflict, "Policy has subscribers", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusConflict, "Policy has subscribers", nil, logger.APILog)
 			return
 		}
 
 		if err := dbInstance.DeletePolicy(r.Context(), name); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to delete policy", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete policy", err, logger.APILog)
 
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "Policy deleted successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy deleted successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), DeletePolicyAction, email, getClientIP(r), "User deleted policy: "+name)
 	})
@@ -226,35 +226,35 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 
 		var createPolicyParams CreatePolicyParams
 		if err := json.NewDecoder(r.Body).Decode(&createPolicyParams); err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
 		if err := validatePolicyParams(createPolicyParams); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
 
 		numPolicies, err := dbInstance.CountPolicies(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to count policies", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count policies", err, logger.APILog)
 			return
 		}
 
 		if numPolicies >= MaxNumPolicies {
-			writeError(w, http.StatusBadRequest, "Maximum number of policies reached ("+strconv.Itoa(MaxNumPolicies)+")", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of policies reached ("+strconv.Itoa(MaxNumPolicies)+")", nil, logger.APILog)
 			return
 		}
 
 		dataNetwork, err := dbInstance.GetDataNetwork(r.Context(), createPolicyParams.DataNetworkName)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 			return
 		}
 
@@ -269,16 +269,16 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 
 		if err := dbInstance.CreatePolicy(r.Context(), dbPolicy); err != nil {
 			if errors.Is(err, db.ErrAlreadyExists) {
-				writeError(w, http.StatusConflict, "Policy already exists", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusConflict, "Policy already exists", nil, logger.APILog)
 				return
 			}
 
-			writeError(w, http.StatusInternalServerError, "Failed to create policy", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy", err, logger.APILog)
 
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "Policy created successfully"}, http.StatusCreated, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy created successfully"}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), CreatePolicyAction, email, getClientIP(r), "User created policy: "+createPolicyParams.Name)
 	})
@@ -288,37 +288,37 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 
 		policyName := r.PathValue("name")
 		if policyName == "" || strings.ContainsRune(policyName, '/') {
-			writeError(w, http.StatusBadRequest, "Invalid or missing name parameter", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid or missing name parameter", nil, logger.APILog)
 			return
 		}
 
 		var updatePolicyParams CreatePolicyParams
 
 		if err := json.NewDecoder(r.Body).Decode(&updatePolicyParams); err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
 		if err := validatePolicyParams(updatePolicyParams); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
 
 		policy, err := dbInstance.GetPolicy(r.Context(), policyName)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 			return
 		}
 
 		dataNetwork, err := dbInstance.GetDataNetwork(r.Context(), updatePolicyParams.DataNetworkName)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
 			return
 		}
 
@@ -330,11 +330,11 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		policy.DataNetworkID = dataNetwork.ID
 
 		if err := dbInstance.UpdatePolicy(r.Context(), policy); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to update policy", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update policy", err, logger.APILog)
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "Policy updated successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy updated successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(r.Context(), UpdatePolicyAction, email, getClientIP(r), "User updated policy: "+updatePolicyParams.Name)
 	})
 }

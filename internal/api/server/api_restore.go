@@ -18,19 +18,19 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 
 		emailStr, ok := email.(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
 
 		err := r.ParseMultipartForm(32 << 20) // 32MB max memory buffer
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid multipart form", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid multipart form", err, logger.APILog)
 			return
 		}
 
 		file, _, err := r.FormFile("backup")
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "No backup file provided", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "No backup file provided", err, logger.APILog)
 			return
 		}
 
@@ -43,7 +43,7 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 
 		tempFile, err := os.CreateTemp("", "restore_*.db")
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to create temporary file", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create temporary file", err, logger.APILog)
 			return
 		}
 
@@ -53,21 +53,21 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 		}()
 
 		if _, err := io.Copy(tempFile, file); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to copy uploaded file", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to copy uploaded file", err, logger.APILog)
 			return
 		}
 
 		if _, err := tempFile.Seek(0, 0); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to reset file pointer", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to reset file pointer", err, logger.APILog)
 			return
 		}
 
 		if err := dbInstance.Restore(r.Context(), tempFile); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to restore database", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to restore database", err, logger.APILog)
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "Database restored successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Database restored successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(
 			r.Context(),
 			RestoreAction,

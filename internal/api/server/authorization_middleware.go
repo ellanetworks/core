@@ -144,6 +144,6 @@ func Authorize(permission string, next http.Handler) http.Handler {
 			}
 		}
 
-		writeError(w, http.StatusForbidden, "Forbidden", errors.New("permission denied"), logger.APILog)
+		writeError(r.Context(), w, http.StatusForbidden, "Forbidden", errors.New("permission denied"), logger.APILog)
 	})
 }

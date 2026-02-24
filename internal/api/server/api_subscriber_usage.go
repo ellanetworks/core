@@ -59,7 +59,7 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 		case "day":
 			dailyUsage, err := dbInstance.GetUsagePerDay(ctx, subscriber, startDate, endDate)
 			if err != nil {
-				writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
 				return
 			}
 
@@ -75,13 +75,13 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 				}
 			}
 
-			writeResponse(w, response, http.StatusOK, logger.APILog)
+			writeResponse(r.Context(), w, response, http.StatusOK, logger.APILog)
 
 			return
 		case "subscriber":
 			subscriberUsage, err := dbInstance.GetUsagePerSubscriber(ctx, subscriber, startDate, endDate)
 			if err != nil {
-				writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
 				return
 			}
 
@@ -97,11 +97,11 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 				}
 			}
 
-			writeResponse(w, response, http.StatusOK, logger.APILog)
+			writeResponse(r.Context(), w, response, http.StatusOK, logger.APILog)
 
 			return
 		default:
-			writeError(w, http.StatusBadRequest, "Invalid group_by parameter", errors.New("group_by must be either 'day' or 'subscriber'"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid group_by parameter", errors.New("group_by must be either 'day' or 'subscriber'"), logger.APILog)
 			return
 		}
 	})
@@ -113,12 +113,12 @@ func GetSubscriberUsageRetentionPolicy(dbInstance *db.Database) http.Handler {
 
 		policyDays, err := dbInstance.GetRetentionPolicy(ctx, db.CategorySubscriberUsage)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve subscriber usage retention policy", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve subscriber usage retention policy", err, logger.APILog)
 			return
 		}
 
 		response := GetSubscriberUsageRetentionPolicyResponse{Days: policyDays}
-		writeResponse(w, response, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, response, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -126,18 +126,18 @@ func UpdateSubscriberUsageRetentionPolicy(dbInstance *db.Database) http.Handler 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 
 		var params UpdateSubscriberUsageRetentionPolicyParams
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
 			return
 		}
 
 		if params.Days < 1 {
-			writeError(w, http.StatusBadRequest, "retention days must be greater than 0", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "retention days must be greater than 0", nil, logger.APILog)
 			return
 		}
 
@@ -147,11 +147,11 @@ func UpdateSubscriberUsageRetentionPolicy(dbInstance *db.Database) http.Handler 
 		}
 
 		if err := dbInstance.SetRetentionPolicy(r.Context(), updatedPolicy); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to update subscriber usage retention policy", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update subscriber usage retention policy", err, logger.APILog)
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "Subscriber usage retention policy updated successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Subscriber usage retention policy updated successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(r.Context(), UpdateSubscriberUsageRetentionPolicyAction, email, getClientIP(r), fmt.Sprintf("User updated subscriber usage retention policy to %d days", params.Days))
 	})
 }
@@ -160,16 +160,16 @@ func ClearSubscriberUsage(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 
 		if err := dbInstance.ClearDailyUsage(r.Context()); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to clear subscriber usage", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to clear subscriber usage", err, logger.APILog)
 			return
 		}
 
-		writeResponse(w, SuccessResponse{Message: "All subscriber usage cleared successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "All subscriber usage cleared successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(r.Context(), "clear_subscriber_usage", email, getClientIP(r), "User cleared all subscriber usage")
 	})
 }
