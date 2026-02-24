@@ -9,5 +9,5 @@ func (amf *AMF) IsSubscriberRegistered(imsi string) bool {
 		return false
 	}
 
-	return amfUE.GetState() == Registered
+	return amfUE.State == Registered
 }

@@ -419,7 +419,7 @@ func SendRegistrationAccept(
 			ue.Log.Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
 			ue.T3550 = nil // clear the timer
 			// TS 24.501 5.5.1.2.8 case c, 5.5.1.3.8 case c
-			ue.SetState(amfContext.Registered)
+			ue.State = amfContext.Registered
 			ue.ClearRegistrationRequestData()
 		})
 	}

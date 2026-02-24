@@ -16,7 +16,7 @@ func securityMode(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe
 	ctx, span := tracer.Start(ctx, "securityMode")
 	defer span.End()
 
-	ue.SetState(amfContext.SecurityMode)
+	ue.State = amfContext.SecurityMode
 
 	ue.Log = ue.Log.With(zap.String("supi", ue.Supi))
 

@@ -253,8 +253,8 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 }
 
 func handleULNASTransport(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.ULNASTransport) error {
-	if ue.GetState() != amfContext.Registered {
-		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amfContext.Registered, ue.GetState())
+	if ue.State != amfContext.Registered {
+		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amfContext.Registered, ue.State)
 	}
 
 	if ue.MacFailed {

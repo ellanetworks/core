@@ -182,7 +182,7 @@ func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2Me
 	}
 
 	// 504: the UE in MICO mode or the UE is only registered over Non-3GPP access and its state is CM-IDLE
-	if ue.GetState() != amfContext.Registered {
+	if ue.State != amfContext.Registered {
 		return fmt.Errorf("ue is not in registered state")
 	}
 

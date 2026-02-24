@@ -124,7 +124,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 		}
 	}
 
-	if amfUe.GetState() == amfContext.Registered {
+	if amfUe.State == amfContext.Registered {
 		ranUe.Log.Debug("Release UE Context in GMM-Registered", zap.String("supi", amfUe.Supi))
 
 		if pDUSessionResourceList != nil {
@@ -156,7 +156,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 		}
 	}
 
-	if amfUe.GetState() == amfContext.Registered {
+	if amfUe.State == amfContext.Registered {
 		amfUe.ResetMobileReachableTimer()
 	}
 
