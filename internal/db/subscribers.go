@@ -484,7 +484,7 @@ func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error)
 
 			if err != nil {
 				if isUniqueNameError(err) {
-					logger.DBLog.Warn("IP address collision during allocation, retrying", zap.String("ip", ipStr))
+					logger.WithTrace(ctx, logger.DBLog).Warn("IP address collision during allocation, retrying", zap.String("ip", ipStr))
 					continue
 				}
 

@@ -49,11 +49,11 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	shmFile := db.filepath + "-shm"
 
 	if err := os.Remove(walFile); err != nil && !os.IsNotExist(err) {
-		logger.DBLog.Warn("Failed to remove old WAL file", zap.String("file", walFile), zap.Error(err))
+		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to remove old WAL file", zap.String("file", walFile), zap.Error(err))
 	}
 
 	if err := os.Remove(shmFile); err != nil && !os.IsNotExist(err) {
-		logger.DBLog.Warn("Failed to remove old SHM file", zap.String("file", shmFile), zap.Error(err))
+		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to remove old SHM file", zap.String("file", shmFile), zap.Error(err))
 	}
 
 	sqlConnection, err := openSQLiteConnection(ctx, db.filepath)
