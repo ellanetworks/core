@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
 )
 
 type FlowReport struct {
 	ID              int    `json:"id"`
 	SubscriberID    string `json:"subscriber_id"`
-	Timestamp       string `json:"timestamp"`
 	SourceIP        string `json:"source_ip"`
 	DestinationIP   string `json:"destination_ip"`
 	SourcePort      uint16 `json:"source_port"`
@@ -373,6 +373,55 @@ func TestUpdateFlowReportsRetentionPolicyInvalidInput(t *testing.T) {
 	}
 }
 
+func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database, imsi string) int {
+	t.Helper()
+
+	ctx := context.Background()
+
+	dataNetwork := &db.DataNetwork{
+		Name:   "test-dn-" + imsi,
+		IPPool: "10.0.0.0/24",
+	}
+	if err := dbInstance.CreateDataNetwork(ctx, dataNetwork); err != nil {
+		t.Fatalf("couldn't create data network: %s", err)
+	}
+
+	createdDN, err := dbInstance.GetDataNetwork(ctx, dataNetwork.Name)
+	if err != nil {
+		t.Fatalf("couldn't get data network: %s", err)
+	}
+
+	policy := &db.Policy{
+		Name:            "test-policy-" + imsi,
+		BitrateUplink:   "100 Mbps",
+		BitrateDownlink: "200 Mbps",
+		Var5qi:          9,
+		Arp:             1,
+		DataNetworkID:   createdDN.ID,
+	}
+	if err := dbInstance.CreatePolicy(ctx, policy); err != nil {
+		t.Fatalf("couldn't create policy: %s", err)
+	}
+
+	createdPolicy, err := dbInstance.GetPolicy(ctx, policy.Name)
+	if err != nil {
+		t.Fatalf("couldn't get policy: %s", err)
+	}
+
+	subscriber := &db.Subscriber{
+		Imsi:           imsi,
+		SequenceNumber: "000000000022",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+		PolicyID:       createdPolicy.ID,
+	}
+	if err := dbInstance.CreateSubscriber(ctx, subscriber); err != nil {
+		t.Fatalf("couldn't create subscriber: %s", err)
+	}
+
+	return createdPolicy.ID
+}
+
 func TestListFlowReportsPagination(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
@@ -390,12 +439,14 @@ func TestListFlowReportsPagination(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
+	// Create prerequisite subscriber
+	createFlowReportTestSubscriber(t, dbInstance, "001010100000001")
+
 	// Insert test flow reports
 	now := time.Now().UTC().Format(time.RFC3339)
 	for i := range 25 {
 		fr := &dbwriter.FlowReport{
-			Timestamp:       now,
-			SubscriberID:    fmt.Sprintf("test-sub-%d", i),
+			SubscriberID:    "001010100000001",
 			SourceIP:        "192.168.1.100",
 			DestinationIP:   "8.8.8.8",
 			SourcePort:      uint16(10000 + i),
@@ -475,12 +526,25 @@ func TestListFlowReportsFilterBySubscriber(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
+	// Create prerequisite subscribers
+	policyID := createFlowReportTestSubscriber(t, dbInstance, "001010100000001")
+
+	sub2 := &db.Subscriber{
+		Imsi:           "001010100000002",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+		PolicyID:       policyID,
+	}
+	if err := dbInstance.CreateSubscriber(context.Background(), sub2); err != nil {
+		t.Fatalf("couldn't create subscriber: %s", err)
+	}
+
 	// Insert test flow reports with different subscribers
 	now := time.Now().UTC().Format(time.RFC3339)
 	for i := range 5 {
 		fr := &dbwriter.FlowReport{
-			Timestamp:       now,
-			SubscriberID:    "sub-1",
+			SubscriberID:    "001010100000001",
 			SourceIP:        "192.168.1.100",
 			DestinationIP:   "8.8.8.8",
 			SourcePort:      uint16(10000 + i),
@@ -498,8 +562,7 @@ func TestListFlowReportsFilterBySubscriber(t *testing.T) {
 
 	for i := range 3 {
 		fr := &dbwriter.FlowReport{
-			Timestamp:       now,
-			SubscriberID:    "sub-2",
+			SubscriberID:    "001010100000002",
 			SourceIP:        "192.168.1.101",
 			DestinationIP:   "8.8.4.4",
 			SourcePort:      uint16(20000 + i),
@@ -515,8 +578,8 @@ func TestListFlowReportsFilterBySubscriber(t *testing.T) {
 		}
 	}
 
-	// Filter by sub-1
-	statusCode, response, err := listFlowReports(ts.URL, client, token, 1, 100, map[string]string{"subscriber_id": "sub-1"})
+	// Filter by 001010100000001
+	statusCode, response, err := listFlowReports(ts.URL, client, token, 1, 100, map[string]string{"subscriber_id": "001010100000001"})
 	if err != nil {
 		t.Fatalf("couldn't list flow reports: %s", err)
 	}
@@ -526,17 +589,17 @@ func TestListFlowReportsFilterBySubscriber(t *testing.T) {
 	}
 
 	if len(response.Result.Items) != 5 {
-		t.Fatalf("expected 5 flow reports for sub-1, got %d", len(response.Result.Items))
+		t.Fatalf("expected 5 flow reports for 001010100000001, got %d", len(response.Result.Items))
 	}
 
 	for _, item := range response.Result.Items {
-		if item.SubscriberID != "sub-1" {
-			t.Fatalf("expected all items to have subscriber_id=sub-1, got %s", item.SubscriberID)
+		if item.SubscriberID != "001010100000001" {
+			t.Fatalf("expected all items to have subscriber_id=001010100000001, got %s", item.SubscriberID)
 		}
 	}
 
-	// Filter by sub-2
-	statusCode, response, err = listFlowReports(ts.URL, client, token, 1, 100, map[string]string{"subscriber_id": "sub-2"})
+	// Filter by 001010100000002
+	statusCode, response, err = listFlowReports(ts.URL, client, token, 1, 100, map[string]string{"subscriber_id": "001010100000002"})
 	if err != nil {
 		t.Fatalf("couldn't list flow reports: %s", err)
 	}
@@ -546,7 +609,7 @@ func TestListFlowReportsFilterBySubscriber(t *testing.T) {
 	}
 
 	if len(response.Result.Items) != 3 {
-		t.Fatalf("expected 3 flow reports for sub-2, got %d", len(response.Result.Items))
+		t.Fatalf("expected 3 flow reports for 001010100000002, got %d", len(response.Result.Items))
 	}
 }
 
@@ -567,12 +630,14 @@ func TestClearFlowReports(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
+	// Create prerequisite subscriber
+	createFlowReportTestSubscriber(t, dbInstance, "001010100000001")
+
 	// Insert test flow reports
 	now := time.Now().UTC().Format(time.RFC3339)
 	for i := range 10 {
 		fr := &dbwriter.FlowReport{
-			Timestamp:       now,
-			SubscriberID:    fmt.Sprintf("test-sub-%d", i),
+			SubscriberID:    "001010100000001",
 			SourceIP:        "192.168.1.100",
 			DestinationIP:   "8.8.8.8",
 			SourcePort:      uint16(10000 + i),

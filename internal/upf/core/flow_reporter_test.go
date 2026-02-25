@@ -244,13 +244,7 @@ func TestSendFlowReportTimestampFormatting(t *testing.T) {
 	// Verify timestamps are in RFC3339 format
 	report := mockSMF.LastFlowReport
 
-	// Parse timestamps to verify they are valid RFC3339
-	_, err := time.Parse(time.RFC3339, report.Timestamp)
-	if err != nil {
-		t.Fatalf("Invalid timestamp format: %s (error: %v)", report.Timestamp, err)
-	}
-
-	_, err = time.Parse(time.RFC3339, report.StartTime)
+	_, err := time.Parse(time.RFC3339, report.StartTime)
 	if err != nil {
 		t.Fatalf("Invalid start time format: %s (error: %v)", report.StartTime, err)
 	}

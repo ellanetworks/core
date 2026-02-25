@@ -29,9 +29,13 @@ func TestFlowReportsInsertAndRetrieve(t *testing.T) {
 
 	ctx := context.Background()
 
+	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
 	// Create test flow report
 	flowReport := &dbwriter.FlowReport{
-		Timestamp:       time.Now().UTC().Format(time.RFC3339),
 		SubscriberID:    "460123456789012",
 		SourceIP:        "192.168.1.100",
 		DestinationIP:   "8.8.8.8",
@@ -102,11 +106,15 @@ func TestFlowReportsMultipleInsert(t *testing.T) {
 
 	ctx := context.Background()
 
+	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
 	// Insert multiple flow reports
 	now := time.Now().UTC()
 	for i := range 5 {
 		flowReport := &dbwriter.FlowReport{
-			Timestamp:       now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
 			SubscriberID:    "460123456789012",
 			SourceIP:        "192.168.1.100",
 			DestinationIP:   "8.8.8.8",
@@ -156,11 +164,15 @@ func TestFlowReportsPagination(t *testing.T) {
 
 	ctx := context.Background()
 
+	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
 	// Insert 15 flow reports
 	now := time.Now().UTC()
 	for i := range 15 {
 		flowReport := &dbwriter.FlowReport{
-			Timestamp:       now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
 			SubscriberID:    "460123456789012",
 			SourceIP:        "192.168.1.100",
 			DestinationIP:   "8.8.8.8",
@@ -224,6 +236,27 @@ func TestFlowReportsFilterBySubscriber(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Create subscribers
+	policyID, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
+	for _, imsi := range []string{"460123456789013", "460123456789014"} {
+		subscriber := &db.Subscriber{
+			Imsi:           imsi,
+			SequenceNumber: "000000000022",
+			PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+			Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+			PolicyID:       policyID,
+		}
+
+		err = database.CreateSubscriber(ctx, subscriber)
+		if err != nil {
+			t.Fatalf("couldn't create subscriber %s: %s", imsi, err)
+		}
+	}
+
 	// Insert flow reports for different subscribers
 	now := time.Now().UTC()
 	subscribers := []string{"460123456789012", "460123456789013", "460123456789014"}
@@ -231,7 +264,6 @@ func TestFlowReportsFilterBySubscriber(t *testing.T) {
 	for j, subscriber := range subscribers {
 		for i := range 3 {
 			flowReport := &dbwriter.FlowReport{
-				Timestamp:       now.Add(time.Duration(j*3+i) * time.Minute).Format(time.RFC3339),
 				SubscriberID:    subscriber,
 				SourceIP:        "192.168.1.100",
 				DestinationIP:   "8.8.8.8",
@@ -293,6 +325,11 @@ func TestFlowReportsFilterByProtocol(t *testing.T) {
 
 	ctx := context.Background()
 
+	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
 	// Insert flow reports with different protocols
 	now := time.Now().UTC()
 	protocols := []uint8{6, 17, 1} // TCP, UDP, ICMP
@@ -300,7 +337,6 @@ func TestFlowReportsFilterByProtocol(t *testing.T) {
 	for i, proto := range protocols {
 		for j := range 2 {
 			flowReport := &dbwriter.FlowReport{
-				Timestamp:       now.Add(time.Duration(i*2+j) * time.Minute).Format(time.RFC3339),
 				SubscriberID:    "460123456789012",
 				SourceIP:        "192.168.1.100",
 				DestinationIP:   "8.8.8.8",
@@ -362,10 +398,14 @@ func TestFlowReportsRetention(t *testing.T) {
 
 	ctx := context.Background()
 
+	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
 	// Insert old flow report (10 days ago)
 	oldTime := time.Now().UTC().Add(-10 * 24 * time.Hour)
 	oldFlowReport := &dbwriter.FlowReport{
-		Timestamp:       oldTime.Format(time.RFC3339),
 		SubscriberID:    "460123456789012",
 		SourceIP:        "192.168.1.100",
 		DestinationIP:   "8.8.8.8",
@@ -385,7 +425,6 @@ func TestFlowReportsRetention(t *testing.T) {
 
 	// Insert recent flow report
 	recentFlowReport := &dbwriter.FlowReport{
-		Timestamp:       time.Now().UTC().Format(time.RFC3339),
 		SubscriberID:    "460123456789012",
 		SourceIP:        "192.168.1.100",
 		DestinationIP:   "8.8.8.8",

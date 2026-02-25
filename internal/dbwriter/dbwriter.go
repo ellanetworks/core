@@ -26,7 +26,6 @@ type AuditLog struct {
 
 type FlowReport struct {
 	ID              int    `db:"id"`
-	Timestamp       string `db:"timestamp"`        // RFC3339 when flow expired
 	SubscriberID    string `db:"subscriber_id"`    // IMSI - looked up via PDR ID, not stored
 	SourceIP        string `db:"source_ip"`        // IPv4 or IPv6
 	DestinationIP   string `db:"destination_ip"`   // IPv4 or IPv6

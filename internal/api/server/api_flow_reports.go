@@ -10,8 +10,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 )
 
@@ -31,7 +33,6 @@ type UpdateFlowReportsRetentionPolicyParams struct {
 type FlowReport struct {
 	ID              int    `json:"id"`
 	SubscriberID    string `json:"subscriber_id"`
-	Timestamp       string `json:"timestamp"`
 	SourceIP        string `json:"source_ip"`
 	DestinationIP   string `json:"destination_ip"`
 	SourcePort      uint16 `json:"source_port"`
@@ -76,6 +77,15 @@ func parseFlowReportFilters(r *http.Request) (*db.FlowReportFilters, error) {
 	if v := strings.TrimSpace(q.Get("destination_ip")); v != "" {
 		f.DestinationIP = &v
 	}
+
+	startDate := stotimeDefault(q.Get("start"), time.Now().AddDate(0, 0, -7))
+	endDate := stotimeDefault(q.Get("end"), time.Now())
+
+	startRFC := startDate.UTC().Format(time.RFC3339)
+	f.EndTimeFrom = &startRFC
+
+	endRFC := endDate.AddDate(0, 0, 1).UTC().Format(time.RFC3339)
+	f.EndTimeTo = &endRFC
 
 	return f, nil
 }
@@ -139,6 +149,47 @@ func ListFlowReports(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		q := r.URL.Query()
+
+		filters, err := parseFlowReportFilters(r)
+		if err != nil {
+			writeError(ctx, w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
+		}
+
+		groupBy := q.Get("group_by")
+
+		switch groupBy {
+		case "day":
+			reports, err := dbInstance.ListFlowReportsByDay(ctx, filters)
+			if err != nil {
+				writeError(ctx, w, http.StatusInternalServerError, "Failed to retrieve flow reports", err, logger.APILog)
+				return
+			}
+
+			grouped := groupFlowReportsByDay(reports)
+
+			writeResponse(ctx, w, grouped, http.StatusOK, logger.APILog)
+
+			return
+		case "subscriber":
+			reports, err := dbInstance.ListFlowReportsBySubscriber(ctx, filters)
+			if err != nil {
+				writeError(ctx, w, http.StatusInternalServerError, "Failed to retrieve flow reports", err, logger.APILog)
+				return
+			}
+
+			grouped := groupFlowReportsBySubscriber(reports)
+
+			writeResponse(ctx, w, grouped, http.StatusOK, logger.APILog)
+
+			return
+		case "":
+			// No group_by: return paginated list (default behavior)
+		default:
+			writeError(ctx, w, http.StatusBadRequest, "Invalid group_by parameter: must be 'day' or 'subscriber'", nil, logger.APILog)
+			return
+		}
+
 		page := atoiDefault(q.Get("page"), 1)
 		perPage := atoiDefault(q.Get("per_page"), 25)
 
@@ -149,12 +200,6 @@ func ListFlowReports(dbInstance *db.Database) http.Handler {
 
 		if perPage < 1 || perPage > 100 {
 			writeError(ctx, w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
-			return
-		}
-
-		filters, err := parseFlowReportFilters(r)
-		if err != nil {
-			writeError(ctx, w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
 
@@ -169,7 +214,6 @@ func ListFlowReports(dbInstance *db.Database) http.Handler {
 			items[i] = FlowReport{
 				ID:              report.ID,
 				SubscriberID:    report.SubscriberID,
-				Timestamp:       report.Timestamp,
 				SourceIP:        report.SourceIP,
 				DestinationIP:   report.DestinationIP,
 				SourcePort:      report.SourcePort,
@@ -212,4 +256,68 @@ func ClearFlowReports(dbInstance *db.Database) http.Handler {
 		writeResponse(ctx, w, SuccessResponse{Message: "All flow reports cleared successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(ctx, ClearFlowReportsAction, email, getClientIP(r), "User cleared all flow reports")
 	})
+}
+
+func dbFlowReportToAPI(r dbwriter.FlowReport) FlowReport {
+	return FlowReport{
+		ID:              r.ID,
+		SubscriberID:    r.SubscriberID,
+		SourceIP:        r.SourceIP,
+		DestinationIP:   r.DestinationIP,
+		SourcePort:      r.SourcePort,
+		DestinationPort: r.DestinationPort,
+		Protocol:        r.Protocol,
+		Packets:         r.Packets,
+		Bytes:           r.Bytes,
+		StartTime:       r.StartTime,
+		EndTime:         r.EndTime,
+	}
+}
+
+// groupFlowReportsByDay groups flow reports by the date portion of end_time.
+// Returns an array of single-key maps where each key is a YYYY-MM-DD date string.
+func groupFlowReportsByDay(reports []dbwriter.FlowReport) []map[string][]FlowReport {
+	orderKeys := []string{}
+	groups := map[string][]FlowReport{}
+
+	for _, r := range reports {
+		day := r.EndTime[:10] // Extract YYYY-MM-DD from RFC3339
+
+		if _, exists := groups[day]; !exists {
+			orderKeys = append(orderKeys, day)
+		}
+
+		groups[day] = append(groups[day], dbFlowReportToAPI(r))
+	}
+
+	result := make([]map[string][]FlowReport, len(orderKeys))
+	for i, key := range orderKeys {
+		result[i] = map[string][]FlowReport{key: groups[key]}
+	}
+
+	return result
+}
+
+// groupFlowReportsBySubscriber groups flow reports by subscriber_id.
+// Returns an array of single-key maps where each key is a subscriber ID (IMSI).
+func groupFlowReportsBySubscriber(reports []dbwriter.FlowReport) []map[string][]FlowReport {
+	orderKeys := []string{}
+	groups := map[string][]FlowReport{}
+
+	for _, r := range reports {
+		sub := r.SubscriberID
+
+		if _, exists := groups[sub]; !exists {
+			orderKeys = append(orderKeys, sub)
+		}
+
+		groups[sub] = append(groups[sub], dbFlowReportToAPI(r))
+	}
+
+	result := make([]map[string][]FlowReport, len(orderKeys))
+	for i, key := range orderKeys {
+		result[i] = map[string][]FlowReport{key: groups[key]}
+	}
+
+	return result
 }

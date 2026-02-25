@@ -60,7 +60,6 @@ func SendFlowReport(ctx context.Context, flow ebpf.N3N6EntrypointFlow, stats ebp
 	// Create flow report request
 	flowReportReq := &pfcp_dispatcher.FlowReportRequest{
 		IMSI:            imsiStr,
-		Timestamp:       time.Now().UTC().Format(time.RFC3339),
 		SourceIP:        saddr.String(),
 		DestinationIP:   daddr.String(),
 		SourcePort:      sport,

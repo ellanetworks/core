@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
@@ -161,10 +162,9 @@ func (s SmfPfcpHandler) SendFlowReport(ctx context.Context, req *pfcp_dispatcher
 
 	smf := smfContext.SMFSelf()
 
-	// Convert the dispatcher request to SMF FlowReport
-	flowReport := &smfContext.FlowReport{
+	// Construct the database flow report directly
+	dbFlowReport := &dbwriter.FlowReport{
 		SubscriberID:    req.IMSI,
-		Timestamp:       req.Timestamp,
 		SourceIP:        req.SourceIP,
 		DestinationIP:   req.DestinationIP,
 		SourcePort:      req.SourcePort,
@@ -175,9 +175,6 @@ func (s SmfPfcpHandler) SendFlowReport(ctx context.Context, req *pfcp_dispatcher
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
 	}
-
-	// Convert to database writer struct
-	dbFlowReport := flowReport.ToDBWriter()
 
 	// Persist flow report to database
 	err := smf.DBInstance.InsertFlowReport(ctx, dbFlowReport)

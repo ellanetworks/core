@@ -13,7 +13,6 @@ import (
 // The SMF will convert this to a database representation and persist it.
 type FlowReportRequest struct {
 	IMSI            string // Subscriber IMSI (required, used to identify subscriber)
-	Timestamp       string // RFC3339 when flow expired
 	SourceIP        string // IPv4 or IPv6
 	DestinationIP   string // IPv4 or IPv6
 	SourcePort      uint16 // 0 if N/A (ICMP, etc.)

@@ -117,12 +117,14 @@ type Database struct {
 	countAuditLogsStmt     *sqlair.Statement
 
 	// Flow Report statements
-	insertFlowReportStmt     *sqlair.Statement
-	listFlowReportsStmt      *sqlair.Statement
-	countFlowReportsStmt     *sqlair.Statement
-	deleteOldFlowReportsStmt *sqlair.Statement
-	deleteAllFlowReportsStmt *sqlair.Statement
-	getFlowReportByIDStmt    *sqlair.Statement
+	insertFlowReportStmt            *sqlair.Statement
+	listFlowReportsStmt             *sqlair.Statement
+	countFlowReportsStmt            *sqlair.Statement
+	deleteOldFlowReportsStmt        *sqlair.Statement
+	deleteAllFlowReportsStmt        *sqlair.Statement
+	getFlowReportByIDStmt           *sqlair.Statement
+	listFlowReportsByDayStmt        *sqlair.Statement
+	listFlowReportsBySubscriberStmt *sqlair.Statement
 
 	// Session statements
 	createSessionStmt            *sqlair.Statement
@@ -149,6 +151,7 @@ type Database struct {
 const (
 	DefaultLogRetentionDays             = 7
 	DefaultSubscriberUsageRetentionDays = 365
+	DefaultFlowReportsRetentionDays     = 7
 )
 
 // Initial operator values
@@ -426,6 +429,8 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteOldFlowReportsStmt, fmt.Sprintf(deleteOldFlowReportsStmt, FlowReportsTableName), []any{cutoffArgs{}}},
 		{&db.deleteAllFlowReportsStmt, fmt.Sprintf(deleteAllFlowReportsStmt, FlowReportsTableName), nil},
 		{&db.getFlowReportByIDStmt, fmt.Sprintf(getFlowReportByIDStmt, FlowReportsTableName), []any{dbwriter.FlowReport{}}},
+		{&db.listFlowReportsByDayStmt, fmt.Sprintf(listFlowReportsFilteredByDayStmt, FlowReportsTableName), []any{FlowReportFilters{}, dbwriter.FlowReport{}}},
+		{&db.listFlowReportsBySubscriberStmt, fmt.Sprintf(listFlowReportsFilteredBySubscriberStmt, FlowReportsTableName), []any{FlowReportFilters{}, dbwriter.FlowReport{}}},
 
 		// Sessions
 		{&db.createSessionStmt, fmt.Sprintf(createSessionStmt, SessionsTableName), []any{Session{}}},
@@ -542,14 +547,14 @@ func (db *Database) Initialize(ctx context.Context) error {
 	if !db.IsRetentionPolicyInitialized(context.Background(), CategoryFlowReports) {
 		initialPolicy := &RetentionPolicy{
 			Category: CategoryFlowReports,
-			Days:     DefaultLogRetentionDays,
+			Days:     DefaultFlowReportsRetentionDays,
 		}
 
 		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
 			return fmt.Errorf("failed to initialize flow reports retention policy: %v", err)
 		}
 
-		logger.DBLog.Info("Initialized flow reports retention policy", zap.Int("days", DefaultLogRetentionDays))
+		logger.DBLog.Info("Initialized flow reports retention policy", zap.Int("days", DefaultFlowReportsRetentionDays))
 	}
 
 	numDataNetworks, err := db.CountDataNetworks(context.Background())
