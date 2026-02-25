@@ -33,9 +33,15 @@ const (
 	ConnTrackTimeout    = 10 * time.Minute
 	InactiveFlowTimeout = 30 * time.Second
 	ActiveFlowTimeout   = 30 * time.Minute
+	maxInFlightFlows    = 100
 )
 
 var bpfObjects *ebpf.BpfObjects
+
+type flowReport struct {
+	flow  ebpf.N3N6EntrypointFlow
+	stats ebpf.N3N6EntrypointFlowStats
+}
 
 type UPF struct {
 	n3Link             link.Link
@@ -47,6 +53,7 @@ type UPF struct {
 	ctx      context.Context
 	gcCancel context.CancelFunc
 	fcCancel context.CancelFunc
+	flows    chan flowReport
 }
 
 func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string, advertisedN3Address string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool, flowact bool) (*UPF, error) {
@@ -287,8 +294,10 @@ func (u *UPF) startFlowCollection(ctx context.Context) {
 	cctx, cancel := context.WithCancel(ctx)
 
 	u.fcCancel = cancel
+	u.flows = make(chan flowReport, maxInFlightFlows)
 
 	go u.collectExpiredFlows(cctx)
+	go u.reportFlows(cctx)
 }
 
 func (u *UPF) stopFlowCollection() {
@@ -522,7 +531,7 @@ func (u *UPF) collectExpiredFlows(ctx context.Context) {
 		for flow_entries.Next(&key, &value) {
 			if value.LastTs < uint64(expiryThreshold) || (value.LastTs-value.FirstTs) > uint64(ActiveFlowTimeout.Nanoseconds()) {
 				expiredKeys = append(expiredKeys, key)
-				go core.SendFlowReport(u.ctx, key, value)
+				go u.sendFlowReport(key, value)
 			}
 		}
 
@@ -538,5 +547,20 @@ func (u *UPF) collectExpiredFlows(ctx context.Context) {
 		logger.UpfLog.Debug("Deleted expired flow entries", zap.Int("count", count))
 
 		expiredKeys = expiredKeys[:0]
+	}
+}
+
+func (u *UPF) sendFlowReport(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6EntrypointFlowStats) {
+	u.flows <- flowReport{flow: flow, stats: stats}
+}
+
+func (u *UPF) reportFlows(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case f := <-u.flows:
+			core.SendFlowReport(ctx, f.flow, f.stats)
+		}
 	}
 }
