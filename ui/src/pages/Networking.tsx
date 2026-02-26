@@ -72,7 +72,12 @@ import {
 
 const MAX_WIDTH = 1400;
 
-type TabKey = "data-networks" | "interfaces" | "routes" | "nat" | "flow-accounting";
+type TabKey =
+  | "data-networks"
+  | "interfaces"
+  | "routes"
+  | "nat"
+  | "flow-accounting";
 
 export default function NetworkingPage() {
   const { role, accessToken } = useAuth();
@@ -422,21 +427,26 @@ export default function NetworkingPage() {
     refetchOnWindowFocus: true,
   });
 
-  const { mutate: setFlowAccountingEnabled, isPending: flowAccountingMutating } =
-    useMutation<void, unknown, boolean>({
-      mutationFn: (enabled: boolean) =>
-        updateFlowAccountingInfo(accessToken || "", enabled),
-      onSuccess: () => {
-        setFlowAccountingAlert({ message: "Flow accounting updated", severity: "success" });
-        refetchFlowAccounting();
-      },
-      onError: (error: unknown) => {
-        setFlowAccountingAlert({
-          message: `Failed to update flow accounting: ${String(error)}`,
-          severity: "error",
-        });
-      },
-    });
+  const {
+    mutate: setFlowAccountingEnabled,
+    isPending: flowAccountingMutating,
+  } = useMutation<void, unknown, boolean>({
+    mutationFn: (enabled: boolean) =>
+      updateFlowAccountingInfo(accessToken || "", enabled),
+    onSuccess: () => {
+      setFlowAccountingAlert({
+        message: "Flow accounting updated",
+        severity: "success",
+      });
+      refetchFlowAccounting();
+    },
+    onError: (error: unknown) => {
+      setFlowAccountingAlert({
+        message: `Failed to update flow accounting: ${String(error)}`,
+        severity: "error",
+      });
+    },
+  });
 
   const flowAccountingDescription = useMemo(
     () =>
@@ -973,7 +983,9 @@ export default function NetworkingPage() {
           <Collapse in={!!flowAccountingAlert.message}>
             <Alert
               severity={flowAccountingAlert.severity || "success"}
-              onClose={() => setFlowAccountingAlert({ message: "", severity: null })}
+              onClose={() =>
+                setFlowAccountingAlert({ message: "", severity: null })
+              }
               sx={{ mb: 2 }}
             >
               {flowAccountingAlert.message}
@@ -1004,8 +1016,14 @@ export default function NetworkingPage() {
                   control={
                     <Switch
                       checked={!!flowAccountingInfo?.enabled}
-                      onChange={(_, checked) => setFlowAccountingEnabled(checked)}
-                      disabled={!canEdit || flowAccountingMutating || flowAccountingLoading}
+                      onChange={(_, checked) =>
+                        setFlowAccountingEnabled(checked)
+                      }
+                      disabled={
+                        !canEdit ||
+                        flowAccountingMutating ||
+                        flowAccountingLoading
+                      }
                     />
                   }
                   label={

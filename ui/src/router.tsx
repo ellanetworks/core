@@ -15,6 +15,7 @@ import Profile from "./pages/Profile";
 import AuditLogs from "./pages/AuditLogs";
 import BackupRestore from "./pages/BackupRestore";
 import Usage from "./pages/Usage";
+import FlowReports from "./pages/FlowReports";
 
 export default function AppRouter() {
   return (
@@ -38,6 +39,7 @@ export default function AppRouter() {
         <Route path="audit-logs" element={<AuditLogs />} />
         <Route path="backup-restore" element={<BackupRestore />} />
         <Route path="usage" element={<Usage />} />
+        <Route path="flow-reports" element={<FlowReports />} />
       </Route>
 
       {/* Catch-all redirect */}
