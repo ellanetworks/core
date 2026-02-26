@@ -27,6 +27,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRoutes, PermReadRoute,
 		PermListRadios, PermReadRadio,
 		PermGetNATInfo,
+		PermGetFlowAccountingInfo,
 		PermGetSubscriberUsageRetentionPolicy, PermGetSubscriberUsage,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermListFlowReports,
@@ -41,6 +42,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRoutes, PermCreateRoute, PermReadRoute, PermDeleteRoute,
 		PermListRadios, PermReadRadio,
 		PermGetNATInfo, PermUpdateNATInfo,
+		PermGetFlowAccountingInfo, PermUpdateFlowAccountingInfo,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermSetRadioEventRetentionPolicy, PermClearRadioEvents, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermSetFlowReportsRetentionPolicy, PermListFlowReports, PermClearFlowReports,
 	},
@@ -110,6 +112,10 @@ const (
 	// NAT permissions
 	PermGetNATInfo    = "nat:get"
 	PermUpdateNATInfo = "nat:update"
+
+	// Flow Accounting permissions
+	PermGetFlowAccountingInfo    = "flow_accounting:get"
+	PermUpdateFlowAccountingInfo = "flow_accounting:update"
 
 	// Interface permissions
 	PermListNetworkInterfaces = "network_interface:list"

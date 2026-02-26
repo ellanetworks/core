@@ -360,3 +360,49 @@ This path updates the NAT configuration.
     }
 }
 ```
+
+# Flow Accounting
+
+## Get Flow Accounting Info
+
+This path returns the current flow accounting configuration.
+
+| Method | Path                                 |
+| ------ | ------------------------------------ |
+| GET    | `/api/v1/networking/flow-accounting` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "enabled": true
+    }
+}
+```
+
+## Update Flow Accounting Info
+
+This path updates the flow accounting configuration.
+
+| Method | Path                                 |
+| ------ | ------------------------------------ |
+| PUT    | `/api/v1/networking/flow-accounting` |
+
+### Parameters
+
+- `enabled` (boolean): Enable or disable flow accounting.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Flow accounting settings updated successfully"
+    }
+}
+```
