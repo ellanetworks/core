@@ -20,6 +20,7 @@ import {
   Info as InfoIcon,
   BugReport as BugReportIcon,
   BarChart as BarChartIcon,
+  Stream as StreamIcon,
   ReceiptLong as ReceiptLongIcon,
   Tune as TuneIcon,
   AdminPanelSettings as AdminPanelSettingsIcon,
@@ -286,6 +287,21 @@ export default function DrawerLayout({
                   <BarChartIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Usage" />
+              </ListItemButton>
+            </ListItem>
+
+            <ListItem disablePadding>
+              <ListItemButton
+                component={Link}
+                to="/flow-reports"
+                selected={pathname === "/flow-reports"}
+                onClick={handleNavClick}
+                sx={drawerSelectedSx}
+              >
+                <ListItemIcon>
+                  <StreamIcon color="primary" />
+                </ListItemIcon>
+                <ListItemText primary="Flow Reports" />
               </ListItemButton>
             </ListItem>
 
