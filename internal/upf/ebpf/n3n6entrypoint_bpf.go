@@ -36,11 +36,11 @@ type N3N6EntrypointFiveTuple struct {
 
 type N3N6EntrypointFlow struct {
 	_              structs.HostLayout
+	Imsi           uint64
 	Saddr          uint32
 	Daddr          uint32
 	IngressIfindex uint32
 	EgressIfindex  uint32
-	PdrId          uint32
 	Sport          uint16
 	Dport          uint16
 	Proto          uint8
@@ -73,6 +73,7 @@ type N3N6EntrypointNatEntry struct {
 type N3N6EntrypointPdrInfo struct {
 	_                  structs.HostLayout
 	LocalSeid          uint64
+	Imsi               uint64
 	PdrId              uint32
 	FarId              uint32
 	QerId              uint32

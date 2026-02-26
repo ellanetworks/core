@@ -12,7 +12,7 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
-	"syscall"
+	"sync"
 	"time"
 
 	bpf "github.com/cilium/ebpf"
@@ -34,11 +34,16 @@ const (
 	ConnTrackTimeout    = 10 * time.Minute
 	InactiveFlowTimeout = 30 * time.Second
 	ActiveFlowTimeout   = 30 * time.Minute
+	maxInFlightFlows    = 2000
+	flowReportTimeout   = 5 * time.Second
 )
 
 var bpfObjects *ebpf.BpfObjects
 
-var bootTime = mustGetBootTime()
+type flowReport struct {
+	flow  ebpf.N3N6EntrypointFlow
+	stats ebpf.N3N6EntrypointFlowStats
+}
 
 type UPF struct {
 	n3Link             link.Link
@@ -49,18 +54,13 @@ type UPF struct {
 
 	ctx      context.Context
 	gcCancel context.CancelFunc
-	fcCancel context.CancelFunc
-}
 
-func mustGetBootTime() time.Time {
-	var info syscall.Sysinfo_t
-	if err := syscall.Sysinfo(&info); err != nil {
-		panic(err)
-	}
-
-	bootTime := time.Now().Add(-time.Duration(info.Uptime) * time.Second)
-
-	return bootTime
+	// fcMu serialises concurrent calls to startFlowCollection / stopFlowCollection
+	// (e.g. from ReloadFlowAccounting and Close running in different goroutines).
+	fcMu       sync.Mutex
+	fcCancel   context.CancelFunc
+	fcScanDone chan struct{} // closed when collectExpiredFlows exits
+	fcDone     chan struct{} // closed when reportFlows exits (all flows reported)
 }
 
 func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string, advertisedN3Address string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool, flowact bool) (*UPF, error) {
@@ -175,6 +175,9 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 }
 
 func (u *UPF) Close() {
+	u.stopGC()
+	u.stopFlowCollection()
+
 	if u.n6Link != nil {
 		if err := (*u.n6Link).Close(); err != nil {
 			logger.UpfLog.Warn("Failed to detach eBPF from n6", zap.Error(err))
@@ -196,9 +199,6 @@ func (u *UPF) Close() {
 	if err := u.noNeighReader.Close(); err != nil {
 		logger.UpfLog.Warn("Failed to close missing neighbour reader", zap.Error(err))
 	}
-
-	u.stopGC()
-	u.stopFlowCollection()
 
 	logger.UpfLog.Info("UPF resources released")
 }
@@ -294,6 +294,9 @@ func (u *UPF) stopGC() {
 }
 
 func (u *UPF) startFlowCollection(ctx context.Context) {
+	u.fcMu.Lock()
+	defer u.fcMu.Unlock()
+
 	if u.fcCancel != nil {
 		return
 	}
@@ -301,14 +304,66 @@ func (u *UPF) startFlowCollection(ctx context.Context) {
 	cctx, cancel := context.WithCancel(ctx)
 
 	u.fcCancel = cancel
+	flows := make(chan flowReport, maxInFlightFlows)
+	u.fcScanDone = make(chan struct{})
+	u.fcDone = make(chan struct{})
 
-	go u.collectExpiredFlows(cctx)
+	// Capture channels in local variables so the goroutine closures close the
+	// channels allocated above, not whatever u.fcScanDone / u.fcDone point to
+	// at the time the deferred close executes (which may have been reassigned
+	// by a subsequent startFlowCollection call).
+	scanDone := u.fcScanDone
+	done := u.fcDone
+
+	go func() {
+		defer close(scanDone)
+
+		u.collectExpiredFlows(cctx, flows)
+	}()
+	go func() {
+		defer close(done)
+
+		u.reportFlows(flows)
+	}()
 }
 
+// stopFlowCollection cancels the flow-collection goroutines and waits for both
+// to exit before returning.
+//
+// Sequencing:
+//  1. cancel() unblocks collectExpiredFlows, which does a final scan, closes
+//     flowch, then closes fcScanDone.
+//  2. We wait on fcScanDone — at this point it is safe to close BPF objects,
+//     because collectExpiredFlows will no longer touch the BPF map.
+//  3. Closing flowch causes reportFlows to drain any remaining buffered entries
+//     and exit, closing fcDone.
+//  4. We wait on fcDone — all flows have been forwarded to the SMF.
+//
+// fcCancel is cleared while holding fcMu, before the wait. This eliminates the
+// ABA window where a concurrent startFlowCollection would see a non-nil fcCancel
+// (believing the pipeline is already running) while stopFlowCollection is
+// actively tearing it down.
 func (u *UPF) stopFlowCollection() {
-	if u.fcCancel != nil {
-		u.fcCancel()
-		u.fcCancel = nil
+	u.fcMu.Lock()
+
+	if u.fcCancel == nil {
+		u.fcMu.Unlock()
+		return
+	}
+
+	cancel := u.fcCancel
+	scanDone := u.fcScanDone
+	done := u.fcDone
+	u.fcCancel = nil // clear under the lock; startFlowCollection may now proceed
+	u.fcMu.Unlock()
+
+	cancel()
+	<-scanDone // wait for producer: BPF map is no longer accessed after this
+
+	select {
+	case <-done: // wait for consumer: all buffered flows have been reported
+	case <-time.After(30 * time.Second):
+		logger.UpfLog.Warn("Flow reporter drain timed out; some flows may be lost")
 	}
 }
 
@@ -321,11 +376,14 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 
 	expiredKeys := make([]ebpf.N3N6EntrypointFiveTuple, 0)
 
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(1 * time.Minute):
+		case <-ticker.C:
 		}
 
 		err := unix.Sysinfo(&sysInfo)
@@ -507,88 +565,117 @@ func (u *UPF) listenForMissingNeighbours() {
 	}
 }
 
-func int2ip(nn uint32) net.IP {
-	ip := make(net.IP, 4)
-	binary.NativeEndian.PutUint32(ip, nn)
-
-	return ip
-}
-
-func u16NtoHS(n uint16) uint16 {
-	b := make([]byte, 2)
-	binary.BigEndian.PutUint16(b, n)
-
-	return binary.NativeEndian.Uint16(b)
-}
-
-func logFlow(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6EntrypointFlowStats) {
-	saddr := int2ip(flow.Saddr)
-	daddr := int2ip(flow.Daddr)
-	sport := u16NtoHS(flow.Sport)
-	dport := u16NtoHS(flow.Dport)
-	proto := flow.Proto
-	startTime := bootTime.Add(time.Duration(stats.FirstTs))
-	endTime := bootTime.Add(time.Duration(stats.LastTs))
-
-	logger.UpfLog.Debug(
-		"Flow expired",
-		zap.Uint32("PDR ID", flow.PdrId),
-		zap.String("Source", saddr.String()),
-		zap.String("Destination", daddr.String()),
-		zap.Uint16("Source Port", sport),
-		zap.Uint16("Destination Port", dport),
-		zap.Uint8("Protocol", proto),
-		zap.Uint64("Packets", stats.Packets),
-		zap.Uint64("Bytes", stats.Bytes),
-		zap.Time("Start", startTime),
-		zap.Time("End", endTime),
-	)
-}
-
-func (u *UPF) collectExpiredFlows(ctx context.Context) {
+// scanAndEnqueueExpiredFlows iterates over the FlowStats BPF map, deletes
+// entries that have expired (inactive or max-active-lifetime exceeded), and
+// forwards them to flowch for reporting.
+//
+// Scan speed is the priority: sends to flowch are non-blocking. If the channel
+// is full the report is dropped and counted. This ensures that BPF-map cleanup
+// is never delayed by a slow reporter.
+//
+// NOTE (TOCTOU): There is an inherent race between the Iterate snapshot and
+// the subsequent BatchDelete. The eBPF XDP program may update a flow's byte or
+// packet counters after the value has been read by Iterate but before it is
+// removed by BatchDelete. The deleted entry will therefore contain a slightly
+// stale counter. This inaccuracy is accepted as a reasonable trade-off to
+// avoid per-key Lookup+Delete syscall pairs that would double the map load.
+func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flowReport) {
 	var (
-		key     ebpf.N3N6EntrypointFlow
-		value   ebpf.N3N6EntrypointFlowStats
-		sysInfo unix.Sysinfo_t
+		key          ebpf.N3N6EntrypointFlow
+		value        ebpf.N3N6EntrypointFlowStats
+		expiredKeys  []ebpf.N3N6EntrypointFlow
+		expiredFlows []flowReport
+		dropped      int
 	)
 
-	expiredKeys := make([]ebpf.N3N6EntrypointFlow, 0)
+	iter := u.pfcpConn.BpfObjects.FlowStats.Iterate()
+	for iter.Next(&key, &value) {
+		if value.LastTs < uint64(expiryThreshold) || (value.LastTs-value.FirstTs) > uint64(ActiveFlowTimeout.Nanoseconds()) {
+			expiredKeys = append(expiredKeys, key)
+			expiredFlows = append(expiredFlows, flowReport{flow: key, stats: value})
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		logger.UpfLog.Debug("Error while iterating over flow entries", zap.Error(err))
+	}
+
+	if len(expiredKeys) == 0 {
+		return
+	}
+
+	// Delete from the BPF map immediately so the kernel can reuse the slots
+	// as fast as possible, before we spend time forwarding reports.
+	count, err := u.pfcpConn.BpfObjects.FlowStats.BatchDelete(expiredKeys, &bpf.BatchOptions{})
+	if err != nil {
+		logger.UpfLog.Warn("Failed to delete expired flow entries", zap.Error(err))
+	}
+
+	logger.UpfLog.Debug("Deleted expired flow entries", zap.Int("count", count))
+
+	// Forward collected reports to the reporter goroutine with a non-blocking
+	// send. Dropping a report is preferable to stalling the scan loop and
+	// delaying BPF-map cleanup.
+	for _, f := range expiredFlows {
+		select {
+		case flowch <- f:
+		default:
+			dropped++
+		}
+	}
+
+	if dropped > 0 {
+		logger.UpfLog.Warn("Dropped flow reports: reporter channel full", zap.Int("dropped", dropped))
+	}
+}
+
+func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {
+	var sysInfo unix.Sysinfo_t
+
+	ticker := time.NewTicker(InactiveFlowTimeout / 2)
+	defer ticker.Stop()
+	defer close(flowch)
 
 	for {
 		select {
 		case <-ctx.Done():
+			// Perform one final scan so flows that expired since the last tick
+			// are not silently lost on a graceful shutdown.
+			if err := unix.Sysinfo(&sysInfo); err != nil {
+				logger.UpfLog.Error("Failed to query sysinfo during final scan", zap.Error(err))
+				return
+			}
+
+			nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
+			u.scanAndEnqueueExpiredFlows(nsSinceBoot-InactiveFlowTimeout.Nanoseconds(), flowch)
+
 			return
-		case <-time.After(1 * time.Minute):
+		case <-ticker.C:
 		}
 
-		err := unix.Sysinfo(&sysInfo)
-		if err != nil {
-			logger.UpfLog.Warn("Failed to query sysinfo", zap.Error(err))
+		if err := unix.Sysinfo(&sysInfo); err != nil {
+			// The only error returned by the sysinfo syscall is EFAULT if
+			// the pointer is invalid. This should never occur here.
+			logger.UpfLog.Error("Failed to query sysinfo", zap.Error(err))
 			return
 		}
 
 		nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
-		expiryThreshold := nsSinceBoot - InactiveFlowTimeout.Nanoseconds()
+		u.scanAndEnqueueExpiredFlows(nsSinceBoot-InactiveFlowTimeout.Nanoseconds(), flowch)
+	}
+}
 
-		flow_entries := u.pfcpConn.BpfObjects.FlowStats.Iterate()
-		for flow_entries.Next(&key, &value) {
-			if value.LastTs < uint64(expiryThreshold) || (value.LastTs-value.FirstTs) > uint64(ActiveFlowTimeout.Nanoseconds()) {
-				expiredKeys = append(expiredKeys, key)
-				go logFlow(key, value)
-			}
-		}
-
-		if err := flow_entries.Err(); err != nil {
-			logger.UpfLog.Debug("Error while iterating over flow entries", zap.Error(err))
-		}
-
-		count, err := u.pfcpConn.BpfObjects.FlowStats.BatchDelete(expiredKeys, &bpf.BatchOptions{})
-		if err != nil {
-			logger.UpfLog.Warn("Failed to delete expired flow entries", zap.Error(err))
-		}
-
-		logger.UpfLog.Debug("Deleted expired flow entries", zap.Int("count", count))
-
-		expiredKeys = expiredKeys[:0]
+// reportFlows drains flowch and forwards each entry to the SMF via
+// SendFlowReport. Each call is given its own short-lived context with a
+// deadline so that a slow or unresponsive SMF cannot stall the reporter
+// goroutine indefinitely.
+//
+// The function returns only when flowch is closed by collectExpiredFlows,
+// ensuring that all flows buffered before shutdown are reported.
+func (u *UPF) reportFlows(flowch chan flowReport) {
+	for f := range flowch {
+		rctx, cancel := context.WithTimeout(context.Background(), flowReportTimeout)
+		core.SendFlowReport(rctx, f.flow, f.stats)
+		cancel()
 	}
 }

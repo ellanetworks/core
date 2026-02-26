@@ -288,7 +288,7 @@ func sendPFCPRules(ctx context.Context, cpNodeID net.IP, smContext *smfContext.S
 	}
 
 	if smContext.PFCPContext == nil || smContext.PFCPContext.RemoteSEID == 0 {
-		result, err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, cpNodeID, smContext.PFCPContext.LocalSEID, pdrList, farList, qerList, urrList)
+		result, err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, cpNodeID, smContext.PFCPContext.LocalSEID, pdrList, farList, qerList, urrList, smContext.Supi)
 		if err != nil {
 			return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 		}

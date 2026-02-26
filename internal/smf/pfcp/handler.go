@@ -10,8 +10,10 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/wmnsk/go-pfcp/ie"
@@ -145,4 +147,57 @@ func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionRep
 		0,
 		ie.NewCause(ie.CauseRequestAccepted),
 	), nil
+}
+
+// SendFlowReport receives flow statistics from the UPF and persists them to the database.
+// It uses the IMSI provided in the request to store the flow report.
+func (s SmfPfcpHandler) SendFlowReport(ctx context.Context, req *pfcp_dispatcher.FlowReportRequest) error {
+	if req == nil {
+		return fmt.Errorf("flow report request is nil")
+	}
+
+	if req.IMSI == "" {
+		return fmt.Errorf("flow report request missing required IMSI field")
+	}
+
+	smf := smfContext.SMFSelf()
+
+	// Construct the database flow report directly
+	dbFlowReport := &dbwriter.FlowReport{
+		SubscriberID:    req.IMSI,
+		SourceIP:        req.SourceIP,
+		DestinationIP:   req.DestinationIP,
+		SourcePort:      req.SourcePort,
+		DestinationPort: req.DestinationPort,
+		Protocol:        req.Protocol,
+		Packets:         req.Packets,
+		Bytes:           req.Bytes,
+		StartTime:       req.StartTime,
+		EndTime:         req.EndTime,
+	}
+
+	// Persist flow report to database
+	err := smf.DBInstance.InsertFlowReport(ctx, dbFlowReport)
+	if err != nil {
+		logger.SmfLog.Error(
+			"Failed to insert flow report",
+			zap.String("subscriber_id", req.IMSI),
+			zap.String("source_ip", req.SourceIP),
+			zap.String("destination_ip", req.DestinationIP),
+			zap.Error(err),
+		)
+
+		return err
+	}
+
+	logger.SmfLog.Debug(
+		"Flow report persisted",
+		zap.String("subscriber_id", req.IMSI),
+		zap.String("source_ip", req.SourceIP),
+		zap.String("destination_ip", req.DestinationIP),
+		zap.Uint64("packets", req.Packets),
+		zap.Uint64("bytes", req.Bytes),
+	)
+
+	return nil
 }

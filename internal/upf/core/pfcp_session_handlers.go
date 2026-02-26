@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
@@ -59,6 +60,15 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 	session := NewSession(seid)
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Tracking new session", zap.Uint64("SEID", seid))
+
+	var imsiStr string
+
+	imsiUint64, err := extractImsiFromUserID(msg)
+	if err != nil {
+		logger.UpfLog.Warn("Could not extract IMSI from User ID IE", zap.Error(err), zap.Any("UserID", msg.UserID))
+	} else {
+		imsiStr = strconv.FormatUint(imsiUint64, 10)
+	}
 
 	printSessionEstablishmentRequest(msg)
 
@@ -143,7 +153,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 				return fmt.Errorf("PDR ID missing: %s", err.Error())
 			}
 
-			spdrInfo := SPDRInfo{PdrID: uint32(pdrID), PdrInfo: ebpf.PdrInfo{SEID: seid, PdrID: uint32(pdrID)}}
+			spdrInfo := SPDRInfo{PdrID: uint32(pdrID), PdrInfo: ebpf.PdrInfo{SEID: seid, PdrID: uint32(pdrID), IMSI: imsiStr}}
 
 			err = pdrContext.ExtractPDR(pdr, &spdrInfo)
 			if err != nil {
@@ -696,4 +706,32 @@ func newIeNodeID(nodeID string) *ie.IE {
 	}
 
 	return ie.NewNodeID("", "", nodeID)
+}
+
+func extractImsiFromUserID(msg *message.SessionEstablishmentRequest) (uint64, error) {
+	if msg == nil {
+		return 0, fmt.Errorf("message is nil")
+	}
+
+	if msg.UserID == nil {
+		return 0, fmt.Errorf("user ID IE is missing")
+	}
+
+	ieElem := msg.UserID
+
+	userIDFields, err := ieElem.UserID()
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse User ID IE: %w", err)
+	}
+
+	if userIDFields == nil || userIDFields.IMSI == "" {
+		return 0, fmt.Errorf("IMSI is missing in User ID IE")
+	}
+
+	imsiUint64, err := strconv.ParseUint(userIDFields.IMSI, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert IMSI string to uint64: %w", err)
+	}
+
+	return imsiUint64, nil
 }

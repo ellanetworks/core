@@ -115,6 +115,12 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("DELETE /api/v1/ran/events", Authenticate(jwtSecret, dbInstance, Authorize(PermClearRadioEvents, ClearRadioEvents(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/ran/events/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermGetRadioEvent, GetRadioEvent(dbInstance))).ServeHTTP)
 
+	// Flow Reports (Authenticated)
+	mux.HandleFunc("GET /api/v1/flow-reports/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermGetFlowReportsRetentionPolicy, GetFlowReportsRetentionPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/flow-reports/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermSetFlowReportsRetentionPolicy, UpdateFlowReportsRetentionPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/flow-reports", Authenticate(jwtSecret, dbInstance, Authorize(PermListFlowReports, ListFlowReports(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/flow-reports", Authenticate(jwtSecret, dbInstance, Authorize(PermClearFlowReports, ClearFlowReports(dbInstance))).ServeHTTP)
+
 	// Backup and Restore (Authenticated)
 	mux.HandleFunc("POST /api/v1/backup", Authenticate(jwtSecret, dbInstance, Authorize(PermBackup, Backup(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/restore", Authenticate(jwtSecret, dbInstance, Authorize(PermRestore, Restore(dbInstance))).ServeHTTP)

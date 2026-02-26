@@ -54,6 +54,11 @@ func (b *BufferedDBWriter) InsertAuditLog(ctx context.Context, auditLog *AuditLo
 	return b.delegate.InsertAuditLog(ctx, auditLog)
 }
 
+// InsertFlowReport is forwarded synchronously to the underlying writer.
+func (b *BufferedDBWriter) InsertFlowReport(ctx context.Context, flowReport *FlowReport) error {
+	return b.delegate.InsertFlowReport(ctx, flowReport)
+}
+
 // Stop closes the event channel and blocks until all queued events have
 // been written. Call this during graceful shutdown before closing the DB.
 func (b *BufferedDBWriter) Stop() {
