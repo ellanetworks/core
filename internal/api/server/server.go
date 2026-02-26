@@ -15,6 +15,7 @@ import (
 
 type UPFUpdater interface {
 	ReloadNAT(natEnabled bool) error
+	ReloadFlowAccounting(flowAccountingEnabled bool) error
 	UpdateAdvertisedN3Address(net.IP)
 }
 
@@ -99,6 +100,10 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	// NAT (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermGetNATInfo, GetNATInfo(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNATInfo, UpdateNATInfo(dbInstance, upf))).ServeHTTP)
+
+	// Flow Accounting (Authenticated)
+	mux.HandleFunc("GET /api/v1/networking/flow-accounting", Authenticate(jwtSecret, dbInstance, Authorize(PermGetFlowAccountingInfo, GetFlowAccountingInfo(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/flow-accounting", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateFlowAccountingInfo, UpdateFlowAccountingInfo(dbInstance, upf))).ServeHTTP)
 
 	// Interfaces (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/interfaces", Authenticate(jwtSecret, dbInstance, Authorize(PermListNetworkInterfaces, ListNetworkInterfaces(dbInstance, cfg))).ServeHTTP)

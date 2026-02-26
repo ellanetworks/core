@@ -63,6 +63,10 @@ func (f FakeUPF) ReloadNAT(natEnabled bool) error {
 	return nil
 }
 
+func (f FakeUPF) ReloadFlowAccounting(flowAccountingEnabled bool) error {
+	return nil
+}
+
 func (f FakeUPF) UpdateAdvertisedN3Address(ip net.IP) {
 }
 

@@ -81,6 +81,11 @@ type Database struct {
 	getNATSettingsStmt           *sqlair.Statement
 	upsertNATSettingsStmt        *sqlair.Statement
 
+	// Flow Accounting Settings statements
+	insertDefaultFlowAccountingSettingsStmt *sqlair.Statement
+	getFlowAccountingSettingsStmt           *sqlair.Statement
+	upsertFlowAccountingSettingsStmt        *sqlair.Statement
+
 	// Operator statements
 	getOperatorStmt                 *sqlair.Statement
 	initializeOperatorStmt          *sqlair.Statement
@@ -285,6 +290,10 @@ func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 		return nil, err
 	}
 
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateFlowAccountingSettingsTable, FlowAccountingSettingsTableName)); err != nil {
+		return nil, err
+	}
+
 	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateN3SettingsTable, N3SettingsTableName)); err != nil {
 		return nil, err
 	}
@@ -387,6 +396,11 @@ func (db *Database) PrepareStatements() error {
 		{&db.getNATSettingsStmt, fmt.Sprintf(getNATSettingsStmt, NATSettingsTableName), []any{NATSettings{}}},
 		{&db.upsertNATSettingsStmt, fmt.Sprintf(upsertNATSettingsStmt, NATSettingsTableName), []any{NATSettings{}}},
 
+		// Flow Accounting Settings
+		{&db.insertDefaultFlowAccountingSettingsStmt, fmt.Sprintf(insertDefaultFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},
+		{&db.getFlowAccountingSettingsStmt, fmt.Sprintf(getFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},
+		{&db.upsertFlowAccountingSettingsStmt, fmt.Sprintf(upsertFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},
+
 		// Operator
 		{&db.getOperatorStmt, fmt.Sprintf(getOperatorStmt, OperatorTableName), []any{Operator{}}},
 		{&db.initializeOperatorStmt, fmt.Sprintf(initializeOperatorStmt, OperatorTableName), []any{Operator{}}},
@@ -467,6 +481,11 @@ func (db *Database) Initialize(ctx context.Context) error {
 	err := db.InitializeNATSettings(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to initialize NAT settings: %w", err)
+	}
+
+	err = db.InitializeFlowAccountingSettings(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize flow accounting settings: %w", err)
 	}
 
 	err = db.InitializeN3Settings(ctx)
