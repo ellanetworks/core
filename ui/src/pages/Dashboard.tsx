@@ -35,9 +35,8 @@ import {
   type ListRadioEventsResponse,
 } from "@/queries/radio_events";
 import {
-  listFlowReports,
-  type FlowReport,
-  type ListFlowReportsResponse,
+  getFlowReportStats,
+  type FlowReportStatsResponse,
 } from "@/queries/flow_reports";
 import { getUsage, type UsageResult } from "@/queries/usage";
 
@@ -312,10 +311,10 @@ const Dashboard = () => {
     placeholderData: (prev) => prev,
   });
 
-  const flowQuery = useQuery<ListFlowReportsResponse>({
-    queryKey: ["dashboardFlows"],
+  const flowStatsQuery = useQuery<FlowReportStatsResponse>({
+    queryKey: ["dashboardFlowStats", startDate, endDate],
     queryFn: () =>
-      listFlowReports(accessToken!, 1, 100, {
+      getFlowReportStats(accessToken!, {
         start: startDate,
         end: endDate,
       }),
@@ -374,22 +373,15 @@ const Dashboard = () => {
 
   // ── Protocol donut data ─────────────────────────────
 
-  const flowRows: FlowReport[] = flowQuery.data?.items ?? [];
-
   const protocolPieData = useMemo(() => {
-    if (!flowRows.length) return [];
-    const counts = new Map<number, number>();
-    for (const row of flowRows) {
-      counts.set(row.protocol, (counts.get(row.protocol) ?? 0) + 1);
-    }
-    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-    return sorted.map(([proto, count], i) => ({
-      id: proto,
-      value: count,
-      label: formatProtocol(proto),
+    if (!flowStatsQuery.data?.protocols?.length) return [];
+    return flowStatsQuery.data.protocols.map((p, i) => ({
+      id: p.protocol,
+      value: p.count,
+      label: formatProtocol(p.protocol),
       color: PIE_COLORS[i % PIE_COLORS.length],
     }));
-  }, [flowRows]);
+  }, [flowStatsQuery.data]);
 
   // ── Top 10 data users ───────────────────────────────
 
@@ -689,10 +681,10 @@ const Dashboard = () => {
                 Flow Protocols
               </Box>
             }
-            loading={flowQuery.isLoading}
+            loading={flowStatsQuery.isLoading}
             minHeight={240}
           >
-            {flowQuery.isLoading ? (
+            {flowStatsQuery.isLoading ? (
               <Skeleton variant="rounded" width="100%" height={200} />
             ) : protocolPieData.length === 0 ? (
               <Typography variant="body2" color="text.secondary">

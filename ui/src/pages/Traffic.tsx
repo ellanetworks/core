@@ -35,9 +35,11 @@ import {
   listFlowReports,
   clearFlowReports,
   getFlowReportsRetentionPolicy,
+  getFlowReportStats,
   type FlowReport,
   type ListFlowReportsResponse,
   type FlowReportsRetentionPolicy,
+  type FlowReportStatsResponse,
 } from "@/queries/flow_reports";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -345,6 +347,14 @@ const Traffic: React.FC = () => {
     refetchInterval: 5000,
   });
 
+  const { data: flowStatsData } = useQuery<FlowReportStatsResponse>({
+    queryKey: ["flowReportStats", activeFlowFilters],
+    queryFn: () => getFlowReportStats(accessToken || "", activeFlowFilters),
+    enabled: authReady && !!accessToken,
+    placeholderData: (prev) => prev,
+    refetchInterval: 5000,
+  });
+
   // ── Derived usage data ──────────────────────────────
 
   const usageRows: UsageRow[] = useMemo(() => {
@@ -532,19 +542,38 @@ const Traffic: React.FC = () => {
   // ── Protocol distribution (donut chart) ─────────────
 
   const protocolPieData = useMemo(() => {
-    if (!flowRows.length) return [];
-    const counts = new Map<number, number>();
-    for (const row of flowRows) {
-      counts.set(row.protocol, (counts.get(row.protocol) ?? 0) + 1);
-    }
-    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-    return sorted.map(([proto, count], i) => ({
-      id: proto,
-      value: count,
-      label: formatProtocol(proto),
+    if (!flowStatsData?.protocols?.length) return [];
+    return flowStatsData.protocols.map((p, i) => ({
+      id: p.protocol,
+      value: p.count,
+      label: formatProtocol(p.protocol),
       color: PIE_COLORS[i % PIE_COLORS.length],
     }));
-  }, [flowRows]);
+  }, [flowStatsData]);
+
+  // ── Top 10 sources (donut chart) ────────────────────
+
+  const topSourcesPieData = useMemo(() => {
+    if (!flowStatsData?.top_sources?.length) return [];
+    return flowStatsData.top_sources.map((s, i) => ({
+      id: i,
+      value: s.count,
+      label: s.ip,
+      color: PIE_COLORS[i % PIE_COLORS.length],
+    }));
+  }, [flowStatsData]);
+
+  // ── Top 10 destinations (donut chart) ───────────────
+
+  const topDestinationsPieData = useMemo(() => {
+    if (!flowStatsData?.top_destinations?.length) return [];
+    return flowStatsData.top_destinations.map((d, i) => ({
+      id: i,
+      value: d.count,
+      label: d.ip,
+      color: PIE_COLORS[i % PIE_COLORS.length],
+    }));
+  }, [flowStatsData]);
 
   // ── Handlers ────────────────────────────────────────
 
@@ -835,30 +864,90 @@ const Traffic: React.FC = () => {
                 </Box>
               </Box>
 
-              {/* Protocol distribution donut chart */}
-              {protocolPieData.length > 0 && (
-                <Box>
-                  <Typography variant="h6" sx={{ mb: 2 }}>
-                    Protocol distribution
-                  </Typography>
-                  <PieChart
-                    series={[
-                      {
-                        data: protocolPieData,
-                        innerRadius: 40,
-                        outerRadius: 100,
-                        paddingAngle: 0,
-                        cornerRadius: 0,
-                      },
-                    ]}
-                    height={300}
-                    slotProps={{
-                      legend: {
-                        direction: "vertical",
-                        position: { vertical: "middle", horizontal: "end" },
-                      },
-                    }}
-                  />
+              {/* Donut charts row */}
+              {(protocolPieData.length > 0 || topSourcesPieData.length > 0 || topDestinationsPieData.length > 0) && (
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" },
+                    gap: 3,
+                  }}
+                >
+                  {protocolPieData.length > 0 && (
+                    <Box>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
+                        Protocols
+                      </Typography>
+                      <PieChart
+                        series={[
+                          {
+                            data: protocolPieData,
+                            innerRadius: 30,
+                            outerRadius: 80,
+                            paddingAngle: 0,
+                            cornerRadius: 0,
+                          },
+                        ]}
+                        height={250}
+                        slotProps={{
+                          legend: {
+                            direction: "vertical",
+                            position: { vertical: "middle", horizontal: "end" },
+                          },
+                        }}
+                      />
+                    </Box>
+                  )}
+                  {topSourcesPieData.length > 0 && (
+                    <Box>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
+                        Top 10 Sources
+                      </Typography>
+                      <PieChart
+                        series={[
+                          {
+                            data: topSourcesPieData,
+                            innerRadius: 30,
+                            outerRadius: 80,
+                            paddingAngle: 0,
+                            cornerRadius: 0,
+                          },
+                        ]}
+                        height={250}
+                        slotProps={{
+                          legend: {
+                            direction: "vertical",
+                            position: { vertical: "middle", horizontal: "end" },
+                          },
+                        }}
+                      />
+                    </Box>
+                  )}
+                  {topDestinationsPieData.length > 0 && (
+                    <Box>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
+                        Top 10 Destinations
+                      </Typography>
+                      <PieChart
+                        series={[
+                          {
+                            data: topDestinationsPieData,
+                            innerRadius: 30,
+                            outerRadius: 80,
+                            paddingAngle: 0,
+                            cornerRadius: 0,
+                          },
+                        ]}
+                        height={250}
+                        slotProps={{
+                          legend: {
+                            direction: "vertical",
+                            position: { vertical: "middle", horizontal: "end" },
+                          },
+                        }}
+                      />
+                    </Box>
+                  )}
                 </Box>
               )}
 

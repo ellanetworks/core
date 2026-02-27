@@ -72,3 +72,36 @@ export const updateFlowReportsRetentionPolicy = async (
     body: { days },
   });
 };
+
+export type FlowReportProtocolStat = {
+  protocol: number;
+  count: number;
+};
+
+export type FlowReportIPStat = {
+  ip: string;
+  count: number;
+};
+
+export type FlowReportStatsResponse = {
+  protocols: FlowReportProtocolStat[];
+  top_sources: FlowReportIPStat[];
+  top_destinations: FlowReportIPStat[];
+};
+
+export async function getFlowReportStats(
+  authToken: string,
+  params?: Record<string, string>,
+): Promise<FlowReportStatsResponse> {
+  const url = new URL(`/api/v1/flow-reports/stats`, window.location.origin);
+
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== "") {
+        url.searchParams.set(k, v);
+      }
+    }
+  }
+
+  return apiFetch<FlowReportStatsResponse>(url.toString(), { authToken });
+}

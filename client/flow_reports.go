@@ -227,3 +227,43 @@ func (c *Client) UpdateFlowReportsRetentionPolicy(ctx context.Context, opts *Upd
 
 	return nil
 }
+
+type FlowReportProtocolStat struct {
+	Protocol uint8 `json:"protocol"`
+	Count    int   `json:"count"`
+}
+
+type FlowReportIPStat struct {
+	IP    string `json:"ip"`
+	Count int    `json:"count"`
+}
+
+type FlowReportStatsResponse struct {
+	Protocols       []FlowReportProtocolStat `json:"protocols"`
+	TopSources      []FlowReportIPStat       `json:"top_sources"`
+	TopDestinations []FlowReportIPStat       `json:"top_destinations"`
+}
+
+// GetFlowReportStats retrieves aggregated flow report statistics.
+func (c *Client) GetFlowReportStats(ctx context.Context, p *ListFlowReportsParams) (*FlowReportStatsResponse, error) {
+	query := buildFlowReportQuery(p)
+
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/flow-reports/stats",
+		Query:  query,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var stats FlowReportStatsResponse
+
+	err = resp.DecodeResult(&stats)
+	if err != nil {
+		return nil, err
+	}
+
+	return &stats, nil
+}
