@@ -930,7 +930,7 @@ const Traffic: React.FC = () => {
                     disableColumnMenu
                     disableRowSelectionOnClick
                     pageSizeOptions={[10, 25, 50, 100]}
-                    density={isSmDown ? "compact" : "standard"}
+                    density="compact"
                     columnVisibilityModel={{}}
                     sx={gridSx}
                   />
