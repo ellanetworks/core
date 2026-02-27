@@ -210,7 +210,7 @@ func (u *UPF) UpdateAdvertisedN3Address(newN3Addr net.IP) {
 func (u *UPF) ReloadNAT(masquerade bool) error {
 	u.pfcpConn.BpfObjects.Masquerade = masquerade
 
-	err := u.pfcpConn.BpfObjects.Load()
+	err := u.pfcpConn.BpfObjects.LoadWithMapReplacements()
 	if err != nil {
 		return fmt.Errorf("couldn't load BPF objects: %w", err)
 	}
@@ -237,7 +237,7 @@ func (u *UPF) ReloadNAT(masquerade bool) error {
 func (u *UPF) ReloadFlowAccounting(flowact bool) error {
 	u.pfcpConn.BpfObjects.FlowAccounting = flowact
 
-	err := u.pfcpConn.BpfObjects.Load()
+	err := u.pfcpConn.BpfObjects.LoadWithMapReplacements()
 	if err != nil {
 		return fmt.Errorf("couldn't load BPF objects: %w", err)
 	}

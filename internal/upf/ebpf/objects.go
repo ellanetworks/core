@@ -110,6 +110,73 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 	return nil
 }
 
+// LoadWithMapReplacements reloads the eBPF programs with updated global
+// variable values while preserving all existing maps. This allows changing
+// settings like flow accounting or masquerade without disrupting subscriber
+// sessions, since session state lives in the maps.
+//
+// The caller must call link.Update() with the new program to atomically
+// swap the XDP program on the interface.
+func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
+	spec, err := LoadN3N6Entrypoint()
+	if err != nil {
+		logger.UpfLog.Error("failed to load N3/N6 spec", zap.Error(err))
+		return err
+	}
+
+	replacements := map[string]*ebpf.Map{
+		"downlink_route_stats": bpfObjects.DownlinkRouteStats,
+		"downlink_statistics":  bpfObjects.DownlinkStatistics,
+		"far_map":              bpfObjects.FarMap,
+		"flow_stats":           bpfObjects.FlowStats,
+		"nat_ct":               bpfObjects.NatCt,
+		"no_neigh_map":         bpfObjects.NoNeighMap,
+		"nocp_map":             bpfObjects.NocpMap,
+		"pdrs_downlink_ip4":    bpfObjects.PdrsDownlinkIp4,
+		"pdrs_downlink_ip6":    bpfObjects.PdrsDownlinkIp6,
+		"pdrs_uplink":          bpfObjects.PdrsUplink,
+		"qer_map":              bpfObjects.QerMap,
+		"uplink_route_stats":   bpfObjects.UplinkRouteStats,
+		"uplink_statistics":    bpfObjects.UplinkStatistics,
+		"urr_map":              bpfObjects.UrrMap,
+	}
+
+	opts := &ebpf.CollectionOptions{
+		MapReplacements: replacements,
+	}
+
+	var newObjects N3N6EntrypointObjects
+	if err := bpfObjects.loadAndAssignFromSpec(spec, &newObjects, opts); err != nil {
+		logger.UpfLog.Error("failed to load N3/N6 program with map replacements", zap.Error(err))
+
+		var ve *ebpf.VerifierError
+		if errors.As(err, &ve) {
+			logger.UpfLog.Debug("verifier logs", zap.Error(ve))
+		}
+
+		return err
+	}
+
+	oldProg := bpfObjects.UpfN3N6EntrypointFunc
+
+	bpfObjects.UpfN3N6EntrypointFunc = newObjects.UpfN3N6EntrypointFunc
+	bpfObjects.N3N6EntrypointVariables = newObjects.N3N6EntrypointVariables
+
+	// Close the cloned map fds from the new objects to avoid fd leaks.
+	// These are duplicates of our existing map fds pointing to the same
+	// kernel-side maps, so closing them is safe.
+	if err := newObjects.N3N6EntrypointMaps.Close(); err != nil {
+		logger.UpfLog.Warn("failed to close cloned map fds", zap.Error(err))
+	}
+
+	// Close the old program now that it's been replaced.
+	if err := oldProg.Close(); err != nil {
+		logger.UpfLog.Warn("failed to close old program", zap.Error(err))
+	}
+
+	return nil
+}
+
 func (bpfObjects *BpfObjects) Close() error {
 	return CloseAllObjects(
 		&bpfObjects.N3N6EntrypointObjects,
