@@ -15,6 +15,7 @@ import (
 
 type UPFUpdater interface {
 	ReloadNAT(natEnabled bool) error
+	ReloadFlowAccounting(flowAccountingEnabled bool) error
 	UpdateAdvertisedN3Address(net.IP)
 }
 
@@ -100,6 +101,10 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("GET /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermGetNATInfo, GetNATInfo(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNATInfo, UpdateNATInfo(dbInstance, upf))).ServeHTTP)
 
+	// Flow Accounting (Authenticated)
+	mux.HandleFunc("GET /api/v1/networking/flow-accounting", Authenticate(jwtSecret, dbInstance, Authorize(PermGetFlowAccountingInfo, GetFlowAccountingInfo(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/flow-accounting", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateFlowAccountingInfo, UpdateFlowAccountingInfo(dbInstance, upf))).ServeHTTP)
+
 	// Interfaces (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/interfaces", Authenticate(jwtSecret, dbInstance, Authorize(PermListNetworkInterfaces, ListNetworkInterfaces(dbInstance, cfg))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/networking/interfaces/n3", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateN3Interface, UpdateN3Interface(dbInstance, upf, cfg))).ServeHTTP)
@@ -118,6 +123,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	// Flow Reports (Authenticated)
 	mux.HandleFunc("GET /api/v1/flow-reports/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermGetFlowReportsRetentionPolicy, GetFlowReportsRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/flow-reports/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermSetFlowReportsRetentionPolicy, UpdateFlowReportsRetentionPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/flow-reports/stats", Authenticate(jwtSecret, dbInstance, Authorize(PermListFlowReports, GetFlowReportStats(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/flow-reports", Authenticate(jwtSecret, dbInstance, Authorize(PermListFlowReports, ListFlowReports(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/flow-reports", Authenticate(jwtSecret, dbInstance, Authorize(PermClearFlowReports, ClearFlowReports(dbInstance))).ServeHTTP)
 

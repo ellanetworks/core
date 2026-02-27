@@ -277,15 +277,15 @@ export default function DrawerLayout({
             <ListItem disablePadding>
               <ListItemButton
                 component={Link}
-                to="/usage"
-                selected={pathname === "/usage"}
+                to="/traffic/usage"
+                selected={pathname.startsWith("/traffic")}
                 onClick={handleNavClick}
                 sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <BarChartIcon color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="Usage" />
+                <ListItemText primary="Traffic" />
               </ListItemButton>
             </ListItem>
 

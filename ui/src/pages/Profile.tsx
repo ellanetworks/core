@@ -39,7 +39,7 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CloseIcon from "@mui/icons-material/Close";
 
-const MAX_WIDTH = 1200;
+const MAX_WIDTH = 1400;
 
 const headerStyles = {
   backgroundColor: "#F5F5F5",

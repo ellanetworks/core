@@ -106,6 +106,60 @@ WHERE
 ORDER BY subscriber_id ASC, end_time ASC
 `
 
+const flowReportProtocolCountsStmt = `
+SELECT protocol AS &FlowReportProtocolCount.protocol, COUNT(*) AS &FlowReportProtocolCount.count
+FROM %s
+WHERE
+    ($FlowReportFilters.subscriber_id IS NULL OR subscriber_id = $FlowReportFilters.subscriber_id)
+    AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
+    AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
+    AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
+    AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
+    AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
+GROUP BY protocol
+ORDER BY COUNT(*) DESC
+`
+
+const flowReportTopSourcesStmt = `
+SELECT source_ip AS &FlowReportIPCount.ip, COUNT(*) AS &FlowReportIPCount.count
+FROM %s
+WHERE
+    ($FlowReportFilters.subscriber_id IS NULL OR subscriber_id = $FlowReportFilters.subscriber_id)
+    AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
+    AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
+    AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
+    AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
+    AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
+GROUP BY source_ip
+ORDER BY COUNT(*) DESC
+LIMIT 10
+`
+
+const flowReportTopDestinationsStmt = `
+SELECT destination_ip AS &FlowReportIPCount.ip, COUNT(*) AS &FlowReportIPCount.count
+FROM %s
+WHERE
+    ($FlowReportFilters.subscriber_id IS NULL OR subscriber_id = $FlowReportFilters.subscriber_id)
+    AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
+    AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
+    AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
+    AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
+    AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
+GROUP BY destination_ip
+ORDER BY COUNT(*) DESC
+LIMIT 10
+`
+
+type FlowReportProtocolCount struct {
+	Protocol uint8 `db:"protocol"`
+	Count    int   `db:"count"`
+}
+
+type FlowReportIPCount struct {
+	IP    string `db:"ip"`
+	Count int    `db:"count"`
+}
+
 type FlowReportFilters struct {
 	SubscriberID  *string `db:"subscriber_id"`  // exact match (IMSI)
 	Protocol      *uint8  `db:"protocol"`       // exact match
@@ -361,4 +415,62 @@ func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *Fl
 	span.SetStatus(codes.Ok, "")
 
 	return results, nil
+}
+
+// GetFlowReportStats returns aggregated protocol counts, top source IPs, and top destination IPs.
+func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportFilters) ([]FlowReportProtocolCount, []FlowReportIPCount, []FlowReportIPCount, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (stats)", "SELECT", FlowReportsTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", FlowReportsTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowReportsTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "select").Inc()
+
+	if filters == nil {
+		filters = &FlowReportFilters{}
+	}
+
+	var protocols []FlowReportProtocolCount
+
+	err := db.conn.Query(ctx, db.flowReportProtocolCountsStmt, filters).GetAll(&protocols)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "protocol counts query failed")
+
+		return nil, nil, nil, fmt.Errorf("protocol counts query failed: %w", err)
+	}
+
+	var sources []FlowReportIPCount
+
+	err = db.conn.Query(ctx, db.flowReportTopSourcesStmt, filters).GetAll(&sources)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "top sources query failed")
+
+		return nil, nil, nil, fmt.Errorf("top sources query failed: %w", err)
+	}
+
+	var destinations []FlowReportIPCount
+
+	err = db.conn.Query(ctx, db.flowReportTopDestinationsStmt, filters).GetAll(&destinations)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "top destinations query failed")
+
+		return nil, nil, nil, fmt.Errorf("top destinations query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return protocols, sources, destinations, nil
 }

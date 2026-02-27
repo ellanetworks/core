@@ -43,6 +43,13 @@ import CreateRouteModal from "@/components/CreateRouteModal";
 // NAT
 import { getNATInfo, updateNATInfo, type NatInfo } from "@/queries/nat";
 
+// Flow Accounting
+import {
+  getFlowAccountingInfo,
+  updateFlowAccountingInfo,
+  type FlowAccountingInfo,
+} from "@/queries/flow_accounting";
+
 // Interfaces
 import {
   getInterfaces,
@@ -65,7 +72,12 @@ import {
 
 const MAX_WIDTH = 1400;
 
-type TabKey = "data-networks" | "interfaces" | "routes" | "nat";
+type TabKey =
+  | "data-networks"
+  | "interfaces"
+  | "routes"
+  | "nat"
+  | "flow-accounting";
 
 export default function NetworkingPage() {
   const { role, accessToken } = useAuth();
@@ -89,6 +101,10 @@ export default function NetworkingPage() {
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
   const [natAlert, setNatAlert] = useState<{
+    message: string;
+    severity: "success" | "error" | null;
+  }>({ message: "", severity: null });
+  const [flowAccountingAlert, setFlowAccountingAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
@@ -399,6 +415,45 @@ export default function NetworkingPage() {
     [],
   );
 
+  // ====================== Flow Accounting ======================
+  const {
+    data: flowAccountingInfo,
+    isLoading: flowAccountingLoading,
+    refetch: refetchFlowAccounting,
+  } = useQuery<FlowAccountingInfo>({
+    queryKey: ["flow-accounting"],
+    queryFn: () => getFlowAccountingInfo(accessToken || ""),
+    enabled: !!accessToken,
+    refetchOnWindowFocus: true,
+  });
+
+  const {
+    mutate: setFlowAccountingEnabled,
+    isPending: flowAccountingMutating,
+  } = useMutation<void, unknown, boolean>({
+    mutationFn: (enabled: boolean) =>
+      updateFlowAccountingInfo(accessToken || "", enabled),
+    onSuccess: () => {
+      setFlowAccountingAlert({
+        message: "Flow accounting updated",
+        severity: "success",
+      });
+      refetchFlowAccounting();
+    },
+    onError: (error: unknown) => {
+      setFlowAccountingAlert({
+        message: `Failed to update flow accounting: ${String(error)}`,
+        severity: "error",
+      });
+    },
+  });
+
+  const flowAccountingDescription = useMemo(
+    () =>
+      "Flow accounting records per-flow network usage (source/destination IP and port, protocol, bytes, packets) for each subscriber session. Disabling flow accounting reduces processing overhead and stops collection of new flow data.",
+    [],
+  );
+
   const handleTabChange = (_: React.SyntheticEvent, newValue: TabKey) => {
     setTab(newValue);
     setSearchParams({ tab: newValue }, { replace: true });
@@ -433,6 +488,7 @@ export default function NetworkingPage() {
           <Tab value="interfaces" label="Interfaces" />
           <Tab value="routes" label="Routes" />
           <Tab value="nat" label="NAT" />
+          <Tab value="flow-accounting" label="Flow Accounting" />
         </Tabs>
       </Box>
 
@@ -907,6 +963,74 @@ export default function NetworkingPage() {
                     />
                   }
                   label={natInfo?.enabled ? "NAT is ON" : "NAT is OFF"}
+                />
+              </Stack>
+            </>
+          )}
+        </Box>
+      )}
+
+      {/* ================= Flow Accounting Tab ================= */}
+      {tab === "flow-accounting" && (
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: MAX_WIDTH,
+            px: { xs: 2, sm: 4 },
+            mt: 2,
+          }}
+        >
+          <Collapse in={!!flowAccountingAlert.message}>
+            <Alert
+              severity={flowAccountingAlert.severity || "success"}
+              onClose={() =>
+                setFlowAccountingAlert({ message: "", severity: null })
+              }
+              sx={{ mb: 2 }}
+            >
+              {flowAccountingAlert.message}
+            </Alert>
+          </Collapse>
+
+          {flowAccountingLoading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="h5" sx={{ mb: 0.5 }}>
+                  Flow Accounting
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {flowAccountingDescription}
+                </Typography>
+              </Box>
+
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={2}
+                alignItems="center"
+              >
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={!!flowAccountingInfo?.enabled}
+                      onChange={(_, checked) =>
+                        setFlowAccountingEnabled(checked)
+                      }
+                      disabled={
+                        !canEdit ||
+                        flowAccountingMutating ||
+                        flowAccountingLoading
+                      }
+                    />
+                  }
+                  label={
+                    flowAccountingInfo?.enabled
+                      ? "Flow accounting is ON"
+                      : "Flow accounting is OFF"
+                  }
                 />
               </Stack>
             </>
