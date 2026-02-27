@@ -433,6 +433,7 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowReportsTableName, "select"))
 	defer timer.ObserveDuration()
+
 	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "select").Inc()
 
 	if filters == nil {
@@ -440,29 +441,36 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 	}
 
 	var protocols []FlowReportProtocolCount
+
 	err := db.conn.Query(ctx, db.flowReportProtocolCountsStmt, filters).GetAll(&protocols)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "protocol counts query failed")
+
 		return nil, nil, nil, fmt.Errorf("protocol counts query failed: %w", err)
 	}
 
 	var sources []FlowReportIPCount
+
 	err = db.conn.Query(ctx, db.flowReportTopSourcesStmt, filters).GetAll(&sources)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "top sources query failed")
+
 		return nil, nil, nil, fmt.Errorf("top sources query failed: %w", err)
 	}
 
 	var destinations []FlowReportIPCount
+
 	err = db.conn.Query(ctx, db.flowReportTopDestinationsStmt, filters).GetAll(&destinations)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "top destinations query failed")
+
 		return nil, nil, nil, fmt.Errorf("top destinations query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
+
 	return protocols, sources, destinations, nil
 }

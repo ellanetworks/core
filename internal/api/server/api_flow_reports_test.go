@@ -373,8 +373,10 @@ func TestUpdateFlowReportsRetentionPolicyInvalidInput(t *testing.T) {
 	}
 }
 
-func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database, imsi string) int {
+func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database) int {
 	t.Helper()
+
+	const imsi = "001010100000001"
 
 	ctx := context.Background()
 
@@ -440,7 +442,7 @@ func TestListFlowReportsPagination(t *testing.T) {
 	}
 
 	// Create prerequisite subscriber
-	createFlowReportTestSubscriber(t, dbInstance, "001010100000001")
+	createFlowReportTestSubscriber(t, dbInstance)
 
 	// Insert test flow reports
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -527,7 +529,7 @@ func TestListFlowReportsFilterBySubscriber(t *testing.T) {
 	}
 
 	// Create prerequisite subscribers
-	policyID := createFlowReportTestSubscriber(t, dbInstance, "001010100000001")
+	policyID := createFlowReportTestSubscriber(t, dbInstance)
 
 	sub2 := &db.Subscriber{
 		Imsi:           "001010100000002",
@@ -631,7 +633,7 @@ func TestClearFlowReports(t *testing.T) {
 	}
 
 	// Create prerequisite subscriber
-	createFlowReportTestSubscriber(t, dbInstance, "001010100000001")
+	createFlowReportTestSubscriber(t, dbInstance)
 
 	// Insert test flow reports
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -693,5 +695,419 @@ func TestClearFlowReports(t *testing.T) {
 
 	if response.Result.TotalCount != 0 {
 		t.Fatalf("expected 0 reports after clear, got %d", response.Result.TotalCount)
+	}
+}
+
+type FlowReportProtocolStat struct {
+	Protocol uint8 `json:"protocol"`
+	Count    int   `json:"count"`
+}
+
+type FlowReportIPStat struct {
+	IP    string `json:"ip"`
+	Count int    `json:"count"`
+}
+
+type FlowReportStatsResult struct {
+	Protocols       []FlowReportProtocolStat `json:"protocols"`
+	TopSources      []FlowReportIPStat       `json:"top_sources"`
+	TopDestinations []FlowReportIPStat       `json:"top_destinations"`
+}
+
+type GetFlowReportStatsResponse struct {
+	Result *FlowReportStatsResult `json:"result,omitempty"`
+	Error  string                 `json:"error,omitempty"`
+}
+
+func getFlowReportStats(url string, client *http.Client, token string, filters map[string]string) (int, *GetFlowReportStatsResponse, error) {
+	var queryParams []string
+
+	for k, v := range filters {
+		queryParams = append(queryParams, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	reqURL := url + "/api/v1/flow-reports/stats"
+	if len(queryParams) > 0 {
+		reqURL += "?" + strings.Join(queryParams, "&")
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", reqURL, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var statsResponse GetFlowReportStatsResponse
+
+	if err := json.NewDecoder(res.Body).Decode(&statsResponse); err != nil {
+		return 0, nil, err
+	}
+
+	return res.StatusCode, &statsResponse, nil
+}
+
+func TestGetFlowReportStats_Empty(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := ts.Client()
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	statusCode, response, err := getFlowReportStats(ts.URL, client, token, nil)
+	if err != nil {
+		t.Fatalf("couldn't get flow report stats: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if response.Result == nil {
+		t.Fatalf("expected result to not be nil")
+	}
+
+	if len(response.Result.Protocols) != 0 {
+		t.Fatalf("expected 0 protocol entries, got %d", len(response.Result.Protocols))
+	}
+
+	if len(response.Result.TopSources) != 0 {
+		t.Fatalf("expected 0 top sources, got %d", len(response.Result.TopSources))
+	}
+
+	if len(response.Result.TopDestinations) != 0 {
+		t.Fatalf("expected 0 top destinations, got %d", len(response.Result.TopDestinations))
+	}
+}
+
+func TestGetFlowReportStats_WithData(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, dbInstance, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := ts.Client()
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	createFlowReportTestSubscriber(t, dbInstance)
+
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	// Insert 3 TCP flows from different sources to different destinations
+	for i := range 3 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "001010100000001",
+			SourceIP:        fmt.Sprintf("10.0.0.%d", i+1),
+			DestinationIP:   fmt.Sprintf("8.8.8.%d", i+1),
+			SourcePort:      uint16(10000 + i),
+			DestinationPort: 443,
+			Protocol:        6,
+			Packets:         100,
+			Bytes:           5000,
+			StartTime:       now,
+			EndTime:         now,
+		}
+		if err := dbInstance.InsertFlowReport(context.Background(), fr); err != nil {
+			t.Fatalf("couldn't insert flow report: %s", err)
+		}
+	}
+
+	// Insert 2 UDP flows
+	for i := range 2 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "001010100000001",
+			SourceIP:        fmt.Sprintf("192.168.0.%d", i+1),
+			DestinationIP:   "1.1.1.1",
+			SourcePort:      uint16(20000 + i),
+			DestinationPort: 53,
+			Protocol:        17,
+			Packets:         50,
+			Bytes:           2500,
+			StartTime:       now,
+			EndTime:         now,
+		}
+		if err := dbInstance.InsertFlowReport(context.Background(), fr); err != nil {
+			t.Fatalf("couldn't insert flow report: %s", err)
+		}
+	}
+
+	statusCode, response, err := getFlowReportStats(ts.URL, client, token, nil)
+	if err != nil {
+		t.Fatalf("couldn't get flow report stats: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if response.Result == nil {
+		t.Fatalf("expected result to not be nil")
+	}
+
+	if len(response.Result.Protocols) != 2 {
+		t.Fatalf("expected 2 protocol entries, got %d", len(response.Result.Protocols))
+	}
+
+	// TCP should be first (higher count)
+	if response.Result.Protocols[0].Protocol != 6 {
+		t.Fatalf("expected first protocol to be TCP (6), got %d", response.Result.Protocols[0].Protocol)
+	}
+
+	if response.Result.Protocols[0].Count != 3 {
+		t.Fatalf("expected TCP count 3, got %d", response.Result.Protocols[0].Count)
+	}
+
+	if len(response.Result.TopSources) != 5 {
+		t.Fatalf("expected 5 top sources, got %d", len(response.Result.TopSources))
+	}
+
+	if len(response.Result.TopDestinations) != 4 {
+		t.Fatalf("expected 4 top destinations, got %d", len(response.Result.TopDestinations))
+	}
+}
+
+func TestGetFlowReportStats_FilterBySubscriber(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, dbInstance, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := ts.Client()
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	policyID := createFlowReportTestSubscriber(t, dbInstance)
+
+	sub2 := &db.Subscriber{
+		Imsi:           "001010100000002",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+		PolicyID:       policyID,
+	}
+	if err := dbInstance.CreateSubscriber(context.Background(), sub2); err != nil {
+		t.Fatalf("couldn't create subscriber: %s", err)
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	// 3 TCP flows for subscriber 1
+	for i := range 3 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "001010100000001",
+			SourceIP:        "10.0.0.1",
+			DestinationIP:   "8.8.8.8",
+			SourcePort:      uint16(10000 + i),
+			DestinationPort: 443,
+			Protocol:        6,
+			Packets:         100,
+			Bytes:           5000,
+			StartTime:       now,
+			EndTime:         now,
+		}
+		if err := dbInstance.InsertFlowReport(context.Background(), fr); err != nil {
+			t.Fatalf("couldn't insert flow report: %s", err)
+		}
+	}
+
+	// 2 UDP flows for subscriber 2
+	for i := range 2 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "001010100000002",
+			SourceIP:        "10.0.1.1",
+			DestinationIP:   "1.1.1.1",
+			SourcePort:      uint16(20000 + i),
+			DestinationPort: 53,
+			Protocol:        17,
+			Packets:         50,
+			Bytes:           2500,
+			StartTime:       now,
+			EndTime:         now,
+		}
+		if err := dbInstance.InsertFlowReport(context.Background(), fr); err != nil {
+			t.Fatalf("couldn't insert flow report: %s", err)
+		}
+	}
+
+	statusCode, response, err := getFlowReportStats(ts.URL, client, token, map[string]string{"subscriber_id": "001010100000001"})
+	if err != nil {
+		t.Fatalf("couldn't get flow report stats: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if response.Result == nil {
+		t.Fatalf("expected result to not be nil")
+	}
+
+	// Only subscriber 1's flows: 1 protocol (TCP), 1 source, 1 destination
+	if len(response.Result.Protocols) != 1 {
+		t.Fatalf("expected 1 protocol entry, got %d", len(response.Result.Protocols))
+	}
+
+	if response.Result.Protocols[0].Protocol != 6 {
+		t.Fatalf("expected protocol TCP (6), got %d", response.Result.Protocols[0].Protocol)
+	}
+
+	if response.Result.Protocols[0].Count != 3 {
+		t.Fatalf("expected count 3, got %d", response.Result.Protocols[0].Count)
+	}
+}
+
+func TestGetFlowReportStats_FilterByProtocol(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, dbInstance, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := ts.Client()
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	createFlowReportTestSubscriber(t, dbInstance)
+
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	// Insert 4 TCP flows
+	for i := range 4 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "001010100000001",
+			SourceIP:        fmt.Sprintf("10.0.0.%d", i+1),
+			DestinationIP:   "8.8.8.8",
+			SourcePort:      uint16(10000 + i),
+			DestinationPort: 443,
+			Protocol:        6,
+			Packets:         100,
+			Bytes:           5000,
+			StartTime:       now,
+			EndTime:         now,
+		}
+		if err := dbInstance.InsertFlowReport(context.Background(), fr); err != nil {
+			t.Fatalf("couldn't insert flow report: %s", err)
+		}
+	}
+
+	// Insert 2 UDP flows
+	for i := range 2 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "001010100000001",
+			SourceIP:        fmt.Sprintf("192.168.0.%d", i+1),
+			DestinationIP:   "1.1.1.1",
+			SourcePort:      uint16(20000 + i),
+			DestinationPort: 53,
+			Protocol:        17,
+			Packets:         50,
+			Bytes:           2500,
+			StartTime:       now,
+			EndTime:         now,
+		}
+		if err := dbInstance.InsertFlowReport(context.Background(), fr); err != nil {
+			t.Fatalf("couldn't insert flow report: %s", err)
+		}
+	}
+
+	// Filter for TCP only
+	statusCode, response, err := getFlowReportStats(ts.URL, client, token, map[string]string{"protocol": "6"})
+	if err != nil {
+		t.Fatalf("couldn't get flow report stats: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if response.Result == nil {
+		t.Fatalf("expected result to not be nil")
+	}
+
+	if len(response.Result.Protocols) != 1 {
+		t.Fatalf("expected 1 protocol entry, got %d", len(response.Result.Protocols))
+	}
+
+	if response.Result.Protocols[0].Protocol != 6 {
+		t.Fatalf("expected protocol TCP (6), got %d", response.Result.Protocols[0].Protocol)
+	}
+
+	if response.Result.Protocols[0].Count != 4 {
+		t.Fatalf("expected count 4, got %d", response.Result.Protocols[0].Count)
+	}
+
+	if len(response.Result.TopSources) != 4 {
+		t.Fatalf("expected 4 top sources (TCP only), got %d", len(response.Result.TopSources))
+	}
+}
+
+func TestGetFlowReportStats_Unauthenticated(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := ts.Client()
+
+	// Initialize so the server is ready, but don't use the token
+	_, err = initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't initialize server: %s", err)
+	}
+
+	statusCode, _, err := getFlowReportStats(ts.URL, client, "", nil)
+	if err != nil {
+		t.Fatalf("couldn't call flow report stats endpoint: %s", err)
+	}
+
+	if statusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
 	}
 }

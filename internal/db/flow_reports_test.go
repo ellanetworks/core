@@ -5,6 +5,7 @@ package db_test
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -379,6 +380,539 @@ func TestFlowReportsFilterByProtocol(t *testing.T) {
 		if report.Protocol != 17 {
 			t.Fatalf("Expected protocol 17, got %d", report.Protocol)
 		}
+	}
+}
+
+func TestGetFlowReportStats_Empty(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	protocols, sources, destinations, err := database.GetFlowReportStats(ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
+	}
+
+	if len(protocols) != 0 {
+		t.Fatalf("expected 0 protocol counts, got %d", len(protocols))
+	}
+
+	if len(sources) != 0 {
+		t.Fatalf("expected 0 top sources, got %d", len(sources))
+	}
+
+	if len(destinations) != 0 {
+		t.Fatalf("expected 0 top destinations, got %d", len(destinations))
+	}
+}
+
+func TestGetFlowReportStats_ProtocolCounts(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
+	// Insert 3 TCP, 2 UDP, 1 ICMP
+	now := time.Now().UTC()
+	protoCounts := []struct {
+		proto uint8
+		count int
+	}{
+		{6, 3},  // TCP
+		{17, 2}, // UDP
+		{1, 1},  // ICMP
+	}
+
+	idx := 0
+
+	for _, pc := range protoCounts {
+		for range pc.count {
+			fr := &dbwriter.FlowReport{
+				SubscriberID:    "460123456789012",
+				SourceIP:        "10.0.0.1",
+				DestinationIP:   "8.8.8.8",
+				SourcePort:      uint16(10000 + idx),
+				DestinationPort: 80,
+				Protocol:        pc.proto,
+				Packets:         10,
+				Bytes:           1000,
+				StartTime:       now.Add(time.Duration(idx)*time.Minute - 5*time.Minute).Format(time.RFC3339),
+				EndTime:         now.Add(time.Duration(idx) * time.Minute).Format(time.RFC3339),
+			}
+			if err := database.InsertFlowReport(ctx, fr); err != nil {
+				t.Fatalf("couldn't insert flow report: %s", err)
+			}
+
+			idx++
+		}
+	}
+
+	protocols, _, _, err := database.GetFlowReportStats(ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
+	}
+
+	if len(protocols) != 3 {
+		t.Fatalf("expected 3 protocol entries, got %d", len(protocols))
+	}
+
+	// Results are ordered by count DESC: TCP(3), UDP(2), ICMP(1)
+	if protocols[0].Protocol != 6 {
+		t.Fatalf("expected first protocol to be TCP (6), got %d", protocols[0].Protocol)
+	}
+
+	if protocols[0].Count != 3 {
+		t.Fatalf("expected TCP count to be 3, got %d", protocols[0].Count)
+	}
+
+	if protocols[1].Protocol != 17 {
+		t.Fatalf("expected second protocol to be UDP (17), got %d", protocols[1].Protocol)
+	}
+
+	if protocols[1].Count != 2 {
+		t.Fatalf("expected UDP count to be 2, got %d", protocols[1].Count)
+	}
+
+	if protocols[2].Protocol != 1 {
+		t.Fatalf("expected third protocol to be ICMP (1), got %d", protocols[2].Protocol)
+	}
+
+	if protocols[2].Count != 1 {
+		t.Fatalf("expected ICMP count to be 1, got %d", protocols[2].Count)
+	}
+}
+
+func TestGetFlowReportStats_TopSources(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
+	// Insert one flow report for each of 12 distinct source IPs
+	now := time.Now().UTC()
+	for i := range 12 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "460123456789012",
+			SourceIP:        fmt.Sprintf("10.0.0.%d", i+1),
+			DestinationIP:   "8.8.8.8",
+			SourcePort:      uint16(10000 + i),
+			DestinationPort: 443,
+			Protocol:        6,
+			Packets:         10,
+			Bytes:           1000,
+			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
+			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+		}
+		if err := database.InsertFlowReport(ctx, fr); err != nil {
+			t.Fatalf("couldn't insert flow report %d: %s", i, err)
+		}
+	}
+
+	_, sources, _, err := database.GetFlowReportStats(ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
+	}
+
+	if len(sources) != 10 {
+		t.Fatalf("expected top 10 sources, got %d", len(sources))
+	}
+}
+
+func TestGetFlowReportStats_TopDestinations(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
+	// Insert one flow report for each of 12 distinct destination IPs
+	now := time.Now().UTC()
+	for i := range 12 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "460123456789012",
+			SourceIP:        "10.0.0.1",
+			DestinationIP:   fmt.Sprintf("8.8.8.%d", i+1),
+			SourcePort:      12345,
+			DestinationPort: uint16(10000 + i),
+			Protocol:        6,
+			Packets:         10,
+			Bytes:           1000,
+			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
+			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+		}
+		if err := database.InsertFlowReport(ctx, fr); err != nil {
+			t.Fatalf("couldn't insert flow report %d: %s", i, err)
+		}
+	}
+
+	_, _, destinations, err := database.GetFlowReportStats(ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
+	}
+
+	if len(destinations) != 10 {
+		t.Fatalf("expected top 10 destinations, got %d", len(destinations))
+	}
+}
+
+func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	policyID, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
+	sub2 := &db.Subscriber{
+		Imsi:           "460123456789013",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+		PolicyID:       policyID,
+	}
+	if err := database.CreateSubscriber(ctx, sub2); err != nil {
+		t.Fatalf("couldn't create subscriber: %s", err)
+	}
+
+	now := time.Now().UTC()
+
+	// Insert 3 TCP flows for subscriber 1
+	for i := range 3 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "460123456789012",
+			SourceIP:        "10.0.0.1",
+			DestinationIP:   "1.1.1.1",
+			SourcePort:      uint16(10000 + i),
+			DestinationPort: 443,
+			Protocol:        6,
+			Packets:         10,
+			Bytes:           1000,
+			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
+			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+		}
+		if err := database.InsertFlowReport(ctx, fr); err != nil {
+			t.Fatalf("couldn't insert flow report: %s", err)
+		}
+	}
+
+	// Insert 2 UDP flows for subscriber 2
+	for i := range 2 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "460123456789013",
+			SourceIP:        "10.0.0.2",
+			DestinationIP:   "2.2.2.2",
+			SourcePort:      uint16(20000 + i),
+			DestinationPort: 53,
+			Protocol:        17,
+			Packets:         5,
+			Bytes:           500,
+			StartTime:       now.Add(time.Duration(3+i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
+			EndTime:         now.Add(time.Duration(3+i) * time.Minute).Format(time.RFC3339),
+		}
+		if err := database.InsertFlowReport(ctx, fr); err != nil {
+			t.Fatalf("couldn't insert flow report: %s", err)
+		}
+	}
+
+	sub1 := "460123456789012"
+	filter := &db.FlowReportFilters{SubscriberID: &sub1}
+
+	protocols, sources, destinations, err := database.GetFlowReportStats(ctx, filter)
+	if err != nil {
+		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
+	}
+
+	// Only subscriber 1's TCP flows should be counted
+	if len(protocols) != 1 {
+		t.Fatalf("expected 1 protocol entry, got %d", len(protocols))
+	}
+
+	if protocols[0].Protocol != 6 {
+		t.Fatalf("expected protocol TCP (6), got %d", protocols[0].Protocol)
+	}
+
+	if protocols[0].Count != 3 {
+		t.Fatalf("expected protocol count 3, got %d", protocols[0].Count)
+	}
+
+	if len(sources) != 1 {
+		t.Fatalf("expected 1 top source, got %d", len(sources))
+	}
+
+	if sources[0].IP != "10.0.0.1" {
+		t.Fatalf("expected source IP 10.0.0.1, got %s", sources[0].IP)
+	}
+
+	if len(destinations) != 1 {
+		t.Fatalf("expected 1 top destination, got %d", len(destinations))
+	}
+
+	if destinations[0].IP != "1.1.1.1" {
+		t.Fatalf("expected destination IP 1.1.1.1, got %s", destinations[0].IP)
+	}
+}
+
+func TestGetFlowReportStats_WithProtocolFilter(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
+	now := time.Now().UTC()
+
+	// Insert 4 TCP flows with distinct source IPs
+	for i := range 4 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "460123456789012",
+			SourceIP:        fmt.Sprintf("192.168.1.%d", i+1),
+			DestinationIP:   "8.8.8.8",
+			SourcePort:      uint16(10000 + i),
+			DestinationPort: 443,
+			Protocol:        6,
+			Packets:         10,
+			Bytes:           1000,
+			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
+			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+		}
+		if err := database.InsertFlowReport(ctx, fr); err != nil {
+			t.Fatalf("couldn't insert TCP flow report: %s", err)
+		}
+	}
+
+	// Insert 2 UDP flows
+	for i := range 2 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "460123456789012",
+			SourceIP:        fmt.Sprintf("10.0.0.%d", i+1),
+			DestinationIP:   "1.1.1.1",
+			SourcePort:      uint16(20000 + i),
+			DestinationPort: 53,
+			Protocol:        17,
+			Packets:         5,
+			Bytes:           500,
+			StartTime:       now.Add(time.Duration(4+i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
+			EndTime:         now.Add(time.Duration(4+i) * time.Minute).Format(time.RFC3339),
+		}
+		if err := database.InsertFlowReport(ctx, fr); err != nil {
+			t.Fatalf("couldn't insert UDP flow report: %s", err)
+		}
+	}
+
+	proto := uint8(6) // TCP
+	filter := &db.FlowReportFilters{Protocol: &proto}
+
+	protocols, sources, destinations, err := database.GetFlowReportStats(ctx, filter)
+	if err != nil {
+		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
+	}
+
+	// Only TCP flows should appear
+	if len(protocols) != 1 {
+		t.Fatalf("expected 1 protocol entry, got %d", len(protocols))
+	}
+
+	if protocols[0].Protocol != 6 {
+		t.Fatalf("expected protocol TCP (6), got %d", protocols[0].Protocol)
+	}
+
+	if protocols[0].Count != 4 {
+		t.Fatalf("expected TCP count 4, got %d", protocols[0].Count)
+	}
+
+	if len(sources) != 4 {
+		t.Fatalf("expected 4 top sources (TCP only), got %d", len(sources))
+	}
+
+	if len(destinations) != 1 {
+		t.Fatalf("expected 1 top destination (TCP only), got %d", len(destinations))
+	}
+}
+
+func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
+	now := time.Now().UTC()
+
+	// Insert 3 recent flows (within last hour)
+	for i := range 3 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "460123456789012",
+			SourceIP:        "10.0.0.1",
+			DestinationIP:   "8.8.8.8",
+			SourcePort:      uint16(10000 + i),
+			DestinationPort: 443,
+			Protocol:        6,
+			Packets:         10,
+			Bytes:           1000,
+			StartTime:       now.Add(-10 * time.Minute).Format(time.RFC3339),
+			EndTime:         now.Add(-time.Duration(i) * time.Minute).Format(time.RFC3339),
+		}
+		if err := database.InsertFlowReport(ctx, fr); err != nil {
+			t.Fatalf("couldn't insert recent flow report: %s", err)
+		}
+	}
+
+	// Insert 2 old flows (2 days ago)
+	oldTime := now.AddDate(0, 0, -2)
+	for i := range 2 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "460123456789012",
+			SourceIP:        "172.16.0.1",
+			DestinationIP:   "1.1.1.1",
+			SourcePort:      uint16(20000 + i),
+			DestinationPort: 53,
+			Protocol:        17,
+			Packets:         5,
+			Bytes:           500,
+			StartTime:       oldTime.Add(-5 * time.Minute).Format(time.RFC3339),
+			EndTime:         oldTime.Format(time.RFC3339),
+		}
+		if err := database.InsertFlowReport(ctx, fr); err != nil {
+			t.Fatalf("couldn't insert old flow report: %s", err)
+		}
+	}
+
+	// Filter to only yesterday onwards (excludes the 2-day-old flows)
+	from := now.AddDate(0, 0, -1).Format(time.RFC3339)
+	to := now.AddDate(0, 0, 1).Format(time.RFC3339)
+	filter := &db.FlowReportFilters{
+		EndTimeFrom: &from,
+		EndTimeTo:   &to,
+	}
+
+	protocols, sources, destinations, err := database.GetFlowReportStats(ctx, filter)
+	if err != nil {
+		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
+	}
+
+	// Only the 3 recent TCP flows should be counted
+	if len(protocols) != 1 {
+		t.Fatalf("expected 1 protocol entry, got %d", len(protocols))
+	}
+
+	if protocols[0].Protocol != 6 {
+		t.Fatalf("expected protocol TCP (6), got %d", protocols[0].Protocol)
+	}
+
+	if protocols[0].Count != 3 {
+		t.Fatalf("expected count 3, got %d", protocols[0].Count)
+	}
+
+	if len(sources) != 1 {
+		t.Fatalf("expected 1 top source, got %d", len(sources))
+	}
+
+	if sources[0].IP != "10.0.0.1" {
+		t.Fatalf("expected source IP 10.0.0.1, got %s", sources[0].IP)
+	}
+
+	if len(destinations) != 1 {
+		t.Fatalf("expected 1 top destination, got %d", len(destinations))
+	}
+
+	if destinations[0].IP != "8.8.8.8" {
+		t.Fatalf("expected destination IP 8.8.8.8, got %s", destinations[0].IP)
 	}
 }
 
