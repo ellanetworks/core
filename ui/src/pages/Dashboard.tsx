@@ -101,8 +101,15 @@ const formatTimestamp = (s: string) => {
 // ──────────────────────────────────────────────────────
 
 const PROTOCOL_NAMES: Record<number, string> = {
-  1: "ICMP", 6: "TCP", 17: "UDP", 41: "IPv6", 47: "GRE",
-  50: "ESP", 51: "AH", 58: "IPv6-ICMP", 89: "OSPFIGP",
+  1: "ICMP",
+  6: "TCP",
+  17: "UDP",
+  41: "IPv6",
+  47: "GRE",
+  50: "ESP",
+  51: "AH",
+  58: "IPv6-ICMP",
+  89: "OSPFIGP",
   132: "SCTP",
 };
 
@@ -114,9 +121,18 @@ const formatProtocol = (value: number): string =>
 // ──────────────────────────────────────────────────────
 
 const PIE_COLORS = [
-  "#2196F3", "#4CAF50", "#FF9800", "#E91E63", "#9C27B0",
-  "#00BCD4", "#FF5722", "#795548", "#607D8B", "#8BC34A",
-  "#3F51B5", "#CDDC39",
+  "#2196F3",
+  "#4CAF50",
+  "#FF9800",
+  "#E91E63",
+  "#9C27B0",
+  "#00BCD4",
+  "#FF5722",
+  "#795548",
+  "#607D8B",
+  "#8BC34A",
+  "#3F51B5",
+  "#CDDC39",
 ];
 
 // ──────────────────────────────────────────────────────
@@ -326,8 +342,7 @@ const Dashboard = () => {
 
   const usageQuery = useQuery<UsageResult>({
     queryKey: ["dashboardUsage", startDate, endDate],
-    queryFn: () =>
-      getUsage(accessToken!, startDate, endDate, "", "subscriber"),
+    queryFn: () => getUsage(accessToken!, startDate, endDate, "", "subscriber"),
     enabled: authReady && !!accessToken,
     refetchInterval: 10000,
     refetchOnWindowFocus: true,
@@ -522,7 +537,11 @@ const Dashboard = () => {
         justifyContent="flex-start"
       >
         <Grid size={{ xs: 12, sm: 12, md: 4 }}>
-          <KpiCard title="IP Allocation" loading={metricsLoading} minHeight={240}>
+          <KpiCard
+            title="IP Allocation"
+            loading={metricsLoading}
+            minHeight={240}
+          >
             {metricsLoading ? (
               <Skeleton variant="rounded" width="100%" height={200} />
             ) : (
@@ -744,11 +763,7 @@ const Dashboard = () => {
                   overflowY: "auto",
                 }}
               >
-                <Table
-                  size="small"
-                  stickyHeader
-                  aria-label="top-data-users"
-                >
+                <Table size="small" stickyHeader aria-label="top-data-users">
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 600, minWidth: 160 }}>

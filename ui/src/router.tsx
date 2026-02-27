@@ -39,9 +39,18 @@ export default function AppRouter() {
         <Route path="backup-restore" element={<BackupRestore />} />
         <Route path="traffic/usage" element={<Traffic />} />
         <Route path="traffic/flows" element={<Traffic />} />
-        <Route path="traffic" element={<Navigate to="/traffic/usage" replace />} />
-        <Route path="usage" element={<Navigate to="/traffic/usage" replace />} />
-        <Route path="flow-reports" element={<Navigate to="/traffic/flows" replace />} />
+        <Route
+          path="traffic"
+          element={<Navigate to="/traffic/usage" replace />}
+        />
+        <Route
+          path="usage"
+          element={<Navigate to="/traffic/usage" replace />}
+        />
+        <Route
+          path="flow-reports"
+          element={<Navigate to="/traffic/flows" replace />}
+        />
       </Route>
 
       {/* Catch-all redirect */}
