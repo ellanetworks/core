@@ -536,8 +536,8 @@ const Dashboard = () => {
                       ],
                       innerRadius: 40,
                       outerRadius: 100,
-                      paddingAngle: 0,
-                      cornerRadius: 0,
+                      paddingAngle: 2,
+                      cornerRadius: 5,
                     },
                   ]}
                   height={220}
@@ -698,8 +698,8 @@ const Dashboard = () => {
                       data: protocolPieData,
                       innerRadius: 40,
                       outerRadius: 100,
-                      paddingAngle: 0,
-                      cornerRadius: 0,
+                      paddingAngle: 2,
+                      cornerRadius: 5,
                     },
                   ]}
                   height={220}

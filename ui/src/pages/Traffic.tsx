@@ -873,8 +873,8 @@ const Traffic: React.FC = () => {
                             data: protocolPieData,
                             innerRadius: 30,
                             outerRadius: 80,
-                            paddingAngle: 0,
-                            cornerRadius: 0,
+                            paddingAngle: 2,
+                            cornerRadius: 5,
                           },
                         ]}
                         height={250}
@@ -899,8 +899,8 @@ const Traffic: React.FC = () => {
                             data: topDestinationsPieData,
                             innerRadius: 30,
                             outerRadius: 80,
-                            paddingAngle: 0,
-                            cornerRadius: 0,
+                            paddingAngle: 2,
+                            cornerRadius: 5,
                           },
                         ]}
                         height={250}
