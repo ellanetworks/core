@@ -551,18 +551,6 @@ const Traffic: React.FC = () => {
     }));
   }, [flowStatsData]);
 
-  // ── Top 10 sources (donut chart) ────────────────────
-
-  const topSourcesPieData = useMemo(() => {
-    if (!flowStatsData?.top_sources?.length) return [];
-    return flowStatsData.top_sources.map((s, i) => ({
-      id: i,
-      value: s.count,
-      label: s.ip,
-      color: PIE_COLORS[i % PIE_COLORS.length],
-    }));
-  }, [flowStatsData]);
-
   // ── Top 10 destinations (donut chart) ───────────────
 
   const topDestinationsPieData = useMemo(() => {
@@ -865,11 +853,11 @@ const Traffic: React.FC = () => {
               </Box>
 
               {/* Donut charts row */}
-              {(protocolPieData.length > 0 || topSourcesPieData.length > 0 || topDestinationsPieData.length > 0) && (
+              {(protocolPieData.length > 0 || topDestinationsPieData.length > 0) && (
                 <Box
                   sx={{
                     display: "grid",
-                    gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" },
+                    gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
                     gap: 3,
                   }}
                 >
@@ -882,31 +870,6 @@ const Traffic: React.FC = () => {
                         series={[
                           {
                             data: protocolPieData,
-                            innerRadius: 30,
-                            outerRadius: 80,
-                            paddingAngle: 0,
-                            cornerRadius: 0,
-                          },
-                        ]}
-                        height={250}
-                        slotProps={{
-                          legend: {
-                            direction: "vertical",
-                            position: { vertical: "middle", horizontal: "end" },
-                          },
-                        }}
-                      />
-                    </Box>
-                  )}
-                  {topSourcesPieData.length > 0 && (
-                    <Box>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
-                        Top 10 Sources
-                      </Typography>
-                      <PieChart
-                        series={[
-                          {
-                            data: topSourcesPieData,
                             innerRadius: 30,
                             outerRadius: 80,
                             paddingAngle: 0,
