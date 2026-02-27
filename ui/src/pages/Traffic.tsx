@@ -845,10 +845,10 @@ const Traffic: React.FC = () => {
                     series={[
                       {
                         data: protocolPieData,
-                        innerRadius: 60,
-                        outerRadius: 120,
-                        paddingAngle: 2,
-                        cornerRadius: 4,
+                        innerRadius: 40,
+                        outerRadius: 100,
+                        paddingAngle: 0,
+                        cornerRadius: 0,
                       },
                     ]}
                     height={300}

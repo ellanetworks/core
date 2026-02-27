@@ -542,10 +542,10 @@ const Dashboard = () => {
                         { id: 0, value: ipChart.alloc, label: "Allocated" },
                         { id: 1, value: ipChart.available, label: "Available" },
                       ],
-                      innerRadius: 50,
+                      innerRadius: 40,
                       outerRadius: 100,
-                      paddingAngle: 2,
-                      cornerRadius: 4,
+                      paddingAngle: 0,
+                      cornerRadius: 0,
                     },
                   ]}
                   height={220}
@@ -704,10 +704,10 @@ const Dashboard = () => {
                   series={[
                     {
                       data: protocolPieData,
-                      innerRadius: 50,
+                      innerRadius: 40,
                       outerRadius: 100,
-                      paddingAngle: 2,
-                      cornerRadius: 4,
+                      paddingAngle: 0,
+                      cornerRadius: 0,
                     },
                   ]}
                   height={220}
