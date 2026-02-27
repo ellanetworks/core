@@ -1,6 +1,6 @@
 module github.com/ellanetworks/core
 
-go 1.25.5
+go 1.25.7
 
 require (
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
@@ -21,7 +21,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.40.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.48.0
-	golang.org/x/net v0.50.0
+	golang.org/x/net v0.51.0
 	golang.org/x/sys v0.41.0
 	gopkg.in/yaml.v2 v2.4.0
 )
