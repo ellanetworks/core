@@ -130,6 +130,9 @@ type Database struct {
 	getFlowReportByIDStmt           *sqlair.Statement
 	listFlowReportsByDayStmt        *sqlair.Statement
 	listFlowReportsBySubscriberStmt *sqlair.Statement
+	flowReportProtocolCountsStmt    *sqlair.Statement
+	flowReportTopSourcesStmt        *sqlair.Statement
+	flowReportTopDestinationsStmt   *sqlair.Statement
 
 	// Session statements
 	createSessionStmt            *sqlair.Statement
@@ -445,6 +448,9 @@ func (db *Database) PrepareStatements() error {
 		{&db.getFlowReportByIDStmt, fmt.Sprintf(getFlowReportByIDStmt, FlowReportsTableName), []any{dbwriter.FlowReport{}}},
 		{&db.listFlowReportsByDayStmt, fmt.Sprintf(listFlowReportsFilteredByDayStmt, FlowReportsTableName), []any{FlowReportFilters{}, dbwriter.FlowReport{}}},
 		{&db.listFlowReportsBySubscriberStmt, fmt.Sprintf(listFlowReportsFilteredBySubscriberStmt, FlowReportsTableName), []any{FlowReportFilters{}, dbwriter.FlowReport{}}},
+		{&db.flowReportProtocolCountsStmt, fmt.Sprintf(flowReportProtocolCountsStmt, FlowReportsTableName), []any{FlowReportFilters{}, FlowReportProtocolCount{}}},
+		{&db.flowReportTopSourcesStmt, fmt.Sprintf(flowReportTopSourcesStmt, FlowReportsTableName), []any{FlowReportFilters{}, FlowReportIPCount{}}},
+		{&db.flowReportTopDestinationsStmt, fmt.Sprintf(flowReportTopDestinationsStmt, FlowReportsTableName), []any{FlowReportFilters{}, FlowReportIPCount{}}},
 
 		// Sessions
 		{&db.createSessionStmt, fmt.Sprintf(createSessionStmt, SessionsTableName), []any{Session{}}},

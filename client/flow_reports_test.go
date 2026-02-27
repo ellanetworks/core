@@ -417,3 +417,77 @@ func TestUpdateFlowReportsRetentionPolicy_Failure(t *testing.T) {
 		t.Fatalf("expected error, got none")
 	}
 }
+
+func TestGetFlowReportStats_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"protocols": [{"protocol": 6, "count": 150}, {"protocol": 17, "count": 80}], "top_sources": [{"ip": "10.0.0.1", "count": 100}], "top_destinations": [{"ip": "8.8.8.8", "count": 90}]}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	params := &client.ListFlowReportsParams{}
+
+	resp, err := clientObj.GetFlowReportStats(ctx, params)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(resp.Protocols) != 2 {
+		t.Fatalf("expected 2 protocol stats, got %d", len(resp.Protocols))
+	}
+
+	if resp.Protocols[0].Protocol != 6 {
+		t.Fatalf("expected protocol 6, got %d", resp.Protocols[0].Protocol)
+	}
+
+	if resp.Protocols[0].Count != 150 {
+		t.Fatalf("expected count 150, got %d", resp.Protocols[0].Count)
+	}
+
+	if len(resp.TopSources) != 1 {
+		t.Fatalf("expected 1 top source, got %d", len(resp.TopSources))
+	}
+
+	if resp.TopSources[0].IP != "10.0.0.1" {
+		t.Fatalf("expected source IP '10.0.0.1', got '%s'", resp.TopSources[0].IP)
+	}
+
+	if len(resp.TopDestinations) != 1 {
+		t.Fatalf("expected 1 top destination, got %d", len(resp.TopDestinations))
+	}
+
+	if resp.TopDestinations[0].IP != "8.8.8.8" {
+		t.Fatalf("expected destination IP '8.8.8.8', got '%s'", resp.TopDestinations[0].IP)
+	}
+}
+
+func TestGetFlowReportStats_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 500,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Internal server error"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	params := &client.ListFlowReportsParams{}
+
+	_, err := clientObj.GetFlowReportStats(ctx, params)
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}

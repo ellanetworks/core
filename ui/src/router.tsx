@@ -14,8 +14,7 @@ import Users from "./pages/Users";
 import Profile from "./pages/Profile";
 import AuditLogs from "./pages/AuditLogs";
 import BackupRestore from "./pages/BackupRestore";
-import Usage from "./pages/Usage";
-import FlowReports from "./pages/FlowReports";
+import Traffic from "./pages/Traffic";
 
 export default function AppRouter() {
   return (
@@ -38,8 +37,11 @@ export default function AppRouter() {
         <Route path="profile" element={<Profile />} />
         <Route path="audit-logs" element={<AuditLogs />} />
         <Route path="backup-restore" element={<BackupRestore />} />
-        <Route path="usage" element={<Usage />} />
-        <Route path="flow-reports" element={<FlowReports />} />
+        <Route path="traffic/usage" element={<Traffic />} />
+        <Route path="traffic/flows" element={<Traffic />} />
+        <Route path="traffic" element={<Navigate to="/traffic/usage" replace />} />
+        <Route path="usage" element={<Navigate to="/traffic/usage" replace />} />
+        <Route path="flow-reports" element={<Navigate to="/traffic/flows" replace />} />
       </Route>
 
       {/* Catch-all redirect */}
