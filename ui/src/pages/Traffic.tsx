@@ -877,14 +877,13 @@ const Traffic: React.FC = () => {
                             cornerRadius: 5,
                           },
                         ]}
-                        height={250}
+                        height={300}
                         slotProps={{
                           legend: {
-                            direction: "vertical",
+                            direction: "horizontal",
                             position: { vertical: "bottom", horizontal: "center" },
                           },
                         }}
-                        margin={{ top: 10, bottom: 60, left: 80, right: 80 }}
                       />
                     </Box>
                   )}
@@ -903,14 +902,13 @@ const Traffic: React.FC = () => {
                             cornerRadius: 5,
                           },
                         ]}
-                        height={250}
+                        height={300}
                         slotProps={{
                           legend: {
-                            direction: "vertical",
+                            direction: "horizontal",
                             position: { vertical: "bottom", horizontal: "center" },
                           },
                         }}
-                        margin={{ top: 10, bottom: 60, left: 80, right: 80 }}
                       />
                     </Box>
                   )}
