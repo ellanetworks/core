@@ -23,6 +23,11 @@ Ella Core's data plane uses XDP to achieve high throughput and low latency. Key 
 
 Data plane processing in Ella Core occurs between the **n3** and **n6** interfaces.
 
+<figure markdown="span">
+  ![eBPF Ella Core](../images/ebpf.svg){ width="800" }
+  <figcaption>Packet processing in Ella Core with eBPF and XDP (Simplified to only show N3->N6).</figcaption>
+</figure>
+
 ### Routing
 
 Ella Core currently relies on the kernel to make routing decisions for incoming network packets. Kernel routes can be configured using the [Networking API](../reference/api/networking.md) or the user interface.
