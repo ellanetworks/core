@@ -859,6 +859,7 @@ const Traffic: React.FC = () => {
                     display: "grid",
                     gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
                     gap: 3,
+                    alignItems: "start",
                   }}
                 >
                   {protocolPieData.length > 0 && (
@@ -880,9 +881,10 @@ const Traffic: React.FC = () => {
                         slotProps={{
                           legend: {
                             direction: "vertical",
-                            position: { vertical: "middle", horizontal: "end" },
+                            position: { vertical: "bottom", horizontal: "center" },
                           },
                         }}
+                        margin={{ top: 10, bottom: 60, left: 80, right: 80 }}
                       />
                     </Box>
                   )}
@@ -905,9 +907,10 @@ const Traffic: React.FC = () => {
                         slotProps={{
                           legend: {
                             direction: "vertical",
-                            position: { vertical: "middle", horizontal: "end" },
+                            position: { vertical: "bottom", horizontal: "center" },
                           },
                         }}
+                        margin={{ top: 10, bottom: 60, left: 80, right: 80 }}
                       />
                     </Box>
                   )}
