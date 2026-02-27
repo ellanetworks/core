@@ -34,34 +34,18 @@ import {
   listRadioEvents,
   type ListRadioEventsResponse,
 } from "@/queries/radio_events";
+import {
+  listFlowReports,
+  type FlowReport,
+  type ListFlowReportsResponse,
+} from "@/queries/flow_reports";
+import { getUsage, type UsageResult } from "@/queries/usage";
 
-const MAX_WIDTH = 1200;
+const MAX_WIDTH = 1400;
 
 const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>
   n == null ? "N/A" : nf.format(n);
-
-const formatBytes = (value: number | null | undefined): string => {
-  if (value == null || !Number.isFinite(value)) return "N/A";
-
-  const base = 1000;
-  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
-
-  let i = 0;
-  let n = Math.abs(value);
-  while (n >= base && i < units.length - 1) {
-    n /= base;
-    i++;
-  }
-
-  const nf = new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
-
-  const sign = value < 0 ? "-" : "";
-  return `${sign}${nf.format(n)} ${units[i]}`;
-};
 
 const formatMemory = (value: number | null | undefined): string => {
   if (value == null || !Number.isFinite(value)) return "N/A";
@@ -76,13 +60,26 @@ const formatMemory = (value: number | null | undefined): string => {
     i++;
   }
 
-  const nf = new Intl.NumberFormat("en-US", {
+  const numFmt = new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   });
 
   const sign = value < 0 ? "-" : "";
-  return `${sign}${nf.format(n)} ${units[i]}`;
+  return `${sign}${numFmt.format(n)} ${units[i]}`;
+};
+
+const formatBytesAutoUnit = (bytes: number): string => {
+  if (!Number.isFinite(bytes)) return "";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  let n = Math.abs(bytes);
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i++;
+  }
+  const decimals = n >= 100 ? 0 : n >= 10 ? 1 : 2;
+  return `${n.toFixed(decimals)} ${units[i]}`;
 };
 
 const formatTimestamp = (s: string) => {
@@ -100,6 +97,33 @@ const formatTimestamp = (s: string) => {
   });
 };
 
+// ──────────────────────────────────────────────────────
+// Protocol helpers
+// ──────────────────────────────────────────────────────
+
+const PROTOCOL_NAMES: Record<number, string> = {
+  1: "ICMP", 6: "TCP", 17: "UDP", 41: "IPv6", 47: "GRE",
+  50: "ESP", 51: "AH", 58: "IPv6-ICMP", 89: "OSPFIGP",
+  132: "SCTP",
+};
+
+const formatProtocol = (value: number): string =>
+  PROTOCOL_NAMES[value] ?? String(value);
+
+// ──────────────────────────────────────────────────────
+// Pie chart color palette
+// ──────────────────────────────────────────────────────
+
+const PIE_COLORS = [
+  "#2196F3", "#4CAF50", "#FF9800", "#E91E63", "#9C27B0",
+  "#00BCD4", "#FF5722", "#795548", "#607D8B", "#8BC34A",
+  "#3F51B5", "#CDDC39",
+];
+
+// ──────────────────────────────────────────────────────
+// Metrics parsing
+// ──────────────────────────────────────────────────────
+
 type ParsedMetrics = {
   pduSessions: number | null;
   heapMemoryBytes: number | null;
@@ -108,18 +132,6 @@ type ParsedMetrics = {
   routines: number | null;
   allocatedIPs: number | null;
   totalIPs: number | null;
-  uplinkBytes: number | null;
-  downlinkBytes: number | null;
-  n3Drops: number | null;
-  n6Drops: number | null;
-  n3Pass: number | null;
-  n6Pass: number | null;
-  n3Tx: number | null;
-  n6Tx: number | null;
-  n3Redirect: number | null;
-  n6Redirect: number | null;
-  n3Aborted: number | null;
-  n6Aborted: number | null;
   processStart: number | null;
 };
 
@@ -150,25 +162,13 @@ const parseMetrics = (raw: string): ParsedMetrics => {
       g("app_ip_addresses_total ") != null
         ? Math.round(g("app_ip_addresses_total ")!)
         : null,
-    uplinkBytes: g("app_uplink_bytes "),
-    downlinkBytes: g("app_downlink_bytes "),
-    n3Drops: g('app_xdp_action_total{action="XDP_DROP",interface="n3"} '),
-    n6Drops: g('app_xdp_action_total{action="XDP_DROP",interface="n6"} '),
-    n3Pass: g('app_xdp_action_total{action="XDP_PASS",interface="n3"} '),
-    n6Pass: g('app_xdp_action_total{action="XDP_PASS",interface="n6"} '),
-    n3Tx: g('app_xdp_action_total{action="XDP_TX",interface="n3"} '),
-    n6Tx: g('app_xdp_action_total{action="XDP_TX",interface="n6"} '),
-    n3Redirect: g(
-      'app_xdp_action_total{action="XDP_REDIRECT",interface="n3"} ',
-    ),
-    n6Redirect: g(
-      'app_xdp_action_total{action="XDP_REDIRECT",interface="n6"} ',
-    ),
-    n3Aborted: g('app_xdp_action_total{action="XDP_ABORTED",interface="n3"} '),
-    n6Aborted: g('app_xdp_action_total{action="XDP_ABORTED",interface="n6"} '),
     processStart: g("process_start_time_seconds "),
   };
 };
+
+// ──────────────────────────────────────────────────────
+// KpiCard
+// ──────────────────────────────────────────────────────
 
 type KpiCardProps = {
   title: React.ReactNode;
@@ -245,9 +245,28 @@ function KpiCard({
   return CardInner;
 }
 
+// ──────────────────────────────────────────────────────
+// Date helpers (for usage query — last 7 days)
+// ──────────────────────────────────────────────────────
+
+const getDefaultDateRange = () => {
+  const today = new Date();
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(today.getDate() - 6);
+  const format = (d: Date) => d.toISOString().slice(0, 10);
+  return { startDate: format(sevenDaysAgo), endDate: format(today) };
+};
+
+// ──────────────────────────────────────────────────────
+// Dashboard
+// ──────────────────────────────────────────────────────
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
+  const { startDate, endDate } = getDefaultDateRange();
+
+  // ── Queries ─────────────────────────────────────────
 
   const statusQuery = useQuery<APIStatus>({
     queryKey: ["dashboardStatus"],
@@ -293,6 +312,31 @@ const Dashboard = () => {
     placeholderData: (prev) => prev,
   });
 
+  const flowQuery = useQuery<ListFlowReportsResponse>({
+    queryKey: ["dashboardFlows"],
+    queryFn: () =>
+      listFlowReports(accessToken!, 1, 100, {
+        start: startDate,
+        end: endDate,
+      }),
+    enabled: authReady && !!accessToken,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
+  });
+
+  const usageQuery = useQuery<UsageResult>({
+    queryKey: ["dashboardUsage", startDate, endDate],
+    queryFn: () =>
+      getUsage(accessToken!, startDate, endDate, "", "subscriber"),
+    enabled: authReady && !!accessToken,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
+  });
+
+  // ── Derived values ──────────────────────────────────
+
   const version = statusQuery.data?.version ?? null;
   const subscriberCount = subscribersQuery.data?.total_count ?? null;
   const radioCount = radiosQuery.data?.total_count ?? null;
@@ -302,7 +346,11 @@ const Dashboard = () => {
     ? "Failed to fetch radio events."
     : null;
 
-  const loading = metricsQuery.isLoading;
+  const metricsLoading = metricsQuery.isLoading;
+  const radiosLoading = radiosQuery.isLoading;
+  const subscribersLoading = subscribersQuery.isLoading;
+  const eventsLoading = radioEventsQuery.isLoading;
+  const statusLoading = statusQuery.isLoading;
   const error =
     statusQuery.error || subscribersQuery.error || metricsQuery.error
       ? "Failed to fetch dashboard data."
@@ -315,18 +363,6 @@ const Dashboard = () => {
   const routines = m?.routines ?? null;
   const allocatedIPs = m?.allocatedIPs ?? null;
   const totalIPs = m?.totalIPs ?? null;
-  const uplinkBytes = m?.uplinkBytes ?? null;
-  const downlinkBytes = m?.downlinkBytes ?? null;
-  const n3Drops = m?.n3Drops ?? null;
-  const n6Drops = m?.n6Drops ?? null;
-  const n3Pass = m?.n3Pass ?? null;
-  const n6Pass = m?.n6Pass ?? null;
-  const n3Tx = m?.n3Tx ?? null;
-  const n6Tx = m?.n6Tx ?? null;
-  const n3Redirect = m?.n3Redirect ?? null;
-  const n6Redirect = m?.n6Redirect ?? null;
-  const n3Aborted = m?.n3Aborted ?? null;
-  const n6Aborted = m?.n6Aborted ?? null;
   const upSince = m?.processStart ? new Date(m.processStart * 1000) : null;
 
   const ipChart = useMemo(() => {
@@ -335,6 +371,56 @@ const Dashboard = () => {
     const available = Math.max(total - alloc, 0);
     return { alloc, available, total };
   }, [allocatedIPs, totalIPs]);
+
+  // ── Protocol donut data ─────────────────────────────
+
+  const flowRows: FlowReport[] = flowQuery.data?.items ?? [];
+
+  const protocolPieData = useMemo(() => {
+    if (!flowRows.length) return [];
+    const counts = new Map<number, number>();
+    for (const row of flowRows) {
+      counts.set(row.protocol, (counts.get(row.protocol) ?? 0) + 1);
+    }
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    return sorted.map(([proto, count], i) => ({
+      id: proto,
+      value: count,
+      label: formatProtocol(proto),
+      color: PIE_COLORS[i % PIE_COLORS.length],
+    }));
+  }, [flowRows]);
+
+  // ── Top 10 data users ───────────────────────────────
+
+  type TopUser = {
+    id: string;
+    subscriber: string;
+    total_bytes: number;
+    uplink_bytes: number;
+    downlink_bytes: number;
+  };
+
+  const topUsers: TopUser[] = useMemo(() => {
+    if (!usageQuery.data) return [];
+    const items: TopUser[] = [];
+    for (const entry of usageQuery.data) {
+      const subscriber = Object.keys(entry)[0];
+      const usage = entry[subscriber];
+      if (!subscriber || !usage) continue;
+      items.push({
+        id: subscriber,
+        subscriber,
+        total_bytes: usage.total_bytes,
+        uplink_bytes: usage.uplink_bytes,
+        downlink_bytes: usage.downlink_bytes,
+      });
+    }
+    items.sort((a, b) => b.total_bytes - a.total_bytes);
+    return items.slice(0, 10);
+  }, [usageQuery.data]);
+
+  // ── Render ──────────────────────────────────────────
 
   return (
     <Box sx={{ px: { xs: 2, sm: 4 }, py: 3, maxWidth: MAX_WIDTH, mx: "auto" }}>
@@ -350,7 +436,7 @@ const Dashboard = () => {
       >
         <Typography variant="h4" component="h1">
           Ella Core{" "}
-          {loading ? (
+          {statusLoading ? (
             <CircularProgress size={22} sx={{ ml: 1 }} />
           ) : (
             (version ?? "—")
@@ -364,8 +450,9 @@ const Dashboard = () => {
         </Alert>
       )}
 
+      {/* ─── 1. Network Status ──────────────────────── */}
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-        Network
+        Network Status
       </Typography>
 
       <Grid
@@ -382,7 +469,7 @@ const Dashboard = () => {
             <Box>
               <KpiCard
                 title="Radios"
-                loading={loading}
+                loading={radiosLoading}
                 value={formatNumber(radioCount)}
                 onClick={() => navigate("/radios")}
               />
@@ -397,7 +484,7 @@ const Dashboard = () => {
             <Box>
               <KpiCard
                 title="Subscribers"
-                loading={loading}
+                loading={subscribersLoading}
                 value={formatNumber(subscriberCount)}
                 onClick={() => navigate("/subscribers")}
               />
@@ -412,7 +499,7 @@ const Dashboard = () => {
             <Box>
               <KpiCard
                 title="Active Sessions"
-                loading={loading}
+                loading={metricsLoading}
                 value={formatNumber(activeSessions)}
               />
             </Box>
@@ -423,15 +510,28 @@ const Dashboard = () => {
             <Box>
               <KpiCard
                 title="Up Since"
-                loading={loading}
+                loading={metricsLoading}
                 value={upSince ? formatTimestamp(upSince.toISOString()) : "N/A"}
               />
             </Box>
           </Tooltip>
         </Grid>
+      </Grid>
+
+      {/* ─── 2. Control Plane ───────────────────────── */}
+      <Typography variant="h5" component="h2" sx={{ mt: 4, mb: 2 }}>
+        Control Plane
+      </Typography>
+
+      <Grid
+        container
+        spacing={4}
+        alignItems="stretch"
+        justifyContent="flex-start"
+      >
         <Grid size={{ xs: 12, sm: 12, md: 4 }}>
-          <KpiCard title="IP Allocation" loading={loading} minHeight={240}>
-            {loading ? (
+          <KpiCard title="IP Allocation" loading={metricsLoading} minHeight={240}>
+            {metricsLoading ? (
               <Skeleton variant="rounded" width="100%" height={200} />
             ) : (
               <Box sx={{ width: "100%", height: 220 }}>
@@ -442,6 +542,10 @@ const Dashboard = () => {
                         { id: 0, value: ipChart.alloc, label: "Allocated" },
                         { id: 1, value: ipChart.available, label: "Available" },
                       ],
+                      innerRadius: 50,
+                      outerRadius: 100,
+                      paddingAngle: 2,
+                      cornerRadius: 4,
                     },
                   ]}
                   height={220}
@@ -476,7 +580,7 @@ const Dashboard = () => {
                 Recent Network Events
               </Box>
             }
-            loading={loading}
+            loading={eventsLoading}
             minHeight={240}
           >
             {logsError ? (
@@ -556,114 +660,143 @@ const Dashboard = () => {
             )}
           </KpiCard>
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Tooltip
-            title="Total uplink traffic from devices (N3 → N6) since core started"
-            arrow
+      </Grid>
+
+      {/* ─── 3. User Plane ──────────────────────────── */}
+      <Typography variant="h5" component="h2" sx={{ mt: 4, mb: 2 }}>
+        User Plane
+      </Typography>
+
+      <Grid
+        container
+        spacing={4}
+        alignItems="stretch"
+        justifyContent="flex-start"
+      >
+        <Grid size={{ xs: 12, sm: 12, md: 4 }}>
+          <KpiCard
+            title={
+              <Box
+                component={Link}
+                to="/traffic/flows"
+                sx={{
+                  textDecoration: "none",
+                  color: "inherit",
+                  "&:hover": { textDecoration: "underline" },
+                  cursor: "pointer",
+                }}
+              >
+                Flow Protocols
+              </Box>
+            }
+            loading={flowQuery.isLoading}
+            minHeight={240}
           >
-            <Box>
-              <KpiCard
-                title="Uplink Traffic"
-                loading={loading}
-                value={formatBytes(uplinkBytes)}
-              />
-            </Box>
-          </Tooltip>
+            {flowQuery.isLoading ? (
+              <Skeleton variant="rounded" width="100%" height={200} />
+            ) : protocolPieData.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No flow data available.
+              </Typography>
+            ) : (
+              <Box sx={{ width: "100%", height: 220 }}>
+                <PieChart
+                  series={[
+                    {
+                      data: protocolPieData,
+                      innerRadius: 50,
+                      outerRadius: 100,
+                      paddingAngle: 2,
+                      cornerRadius: 4,
+                    },
+                  ]}
+                  height={220}
+                  width={undefined}
+                />
+              </Box>
+            )}
+          </KpiCard>
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Tooltip
-            title="Total downlink traffic to devices (N6 → N3) since core started"
-            arrow
+        <Grid size={{ xs: 12, sm: 12, md: 8 }}>
+          <KpiCard
+            title={
+              <Box
+                component={Link}
+                to="/traffic/usage"
+                sx={{
+                  textDecoration: "none",
+                  color: "inherit",
+                  "&:hover": { textDecoration: "underline" },
+                  cursor: "pointer",
+                }}
+              >
+                Top 10 Data Users
+              </Box>
+            }
+            loading={usageQuery.isLoading}
+            minHeight={240}
           >
-            <Box>
-              <KpiCard
-                title="Downlink Traffic"
-                loading={loading}
-                value={formatBytes(downlinkBytes)}
-              />
-            </Box>
-          </Tooltip>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Tooltip
-            title="Packets dropped by the eBPF program on the N3 interface"
-            arrow
-          >
-            <Box>
-              <KpiCard title="Uplink Drops" loading={loading}>
-                {loading ? (
-                  <Skeleton width={120} height={40} />
-                ) : (
-                  (() => {
-                    const totalN3 =
-                      (n3Drops ?? 0) +
-                      (n3Pass ?? 0) +
-                      (n3Tx ?? 0) +
-                      (n3Redirect ?? 0) +
-                      (n3Aborted ?? 0);
-                    return totalN3 > 0 && n3Drops != null ? (
-                      <Box sx={{ textAlign: "center" }}>
-                        <Typography variant="h4">
-                          {((n3Drops / totalN3) * 100).toFixed(3)}%
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ mt: 0.5 }}
-                        >
-                          {formatNumber(n3Drops)} packets
-                        </Typography>
-                      </Box>
-                    ) : (
-                      <Typography variant="h4">N/A</Typography>
-                    );
-                  })()
-                )}
-              </KpiCard>
-            </Box>
-          </Tooltip>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Tooltip
-            title="Packets dropped by the eBPF program on the N6 interface (data network)"
-            arrow
-          >
-            <Box>
-              <KpiCard title="Downlink Drops" loading={loading}>
-                {loading ? (
-                  <Skeleton width={120} height={40} />
-                ) : (
-                  (() => {
-                    const totalN6 =
-                      (n6Drops ?? 0) +
-                      (n6Pass ?? 0) +
-                      (n6Tx ?? 0) +
-                      (n6Redirect ?? 0) +
-                      (n6Aborted ?? 0);
-                    return totalN6 > 0 && n6Drops != null ? (
-                      <Box sx={{ textAlign: "center" }}>
-                        <Typography variant="h4">
-                          {((n6Drops / totalN6) * 100).toFixed(3)}%
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ mt: 0.5 }}
-                        >
-                          {formatNumber(n6Drops)} packets
-                        </Typography>
-                      </Box>
-                    ) : (
-                      <Typography variant="h4">N/A</Typography>
-                    );
-                  })()
-                )}
-              </KpiCard>
-            </Box>
-          </Tooltip>
+            {usageQuery.isLoading ? (
+              <Skeleton variant="rounded" width="100%" height={200} />
+            ) : topUsers.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No usage data available.
+              </Typography>
+            ) : (
+              <TableContainer
+                component={Paper}
+                elevation={0}
+                sx={{
+                  width: "100%",
+                  maxHeight: 220,
+                  overflowY: "auto",
+                }}
+              >
+                <Table
+                  size="small"
+                  stickyHeader
+                  aria-label="top-data-users"
+                >
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600, minWidth: 160 }}>
+                        Subscriber
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">
+                        Downlink
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">
+                        Uplink
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">
+                        Total
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {topUsers.map((row) => (
+                      <TableRow key={row.id} hover>
+                        <TableCell>{row.subscriber}</TableCell>
+                        <TableCell align="right">
+                          {formatBytesAutoUnit(row.downlink_bytes)}
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatBytesAutoUnit(row.uplink_bytes)}
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatBytesAutoUnit(row.total_bytes)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </KpiCard>
         </Grid>
       </Grid>
 
+      {/* ─── 4. System ──────────────────────────────── */}
       <Typography variant="h5" component="h2" sx={{ mt: 4, mb: 2 }}>
         System
       </Typography>
@@ -682,7 +815,7 @@ const Dashboard = () => {
             <Box>
               <KpiCard
                 title="Heap Memory"
-                loading={loading}
+                loading={metricsLoading}
                 value={formatMemory(heapMemory)}
               />
             </Box>
@@ -693,7 +826,7 @@ const Dashboard = () => {
             <Box>
               <KpiCard
                 title="Total Memory"
-                loading={loading}
+                loading={metricsLoading}
                 value={formatMemory(totalMemory)}
               />
             </Box>
@@ -704,7 +837,7 @@ const Dashboard = () => {
             <Box>
               <KpiCard
                 title="Database Size"
-                loading={loading}
+                loading={metricsLoading}
                 value={formatMemory(databaseSize)}
               />
             </Box>
@@ -718,7 +851,7 @@ const Dashboard = () => {
             <Box>
               <KpiCard
                 title="Routines"
-                loading={loading}
+                loading={metricsLoading}
                 value={routines != null ? `${routines}` : "N/A"}
               />
             </Box>
