@@ -26,6 +26,7 @@ This path returns a paginated list of flow reports with optional filtering.
 | `destination_ip`| query | string| ``       |                      | Filter by destination IP address.           |
 | `start`        | query | string | `now-7d` |                      | Start date for flow reports. Format: YYYY-MM-DD. |
 | `end`          | query | string | `now`    |                      | End date for flow reports. Format: YYYY-MM-DD. |
+| `direction`    | query | string | ``       | `uplink`, `downlink` | Filter by traffic direction. |
 | `group_by`     | query | string | ``       | `day`, `subscriber`  | Grouping method for flow reports. When set, returns aggregated data instead of paginated list. |
 
 ### Sample Response (default, no `group_by`)
@@ -45,7 +46,8 @@ This path returns a paginated list of flow reports with optional filtering.
         "packets": 100,
         "bytes": 5000,
         "start_time": "2025-02-22T10:30:00.000Z",
-        "end_time": "2025-02-22T10:30:01.000Z"
+        "end_time": "2025-02-22T10:30:01.000Z",
+        "direction": "uplink"
       }
     ],
     "page": 1,
@@ -73,7 +75,8 @@ This path returns a paginated list of flow reports with optional filtering.
           "packets": 100,
           "bytes": 5000,
           "start_time": "2025-02-22T10:30:00.000Z",
-          "end_time": "2025-02-22T10:30:01.000Z"
+          "end_time": "2025-02-22T10:30:01.000Z",
+          "direction": "uplink"
         }
       ]
     },
@@ -90,7 +93,8 @@ This path returns a paginated list of flow reports with optional filtering.
           "packets": 800,
           "bytes": 40000,
           "start_time": "2025-02-23T08:00:00.000Z",
-          "end_time": "2025-02-23T08:05:00.000Z"
+          "end_time": "2025-02-23T08:05:00.000Z",
+          "direction": "downlink"
         }
       ]
     }
@@ -116,7 +120,8 @@ This path returns a paginated list of flow reports with optional filtering.
           "packets": 100,
           "bytes": 5000,
           "start_time": "2025-02-22T10:30:00.000Z",
-          "end_time": "2025-02-22T10:30:01.000Z"
+          "end_time": "2025-02-22T10:30:01.000Z",
+          "direction": "uplink"
         }
       ]
     },
@@ -133,11 +138,53 @@ This path returns a paginated list of flow reports with optional filtering.
           "packets": 500,
           "bytes": 25000,
           "start_time": "2025-02-22T12:00:00.000Z",
-          "end_time": "2025-02-22T12:01:00.000Z"
+          "end_time": "2025-02-22T12:01:00.000Z",
+          "direction": "downlink"
         }
       ]
     }
   ]
+}
+```
+
+## Get Flow Report Stats
+
+This path returns aggregated statistics for flow reports, including protocol breakdown and top uplink destinations.
+
+| Method | Path                         |
+| ------ | ---------------------------- |
+| GET    | `/api/v1/flow-reports/stats` |
+
+### Query Parameters
+
+The same filter parameters as [Get Flow Reports](#get-flow-reports) are supported (`subscriber_id`, `protocol`, `source_ip`, `destination_ip`, `direction`, `start`, `end`), excluding `page`, `per_page`, and `group_by`.
+
+### Sample Response
+
+```json
+{
+  "result": {
+    "protocols": [
+      {
+        "protocol": 6,
+        "count": 150
+      },
+      {
+        "protocol": 17,
+        "count": 75
+      }
+    ],
+    "top_destinations_uplink": [
+      {
+        "ip": "8.8.8.8",
+        "count": 50
+      },
+      {
+        "ip": "1.1.1.1",
+        "count": 30
+      }
+    ]
+  }
 }
 ```
 

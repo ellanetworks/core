@@ -16,9 +16,13 @@ import {
   IconButton,
   Tab,
   Tabs,
+  Tooltip,
+  Chip,
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import NorthIcon from "@mui/icons-material/North";
+import SouthIcon from "@mui/icons-material/South";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -46,6 +50,7 @@ import {
   type ListFlowReportsResponse,
   type FlowReportsRetentionPolicy,
   type FlowReportStatsResponse,
+  type FlowReportFilters,
 } from "@/queries/flow_reports";
 import {
   getFlowAccountingInfo,
@@ -375,6 +380,7 @@ const Traffic: React.FC = () => {
   const [appliedProtocol, setAppliedProtocol] = useState("");
   const [appliedSourceIp, setAppliedSourceIp] = useState("");
   const [appliedDestinationIp, setAppliedDestinationIp] = useState("");
+  const [directionFilter, setDirectionFilter] = useState("");
   const [isEditFlowRetentionOpen, setEditFlowRetentionOpen] = useState(false);
   const [isFlowClearModalOpen, setFlowClearModalOpen] = useState(false);
 
@@ -452,12 +458,13 @@ const Traffic: React.FC = () => {
 
   const flowPageOneBased = flowPaginationModel.page + 1;
 
-  const activeFlowFilters = useMemo(() => {
-    const f: Record<string, string> = { start: startDate, end: endDate };
+  const activeFlowFilters: FlowReportFilters = useMemo(() => {
+    const f: FlowReportFilters = { start: startDate, end: endDate };
     if (selectedSubscriber) f.subscriber_id = selectedSubscriber;
     if (appliedProtocol) f.protocol = appliedProtocol;
     if (appliedSourceIp) f.source_ip = appliedSourceIp;
     if (appliedDestinationIp) f.destination_ip = appliedDestinationIp;
+    if (directionFilter) f.direction = directionFilter;
     return f;
   }, [
     startDate,
@@ -466,6 +473,7 @@ const Traffic: React.FC = () => {
     appliedProtocol,
     appliedSourceIp,
     appliedDestinationIp,
+    directionFilter,
   ]);
 
   const { data: flowRetentionPolicy, refetch: refetchFlowRetention } =
@@ -594,7 +602,7 @@ const Traffic: React.FC = () => {
       { field: "subscriber", headerName: "Subscriber", flex: 1, minWidth: 200 },
       {
         field: "downlink_bytes",
-        headerName: "Usage (downlink)",
+        headerName: "Downlink (bytes)",
         flex: 1,
         minWidth: 180,
         type: "number",
@@ -603,7 +611,7 @@ const Traffic: React.FC = () => {
       },
       {
         field: "uplink_bytes",
-        headerName: "Usage (uplink)",
+        headerName: "Uplink (bytes)",
         flex: 1,
         minWidth: 180,
         type: "number",
@@ -612,7 +620,7 @@ const Traffic: React.FC = () => {
       },
       {
         field: "total_bytes",
-        headerName: "Usage (total)",
+        headerName: "Total (bytes)",
         flex: 1,
         minWidth: 180,
         type: "number",
@@ -628,6 +636,16 @@ const Traffic: React.FC = () => {
   const flowRows: FlowReport[] = flowData?.items ?? [];
   const flowRowCount = flowData?.total_count ?? 0;
 
+  const protocolColorMap = useMemo(() => {
+    const map = new Map<number, string>();
+    if (flowStatsData?.protocols?.length) {
+      flowStatsData.protocols.forEach((p, i) => {
+        map.set(p.protocol, PIE_COLORS[i % PIE_COLORS.length]);
+      });
+    }
+    return map;
+  }, [flowStatsData]);
+
   const flowColumns: GridColDef<FlowReport>[] = useMemo(
     () => [
       {
@@ -636,39 +654,98 @@ const Traffic: React.FC = () => {
         flex: 1,
         minWidth: 160,
       },
-      { field: "source_ip", headerName: "Source IP", flex: 1, minWidth: 140 },
       {
-        field: "source_port",
-        headerName: "Src Port",
-        type: "number",
+        field: "direction",
+        headerName: "Direction",
         width: 100,
+        sortable: false,
         renderCell: (params) => {
-          const proto = (params.row as FlowReport).protocol;
-          return proto === 6 || proto === 17 ? params.value : "";
+          const dir = params.value as string;
+          if (!dir) return null;
+          const Icon = dir === "uplink" ? NorthIcon : SouthIcon;
+          const title = dir === "uplink" ? "Uplink" : "Downlink";
+          const color = dir === "uplink" ? "#FF9800" : "#4254FB";
+          return (
+            <Tooltip title={title}>
+              <Box
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  lineHeight: 0,
+                  "& svg": { display: "block" },
+                }}
+              >
+                <Icon fontSize="small" sx={{ color }} aria-label={title} />
+              </Box>
+            </Tooltip>
+          );
+        },
+      },
+      {
+        field: "source_ip",
+        headerName: "Source",
+        flex: 1,
+        minWidth: 160,
+        renderCell: (params) => {
+          const row = params.row as FlowReport;
+          const proto = row.protocol;
+          if (proto === 6 || proto === 17) {
+            return `${row.source_ip}:${row.source_port}`;
+          }
+          return row.source_ip;
         },
       },
       {
         field: "destination_ip",
-        headerName: "Destination IP",
+        headerName: "Destination",
         flex: 1,
-        minWidth: 140,
-      },
-      {
-        field: "destination_port",
-        headerName: "Dst Port",
-        type: "number",
-        width: 100,
+        minWidth: 160,
         renderCell: (params) => {
-          const proto = (params.row as FlowReport).protocol;
-          return proto === 6 || proto === 17 ? params.value : "";
+          const row = params.row as FlowReport;
+          const proto = row.protocol;
+          if (proto === 6 || proto === 17) {
+            return `${row.destination_ip}:${row.destination_port}`;
+          }
+          return row.destination_ip;
         },
       },
       {
         field: "protocol",
         headerName: "Protocol",
         width: 110,
-        valueFormatter: (value: number) =>
-          value == null ? "" : formatProtocol(value),
+        renderCell: (params) => {
+          const value = params.value as number;
+          if (value == null) return null;
+          const label = formatProtocol(value);
+          const bg = protocolColorMap.get(value);
+          if (!bg) return label;
+          return (
+            <Box
+              sx={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Chip
+                label={label}
+                size="small"
+                sx={{
+                  backgroundColor: bg,
+                  color: "#fff",
+                  fontWeight: 600,
+                  fontSize: "0.75rem",
+                  height: 22,
+                }}
+              />
+            </Box>
+          );
+        },
       },
       {
         field: "packets",
@@ -703,7 +780,7 @@ const Traffic: React.FC = () => {
           value ? new Date(value).toLocaleString() : "",
       },
     ],
-    [],
+    [theme, protocolColorMap],
   );
 
   // ── Protocol distribution (donut chart) ─────────────
@@ -718,11 +795,11 @@ const Traffic: React.FC = () => {
     }));
   }, [flowStatsData]);
 
-  // ── Top 10 destinations (donut chart) ───────────────
+  // ── Top 10 destinations uplink (donut chart) ───────────────
 
   const topDestinationsPieData = useMemo(() => {
-    if (!flowStatsData?.top_destinations?.length) return [];
-    return flowStatsData.top_destinations.map((d, i) => ({
+    if (!flowStatsData?.top_destinations_uplink?.length) return [];
+    return flowStatsData.top_destinations_uplink.map((d, i) => ({
       id: i,
       value: d.count,
       label: d.ip,
@@ -1068,7 +1145,7 @@ const Traffic: React.FC = () => {
                   {topDestinationsPieData.length > 0 && (
                     <Box>
                       <Typography variant="h6" sx={{ mb: 1 }}>
-                        Top 10 Destinations
+                        Top 10 Destinations (uplink)
                       </Typography>
                       <PieChart
                         series={[
@@ -1106,6 +1183,21 @@ const Traffic: React.FC = () => {
                   flexWrap: "wrap",
                 }}
               >
+                <TextField
+                  select
+                  label="Direction"
+                  value={directionFilter}
+                  onChange={(e) => {
+                    setDirectionFilter(e.target.value);
+                    setFlowPaginationModel((prev) => ({ ...prev, page: 0 }));
+                  }}
+                  size="small"
+                  sx={{ minWidth: 140 }}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  <MenuItem value="uplink">Uplink</MenuItem>
+                  <MenuItem value="downlink">Downlink</MenuItem>
+                </TextField>
                 <TextField
                   label="Protocol"
                   value={protocolFilter}

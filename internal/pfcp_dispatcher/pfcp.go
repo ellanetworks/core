@@ -22,6 +22,7 @@ type FlowReportRequest struct {
 	Bytes           uint64 // Total bytes in flow
 	StartTime       string // RFC3339 first packet timestamp
 	EndTime         string // RFC3339 last packet timestamp
+	Direction       string // "uplink" or "downlink"
 }
 
 type UPF interface {
