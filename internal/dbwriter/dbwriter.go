@@ -36,6 +36,7 @@ type FlowReport struct {
 	Bytes           uint64 `db:"bytes"`            // Total bytes in flow
 	StartTime       string `db:"start_time"`       // RFC3339 first packet timestamp
 	EndTime         string `db:"end_time"`         // RFC3339 last packet timestamp
+	Direction       string `db:"direction"`        // "uplink" or "downlink"
 }
 
 type DBWriter interface {

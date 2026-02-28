@@ -174,6 +174,7 @@ func (s SmfPfcpHandler) SendFlowReport(ctx context.Context, req *pfcp_dispatcher
 		Bytes:           req.Bytes,
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
+		Direction:       req.Direction,
 	}
 
 	// Persist flow report to database

@@ -23,6 +23,7 @@ type FlowReport struct {
 	Bytes           uint64 `json:"bytes"`
 	StartTime       string `json:"start_time"`
 	EndTime         string `json:"end_time"`
+	Direction       string `json:"direction"`
 }
 
 type ListFlowReportsResponse struct {

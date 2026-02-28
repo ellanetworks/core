@@ -506,6 +506,19 @@ const Traffic: React.FC = () => {
     refetchInterval: 5000,
   });
 
+  const uplinkFlowFilters = useMemo(
+    () => ({ ...activeFlowFilters, direction: "uplink" }),
+    [activeFlowFilters],
+  );
+
+  const { data: uplinkStatsData } = useQuery<FlowReportStatsResponse>({
+    queryKey: ["flowReportStatsUplink", uplinkFlowFilters],
+    queryFn: () => getFlowReportStats(accessToken || "", uplinkFlowFilters),
+    enabled: authReady && !!accessToken,
+    placeholderData: (prev) => prev,
+    refetchInterval: 5000,
+  });
+
   const { data: flowAccountingInfo } = useQuery<FlowAccountingInfo>({
     queryKey: ["flow-accounting"],
     queryFn: () => getFlowAccountingInfo(accessToken || ""),
@@ -631,6 +644,19 @@ const Traffic: React.FC = () => {
   const flowColumns: GridColDef<FlowReport>[] = useMemo(
     () => [
       {
+        field: "direction",
+        headerName: "",
+        width: 50,
+        sortable: false,
+        renderCell: (params) => {
+          const dir = params.value as string;
+          if (dir === "uplink") return <span title="Uplink">{"\u2191"}</span>;
+          if (dir === "downlink")
+            return <span title="Downlink">{"\u2193"}</span>;
+          return null;
+        },
+      },
+      {
         field: "subscriber_id",
         headerName: "Subscriber",
         flex: 1,
@@ -718,11 +744,11 @@ const Traffic: React.FC = () => {
     }));
   }, [flowStatsData]);
 
-  // ── Top 10 destinations (donut chart) ───────────────
+  // ── Top 10 destinations uplink (donut chart) ───────────────
 
   const topDestinationsPieData = useMemo(() => {
-    if (!flowStatsData?.top_destinations?.length) return [];
-    return flowStatsData.top_destinations.map((d, i) => ({
+    if (!uplinkStatsData?.top_destinations?.length) return [];
+    return uplinkStatsData.top_destinations.map((d, i) => ({
       id: i,
       value: d.count,
       label: d.ip,
@@ -1068,7 +1094,7 @@ const Traffic: React.FC = () => {
                   {topDestinationsPieData.length > 0 && (
                     <Box>
                       <Typography variant="h6" sx={{ mb: 1 }}>
-                        Top 10 Destinations
+                        Top 10 Destinations (uplink)
                       </Typography>
                       <PieChart
                         series={[

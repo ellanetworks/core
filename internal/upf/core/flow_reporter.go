@@ -19,6 +19,16 @@ import (
 
 var bootTime = mustGetBootTime()
 
+// n3IfIndex stores the N3 interface index, used to determine flow direction.
+// Set once during UPF startup via SetN3InterfaceIndex.
+var n3IfIndex uint32
+
+// SetN3InterfaceIndex records the N3 (radio-side) network interface index so that
+// flow direction can be derived: ingress on N3 means uplink, otherwise downlink.
+func SetN3InterfaceIndex(idx int) {
+	n3IfIndex = uint32(idx)
+}
+
 func mustGetBootTime() time.Time {
 	var info syscall.Sysinfo_t
 	if err := syscall.Sysinfo(&info); err != nil {
@@ -57,6 +67,12 @@ func SendFlowReport(ctx context.Context, flow ebpf.N3N6EntrypointFlow, stats ebp
 	endTime := bootTime.Add(time.Duration(stats.LastTs))
 	imsiStr := fmt.Sprintf("%015d", flow.Imsi)
 
+	// Determine direction: ingress on N3 means the UE originated the traffic (uplink)
+	direction := "downlink"
+	if flow.IngressIfindex == n3IfIndex {
+		direction = "uplink"
+	}
+
 	// Create flow report request
 	flowReportReq := &pfcp_dispatcher.FlowReportRequest{
 		IMSI:            imsiStr,
@@ -69,6 +85,7 @@ func SendFlowReport(ctx context.Context, flow ebpf.N3N6EntrypointFlow, stats ebp
 		Bytes:           stats.Bytes,
 		StartTime:       startTime.UTC().Format(time.RFC3339),
 		EndTime:         endTime.UTC().Format(time.RFC3339),
+		Direction:       direction,
 	}
 
 	// Send to SMF via dispatcher

@@ -12,6 +12,7 @@ export type FlowReport = {
   bytes: number;
   start_time: string;
   end_time: string;
+  direction: string;
 };
 
 export type ListFlowReportsResponse = {

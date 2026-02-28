@@ -42,6 +42,7 @@ type FlowReport struct {
 	Bytes           uint64 `json:"bytes"`
 	StartTime       string `json:"start_time"`
 	EndTime         string `json:"end_time"`
+	Direction       string `json:"direction"`
 }
 
 type ListFlowReportsResponse struct {
@@ -76,6 +77,14 @@ func parseFlowReportFilters(r *http.Request) (*db.FlowReportFilters, error) {
 
 	if v := strings.TrimSpace(q.Get("destination_ip")); v != "" {
 		f.DestinationIP = &v
+	}
+
+	if v := strings.TrimSpace(q.Get("direction")); v != "" {
+		if v != "uplink" && v != "downlink" {
+			return f, fmt.Errorf("invalid direction: must be 'uplink' or 'downlink'")
+		}
+
+		f.Direction = &v
 	}
 
 	startDate := stotimeDefault(q.Get("start"), time.Now().AddDate(0, 0, -7))
@@ -211,19 +220,7 @@ func ListFlowReports(dbInstance *db.Database) http.Handler {
 
 		items := make([]FlowReport, len(reports))
 		for i, report := range reports {
-			items[i] = FlowReport{
-				ID:              report.ID,
-				SubscriberID:    report.SubscriberID,
-				SourceIP:        report.SourceIP,
-				DestinationIP:   report.DestinationIP,
-				SourcePort:      report.SourcePort,
-				DestinationPort: report.DestinationPort,
-				Protocol:        report.Protocol,
-				Packets:         report.Packets,
-				Bytes:           report.Bytes,
-				StartTime:       report.StartTime,
-				EndTime:         report.EndTime,
-			}
+			items[i] = dbFlowReportToAPI(report)
 		}
 
 		response := ListFlowReportsResponse{
@@ -329,6 +326,7 @@ func dbFlowReportToAPI(r dbwriter.FlowReport) FlowReport {
 		Bytes:           r.Bytes,
 		StartTime:       r.StartTime,
 		EndTime:         r.EndTime,
+		Direction:       r.Direction,
 	}
 }
 

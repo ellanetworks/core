@@ -47,6 +47,7 @@ func TestFlowReportsInsertAndRetrieve(t *testing.T) {
 		Bytes:           50000,
 		StartTime:       time.Now().UTC().Add(-5 * time.Minute).Format(time.RFC3339),
 		EndTime:         time.Now().UTC().Format(time.RFC3339),
+		Direction:       "uplink",
 	}
 
 	// Insert flow report
@@ -88,6 +89,10 @@ func TestFlowReportsInsertAndRetrieve(t *testing.T) {
 
 	if reports[0].Bytes != flowReport.Bytes {
 		t.Fatalf("Expected bytes %d, but got %d", flowReport.Bytes, reports[0].Bytes)
+	}
+
+	if reports[0].Direction != flowReport.Direction {
+		t.Fatalf("Expected direction %s, but got %s", flowReport.Direction, reports[0].Direction)
 	}
 }
 
