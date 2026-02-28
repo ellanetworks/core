@@ -658,7 +658,7 @@ const Traffic: React.FC = () => {
       {
         field: "direction",
         headerName: "Direction",
-        width: 90,
+        width: 100,
         sortable: false,
         renderCell: (params) => {
           const dir = params.value as string;
@@ -688,31 +688,32 @@ const Traffic: React.FC = () => {
           );
         },
       },
-      { field: "source_ip", headerName: "Source IP", flex: 1, minWidth: 140 },
       {
-        field: "source_port",
-        headerName: "Src Port",
-        type: "number",
-        width: 100,
+        field: "source_ip",
+        headerName: "Source",
+        flex: 1,
+        minWidth: 160,
         renderCell: (params) => {
-          const proto = (params.row as FlowReport).protocol;
-          return proto === 6 || proto === 17 ? params.value : "";
+          const row = params.row as FlowReport;
+          const proto = row.protocol;
+          if (proto === 6 || proto === 17) {
+            return `${row.source_ip}:${row.source_port}`;
+          }
+          return row.source_ip;
         },
       },
       {
         field: "destination_ip",
-        headerName: "Destination IP",
+        headerName: "Destination",
         flex: 1,
-        minWidth: 140,
-      },
-      {
-        field: "destination_port",
-        headerName: "Dst Port",
-        type: "number",
-        width: 100,
+        minWidth: 160,
         renderCell: (params) => {
-          const proto = (params.row as FlowReport).protocol;
-          return proto === 6 || proto === 17 ? params.value : "";
+          const row = params.row as FlowReport;
+          const proto = row.protocol;
+          if (proto === 6 || proto === 17) {
+            return `${row.destination_ip}:${row.destination_port}`;
+          }
+          return row.destination_ip;
         },
       },
       {
@@ -1167,7 +1168,7 @@ const Traffic: React.FC = () => {
                     setFlowPaginationModel((prev) => ({ ...prev, page: 0 }));
                   }}
                   size="small"
-                  sx={{ minWidth: 120 }}
+                  sx={{ minWidth: 140 }}
                 >
                   <MenuItem value="">All</MenuItem>
                   <MenuItem value="uplink">Uplink</MenuItem>
