@@ -19,10 +19,10 @@ export default function CoreLayout() {
         <AuthProvider>
           <SnackbarProvider>
             <FleetProvider>
-            <DrawerLayout>
-              <Outlet />
-            </DrawerLayout>
+              <DrawerLayout>
+                <Outlet />
               </DrawerLayout>
+            </FleetProvider>
           </SnackbarProvider>
         </AuthProvider>
       </ThemeProvider>
