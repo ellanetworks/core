@@ -667,8 +667,8 @@ const Traffic: React.FC = () => {
           const title = dir === "uplink" ? "Uplink" : "Downlink";
           const color =
             dir === "uplink"
-              ? theme.palette.success.main
-              : theme.palette.info.main;
+              ? "#FFC107"
+              : "#2196F3";
           return (
             <Tooltip title={title}>
               <Box
