@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Box, Typography, Alert, Button, Collapse } from "@mui/material";
+import { Box, Typography, Button } from "@mui/material";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import {
@@ -35,13 +36,7 @@ const AuditLog: React.FC = () => {
     pageSize: 25,
   });
 
-  const [alert, setAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({
-    message: "",
-    severity: null,
-  });
+  const { showSnackbar } = useSnackbar();
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
 
@@ -124,18 +119,6 @@ const AuditLog: React.FC = () => {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
-        <Collapse in={!!alert.message}>
-          <Alert
-            severity={alert.severity || "success"}
-            onClose={() => setAlert({ message: "", severity: null })}
-            sx={{ mb: 2 }}
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-      </Box>
-
       <Box
         sx={{
           width: "100%",
@@ -218,10 +201,7 @@ const AuditLog: React.FC = () => {
         onClose={() => setEditModalOpen(false)}
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ["auditLogRetention"] });
-          setAlert({
-            message: "Retention policy updated!",
-            severity: "success",
-          });
+          showSnackbar("Retention policy updated successfully.", "success");
         }}
         initialData={retentionPolicy || { days: 30 }}
       />

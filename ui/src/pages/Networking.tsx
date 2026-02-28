@@ -5,8 +5,6 @@ import {
   Button,
   CircularProgress,
   FormControlLabel,
-  Alert,
-  Collapse,
   Chip,
   Stack,
   Tabs,
@@ -19,6 +17,7 @@ import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFleet } from "@/contexts/FleetContext";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 
@@ -94,27 +93,8 @@ export default function NetworkingPage() {
 
   const [tab, setTab] = useState<TabKey>(initialTabFromUrl);
 
-  // ---------------- Alerts ----------------
-  const [dnAlert, setDnAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({ message: "", severity: null });
-  const [rtAlert, setRtAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({ message: "", severity: null });
-  const [natAlert, setNatAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({ message: "", severity: null });
-  const [flowAccountingAlert, setFlowAccountingAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({ message: "", severity: null });
-  const [interfacesAlert, setInterfacesAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({ message: "", severity: null });
+  // ---------------- Snackbar ----------------
+  const { showSnackbar } = useSnackbar();
 
   // ====================== Data Networks ======================
   const [dnPagination, setDnPagination] = useState<GridPaginationModel>({
@@ -175,16 +155,16 @@ export default function NetworkingPage() {
     if (!selectedDNName || !accessToken) return;
     try {
       await deleteDataNetwork(accessToken, selectedDNName);
-      setDnAlert({
-        message: `Data Network "${selectedDNName}" deleted successfully!`,
-        severity: "success",
-      });
+      showSnackbar(
+        `Data network "${selectedDNName}" deleted successfully.`,
+        "success",
+      );
       refetchDataNetworks();
     } catch (error: unknown) {
-      setDnAlert({
-        message: `Failed to delete data network "${selectedDNName}": ${String(error)}`,
-        severity: "error",
-      });
+      showSnackbar(
+        `Failed to delete data network "${selectedDNName}": ${String(error)}`,
+        "error",
+      );
     } finally {
       setSelectedDNName(null);
     }
@@ -317,25 +297,22 @@ export default function NetworkingPage() {
     if (!selectedRouteId || !accessToken) return;
     const idNum = Number(selectedRouteId);
     if (Number.isNaN(idNum)) {
-      setRtAlert({
-        message: `Invalid route id "${selectedRouteId}".`,
-        severity: "error",
-      });
+      showSnackbar(`Invalid route id "${selectedRouteId}".`, "error");
       setSelectedRouteId(null);
       return;
     }
     try {
       await deleteRoute(accessToken, idNum);
-      setRtAlert({
-        message: `Route "${selectedRouteId}" deleted successfully!`,
-        severity: "success",
-      });
+      showSnackbar(
+        `Route "${selectedRouteId}" deleted successfully.`,
+        "success",
+      );
       refetchRoutes();
     } catch (error: unknown) {
-      setRtAlert({
-        message: `Failed to delete route "${selectedRouteId}": ${String(error)}`,
-        severity: "error",
-      });
+      showSnackbar(
+        `Failed to delete route "${selectedRouteId}": ${String(error)}`,
+        "error",
+      );
     } finally {
       setSelectedRouteId(null);
     }
@@ -401,14 +378,11 @@ export default function NetworkingPage() {
   >({
     mutationFn: (enabled: boolean) => updateNATInfo(accessToken || "", enabled),
     onSuccess: () => {
-      setNatAlert({ message: "NAT updated", severity: "success" });
+      showSnackbar("NAT updated successfully.", "success");
       refetchNAT();
     },
     onError: (error: unknown) => {
-      setNatAlert({
-        message: `Failed to update NAT: ${String(error)}`,
-        severity: "error",
-      });
+      showSnackbar(`Failed to update NAT: ${String(error)}`, "error");
     },
   });
 
@@ -437,17 +411,14 @@ export default function NetworkingPage() {
     mutationFn: (enabled: boolean) =>
       updateFlowAccountingInfo(accessToken || "", enabled),
     onSuccess: () => {
-      setFlowAccountingAlert({
-        message: "Flow accounting updated",
-        severity: "success",
-      });
+      showSnackbar("Flow accounting updated successfully.", "success");
       refetchFlowAccounting();
     },
     onError: (error: unknown) => {
-      setFlowAccountingAlert({
-        message: `Failed to update flow accounting: ${String(error)}`,
-        severity: "error",
-      });
+      showSnackbar(
+        `Failed to update flow accounting: ${String(error)}`,
+        "error",
+      );
     },
   });
 
@@ -505,16 +476,6 @@ export default function NetworkingPage() {
             px: { xs: 2, sm: 4 },
           }}
         >
-          <Collapse in={!!dnAlert.message}>
-            <Alert
-              severity={dnAlert.severity || "success"}
-              onClose={() => setDnAlert({ message: "", severity: null })}
-              sx={{ mb: 2 }}
-            >
-              {dnAlert.message}
-            </Alert>
-          </Collapse>
-
           {dnLoading && dnRowCount === 0 ? (
             <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
               <CircularProgress />
@@ -609,18 +570,6 @@ export default function NetworkingPage() {
             mt: 2,
           }}
         >
-          <Collapse in={!!interfacesAlert.message}>
-            <Alert
-              severity={interfacesAlert.severity || "success"}
-              onClose={() =>
-                setInterfacesAlert({ message: "", severity: null })
-              }
-              sx={{ mb: 2 }}
-            >
-              {interfacesAlert.message}
-            </Alert>
-          </Collapse>
-
           {interfacesLoading ? (
             <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
               <CircularProgress />
@@ -822,16 +771,6 @@ export default function NetworkingPage() {
             mt: 2,
           }}
         >
-          <Collapse in={!!rtAlert.message}>
-            <Alert
-              severity={rtAlert.severity || "success"}
-              onClose={() => setRtAlert({ message: "", severity: null })}
-              sx={{ mb: 2 }}
-            >
-              {rtAlert.message}
-            </Alert>
-          </Collapse>
-
           {rtLoading && rtRowCount === 0 ? (
             <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
               <CircularProgress />
@@ -927,16 +866,6 @@ export default function NetworkingPage() {
             mt: 2,
           }}
         >
-          <Collapse in={!!natAlert.message}>
-            <Alert
-              severity={natAlert.severity || "success"}
-              onClose={() => setNatAlert({ message: "", severity: null })}
-              sx={{ mb: 2 }}
-            >
-              {natAlert.message}
-            </Alert>
-          </Collapse>
-
           {natLoading ? (
             <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
               <CircularProgress />
@@ -983,18 +912,6 @@ export default function NetworkingPage() {
             mt: 2,
           }}
         >
-          <Collapse in={!!flowAccountingAlert.message}>
-            <Alert
-              severity={flowAccountingAlert.severity || "success"}
-              onClose={() =>
-                setFlowAccountingAlert({ message: "", severity: null })
-              }
-              sx={{ mb: 2 }}
-            >
-              {flowAccountingAlert.message}
-            </Alert>
-          </Collapse>
-
           {flowAccountingLoading ? (
             <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
               <CircularProgress />
@@ -1046,14 +963,20 @@ export default function NetworkingPage() {
         <CreateDataNetworkModal
           open
           onClose={handleCloseCreateDN}
-          onSuccess={refetchDataNetworks}
+          onSuccess={() => {
+            refetchDataNetworks();
+            showSnackbar("Data network created successfully.", "success");
+          }}
         />
       )}
       {isEditDNOpen && (
         <EditDataNetworkModal
           open
           onClose={() => setEditDNOpen(false)}
-          onSuccess={refetchDataNetworks}
+          onSuccess={() => {
+            refetchDataNetworks();
+            showSnackbar("Data network updated successfully.", "success");
+          }}
           initialData={editDN || { name: "", ip_pool: "", dns: "", mtu: 1500 }}
         />
       )}
@@ -1072,10 +995,10 @@ export default function NetworkingPage() {
           open
           onClose={() => setEditN3Open(false)}
           onSuccess={() => {
-            setInterfacesAlert({
-              message: "N3 external address updated.",
-              severity: "success",
-            });
+            showSnackbar(
+              "N3 external address updated successfully.",
+              "success",
+            );
             refetchInterfaces();
           }}
           initialData={{
@@ -1088,7 +1011,10 @@ export default function NetworkingPage() {
         <CreateRouteModal
           open
           onClose={() => setCreateRouteOpen(false)}
-          onSuccess={refetchRoutes}
+          onSuccess={() => {
+            refetchRoutes();
+            showSnackbar("Route created successfully.", "success");
+          }}
         />
       )}
       {isDeleteRouteOpen && (
