@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -21,12 +22,12 @@ var bootTime = mustGetBootTime()
 
 // n3IfIndex stores the N3 interface index, used to determine flow direction.
 // Set once during UPF startup via SetN3InterfaceIndex.
-var n3IfIndex uint32
+var n3IfIndex atomic.Uint32
 
 // SetN3InterfaceIndex records the N3 (radio-side) network interface index so that
 // flow direction can be derived: ingress on N3 means uplink, otherwise downlink.
 func SetN3InterfaceIndex(idx int) {
-	n3IfIndex = uint32(idx)
+	n3IfIndex.Store(uint32(idx))
 }
 
 func mustGetBootTime() time.Time {
@@ -69,7 +70,7 @@ func SendFlowReport(ctx context.Context, flow ebpf.N3N6EntrypointFlow, stats ebp
 
 	// Determine direction: ingress on N3 means the UE originated the traffic (uplink)
 	direction := "downlink"
-	if flow.IngressIfindex == n3IfIndex {
+	if flow.IngressIfindex == n3IfIndex.Load() {
 		direction = "uplink"
 	}
 

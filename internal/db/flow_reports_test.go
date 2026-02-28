@@ -509,6 +509,89 @@ func TestGetFlowReportStats_ProtocolCounts(t *testing.T) {
 	}
 }
 
+func TestGetFlowReportStats_TopDestinationsUplink(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
+	now := time.Now().UTC()
+
+	// Insert 3 uplink flows to distinct destinations
+	uplinkDests := []string{"8.8.8.8", "1.1.1.1", "9.9.9.9"}
+	for i, dst := range uplinkDests {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "460123456789012",
+			SourceIP:        "10.0.0.1",
+			DestinationIP:   dst,
+			SourcePort:      uint16(10000 + i),
+			DestinationPort: 443,
+			Protocol:        6,
+			Packets:         10,
+			Bytes:           1000,
+			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
+			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			Direction:       "uplink",
+		}
+		if err := database.InsertFlowReport(ctx, fr); err != nil {
+			t.Fatalf("couldn't insert uplink flow report %d: %s", i, err)
+		}
+	}
+
+	// Insert 2 downlink flows to different destinations
+	downlinkDests := []string{"172.16.0.1", "172.16.0.2"}
+	for i, dst := range downlinkDests {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "460123456789012",
+			SourceIP:        dst,
+			DestinationIP:   "10.0.0.1",
+			SourcePort:      uint16(20000 + i),
+			DestinationPort: 8080,
+			Protocol:        6,
+			Packets:         5,
+			Bytes:           500,
+			StartTime:       now.Add(time.Duration(3+i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
+			EndTime:         now.Add(time.Duration(3+i) * time.Minute).Format(time.RFC3339),
+			Direction:       "downlink",
+		}
+		if err := database.InsertFlowReport(ctx, fr); err != nil {
+			t.Fatalf("couldn't insert downlink flow report %d: %s", i, err)
+		}
+	}
+
+	_, topDstUplink, err := database.GetFlowReportStats(ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
+	}
+
+	// Only the 3 uplink destination IPs should appear
+	if len(topDstUplink) != 3 {
+		t.Fatalf("expected 3 top uplink destinations, got %d", len(topDstUplink))
+	}
+
+	// Verify none of the downlink destinations leaked in
+	for _, entry := range topDstUplink {
+		if entry.IP == "172.16.0.1" || entry.IP == "172.16.0.2" {
+			t.Fatalf("downlink destination %s should not appear in uplink top destinations", entry.IP)
+		}
+	}
+}
+
 func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
 	tempDir := t.TempDir()
 
