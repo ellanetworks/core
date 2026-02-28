@@ -594,7 +594,7 @@ const Traffic: React.FC = () => {
       { field: "subscriber", headerName: "Subscriber", flex: 1, minWidth: 200 },
       {
         field: "downlink_bytes",
-        headerName: "Usage (downlink)",
+        headerName: "Downlink (bytes)",
         flex: 1,
         minWidth: 180,
         type: "number",
@@ -603,7 +603,7 @@ const Traffic: React.FC = () => {
       },
       {
         field: "uplink_bytes",
-        headerName: "Usage (uplink)",
+        headerName: "Uplink (bytes)",
         flex: 1,
         minWidth: 180,
         type: "number",
@@ -612,7 +612,7 @@ const Traffic: React.FC = () => {
       },
       {
         field: "total_bytes",
-        headerName: "Usage (total)",
+        headerName: "Total (bytes)",
         flex: 1,
         minWidth: 180,
         type: "number",
