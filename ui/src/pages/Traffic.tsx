@@ -17,6 +17,7 @@ import {
   Tab,
   Tabs,
   Tooltip,
+  Chip,
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
@@ -647,6 +648,16 @@ const Traffic: React.FC = () => {
   const flowRows: FlowReport[] = flowData?.items ?? [];
   const flowRowCount = flowData?.total_count ?? 0;
 
+  const protocolColorMap = useMemo(() => {
+    const map = new Map<number, string>();
+    if (flowStatsData?.protocols?.length) {
+      flowStatsData.protocols.forEach((p, i) => {
+        map.set(p.protocol, PIE_COLORS[i % PIE_COLORS.length]);
+      });
+    }
+    return map;
+  }, [flowStatsData]);
+
   const flowColumns: GridColDef<FlowReport>[] = useMemo(
     () => [
       {
@@ -717,8 +728,26 @@ const Traffic: React.FC = () => {
         field: "protocol",
         headerName: "Protocol",
         width: 110,
-        valueFormatter: (value: number) =>
-          value == null ? "" : formatProtocol(value),
+        renderCell: (params) => {
+          const value = params.value as number;
+          if (value == null) return null;
+          const label = formatProtocol(value);
+          const bg = protocolColorMap.get(value);
+          if (!bg) return label;
+          return (
+            <Chip
+              label={label}
+              size="small"
+              sx={{
+                backgroundColor: bg,
+                color: "#fff",
+                fontWeight: 600,
+                fontSize: "0.75rem",
+                height: 22,
+              }}
+            />
+          );
+        },
       },
       {
         field: "packets",
@@ -753,7 +782,7 @@ const Traffic: React.FC = () => {
           value ? new Date(value).toLocaleString() : "",
       },
     ],
-    [theme],
+    [theme, protocolColorMap],
   );
 
   // ── Protocol distribution (donut chart) ─────────────
