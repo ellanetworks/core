@@ -3,8 +3,6 @@ import {
   Box,
   Typography,
   Button,
-  Alert,
-  Collapse,
   Card,
   CardHeader,
   CardContent,
@@ -14,6 +12,7 @@ import {
 import { backup, restore } from "@/queries/backup";
 import Grid from "@mui/material/Grid";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 
 const MAX_WIDTH = 1400;
 
@@ -27,10 +26,7 @@ const headerStyles = {
 
 const BackupRestore = () => {
   const { accessToken, authReady } = useAuth();
-  const [alert, setAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({ message: "", severity: null });
+  const { showSnackbar } = useSnackbar();
 
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -40,18 +36,18 @@ const BackupRestore = () => {
 
   const handleCreate = async () => {
     if (!authReady || !accessToken) {
-      setAlert({
-        message: "Authentication not ready. Please try again later.",
-        severity: "error",
-      });
+      showSnackbar(
+        "Authentication not ready. Please try again later.",
+        "error",
+      );
       return;
     }
 
     if (isRestoring) {
-      setAlert({
-        message: "Cannot create a backup while a restore is in progress.",
-        severity: "error",
-      });
+      showSnackbar(
+        "Cannot create a backup while a restore is in progress.",
+        "error",
+      );
       return;
     }
 
@@ -74,17 +70,11 @@ const BackupRestore = () => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      setAlert({
-        message: "Backup created successfully!",
-        severity: "success",
-      });
+      showSnackbar("Backup created successfully!", "success");
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
-      setAlert({
-        message: `Failed to create backup: ${errorMessage}`,
-        severity: "error",
-      });
+      showSnackbar(`Failed to create backup: ${errorMessage}`, "error");
     } finally {
       setIsBackingUp(false);
     }
@@ -92,10 +82,10 @@ const BackupRestore = () => {
 
   const handleRestore = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!authReady || !accessToken) {
-      setAlert({
-        message: "Authentication not ready. Please try again later.",
-        severity: "error",
-      });
+      showSnackbar(
+        "Authentication not ready. Please try again later.",
+        "error",
+      );
       return;
     }
 
@@ -106,26 +96,21 @@ const BackupRestore = () => {
 
     try {
       setIsRestoring(true);
-      setAlert({
-        message:
-          "Restore is in progress. This may take a few minutes. Please do not close this page or navigate away.",
-        severity: "success",
-      });
+      showSnackbar(
+        "Restore is in progress. This may take a few minutes. Please do not close this page or navigate away.",
+        "info",
+      );
 
       await restore(accessToken, file);
 
-      setAlert({
-        message:
-          "Restore completed successfully! You may need to refresh the page.",
-        severity: "success",
-      });
+      showSnackbar(
+        "Restore completed successfully! You may need to refresh the page.",
+        "success",
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
-      setAlert({
-        message: `Failed to restore backup: ${errorMessage}`,
-        severity: "error",
-      });
+      showSnackbar(`Failed to restore backup: ${errorMessage}`, "error");
     } finally {
       setIsRestoring(false);
     }
@@ -163,18 +148,6 @@ const BackupRestore = () => {
           pointerEvents: isRestoring ? "none" : "auto",
         }}
       >
-        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
-          <Collapse in={!!alert.severity}>
-            <Alert
-              severity={alert.severity || "success"}
-              onClose={() => setAlert({ message: "", severity: null })}
-              sx={{ mb: 2 }}
-            >
-              {alert.message}
-            </Alert>
-          </Collapse>
-        </Box>
-
         <Box
           sx={{
             width: "100%",

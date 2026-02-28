@@ -7,14 +7,13 @@ import {
   DialogActions,
   Typography,
   Button,
-  Alert,
-  Collapse,
   IconButton,
 } from "@mui/material";
 import { ContentCopy as CopyIcon } from "@mui/icons-material";
 import { getSubscriber } from "@/queries/subscribers";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 
 interface ViewSubscriberModalProps {
   open: boolean;
@@ -31,6 +30,8 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
   const { accessToken, authReady } = useAuth();
   if (!authReady || !accessToken) navigate("/login");
 
+  const { showSnackbar } = useSnackbar();
+
   const [subscriberData, setSubscriberData] = useState({
     imsi: "",
     key: "",
@@ -39,7 +40,6 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
     policyName: "",
   });
   const [, setLoading] = useState(false);
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
   const [keyObfuscated, setKeyObfuscated] = useState(true);
   const [opcObfuscated, setOPcObfuscated] = useState(true);
 
@@ -48,7 +48,6 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
       if (!imsi || !open) return;
 
       setLoading(true);
-      setAlert({ message: "" });
 
       try {
         if (!accessToken) return;
@@ -65,9 +64,7 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
         if (error instanceof Error) {
           errorMessage = error.message;
         }
-        setAlert({
-          message: `Failed to get subscriber: ${errorMessage}`,
-        });
+        showSnackbar(`Failed to get subscriber: ${errorMessage}`, "error");
         console.error("Error fetching subscriber data:", error);
       } finally {
         setLoading(false);
@@ -80,18 +77,19 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
   const handleCopy = async (value: string, label: string) => {
     if (!navigator.clipboard) {
       console.error(`Clipboard API not available.`);
-      setAlert({
-        message: `Clipboard API not available. Please use HTTPS or try a different browser.`,
-      });
+      showSnackbar(
+        "Clipboard API not available. Please use HTTPS or try a different browser.",
+        "error",
+      );
       return;
     }
 
     try {
       await navigator.clipboard.writeText(value);
-      setAlert({ message: `${label} copied to clipboard!` });
+      showSnackbar(`${label} copied to clipboard!`, "success");
     } catch (error) {
       console.error(`Failed to copy ${label}:`, error);
-      setAlert({ message: `Failed to copy ${label}.` });
+      showSnackbar(`Failed to copy ${label}.`, "error");
     }
   };
 
@@ -104,15 +102,6 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
     >
       <DialogTitle>Subscriber Details</DialogTitle>
       <DialogContent dividers>
-        <Collapse in={!!alert.message}>
-          <Alert
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 2 }}
-            severity="info"
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
         <Box sx={{ mb: 2, display: "flex", alignItems: "center" }}>
           <Typography sx={{ flex: 1 }}>
             <strong>IMSI:</strong> {subscriberData.imsi}

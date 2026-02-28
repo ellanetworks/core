@@ -1,12 +1,6 @@
 import React, { useMemo, useState } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  CircularProgress,
-  Alert,
-  Collapse,
-} from "@mui/material";
+import { Box, Typography, Button, CircularProgress } from "@mui/material";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import {
   DataGrid,
@@ -68,10 +62,7 @@ const PolicyPage = () => {
   const [editData, setEditData] = useState<APIPolicy | null>(null);
   const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
 
-  const [alert, setAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({ message: "", severity: null });
+  const { showSnackbar } = useSnackbar();
 
   const descriptionText =
     "Define bitrate and priority levels for your subscribers.";
@@ -90,18 +81,18 @@ const PolicyPage = () => {
     if (!selectedPolicy || !authReady || !accessToken) return;
     try {
       await deletePolicy(accessToken, selectedPolicy);
-      setAlert({
-        message: `Policy "${selectedPolicy}" deleted successfully!`,
-        severity: "success",
-      });
+      showSnackbar(
+        `Policy "${selectedPolicy}" deleted successfully!`,
+        "success",
+      );
       queryClient.invalidateQueries({ queryKey: ["policies"] });
     } catch (error) {
-      setAlert({
-        message: `Failed to delete policy "${selectedPolicy}": ${
+      showSnackbar(
+        `Failed to delete policy "${selectedPolicy}": ${
           error instanceof Error ? error.message : "Unknown error"
         }`,
-        severity: "error",
-      });
+        "error",
+      );
     } finally {
       setSelectedPolicy(null);
     }
@@ -172,18 +163,6 @@ const PolicyPage = () => {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
-        <Collapse in={!!alert.message}>
-          <Alert
-            severity={alert.severity || "success"}
-            onClose={() => setAlert({ message: "", severity: null })}
-            sx={{ mb: 2 }}
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-      </Box>
-
       {loading && rowCount === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
@@ -277,18 +256,20 @@ const PolicyPage = () => {
         <CreatePolicyModal
           open
           onClose={() => setCreateModalOpen(false)}
-          onSuccess={() =>
-            queryClient.invalidateQueries({ queryKey: ["policies"] })
-          }
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["policies"] });
+            showSnackbar("Policy created successfully.", "success");
+          }}
         />
       )}
       {isEditModalOpen && (
         <EditPolicyModal
           open
           onClose={() => setEditModalOpen(false)}
-          onSuccess={() =>
-            queryClient.invalidateQueries({ queryKey: ["policies"] })
-          }
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["policies"] });
+            showSnackbar("Policy updated successfully.", "success");
+          }}
           initialData={
             editData || {
               name: "",

@@ -38,6 +38,7 @@ import EmailIcon from "@mui/icons-material/Email";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CloseIcon from "@mui/icons-material/Close";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 
 const MAX_WIDTH = 1400;
 
@@ -70,6 +71,7 @@ export default function Profile() {
     setJustCreatedToken(token);
     setPage(1);
     fetchAPITokens(1, perPage);
+    showSnackbar("API token created successfully.", "success");
   };
 
   const copyToken = async () => {
@@ -80,10 +82,7 @@ export default function Profile() {
     } catch {}
   };
 
-  const [alert, setAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({ message: "", severity: null });
+  const { showSnackbar } = useSnackbar();
 
   const [loggedInUser, setLoggedInUser] = useState<APIUser | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
@@ -109,7 +108,7 @@ export default function Profile() {
       setLoggedInUser(data);
     } catch (error) {
       console.error("Error fetching user:", error);
-      setAlert({ message: "Failed to load profile info.", severity: "error" });
+      showSnackbar("Failed to load profile info.", "error");
     } finally {
       setLoadingUser(false);
     }
@@ -128,10 +127,7 @@ export default function Profile() {
 
   const handlePasswordSuccess = () => {
     setEditPasswordModalOpen(false);
-    setAlert({
-      message: "Password updated successfully.",
-      severity: "success",
-    });
+    showSnackbar("Password updated successfully.", "success");
   };
 
   const handleDeleteClick = (tokenId: number, tokenName: string) => {
@@ -172,10 +168,10 @@ export default function Profile() {
     if (!selectedTokenId || !accessToken) return;
     try {
       await deleteAPIToken(accessToken, selectedTokenId);
-      setAlert({
-        message: `API Token "${selectedTokenName}" deleted successfully!`,
-        severity: "success",
-      });
+      showSnackbar(
+        `API Token "${selectedTokenName}" deleted successfully!`,
+        "success",
+      );
       // If this was the last item on the page and not the first page, go back one page
       const remainingOnPage = apiTokens.length - 1;
       if (remainingOnPage <= 0 && page > 1) {
@@ -186,12 +182,12 @@ export default function Profile() {
         fetchAPITokens(page, perPage);
       }
     } catch (error) {
-      setAlert({
-        message: `Failed to delete token "${selectedTokenName}": ${
+      showSnackbar(
+        `Failed to delete token "${selectedTokenName}": ${
           error instanceof Error ? error.message : "Unknown error"
         }`,
-        severity: "error",
-      });
+        "error",
+      );
     } finally {
       setSelectedTokenId(null);
       setSelectedTokenName(null);
@@ -212,17 +208,6 @@ export default function Profile() {
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
         {descriptionText}
       </Typography>
-
-      {alert.severity && (
-        <Box sx={{ mb: 3 }}>
-          <Alert
-            severity={alert.severity}
-            onClose={() => setAlert({ message: "", severity: null })}
-          >
-            {alert.message}
-          </Alert>
-        </Box>
-      )}
 
       <Grid container spacing={3} alignItems="stretch">
         <Grid size={{ xs: 12, sm: 12, md: 4 }}>
