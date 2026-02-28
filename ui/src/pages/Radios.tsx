@@ -3,14 +3,13 @@ import {
   Box,
   Typography,
   CircularProgress,
-  Alert,
-  Collapse,
   Tabs,
   Tab,
   Chip,
   Tooltip,
   IconButton,
 } from "@mui/material";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import {
@@ -256,10 +255,7 @@ const EventsTab: React.FC = () => {
   const outerTheme = useTheme();
   const gridTheme = useMemo(() => createTheme(outerTheme), [outerTheme]);
 
-  const [alert, setAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({ message: "", severity: null });
+  const { showSnackbar } = useSnackbar();
   const [viewEventDrawerOpen, setViewEventDrawerOpen] = useState(false);
   const [selectedRow, setSelectedRow] = useState<LogRow | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -341,16 +337,10 @@ const EventsTab: React.FC = () => {
     if (!accessToken) return;
     try {
       await clearRadioEvents(accessToken);
-      setAlert({
-        message: `All radio events cleared successfully!`,
-        severity: "success",
-      });
+      showSnackbar("All radio events cleared successfully.", "success");
       networkLogsQuery.refetch();
     } catch (error: unknown) {
-      setAlert({
-        message: `Failed to clear radio events: ${String(error)}`,
-        severity: "error",
-      });
+      showSnackbar(`Failed to clear radio events: ${String(error)}`, "error");
     }
   };
 
@@ -463,17 +453,6 @@ const EventsTab: React.FC = () => {
         style={{ width: "100%", height: "100%", overflow: "hidden" }}
       >
         <Panel minSize={20}>
-          <Box sx={{ maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PAD }}>
-            <Collapse in={!!alert.message}>
-              <Alert
-                severity={alert.severity || "success"}
-                onClose={() => setAlert({ message: "", severity: null })}
-                sx={{ mb: 2, pointerEvents: "auto" }}
-              >
-                {alert.message}
-              </Alert>
-            </Collapse>
-          </Box>
           <Box
             sx={{
               height: "100%",
@@ -615,10 +594,7 @@ const EventsTab: React.FC = () => {
         onClose={() => setNetworkEditModalOpen(false)}
         onSuccess={() => {
           retentionQuery.refetch();
-          setAlert({
-            message: "Retention policy updated!",
-            severity: "success",
-          });
+          showSnackbar("Retention policy updated successfully.", "success");
         }}
         initialDays={retentionQuery.data?.days || 7}
       />
@@ -675,8 +651,6 @@ const Radio = () => {
   const rows: APIRadio[] = data?.items ?? [];
   const rowCount: number = data?.total_count ?? 0;
 
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
-
   const gridTheme = useMemo(
     () =>
       createTheme(theme, {
@@ -708,16 +682,6 @@ const Radio = () => {
       }}
     >
       <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PAD }}>
-        <Collapse in={!!alert.message}>
-          <Alert
-            severity="success"
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 2 }}
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-
         <Tabs
           value={tab}
           onChange={handleTabChange}

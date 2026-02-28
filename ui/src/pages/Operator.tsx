@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Box,
   IconButton,
-  Alert,
   Typography,
   Chip,
   Card,
@@ -20,6 +19,7 @@ import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
 import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
 import EditOperatorHomeNetworkModal from "@/components/EditOperatorHomeNetworkModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 
 const isSdSet = (sd?: string | null) =>
   typeof sd === "string" && sd.trim() !== "";
@@ -64,10 +64,7 @@ const Operator = () => {
   });
   const operator = operatorQuery.data ?? null;
 
-  const [alert, setAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({ message: "", severity: null });
+  const { showSnackbar } = useSnackbar();
 
   const canEdit = role === "Admin" || role === "Network Manager";
 
@@ -93,46 +90,34 @@ const Operator = () => {
 
   const handleEditOperatorIdSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
-    setAlert({
-      message: "Operator ID updated successfully!",
-      severity: "success",
-    });
+    showSnackbar("Operator ID updated successfully.", "success");
   };
   const handleEditOperatorCodeSuccess = () => {
-    setAlert({
-      message: "Operator Code updated successfully!",
-      severity: "success",
-    });
+    showSnackbar("Operator Code updated successfully.", "success");
   };
   const handleEditOperatorTrackingSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
-    setAlert({
-      message: "Operator Tracking information updated successfully!",
-      severity: "success",
-    });
+    showSnackbar(
+      "Operator Tracking information updated successfully.",
+      "success",
+    );
   };
   const handleEditOperatorSliceSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
-    setAlert({
-      message: "Operator Slice information updated successfully!",
-      severity: "success",
-    });
+    showSnackbar("Operator Slice information updated successfully.", "success");
   };
   const handleEditOperatorHomeNetworkSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
-    setAlert({
-      message: "Operator Home Network information updated successfully!",
-      severity: "success",
-    });
+    showSnackbar(
+      "Operator Home Network information updated successfully.",
+      "success",
+    );
   };
 
   const handleCopyPublicKey = () => {
     if (operator?.homeNetwork.publicKey) {
       navigator.clipboard.writeText(operator.homeNetwork.publicKey);
-      setAlert({
-        message: "Public Key copied to clipboard!",
-        severity: "success",
-      });
+      showSnackbar("Copied to clipboard.", "success");
     }
   };
 
@@ -157,17 +142,6 @@ const Operator = () => {
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
         {descriptionText}
       </Typography>
-
-      {alert.severity && (
-        <Box sx={{ mb: 3 }}>
-          <Alert
-            severity={alert.severity}
-            onClose={() => setAlert({ message: "", severity: null })}
-          >
-            {alert.message}
-          </Alert>
-        </Box>
-      )}
 
       <Grid
         container

@@ -11,7 +11,6 @@ import {
   Typography,
   CircularProgress,
   Alert,
-  Collapse,
   TextField,
   MenuItem,
   IconButton,
@@ -20,6 +19,7 @@ import {
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import {
@@ -357,10 +357,7 @@ const Traffic: React.FC = () => {
   // ── Shared state ────────────────────────────────────
   const [{ startDate, endDate }, setDateRange] = useState(getDefaultDateRange);
   const [selectedSubscriber, setSelectedSubscriber] = useState("");
-  const [alert, setAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({ message: "", severity: null });
+  const { showSnackbar } = useSnackbar();
 
   // ── Usage state ─────────────────────────────────────
   const [usagePaginationModel, setUsagePaginationModel] =
@@ -747,15 +744,12 @@ const Traffic: React.FC = () => {
     try {
       await clearUsageData(accessToken);
       await Promise.allSettled([refetchUsagePerSub(), refetchUsagePerDay()]);
-      setAlert({
-        message: "All usage data cleared successfully!",
-        severity: "success",
-      });
+      showSnackbar("All usage data cleared successfully.", "success");
     } catch (error: unknown) {
-      setAlert({
-        message: `Failed to clear usage data: ${error instanceof Error ? error.message : String(error)}`,
-        severity: "error",
-      });
+      showSnackbar(
+        `Failed to clear usage data: ${error instanceof Error ? error.message : String(error)}`,
+        "error",
+      );
     }
   };
 
@@ -765,15 +759,12 @@ const Traffic: React.FC = () => {
     try {
       await clearFlowReports(accessToken);
       await refetchFlowReports();
-      setAlert({
-        message: "All flow report data cleared successfully!",
-        severity: "success",
-      });
+      showSnackbar("All flow report data cleared successfully.", "success");
     } catch (error: unknown) {
-      setAlert({
-        message: `Failed to clear flow report data: ${error instanceof Error ? error.message : String(error)}`,
-        severity: "error",
-      });
+      showSnackbar(
+        `Failed to clear flow report data: ${error instanceof Error ? error.message : String(error)}`,
+        "error",
+      );
     }
   };
 
@@ -817,19 +808,6 @@ const Traffic: React.FC = () => {
         pb: 4,
       }}
     >
-      {/* Alert banner */}
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
-        <Collapse in={!!alert.message}>
-          <Alert
-            severity={alert.severity || "success"}
-            onClose={() => setAlert({ message: "", severity: null })}
-            sx={{ mb: 2 }}
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-      </Box>
-
       {isInitialLoading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
@@ -1203,10 +1181,10 @@ const Traffic: React.FC = () => {
         onClose={() => setEditUsageRetentionOpen(false)}
         onSuccess={() => {
           refetchUsageRetention();
-          setAlert({
-            message: "Usage retention policy updated!",
-            severity: "success",
-          });
+          showSnackbar(
+            "Usage retention policy updated successfully.",
+            "success",
+          );
         }}
         initialData={usageRetentionPolicy || { days: 30 }}
       />
@@ -1215,10 +1193,10 @@ const Traffic: React.FC = () => {
         onClose={() => setEditFlowRetentionOpen(false)}
         onSuccess={() => {
           refetchFlowRetention();
-          setAlert({
-            message: "Flow reports retention policy updated!",
-            severity: "success",
-          });
+          showSnackbar(
+            "Flow reports retention policy updated successfully.",
+            "success",
+          );
         }}
         initialData={flowRetentionPolicy || { days: 30 }}
       />

@@ -1,13 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Box,
-  Typography,
-  Button,
-  CircularProgress,
-  Alert,
-  Collapse,
-} from "@mui/material";
+import { Box, Typography, Button, CircularProgress } from "@mui/material";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 import {
   DataGrid,
   type GridColDef,
@@ -52,7 +46,7 @@ const UserPage: React.FC = () => {
     null,
   );
   const [selectedUser, setSelectedUser] = useState<string | null>(null); // email
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
+  const { showSnackbar } = useSnackbar();
 
   const outerTheme = useTheme();
   const gridTheme = useMemo(
@@ -98,10 +92,13 @@ const UserPage: React.FC = () => {
     if (!selectedUser || !accessToken) return;
     try {
       await deleteUser(accessToken, selectedUser);
-      setAlert({ message: `User "${selectedUser}" deleted successfully!` });
+      showSnackbar(`User "${selectedUser}" deleted successfully.`, "success");
       queryClient.invalidateQueries({ queryKey: ["users"] });
-    } catch {
-      setAlert({ message: `Failed to delete user "${selectedUser}".` });
+    } catch (error) {
+      showSnackbar(
+        `Failed to delete user "${selectedUser}": ${error instanceof Error ? error.message : "Unknown error"}`,
+        "error",
+      );
     } finally {
       setSelectedUser(null);
     }
@@ -164,18 +161,6 @@ const UserPage: React.FC = () => {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
-        <Collapse in={!!alert.message}>
-          <Alert
-            severity="success"
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 2 }}
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-      </Box>
-
       {loading && rowCount === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
@@ -266,9 +251,10 @@ const UserPage: React.FC = () => {
         <CreateUserModal
           open
           onClose={() => setCreateModalOpen(false)}
-          onSuccess={() =>
-            queryClient.invalidateQueries({ queryKey: ["users"] })
-          }
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["users"] });
+            showSnackbar("User created successfully.", "success");
+          }}
         />
       )}
 
@@ -276,9 +262,10 @@ const UserPage: React.FC = () => {
         <EditUserModal
           open
           onClose={() => setEditModalOpen(false)}
-          onSuccess={() =>
-            queryClient.invalidateQueries({ queryKey: ["users"] })
-          }
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["users"] });
+            showSnackbar("User updated successfully.", "success");
+          }}
           initialData={editData || { email: "", role_id: RoleID.ReadOnly }}
         />
       )}
@@ -287,9 +274,10 @@ const UserPage: React.FC = () => {
         <EditUserPasswordModal
           open
           onClose={() => setEditPasswordModalOpen(false)}
-          onSuccess={() =>
-            queryClient.invalidateQueries({ queryKey: ["users"] })
-          }
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["users"] });
+            showSnackbar("Password updated successfully.", "success");
+          }}
           initialData={editPasswordData || { email: "" }}
         />
       )}

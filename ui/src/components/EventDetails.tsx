@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import {
   Box,
   Typography,
   Button,
   Alert,
-  Collapse,
   IconButton,
   Divider,
   CircularProgress,
@@ -18,6 +17,7 @@ import {
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import { getRadioEvent, type RadioEventContent } from "@/queries/radio_events";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { GenericMessageView } from "@/components/EventMessageRender";
@@ -89,7 +89,7 @@ export default function EventDetails({
   open: boolean;
   log: LogRow | null;
 }) {
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
+  const { showSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
@@ -116,8 +116,7 @@ export default function EventDetails({
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
-    setAlert({ message: "Copied to clipboard." });
-    setTimeout(() => setAlert({ message: "" }), 1500);
+    showSnackbar("Copied to clipboard.", "success");
   };
 
   const stringify = (v: unknown): string => {
@@ -259,18 +258,6 @@ export default function EventDetails({
 
   return (
     <>
-      <Box sx={{ px: 2, pt: 1 }}>
-        <Collapse in={!!alert.message}>
-          <Alert
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 1.5 }}
-            severity="info"
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-      </Box>
-
       <Box sx={{ flex: 1, overflow: "auto", px: 2, pb: 2 }}>
         <Stack spacing={1.25} sx={{ my: 1.25 }}>
           <MetaRow label="Timestamp" value={log?.timestamp} />

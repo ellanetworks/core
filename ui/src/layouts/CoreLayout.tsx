@@ -6,6 +6,7 @@ import { Outlet } from "react-router-dom";
 import theme from "@/utils/theme";
 import DrawerLayout from "@/components/DrawerLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SnackbarProvider } from "@/contexts/SnackbarContext";
 
 export default function CoreLayout() {
   const [queryClient] = useState(() => new QueryClient());
@@ -15,9 +16,11 @@ export default function CoreLayout() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <AuthProvider>
-          <DrawerLayout>
-            <Outlet />
-          </DrawerLayout>
+          <SnackbarProvider>
+            <DrawerLayout>
+              <Outlet />
+            </DrawerLayout>
+          </SnackbarProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

@@ -1,13 +1,6 @@
 import React, { useMemo, useState } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  CircularProgress,
-  Alert,
-  Collapse,
-  Chip,
-} from "@mui/material";
+import { Box, Typography, Button, CircularProgress, Chip } from "@mui/material";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import {
@@ -64,10 +57,7 @@ const SubscriberPage: React.FC = () => {
   const [selectedSubscriber, setSelectedSubscriber] = useState<string | null>(
     null,
   );
-  const [alert, setAlert] = useState<{
-    message: string;
-    severity: "success" | "error" | null;
-  }>({ message: "", severity: null });
+  const { showSnackbar } = useSnackbar();
 
   const pageOneBased = paginationModel.page + 1;
   const perPage = paginationModel.pageSize;
@@ -111,16 +101,16 @@ const SubscriberPage: React.FC = () => {
     if (!selectedSubscriber || !accessToken) return;
     try {
       await deleteSubscriber(accessToken, selectedSubscriber);
-      setAlert({
-        message: `Subscriber "${selectedSubscriber}" deleted successfully!`,
-        severity: "success",
-      });
+      showSnackbar(
+        `Subscriber "${selectedSubscriber}" deleted successfully.`,
+        "success",
+      );
       refetch();
-    } catch {
-      setAlert({
-        message: `Failed to delete subscriber "${selectedSubscriber}".`,
-        severity: "error",
-      });
+    } catch (error) {
+      showSnackbar(
+        `Failed to delete subscriber "${selectedSubscriber}": ${error instanceof Error ? error.message : "Unknown error"}`,
+        "error",
+      );
     } finally {
       setSelectedSubscriber(null);
     }
@@ -264,18 +254,6 @@ const SubscriberPage: React.FC = () => {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
-        <Collapse in={!!alert.message}>
-          <Alert
-            severity={alert.severity || "success"}
-            onClose={() => setAlert({ message: "", severity: null })}
-            sx={{ mb: 2 }}
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-      </Box>
-
       {isLoading && !data ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
@@ -374,14 +352,20 @@ const SubscriberPage: React.FC = () => {
         <CreateSubscriberModal
           open
           onClose={() => setCreateModalOpen(false)}
-          onSuccess={refetch}
+          onSuccess={() => {
+            refetch();
+            showSnackbar("Subscriber created successfully.", "success");
+          }}
         />
       )}
       {isEditModalOpen && (
         <EditSubscriberModal
           open
           onClose={() => setEditModalOpen(false)}
-          onSuccess={refetch}
+          onSuccess={() => {
+            refetch();
+            showSnackbar("Subscriber updated successfully.", "success");
+          }}
           initialData={editData || { imsi: "", policyName: "" }}
         />
       )}
