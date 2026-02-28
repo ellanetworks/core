@@ -723,17 +723,27 @@ const Traffic: React.FC = () => {
           const bg = protocolColorMap.get(value);
           if (!bg) return label;
           return (
-            <Chip
-              label={label}
-              size="small"
+            <Box
               sx={{
-                backgroundColor: bg,
-                color: "#fff",
-                fontWeight: 600,
-                fontSize: "0.75rem",
-                height: 22,
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
-            />
+            >
+              <Chip
+                label={label}
+                size="small"
+                sx={{
+                  backgroundColor: bg,
+                  color: "#fff",
+                  fontWeight: 600,
+                  fontSize: "0.75rem",
+                  height: 22,
+                }}
+              />
+            </Box>
           );
         },
       },
