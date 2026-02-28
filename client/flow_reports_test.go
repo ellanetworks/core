@@ -427,7 +427,7 @@ func TestGetFlowReportStats_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"protocols": [{"protocol": 6, "count": 150}, {"protocol": 17, "count": 80}], "top_sources": [{"ip": "10.0.0.1", "count": 100}], "top_destinations": [{"ip": "8.8.8.8", "count": 90}]}`),
+			Result:     []byte(`{"protocols": [{"protocol": 6, "count": 150}, {"protocol": 17, "count": 80}], "top_destinations_uplink": [{"ip": "8.8.8.8", "count": 90}]}`),
 		},
 		err: nil,
 	}
@@ -456,20 +456,12 @@ func TestGetFlowReportStats_Success(t *testing.T) {
 		t.Fatalf("expected count 150, got %d", resp.Protocols[0].Count)
 	}
 
-	if len(resp.TopSources) != 1 {
-		t.Fatalf("expected 1 top source, got %d", len(resp.TopSources))
+	if len(resp.TopDestinationsUplink) != 1 {
+		t.Fatalf("expected 1 top destination uplink, got %d", len(resp.TopDestinationsUplink))
 	}
 
-	if resp.TopSources[0].IP != "10.0.0.1" {
-		t.Fatalf("expected source IP '10.0.0.1', got '%s'", resp.TopSources[0].IP)
-	}
-
-	if len(resp.TopDestinations) != 1 {
-		t.Fatalf("expected 1 top destination, got %d", len(resp.TopDestinations))
-	}
-
-	if resp.TopDestinations[0].IP != "8.8.8.8" {
-		t.Fatalf("expected destination IP '8.8.8.8', got '%s'", resp.TopDestinations[0].IP)
+	if resp.TopDestinationsUplink[0].IP != "8.8.8.8" {
+		t.Fatalf("expected destination IP '8.8.8.8', got '%s'", resp.TopDestinationsUplink[0].IP)
 	}
 }
 

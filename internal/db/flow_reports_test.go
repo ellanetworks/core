@@ -404,7 +404,7 @@ func TestGetFlowReportStats_Empty(t *testing.T) {
 
 	ctx := context.Background()
 
-	protocols, sources, destinations, err := database.GetFlowReportStats(ctx, nil)
+	protocols, topDstUplink, err := database.GetFlowReportStats(ctx, nil)
 	if err != nil {
 		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
 	}
@@ -413,12 +413,8 @@ func TestGetFlowReportStats_Empty(t *testing.T) {
 		t.Fatalf("expected 0 protocol counts, got %d", len(protocols))
 	}
 
-	if len(sources) != 0 {
-		t.Fatalf("expected 0 top sources, got %d", len(sources))
-	}
-
-	if len(destinations) != 0 {
-		t.Fatalf("expected 0 top destinations, got %d", len(destinations))
+	if len(topDstUplink) != 0 {
+		t.Fatalf("expected 0 top destinations uplink, got %d", len(topDstUplink))
 	}
 }
 
@@ -478,7 +474,7 @@ func TestGetFlowReportStats_ProtocolCounts(t *testing.T) {
 		}
 	}
 
-	protocols, _, _, err := database.GetFlowReportStats(ctx, nil)
+	protocols, _, err := database.GetFlowReportStats(ctx, nil)
 	if err != nil {
 		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
 	}
@@ -510,108 +506,6 @@ func TestGetFlowReportStats_ProtocolCounts(t *testing.T) {
 
 	if protocols[2].Count != 1 {
 		t.Fatalf("expected ICMP count to be 1, got %d", protocols[2].Count)
-	}
-}
-
-func TestGetFlowReportStats_TopSources(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
-
-	ctx := context.Background()
-
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
-	if err != nil {
-		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
-	}
-
-	// Insert one flow report for each of 12 distinct source IPs
-	now := time.Now().UTC()
-	for i := range 12 {
-		fr := &dbwriter.FlowReport{
-			SubscriberID:    "460123456789012",
-			SourceIP:        fmt.Sprintf("10.0.0.%d", i+1),
-			DestinationIP:   "8.8.8.8",
-			SourcePort:      uint16(10000 + i),
-			DestinationPort: 443,
-			Protocol:        6,
-			Packets:         10,
-			Bytes:           1000,
-			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
-		}
-		if err := database.InsertFlowReport(ctx, fr); err != nil {
-			t.Fatalf("couldn't insert flow report %d: %s", i, err)
-		}
-	}
-
-	_, sources, _, err := database.GetFlowReportStats(ctx, nil)
-	if err != nil {
-		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
-	}
-
-	if len(sources) != 10 {
-		t.Fatalf("expected top 10 sources, got %d", len(sources))
-	}
-}
-
-func TestGetFlowReportStats_TopDestinations(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
-
-	ctx := context.Background()
-
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
-	if err != nil {
-		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
-	}
-
-	// Insert one flow report for each of 12 distinct destination IPs
-	now := time.Now().UTC()
-	for i := range 12 {
-		fr := &dbwriter.FlowReport{
-			SubscriberID:    "460123456789012",
-			SourceIP:        "10.0.0.1",
-			DestinationIP:   fmt.Sprintf("8.8.8.%d", i+1),
-			SourcePort:      12345,
-			DestinationPort: uint16(10000 + i),
-			Protocol:        6,
-			Packets:         10,
-			Bytes:           1000,
-			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
-		}
-		if err := database.InsertFlowReport(ctx, fr); err != nil {
-			t.Fatalf("couldn't insert flow report %d: %s", i, err)
-		}
-	}
-
-	_, _, destinations, err := database.GetFlowReportStats(ctx, nil)
-	if err != nil {
-		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
-	}
-
-	if len(destinations) != 10 {
-		t.Fatalf("expected top 10 destinations, got %d", len(destinations))
 	}
 }
 
@@ -690,7 +584,7 @@ func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
 	sub1 := "460123456789012"
 	filter := &db.FlowReportFilters{SubscriberID: &sub1}
 
-	protocols, sources, destinations, err := database.GetFlowReportStats(ctx, filter)
+	protocols, _, err := database.GetFlowReportStats(ctx, filter)
 	if err != nil {
 		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
 	}
@@ -706,22 +600,6 @@ func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
 
 	if protocols[0].Count != 3 {
 		t.Fatalf("expected protocol count 3, got %d", protocols[0].Count)
-	}
-
-	if len(sources) != 1 {
-		t.Fatalf("expected 1 top source, got %d", len(sources))
-	}
-
-	if sources[0].IP != "10.0.0.1" {
-		t.Fatalf("expected source IP 10.0.0.1, got %s", sources[0].IP)
-	}
-
-	if len(destinations) != 1 {
-		t.Fatalf("expected 1 top destination, got %d", len(destinations))
-	}
-
-	if destinations[0].IP != "1.1.1.1" {
-		t.Fatalf("expected destination IP 1.1.1.1, got %s", destinations[0].IP)
 	}
 }
 
@@ -789,7 +667,7 @@ func TestGetFlowReportStats_WithProtocolFilter(t *testing.T) {
 	proto := uint8(6) // TCP
 	filter := &db.FlowReportFilters{Protocol: &proto}
 
-	protocols, sources, destinations, err := database.GetFlowReportStats(ctx, filter)
+	protocols, _, err := database.GetFlowReportStats(ctx, filter)
 	if err != nil {
 		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
 	}
@@ -805,14 +683,6 @@ func TestGetFlowReportStats_WithProtocolFilter(t *testing.T) {
 
 	if protocols[0].Count != 4 {
 		t.Fatalf("expected TCP count 4, got %d", protocols[0].Count)
-	}
-
-	if len(sources) != 4 {
-		t.Fatalf("expected 4 top sources (TCP only), got %d", len(sources))
-	}
-
-	if len(destinations) != 1 {
-		t.Fatalf("expected 1 top destination (TCP only), got %d", len(destinations))
 	}
 }
 
@@ -886,7 +756,7 @@ func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
 		EndTimeTo:   &to,
 	}
 
-	protocols, sources, destinations, err := database.GetFlowReportStats(ctx, filter)
+	protocols, _, err := database.GetFlowReportStats(ctx, filter)
 	if err != nil {
 		t.Fatalf("unexpected error from GetFlowReportStats: %s", err)
 	}
@@ -902,22 +772,6 @@ func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
 
 	if protocols[0].Count != 3 {
 		t.Fatalf("expected count 3, got %d", protocols[0].Count)
-	}
-
-	if len(sources) != 1 {
-		t.Fatalf("expected 1 top source, got %d", len(sources))
-	}
-
-	if sources[0].IP != "10.0.0.1" {
-		t.Fatalf("expected source IP 10.0.0.1, got %s", sources[0].IP)
-	}
-
-	if len(destinations) != 1 {
-		t.Fatalf("expected 1 top destination, got %d", len(destinations))
-	}
-
-	if destinations[0].IP != "8.8.8.8" {
-		t.Fatalf("expected destination IP 8.8.8.8, got %s", destinations[0].IP)
 	}
 }
 

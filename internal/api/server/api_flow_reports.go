@@ -268,9 +268,8 @@ type FlowReportIPStat struct {
 }
 
 type FlowReportStatsResponse struct {
-	Protocols       []FlowReportProtocolStat `json:"protocols"`
-	TopSources      []FlowReportIPStat       `json:"top_sources"`
-	TopDestinations []FlowReportIPStat       `json:"top_destinations"`
+	Protocols             []FlowReportProtocolStat `json:"protocols"`
+	TopDestinationsUplink []FlowReportIPStat       `json:"top_destinations_uplink"`
 }
 
 func GetFlowReportStats(dbInstance *db.Database) http.Handler {
@@ -283,7 +282,7 @@ func GetFlowReportStats(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		protocols, sources, destinations, err := dbInstance.GetFlowReportStats(ctx, filters)
+		protocols, destinationsUplink, err := dbInstance.GetFlowReportStats(ctx, filters)
 		if err != nil {
 			writeError(ctx, w, http.StatusInternalServerError, "Failed to retrieve flow report stats", err, logger.APILog)
 			return
@@ -294,20 +293,14 @@ func GetFlowReportStats(dbInstance *db.Database) http.Handler {
 			protoStats[i] = FlowReportProtocolStat{Protocol: p.Protocol, Count: p.Count}
 		}
 
-		srcStats := make([]FlowReportIPStat, len(sources))
-		for i, s := range sources {
-			srcStats[i] = FlowReportIPStat{IP: s.IP, Count: s.Count}
-		}
-
-		dstStats := make([]FlowReportIPStat, len(destinations))
-		for i, d := range destinations {
-			dstStats[i] = FlowReportIPStat{IP: d.IP, Count: d.Count}
+		dstUplinkStats := make([]FlowReportIPStat, len(destinationsUplink))
+		for i, d := range destinationsUplink {
+			dstUplinkStats[i] = FlowReportIPStat{IP: d.IP, Count: d.Count}
 		}
 
 		response := FlowReportStatsResponse{
-			Protocols:       protoStats,
-			TopSources:      srcStats,
-			TopDestinations: dstStats,
+			Protocols:             protoStats,
+			TopDestinationsUplink: dstUplinkStats,
 		}
 		writeResponse(ctx, w, response, http.StatusOK, logger.APILog)
 	})

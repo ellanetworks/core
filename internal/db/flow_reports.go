@@ -126,23 +126,7 @@ GROUP BY protocol
 ORDER BY COUNT(*) DESC
 `
 
-const flowReportTopSourcesStmt = `
-SELECT source_ip AS &FlowReportIPCount.ip, COUNT(*) AS &FlowReportIPCount.count
-FROM %s
-WHERE
-    ($FlowReportFilters.subscriber_id IS NULL OR subscriber_id = $FlowReportFilters.subscriber_id)
-    AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
-    AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
-    AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
-    AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
-    AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
-    AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
-GROUP BY source_ip
-ORDER BY COUNT(*) DESC
-LIMIT 10
-`
-
-const flowReportTopDestinationsStmt = `
+const flowReportTopDestinationsUplinkStmt = `
 SELECT destination_ip AS &FlowReportIPCount.ip, COUNT(*) AS &FlowReportIPCount.count
 FROM %s
 WHERE
@@ -152,7 +136,7 @@ WHERE
     AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
-    AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
+    AND direction = 'uplink'
 GROUP BY destination_ip
 ORDER BY COUNT(*) DESC
 LIMIT 10
@@ -426,8 +410,8 @@ func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *Fl
 	return results, nil
 }
 
-// GetFlowReportStats returns aggregated protocol counts, top source IPs, and top destination IPs.
-func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportFilters) ([]FlowReportProtocolCount, []FlowReportIPCount, []FlowReportIPCount, error) {
+// GetFlowReportStats returns aggregated protocol counts and top destination IPs for uplink traffic.
+func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportFilters) ([]FlowReportProtocolCount, []FlowReportIPCount, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (stats)", "SELECT", FlowReportsTableName),
@@ -456,30 +440,20 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "protocol counts query failed")
 
-		return nil, nil, nil, fmt.Errorf("protocol counts query failed: %w", err)
+		return nil, nil, fmt.Errorf("protocol counts query failed: %w", err)
 	}
 
-	var sources []FlowReportIPCount
+	var destinationsUplink []FlowReportIPCount
 
-	err = db.conn.Query(ctx, db.flowReportTopSourcesStmt, filters).GetAll(&sources)
+	err = db.conn.Query(ctx, db.flowReportTopDestinationsUplinkStmt, filters).GetAll(&destinationsUplink)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "top sources query failed")
+		span.SetStatus(codes.Error, "top destinations uplink query failed")
 
-		return nil, nil, nil, fmt.Errorf("top sources query failed: %w", err)
-	}
-
-	var destinations []FlowReportIPCount
-
-	err = db.conn.Query(ctx, db.flowReportTopDestinationsStmt, filters).GetAll(&destinations)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "top destinations query failed")
-
-		return nil, nil, nil, fmt.Errorf("top destinations query failed: %w", err)
+		return nil, nil, fmt.Errorf("top destinations uplink query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return protocols, sources, destinations, nil
+	return protocols, destinationsUplink, nil
 }

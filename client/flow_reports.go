@@ -40,6 +40,7 @@ type ListFlowReportsParams struct {
 	Protocol      string `json:"protocol"`
 	SourceIP      string `json:"source_ip"`
 	DestinationIP string `json:"destination_ip"`
+	Direction     string `json:"direction"`
 	Start         string `json:"start"`
 	End           string `json:"end"`
 }
@@ -79,6 +80,10 @@ func buildFlowReportQuery(p *ListFlowReportsParams) url.Values {
 
 	if p.DestinationIP != "" {
 		query.Set("destination_ip", p.DestinationIP)
+	}
+
+	if p.Direction != "" {
+		query.Set("direction", p.Direction)
 	}
 
 	if p.Start != "" {
@@ -240,9 +245,8 @@ type FlowReportIPStat struct {
 }
 
 type FlowReportStatsResponse struct {
-	Protocols       []FlowReportProtocolStat `json:"protocols"`
-	TopSources      []FlowReportIPStat       `json:"top_sources"`
-	TopDestinations []FlowReportIPStat       `json:"top_destinations"`
+	Protocols             []FlowReportProtocolStat `json:"protocols"`
+	TopDestinationsUplink []FlowReportIPStat       `json:"top_destinations_uplink"`
 }
 
 // GetFlowReportStats retrieves aggregated flow report statistics.

@@ -50,6 +50,7 @@ import {
   type ListFlowReportsResponse,
   type FlowReportsRetentionPolicy,
   type FlowReportStatsResponse,
+  type FlowReportFilters,
 } from "@/queries/flow_reports";
 import {
   getFlowAccountingInfo,
@@ -457,8 +458,8 @@ const Traffic: React.FC = () => {
 
   const flowPageOneBased = flowPaginationModel.page + 1;
 
-  const activeFlowFilters = useMemo(() => {
-    const f: Record<string, string> = { start: startDate, end: endDate };
+  const activeFlowFilters: FlowReportFilters = useMemo(() => {
+    const f: FlowReportFilters = { start: startDate, end: endDate };
     if (selectedSubscriber) f.subscriber_id = selectedSubscriber;
     if (appliedProtocol) f.protocol = appliedProtocol;
     if (appliedSourceIp) f.source_ip = appliedSourceIp;
@@ -508,19 +509,6 @@ const Traffic: React.FC = () => {
   const { data: flowStatsData } = useQuery<FlowReportStatsResponse>({
     queryKey: ["flowReportStats", activeFlowFilters],
     queryFn: () => getFlowReportStats(accessToken || "", activeFlowFilters),
-    enabled: authReady && !!accessToken,
-    placeholderData: (prev) => prev,
-    refetchInterval: 5000,
-  });
-
-  const uplinkFlowFilters = useMemo(
-    () => ({ ...activeFlowFilters, direction: "uplink" }),
-    [activeFlowFilters],
-  );
-
-  const { data: uplinkStatsData } = useQuery<FlowReportStatsResponse>({
-    queryKey: ["flowReportStatsUplink", uplinkFlowFilters],
-    queryFn: () => getFlowReportStats(accessToken || "", uplinkFlowFilters),
     enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
     refetchInterval: 5000,
@@ -800,8 +788,8 @@ const Traffic: React.FC = () => {
   // ── Top 10 destinations uplink (donut chart) ───────────────
 
   const topDestinationsPieData = useMemo(() => {
-    if (!uplinkStatsData?.top_destinations?.length) return [];
-    return uplinkStatsData.top_destinations.map((d, i) => ({
+    if (!flowStatsData?.top_destinations_uplink?.length) return [];
+    return flowStatsData.top_destinations_uplink.map((d, i) => ({
       id: i,
       value: d.count,
       label: d.ip,

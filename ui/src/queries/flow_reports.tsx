@@ -30,7 +30,7 @@ export async function listFlowReports(
   authToken: string,
   page: number,
   perPage: number,
-  params?: Record<string, string>,
+  params?: FlowReportFilters,
 ): Promise<ListFlowReportsResponse> {
   const url = new URL(`/api/v1/flow-reports`, window.location.origin);
   url.searchParams.set("page", String(page));
@@ -38,7 +38,7 @@ export async function listFlowReports(
 
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      if (v !== "") {
+      if (v !== undefined && v !== "") {
         url.searchParams.set(k, v);
       }
     }
@@ -86,19 +86,28 @@ export type FlowReportIPStat = {
 
 export type FlowReportStatsResponse = {
   protocols: FlowReportProtocolStat[];
-  top_sources: FlowReportIPStat[];
-  top_destinations: FlowReportIPStat[];
+  top_destinations_uplink: FlowReportIPStat[];
+};
+
+export type FlowReportFilters = {
+  start?: string;
+  end?: string;
+  subscriber_id?: string;
+  protocol?: string;
+  source_ip?: string;
+  destination_ip?: string;
+  direction?: string;
 };
 
 export async function getFlowReportStats(
   authToken: string,
-  params?: Record<string, string>,
+  params?: FlowReportFilters,
 ): Promise<FlowReportStatsResponse> {
   const url = new URL(`/api/v1/flow-reports/stats`, window.location.origin);
 
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      if (v !== "") {
+      if (v !== undefined && v !== "") {
         url.searchParams.set(k, v);
       }
     }
