@@ -150,6 +150,7 @@ export default function Profile() {
         setTotalCount(res.total_count ?? 0);
       } catch (error) {
         console.error("Error fetching API Tokens:", error);
+        showSnackbar("Failed to load API tokens.", "error");
         setAPITokens([]);
         setTotalCount(0);
       } finally {
@@ -169,7 +170,7 @@ export default function Profile() {
     try {
       await deleteAPIToken(accessToken, selectedTokenId);
       showSnackbar(
-        `API Token "${selectedTokenName}" deleted successfully!`,
+        `API token "${selectedTokenName}" deleted successfully.`,
         "success",
       );
       // If this was the last item on the page and not the first page, go back one page

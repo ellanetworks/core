@@ -90,26 +90,26 @@ const Operator = () => {
 
   const handleEditOperatorIdSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
-    showSnackbar("Operator ID updated successfully!", "success");
+    showSnackbar("Operator ID updated successfully.", "success");
   };
   const handleEditOperatorCodeSuccess = () => {
-    showSnackbar("Operator Code updated successfully!", "success");
+    showSnackbar("Operator Code updated successfully.", "success");
   };
   const handleEditOperatorTrackingSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
     showSnackbar(
-      "Operator Tracking information updated successfully!",
+      "Operator Tracking information updated successfully.",
       "success",
     );
   };
   const handleEditOperatorSliceSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
-    showSnackbar("Operator Slice information updated successfully!", "success");
+    showSnackbar("Operator Slice information updated successfully.", "success");
   };
   const handleEditOperatorHomeNetworkSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
     showSnackbar(
-      "Operator Home Network information updated successfully!",
+      "Operator Home Network information updated successfully.",
       "success",
     );
   };
@@ -117,7 +117,7 @@ const Operator = () => {
   const handleCopyPublicKey = () => {
     if (operator?.homeNetwork.publicKey) {
       navigator.clipboard.writeText(operator.homeNetwork.publicKey);
-      showSnackbar("Public Key copied to clipboard!", "success");
+      showSnackbar("Copied to clipboard.", "success");
     }
   };
 

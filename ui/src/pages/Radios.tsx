@@ -337,7 +337,7 @@ const EventsTab: React.FC = () => {
     if (!accessToken) return;
     try {
       await clearRadioEvents(accessToken);
-      showSnackbar("All radio events cleared successfully!", "success");
+      showSnackbar("All radio events cleared successfully.", "success");
       networkLogsQuery.refetch();
     } catch (error: unknown) {
       showSnackbar(`Failed to clear radio events: ${String(error)}`, "error");
@@ -594,7 +594,7 @@ const EventsTab: React.FC = () => {
         onClose={() => setNetworkEditModalOpen(false)}
         onSuccess={() => {
           retentionQuery.refetch();
-          showSnackbar("Retention policy updated!", "success");
+          showSnackbar("Retention policy updated successfully.", "success");
         }}
         initialDays={retentionQuery.data?.days || 7}
       />

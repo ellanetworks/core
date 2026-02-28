@@ -102,13 +102,13 @@ const SubscriberPage: React.FC = () => {
     try {
       await deleteSubscriber(accessToken, selectedSubscriber);
       showSnackbar(
-        `Subscriber "${selectedSubscriber}" deleted successfully!`,
+        `Subscriber "${selectedSubscriber}" deleted successfully.`,
         "success",
       );
       refetch();
-    } catch {
+    } catch (error) {
       showSnackbar(
-        `Failed to delete subscriber "${selectedSubscriber}".`,
+        `Failed to delete subscriber "${selectedSubscriber}": ${error instanceof Error ? error.message : "Unknown error"}`,
         "error",
       );
     } finally {

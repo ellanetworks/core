@@ -199,7 +199,7 @@ const AuditLog: React.FC = () => {
         onClose={() => setEditModalOpen(false)}
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ["auditLogRetention"] });
-          showSnackbar("Retention policy updated!", "success");
+          showSnackbar("Retention policy updated successfully.", "success");
         }}
         initialData={retentionPolicy || { days: 30 }}
       />

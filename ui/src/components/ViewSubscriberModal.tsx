@@ -86,7 +86,7 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
 
     try {
       await navigator.clipboard.writeText(value);
-      showSnackbar(`${label} copied to clipboard!`, "success");
+      showSnackbar("Copied to clipboard.", "success");
     } catch (error) {
       console.error(`Failed to copy ${label}:`, error);
       showSnackbar(`Failed to copy ${label}.`, "error");

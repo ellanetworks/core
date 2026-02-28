@@ -70,7 +70,7 @@ const BackupRestore = () => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      showSnackbar("Backup created successfully!", "success");
+      showSnackbar("Backup created successfully.", "success");
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
@@ -104,7 +104,7 @@ const BackupRestore = () => {
       await restore(accessToken, file);
 
       showSnackbar(
-        "Restore completed successfully! You may need to refresh the page.",
+        "Restore completed successfully. You may need to refresh the page.",
         "success",
       );
     } catch (error) {

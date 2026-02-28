@@ -92,10 +92,13 @@ const UserPage: React.FC = () => {
     if (!selectedUser || !accessToken) return;
     try {
       await deleteUser(accessToken, selectedUser);
-      showSnackbar(`User "${selectedUser}" deleted successfully!`, "success");
+      showSnackbar(`User "${selectedUser}" deleted successfully.`, "success");
       queryClient.invalidateQueries({ queryKey: ["users"] });
-    } catch {
-      showSnackbar(`Failed to delete user "${selectedUser}".`, "error");
+    } catch (error) {
+      showSnackbar(
+        `Failed to delete user "${selectedUser}": ${error instanceof Error ? error.message : "Unknown error"}`,
+        "error",
+      );
     } finally {
       setSelectedUser(null);
     }

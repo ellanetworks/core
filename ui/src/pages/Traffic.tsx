@@ -744,7 +744,7 @@ const Traffic: React.FC = () => {
     try {
       await clearUsageData(accessToken);
       await Promise.allSettled([refetchUsagePerSub(), refetchUsagePerDay()]);
-      showSnackbar("All usage data cleared successfully!", "success");
+      showSnackbar("All usage data cleared successfully.", "success");
     } catch (error: unknown) {
       showSnackbar(
         `Failed to clear usage data: ${error instanceof Error ? error.message : String(error)}`,
@@ -759,7 +759,7 @@ const Traffic: React.FC = () => {
     try {
       await clearFlowReports(accessToken);
       await refetchFlowReports();
-      showSnackbar("All flow report data cleared successfully!", "success");
+      showSnackbar("All flow report data cleared successfully.", "success");
     } catch (error: unknown) {
       showSnackbar(
         `Failed to clear flow report data: ${error instanceof Error ? error.message : String(error)}`,
@@ -1181,7 +1181,10 @@ const Traffic: React.FC = () => {
         onClose={() => setEditUsageRetentionOpen(false)}
         onSuccess={() => {
           refetchUsageRetention();
-          showSnackbar("Usage retention policy updated!", "success");
+          showSnackbar(
+            "Usage retention policy updated successfully.",
+            "success",
+          );
         }}
         initialData={usageRetentionPolicy || { days: 30 }}
       />
@@ -1190,7 +1193,10 @@ const Traffic: React.FC = () => {
         onClose={() => setEditFlowRetentionOpen(false)}
         onSuccess={() => {
           refetchFlowRetention();
-          showSnackbar("Flow reports retention policy updated!", "success");
+          showSnackbar(
+            "Flow reports retention policy updated successfully.",
+            "success",
+          );
         }}
         initialData={flowRetentionPolicy || { days: 30 }}
       />

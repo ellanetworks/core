@@ -153,7 +153,7 @@ export default function NetworkingPage() {
     try {
       await deleteDataNetwork(accessToken, selectedDNName);
       showSnackbar(
-        `Data Network "${selectedDNName}" deleted successfully!`,
+        `Data network "${selectedDNName}" deleted successfully.`,
         "success",
       );
       refetchDataNetworks();
@@ -301,7 +301,7 @@ export default function NetworkingPage() {
     try {
       await deleteRoute(accessToken, idNum);
       showSnackbar(
-        `Route "${selectedRouteId}" deleted successfully!`,
+        `Route "${selectedRouteId}" deleted successfully.`,
         "success",
       );
       refetchRoutes();
@@ -375,7 +375,7 @@ export default function NetworkingPage() {
   >({
     mutationFn: (enabled: boolean) => updateNATInfo(accessToken || "", enabled),
     onSuccess: () => {
-      showSnackbar("NAT updated", "success");
+      showSnackbar("NAT updated successfully.", "success");
       refetchNAT();
     },
     onError: (error: unknown) => {
@@ -408,7 +408,7 @@ export default function NetworkingPage() {
     mutationFn: (enabled: boolean) =>
       updateFlowAccountingInfo(accessToken || "", enabled),
     onSuccess: () => {
-      showSnackbar("Flow accounting updated", "success");
+      showSnackbar("Flow accounting updated successfully.", "success");
       refetchFlowAccounting();
     },
     onError: (error: unknown) => {
@@ -992,7 +992,10 @@ export default function NetworkingPage() {
           open
           onClose={() => setEditN3Open(false)}
           onSuccess={() => {
-            showSnackbar("N3 external address updated.", "success");
+            showSnackbar(
+              "N3 external address updated successfully.",
+              "success",
+            );
             refetchInterfaces();
           }}
           initialData={{

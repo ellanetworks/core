@@ -82,7 +82,7 @@ const PolicyPage = () => {
     try {
       await deletePolicy(accessToken, selectedPolicy);
       showSnackbar(
-        `Policy "${selectedPolicy}" deleted successfully!`,
+        `Policy "${selectedPolicy}" deleted successfully.`,
         "success",
       );
       queryClient.invalidateQueries({ queryKey: ["policies"] });
