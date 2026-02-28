@@ -16,9 +16,12 @@ import {
   IconButton,
   Tab,
   Tabs,
+  Tooltip,
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import NorthIcon from "@mui/icons-material/North";
+import SouthIcon from "@mui/icons-material/South";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -375,6 +378,7 @@ const Traffic: React.FC = () => {
   const [appliedProtocol, setAppliedProtocol] = useState("");
   const [appliedSourceIp, setAppliedSourceIp] = useState("");
   const [appliedDestinationIp, setAppliedDestinationIp] = useState("");
+  const [directionFilter, setDirectionFilter] = useState("");
   const [isEditFlowRetentionOpen, setEditFlowRetentionOpen] = useState(false);
   const [isFlowClearModalOpen, setFlowClearModalOpen] = useState(false);
 
@@ -458,6 +462,7 @@ const Traffic: React.FC = () => {
     if (appliedProtocol) f.protocol = appliedProtocol;
     if (appliedSourceIp) f.source_ip = appliedSourceIp;
     if (appliedDestinationIp) f.destination_ip = appliedDestinationIp;
+    if (directionFilter) f.direction = directionFilter;
     return f;
   }, [
     startDate,
@@ -466,6 +471,7 @@ const Traffic: React.FC = () => {
     appliedProtocol,
     appliedSourceIp,
     appliedDestinationIp,
+    directionFilter,
   ]);
 
   const { data: flowRetentionPolicy, refetch: refetchFlowRetention } =
@@ -644,23 +650,43 @@ const Traffic: React.FC = () => {
   const flowColumns: GridColDef<FlowReport>[] = useMemo(
     () => [
       {
-        field: "direction",
-        headerName: "",
-        width: 50,
-        sortable: false,
-        renderCell: (params) => {
-          const dir = params.value as string;
-          if (dir === "uplink") return <span title="Uplink">{"\u2191"}</span>;
-          if (dir === "downlink")
-            return <span title="Downlink">{"\u2193"}</span>;
-          return null;
-        },
-      },
-      {
         field: "subscriber_id",
         headerName: "Subscriber",
         flex: 1,
         minWidth: 160,
+      },
+      {
+        field: "direction",
+        headerName: "Direction",
+        width: 90,
+        sortable: false,
+        renderCell: (params) => {
+          const dir = params.value as string;
+          if (!dir) return null;
+          const Icon = dir === "uplink" ? NorthIcon : SouthIcon;
+          const title = dir === "uplink" ? "Uplink" : "Downlink";
+          const color =
+            dir === "uplink"
+              ? theme.palette.success.main
+              : theme.palette.info.main;
+          return (
+            <Tooltip title={title}>
+              <Box
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  lineHeight: 0,
+                  "& svg": { display: "block" },
+                }}
+              >
+                <Icon fontSize="small" sx={{ color }} aria-label={title} />
+              </Box>
+            </Tooltip>
+          );
+        },
       },
       { field: "source_ip", headerName: "Source IP", flex: 1, minWidth: 140 },
       {
@@ -729,7 +755,7 @@ const Traffic: React.FC = () => {
           value ? new Date(value).toLocaleString() : "",
       },
     ],
-    [],
+    [theme],
   );
 
   // ── Protocol distribution (donut chart) ─────────────
@@ -1132,6 +1158,21 @@ const Traffic: React.FC = () => {
                   flexWrap: "wrap",
                 }}
               >
+                <TextField
+                  select
+                  label="Direction"
+                  value={directionFilter}
+                  onChange={(e) => {
+                    setDirectionFilter(e.target.value);
+                    setFlowPaginationModel((prev) => ({ ...prev, page: 0 }));
+                  }}
+                  size="small"
+                  sx={{ minWidth: 120 }}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  <MenuItem value="uplink">Uplink</MenuItem>
+                  <MenuItem value="downlink">Downlink</MenuItem>
+                </TextField>
                 <TextField
                   label="Protocol"
                   value={protocolFilter}
