@@ -665,10 +665,7 @@ const Traffic: React.FC = () => {
           if (!dir) return null;
           const Icon = dir === "uplink" ? NorthIcon : SouthIcon;
           const title = dir === "uplink" ? "Uplink" : "Downlink";
-          const color =
-            dir === "uplink"
-              ? "#FF9800"
-              : "#4254FB";
+          const color = dir === "uplink" ? "#FF9800" : "#4254FB";
           return (
             <Tooltip title={title}>
               <Box
