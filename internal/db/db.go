@@ -59,6 +59,7 @@ type Database struct {
 	incrementDailyUsageStmt   *sqlair.Statement
 	getUsagePerDayStmt        *sqlair.Statement
 	getUsagePerSubscriberStmt *sqlair.Statement
+	getRawDailyUsageStmt      *sqlair.Statement
 	deleteAllDailyUsageStmt   *sqlair.Statement
 	deleteOldDailyUsageStmt   *sqlair.Statement
 
@@ -151,6 +152,16 @@ type Database struct {
 	editUserPasswordStmt *sqlair.Statement
 	deleteUserStmt       *sqlair.Statement
 	countUsersStmt       *sqlair.Statement
+
+	// Fleet statements
+	getFleetStmt                  *sqlair.Statement
+	updateFleetKeyStmt            *sqlair.Statement
+	updateFleetCredentialsStmt    *sqlair.Statement
+	clearFleetCredentialsStmt     *sqlair.Statement
+	updateFleetSyncStatusStmt     *sqlair.Statement
+	updateFleetConfigRevisionStmt *sqlair.Statement
+	initializeFleetStmt           *sqlair.Statement
+	updateFleetURLStmt            *sqlair.Statement
 
 	conn *sqlair.DB
 }
@@ -313,6 +324,10 @@ func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 		return nil, err
 	}
 
+	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateFleetTable, FleetTableName)); err != nil {
+		return nil, err
+	}
+
 	db := new(Database)
 	db.conn = sqlair.NewDB(sqlConnection)
 	db.filepath = databasePath
@@ -377,6 +392,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.incrementDailyUsageStmt, fmt.Sprintf(incrementDailyUsageStmt, DailyUsageTableName), []any{DailyUsage{}}},
 		{&db.getUsagePerDayStmt, fmt.Sprintf(getUsagePerDayStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
 		{&db.getUsagePerSubscriberStmt, fmt.Sprintf(getUsagePerSubscriberStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
+		{&db.getRawDailyUsageStmt, fmt.Sprintf(getRawDailyUsageStmt, DailyUsageTableName), []any{UsageFilters{}, DailyUsage{}}},
 		{&db.deleteAllDailyUsageStmt, fmt.Sprintf(deleteAllDailyUsageStmt, DailyUsageTableName), nil},
 		{&db.deleteOldDailyUsageStmt, fmt.Sprintf(deleteOldDailyUsageStmt, DailyUsageTableName), []any{cutoffDaysArgs{}}},
 
@@ -469,6 +485,16 @@ func (db *Database) PrepareStatements() error {
 		{&db.editUserPasswordStmt, fmt.Sprintf(editUserPasswordStmt, UsersTableName), []any{User{}}},
 		{&db.deleteUserStmt, fmt.Sprintf(deleteUserStmt, UsersTableName), []any{User{}}},
 		{&db.countUsersStmt, fmt.Sprintf(countUsersStmt, UsersTableName), []any{NumItems{}}},
+
+		// Fleet
+		{&db.getFleetStmt, fmt.Sprintf(getFleetStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetKeyStmt, fmt.Sprintf(updateFleetKeyStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetCredentialsStmt, fmt.Sprintf(updateFleetCredentialsStmt, FleetTableName), []any{Fleet{}}},
+		{&db.clearFleetCredentialsStmt, fmt.Sprintf(clearFleetCredentialsStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetSyncStatusStmt, fmt.Sprintf(updateFleetSyncStatusStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetConfigRevisionStmt, fmt.Sprintf(updateFleetConfigRevisionStmt, FleetTableName), []any{Fleet{}}},
+		{&db.initializeFleetStmt, fmt.Sprintf(initializeFleetStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetURLStmt, fmt.Sprintf(updateFleetURLStmt, FleetTableName), []any{Fleet{}}},
 	}
 
 	for _, s := range stmts {
@@ -497,6 +523,11 @@ func (db *Database) Initialize(ctx context.Context) error {
 	err = db.InitializeN3Settings(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to initialize N3 settings: %w", err)
+	}
+
+	err = db.InitializeFleet(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize fleet: %w", err)
 	}
 
 	if !db.IsOperatorInitialized(ctx) {

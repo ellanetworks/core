@@ -20,6 +20,7 @@ import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
 import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
 import EditOperatorHomeNetworkModal from "@/components/EditOperatorHomeNetworkModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 
 const isSdSet = (sd?: string | null) =>
   typeof sd === "string" && sd.trim() !== "";
@@ -34,6 +35,7 @@ const MAX_WIDTH = 1400;
 
 const Operator = () => {
   const { role, accessToken, authReady } = useAuth();
+  const { isFleetManaged } = useFleet();
 
   const [isEditOperatorIdModalOpen, setEditOperatorIdModalOpen] =
     useState(false);
@@ -69,7 +71,8 @@ const Operator = () => {
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
 
-  const canEdit = role === "Admin" || role === "Network Manager";
+  const canEdit =
+    (role === "Admin" || role === "Network Manager") && !isFleetManaged;
 
   const handleEditOperatorIdClick = () => setEditOperatorIdModalOpen(true);
   const handleEditOperatorCodeClick = () => setEditOperatorCodeModalOpen(true);

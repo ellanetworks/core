@@ -16,13 +16,15 @@ import {
   type AuditLogRetentionPolicy,
 } from "@/queries/audit_logs";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 
 const MAX_WIDTH = 1400;
 
 const AuditLog: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
-  const canEdit = role === "Admin";
+  const { isFleetManaged } = useFleet();
+  const canEdit = role === "Admin" && !isFleetManaged;
 
   const outerTheme = useTheme();
   const gridTheme = useMemo(() => createTheme(outerTheme), [outerTheme]);

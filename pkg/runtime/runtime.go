@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ellanetworks/core/fleet"
+	"github.com/ellanetworks/core/fleet/client"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/api"
 	"github.com/ellanetworks/core/internal/api/server"
@@ -88,6 +90,37 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	jobs.StartDataRetentionWorker(dbInstance)
 
 	go sessions.CleanUp(ctx, dbInstance)
+
+	fleetData, err := dbInstance.GetFleet(ctx)
+	if err != nil {
+		logger.EllaLog.Warn("couldn't check fleet status", zap.Error(err))
+	} else if len(fleetData.Certificate) > 0 && len(fleetData.CACertificate) > 0 {
+		key, err := dbInstance.LoadOrGenerateFleetKey(ctx)
+		if err != nil {
+			logger.EllaLog.Error("couldn't load fleet key for sync resume", zap.Error(err))
+		} else {
+			onSync := func(syncCtx context.Context, success bool) {
+				if success {
+					if err := dbInstance.UpdateFleetSyncStatus(syncCtx); err != nil {
+						logger.EllaLog.Error("couldn't update fleet sync status", zap.Error(err))
+					}
+				}
+			}
+
+			statusProvider := func() client.EllaCoreStatus {
+				return server.BuildStatus(context.Background(), dbInstance, cfg)
+			}
+
+			metricsProvider := func() client.EllaCoreMetrics {
+				return server.BuildMetrics()
+			}
+
+			err = fleet.ResumeSync(ctx, fleetData.URL, key, fleetData.Certificate, fleetData.CACertificate, dbInstance, statusProvider, metricsProvider, onSync)
+			if err != nil {
+				logger.EllaLog.Error("couldn't resume fleet sync", zap.Error(err))
+			}
+		}
+	}
 
 	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)
 	if err != nil {

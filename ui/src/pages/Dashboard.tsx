@@ -1,9 +1,10 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Box,
   Typography,
   CircularProgress,
   Alert,
+  Button,
   Card,
   CardHeader,
   CardContent,
@@ -18,6 +19,9 @@ import {
   Paper,
   Tooltip,
 } from "@mui/material";
+import HubIcon from "@mui/icons-material/Hub";
+import LinkOffIcon from "@mui/icons-material/LinkOff";
+import ConfigureFleetModal from "@/components/ConfigureFleetModal";
 import Grid from "@mui/material/Grid";
 import { PieChart } from "@mui/x-charts/PieChart";
 import { Link, useNavigate } from "react-router-dom";
@@ -25,6 +29,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { getStatus, type APIStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
+import { unregisterFleet } from "@/queries/fleet";
+import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import {
   listSubscribers,
   type ListSubscribersResponse,
@@ -39,6 +45,7 @@ import {
   type FlowReportStatsResponse,
 } from "@/queries/flow_reports";
 import { getUsage, type UsageResult } from "@/queries/usage";
+import { useFleet } from "@/contexts/FleetContext";
 
 const MAX_WIDTH = 1400;
 
@@ -282,6 +289,12 @@ const Dashboard = () => {
   const { startDate, endDate } = getDefaultDateRange();
 
   // ── Queries ─────────────────────────────────────────
+  const { isFleetManaged } = useFleet();
+
+  const [fleetModalOpen, setFleetModalOpen] = useState(false);
+  const [unregisterLoading, setUnregisterLoading] = useState(false);
+  const [unregisterConfirmOpen, setUnregisterConfirmOpen] = useState(false);
+  const [unregisterError, setUnregisterError] = useState<string | null>(null);
 
   const statusQuery = useQuery<APIStatus>({
     queryKey: ["dashboardStatus"],
@@ -326,6 +339,8 @@ const Dashboard = () => {
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
+
+  const [loading, setLoading] = useState(true);
 
   const flowStatsQuery = useQuery<FlowReportStatsResponse>({
     queryKey: ["dashboardFlowStats", startDate, endDate],
@@ -449,11 +464,59 @@ const Dashboard = () => {
             (version ?? "—")
           )}
         </Typography>
+        {isFleetManaged ? (
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<LinkOffIcon />}
+            disabled={unregisterLoading}
+            onClick={() => setUnregisterConfirmOpen(true)}
+          >
+            {unregisterLoading ? "Unregistering..." : "Unregister from Fleet"}
+          </Button>
+        ) : (
+          <Button
+            variant="outlined"
+            startIcon={<HubIcon />}
+            onClick={() => setFleetModalOpen(true)}
+          >
+            Configure Fleet
+          </Button>
+        )}
       </Box>
 
-      {error && (
+      <ConfigureFleetModal
+        open={fleetModalOpen}
+        onClose={() => setFleetModalOpen(false)}
+      />
+
+      <DeleteConfirmationModal
+        open={unregisterConfirmOpen}
+        onClose={() => setUnregisterConfirmOpen(false)}
+        title="Unregister from Fleet"
+        description="Are you sure you want to unregister this Core from Fleet? This will stop syncing and allow local changes again."
+        onConfirm={async () => {
+          setUnregisterConfirmOpen(false);
+          if (!accessToken) return;
+          setUnregisterLoading(true);
+          setUnregisterError(null);
+          try {
+            await unregisterFleet(accessToken);
+          } catch (e) {
+            setUnregisterError(
+              e instanceof Error
+                ? e.message
+                : "Failed to unregister from Fleet.",
+            );
+          } finally {
+            setUnregisterLoading(false);
+          }
+        }}
+      />
+
+      {(error || unregisterError) && (
         <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
+          {error || unregisterError}
         </Alert>
       )}
 

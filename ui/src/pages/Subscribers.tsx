@@ -33,15 +33,18 @@ import EditSubscriberModal from "@/components/EditSubscriberModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { useQuery } from "@tanstack/react-query";
 
 const MAX_WIDTH = 1400;
 
 const SubscriberPage: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
+  const { isFleetManaged } = useFleet();
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
-  const canEdit = role === "Admin" || role === "Network Manager";
+  const canEdit =
+    (role === "Admin" || role === "Network Manager") && !isFleetManaged;
 
   const gridTheme = useMemo(
     () =>
