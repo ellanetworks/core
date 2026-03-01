@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ellanetworks/core/fleet"
+	"github.com/ellanetworks/core/fleet/client"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/api"
 	"github.com/ellanetworks/core/internal/api/server"
@@ -89,6 +91,46 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	go sessions.CleanUp(ctx, dbInstance)
 
+	// Always create the fleet buffer so that flow reports are captured
+	// regardless of whether fleet sync is already configured. When fleet
+	// enrollment happens later (via the API), the sync loop will drain
+	// this same buffer.
+	fleetBuffer := fleet.NewFleetBuffer(0)
+
+	fleetData, err := dbInstance.GetFleet(ctx)
+
+	var syncHandle *fleet.SyncHandle
+
+	if err != nil {
+		logger.EllaLog.Warn("couldn't check fleet status", zap.Error(err))
+	} else if len(fleetData.Certificate) > 0 && len(fleetData.CACertificate) > 0 {
+		key, err := dbInstance.LoadOrGenerateFleetKey(ctx)
+		if err != nil {
+			logger.EllaLog.Error("couldn't load fleet key for sync resume", zap.Error(err))
+		} else {
+			onSync := func(syncCtx context.Context, success bool) {
+				if success {
+					if err := dbInstance.UpdateFleetSyncStatus(syncCtx); err != nil {
+						logger.EllaLog.Error("couldn't update fleet sync status", zap.Error(err))
+					}
+				}
+			}
+
+			statusProvider := func() client.EllaCoreStatus {
+				return server.BuildStatus(context.Background(), dbInstance, cfg)
+			}
+
+			metricsProvider := func() client.EllaCoreMetrics {
+				return server.BuildMetrics()
+			}
+
+			syncHandle, err = fleet.ResumeSync(ctx, fleetData.URL, key, fleetData.Certificate, fleetData.CACertificate, dbInstance, statusProvider, metricsProvider, onSync, fleetBuffer)
+			if err != nil {
+				logger.EllaLog.Error("couldn't resume fleet sync", zap.Error(err))
+			}
+		}
+	}
+
 	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't determine if NAT is enabled: %w", err)
@@ -112,11 +154,31 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		logger.EllaLog.Debug("Using N3 external address from N3 settings", zap.String("n3_external_address", advertisedN3Address))
 	}
 
-	pfcp_dispatcher.Dispatcher = pfcp_dispatcher.NewPfcpDispatcher(smf_pfcp.SmfPfcpHandler{}, upf_pfcp.UpfPfcpHandler{})
+	smfHandler := smf_pfcp.SmfPfcpHandler{}
+	smfHandler.OnFlowReport = func(req *pfcp_dispatcher.FlowReportRequest) {
+		fleetBuffer.EnqueueFlow(client.FlowEntry{
+			SubscriberID:    req.IMSI,
+			SourceIP:        req.SourceIP,
+			DestinationIP:   req.DestinationIP,
+			SourcePort:      int(req.SourcePort),
+			DestinationPort: int(req.DestinationPort),
+			Protocol:        int(req.Protocol),
+			Packets:         int64(req.Packets),
+			Bytes:           int64(req.Bytes),
+			StartTime:       req.StartTime,
+			EndTime:         req.EndTime,
+		})
+	}
+
+	pfcp_dispatcher.Dispatcher = pfcp_dispatcher.NewPfcpDispatcher(smfHandler, upf_pfcp.UpfPfcpHandler{})
 
 	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3, n3Address, advertisedN3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled, isFlowAccountingEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
+	}
+
+	if syncHandle != nil {
+		syncHandle.SetConfigReloader(upfInstance)
 	}
 
 	server.RegisterMetrics()
@@ -129,6 +191,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		dbInstance,
 		cfg,
 		upfInstance,
+		fleetBuffer,
 		rc.EmbedFS,
 		rc.RegisterExtraRoutes,
 	); err != nil {

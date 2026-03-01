@@ -6,6 +6,7 @@ import { Outlet } from "react-router-dom";
 import theme from "@/utils/theme";
 import DrawerLayout from "@/components/DrawerLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { FleetProvider } from "@/contexts/FleetContext";
 import { SnackbarProvider } from "@/contexts/SnackbarContext";
 
 export default function CoreLayout() {
@@ -17,9 +18,11 @@ export default function CoreLayout() {
         <CssBaseline />
         <AuthProvider>
           <SnackbarProvider>
-            <DrawerLayout>
-              <Outlet />
-            </DrawerLayout>
+            <FleetProvider>
+              <DrawerLayout>
+                <Outlet />
+              </DrawerLayout>
+            </FleetProvider>
           </SnackbarProvider>
         </AuthProvider>
       </ThemeProvider>

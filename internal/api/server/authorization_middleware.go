@@ -146,6 +146,12 @@ const (
 	PermSetFlowReportsRetentionPolicy = "flow_reports:set_retention"
 	PermListFlowReports               = "flow_reports:list"
 	PermClearFlowReports              = "flow_reports:clear"
+
+	// Fleet permissions
+	PermGetFleetURL     = "fleet:get_url"
+	PermUpdateFleetURL  = "fleet:update_url"
+	PermRegisterFleet   = "fleet:register"
+	PermUnregisterFleet = "fleet:unregister"
 )
 
 func Authorize(permission string, next http.Handler) http.Handler {

@@ -16,6 +16,7 @@ import {
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -80,7 +81,9 @@ type TabKey =
 
 export default function NetworkingPage() {
   const { role, accessToken } = useAuth();
-  const canEdit = role === "Admin" || role === "Network Manager";
+  const { isFleetManaged } = useFleet();
+  const canEdit =
+    (role === "Admin" || role === "Network Manager") && !isFleetManaged;
 
   const [searchParams, setSearchParams] = useSearchParams();
 

@@ -39,6 +39,7 @@ import {
 } from "@/queries/radios";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 import {
@@ -250,7 +251,8 @@ const ResizeHandle: React.FC = React.memo(function ResizeHandle() {
 
 const EventsTab: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
-  const canEdit = role === "Admin";
+  const { isFleetManaged } = useFleet();
+  const canEdit = role === "Admin" && !isFleetManaged;
 
   const outerTheme = useTheme();
   const gridTheme = useMemo(() => createTheme(outerTheme), [outerTheme]);

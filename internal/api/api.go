@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ellanetworks/core/fleet"
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
@@ -46,7 +47,7 @@ func GenerateJWTSecret() ([]byte, error) {
 	return bytes, nil
 }
 
-func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) error {
+func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, fleetBuffer *fleet.FleetBuffer, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) error {
 	jwtSecret, err := GenerateJWTSecret()
 	if err != nil {
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
@@ -61,7 +62,7 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 
 	secureCookie := scheme == HTTPS
 
-	router := server.NewHandler(dbInstance, cfg, upf, kernelInt, jwtSecret, secureCookie, embedFS, registerExtraRoutes)
+	router := server.NewHandler(dbInstance, cfg, upf, fleetBuffer, kernelInt, jwtSecret, secureCookie, embedFS, registerExtraRoutes)
 
 	go func() {
 		httpAddr := fmt.Sprintf("%s:%d", cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)

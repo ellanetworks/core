@@ -19,6 +19,7 @@ import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
 import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
 import EditOperatorHomeNetworkModal from "@/components/EditOperatorHomeNetworkModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 
 const isSdSet = (sd?: string | null) =>
@@ -34,6 +35,7 @@ const MAX_WIDTH = 1400;
 
 const Operator = () => {
   const { role, accessToken, authReady } = useAuth();
+  const { isFleetManaged } = useFleet();
 
   const [isEditOperatorIdModalOpen, setEditOperatorIdModalOpen] =
     useState(false);
@@ -66,7 +68,8 @@ const Operator = () => {
 
   const { showSnackbar } = useSnackbar();
 
-  const canEdit = role === "Admin" || role === "Network Manager";
+  const canEdit =
+    (role === "Admin" || role === "Network Manager") && !isFleetManaged;
 
   const handleEditOperatorIdClick = () => setEditOperatorIdModalOpen(true);
   const handleEditOperatorCodeClick = () => setEditOperatorCodeModalOpen(true);
