@@ -102,7 +102,7 @@ func setupServer(filepath string) (*httptest.Server, []byte, *db.Database, error
 		},
 	}
 
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, fakeUPF, fakeKernel, jwtSecret, false, dummyfs, nil))
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, fakeUPF, nil, fakeKernel, jwtSecret, false, dummyfs, nil))
 
 	client := ts.Client()
 

@@ -91,9 +91,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	go sessions.CleanUp(ctx, dbInstance)
 
-	fleetData, err := dbInstance.GetFleet(ctx)
+	// Always create the fleet buffer so that flow reports are captured
+	// regardless of whether fleet sync is already configured. When fleet
+	// enrollment happens later (via the API), the sync loop will drain
+	// this same buffer.
+	fleetBuffer := fleet.NewFleetBuffer(0)
 
-	var fleetBuffer *fleet.FleetBuffer
+	fleetData, err := dbInstance.GetFleet(ctx)
 
 	var syncHandle *fleet.SyncHandle
 
@@ -104,8 +108,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		if err != nil {
 			logger.EllaLog.Error("couldn't load fleet key for sync resume", zap.Error(err))
 		} else {
-			fleetBuffer = fleet.NewFleetBuffer(0)
-
 			onSync := func(syncCtx context.Context, success bool) {
 				if success {
 					if err := dbInstance.UpdateFleetSyncStatus(syncCtx); err != nil {
@@ -153,21 +155,19 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	smfHandler := smf_pfcp.SmfPfcpHandler{}
-	if fleetBuffer != nil {
-		smfHandler.OnFlowReport = func(req *pfcp_dispatcher.FlowReportRequest) {
-			fleetBuffer.EnqueueFlow(client.FlowEntry{
-				SubscriberID:    req.IMSI,
-				SourceIP:        req.SourceIP,
-				DestinationIP:   req.DestinationIP,
-				SourcePort:      int(req.SourcePort),
-				DestinationPort: int(req.DestinationPort),
-				Protocol:        int(req.Protocol),
-				Packets:         int64(req.Packets),
-				Bytes:           int64(req.Bytes),
-				StartTime:       req.StartTime,
-				EndTime:         req.EndTime,
-			})
-		}
+	smfHandler.OnFlowReport = func(req *pfcp_dispatcher.FlowReportRequest) {
+		fleetBuffer.EnqueueFlow(client.FlowEntry{
+			SubscriberID:    req.IMSI,
+			SourceIP:        req.SourceIP,
+			DestinationIP:   req.DestinationIP,
+			SourcePort:      int(req.SourcePort),
+			DestinationPort: int(req.DestinationPort),
+			Protocol:        int(req.Protocol),
+			Packets:         int64(req.Packets),
+			Bytes:           int64(req.Bytes),
+			StartTime:       req.StartTime,
+			EndTime:         req.EndTime,
+		})
 	}
 
 	pfcp_dispatcher.Dispatcher = pfcp_dispatcher.NewPfcpDispatcher(smfHandler, upf_pfcp.UpfPfcpHandler{})
@@ -191,6 +191,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		dbInstance,
 		cfg,
 		upfInstance,
+		fleetBuffer,
 		rc.EmbedFS,
 		rc.RegisterExtraRoutes,
 	); err != nil {

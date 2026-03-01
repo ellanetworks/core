@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 
+	"github.com/ellanetworks/core/fleet"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
@@ -19,7 +20,7 @@ type UPFUpdater interface {
 	UpdateAdvertisedN3Address(net.IP)
 }
 
-func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kernel kernel.Kernel, jwtSecret []byte, secureCookie bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
+func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, fleetBuffer *fleet.FleetBuffer, kernel kernel.Kernel, jwtSecret []byte, secureCookie bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)
@@ -139,7 +140,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	// Fleet (Authenticated)
 	mux.HandleFunc("GET /api/v1/fleet/url", Authenticate(jwtSecret, dbInstance, Authorize(PermGetFleetURL, GetFleetURL(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/fleet/url", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateFleetURL, UpdateFleetURL(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/fleet/register", Authenticate(jwtSecret, dbInstance, Authorize(PermRegisterFleet, RegisterFleet(dbInstance, cfg, upf))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/fleet/register", Authenticate(jwtSecret, dbInstance, Authorize(PermRegisterFleet, RegisterFleet(dbInstance, cfg, upf, fleetBuffer))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/fleet/unregister", Authenticate(jwtSecret, dbInstance, Authorize(PermUnregisterFleet, UnregisterFleet(dbInstance))).ServeHTTP)
 
 	// Fallback to UI

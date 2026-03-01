@@ -37,7 +37,7 @@ const (
 	UpdateFleetURLAction  = "update_fleet_url"
 )
 
-func RegisterFleet(dbInstance *db.Database, cfg config.Config, upf UPFUpdater) http.HandlerFunc {
+func RegisterFleet(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, fleetBuffer *fleet.FleetBuffer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		email := r.Context().Value(contextKeyEmail)
 
@@ -58,7 +58,7 @@ func RegisterFleet(dbInstance *db.Database, cfg config.Config, upf UPFUpdater) h
 			return
 		}
 
-		err := register(r.Context(), dbInstance, params.ActivationToken, cfg, upf)
+		err := register(r.Context(), dbInstance, params.ActivationToken, cfg, upf, fleetBuffer)
 		if err != nil {
 			if errors.Is(err, client.ErrUnauthorized) {
 				writeError(r.Context(), w, http.StatusUnauthorized, "Invalid activation code", err, logger.APILog)
@@ -82,7 +82,7 @@ func RegisterFleet(dbInstance *db.Database, cfg config.Config, upf UPFUpdater) h
 	}
 }
 
-func register(ctx context.Context, dbInstance *db.Database, activationToken string, cfg config.Config, upf UPFUpdater) error {
+func register(ctx context.Context, dbInstance *db.Database, activationToken string, cfg config.Config, upf UPFUpdater, fleetBuffer *fleet.FleetBuffer) error {
 	fleetURL, err := dbInstance.GetFleetURL(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't get fleet URL from database: %w", err)
@@ -136,7 +136,7 @@ func register(ctx context.Context, dbInstance *db.Database, activationToken stri
 				logger.EllaLog.Error("couldn't update fleet sync status", zap.Error(err))
 			}
 		}
-	}, nil)
+	}, fleetBuffer)
 	if err != nil {
 		return fmt.Errorf("couldn't start fleet sync: %w", err)
 	}

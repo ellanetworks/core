@@ -783,3 +783,83 @@ func TestSyncRunner_NilHandleDoesNotPanic(t *testing.T) {
 	// Should not panic.
 	runner.runOneCycle(context.Background())
 }
+
+// ---------------------------------------------------------------------------
+// Pre-enrollment buffering tests
+// ---------------------------------------------------------------------------
+
+// TestSyncRunner_PreEnrollmentFlowsAreSentAfterSyncStarts verifies that flows
+// enqueued into the buffer BEFORE fleet sync starts are still sent once the
+// sync loop runs its first cycle. This covers the scenario where the fleet
+// buffer is created at process startup but fleet enrollment happens later.
+func TestSyncRunner_PreEnrollmentFlowsAreSentAfterSyncStarts(t *testing.T) {
+	buf := NewFleetBuffer(100)
+
+	// Simulate flows arriving before fleet enrollment.
+	buf.EnqueueFlow(client.FlowEntry{SubscriberID: "pre-001", Packets: 5, Bytes: 200})
+	buf.EnqueueFlow(client.FlowEntry{SubscriberID: "pre-002", Packets: 8, Bytes: 400})
+
+	if buf.Len() != 2 {
+		t.Fatalf("expected 2 buffered flows before sync start, got %d", buf.Len())
+	}
+
+	// Now "enroll" — create the sync runner with the same buffer.
+	fs := &fakeSyncer{response: noConfigResponse()}
+	runner := newTestRunner(fs, &fakeSyncDB{})
+	runner.buffer = buf
+
+	runner.runOneCycle(context.Background())
+
+	if len(fs.calls) != 1 {
+		t.Fatalf("expected 1 sync call, got %d", len(fs.calls))
+	}
+
+	flows := fs.calls[0].Flows
+	if len(flows) != 2 {
+		t.Fatalf("expected 2 pre-enrollment flows, got %d", len(flows))
+	}
+
+	if flows[0].SubscriberID != "pre-001" || flows[1].SubscriberID != "pre-002" {
+		t.Fatalf("unexpected flow entries: %+v", flows)
+	}
+
+	// Buffer should be drained.
+	if buf.Len() != 0 {
+		t.Fatalf("expected buffer empty after sync, got %d", buf.Len())
+	}
+}
+
+// TestSyncRunner_PreEnrollmentFlowsMixedWithPostEnrollment verifies that
+// flows buffered before enrollment are sent first, followed by flows that
+// arrive after the sync loop is running.
+func TestSyncRunner_PreEnrollmentFlowsMixedWithPostEnrollment(t *testing.T) {
+	buf := NewFleetBuffer(100)
+
+	// Pre-enrollment flow.
+	buf.EnqueueFlow(client.FlowEntry{SubscriberID: "pre-001", Packets: 1})
+
+	fs := &fakeSyncer{response: noConfigResponse()}
+	runner := newTestRunner(fs, &fakeSyncDB{})
+	runner.buffer = buf
+
+	// Cycle 1: drains pre-enrollment flow.
+	runner.runOneCycle(context.Background())
+
+	// Post-enrollment flow.
+	buf.EnqueueFlow(client.FlowEntry{SubscriberID: "post-001", Packets: 2})
+
+	// Cycle 2: drains post-enrollment flow.
+	runner.runOneCycle(context.Background())
+
+	if len(fs.calls) != 2 {
+		t.Fatalf("expected 2 sync calls, got %d", len(fs.calls))
+	}
+
+	if len(fs.calls[0].Flows) != 1 || fs.calls[0].Flows[0].SubscriberID != "pre-001" {
+		t.Fatalf("cycle 1: expected pre-001, got %+v", fs.calls[0].Flows)
+	}
+
+	if len(fs.calls[1].Flows) != 1 || fs.calls[1].Flows[0].SubscriberID != "post-001" {
+		t.Fatalf("cycle 2: expected post-001, got %+v", fs.calls[1].Flows)
+	}
+}
