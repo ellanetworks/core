@@ -157,7 +157,7 @@ type Radio struct {
 type SubscriberStatus struct {
 	Imsi       string `json:"imsi"`
 	Registered bool   `json:"registered"`
-	IPAddress  string `json:"ipAddress"`
+	IPAddress  string `json:"ip_address"`
 }
 
 type EllaCoreStatus struct {
@@ -200,7 +200,7 @@ type ErrorResponse struct {
 }
 
 type Response struct {
-	Result any `json:"result"`
+	Result json.RawMessage `json:"result"`
 }
 
 func (fc *Fleet) Register(ctx context.Context, activationToken string, publicKey ecdsa.PublicKey, initialConfig EllaCoreConfig, initialStatus EllaCoreStatus, initialMetrics EllaCoreMetrics, initialUsage []SubscriberUsageEntry) (*RegisterResponse, error) {
@@ -261,13 +261,8 @@ func (fc *Fleet) Register(ctx context.Context, activationToken string, publicKey
 		return nil, fmt.Errorf("decoding response envelope: %w", err)
 	}
 
-	resultBytes, err := json.Marshal(envelope.Result)
-	if err != nil {
-		return nil, fmt.Errorf("re-marshalling result: %w", err)
-	}
-
 	var registerResponse RegisterResponse
-	if err := json.Unmarshal(resultBytes, &registerResponse); err != nil {
+	if err := json.Unmarshal(envelope.Result, &registerResponse); err != nil {
 		return nil, fmt.Errorf("decoding register result: %w", err)
 	}
 

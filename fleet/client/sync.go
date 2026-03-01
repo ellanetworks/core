@@ -20,7 +20,7 @@ type SubscriberUsageEntry struct {
 type SyncParams struct {
 	Version           string                 `json:"version"`
 	LastKnownRevision int64                  `json:"last_known_revision"`
-	Status            EllaCoreStatus         `json:"status"`
+	Status            *EllaCoreStatus        `json:"status,omitempty"`
 	Metrics           EllaCoreMetrics        `json:"metrics"`
 	SubscriberUsage   []SubscriberUsageEntry `json:"subscriber_usage,omitempty"`
 }
@@ -88,13 +88,8 @@ func (fc *Fleet) Sync(ctx context.Context, params *SyncParams) (*SyncResponse, e
 		return nil, fmt.Errorf("decoding response envelope: %w", err)
 	}
 
-	resultBytes, err := json.Marshal(envelope.Result)
-	if err != nil {
-		return nil, fmt.Errorf("re-marshalling result: %w", err)
-	}
-
 	var syncResponse SyncResponse
-	if err := json.Unmarshal(resultBytes, &syncResponse); err != nil {
+	if err := json.Unmarshal(envelope.Result, &syncResponse); err != nil {
 		return nil, fmt.Errorf("decoding sync result: %w", err)
 	}
 

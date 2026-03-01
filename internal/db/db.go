@@ -163,6 +163,14 @@ type Database struct {
 	initializeFleetStmt           *sqlair.Statement
 	updateFleetURLStmt            *sqlair.Statement
 
+	// Sync Config statements (fleet config reconciliation)
+	syncOperatorStmt        *sqlair.Statement
+	listAllDataNetworksStmt *sqlair.Statement
+	listAllPoliciesStmt     *sqlair.Statement
+	listAllSubscribersStmt  *sqlair.Statement
+	listAllRoutesStmt       *sqlair.Statement
+	syncSubscriberStmt      *sqlair.Statement
+
 	conn *sqlair.DB
 }
 
@@ -495,6 +503,14 @@ func (db *Database) PrepareStatements() error {
 		{&db.updateFleetConfigRevisionStmt, fmt.Sprintf(updateFleetConfigRevisionStmt, FleetTableName), []any{Fleet{}}},
 		{&db.initializeFleetStmt, fmt.Sprintf(initializeFleetStmt, FleetTableName), []any{Fleet{}}},
 		{&db.updateFleetURLStmt, fmt.Sprintf(updateFleetURLStmt, FleetTableName), []any{Fleet{}}},
+
+		// Sync Config
+		{&db.syncOperatorStmt, fmt.Sprintf(syncOperatorStmt, OperatorTableName), []any{Operator{}}},
+		{&db.listAllDataNetworksStmt, fmt.Sprintf(listAllDataNetworksStmt, DataNetworksTableName), []any{DataNetwork{}}},
+		{&db.listAllPoliciesStmt, fmt.Sprintf(listAllPoliciesStmt, PoliciesTableName), []any{Policy{}}},
+		{&db.listAllSubscribersStmt, fmt.Sprintf(listAllSubscribersStmt, SubscribersTableName), []any{Subscriber{}}},
+		{&db.listAllRoutesStmt, fmt.Sprintf(listAllRoutesStmt, RoutesTableName), []any{Route{}}},
+		{&db.syncSubscriberStmt, fmt.Sprintf(syncSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 	}
 
 	for _, s := range stmts {
