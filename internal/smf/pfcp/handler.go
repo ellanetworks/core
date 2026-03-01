@@ -21,7 +21,12 @@ import (
 	"go.uber.org/zap"
 )
 
-type SmfPfcpHandler struct{}
+type SmfPfcpHandler struct {
+	// OnFlowReport is an optional callback invoked after each flow report is
+	// persisted to the database. It is used to enqueue flows for Fleet sync.
+	// It may be nil when Fleet sync is not configured.
+	OnFlowReport func(req *pfcp_dispatcher.FlowReportRequest)
+}
 
 func (s SmfPfcpHandler) HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionReportRequest) (*message.SessionReportResponse, error) {
 	return HandlePfcpSessionReportRequest(ctx, msg)
@@ -198,6 +203,10 @@ func (s SmfPfcpHandler) SendFlowReport(ctx context.Context, req *pfcp_dispatcher
 		zap.Uint64("packets", req.Packets),
 		zap.Uint64("bytes", req.Bytes),
 	)
+
+	if s.OnFlowReport != nil {
+		s.OnFlowReport(req)
+	}
 
 	return nil
 }

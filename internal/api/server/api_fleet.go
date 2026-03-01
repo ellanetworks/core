@@ -37,7 +37,7 @@ const (
 	UpdateFleetURLAction  = "update_fleet_url"
 )
 
-func RegisterFleet(dbInstance *db.Database, cfg config.Config) http.HandlerFunc {
+func RegisterFleet(dbInstance *db.Database, cfg config.Config, upf UPFUpdater) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		email := r.Context().Value(contextKeyEmail)
 
@@ -58,7 +58,7 @@ func RegisterFleet(dbInstance *db.Database, cfg config.Config) http.HandlerFunc 
 			return
 		}
 
-		err := register(r.Context(), dbInstance, params.ActivationToken, cfg)
+		err := register(r.Context(), dbInstance, params.ActivationToken, cfg, upf)
 		if err != nil {
 			if errors.Is(err, client.ErrUnauthorized) {
 				writeError(r.Context(), w, http.StatusUnauthorized, "Invalid activation code", err, logger.APILog)
@@ -82,7 +82,7 @@ func RegisterFleet(dbInstance *db.Database, cfg config.Config) http.HandlerFunc 
 	}
 }
 
-func register(ctx context.Context, dbInstance *db.Database, activationToken string, cfg config.Config) error {
+func register(ctx context.Context, dbInstance *db.Database, activationToken string, cfg config.Config, upf UPFUpdater) error {
 	fleetURL, err := dbInstance.GetFleetURL(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't get fleet URL from database: %w", err)
@@ -130,15 +130,19 @@ func register(ctx context.Context, dbInstance *db.Database, activationToken stri
 		return BuildMetrics()
 	}
 
-	err = fleet.ResumeSync(context.Background(), fleetURL, key, []byte(data.Certificate), []byte(data.CACertificate), dbInstance, statusProvider, metricsProvider, func(syncCtx context.Context, success bool) {
+	syncHandle, err := fleet.ResumeSync(context.Background(), fleetURL, key, []byte(data.Certificate), []byte(data.CACertificate), dbInstance, statusProvider, metricsProvider, func(syncCtx context.Context, success bool) {
 		if success {
 			if err := dbInstance.UpdateFleetSyncStatus(syncCtx); err != nil {
 				logger.EllaLog.Error("couldn't update fleet sync status", zap.Error(err))
 			}
 		}
-	})
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("couldn't start fleet sync: %w", err)
+	}
+
+	if upf != nil {
+		syncHandle.SetConfigReloader(upf)
 	}
 
 	return nil
@@ -382,6 +386,11 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get NAT configuration: %w", err)
 	}
 
+	flowAccountingEnabled, err := dbInstance.IsFlowAccountingEnabled(ctx)
+	if err != nil {
+		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get flow accounting configuration: %w", err)
+	}
+
 	n3Settings, err := dbInstance.GetN3Settings(ctx)
 	if err != nil {
 		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get N3 settings: %w", err)
@@ -461,6 +470,7 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 			DataNetworks:      dnConfigs,
 			Routes:            routesConfigs,
 			NAT:               natEnabled,
+			FlowAccounting:    flowAccountingEnabled,
 			N3ExternalAddress: n3Settings.ExternalAddress,
 		},
 		Policies:    policyConfigs,

@@ -117,6 +117,7 @@ type Networking struct {
 	DataNetworks      []DataNetwork `json:"data_networks"`
 	Routes            []Route       `json:"routes"`
 	NAT               bool          `json:"nat"`
+	FlowAccounting    bool          `json:"flow_accounting"`
 	N3ExternalAddress string        `json:"n3_external_address"`
 }
 

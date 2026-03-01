@@ -58,6 +58,11 @@ func (db *Database) UpdateConfig(ctx context.Context, cfg client.SyncConfig) err
 		return fmt.Errorf("sync NAT settings: %w", err)
 	}
 
+	if err = syncFlowAccountingSettings(ctx, tx, db, cfg.Networking.FlowAccounting); err != nil {
+		span.RecordError(err)
+		return fmt.Errorf("sync flow accounting settings: %w", err)
+	}
+
 	if err = syncN3Settings(ctx, tx, db, cfg.Networking.NetworkInterfaces.N3ExternalAddress); err != nil {
 		span.RecordError(err)
 		return fmt.Errorf("sync N3 settings: %w", err)
@@ -125,6 +130,17 @@ func syncNATSettings(ctx context.Context, tx *sqlair.TX, db *Database, enabled b
 
 	if err := tx.Query(ctx, db.upsertNATSettingsStmt, arg).Run(); err != nil {
 		return fmt.Errorf("upsert NAT settings: %w", err)
+	}
+
+	return nil
+}
+
+// syncFlowAccountingSettings upserts the flow accounting enabled flag.
+func syncFlowAccountingSettings(ctx context.Context, tx *sqlair.TX, db *Database, enabled bool) error {
+	arg := FlowAccountingSettings{Enabled: enabled}
+
+	if err := tx.Query(ctx, db.upsertFlowAccountingSettingsStmt, arg).Run(); err != nil {
+		return fmt.Errorf("upsert flow accounting settings: %w", err)
 	}
 
 	return nil

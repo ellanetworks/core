@@ -17,11 +17,27 @@ type SubscriberUsageEntry struct {
 	DownlinkBytes int64  `json:"downlink_bytes"`
 }
 
+// FlowEntry represents a single completed UE data flow captured by the eBPF
+// data plane and forwarded to Fleet as part of the sync cycle.
+type FlowEntry struct {
+	SubscriberID    string `json:"subscriber_id"`
+	SourceIP        string `json:"source_ip"`
+	DestinationIP   string `json:"destination_ip"`
+	SourcePort      int    `json:"source_port"`
+	DestinationPort int    `json:"destination_port"`
+	Protocol        int    `json:"protocol"`
+	Packets         int64  `json:"packets"`
+	Bytes           int64  `json:"bytes"`
+	StartTime       string `json:"start_time"`
+	EndTime         string `json:"end_time"`
+}
+
 type SyncParams struct {
 	Version           string                 `json:"version"`
 	LastKnownRevision int64                  `json:"last_known_revision"`
 	Status            *EllaCoreStatus        `json:"status,omitempty"`
 	Metrics           EllaCoreMetrics        `json:"metrics"`
+	Flows             []FlowEntry            `json:"flows,omitempty"`
 	SubscriberUsage   []SubscriberUsageEntry `json:"subscriber_usage,omitempty"`
 }
 
@@ -33,6 +49,7 @@ type SyncNetworking struct {
 	DataNetworks      []DataNetwork         `json:"data_networks"`
 	Routes            []Route               `json:"routes"`
 	NAT               bool                  `json:"nat"`
+	FlowAccounting    bool                  `json:"flow_accounting"`
 	NetworkInterfaces SyncNetworkInterfaces `json:"network_interfaces"`
 }
 

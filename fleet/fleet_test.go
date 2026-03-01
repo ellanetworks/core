@@ -527,3 +527,259 @@ func TestSyncRunner_ConfigApplyErrorDoesNotUpdateRevision(t *testing.T) {
 		t.Fatalf("runner revision should remain 10 after config apply error, got %d", runner.lastKnownRev)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Flow buffer integration tests
+// ---------------------------------------------------------------------------
+
+func TestSyncRunner_FlowsDrainedAndSent(t *testing.T) {
+	fs := &fakeSyncer{response: noConfigResponse()}
+	buf := NewFleetBuffer(100)
+	runner := newTestRunner(fs, &fakeSyncDB{})
+	runner.buffer = buf
+
+	buf.EnqueueFlow(client.FlowEntry{SubscriberID: "001", Packets: 10, Bytes: 500})
+	buf.EnqueueFlow(client.FlowEntry{SubscriberID: "002", Packets: 20, Bytes: 1000})
+
+	runner.runOneCycle(context.Background())
+
+	if len(fs.calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(fs.calls))
+	}
+
+	flows := fs.calls[0].Flows
+	if len(flows) != 2 {
+		t.Fatalf("expected 2 flows, got %d", len(flows))
+	}
+
+	if flows[0].SubscriberID != "001" || flows[1].SubscriberID != "002" {
+		t.Fatalf("unexpected flow entries: %+v", flows)
+	}
+
+	// Buffer should be empty after drain.
+	if buf.Len() != 0 {
+		t.Fatalf("expected buffer to be empty, got %d", buf.Len())
+	}
+}
+
+func TestSyncRunner_NoBufferNoFlows(t *testing.T) {
+	fs := &fakeSyncer{response: noConfigResponse()}
+	runner := newTestRunner(fs, &fakeSyncDB{})
+	// runner.buffer is nil
+
+	runner.runOneCycle(context.Background())
+
+	if len(fs.calls[0].Flows) != 0 {
+		t.Fatalf("expected no flows when buffer is nil, got %d", len(fs.calls[0].Flows))
+	}
+}
+
+func TestSyncRunner_EmptyBufferSendsNoFlows(t *testing.T) {
+	fs := &fakeSyncer{response: noConfigResponse()}
+	buf := NewFleetBuffer(100)
+	runner := newTestRunner(fs, &fakeSyncDB{})
+	runner.buffer = buf
+
+	runner.runOneCycle(context.Background())
+
+	if len(fs.calls[0].Flows) != 0 {
+		t.Fatalf("expected no flows from empty buffer, got %d", len(fs.calls[0].Flows))
+	}
+}
+
+func TestSyncRunner_FlowsHeldOnFailureAndResentOnSuccess(t *testing.T) {
+	fs := &fakeSyncer{err: errors.New("network error")}
+	buf := NewFleetBuffer(100)
+	runner := newTestRunner(fs, &fakeSyncDB{})
+	runner.buffer = buf
+
+	buf.EnqueueFlow(client.FlowEntry{SubscriberID: "001", Packets: 10})
+
+	// Cycle 1: fails — flows held for retry.
+	runner.runOneCycle(context.Background())
+
+	if len(runner.heldFlows) != 1 {
+		t.Fatalf("expected 1 held flow, got %d", len(runner.heldFlows))
+	}
+
+	if runner.flowRetries != 1 {
+		t.Fatalf("expected flowRetries=1, got %d", runner.flowRetries)
+	}
+
+	// Cycle 2: succeeds — held flows should be sent and cleared.
+	fs.err = nil
+	fs.response = noConfigResponse()
+
+	// Enqueue a new flow while retrying; it should NOT be included yet.
+	buf.EnqueueFlow(client.FlowEntry{SubscriberID: "002", Packets: 20})
+
+	runner.runOneCycle(context.Background())
+
+	if len(runner.heldFlows) != 0 {
+		t.Fatalf("expected held flows to be cleared after success, got %d", len(runner.heldFlows))
+	}
+
+	if runner.flowRetries != 0 {
+		t.Fatalf("expected flowRetries=0 after success, got %d", runner.flowRetries)
+	}
+
+	// The second call should have sent the held flow (001), not the new one.
+	sentFlows := fs.calls[1].Flows
+	if len(sentFlows) != 1 || sentFlows[0].SubscriberID != "001" {
+		t.Fatalf("expected held flow 001 to be resent, got %+v", sentFlows)
+	}
+
+	// Cycle 3: should now drain the new flow from the buffer.
+	runner.runOneCycle(context.Background())
+
+	sentFlows = fs.calls[2].Flows
+	if len(sentFlows) != 1 || sentFlows[0].SubscriberID != "002" {
+		t.Fatalf("expected new flow 002, got %+v", sentFlows)
+	}
+}
+
+func TestSyncRunner_FlowsDroppedAfterMaxRetries(t *testing.T) {
+	fs := &fakeSyncer{err: errors.New("network error")}
+	buf := NewFleetBuffer(100)
+	runner := newTestRunner(fs, &fakeSyncDB{})
+	runner.buffer = buf
+
+	buf.EnqueueFlow(client.FlowEntry{SubscriberID: "001", Packets: 10})
+
+	// Fail maxFlowRetries times.
+	for range maxFlowRetries {
+		runner.runOneCycle(context.Background())
+	}
+
+	// After 3 failures the held batch should be dropped.
+	if len(runner.heldFlows) != 0 {
+		t.Fatalf("expected held flows to be dropped after %d retries, got %d", maxFlowRetries, len(runner.heldFlows))
+	}
+
+	if runner.flowRetries != 0 {
+		t.Fatalf("expected flowRetries=0 after drop, got %d", runner.flowRetries)
+	}
+}
+
+func TestSyncRunner_NewFlowsAccumulateDuringRetry(t *testing.T) {
+	fs := &fakeSyncer{err: errors.New("network error")}
+	buf := NewFleetBuffer(100)
+	runner := newTestRunner(fs, &fakeSyncDB{})
+	runner.buffer = buf
+
+	buf.EnqueueFlow(client.FlowEntry{SubscriberID: "001"})
+
+	// Cycle 1: fails, holds flow 001.
+	runner.runOneCycle(context.Background())
+
+	// New flows arrive.
+	buf.EnqueueFlow(client.FlowEntry{SubscriberID: "002"})
+	buf.EnqueueFlow(client.FlowEntry{SubscriberID: "003"})
+
+	// Buffer should still have 2 entries (new arrivals are untouched).
+	if buf.Len() != 2 {
+		t.Fatalf("expected 2 buffered entries during retry, got %d", buf.Len())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ConfigReloader tests
+// ---------------------------------------------------------------------------
+
+type fakeConfigReloader struct {
+	natCalls            []bool
+	flowAccountingCalls []bool
+}
+
+func (f *fakeConfigReloader) ReloadNAT(enabled bool) error {
+	f.natCalls = append(f.natCalls, enabled)
+	return nil
+}
+
+func (f *fakeConfigReloader) ReloadFlowAccounting(enabled bool) error {
+	f.flowAccountingCalls = append(f.flowAccountingCalls, enabled)
+	return nil
+}
+
+func TestSyncRunner_ConfigReloaderCalledAfterConfigApply(t *testing.T) {
+	fdb := &fakeSyncDB{}
+	fs := &fakeSyncer{response: &client.SyncResponse{
+		Config: &client.SyncConfig{
+			Operator:   client.Operator{ID: client.OperatorID{Mcc: "001", Mnc: "01"}},
+			Networking: client.SyncNetworking{NAT: true, FlowAccounting: false},
+		},
+		ConfigRevision: 42,
+	}}
+
+	handle := &SyncHandle{}
+	reloader := &fakeConfigReloader{}
+	handle.SetConfigReloader(reloader)
+
+	runner := newTestRunner(fs, fdb)
+	runner.handle = handle
+
+	runner.runOneCycle(context.Background())
+
+	if len(reloader.natCalls) != 1 || reloader.natCalls[0] != true {
+		t.Fatalf("expected ReloadNAT(true), got %v", reloader.natCalls)
+	}
+
+	if len(reloader.flowAccountingCalls) != 1 || reloader.flowAccountingCalls[0] != false {
+		t.Fatalf("expected ReloadFlowAccounting(false), got %v", reloader.flowAccountingCalls)
+	}
+}
+
+func TestSyncRunner_ConfigReloaderNotCalledWithoutConfig(t *testing.T) {
+	fdb := &fakeSyncDB{}
+	fs := &fakeSyncer{response: noConfigResponse()}
+
+	handle := &SyncHandle{}
+	reloader := &fakeConfigReloader{}
+	handle.SetConfigReloader(reloader)
+
+	runner := newTestRunner(fs, fdb)
+	runner.handle = handle
+
+	runner.runOneCycle(context.Background())
+
+	if len(reloader.natCalls) != 0 {
+		t.Fatalf("expected no ReloadNAT calls, got %v", reloader.natCalls)
+	}
+
+	if len(reloader.flowAccountingCalls) != 0 {
+		t.Fatalf("expected no ReloadFlowAccounting calls, got %v", reloader.flowAccountingCalls)
+	}
+}
+
+func TestSyncRunner_NoReloaderSetDoesNotPanic(t *testing.T) {
+	fdb := &fakeSyncDB{}
+	fs := &fakeSyncer{response: &client.SyncResponse{
+		Config: &client.SyncConfig{
+			Operator: client.Operator{ID: client.OperatorID{Mcc: "001", Mnc: "01"}},
+		},
+		ConfigRevision: 5,
+	}}
+
+	// handle with no reloader set
+	runner := newTestRunner(fs, fdb)
+	runner.handle = &SyncHandle{}
+
+	// Should not panic.
+	runner.runOneCycle(context.Background())
+}
+
+func TestSyncRunner_NilHandleDoesNotPanic(t *testing.T) {
+	fdb := &fakeSyncDB{}
+	fs := &fakeSyncer{response: &client.SyncResponse{
+		Config: &client.SyncConfig{
+			Operator: client.Operator{ID: client.OperatorID{Mcc: "001", Mnc: "01"}},
+		},
+		ConfigRevision: 5,
+	}}
+
+	// No handle set at all (nil).
+	runner := newTestRunner(fs, fdb)
+
+	// Should not panic.
+	runner.runOneCycle(context.Background())
+}

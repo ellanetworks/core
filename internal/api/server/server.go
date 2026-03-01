@@ -139,7 +139,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	// Fleet (Authenticated)
 	mux.HandleFunc("GET /api/v1/fleet/url", Authenticate(jwtSecret, dbInstance, Authorize(PermGetFleetURL, GetFleetURL(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/fleet/url", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateFleetURL, UpdateFleetURL(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/fleet/register", Authenticate(jwtSecret, dbInstance, Authorize(PermRegisterFleet, RegisterFleet(dbInstance, cfg))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/fleet/register", Authenticate(jwtSecret, dbInstance, Authorize(PermRegisterFleet, RegisterFleet(dbInstance, cfg, upf))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/fleet/unregister", Authenticate(jwtSecret, dbInstance, Authorize(PermUnregisterFleet, UnregisterFleet(dbInstance))).ServeHTTP)
 
 	// Fallback to UI
