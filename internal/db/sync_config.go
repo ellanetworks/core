@@ -378,7 +378,7 @@ func syncSubscribers(ctx context.Context, tx *sqlair.TX, db *Database, desired [
 		} else {
 			s := &Subscriber{
 				Imsi:           d.Imsi,
-				SequenceNumber: "000000000000",
+				SequenceNumber: d.SequenceNumber,
 				PermanentKey:   d.PermanentKey,
 				Opc:            d.Opc,
 				PolicyID:       localPolicyID,

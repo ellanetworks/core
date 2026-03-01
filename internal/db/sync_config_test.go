@@ -338,11 +338,12 @@ func TestUpdateConfig_SubscribersCRUD(t *testing.T) {
 	// Create a subscriber referencing the "default" policy (fleet ID 200).
 	cfg.Subscribers = []client.Subscriber{
 		{
-			ID:           1,
-			Imsi:         "001010100007487",
-			PermanentKey: "6f30087629feb0b089783c81d0ae09b5",
-			Opc:          "21a7e1897dfb481d62439142cdf1b6ee",
-			PolicyID:     200,
+			ID:             1,
+			Imsi:           "001010100007487",
+			SequenceNumber: "000000000042",
+			PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+			Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+			PolicyID:       200,
 		},
 	}
 
@@ -359,8 +360,8 @@ func TestUpdateConfig_SubscribersCRUD(t *testing.T) {
 		t.Errorf("expected permanentKey '6f30087629feb0b089783c81d0ae09b5', got %s", sub.PermanentKey)
 	}
 
-	if sub.SequenceNumber != "000000000000" {
-		t.Errorf("expected initial sequenceNumber '000000000000', got %s", sub.SequenceNumber)
+	if sub.SequenceNumber != "000000000042" {
+		t.Errorf("expected initial sequenceNumber '000000000042', got %s", sub.SequenceNumber)
 	}
 
 	// Update: change opc. Sequence number should be preserved.
@@ -379,7 +380,7 @@ func TestUpdateConfig_SubscribersCRUD(t *testing.T) {
 		t.Errorf("expected updated opc, got %s", sub.Opc)
 	}
 
-	if sub.SequenceNumber != "000000000000" {
+	if sub.SequenceNumber != "000000000042" {
 		t.Errorf("expected sequenceNumber to be preserved, got %s", sub.SequenceNumber)
 	}
 
@@ -465,7 +466,7 @@ func TestUpdateConfig_Idempotent(t *testing.T) {
 		client.DataNetwork{ID: 101, Name: "extra", IPPool: "10.99.0.0/16"},
 	)
 	cfg.Subscribers = []client.Subscriber{
-		{ID: 1, Imsi: "999010000000001", PermanentKey: "00112233445566778899aabbccddeeff", Opc: "ffeeddccbbaa99887766554433221100", PolicyID: 200},
+		{ID: 1, Imsi: "999010000000001", SequenceNumber: "000000000000", PermanentKey: "00112233445566778899aabbccddeeff", Opc: "ffeeddccbbaa99887766554433221100", PolicyID: 200},
 	}
 	cfg.Networking.Routes = []client.Route{
 		{ID: 1, Destination: "10.0.0.0/8", Gateway: "1.2.3.4", Interface: "n6", Metric: 50},
@@ -553,7 +554,7 @@ func TestUpdateConfig_SubscriberUnknownPolicyID(t *testing.T) {
 
 	cfg := baseSyncConfig()
 	cfg.Subscribers = []client.Subscriber{
-		{ID: 1, Imsi: "001010100000001", PermanentKey: "00112233445566778899aabbccddeeff", Opc: "ffeeddccbbaa99887766554433221100", PolicyID: 9999},
+		{ID: 1, Imsi: "001010100000001", SequenceNumber: "000000000000", PermanentKey: "00112233445566778899aabbccddeeff", Opc: "ffeeddccbbaa99887766554433221100", PolicyID: 9999},
 	}
 
 	err := database.UpdateConfig(ctx, cfg)
