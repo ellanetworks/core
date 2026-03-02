@@ -814,11 +814,70 @@ const Traffic: React.FC = () => {
     });
   }, [flowStatsData]);
 
+  // ── DEBUG: trace the full color chain ──────────────────
+  const renderCount = useRef(0);
+  renderCount.current += 1;
+
+  useEffect(() => {
+    console.log(
+      `[DEBUG render#${renderCount.current}] protocolOptionsData source:`,
+      protocolOptionsRaw ? "protocolOptionsRaw" : "flowStatsData (fallback)",
+      "protocols:",
+      protocolOptionsData?.protocols?.map((p) => p.protocol),
+    );
+  }, [protocolOptionsData]);
+
+  useEffect(() => {
+    console.log(
+      `[DEBUG render#${renderCount.current}] protocolColorMap:`,
+      Object.fromEntries(protocolColorMap),
+    );
+  }, [protocolColorMap]);
+
+  useEffect(() => {
+    console.log(
+      `[DEBUG render#${renderCount.current}] protocolPieData:`,
+      protocolPieData.map((d) => `${d.label}=${d.color}`),
+    );
+  }, [protocolPieData]);
+
+  useEffect(() => {
+    console.log(
+      `[DEBUG render#${renderCount.current}] flowStatsData changed. protocols:`,
+      flowStatsData?.protocols?.map((p) => p.protocol),
+      "topDest:",
+      flowStatsData?.top_destinations_uplink?.length ?? 0,
+    );
+  }, [flowStatsData]);
+
+  useEffect(() => {
+    console.log(
+      `[DEBUG render#${renderCount.current}] protocolOptionsRaw protocols:`,
+      protocolOptionsRaw?.protocols?.map((p) => p.protocol),
+    );
+  }, [protocolOptionsRaw]);
+
+  useEffect(() => {
+    console.log(
+      `[DEBUG render#${renderCount.current}] activeFlowFilters:`,
+      activeFlowFilters,
+    );
+  }, [activeFlowFilters]);
+
+  useEffect(() => {
+    console.log(
+      `[DEBUG render#${renderCount.current}] appliedProtocol:`,
+      JSON.stringify(appliedProtocol),
+    );
+  }, [appliedProtocol]);
+  // ── END DEBUG ─────────────────────────────────────────
+
   // ── Pie chart click handlers ─────────────────────────
 
   const handleProtocolPieClick = useCallback(
     (dataIndex: number) => {
       const clicked = protocolPieData[dataIndex];
+      console.log(`[DEBUG CLICK] handleProtocolPieClick dataIndex=${dataIndex}`, clicked);
       if (clicked) {
         const value = String(clicked.id);
         setAppliedProtocol((prev) => (prev === value ? "" : value));
