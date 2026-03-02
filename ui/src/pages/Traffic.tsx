@@ -1119,6 +1119,7 @@ const Traffic: React.FC = () => {
                         Protocols
                       </Typography>
                       <PieChart
+                        skipAnimation
                         series={[
                           {
                             data: protocolPieData,
@@ -1158,6 +1159,23 @@ const Traffic: React.FC = () => {
                               vertical: "bottom",
                               horizontal: "center",
                             },
+                            onItemClick: (
+                              _event: React.MouseEvent,
+                              legendItem: { dataIndex?: number },
+                            ) => {
+                              const idx = legendItem.dataIndex ?? -1;
+                              const clicked = protocolPieData[idx];
+                              if (clicked) {
+                                const value = String(clicked.id);
+                                setAppliedProtocol((prev) =>
+                                  prev === value ? "" : value,
+                                );
+                                setFlowPaginationModel((prev) => ({
+                                  ...prev,
+                                  page: 0,
+                                }));
+                              }
+                            },
                           },
                         }}
                       />
@@ -1169,6 +1187,7 @@ const Traffic: React.FC = () => {
                         Top 10 Destinations (uplink)
                       </Typography>
                       <PieChart
+                        skipAnimation
                         series={[
                           {
                             data: topDestinationsPieData,
@@ -1215,6 +1234,31 @@ const Traffic: React.FC = () => {
                             position: {
                               vertical: "bottom",
                               horizontal: "center",
+                            },
+                            onItemClick: (
+                              _event: React.MouseEvent,
+                              legendItem: { dataIndex?: number },
+                            ) => {
+                              const idx = legendItem.dataIndex ?? -1;
+                              const clicked = topDestinationsPieData[idx];
+                              if (clicked) {
+                                const isActive =
+                                  directionFilter === "uplink" &&
+                                  appliedDestination === clicked.label;
+                                if (isActive) {
+                                  setDirectionFilter("");
+                                  setDestinationFilter("");
+                                  setAppliedDestination("");
+                                } else {
+                                  setDirectionFilter("uplink");
+                                  setDestinationFilter(clicked.label);
+                                  setAppliedDestination(clicked.label);
+                                }
+                                setFlowPaginationModel((prev) => ({
+                                  ...prev,
+                                  page: 0,
+                                }));
+                              }
                             },
                           },
                         }}
