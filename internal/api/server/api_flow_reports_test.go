@@ -709,9 +709,8 @@ type FlowReportIPStat struct {
 }
 
 type FlowReportStatsResult struct {
-	Protocols       []FlowReportProtocolStat `json:"protocols"`
-	TopSources      []FlowReportIPStat       `json:"top_sources"`
-	TopDestinations []FlowReportIPStat       `json:"top_destinations"`
+	Protocols             []FlowReportProtocolStat `json:"protocols"`
+	TopDestinationsUplink []FlowReportIPStat       `json:"top_destinations_uplink"`
 }
 
 type GetFlowReportStatsResponse struct {
@@ -794,12 +793,8 @@ func TestGetFlowReportStats_Empty(t *testing.T) {
 		t.Fatalf("expected 0 protocol entries, got %d", len(response.Result.Protocols))
 	}
 
-	if len(response.Result.TopSources) != 0 {
-		t.Fatalf("expected 0 top sources, got %d", len(response.Result.TopSources))
-	}
-
-	if len(response.Result.TopDestinations) != 0 {
-		t.Fatalf("expected 0 top destinations, got %d", len(response.Result.TopDestinations))
+	if len(response.Result.TopDestinationsUplink) != 0 {
+		t.Fatalf("expected 0 top destinations uplink, got %d", len(response.Result.TopDestinationsUplink))
 	}
 }
 
@@ -886,14 +881,6 @@ func TestGetFlowReportStats_WithData(t *testing.T) {
 
 	if response.Result.Protocols[0].Count != 3 {
 		t.Fatalf("expected TCP count 3, got %d", response.Result.Protocols[0].Count)
-	}
-
-	if len(response.Result.TopSources) != 5 {
-		t.Fatalf("expected 5 top sources, got %d", len(response.Result.TopSources))
-	}
-
-	if len(response.Result.TopDestinations) != 4 {
-		t.Fatalf("expected 4 top destinations, got %d", len(response.Result.TopDestinations))
 	}
 }
 
@@ -1077,10 +1064,6 @@ func TestGetFlowReportStats_FilterByProtocol(t *testing.T) {
 
 	if response.Result.Protocols[0].Count != 4 {
 		t.Fatalf("expected count 4, got %d", response.Result.Protocols[0].Count)
-	}
-
-	if len(response.Result.TopSources) != 4 {
-		t.Fatalf("expected 4 top sources (TCP only), got %d", len(response.Result.TopSources))
 	}
 }
 

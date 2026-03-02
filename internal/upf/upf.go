@@ -99,6 +99,8 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 
 	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
 
+	core.SetN3InterfaceIndex(n3Iface.Index)
+
 	if err := bpfObjects.Load(); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
 		return nil, err
