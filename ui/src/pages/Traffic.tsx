@@ -629,13 +629,13 @@ const Traffic: React.FC = () => {
 
   const protocolColorMap = useMemo(() => {
     const map = new Map<number, string>();
-    if (flowStatsData?.protocols?.length) {
-      flowStatsData.protocols.forEach((p, i) => {
+    if (protocolOptionsData?.protocols?.length) {
+      protocolOptionsData.protocols.forEach((p, i) => {
         map.set(p.protocol, PIE_COLORS[i % PIE_COLORS.length]);
       });
     }
     return map;
-  }, [flowStatsData]);
+  }, [protocolOptionsData]);
 
   const flowColumns: GridColDef<FlowReport>[] = useMemo(
     () => [
@@ -778,24 +778,32 @@ const Traffic: React.FC = () => {
 
   const protocolPieData = useMemo(() => {
     if (!flowStatsData?.protocols?.length) return [];
-    return flowStatsData.protocols.map((p, i) => ({
+    return flowStatsData.protocols.map((p) => ({
       id: p.protocol,
       value: p.count,
       label: formatProtocol(p.protocol),
-      color: PIE_COLORS[i % PIE_COLORS.length],
+      color: protocolColorMap.get(p.protocol) ?? PIE_COLORS[0],
     }));
-  }, [flowStatsData]);
+  }, [flowStatsData, protocolColorMap]);
 
   // ── Top 10 destinations uplink (donut chart) ───────────────
 
+  const destinationColorRef = useRef(new Map<string, string>());
+
   const topDestinationsPieData = useMemo(() => {
     if (!flowStatsData?.top_destinations_uplink?.length) return [];
-    return flowStatsData.top_destinations_uplink.map((d, i) => ({
-      id: i,
-      value: d.count,
-      label: d.ip,
-      color: PIE_COLORS[i % PIE_COLORS.length],
-    }));
+    const colorMap = destinationColorRef.current;
+    return flowStatsData.top_destinations_uplink.map((d, i) => {
+      if (!colorMap.has(d.ip)) {
+        colorMap.set(d.ip, PIE_COLORS[colorMap.size % PIE_COLORS.length]);
+      }
+      return {
+        id: i,
+        value: d.count,
+        label: d.ip,
+        color: colorMap.get(d.ip)!,
+      };
+    });
   }, [flowStatsData]);
 
   // ── Handlers ────────────────────────────────────────
@@ -1133,7 +1141,10 @@ const Traffic: React.FC = () => {
                         onItemClick={(_event, d) => {
                           const clicked = protocolPieData[d.dataIndex];
                           if (clicked) {
-                            setAppliedProtocol(String(clicked.id));
+                            const value = String(clicked.id);
+                            setAppliedProtocol((prev) =>
+                              prev === value ? "" : value,
+                            );
                             setFlowPaginationModel((prev) => ({
                               ...prev,
                               page: 0,
@@ -1180,9 +1191,18 @@ const Traffic: React.FC = () => {
                         onItemClick={(_event, d) => {
                           const clicked = topDestinationsPieData[d.dataIndex];
                           if (clicked) {
-                            setDirectionFilter("uplink");
-                            setDestinationFilter(clicked.label);
-                            setAppliedDestination(clicked.label);
+                            const isActive =
+                              directionFilter === "uplink" &&
+                              appliedDestination === clicked.label;
+                            if (isActive) {
+                              setDirectionFilter("");
+                              setDestinationFilter("");
+                              setAppliedDestination("");
+                            } else {
+                              setDirectionFilter("uplink");
+                              setDestinationFilter(clicked.label);
+                              setAppliedDestination(clicked.label);
+                            }
                             setFlowPaginationModel((prev) => ({
                               ...prev,
                               page: 0,
