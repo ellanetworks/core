@@ -16,11 +16,11 @@ export default function CoreLayout() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <AuthProvider>
-            <FleetProvider>
-              <DrawerLayout>
-                <Outlet />
-              </DrawerLayout>
-            </FleetProvider>
+          <FleetProvider>
+            <DrawerLayout>
+              <Outlet />
+            </DrawerLayout>
+          </FleetProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

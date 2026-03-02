@@ -167,6 +167,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			Bytes:           int64(req.Bytes),
 			StartTime:       req.StartTime,
 			EndTime:         req.EndTime,
+			Direction:       req.Direction,
 		})
 	}
 

@@ -30,6 +30,7 @@ type FlowEntry struct {
 	Bytes           int64  `json:"bytes"`
 	StartTime       string `json:"start_time"`
 	EndTime         string `json:"end_time"`
+	Direction       string `json:"direction"`
 }
 
 type SyncParams struct {
