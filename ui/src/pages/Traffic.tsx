@@ -1157,7 +1157,7 @@ const Traffic: React.FC = () => {
                   }}
                 >
                   {protocolPieData.length > 0 && (
-                    <Box sx={{ height: 380, overflow: "auto" }}>
+                    <Box sx={{ height: 440, overflow: "auto" }}>
                       <Typography variant="h6" sx={{ mb: 1 }}>
                         Protocols
                       </Typography>
@@ -1209,7 +1209,7 @@ const Traffic: React.FC = () => {
                     </Box>
                   )}
                   {topDestinationsPieData.length > 0 && (
-                    <Box sx={{ height: 380, overflow: "auto" }}>
+                    <Box sx={{ height: 440, overflow: "auto" }}>
                       <Typography variant="h6" sx={{ mb: 1 }}>
                         Top 10 Destinations (uplink)
                       </Typography>
