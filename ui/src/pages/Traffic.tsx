@@ -490,20 +490,25 @@ const Traffic: React.FC = () => {
     refetchInterval: 5000,
   });
 
-  // Separate query for available protocol options (unfiltered by protocol)
+  // Separate query for available protocol options (unfiltered by protocol).
+  // Only fires when a protocol filter is active; otherwise reuses flowStatsData.
   const filtersWithoutProtocol: FlowReportFilters = useMemo(() => {
     const { protocol: _ignored, ...rest } = activeFlowFilters;
     return rest;
   }, [activeFlowFilters]);
 
-  const { data: protocolOptionsData } = useQuery<FlowReportStatsResponse>({
+  const { data: protocolOptionsRaw } = useQuery<FlowReportStatsResponse>({
     queryKey: ["flowReportProtocolOptions", filtersWithoutProtocol],
     queryFn: () =>
       getFlowReportStats(accessToken || "", filtersWithoutProtocol),
-    enabled: authReady && !!accessToken,
+    enabled: authReady && !!accessToken && !!appliedProtocol,
     placeholderData: (prev) => prev,
     refetchInterval: 5000,
   });
+
+  const protocolOptionsData = appliedProtocol
+    ? protocolOptionsRaw
+    : flowStatsData;
 
   const { data: flowAccountingInfo } = useQuery<FlowAccountingInfo>({
     queryKey: ["flow-accounting"],
@@ -790,6 +795,11 @@ const Traffic: React.FC = () => {
 
   const destinationColorRef = useRef(new Map<string, string>());
 
+  // Reset color map when the time range changes to avoid unbounded growth
+  useEffect(() => {
+    destinationColorRef.current.clear();
+  }, [startDate, endDate]);
+
   const topDestinationsPieData = useMemo(() => {
     if (!flowStatsData?.top_destinations_uplink?.length) return [];
     const colorMap = destinationColorRef.current;
@@ -805,6 +815,42 @@ const Traffic: React.FC = () => {
       };
     });
   }, [flowStatsData]);
+
+  // ── Pie chart click handlers ─────────────────────────
+
+  const handleProtocolPieClick = useCallback(
+    (dataIndex: number) => {
+      const clicked = protocolPieData[dataIndex];
+      if (clicked) {
+        const value = String(clicked.id);
+        setAppliedProtocol((prev) => (prev === value ? "" : value));
+        setFlowPaginationModel((prev) => ({ ...prev, page: 0 }));
+      }
+    },
+    [protocolPieData],
+  );
+
+  const handleDestinationPieClick = useCallback(
+    (dataIndex: number) => {
+      const clicked = topDestinationsPieData[dataIndex];
+      if (clicked) {
+        const isActive =
+          directionFilter === "uplink" &&
+          appliedDestination === clicked.label;
+        if (isActive) {
+          setDirectionFilter("");
+          setDestinationFilter("");
+          setAppliedDestination("");
+        } else {
+          setDirectionFilter("uplink");
+          setDestinationFilter(clicked.label);
+          setAppliedDestination(clicked.label);
+        }
+        setFlowPaginationModel((prev) => ({ ...prev, page: 0 }));
+      }
+    },
+    [topDestinationsPieData, directionFilter, appliedDestination],
+  );
 
   // ── Handlers ────────────────────────────────────────
 
@@ -1139,19 +1185,9 @@ const Traffic: React.FC = () => {
                           },
                         ]}
                         height={300}
-                        onItemClick={(_event, d) => {
-                          const clicked = protocolPieData[d.dataIndex];
-                          if (clicked) {
-                            const value = String(clicked.id);
-                            setAppliedProtocol((prev) =>
-                              prev === value ? "" : value,
-                            );
-                            setFlowPaginationModel((prev) => ({
-                              ...prev,
-                              page: 0,
-                            }));
-                          }
-                        }}
+                        onItemClick={(_event, d) =>
+                          handleProtocolPieClick(d.dataIndex)
+                        }
                         slotProps={{
                           legend: {
                             direction: "horizontal",
@@ -1162,20 +1198,10 @@ const Traffic: React.FC = () => {
                             onItemClick: (
                               _event: React.MouseEvent,
                               legendItem: { dataIndex?: number },
-                            ) => {
-                              const idx = legendItem.dataIndex ?? -1;
-                              const clicked = protocolPieData[idx];
-                              if (clicked) {
-                                const value = String(clicked.id);
-                                setAppliedProtocol((prev) =>
-                                  prev === value ? "" : value,
-                                );
-                                setFlowPaginationModel((prev) => ({
-                                  ...prev,
-                                  page: 0,
-                                }));
-                              }
-                            },
+                            ) =>
+                              handleProtocolPieClick(
+                                legendItem.dataIndex ?? -1,
+                              ),
                           },
                         }}
                       />
@@ -1207,27 +1233,9 @@ const Traffic: React.FC = () => {
                           },
                         ]}
                         height={300}
-                        onItemClick={(_event, d) => {
-                          const clicked = topDestinationsPieData[d.dataIndex];
-                          if (clicked) {
-                            const isActive =
-                              directionFilter === "uplink" &&
-                              appliedDestination === clicked.label;
-                            if (isActive) {
-                              setDirectionFilter("");
-                              setDestinationFilter("");
-                              setAppliedDestination("");
-                            } else {
-                              setDirectionFilter("uplink");
-                              setDestinationFilter(clicked.label);
-                              setAppliedDestination(clicked.label);
-                            }
-                            setFlowPaginationModel((prev) => ({
-                              ...prev,
-                              page: 0,
-                            }));
-                          }
-                        }}
+                        onItemClick={(_event, d) =>
+                          handleDestinationPieClick(d.dataIndex)
+                        }
                         slotProps={{
                           legend: {
                             direction: "horizontal",
@@ -1238,28 +1246,10 @@ const Traffic: React.FC = () => {
                             onItemClick: (
                               _event: React.MouseEvent,
                               legendItem: { dataIndex?: number },
-                            ) => {
-                              const idx = legendItem.dataIndex ?? -1;
-                              const clicked = topDestinationsPieData[idx];
-                              if (clicked) {
-                                const isActive =
-                                  directionFilter === "uplink" &&
-                                  appliedDestination === clicked.label;
-                                if (isActive) {
-                                  setDirectionFilter("");
-                                  setDestinationFilter("");
-                                  setAppliedDestination("");
-                                } else {
-                                  setDirectionFilter("uplink");
-                                  setDestinationFilter(clicked.label);
-                                  setAppliedDestination(clicked.label);
-                                }
-                                setFlowPaginationModel((prev) => ({
-                                  ...prev,
-                                  page: 0,
-                                }));
-                              }
-                            },
+                            ) =>
+                              handleDestinationPieClick(
+                                legendItem.dataIndex ?? -1,
+                              ),
                           },
                         }}
                       />

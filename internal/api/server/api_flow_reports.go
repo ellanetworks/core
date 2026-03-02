@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -329,10 +330,15 @@ func GetFlowReportStats(dbInstance *db.Database) http.Handler {
 }
 
 // parseEndpointFilter parses a source/destination filter value.
-// Accepted formats: "1.2.3.4" (IP only), "1.2.3.4:443" (IP + port), ":443" (port only).
+// Accepted formats:
+//   - "1.2.3.4"        — IPv4 only
+//   - "1.2.3.4:443"    — IPv4 + port
+//   - "[::1]:443"       — IPv6 + port
+//   - "::1"             — IPv6 only
+//   - ":443"            — port only
 func parseEndpointFilter(v string) (ip string, port *uint16, err error) {
-	if strings.HasPrefix(v, ":") {
-		// Port only, e.g. ":443"
+	// Port-only: ":443"
+	if strings.HasPrefix(v, ":") && !strings.Contains(v[1:], ":") {
 		portNum, err := strconv.ParseUint(v[1:], 10, 16)
 		if err != nil {
 			return "", nil, fmt.Errorf("invalid port number")
@@ -343,22 +349,28 @@ func parseEndpointFilter(v string) (ip string, port *uint16, err error) {
 		return "", &p, nil
 	}
 
-	if idx := strings.LastIndex(v, ":"); idx > 0 {
-		// IP:port, e.g. "1.2.3.4:443"
-		ipPart := v[:idx]
-		portPart := v[idx+1:]
-
-		portNum, err := strconv.ParseUint(portPart, 10, 16)
+	// Try host:port (handles "1.2.3.4:443", "[::1]:443")
+	host, portStr, splitErr := net.SplitHostPort(v)
+	if splitErr == nil {
+		portNum, err := strconv.ParseUint(portStr, 10, 16)
 		if err != nil {
 			return "", nil, fmt.Errorf("invalid port number")
 		}
 
+		if host != "" && net.ParseIP(host) == nil {
+			return "", nil, fmt.Errorf("invalid IP address: %s", host)
+		}
+
 		p := uint16(portNum)
 
-		return ipPart, &p, nil
+		return host, &p, nil
 	}
 
-	// IP only, e.g. "1.2.3.4"
+	// IP only (no port)
+	if net.ParseIP(v) == nil {
+		return "", nil, fmt.Errorf("invalid IP address: %s", v)
+	}
+
 	return v, nil, nil
 }
 

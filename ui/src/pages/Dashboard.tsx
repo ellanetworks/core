@@ -368,13 +368,13 @@ const Dashboard = () => {
     if (statusQuery.error || subscribersQuery.error || metricsQuery.error) {
       showSnackbar("Failed to fetch dashboard data.", "error");
     }
-  }, [statusQuery.error, subscribersQuery.error, metricsQuery.error]);
+  }, [statusQuery.error, subscribersQuery.error, metricsQuery.error, showSnackbar]);
 
   useEffect(() => {
     if (radioEventsQuery.error) {
       showSnackbar("Failed to fetch radio events.", "error");
     }
-  }, [radioEventsQuery.error]);
+  }, [radioEventsQuery.error, showSnackbar]);
 
   const activeSessions = m?.pduSessions ?? null;
   const heapMemory = m?.heapMemoryBytes ?? null;
