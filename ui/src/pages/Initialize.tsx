@@ -5,17 +5,17 @@ import {
   Button,
   TextField,
   Typography,
-  Alert,
   CircularProgress,
 } from "@mui/material";
 import { initialize } from "@/queries/initialize";
 import { getStatus } from "@/queries/status";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 
 const InitializePage = () => {
   const navigate = useNavigate();
+  const { showSnackbar } = useSnackbar();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checkingInitialization, setCheckingInitialization] = useState(true);
 
@@ -30,7 +30,7 @@ const InitializePage = () => {
         }
       } catch (err) {
         console.error("Failed to fetch system status:", err);
-        setError("Failed to check system initialization.");
+        showSnackbar("Failed to check system initialization.", "error");
       }
     };
 
@@ -40,14 +40,13 @@ const InitializePage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     try {
       const resp = await initialize(email, password);
       navigate("/dashboard", { state: { token: resp.token } });
     } catch (err) {
       const error = err as Error;
-      setError(error.message);
+      showSnackbar(error.message, "error");
     } finally {
       setLoading(false);
     }
@@ -99,12 +98,6 @@ const InitializePage = () => {
           <Typography variant="body1" sx={{ marginBottom: 2 }}>
             Create the first user
           </Typography>
-
-          {error && (
-            <Alert severity="error" sx={{ mb: 1 }}>
-              {error}
-            </Alert>
-          )}
 
           <TextField
             label="Email"
