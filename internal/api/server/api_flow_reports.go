@@ -71,12 +71,34 @@ func parseFlowReportFilters(r *http.Request) (*db.FlowReportFilters, error) {
 		f.Protocol = &proto
 	}
 
-	if v := strings.TrimSpace(q.Get("source_ip")); v != "" {
-		f.SourceIP = &v
+	if v := strings.TrimSpace(q.Get("source")); v != "" {
+		ip, port, err := parseEndpointFilter(v)
+		if err != nil {
+			return f, fmt.Errorf("invalid source filter: %w", err)
+		}
+
+		if ip != "" {
+			f.SourceIP = &ip
+		}
+
+		if port != nil {
+			f.SourcePort = port
+		}
 	}
 
-	if v := strings.TrimSpace(q.Get("destination_ip")); v != "" {
-		f.DestinationIP = &v
+	if v := strings.TrimSpace(q.Get("destination")); v != "" {
+		ip, port, err := parseEndpointFilter(v)
+		if err != nil {
+			return f, fmt.Errorf("invalid destination filter: %w", err)
+		}
+
+		if ip != "" {
+			f.DestinationIP = &ip
+		}
+
+		if port != nil {
+			f.DestinationPort = port
+		}
 	}
 
 	if v := strings.TrimSpace(q.Get("direction")); v != "" {
@@ -304,6 +326,40 @@ func GetFlowReportStats(dbInstance *db.Database) http.Handler {
 		}
 		writeResponse(ctx, w, response, http.StatusOK, logger.APILog)
 	})
+}
+
+// parseEndpointFilter parses a source/destination filter value.
+// Accepted formats: "1.2.3.4" (IP only), "1.2.3.4:443" (IP + port), ":443" (port only).
+func parseEndpointFilter(v string) (ip string, port *uint16, err error) {
+	if strings.HasPrefix(v, ":") {
+		// Port only, e.g. ":443"
+		portNum, err := strconv.ParseUint(v[1:], 10, 16)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid port number")
+		}
+
+		p := uint16(portNum)
+
+		return "", &p, nil
+	}
+
+	if idx := strings.LastIndex(v, ":"); idx > 0 {
+		// IP:port, e.g. "1.2.3.4:443"
+		ipPart := v[:idx]
+		portPart := v[idx+1:]
+
+		portNum, err := strconv.ParseUint(portPart, 10, 16)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid port number")
+		}
+
+		p := uint16(portNum)
+
+		return ipPart, &p, nil
+	}
+
+	// IP only, e.g. "1.2.3.4"
+	return v, nil, nil
 }
 
 func dbFlowReportToAPI(r dbwriter.FlowReport) FlowReport {

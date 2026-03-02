@@ -34,15 +34,15 @@ type ListFlowReportsResponse struct {
 }
 
 type ListFlowReportsParams struct {
-	Page          int    `json:"page"`
-	PerPage       int    `json:"per_page"`
-	SubscriberID  string `json:"subscriber_id"`
-	Protocol      string `json:"protocol"`
-	SourceIP      string `json:"source_ip"`
-	DestinationIP string `json:"destination_ip"`
-	Direction     string `json:"direction"`
-	Start         string `json:"start"`
-	End           string `json:"end"`
+	Page         int    `json:"page"`
+	PerPage      int    `json:"per_page"`
+	SubscriberID string `json:"subscriber_id"`
+	Protocol     string `json:"protocol"`
+	Source       string `json:"source"`
+	Destination  string `json:"destination"`
+	Direction    string `json:"direction"`
+	Start        string `json:"start"`
+	End          string `json:"end"`
 }
 
 type GroupedFlowReportsResponse []map[string][]FlowReport
@@ -74,12 +74,12 @@ func buildFlowReportQuery(p *ListFlowReportsParams) url.Values {
 		query.Set("protocol", p.Protocol)
 	}
 
-	if p.SourceIP != "" {
-		query.Set("source_ip", p.SourceIP)
+	if p.Source != "" {
+		query.Set("source", p.Source)
 	}
 
-	if p.DestinationIP != "" {
-		query.Set("destination_ip", p.DestinationIP)
+	if p.Destination != "" {
+		query.Set("destination", p.Destination)
 	}
 
 	if p.Direction != "" {

@@ -250,23 +250,8 @@ const PROTOCOL_NAMES: Record<number, string> = {
   145: "NSH",
 };
 
-const PROTOCOL_NUMBER_BY_NAME: Record<string, number> = Object.fromEntries(
-  Object.entries(PROTOCOL_NAMES).map(([num, name]) => [
-    name.toUpperCase(),
-    Number(num),
-  ]),
-);
-
 const formatProtocol = (value: number): string =>
   PROTOCOL_NAMES[value] ?? String(value);
-
-const resolveProtocolFilter = (input: string): string => {
-  const trimmed = input.trim();
-  if (trimmed === "") return "";
-  if (/^\d+$/.test(trimmed)) return trimmed;
-  const num = PROTOCOL_NUMBER_BY_NAME[trimmed.toUpperCase()];
-  return num !== undefined ? String(num) : "";
-};
 
 // ──────────────────────────────────────────────────────
 // Date defaults
@@ -374,12 +359,11 @@ const Traffic: React.FC = () => {
   const [flowPaginationModel, setFlowPaginationModel] =
     useState<GridPaginationModel>({ page: 0, pageSize: 25 });
   const [flowSortModel, setFlowSortModel] = useState<GridSortModel>([]);
-  const [protocolFilter, setProtocolFilter] = useState("");
-  const [sourceIpFilter, setSourceIpFilter] = useState("");
-  const [destinationIpFilter, setDestinationIpFilter] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
+  const [destinationFilter, setDestinationFilter] = useState("");
   const [appliedProtocol, setAppliedProtocol] = useState("");
-  const [appliedSourceIp, setAppliedSourceIp] = useState("");
-  const [appliedDestinationIp, setAppliedDestinationIp] = useState("");
+  const [appliedSource, setAppliedSource] = useState("");
+  const [appliedDestination, setAppliedDestination] = useState("");
   const [directionFilter, setDirectionFilter] = useState("");
   const [isEditFlowRetentionOpen, setEditFlowRetentionOpen] = useState(false);
   const [isFlowClearModalOpen, setFlowClearModalOpen] = useState(false);
@@ -393,14 +377,6 @@ const Traffic: React.FC = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       setter(value);
-      setFlowPaginationModel((prev) => ({ ...prev, page: 0 }));
-    }, 400);
-  };
-
-  const scheduleProtocolDebounce = (raw: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setAppliedProtocol(resolveProtocolFilter(raw));
       setFlowPaginationModel((prev) => ({ ...prev, page: 0 }));
     }, 400);
   };
@@ -462,8 +438,8 @@ const Traffic: React.FC = () => {
     const f: FlowReportFilters = { start: startDate, end: endDate };
     if (selectedSubscriber) f.subscriber_id = selectedSubscriber;
     if (appliedProtocol) f.protocol = appliedProtocol;
-    if (appliedSourceIp) f.source_ip = appliedSourceIp;
-    if (appliedDestinationIp) f.destination_ip = appliedDestinationIp;
+    if (appliedSource) f.source = appliedSource;
+    if (appliedDestination) f.destination = appliedDestination;
     if (directionFilter) f.direction = directionFilter;
     return f;
   }, [
@@ -471,8 +447,8 @@ const Traffic: React.FC = () => {
     endDate,
     selectedSubscriber,
     appliedProtocol,
-    appliedSourceIp,
-    appliedDestinationIp,
+    appliedSource,
+    appliedDestination,
     directionFilter,
   ]);
 
@@ -509,6 +485,21 @@ const Traffic: React.FC = () => {
   const { data: flowStatsData } = useQuery<FlowReportStatsResponse>({
     queryKey: ["flowReportStats", activeFlowFilters],
     queryFn: () => getFlowReportStats(accessToken || "", activeFlowFilters),
+    enabled: authReady && !!accessToken,
+    placeholderData: (prev) => prev,
+    refetchInterval: 5000,
+  });
+
+  // Separate query for available protocol options (unfiltered by protocol)
+  const filtersWithoutProtocol: FlowReportFilters = useMemo(() => {
+    const { protocol: _ignored, ...rest } = activeFlowFilters;
+    return rest;
+  }, [activeFlowFilters]);
+
+  const { data: protocolOptionsData } = useQuery<FlowReportStatsResponse>({
+    queryKey: ["flowReportProtocolOptions", filtersWithoutProtocol],
+    queryFn: () =>
+      getFlowReportStats(accessToken || "", filtersWithoutProtocol),
     enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
     refetchInterval: 5000,
@@ -1127,9 +1118,28 @@ const Traffic: React.FC = () => {
                             outerRadius: 80,
                             paddingAngle: 2,
                             cornerRadius: 5,
+                            valueFormatter: (item) => {
+                              const total = protocolPieData.reduce(
+                                (s, d) => s + d.value,
+                                0,
+                              );
+                              return total > 0
+                                ? `${((item.value / total) * 100).toFixed(1)}%`
+                                : "0%";
+                            },
                           },
                         ]}
                         height={300}
+                        onItemClick={(_event, d) => {
+                          const clicked = protocolPieData[d.dataIndex];
+                          if (clicked) {
+                            setAppliedProtocol(String(clicked.id));
+                            setFlowPaginationModel((prev) => ({
+                              ...prev,
+                              page: 0,
+                            }));
+                          }
+                        }}
                         slotProps={{
                           legend: {
                             direction: "horizontal",
@@ -1155,9 +1165,30 @@ const Traffic: React.FC = () => {
                             outerRadius: 80,
                             paddingAngle: 2,
                             cornerRadius: 5,
+                            valueFormatter: (item) => {
+                              const total = topDestinationsPieData.reduce(
+                                (s, d) => s + d.value,
+                                0,
+                              );
+                              return total > 0
+                                ? `${((item.value / total) * 100).toFixed(1)}%`
+                                : "0%";
+                            },
                           },
                         ]}
                         height={300}
+                        onItemClick={(_event, d) => {
+                          const clicked = topDestinationsPieData[d.dataIndex];
+                          if (clicked) {
+                            setDirectionFilter("uplink");
+                            setDestinationFilter(clicked.label);
+                            setAppliedDestination(clicked.label);
+                            setFlowPaginationModel((prev) => ({
+                              ...prev,
+                              page: 0,
+                            }));
+                          }
+                        }}
                         slotProps={{
                           legend: {
                             direction: "horizontal",
@@ -1199,35 +1230,44 @@ const Traffic: React.FC = () => {
                   <MenuItem value="downlink">Downlink</MenuItem>
                 </TextField>
                 <TextField
+                  select
                   label="Protocol"
-                  value={protocolFilter}
+                  value={appliedProtocol}
                   onChange={(e) => {
-                    setProtocolFilter(e.target.value);
-                    scheduleProtocolDebounce(e.target.value);
-                  }}
-                  size="small"
-                  sx={{ minWidth: 100 }}
-                  placeholder="e.g. TCP or 6"
-                />
-                <TextField
-                  label="Source IP"
-                  value={sourceIpFilter}
-                  onChange={(e) => {
-                    setSourceIpFilter(e.target.value);
-                    scheduleDebounce(setAppliedSourceIp, e.target.value);
+                    setAppliedProtocol(e.target.value);
+                    setFlowPaginationModel((prev) => ({ ...prev, page: 0 }));
                   }}
                   size="small"
                   sx={{ minWidth: 140 }}
-                />
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {(protocolOptionsData?.protocols ?? []).map((p) => (
+                    <MenuItem key={p.protocol} value={String(p.protocol)}>
+                      {formatProtocol(p.protocol)}
+                    </MenuItem>
+                  ))}
+                </TextField>
                 <TextField
-                  label="Destination IP"
-                  value={destinationIpFilter}
+                  label="Source"
+                  value={sourceFilter}
                   onChange={(e) => {
-                    setDestinationIpFilter(e.target.value);
-                    scheduleDebounce(setAppliedDestinationIp, e.target.value);
+                    setSourceFilter(e.target.value);
+                    scheduleDebounce(setAppliedSource, e.target.value);
                   }}
                   size="small"
                   sx={{ minWidth: 140 }}
+                  placeholder="e.g. 1.2.3.4:443"
+                />
+                <TextField
+                  label="Destination"
+                  value={destinationFilter}
+                  onChange={(e) => {
+                    setDestinationFilter(e.target.value);
+                    scheduleDebounce(setAppliedDestination, e.target.value);
+                  }}
+                  size="small"
+                  sx={{ minWidth: 140 }}
+                  placeholder="e.g. 1.2.3.4:443"
                 />
               </Box>
 
