@@ -1166,6 +1166,7 @@ const Traffic: React.FC = () => {
                       </Typography>
                       <PieChart
                         skipAnimation
+                        colors={protocolPieData.map((d) => d.color)}
                         series={[
                           {
                             data: protocolPieData,
@@ -1214,6 +1215,7 @@ const Traffic: React.FC = () => {
                       </Typography>
                       <PieChart
                         skipAnimation
+                        colors={topDestinationsPieData.map((d) => d.color)}
                         series={[
                           {
                             data: topDestinationsPieData,
