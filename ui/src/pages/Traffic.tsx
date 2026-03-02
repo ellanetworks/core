@@ -835,8 +835,7 @@ const Traffic: React.FC = () => {
       const clicked = topDestinationsPieData[dataIndex];
       if (clicked) {
         const isActive =
-          directionFilter === "uplink" &&
-          appliedDestination === clicked.label;
+          directionFilter === "uplink" && appliedDestination === clicked.label;
         if (isActive) {
           setDirectionFilter("");
           setDestinationFilter("");
@@ -1160,7 +1159,7 @@ const Traffic: React.FC = () => {
                   }}
                 >
                   {protocolPieData.length > 0 && (
-                    <Box>
+                    <Box sx={{ height: 380, overflow: "hidden" }}>
                       <Typography variant="h6" sx={{ mb: 1 }}>
                         Protocols
                       </Typography>
@@ -1209,7 +1208,7 @@ const Traffic: React.FC = () => {
                     </Box>
                   )}
                   {topDestinationsPieData.length > 0 && (
-                    <Box>
+                    <Box sx={{ height: 380, overflow: "hidden" }}>
                       <Typography variant="h6" sx={{ mb: 1 }}>
                         Top 10 Destinations (uplink)
                       </Typography>

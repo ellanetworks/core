@@ -368,7 +368,12 @@ const Dashboard = () => {
     if (statusQuery.error || subscribersQuery.error || metricsQuery.error) {
       showSnackbar("Failed to fetch dashboard data.", "error");
     }
-  }, [statusQuery.error, subscribersQuery.error, metricsQuery.error, showSnackbar]);
+  }, [
+    statusQuery.error,
+    subscribersQuery.error,
+    metricsQuery.error,
+    showSnackbar,
+  ]);
 
   useEffect(() => {
     if (radioEventsQuery.error) {
