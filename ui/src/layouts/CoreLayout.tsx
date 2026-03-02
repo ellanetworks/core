@@ -7,7 +7,6 @@ import theme from "@/utils/theme";
 import DrawerLayout from "@/components/DrawerLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { FleetProvider } from "@/contexts/FleetContext";
-import { SnackbarProvider } from "@/contexts/SnackbarContext";
 
 export default function CoreLayout() {
   const [queryClient] = useState(() => new QueryClient());
@@ -17,13 +16,11 @@ export default function CoreLayout() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <AuthProvider>
-          <SnackbarProvider>
             <FleetProvider>
               <DrawerLayout>
                 <Outlet />
               </DrawerLayout>
             </FleetProvider>
-          </SnackbarProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
