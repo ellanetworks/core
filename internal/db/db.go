@@ -122,17 +122,16 @@ type Database struct {
 	countAuditLogsStmt     *sqlair.Statement
 
 	// Flow Report statements
-	insertFlowReportStmt            *sqlair.Statement
-	listFlowReportsStmt             *sqlair.Statement
-	countFlowReportsStmt            *sqlair.Statement
-	deleteOldFlowReportsStmt        *sqlair.Statement
-	deleteAllFlowReportsStmt        *sqlair.Statement
-	getFlowReportByIDStmt           *sqlair.Statement
-	listFlowReportsByDayStmt        *sqlair.Statement
-	listFlowReportsBySubscriberStmt *sqlair.Statement
-	flowReportProtocolCountsStmt    *sqlair.Statement
-	flowReportTopSourcesStmt        *sqlair.Statement
-	flowReportTopDestinationsStmt   *sqlair.Statement
+	insertFlowReportStmt                *sqlair.Statement
+	listFlowReportsStmt                 *sqlair.Statement
+	countFlowReportsStmt                *sqlair.Statement
+	deleteOldFlowReportsStmt            *sqlair.Statement
+	deleteAllFlowReportsStmt            *sqlair.Statement
+	getFlowReportByIDStmt               *sqlair.Statement
+	listFlowReportsByDayStmt            *sqlair.Statement
+	listFlowReportsBySubscriberStmt     *sqlair.Statement
+	flowReportProtocolCountsStmt        *sqlair.Statement
+	flowReportTopDestinationsUplinkStmt *sqlair.Statement
 
 	// Session statements
 	createSessionStmt            *sqlair.Statement
@@ -449,8 +448,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.listFlowReportsByDayStmt, fmt.Sprintf(listFlowReportsFilteredByDayStmt, FlowReportsTableName), []any{FlowReportFilters{}, dbwriter.FlowReport{}}},
 		{&db.listFlowReportsBySubscriberStmt, fmt.Sprintf(listFlowReportsFilteredBySubscriberStmt, FlowReportsTableName), []any{FlowReportFilters{}, dbwriter.FlowReport{}}},
 		{&db.flowReportProtocolCountsStmt, fmt.Sprintf(flowReportProtocolCountsStmt, FlowReportsTableName), []any{FlowReportFilters{}, FlowReportProtocolCount{}}},
-		{&db.flowReportTopSourcesStmt, fmt.Sprintf(flowReportTopSourcesStmt, FlowReportsTableName), []any{FlowReportFilters{}, FlowReportIPCount{}}},
-		{&db.flowReportTopDestinationsStmt, fmt.Sprintf(flowReportTopDestinationsStmt, FlowReportsTableName), []any{FlowReportFilters{}, FlowReportIPCount{}}},
+		{&db.flowReportTopDestinationsUplinkStmt, fmt.Sprintf(flowReportTopDestinationsUplinkStmt, FlowReportsTableName), []any{FlowReportFilters{}, FlowReportIPCount{}}},
 
 		// Sessions
 		{&db.createSessionStmt, fmt.Sprintf(createSessionStmt, SessionsTableName), []any{Session{}}},
