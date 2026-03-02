@@ -94,8 +94,8 @@ export type FlowReportFilters = {
   end?: string;
   subscriber_id?: string;
   protocol?: string;
-  source_ip?: string;
-  destination_ip?: string;
+  source?: string;
+  destination?: string;
   direction?: string;
 };
 

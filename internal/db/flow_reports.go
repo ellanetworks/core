@@ -62,6 +62,8 @@ const listFlowReportsPagedFilteredStmt = `
     AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
     AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
     AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
+    AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
+    AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
@@ -78,6 +80,8 @@ const countFlowReportsFilteredStmt = `
     AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
     AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
     AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
+    AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
+    AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
@@ -91,6 +95,8 @@ WHERE
     AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
     AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
     AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
+    AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
+    AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
@@ -105,6 +111,8 @@ WHERE
     AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
     AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
     AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
+    AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
+    AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
@@ -119,6 +127,8 @@ WHERE
     AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
     AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
     AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
+    AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
+    AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
@@ -134,6 +144,8 @@ WHERE
     AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
     AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
     AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
+    AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
+    AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND direction = 'uplink'
@@ -153,13 +165,15 @@ type FlowReportIPCount struct {
 }
 
 type FlowReportFilters struct {
-	SubscriberID  *string `db:"subscriber_id"`  // exact match (IMSI)
-	Protocol      *uint8  `db:"protocol"`       // exact match
-	SourceIP      *string `db:"source_ip"`      // exact match
-	DestinationIP *string `db:"destination_ip"` // exact match
-	EndTimeFrom   *string `db:"end_time_from"`  // RFC3339 (UTC)
-	EndTimeTo     *string `db:"end_time_to"`    // RFC3339 (UTC), exclusive upper bound
-	Direction     *string `db:"direction"`      // "uplink" or "downlink"
+	SubscriberID    *string `db:"subscriber_id"`    // exact match (IMSI)
+	Protocol        *uint8  `db:"protocol"`         // exact match
+	SourceIP        *string `db:"source_ip"`        // exact match
+	DestinationIP   *string `db:"destination_ip"`   // exact match
+	SourcePort      *uint16 `db:"source_port"`      // exact match
+	DestinationPort *uint16 `db:"destination_port"` // exact match
+	EndTimeFrom     *string `db:"end_time_from"`    // RFC3339 (UTC)
+	EndTimeTo       *string `db:"end_time_to"`      // RFC3339 (UTC), exclusive upper bound
+	Direction       *string `db:"direction"`        // "uplink" or "downlink"
 }
 
 func (db *Database) InsertFlowReport(ctx context.Context, flowReport *dbwriter.FlowReport) error {
