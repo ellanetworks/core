@@ -21,8 +21,8 @@ import {
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import NorthIcon from "@mui/icons-material/North";
-import SouthIcon from "@mui/icons-material/South";
+import WestIcon from "@mui/icons-material/West";
+import EastIcon from "@mui/icons-material/East";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -646,14 +646,28 @@ const Traffic: React.FC = () => {
         minWidth: 160,
       },
       {
+        field: "source_ip",
+        headerName: "Source",
+        flex: 1,
+        minWidth: 160,
+        renderCell: (params) => {
+          const row = params.row as FlowReport;
+          const proto = row.protocol;
+          if (proto === 6 || proto === 17) {
+            return `${row.source_ip}:${row.source_port}`;
+          }
+          return row.source_ip;
+        },
+      },
+      {
         field: "direction",
-        headerName: "Direction",
-        width: 100,
+        headerName: "",
+        width: 50,
         sortable: false,
         renderCell: (params) => {
           const dir = params.value as string;
           if (!dir) return null;
-          const Icon = dir === "uplink" ? NorthIcon : SouthIcon;
+          const Icon = dir === "uplink" ? WestIcon : EastIcon;
           const title = dir === "uplink" ? "Uplink" : "Downlink";
           const color = dir === "uplink" ? "#FF9800" : "#4254FB";
           return (
@@ -673,20 +687,6 @@ const Traffic: React.FC = () => {
               </Box>
             </Tooltip>
           );
-        },
-      },
-      {
-        field: "source_ip",
-        headerName: "Source",
-        flex: 1,
-        minWidth: 160,
-        renderCell: (params) => {
-          const row = params.row as FlowReport;
-          const proto = row.protocol;
-          if (proto === 6 || proto === 17) {
-            return `${row.source_ip}:${row.source_port}`;
-          }
-          return row.source_ip;
         },
       },
       {
