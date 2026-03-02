@@ -501,14 +501,12 @@ const Traffic: React.FC = () => {
     queryKey: ["flowReportProtocolOptions", filtersWithoutProtocol],
     queryFn: () =>
       getFlowReportStats(accessToken || "", filtersWithoutProtocol),
-    enabled: authReady && !!accessToken && !!appliedProtocol,
+    enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
     refetchInterval: 5000,
   });
 
-  const protocolOptionsData = appliedProtocol
-    ? protocolOptionsRaw
-    : flowStatsData;
+  const protocolOptionsData = protocolOptionsRaw ?? flowStatsData;
 
   const { data: flowAccountingInfo } = useQuery<FlowAccountingInfo>({
     queryKey: ["flow-accounting"],
@@ -815,41 +813,6 @@ const Traffic: React.FC = () => {
       };
     });
   }, [flowStatsData]);
-
-  // ── DEBUG: trace pie data lifecycle ──────────────────
-
-  useEffect(() => {
-    console.log(
-      "[PIE DEBUG] protocolPieData changed:",
-      protocolPieData.length,
-      "items",
-      protocolPieData.map((d) => ({ id: d.id, label: d.label, color: d.color })),
-    );
-  }, [protocolPieData]);
-
-  useEffect(() => {
-    console.log(
-      "[PIE DEBUG] topDestinationsPieData changed:",
-      topDestinationsPieData.length,
-      "items",
-      topDestinationsPieData.map((d) => ({ id: d.id, label: d.label, color: d.color })),
-    );
-  }, [topDestinationsPieData]);
-
-  useEffect(() => {
-    console.log(
-      "[PIE DEBUG] flowStatsData changed:",
-      flowStatsData === undefined ? "undefined" : "has data",
-      "protocols:",
-      flowStatsData?.protocols?.length ?? 0,
-      "destinations:",
-      flowStatsData?.top_destinations_uplink?.length ?? 0,
-    );
-  }, [flowStatsData]);
-
-  useEffect(() => {
-    console.log("[PIE DEBUG] activeFlowFilters changed:", activeFlowFilters);
-  }, [activeFlowFilters]);
 
   // ── Pie chart click handlers ─────────────────────────
 
