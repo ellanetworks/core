@@ -10,9 +10,9 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strings"
 	"sync/atomic"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/wmnsk/go-pfcp/ie"
@@ -25,10 +25,6 @@ var dispatcher *pfcp_dispatcher.PfcpDispatcher = &pfcp_dispatcher.Dispatcher
 
 func getSeqNumber() uint32 {
 	return atomic.AddUint32(&seq, 1)
-}
-
-func extractImsiFromSupi(supi string) string {
-	return strings.TrimPrefix(supi, "imsi-")
 }
 
 type PFCPSessionEstablishmentResult struct {
@@ -45,9 +41,9 @@ func SendPfcpSessionEstablishmentRequest(
 	farList []*smfContext.FAR,
 	qerList []*smfContext.QER,
 	urrList []*smfContext.URR,
-	supi string,
+	supi etsi.SUPI,
 ) (*PFCPSessionEstablishmentResult, error) {
-	imsi := extractImsiFromSupi(supi)
+	imsi := supi.IMSI()
 
 	pfcpMsg, err := BuildPfcpSessionEstablishmentRequest(
 		getSeqNumber(),

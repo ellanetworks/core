@@ -47,7 +47,7 @@ type SmfSbi interface {
 func init() {
 	amfContext = AMF{
 		Ausf:   &RealAusf{},
-		UEs:    make(map[string]*AmfUe),
+		UEs:    make(map[etsi.SUPI]*AmfUe),
 		Radios: make(map[*sctp.SCTPConn]*Radio),
 	}
 	tmsiGenerator = etsi.NewTMSIAllocator()
@@ -56,7 +56,7 @@ func init() {
 
 type Ausf interface {
 	UeAuthPostRequestProcedure(ctx context.Context, suci string, snName string, resyncInfo *models.ResynchronizationInfo) (*models.Av5gAka, error)
-	Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (string, string, error)
+	Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (etsi.SUPI, string, error)
 }
 
 type RealAusf struct{}
@@ -65,7 +65,7 @@ func (a *RealAusf) UeAuthPostRequestProcedure(ctx context.Context, suci string, 
 	return ausf.UeAuthPostRequestProcedure(ctx, suci, snName, resyncInfo)
 }
 
-func (a *RealAusf) Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (string, string, error) {
+func (a *RealAusf) Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (etsi.SUPI, string, error) {
 	return ausf.Auth5gAkaComfirmRequestProcedure(resStar, suci)
 }
 
@@ -103,7 +103,7 @@ type AMF struct {
 
 	DBInstance               DBer
 	Ausf                     Ausf
-	UEs                      map[string]*AmfUe // Key: supi
+	UEs                      map[etsi.SUPI]*AmfUe // Key: supi
 	Radios                   map[*sctp.SCTPConn]*Radio
 	RelativeCapacity         int64
 	Name                     string
@@ -149,7 +149,7 @@ func allocateAmfUeNgapID() (int64, error) {
 }
 
 func (amf *AMF) AddAmfUeToUePool(ue *AmfUe) error {
-	if len(ue.Supi) == 0 {
+	if !ue.Supi.IsValid() {
 		return fmt.Errorf("supi is empty")
 	}
 
@@ -183,7 +183,7 @@ func (amf *AMF) DeregisterAndRemoveAMFUE(ue *AmfUe) {
 		ue.mobileReachableTimer = nil
 	}
 
-	if ue.Supi == "" {
+	if !ue.Supi.IsValid() {
 		return
 	}
 
@@ -192,7 +192,7 @@ func (amf *AMF) DeregisterAndRemoveAMFUE(ue *AmfUe) {
 	amf.Mutex.Unlock()
 }
 
-func (amf *AMF) FindAMFUEBySupi(supi string) (*AmfUe, bool) {
+func (amf *AMF) FindAMFUEBySupi(supi etsi.SUPI) (*AmfUe, bool) {
 	amf.Mutex.Lock()
 	defer amf.Mutex.Unlock()
 

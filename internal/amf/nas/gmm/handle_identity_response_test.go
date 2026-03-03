@@ -260,10 +260,10 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -272,7 +272,6 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 	}
 
 	ue.Suci = ""
-	ue.Supi = ""
 	ue.State = amfContext.Authentication
 	ue.MacFailed = false
 	ue.Tai = ue.RanUe.Tai
@@ -321,10 +320,10 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -333,7 +332,6 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 	}
 
 	ue.Suci = ""
-	ue.Supi = ""
 	ue.State = amfContext.Authentication
 	ue.MacFailed = false
 	ue.Tai = models.Tai{}
@@ -357,7 +355,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 }
 
 func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *testing.T) {
-	supi := "imsi-001019756139935"
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
 	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
@@ -375,7 +373,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 			Supi:  supi,
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -451,7 +449,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
-			supi := "imsi-001019756139935"
+			supi := mustSUPIFromPrefixed("imsi-001019756139935")
 			amf := &amfContext.AMF{
 				DBInstance: &FakeDBInstance{
 					Operator: &db.Operator{
@@ -469,7 +467,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 					Supi:  supi,
 					Kseaf: "testkey",
 				},
-				UEs: make(map[string]*amfContext.AmfUe),
+				UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 			}
 
 			ue, ngapSender, err := buildUeAndRadio()
@@ -552,7 +550,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
-			supi := "imsi-001019756139935"
+			supi := mustSUPIFromPrefixed("imsi-001019756139935")
 			amf := &amfContext.AMF{
 				DBInstance: &FakeDBInstance{},
 				Ausf: &FakeAusf{
@@ -563,7 +561,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 					Supi:  supi,
 					Kseaf: "testkey",
 				},
-				UEs: make(map[string]*amfContext.AmfUe),
+				UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 			}
 
 			ue, ngapSender, err := buildUeAndRadio()
@@ -621,7 +619,7 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
-			supi := "imsi-001019756139935"
+			supi := mustSUPIFromPrefixed("imsi-001019756139935")
 			amf := &amfContext.AMF{
 				DBInstance: &FakeDBInstance{},
 				Ausf: &FakeAusf{
@@ -632,7 +630,7 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 					Supi:  supi,
 					Kseaf: "testkey",
 				},
-				UEs: make(map[string]*amfContext.AmfUe),
+				UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 			}
 
 			ue, ngapSender, err := buildUeAndRadio()

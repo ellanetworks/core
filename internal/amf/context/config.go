@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel"
@@ -110,17 +111,19 @@ func getSupportedTAIs(operator *db.Operator) ([]models.Tai, error) {
 	return tais, nil
 }
 
-func (amf *AMF) GetSubscriberDnn(ctx context.Context, ueID string) (string, error) {
+func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI) (string, error) {
 	ctx, span := tracer.Start(ctx, "AMF GetSubscriberDnn",
 		trace.WithAttributes(
-			attribute.String("supi", ueID),
+			attribute.String("supi", supi.String()),
 		),
 	)
 	defer span.End()
 
-	subscriber, err := amf.DBInstance.GetSubscriber(ctx, ueID)
+	imsi := supi.IMSI()
+
+	subscriber, err := amf.DBInstance.GetSubscriber(ctx, imsi)
 	if err != nil {
-		return "", fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
+		return "", fmt.Errorf("couldn't get subscriber %s: %v", imsi, err)
 	}
 
 	policy, err := amf.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
@@ -136,17 +139,19 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, ueID string) (string, erro
 	return dataNetwork.Name, nil
 }
 
-func (amf *AMF) GetSubscriberBitrate(ctx context.Context, ueID string) (*models.Ambr, error) {
+func (amf *AMF) GetSubscriberBitrate(ctx context.Context, supi etsi.SUPI) (*models.Ambr, error) {
 	ctx, span := tracer.Start(ctx, "AMF GetSubscriberBitrate",
 		trace.WithAttributes(
-			attribute.String("supi", ueID),
+			attribute.String("supi", supi.String()),
 		),
 	)
 	defer span.End()
 
-	subscriber, err := amf.DBInstance.GetSubscriber(ctx, ueID)
+	imsi := supi.IMSI()
+
+	subscriber, err := amf.DBInstance.GetSubscriber(ctx, imsi)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", imsi, err)
 	}
 
 	policy, err := amf.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)

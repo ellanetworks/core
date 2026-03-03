@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/sctp"
@@ -124,7 +125,7 @@ func newTestAMFWithSmf(smf amfContext.SmfSbi) *amfContext.AMF {
 
 func newValidAmfUe() *amfContext.AmfUe {
 	amfUe := amfContext.NewAmfUe()
-	amfUe.Supi = "imsi-001010000000001"
+	amfUe.Supi, _ = etsi.NewSUPIFromPrefixed("imsi-001010000000001")
 	amfUe.SecurityContextAvailable = true
 	amfUe.NgKsi.Ksi = 1
 	amfUe.MacFailed = false

@@ -34,7 +34,7 @@ func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionRep
 
 	smContext := smf.GetSMContextBySEID(seid)
 
-	if smContext == nil || smContext.Supi == "" {
+	if smContext == nil || !smContext.Supi.IsValid() {
 		return message.NewSessionReportResponse(
 			1,
 			0,
@@ -111,7 +111,7 @@ func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionRep
 			}
 
 			dailyUsage := db.DailyUsage{
-				IMSI:          smContext.Supi,
+				IMSI:          smContext.Supi.IMSI(),
 				BytesUplink:   int64(volumeMeasurement.UplinkVolume),
 				BytesDownlink: int64(volumeMeasurement.DownlinkVolume),
 			}
@@ -126,12 +126,12 @@ func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionRep
 					getSeqNumber(),
 					0,
 					ie.NewCause(ie.CauseRequestRejected),
-				), fmt.Errorf("failed to update uplink data volume in db for imsi %s: %v", smContext.Supi, err)
+				), fmt.Errorf("failed to update uplink data volume in db for imsi %s: %v", smContext.Supi.String(), err)
 			}
 
 			logger.WithTrace(ctx, logger.SmfLog).Debug(
 				"Processed usage report",
-				zap.String("supi", smContext.Supi),
+				zap.String("supi", smContext.Supi.String()),
 				zap.Uint32("urrID", urrId),
 				zap.Uint64("uplink_volume", volumeMeasurement.UplinkVolume),
 				zap.Uint64("downlink_volume", volumeMeasurement.DownlinkVolume),

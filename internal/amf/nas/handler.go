@@ -70,7 +70,7 @@ func HandleNAS(ctx context.Context, amf *amfContext.AMF, ue *amfContext.RanUe, n
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("nas.message_type", msgTypeName),
-			attribute.String("ue.supi", ue.AmfUe.Supi),
+			attribute.String("ue.supi", ue.AmfUe.Supi.String()),
 		),
 	)
 	defer span.End()
@@ -78,12 +78,12 @@ func HandleNAS(ctx context.Context, amf *amfContext.AMF, ue *amfContext.RanUe, n
 	logger.WithTrace(ctx, logger.AmfLog).Info(
 		"Received NAS message",
 		zap.String("MessageType", msgTypeName),
-		zap.String("SUPI", ue.AmfUe.Supi),
+		zap.String("SUPI", ue.AmfUe.Supi.String()),
 	)
 
 	err = gmm.HandleGmmMessage(ctx, amf, ue.AmfUe, msg.GmmMessage)
 	if err != nil {
-		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.AmfUe.Supi, err)
+		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.AmfUe.Supi.String(), err)
 	}
 
 	return nil

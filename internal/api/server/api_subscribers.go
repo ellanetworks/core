@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/deregister"
 	"github.com/ellanetworks/core/internal/db"
@@ -150,8 +151,14 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 
 			amf := amfContext.AMFSelf()
 
+			supi, err := etsi.NewSUPIFromIMSI(dbSubscriber.Imsi)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Invalid subscriber IMSI", err, logger.APILog)
+				return
+			}
+
 			subscriberStatus := SubscriberStatus{
-				Registered: amf.IsSubscriberRegistered(dbSubscriber.Imsi),
+				Registered: amf.IsSubscriberRegistered(supi),
 				IPAddress:  ipAddress,
 			}
 
@@ -209,8 +216,14 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 
 		amf := amfContext.AMFSelf()
 
+		supi, err := etsi.NewSUPIFromIMSI(dbSubscriber.Imsi)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Invalid subscriber IMSI", err, logger.APILog)
+			return
+		}
+
 		subscriberStatus := SubscriberStatus{
-			Registered: amf.IsSubscriberRegistered(dbSubscriber.Imsi),
+			Registered: amf.IsSubscriberRegistered(supi),
 			IPAddress:  ipAddress,
 		}
 
@@ -411,7 +424,13 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 
 		amf := amfContext.AMFSelf()
 
-		err := deregister.DeregisterSubscriber(r.Context(), amf, imsi)
+		supi, err := etsi.NewSUPIFromIMSI(imsi)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Invalid subscriber IMSI", err, logger.APILog)
+			return
+		}
+
+		err = deregister.DeregisterSubscriber(r.Context(), amf, supi)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to deregister subscriber", err, logger.APILog)
 			return

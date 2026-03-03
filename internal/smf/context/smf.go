@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -132,19 +133,19 @@ func (smf *SMF) GetSnssaiInfo(ctx context.Context, dnn string) (*SnssaiSmfInfo, 
 	return snssaiInfo, nil
 }
 
-func (smf *SMF) GetSubscriberPolicy(ctx context.Context, ueID string) (*models.SmPolicyData, error) {
+func (smf *SMF) GetSubscriberPolicy(ctx context.Context, supi etsi.SUPI) (*models.SmPolicyData, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"SMF GetSubscriberPolicy",
 		trace.WithAttributes(
-			attribute.String("ue.supi", ueID),
+			attribute.String("ue.supi", supi.String()),
 		),
 	)
 	defer span.End()
 
-	subscriber, err := smf.DBInstance.GetSubscriber(ctx, ueID)
+	subscriber, err := smf.DBInstance.GetSubscriber(ctx, supi.IMSI())
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", supi.String(), err)
 	}
 
 	policy, err := smf.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
@@ -195,7 +196,7 @@ func (smf *SMF) GetSMContextBySEID(seid uint64) *SMContext {
 	return nil
 }
 
-func (smf *SMF) NewSMContext(supi string, pduSessionID uint8, dnn string, snssai *models.Snssai) *SMContext {
+func (smf *SMF) NewSMContext(supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai) *SMContext {
 	smf.Mutex.Lock()
 	defer smf.Mutex.Unlock()
 
@@ -250,13 +251,13 @@ func (smf *SMF) RemoveSMContext(ctx context.Context, ref string) {
 	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
 }
 
-func (smf *SMF) ReleaseUeIPAddr(ctx context.Context, supi string) error {
-	err := smf.DBInstance.ReleaseIP(ctx, supi)
+func (smf *SMF) ReleaseUeIPAddr(ctx context.Context, supi etsi.SUPI) error {
+	err := smf.DBInstance.ReleaseIP(ctx, supi.IMSI())
 	if err != nil {
 		return fmt.Errorf("failed to release IP Address, %v", err)
 	}
 
-	logger.SmfLog.Info("Released IP Address", zap.String("supi", supi))
+	logger.SmfLog.Info("Released IP Address", zap.String("supi", supi.String()))
 
 	return nil
 }
