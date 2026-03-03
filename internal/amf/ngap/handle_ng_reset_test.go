@@ -113,6 +113,42 @@ func buildNGReset(opts *NGResetOpts) (*ngapType.NGAPPDU, error) {
 	return &pdu, nil
 }
 
+func TestHandleNGReset_MissingResetType(t *testing.T) {
+	fakeNGAPSender := &FakeNGAPSender{}
+
+	ran := &amfContext.Radio{
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		RanUEs:        map[int64]*amfContext.RanUe{},
+		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+	}
+
+	ngReset := &ngapType.NGReset{}
+	ngReset.ProtocolIEs.List = append(ngReset.ProtocolIEs.List, ngapType.NGResetIEs{
+		Id: ngapType.ProtocolIEID{
+			Value: ngapType.ProtocolIEIDCause,
+		},
+		Criticality: ngapType.Criticality{
+			Value: ngapType.CriticalityPresentIgnore,
+		},
+		Value: ngapType.NGResetIEsValue{
+			Present: ngapType.NGResetIEsPresentCause,
+			Cause: &ngapType.Cause{
+				Present: ngapType.CausePresentRadioNetwork,
+				RadioNetwork: &ngapType.CauseRadioNetwork{
+					Value: ngapType.CauseRadioNetworkPresentSuccessfulHandover,
+				},
+			},
+		},
+	})
+
+	ngap.HandleNGReset(context.Background(), ran, ngReset)
+
+	if len(fakeNGAPSender.SentNGResetAcknowledges) != 0 {
+		t.Fatalf("expected no NGResetAcknowledge to be sent, but got %d", len(fakeNGAPSender.SentNGResetAcknowledges))
+	}
+}
+
 func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
