@@ -113,6 +113,49 @@ func buildNGReset(opts *NGResetOpts) (*ngapType.NGAPPDU, error) {
 	return &pdu, nil
 }
 
+// TestHandleNGReset_MissingResetType reproduces the crash described in the issue:
+// an NGReset message that contains only the Cause IE but is missing the mandatory
+// ResetType IE causes a nil pointer dereference panic in HandleNGReset.
+func TestHandleNGReset_MissingResetType(t *testing.T) {
+	fakeNGAPSender := &FakeNGAPSender{}
+
+	ran := &amfContext.Radio{
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		RanUEs:        map[int64]*amfContext.RanUe{},
+		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+	}
+
+	// Build an NGReset message with only the Cause IE and no ResetType IE,
+	// exactly matching the invalid message from the bug report.
+	ngReset := &ngapType.NGReset{}
+	ngReset.ProtocolIEs.List = append(ngReset.ProtocolIEs.List, ngapType.NGResetIEs{
+		Id: ngapType.ProtocolIEID{
+			Value: ngapType.ProtocolIEIDCause,
+		},
+		Criticality: ngapType.Criticality{
+			Value: ngapType.CriticalityPresentIgnore,
+		},
+		Value: ngapType.NGResetIEsValue{
+			Present: ngapType.NGResetIEsPresentCause,
+			Cause: &ngapType.Cause{
+				Present: ngapType.CausePresentRadioNetwork,
+				RadioNetwork: &ngapType.CauseRadioNetwork{
+					Value: ngapType.CauseRadioNetworkPresentSuccessfulHandover,
+				},
+			},
+		},
+	})
+
+	// This should NOT panic. Before the fix, this dereferences a nil resetType.
+	ngap.HandleNGReset(context.Background(), ran, ngReset)
+
+	// The handler should return early without sending any response.
+	if len(fakeNGAPSender.SentNGResetAcknowledges) != 0 {
+		t.Fatalf("expected no NGResetAcknowledge to be sent, but got %d", len(fakeNGAPSender.SentNGResetAcknowledges))
+	}
+}
+
 func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
