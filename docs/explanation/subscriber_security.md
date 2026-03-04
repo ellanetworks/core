@@ -16,28 +16,18 @@ The subscriber's Universal Subscriber Identity Module (USIM) stores the identity
 - **OPc (Operator Code)**: A value derived from the operator key (OP) and the subscriber's secret key (K) using the Milenage algorithm (see [3GPP TS 35.206](https://www.3gpp.org/DynaReport/35206.htm)).
 - **SQN (Sequence Number)**: A counter maintained by both the USIM and the network to prevent replay attacks.
 
-## Algorithms
-
-Ella Core uses the **Milenage** algorithm set built on AES-128 to produce authentication vectors, as defined in [3GPP TS 35.206](https://www.3gpp.org/DynaReport/35206.htm). Key derivation follows [3GPP TS 33.501](https://www.3gpp.org/DynaReport/33501.htm).
+Ella Core uses the **Milenage** algorithm set built on AES-128 to produce authentication vectors.
 
 ## Subscriber Privacy (SUCI)
 
-Ella Core supports **SUCI** (Subscription Concealed Identifier) to protect subscriber identity over the air. The IMSI is encrypted by the UE before transmission using **ECIES Profile A**:
-
-- **X25519** for key agreement
-- **AES-128-CTR** for encryption
-- **HMAC-SHA-256** for integrity
-
-The network decrypts the SUCI to recover the SUPI. This prevents IMSI-catching attacks.
+Ella Core supports **SUCI** (Subscription Concealed Identifier) to protect subscriber identity over the air. The IMSI is encrypted by the UE before transmission using **ECIES Profile A**.  The network decrypts the SUCI to recover the SUPI. This prevents IMSI-catching attacks.
 
 ## NAS Security
 
 After authentication, NAS signaling between the UE and the network is protected with ciphering and integrity algorithms. Ella Core supports the following algorithms:
 
-| Type | Algorithms |
-|------|------------|
-| **Ciphering** | NEA0, NEA1 (SNOW 3G), NEA2 (AES) |
-| **Integrity** | NIA0, NIA1 (SNOW 3G), NIA2 (AES) |
+- **Ciphering**: NEA0, NEA1 (SNOW 3G), NEA2 (AES)
+- **Integrity**: NIA0, NIA1 (SNOW 3G), NIA2 (AES)
 
 ## Managing Subscriber Credentials
 
