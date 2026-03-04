@@ -24,20 +24,13 @@ type DeleteSubscriberOptions struct {
 	ID string `json:"id"`
 }
 
+// SubscriberStatus is the lightweight status returned by the list endpoint.
 type SubscriberStatus struct {
-	Registered         bool   `json:"registered"`
-	State              string `json:"state"`
-	ConnectedRadio     string `json:"connectedRadio"`
-	Imei               string `json:"imei"`
-	Tac                string `json:"tac"`
-	CellID             string `json:"cellID"`
-	ActiveSessions     int    `json:"activeSessions"`
-	AmbrUplink         string `json:"ambrUplink"`
-	AmbrDownlink       string `json:"ambrDownlink"`
-	CipheringAlgorithm string `json:"cipheringAlgorithm"`
-	IntegrityAlgorithm string `json:"integrityAlgorithm"`
+	Registered bool   `json:"registered"`
+	IPAddress  string `json:"ipAddress"`
 }
 
+// Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
 	Imsi            string           `json:"imsi"`
 	Opc             string           `json:"opc"`
@@ -53,6 +46,33 @@ type ListSubscribersResponse struct {
 	Page       int          `json:"page"`
 	PerPage    int          `json:"per_page"`
 	TotalCount int          `json:"total_count"`
+}
+
+// SubscriberDetailStatus is the rich status returned by the get-single endpoint.
+type SubscriberDetailStatus struct {
+	Registered         bool   `json:"registered"`
+	IPAddress          string `json:"ipAddress"`
+	State              string `json:"state"`
+	ConnectedRadio     string `json:"connectedRadio"`
+	Imei               string `json:"imei"`
+	Tac                string `json:"tac"`
+	CellID             string `json:"cellID"`
+	ActiveSessions     int    `json:"activeSessions"`
+	AmbrUplink         string `json:"ambrUplink"`
+	AmbrDownlink       string `json:"ambrDownlink"`
+	CipheringAlgorithm string `json:"cipheringAlgorithm"`
+	IntegrityAlgorithm string `json:"integrityAlgorithm"`
+}
+
+// SubscriberDetail is the full representation returned by the get-single endpoint.
+type SubscriberDetail struct {
+	Imsi            string                 `json:"imsi"`
+	Opc             string                 `json:"opc"`
+	SequenceNumber  string                 `json:"sequenceNumber"`
+	Key             string                 `json:"key"`
+	PolicyName      string                 `json:"policyName"`
+	DataNetworkName string                 `json:"dataNetworkName"`
+	Status          SubscriberDetailStatus `json:"status"`
 }
 
 // CreateSubscriber creates a new subscriber with the provided options.
@@ -92,7 +112,7 @@ func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOpt
 }
 
 // GetSubscriber retrieves a subscriber by ID.
-func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) (*Subscriber, error) {
+func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) (*SubscriberDetail, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
@@ -102,7 +122,7 @@ func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) 
 		return nil, err
 	}
 
-	var subscriberResponse Subscriber
+	var subscriberResponse SubscriberDetail
 
 	err = resp.DecodeResult(&subscriberResponse)
 	if err != nil {

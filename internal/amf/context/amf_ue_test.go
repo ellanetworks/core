@@ -74,7 +74,7 @@ func TestAllocateRegistrationArea(t *testing.T) {
 	}
 }
 
-func TestCipheringAlgName(t *testing.T) {
+func TestSnapshotCipheringAlgorithm(t *testing.T) {
 	tests := []struct {
 		name     string
 		alg      uint8
@@ -91,15 +91,15 @@ func TestCipheringAlgName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := &context.AmfUe{CipheringAlg: tc.alg}
 
-			got := ue.CipheringAlgName()
-			if got != tc.expected {
-				t.Fatalf("expected %q, got %q", tc.expected, got)
+			snap := ue.Snapshot()
+			if snap.CipheringAlgorithm != tc.expected {
+				t.Fatalf("expected %q, got %q", tc.expected, snap.CipheringAlgorithm)
 			}
 		})
 	}
 }
 
-func TestIntegrityAlgName(t *testing.T) {
+func TestSnapshotIntegrityAlgorithm(t *testing.T) {
 	tests := []struct {
 		name     string
 		alg      uint8
@@ -116,9 +116,9 @@ func TestIntegrityAlgName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := &context.AmfUe{IntegrityAlg: tc.alg}
 
-			got := ue.IntegrityAlgName()
-			if got != tc.expected {
-				t.Fatalf("expected %q, got %q", tc.expected, got)
+			snap := ue.Snapshot()
+			if snap.IntegrityAlgorithm != tc.expected {
+				t.Fatalf("expected %q, got %q", tc.expected, snap.IntegrityAlgorithm)
 			}
 		})
 	}

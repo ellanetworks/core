@@ -22,7 +22,6 @@ const DOTS = "••••••••••••••••••••••
 const FieldRow: React.FC<{
   label: string;
   value: string;
-  mono?: boolean;
   copyable?: boolean;
   onCopy?: () => void;
   obfuscated?: boolean;
@@ -32,7 +31,6 @@ const FieldRow: React.FC<{
 }> = ({
   label,
   value,
-  mono,
   copyable,
   onCopy,
   obfuscated,
@@ -61,9 +59,6 @@ const FieldRow: React.FC<{
       variant="body2"
       sx={{
         flex: 1,
-        fontFamily: mono
-          ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
-          : undefined,
         wordBreak: "break-all",
       }}
       {...(linkTo
@@ -128,7 +123,6 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
         <FieldRow
           label="Key"
           value={subscriber.key}
-          mono
           copyable
           onCopy={() => handleCopy(subscriber.key, "Key")}
           obfuscated={keyObfuscated}
@@ -137,7 +131,6 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
         <FieldRow
           label="OPc"
           value={subscriber.opc}
-          mono
           copyable
           onCopy={() => handleCopy(subscriber.opc, "OPc")}
           obfuscated={opcObfuscated}
@@ -146,7 +139,6 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
         <FieldRow
           label="Sequence Number"
           value={subscriber.sequenceNumber}
-          mono
           copyable
           onCopy={() =>
             handleCopy(subscriber.sequenceNumber, "Sequence Number")
@@ -162,6 +154,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
                 size="small"
                 onClick={onEditPolicy}
                 aria-label="Edit policy"
+                color="primary"
               >
                 <EditIcon fontSize="small" />
               </IconButton>

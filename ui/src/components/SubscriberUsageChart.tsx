@@ -6,6 +6,8 @@ import {
   Typography,
   CircularProgress,
 } from "@mui/material";
+import NorthIcon from "@mui/icons-material/North";
+import SouthIcon from "@mui/icons-material/South";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { useQuery } from "@tanstack/react-query";
 import { getUsage, type UsageResult } from "@/queries/usage";
@@ -16,6 +18,9 @@ import {
   chooseUnitFromMax,
   formatBytesAutoUnit,
 } from "@/utils/formatters";
+
+const UPLINK_COLOR = "#FF9800";
+const DOWNLINK_COLOR = "#4254FB";
 
 interface SubscriberUsageChartProps {
   imsi: string;
@@ -74,8 +79,8 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
   const maxBytes = useMemo(() => {
     let max = 0;
     for (const row of dailyRows) {
-      if (row.uplink_bytes > max) max = row.uplink_bytes;
-      if (row.downlink_bytes > max) max = row.downlink_bytes;
+      const sum = row.uplink_bytes + row.downlink_bytes;
+      if (sum > max) max = sum;
     }
     return max;
   }, [dailyRows]);
@@ -143,20 +148,36 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
               justifyContent: "center",
             }}
           >
-            <Typography variant="body2" color="text.secondary">
-              Total ↑ {formatBytesAutoUnit(totalUplink)}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Total ↓ {formatBytesAutoUnit(totalDownlink)}
-            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
+              <Typography variant="body2" color="text.secondary">
+                {formatBytesAutoUnit(totalDownlink)}
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
+              <Typography variant="body2" color="text.secondary">
+                {formatBytesAutoUnit(totalUplink)}
+              </Typography>
+            </Box>
           </Box>
           <BarChart
             dataset={chartDataset}
             xAxis={[{ scaleType: "band", dataKey: "date" }]}
             yAxis={[{ label: `Usage (${unit})` }]}
             series={[
-              { dataKey: "downlink", label: `Downlink (${unit})` },
-              { dataKey: "uplink", label: `Uplink (${unit})` },
+              {
+                dataKey: "downlink",
+                label: `Downlink (${unit})`,
+                stack: "total",
+                color: DOWNLINK_COLOR,
+              },
+              {
+                dataKey: "uplink",
+                label: `Uplink (${unit})`,
+                stack: "total",
+                color: UPLINK_COLOR,
+              },
             ]}
             height={250}
             slotProps={{

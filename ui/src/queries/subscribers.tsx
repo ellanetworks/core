@@ -1,6 +1,31 @@
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
-export type SubscriberStatus = {
+/** Lightweight status returned by the list endpoint. */
+export type SubscriberListStatus = {
+  registered?: boolean;
+  ipAddress?: string;
+};
+
+/** Summary representation returned by the list endpoint. */
+export type APISubscriberSummary = {
+  imsi: string;
+  opc: string;
+  sequenceNumber: string;
+  key: string;
+  policyName: string;
+  dataNetworkName?: string;
+  status: SubscriberListStatus;
+};
+
+export type ListSubscribersResponse = {
+  items: APISubscriberSummary[];
+  page: number;
+  per_page: number;
+  total_count: number;
+};
+
+/** Rich status returned by the get-single endpoint. */
+export type SubscriberDetailStatus = {
   registered?: boolean;
   ipAddress?: string;
   state?: string;
@@ -15,6 +40,7 @@ export type SubscriberStatus = {
   integrityAlgorithm?: string;
 };
 
+/** Full representation returned by the get-single endpoint. */
 export type APISubscriber = {
   imsi: string;
   opc: string;
@@ -22,14 +48,7 @@ export type APISubscriber = {
   key: string;
   policyName: string;
   dataNetworkName?: string;
-  status: SubscriberStatus;
-};
-
-export type ListSubscribersResponse = {
-  items: APISubscriber[];
-  page: number;
-  per_page: number;
-  total_count: number;
+  status: SubscriberDetailStatus;
 };
 
 export async function listSubscribers(

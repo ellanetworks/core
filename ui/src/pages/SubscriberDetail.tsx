@@ -4,8 +4,7 @@ import {
   Button,
   Card,
   CardContent,
-  Chip,
-  CircularProgress,
+  Skeleton,
   Typography,
 } from "@mui/material";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
@@ -23,7 +22,7 @@ import SubscriberProvisioningCard from "@/components/SubscriberProvisioningCard"
 import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
 import SubscriberUsageChart from "@/components/SubscriberUsageChart";
 import SubscriberProtocolChart from "@/components/SubscriberProtocolChart";
-import SubscriberRecentFlows from "@/components/SubscriberRecentFlows";
+
 
 const MAX_WIDTH = 1400;
 
@@ -70,8 +69,34 @@ const SubscriberDetail: React.FC = () => {
 
   if (!authReady || isLoading) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-        <CircularProgress />
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          pt: 6,
+          pb: 4,
+        }}
+      >
+        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+          {/* Header skeleton */}
+          <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
+
+          {/* Two-column skeleton */}
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+              gap: 3,
+            }}
+          >
+            <Skeleton variant="rounded" height={320} />
+            <Skeleton variant="rounded" height={320} />
+          </Box>
+
+          {/* Traffic card skeleton */}
+          <Skeleton variant="rounded" height={340} sx={{ mt: 3 }} />
+        </Box>
       </Box>
     );
   }
@@ -100,8 +125,6 @@ const SubscriberDetail: React.FC = () => {
   }
 
   if (!subscriber) return null;
-
-  const registered = Boolean(subscriber.status?.registered);
 
   return (
     <Box
@@ -154,17 +177,10 @@ const SubscriberDetail: React.FC = () => {
                 <Typography
                   component="span"
                   variant="h4"
-                  sx={{ fontFamily: "monospace" }}
                 >
                   {subscriber.imsi}
                 </Typography>
               </Typography>
-              <Chip
-                size="small"
-                label={registered ? "Registered" : "Deregistered"}
-                color={registered ? "success" : "default"}
-                variant="filled"
-              />
             </Box>
           </Box>
           {canEdit && (
@@ -191,15 +207,15 @@ const SubscriberDetail: React.FC = () => {
         >
           {/* Left column */}
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            <SubscriberProvisioningCard
-              subscriber={subscriber}
-              onEditPolicy={canEdit ? () => setEditModalOpen(true) : undefined}
-            />
+            <SubscriberConnectionCard status={subscriber.status} />
           </Box>
 
           {/* Right column */}
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            <SubscriberConnectionCard status={subscriber.status} />
+            <SubscriberProvisioningCard
+              subscriber={subscriber}
+              onEditPolicy={canEdit ? () => setEditModalOpen(true) : undefined}
+            />
           </Box>
         </Box>
 
@@ -214,7 +230,7 @@ const SubscriberDetail: React.FC = () => {
                 mb: 2,
               }}
             >
-              <Typography variant="h6">Traffic</Typography>
+              <Typography variant="h6">Traffic Summary</Typography>
               <Button
                 component={RouterLink}
                 to={`/traffic/usage?subscriber_id=${subscriber.imsi}`}
@@ -237,10 +253,6 @@ const SubscriberDetail: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Recent Flows */}
-        <Box sx={{ mt: 3 }}>
-          <SubscriberRecentFlows imsi={subscriber.imsi} />
-        </Box>
       </Box>
 
       {/* Modals */}

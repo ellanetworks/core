@@ -11,7 +11,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import {
   listSubscribers,
-  type APISubscriber,
+  type APISubscriberSummary,
   type ListSubscribersResponse,
 } from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
@@ -57,22 +57,18 @@ const SubscriberPage: React.FC = () => {
     placeholderData: (prev) => prev,
   });
 
-  const rows: APISubscriber[] = data?.items ?? [];
+  const rows: APISubscriberSummary[] = data?.items ?? [];
   const rowCount = data?.total_count ?? 0;
 
-  const columns: GridColDef<APISubscriber>[] = useMemo(() => {
-    const base: GridColDef<APISubscriber>[] = [
+  const columns: GridColDef<APISubscriberSummary>[] = useMemo(() => {
+    const base: GridColDef<APISubscriberSummary>[] = [
       {
         field: "imsi",
         headerName: "IMSI",
         flex: 1,
         minWidth: 200,
-        renderCell: (params: GridRenderCellParams<APISubscriber>) => (
-          <Box
-            sx={{
-              fontFamily: "monospace",
-            }}
-          >
+        renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => (
+          <Box>
             {params.row.imsi}
           </Box>
         ),
@@ -83,7 +79,7 @@ const SubscriberPage: React.FC = () => {
         headerName: "Data Network",
         flex: 0.8,
         minWidth: 140,
-        valueGetter: (_v, row: APISubscriber) => row?.dataNetworkName ?? "",
+        valueGetter: (_v, row: APISubscriberSummary) => row?.dataNetworkName ?? "",
       },
       {
         field: "registration",
@@ -92,7 +88,7 @@ const SubscriberPage: React.FC = () => {
         minWidth: 120,
         valueGetter: (_v, row) => Boolean(row?.status?.registered),
         sortComparator: (v1, v2) => Number(v1) - Number(v2),
-        renderCell: (params: GridRenderCellParams<APISubscriber>) => {
+        renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
           const registered = Boolean(params.row?.status?.registered);
           return (
             <Chip
@@ -109,8 +105,8 @@ const SubscriberPage: React.FC = () => {
         headerName: "IP Address",
         width: 140,
         minWidth: 120,
-        valueGetter: (_v, row: APISubscriber) => row?.status?.ipAddress ?? "",
-        renderCell: (params: GridRenderCellParams<APISubscriber>) => {
+        valueGetter: (_v, row: APISubscriberSummary) => row?.status?.ipAddress ?? "",
+        renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
           const ip = params.row?.status?.ipAddress ?? "";
           return (
             <Chip
@@ -211,7 +207,7 @@ const SubscriberPage: React.FC = () => {
             sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
           >
             <ThemeProvider theme={gridTheme}>
-              <DataGrid<APISubscriber>
+              <DataGrid<APISubscriberSummary>
                 rows={rows}
                 columns={columns}
                 getRowId={(row) => row.imsi}

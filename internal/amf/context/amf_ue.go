@@ -232,8 +232,9 @@ func (ue *AmfUe) SecurityContextIsValid() bool {
 	return ue.SecurityContextAvailable && ue.NgKsi.Ksi != nasMessage.NasKeySetIdentifierNoKeyIsAvailable && !ue.MacFailed
 }
 
-// CipheringAlgName returns the human-readable name for the negotiated NAS ciphering algorithm.
-func (ue *AmfUe) CipheringAlgName() string {
+// cipheringAlgName returns the human-readable name for the negotiated NAS ciphering algorithm.
+// Must be called while holding ue.Mutex.
+func (ue *AmfUe) cipheringAlgName() string {
 	switch ue.CipheringAlg {
 	case security.AlgCiphering128NEA0:
 		return "NEA0"
@@ -248,8 +249,9 @@ func (ue *AmfUe) CipheringAlgName() string {
 	}
 }
 
-// IntegrityAlgName returns the human-readable name for the negotiated NAS integrity algorithm.
-func (ue *AmfUe) IntegrityAlgName() string {
+// integrityAlgName returns the human-readable name for the negotiated NAS integrity algorithm.
+// Must be called while holding ue.Mutex.
+func (ue *AmfUe) integrityAlgName() string {
 	switch ue.IntegrityAlg {
 	case security.AlgIntegrity128NIA0:
 		return "NIA0"
@@ -289,8 +291,8 @@ func (ue *AmfUe) Snapshot() UESnapshot {
 		State:              ue.State,
 		Pei:                ue.Pei,
 		Tac:                ue.Tai.Tac,
-		CipheringAlgorithm: ue.CipheringAlgName(),
-		IntegrityAlgorithm: ue.IntegrityAlgName(),
+		CipheringAlgorithm: ue.cipheringAlgName(),
+		IntegrityAlgorithm: ue.integrityAlgName(),
 	}
 
 	if ue.RanUe != nil && ue.RanUe.Radio != nil {

@@ -18,10 +18,10 @@ const (
 )
 
 type ListSubscriberResponseResult struct {
-	Items      []Subscriber `json:"items"`
-	Page       int          `json:"page"`
-	PerPage    int          `json:"per_page"`
-	TotalCount int          `json:"total_count"`
+	Items      []ListSubscriber `json:"items"`
+	Page       int              `json:"page"`
+	PerPage    int              `json:"per_page"`
+	TotalCount int              `json:"total_count"`
 }
 
 type ListSubscriberResponse struct {
@@ -33,7 +33,25 @@ type CreateSubscriberSuccessResponse struct {
 	Message string `json:"message"`
 }
 
-type SubscriberStatus struct {
+// ListSubscriberStatus matches the lightweight status in list responses.
+type ListSubscriberStatus struct {
+	Registered bool   `json:"registered"`
+	IPAddress  string `json:"ipAddress"`
+}
+
+// ListSubscriber matches the summary representation in list responses.
+type ListSubscriber struct {
+	Imsi            string               `json:"imsi"`
+	OPc             string               `json:"opc"`
+	Key             string               `json:"key"`
+	SequenceNumber  string               `json:"sequenceNumber"`
+	PolicyName      string               `json:"policyName"`
+	DataNetworkName string               `json:"dataNetworkName"`
+	Status          ListSubscriberStatus `json:"status"`
+}
+
+// SubscriberDetailStatus matches the rich status in get-single responses.
+type SubscriberDetailStatus struct {
 	Registered         bool   `json:"registered"`
 	IPAddress          string `json:"ipAddress"`
 	State              string `json:"state"`
@@ -48,19 +66,20 @@ type SubscriberStatus struct {
 	IntegrityAlgorithm string `json:"integrityAlgorithm"`
 }
 
-type Subscriber struct {
-	Imsi            string           `json:"imsi"`
-	OPc             string           `json:"opc"`
-	Key             string           `json:"key"`
-	SequenceNumber  string           `json:"sequenceNumber"`
-	PolicyName      string           `json:"policyName"`
-	DataNetworkName string           `json:"dataNetworkName"`
-	Status          SubscriberStatus `json:"status"`
+// SubscriberDetail matches the full representation in get-single responses.
+type SubscriberDetail struct {
+	Imsi            string                 `json:"imsi"`
+	OPc             string                 `json:"opc"`
+	Key             string                 `json:"key"`
+	SequenceNumber  string                 `json:"sequenceNumber"`
+	PolicyName      string                 `json:"policyName"`
+	DataNetworkName string                 `json:"dataNetworkName"`
+	Status          SubscriberDetailStatus `json:"status"`
 }
 
 type GetSubscriberResponse struct {
-	Result Subscriber `json:"result"`
-	Error  string     `json:"error,omitempty"`
+	Result SubscriberDetail `json:"result"`
+	Error  string           `json:"error,omitempty"`
 }
 
 type CreateSubscriberParams struct {

@@ -1,21 +1,25 @@
 import React from "react";
-import { Box, Card, CardContent, Typography } from "@mui/material";
+import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import SignalWifiOffIcon from "@mui/icons-material/SignalWifiOff";
 import NorthIcon from "@mui/icons-material/North";
 import SouthIcon from "@mui/icons-material/South";
-import type { SubscriberStatus } from "@/queries/subscribers";
+import type { SubscriberDetailStatus } from "@/queries/subscribers";
+
+const UPLINK_COLOR = "#FF9800";
+const DOWNLINK_COLOR = "#4254FB";
 
 interface SubscriberConnectionCardProps {
-  status: SubscriberStatus;
+  status: SubscriberDetailStatus;
 }
 
 const InfoRow: React.FC<{
   label: string;
-  value?: string | number;
+  value?: React.ReactNode;
   linkTo?: string;
 }> = ({ label, value, linkTo }) => {
-  const display = value === undefined || value === "" ? "—" : String(value);
+  const isEmpty = value === undefined || value === "" || value === null;
+  const display = isEmpty ? "—" : value;
 
   return (
     <Box
@@ -35,7 +39,7 @@ const InfoRow: React.FC<{
       >
         {label}
       </Typography>
-      {linkTo && display !== "—" ? (
+      {linkTo && !isEmpty ? (
         <Typography
           variant="body2"
           component={RouterLink}
@@ -48,8 +52,10 @@ const InfoRow: React.FC<{
         >
           {display}
         </Typography>
-      ) : (
+      ) : typeof display === "string" || typeof display === "number" ? (
         <Typography variant="body2">{display}</Typography>
+      ) : (
+        display
       )}
     </Box>
   );
@@ -76,6 +82,7 @@ const formatSessions = (count?: number): string => {
   return `${count} active`;
 };
 
+/** Downlink first, then uplink — consistent with chart totals. */
 const BitrateValue: React.FC<{ uplink?: string; downlink?: string }> = ({
   uplink,
   downlink,
@@ -84,37 +91,81 @@ const BitrateValue: React.FC<{ uplink?: string; downlink?: string }> = ({
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
-        <NorthIcon sx={{ fontSize: 16, color: "#FF9800" }} />
-        <Typography variant="body2">{uplink || "—"}</Typography>
+        <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
+        <Typography variant="body2">{downlink || "—"}</Typography>
       </Box>
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
-        <SouthIcon sx={{ fontSize: 16, color: "#4254FB" }} />
-        <Typography variant="body2">{downlink || "—"}</Typography>
+        <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
+        <Typography variant="body2">{uplink || "—"}</Typography>
       </Box>
     </Box>
   );
 };
 
-const CIPHERING_SHORT: Record<string, string> = {
+const CIPHERING_LABELS: Record<string, string> = {
   NEA0: "NEA0 (Null)",
   NEA1: "NEA1 (SNOW 3G)",
   NEA2: "NEA2 (AES)",
   NEA3: "NEA3 (ZUC)",
 };
 
-const INTEGRITY_SHORT: Record<string, string> = {
+const INTEGRITY_LABELS: Record<string, string> = {
   NIA0: "NIA0 (Null)",
   NIA1: "NIA1 (SNOW 3G)",
   NIA2: "NIA2 (AES)",
   NIA3: "NIA3 (ZUC)",
 };
 
-const formatAlgorithm = (
-  alg?: string,
-  descriptions?: Record<string, string>,
-): string => {
-  if (!alg) return "";
-  return descriptions?.[alg] ?? alg;
+/** NEA0 / NIA0 are null ciphering/integrity — highlight as warning. */
+const INSECURE_ALGS = new Set(["NEA0", "NIA0"]);
+
+const AlgorithmChip: React.FC<{
+  alg?: string;
+  labels: Record<string, string>;
+}> = ({ alg, labels }) => {
+  if (!alg) return <Typography variant="body2">—</Typography>;
+  const display = labels[alg] ?? alg;
+  const isInsecure = INSECURE_ALGS.has(alg);
+  return (
+    <Chip
+      size="small"
+      label={display}
+      sx={{
+        fontWeight: 600,
+        fontSize: "0.75rem",
+        height: 22,
+        ...(isInsecure
+          ? { backgroundColor: "#F9A825", color: "#fff" }
+          : { backgroundColor: "success.main", color: "#fff" }),
+      }}
+    />
+  );
+};
+
+const StateChip: React.FC<{ state?: string }> = ({ state }) => {
+  if (!state) return <Typography variant="body2">—</Typography>;
+  const isRegistered = state === "Registered";
+  return (
+    <Chip
+      size="small"
+      label={state}
+      color={isRegistered ? "success" : "default"}
+      variant="filled"
+    />
+  );
+};
+
+const IpChip: React.FC<{ ip?: string }> = ({ ip }) => {
+  if (!ip) return <Typography variant="body2">—</Typography>;
+  return (
+    <Chip
+      size="small"
+      label={ip}
+      color="success"
+      variant="filled"
+      sx={{ fontSize: "0.75rem" }}
+    />
+  );
 };
 
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
@@ -133,8 +184,8 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           <OfflineState />
         ) : (
           <>
-            <InfoRow label="IP Address" value={status.ipAddress} />
-            <InfoRow label="State" value={status.state} />
+            <InfoRow label="State" value={<StateChip state={status.state} />} />
+            <InfoRow label="IP Address" value={<IpChip ip={status.ipAddress} />} />
             <InfoRow label="IMEI" value={status.imei} />
             <InfoRow
               label="Active Sessions"
@@ -199,17 +250,21 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
             </Typography>
             <InfoRow
               label="Ciphering"
-              value={formatAlgorithm(
-                status.cipheringAlgorithm,
-                CIPHERING_SHORT,
-              )}
+              value={
+                <AlgorithmChip
+                  alg={status.cipheringAlgorithm}
+                  labels={CIPHERING_LABELS}
+                />
+              }
             />
             <InfoRow
               label="Integrity"
-              value={formatAlgorithm(
-                status.integrityAlgorithm,
-                INTEGRITY_SHORT,
-              )}
+              value={
+                <AlgorithmChip
+                  alg={status.integrityAlgorithm}
+                  labels={INTEGRITY_LABELS}
+                />
+              }
             />
           </>
         )}

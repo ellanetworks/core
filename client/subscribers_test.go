@@ -68,7 +68,7 @@ func TestGetSubscriber_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"imsi": "001010100000022", "policyName": "default", "dataNetworkName": "internet", "status": {"registered": false, "state": "Deregistered", "connectedRadio": "", "imei": "", "tac": "", "cellID": "", "activeSessions": 0, "ambrUplink": "", "ambrDownlink": "", "cipheringAlgorithm": "", "integrityAlgorithm": ""}}`),
+			Result:     []byte(`{"imsi": "001010100000022", "policyName": "default", "dataNetworkName": "internet", "status": {"registered": false, "ipAddress": "", "state": "Deregistered", "connectedRadio": "", "imei": "", "tac": "", "cellID": "", "activeSessions": 0, "ambrUplink": "", "ambrDownlink": "", "cipheringAlgorithm": "", "integrityAlgorithm": ""}}`),
 		},
 		err: nil,
 	}

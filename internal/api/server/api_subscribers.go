@@ -29,21 +29,14 @@ type UpdateSubscriberParams struct {
 	PolicyName string `json:"policyName"`
 }
 
+// SubscriberStatus is the lightweight status returned by the list endpoint.
+// It preserves the same fields as the main branch for backward compatibility.
 type SubscriberStatus struct {
-	Registered         bool   `json:"registered"`
-	IPAddress          string `json:"ipAddress"`
-	State              string `json:"state"`
-	ConnectedRadio     string `json:"connectedRadio"`
-	Imei               string `json:"imei"`
-	Tac                string `json:"tac"`
-	CellID             string `json:"cellID"`
-	ActiveSessions     int    `json:"activeSessions"`
-	AmbrUplink         string `json:"ambrUplink"`
-	AmbrDownlink       string `json:"ambrDownlink"`
-	CipheringAlgorithm string `json:"cipheringAlgorithm"`
-	IntegrityAlgorithm string `json:"integrityAlgorithm"`
+	Registered bool   `json:"registered"`
+	IPAddress  string `json:"ipAddress"`
 }
 
+// Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
 	Imsi            string           `json:"imsi"`
 	Opc             string           `json:"opc"`
@@ -59,6 +52,33 @@ type ListSubscribersResponse struct {
 	Page       int          `json:"page"`
 	PerPage    int          `json:"per_page"`
 	TotalCount int          `json:"total_count"`
+}
+
+// SubscriberDetailStatus is the rich status returned by the get-single endpoint.
+type SubscriberDetailStatus struct {
+	Registered         bool   `json:"registered"`
+	IPAddress          string `json:"ipAddress"`
+	State              string `json:"state"`
+	ConnectedRadio     string `json:"connectedRadio"`
+	Imei               string `json:"imei"`
+	Tac                string `json:"tac"`
+	CellID             string `json:"cellID"`
+	ActiveSessions     int    `json:"activeSessions"`
+	AmbrUplink         string `json:"ambrUplink"`
+	AmbrDownlink       string `json:"ambrDownlink"`
+	CipheringAlgorithm string `json:"cipheringAlgorithm"`
+	IntegrityAlgorithm string `json:"integrityAlgorithm"`
+}
+
+// SubscriberDetail is the full representation returned by the get-single endpoint.
+type SubscriberDetail struct {
+	Imsi            string                 `json:"imsi"`
+	Opc             string                 `json:"opc"`
+	SequenceNumber  string                 `json:"sequenceNumber"`
+	Key             string                 `json:"key"`
+	PolicyName      string                 `json:"policyName"`
+	DataNetworkName string                 `json:"dataNetworkName"`
+	Status          SubscriberDetailStatus `json:"status"`
 }
 
 const (
@@ -266,7 +286,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			state = string(snap.State)
 		}
 
-		subscriberStatus := SubscriberStatus{
+		subscriberStatus := SubscriberDetailStatus{
 			Registered:         found && snap.State == amfContext.Registered,
 			IPAddress:          ipAddress,
 			State:              state,
@@ -281,7 +301,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			IntegrityAlgorithm: snap.IntegrityAlgorithm,
 		}
 
-		subscriber := Subscriber{
+		subscriber := SubscriberDetail{
 			Imsi:            dbSubscriber.Imsi,
 			Opc:             dbSubscriber.Opc,
 			SequenceNumber:  dbSubscriber.SequenceNumber,
