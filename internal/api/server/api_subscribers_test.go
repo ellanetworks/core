@@ -33,12 +33,29 @@ type CreateSubscriberSuccessResponse struct {
 	Message string `json:"message"`
 }
 
+type SubscriberStatus struct {
+	Registered         bool   `json:"registered"`
+	IPAddress          string `json:"ipAddress"`
+	State              string `json:"state"`
+	ConnectedRadio     string `json:"connectedRadio"`
+	Pei                string `json:"pei"`
+	Tac                string `json:"tac"`
+	CellID             string `json:"cellID"`
+	ActiveSessions     int    `json:"activeSessions"`
+	AmbrUplink         string `json:"ambrUplink"`
+	AmbrDownlink       string `json:"ambrDownlink"`
+	CipheringAlgorithm string `json:"cipheringAlgorithm"`
+	IntegrityAlgorithm string `json:"integrityAlgorithm"`
+}
+
 type Subscriber struct {
-	Imsi           string `json:"imsi"`
-	OPc            string `json:"opc"`
-	Key            string `json:"key"`
-	SequenceNumber string `json:"sequenceNumber"`
-	PolicyName     string `json:"policyName"`
+	Imsi            string           `json:"imsi"`
+	OPc             string           `json:"opc"`
+	Key             string           `json:"key"`
+	SequenceNumber  string           `json:"sequenceNumber"`
+	PolicyName      string           `json:"policyName"`
+	DataNetworkName string           `json:"dataNetworkName"`
+	Status          SubscriberStatus `json:"status"`
 }
 
 type GetSubscriberResponse struct {
@@ -353,6 +370,42 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 		if response.Result.PolicyName != PolicyName {
 			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
+		}
+
+		if response.Result.DataNetworkName != "whatever" {
+			t.Fatalf("expected dataNetworkName 'whatever', got %s", response.Result.DataNetworkName)
+		}
+
+		if response.Result.Status.State != "Deregistered" {
+			t.Fatalf("expected state 'Deregistered', got %s", response.Result.Status.State)
+		}
+
+		if response.Result.Status.ConnectedRadio != "" {
+			t.Fatalf("expected empty connectedRadio, got %s", response.Result.Status.ConnectedRadio)
+		}
+
+		if response.Result.Status.Pei != "" {
+			t.Fatalf("expected empty pei, got %s", response.Result.Status.Pei)
+		}
+
+		if response.Result.Status.Tac != "" {
+			t.Fatalf("expected empty tac, got %s", response.Result.Status.Tac)
+		}
+
+		if response.Result.Status.CellID != "" {
+			t.Fatalf("expected empty cellID, got %s", response.Result.Status.CellID)
+		}
+
+		if response.Result.Status.ActiveSessions != 0 {
+			t.Fatalf("expected 0 activeSessions, got %d", response.Result.Status.ActiveSessions)
+		}
+
+		if response.Result.Status.CipheringAlgorithm != "" {
+			t.Fatalf("expected empty cipheringAlgorithm, got %s", response.Result.Status.CipheringAlgorithm)
+		}
+
+		if response.Result.Status.IntegrityAlgorithm != "" {
+			t.Fatalf("expected empty integrityAlgorithm, got %s", response.Result.Status.IntegrityAlgorithm)
 		}
 
 		if response.Error != "" {
@@ -699,6 +752,22 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 		if response.Result.PolicyName != PolicyName {
 			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
+		}
+
+		if response.Result.DataNetworkName != "whatever" {
+			t.Fatalf("expected dataNetworkName 'whatever', got %s", response.Result.DataNetworkName)
+		}
+
+		if response.Result.Status.State != "Deregistered" {
+			t.Fatalf("expected state 'Deregistered', got %s", response.Result.Status.State)
+		}
+
+		if response.Result.Status.CipheringAlgorithm != "" {
+			t.Fatalf("expected empty cipheringAlgorithm, got %s", response.Result.Status.CipheringAlgorithm)
+		}
+
+		if response.Result.Status.IntegrityAlgorithm != "" {
+			t.Fatalf("expected empty integrityAlgorithm, got %s", response.Result.Status.IntegrityAlgorithm)
 		}
 
 		if response.Error != "" {

@@ -29,17 +29,28 @@ type SubscriberSession struct {
 }
 
 type SubscriberStatus struct {
-	Registered bool                `json:"registered"`
-	Sessions   []SubscriberSession `json:"sessions"`
+	Registered         bool                `json:"registered"`
+	Sessions           []SubscriberSession `json:"sessions"`
+	State              string              `json:"state"`
+	ConnectedRadio     string              `json:"connectedRadio"`
+	Pei                string              `json:"pei"`
+	Tac                string              `json:"tac"`
+	CellID             string              `json:"cellID"`
+	ActiveSessions     int                 `json:"activeSessions"`
+	AmbrUplink         string              `json:"ambrUplink"`
+	AmbrDownlink       string              `json:"ambrDownlink"`
+	CipheringAlgorithm string              `json:"cipheringAlgorithm"`
+	IntegrityAlgorithm string              `json:"integrityAlgorithm"`
 }
 
 type Subscriber struct {
-	Imsi           string           `json:"imsi"`
-	Opc            string           `json:"opc"`
-	SequenceNumber string           `json:"sequenceNumber"`
-	Key            string           `json:"key"`
-	PolicyName     string           `json:"policyName"`
-	Status         SubscriberStatus `json:"status"`
+	Imsi            string           `json:"imsi"`
+	Opc             string           `json:"opc"`
+	SequenceNumber  string           `json:"sequenceNumber"`
+	Key             string           `json:"key"`
+	PolicyName      string           `json:"policyName"`
+	DataNetworkName string           `json:"dataNetworkName"`
+	Status          SubscriberStatus `json:"status"`
 }
 
 type ListSubscribersResponse struct {

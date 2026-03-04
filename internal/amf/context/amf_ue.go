@@ -232,6 +232,38 @@ func (ue *AmfUe) SecurityContextIsValid() bool {
 	return ue.SecurityContextAvailable && ue.NgKsi.Ksi != nasMessage.NasKeySetIdentifierNoKeyIsAvailable && !ue.MacFailed
 }
 
+// CipheringAlgName returns the human-readable name for the negotiated NAS ciphering algorithm.
+func (ue *AmfUe) CipheringAlgName() string {
+	switch ue.CipheringAlg {
+	case security.AlgCiphering128NEA0:
+		return "NEA0"
+	case security.AlgCiphering128NEA1:
+		return "NEA1"
+	case security.AlgCiphering128NEA2:
+		return "NEA2"
+	case security.AlgCiphering128NEA3:
+		return "NEA3"
+	default:
+		return ""
+	}
+}
+
+// IntegrityAlgName returns the human-readable name for the negotiated NAS integrity algorithm.
+func (ue *AmfUe) IntegrityAlgName() string {
+	switch ue.IntegrityAlg {
+	case security.AlgIntegrity128NIA0:
+		return "NIA0"
+	case security.AlgIntegrity128NIA1:
+		return "NIA1"
+	case security.AlgIntegrity128NIA2:
+		return "NIA2"
+	case security.AlgIntegrity128NIA3:
+		return "NIA3"
+	default:
+		return ""
+	}
+}
+
 // Kamf Derivation function defined in TS 33.501 Annex A.7
 func (ue *AmfUe) DerivateKamf() error {
 	if !ue.Supi.IsValid() || !ue.Supi.IsIMSI() {

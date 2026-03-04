@@ -30,17 +30,28 @@ type UpdateSubscriberParams struct {
 }
 
 type SubscriberStatus struct {
-	Registered bool   `json:"registered"`
-	IPAddress  string `json:"ipAddress"`
+	Registered         bool   `json:"registered"`
+	IPAddress          string `json:"ipAddress"`
+	State              string `json:"state"`
+	ConnectedRadio     string `json:"connectedRadio"`
+	Pei                string `json:"pei"`
+	Tac                string `json:"tac"`
+	CellID             string `json:"cellID"`
+	ActiveSessions     int    `json:"activeSessions"`
+	AmbrUplink         string `json:"ambrUplink"`
+	AmbrDownlink       string `json:"ambrDownlink"`
+	CipheringAlgorithm string `json:"cipheringAlgorithm"`
+	IntegrityAlgorithm string `json:"integrityAlgorithm"`
 }
 
 type Subscriber struct {
-	Imsi           string           `json:"imsi"`
-	Opc            string           `json:"opc"`
-	SequenceNumber string           `json:"sequenceNumber"`
-	Key            string           `json:"key"`
-	PolicyName     string           `json:"policyName"`
-	Status         SubscriberStatus `json:"status"`
+	Imsi            string           `json:"imsi"`
+	Opc             string           `json:"opc"`
+	SequenceNumber  string           `json:"sequenceNumber"`
+	Key             string           `json:"key"`
+	PolicyName      string           `json:"policyName"`
+	DataNetworkName string           `json:"dataNetworkName"`
+	Status          SubscriberStatus `json:"status"`
 }
 
 type ListSubscribersResponse struct {
@@ -195,6 +206,12 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		dataNetwork, err := dbInstance.GetDataNetworkByID(r.Context(), policy.DataNetworkID)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve data network", err, logger.APILog)
+			return
+		}
+
 		ipAddress := ""
 		if dbSubscriber.IPAddress != nil {
 			ipAddress = *dbSubscriber.IPAddress
@@ -208,18 +225,74 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		state := "Deregistered"
+		connectedRadio := ""
+		pei := ""
+		tac := ""
+		cellID := ""
+		activeSessions := 0
+		ambrUplink := ""
+		ambrDownlink := ""
+		cipheringAlgorithm := ""
+		integrityAlgorithm := ""
+
+		registered := amf.IsSubscriberRegistered(supi)
+
+		if ue, ok := amf.FindAMFUEBySupi(supi); ok {
+			state = string(ue.GetState())
+
+			if ue.RanUe != nil && ue.RanUe.Radio != nil {
+				connectedRadio = ue.RanUe.Radio.Name
+			}
+
+			pei = ue.Pei
+
+			if ue.Tai.Tac != "" {
+				tac = ue.Tai.Tac
+			}
+
+			if ue.Location.NrLocation != nil && ue.Location.NrLocation.Ncgi != nil {
+				cellID = ue.Location.NrLocation.Ncgi.NrCellID
+			}
+
+			for _, sm := range ue.SmContextList {
+				if !sm.PduSessionInactive {
+					activeSessions++
+				}
+			}
+
+			if ue.Ambr != nil {
+				ambrUplink = ue.Ambr.Uplink
+				ambrDownlink = ue.Ambr.Downlink
+			}
+
+			cipheringAlgorithm = ue.CipheringAlgName()
+			integrityAlgorithm = ue.IntegrityAlgName()
+		}
+
 		subscriberStatus := SubscriberStatus{
-			Registered: amf.IsSubscriberRegistered(supi),
-			IPAddress:  ipAddress,
+			Registered:         registered,
+			IPAddress:          ipAddress,
+			State:              state,
+			ConnectedRadio:     connectedRadio,
+			Pei:                pei,
+			Tac:                tac,
+			CellID:             cellID,
+			ActiveSessions:     activeSessions,
+			AmbrUplink:         ambrUplink,
+			AmbrDownlink:       ambrDownlink,
+			CipheringAlgorithm: cipheringAlgorithm,
+			IntegrityAlgorithm: integrityAlgorithm,
 		}
 
 		subscriber := Subscriber{
-			Imsi:           dbSubscriber.Imsi,
-			Opc:            dbSubscriber.Opc,
-			SequenceNumber: dbSubscriber.SequenceNumber,
-			Key:            dbSubscriber.PermanentKey,
-			PolicyName:     policy.Name,
-			Status:         subscriberStatus,
+			Imsi:            dbSubscriber.Imsi,
+			Opc:             dbSubscriber.Opc,
+			SequenceNumber:  dbSubscriber.SequenceNumber,
+			Key:             dbSubscriber.PermanentKey,
+			PolicyName:      policy.Name,
+			DataNetworkName: dataNetwork.Name,
+			Status:          subscriberStatus,
 		}
 
 		writeResponse(r.Context(), w, subscriber, http.StatusOK, logger.APILog)
