@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -108,6 +109,18 @@ func (f *FakeSmfSbi) UpdateSmContextHandoverFailed(smContextRef string, n2Data [
 	})
 
 	return f.HandoverFailedErr
+}
+
+func (f *FakeSmfSbi) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error) {
+	return nil, nil
+}
+
+func (f *FakeSmfSbi) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error) {
+	return "", nil, nil
+}
+
+func (f *FakeSmfSbi) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error) {
+	return nil, nil
 }
 
 func (fdb *FakeDBInstance) GetOperator(ctx context.Context) (*db.Operator, error) {
