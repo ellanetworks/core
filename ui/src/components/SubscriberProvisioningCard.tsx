@@ -59,7 +59,7 @@ const FieldRow: React.FC<{
   >
     <Typography
       variant="body2"
-      sx={{ color: "text.secondary", minWidth: 140, flexShrink: 0 }}
+      sx={{ color: "text.secondary", minWidth: 180, flexShrink: 0, mr: 2 }}
     >
       {label}
     </Typography>
@@ -152,37 +152,66 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
             handleCopy(subscriber.sequenceNumber, "Sequence Number")
           }
         />
-        <FieldRow
-          label="Policy"
-          value={subscriber.policyName}
-          linkTo="/policies"
-          actionIcon={
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
-                <SouthIcon sx={{ fontSize: 14, color: DOWNLINK_COLOR }} />
-                <Typography variant="caption" color="text.secondary">
-                  {subscriber.policyBitrateDownlink || "—"}
-                </Typography>
-              </Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
-                <NorthIcon sx={{ fontSize: 14, color: UPLINK_COLOR }} />
-                <Typography variant="caption" color="text.secondary">
-                  {subscriber.policyBitrateUplink || "—"}
-                </Typography>
-              </Box>
-              {onEditPolicy && (
-                <IconButton
-                  size="small"
-                  onClick={onEditPolicy}
-                  aria-label="Edit policy"
-                  color="primary"
-                >
-                  <EditIcon fontSize="small" />
-                </IconButton>
-              )}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            py: 0.75,
+            "&:not(:last-child)": {
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            },
+          }}
+        >
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              minWidth: 180,
+              flexShrink: 0,
+              mr: 2,
+            }}
+          >
+            Policy
+          </Typography>
+          <Typography
+            variant="body2"
+            component={RouterLink}
+            to="/policies"
+            sx={{
+              color: "primary.main",
+              textDecoration: "none",
+              "&:hover": { textDecoration: "underline" },
+            }}
+          >
+            {subscriber.policyName}
+          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+              <SouthIcon sx={{ fontSize: 14, color: DOWNLINK_COLOR }} />
+              <Typography variant="caption" color="text.secondary">
+                {subscriber.policyBitrateDownlink || "—"}
+              </Typography>
             </Box>
-          }
-        />
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+              <NorthIcon sx={{ fontSize: 14, color: UPLINK_COLOR }} />
+              <Typography variant="caption" color="text.secondary">
+                {subscriber.policyBitrateUplink || "—"}
+              </Typography>
+            </Box>
+          </Box>
+          <Box sx={{ flex: 1 }} />
+          {onEditPolicy && (
+            <IconButton
+              size="small"
+              onClick={onEditPolicy}
+              aria-label="Edit policy"
+              color="primary"
+            >
+              <EditIcon fontSize="small" />
+            </IconButton>
+          )}
+        </Box>
         <FieldRow
           label="Data Network"
           value={subscriber.dataNetworkName || "—"}

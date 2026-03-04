@@ -30,7 +30,7 @@ const InfoRow: React.FC<{
     >
       <Typography
         variant="body2"
-        sx={{ color: "text.secondary", minWidth: 160, flexShrink: 0 }}
+        sx={{ color: "text.secondary", minWidth: 180, flexShrink: 0, mr: 2 }}
       >
         {label}
       </Typography>
@@ -129,9 +129,25 @@ const SecurityAlgorithmsValue: React.FC<{
   if (!ciphering && !integrity)
     return <Typography variant="body2">—</Typography>;
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-      <AlgorithmChip alg={ciphering} labels={CIPHERING_LABELS} />
-      <AlgorithmChip alg={integrity} labels={INTEGRITY_LABELS} />
+    <Box
+      sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}
+    >
+      {ciphering && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            Ciphering
+          </Typography>
+          <AlgorithmChip alg={ciphering} labels={CIPHERING_LABELS} />
+        </Box>
+      )}
+      {integrity && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            Integrity
+          </Typography>
+          <AlgorithmChip alg={integrity} labels={INTEGRITY_LABELS} />
+        </Box>
+      )}
     </Box>
   );
 };
