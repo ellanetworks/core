@@ -58,6 +58,7 @@ func luhnCheckDigit(digits string) string {
 	// (not yet present) would be position 1 (odd → not doubled), so
 	// the rightmost payload digit is position 2 (even → doubled).
 	double := true
+
 	for i := len(digits) - 1; i >= 0; i-- {
 		d := int(digits[i] - '0')
 		if double {
@@ -66,9 +67,12 @@ func luhnCheckDigit(digits string) string {
 				d -= 9
 			}
 		}
+
 		sum += d
 		double = !double
 	}
+
 	check := (10 - (sum % 10)) % 10
+
 	return string(rune('0' + check))
 }

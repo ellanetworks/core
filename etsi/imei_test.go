@@ -67,11 +67,14 @@ func TestIMEIFromPEI(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected error, got %q", got)
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if got != tc.expected {
 				t.Fatalf("expected %q, got %q", tc.expected, got)
 			}
@@ -88,6 +91,7 @@ func TestIMEIFromPEI(t *testing.T) {
 func luhnValid(s string) bool {
 	sum := 0
 	double := false
+
 	for i := len(s) - 1; i >= 0; i-- {
 		d := int(s[i] - '0')
 		if double {
@@ -96,8 +100,10 @@ func luhnValid(s string) bool {
 				d -= 9
 			}
 		}
+
 		sum += d
 		double = !double
 	}
+
 	return sum%10 == 0
 }
