@@ -75,6 +75,9 @@ type AmfUe struct {
 	Location models.UserLocation
 	Tai      models.Tai
 	TimeZone string
+	/* Last Seen — updated on every UE-specific NGAP message */
+	LastSeenAt    time.Time
+	LastSeenRadio string
 	/* context about udm */
 	Ambr                              *models.Ambr
 	AuthenticationCtx                 *models.Av5gAka
@@ -178,6 +181,11 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 		}
 	}
 
+	ue.LastSeenAt = time.Now()
+	if ranUe.Radio != nil {
+		ue.LastSeenRadio = ranUe.Radio.Name
+	}
+
 	ue.Log = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
 }
 
@@ -266,6 +274,18 @@ func (ue *AmfUe) integrityAlgName() string {
 	}
 }
 
+// TouchLastSeen updates the UE's last-seen timestamp and radio name.
+// Must be called while the UE mutex is NOT held (it acquires the lock).
+func (ue *AmfUe) TouchLastSeen(radioName string) {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	ue.LastSeenAt = time.Now()
+	if radioName != "" {
+		ue.LastSeenRadio = radioName
+	}
+}
+
 // UESnapshot is a read-only, point-in-time copy of the UE's connection
 // state. It is safe to use from any goroutine without holding AMF or UE locks.
 type UESnapshot struct {
@@ -279,6 +299,8 @@ type UESnapshot struct {
 	AmbrDownlink       string
 	CipheringAlgorithm string
 	IntegrityAlgorithm string
+	LastSeenAt         time.Time
+	LastSeenRadio      string
 }
 
 // Snapshot returns a point-in-time copy of the UE's connection state.
@@ -293,6 +315,8 @@ func (ue *AmfUe) Snapshot() UESnapshot {
 		Tac:                ue.Tai.Tac,
 		CipheringAlgorithm: ue.cipheringAlgName(),
 		IntegrityAlgorithm: ue.integrityAlgName(),
+		LastSeenAt:         ue.LastSeenAt,
+		LastSeenRadio:      ue.LastSeenRadio,
 	}
 
 	if ue.RanUe != nil && ue.RanUe.Radio != nil {

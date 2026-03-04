@@ -62,6 +62,8 @@ type SubscriberDetailStatus struct {
 	AmbrDownlink       string `json:"ambrDownlink"`
 	CipheringAlgorithm string `json:"cipheringAlgorithm"`
 	IntegrityAlgorithm string `json:"integrityAlgorithm"`
+	LastSeenAt         string `json:"lastSeenAt,omitempty"`
+	LastSeenRadio      string `json:"lastSeenRadio,omitempty"`
 }
 
 // SubscriberDetail is the full representation returned by the get-single endpoint.

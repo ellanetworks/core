@@ -56,6 +56,7 @@ func HandleUEContextModificationFailure(amf *context.AMF, ran *context.Radio, ms
 
 	if ranUe != nil {
 		ranUe.Radio = ran
+		ranUe.TouchLastSeen()
 		ranUe.Log.Debug("Handle UE Context Modification Failure", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 	}
 

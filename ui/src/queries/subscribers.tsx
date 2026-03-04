@@ -38,6 +38,8 @@ export type SubscriberDetailStatus = {
   ambrDownlink?: string;
   cipheringAlgorithm?: string;
   integrityAlgorithm?: string;
+  lastSeenAt?: string;
+  lastSeenRadio?: string;
 };
 
 /** Full representation returned by the get-single endpoint. */

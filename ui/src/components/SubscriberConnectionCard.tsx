@@ -6,6 +6,8 @@ import NorthIcon from "@mui/icons-material/North";
 import SouthIcon from "@mui/icons-material/South";
 import type { SubscriberDetailStatus } from "@/queries/subscribers";
 
+import { formatRelativeTime } from "@/utils/formatters";
+
 const UPLINK_COLOR = "#FF9800";
 const DOWNLINK_COLOR = "#4254FB";
 
@@ -214,26 +216,41 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
               />
             </Box>
 
-            {/* Radio section */}
-            <Typography
-              variant="overline"
-              sx={{
-                display: "block",
-                mt: 1.5,
-                mb: 0.5,
-                color: "text.primary",
-                letterSpacing: 1.2,
-              }}
-            >
-              Radio
-            </Typography>
-            <InfoRow
-              label="Connected Radio"
-              value={status.connectedRadio}
-              linkTo="/radios"
-            />
-            <InfoRow label="TAC" value={status.tac} />
-            <InfoRow label="Cell ID" value={status.cellID} />
+            {/* Last Seen */}
+            {status.lastSeenAt && (
+              <InfoRow
+                label="Last Seen"
+                value={
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Typography variant="body2">
+                      {formatRelativeTime(status.lastSeenAt)}
+                    </Typography>
+                    {status.lastSeenRadio && (
+                      <>
+                        <Typography
+                          variant="body2"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          on
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          component={RouterLink}
+                          to="/radios"
+                          sx={{
+                            color: "primary.main",
+                            textDecoration: "none",
+                            "&:hover": { textDecoration: "underline" },
+                          }}
+                        >
+                          {status.lastSeenRadio}
+                        </Typography>
+                      </>
+                    )}
+                  </Box>
+                }
+              />
+            )}
 
             {/* Security section */}
             <Typography

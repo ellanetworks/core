@@ -78,6 +78,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 	}
 
 	ranUe.Radio = ran
+	ranUe.TouchLastSeen()
 
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {

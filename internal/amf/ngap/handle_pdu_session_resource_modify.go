@@ -60,6 +60,7 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amf *amfContext.AMF, ra
 	}
 
 	ranUe.Radio = ran
+	ranUe.TouchLastSeen()
 	ranUe.Log.Debug("Handle PDUSessionResourceNotify", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
 
 	if userLocationInformation != nil {

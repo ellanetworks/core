@@ -68,6 +68,8 @@ type SubscriberDetailStatus struct {
 	AmbrDownlink       string `json:"ambrDownlink"`
 	CipheringAlgorithm string `json:"cipheringAlgorithm"`
 	IntegrityAlgorithm string `json:"integrityAlgorithm"`
+	LastSeenAt         string `json:"lastSeenAt,omitempty"`
+	LastSeenRadio      string `json:"lastSeenRadio,omitempty"`
 }
 
 // SubscriberDetail is the full representation returned by the get-single endpoint.
@@ -299,6 +301,11 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			AmbrDownlink:       snap.AmbrDownlink,
 			CipheringAlgorithm: snap.CipheringAlgorithm,
 			IntegrityAlgorithm: snap.IntegrityAlgorithm,
+			LastSeenRadio:      snap.LastSeenRadio,
+		}
+
+		if !snap.LastSeenAt.IsZero() {
+			subscriberStatus.LastSeenAt = snap.LastSeenAt.UTC().Format("2006-01-02T15:04:05Z")
 		}
 
 		subscriber := SubscriberDetail{
