@@ -291,12 +291,6 @@ func (ue *AmfUe) TouchLastSeen(radioName string) {
 type UESnapshot struct {
 	State              StateType
 	Pei                string
-	ConnectedRadio     string
-	Tac                string
-	CellID             string
-	ActiveSessions     int
-	AmbrUplink         string
-	AmbrDownlink       string
 	CipheringAlgorithm string
 	IntegrityAlgorithm string
 	LastSeenAt         time.Time
@@ -312,29 +306,10 @@ func (ue *AmfUe) Snapshot() UESnapshot {
 	snap := UESnapshot{
 		State:              ue.State,
 		Pei:                ue.Pei,
-		Tac:                ue.Tai.Tac,
 		CipheringAlgorithm: ue.cipheringAlgName(),
 		IntegrityAlgorithm: ue.integrityAlgName(),
 		LastSeenAt:         ue.LastSeenAt,
 		LastSeenRadio:      ue.LastSeenRadio,
-	}
-
-	if ue.RanUe != nil && ue.RanUe.Radio != nil {
-		snap.ConnectedRadio = ue.RanUe.Radio.Name
-		if ue.RanUe.Radio.RanID != nil && ue.RanUe.Radio.RanID.GNbID != nil {
-			snap.CellID = ue.RanUe.Radio.RanID.GNbID.GNBValue
-		}
-	}
-
-	for _, sm := range ue.SmContextList {
-		if !sm.PduSessionInactive {
-			snap.ActiveSessions++
-		}
-	}
-
-	if ue.Ambr != nil {
-		snap.AmbrUplink = ue.Ambr.Uplink
-		snap.AmbrDownlink = ue.Ambr.Downlink
 	}
 
 	return snap

@@ -55,13 +55,7 @@ type SubscriberDetailStatus struct {
 	Registered         bool   `json:"registered"`
 	IPAddress          string `json:"ipAddress"`
 	State              string `json:"state"`
-	ConnectedRadio     string `json:"connectedRadio"`
 	Imei               string `json:"imei"`
-	Tac                string `json:"tac"`
-	CellID             string `json:"cellID"`
-	ActiveSessions     int    `json:"activeSessions"`
-	AmbrUplink         string `json:"ambrUplink"`
-	AmbrDownlink       string `json:"ambrDownlink"`
 	CipheringAlgorithm string `json:"cipheringAlgorithm"`
 	IntegrityAlgorithm string `json:"integrityAlgorithm"`
 	LastSeenAt         string `json:"lastSeenAt,omitempty"`
@@ -411,24 +405,8 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected state 'Deregistered', got %s", response.Result.Status.State)
 		}
 
-		if response.Result.Status.ConnectedRadio != "" {
-			t.Fatalf("expected empty connectedRadio, got %s", response.Result.Status.ConnectedRadio)
-		}
-
 		if response.Result.Status.Imei != "" {
 			t.Fatalf("expected empty imei, got %s", response.Result.Status.Imei)
-		}
-
-		if response.Result.Status.Tac != "" {
-			t.Fatalf("expected empty tac, got %s", response.Result.Status.Tac)
-		}
-
-		if response.Result.Status.CellID != "" {
-			t.Fatalf("expected empty cellID, got %s", response.Result.Status.CellID)
-		}
-
-		if response.Result.Status.ActiveSessions != 0 {
-			t.Fatalf("expected 0 activeSessions, got %d", response.Result.Status.ActiveSessions)
 		}
 
 		if response.Result.Status.CipheringAlgorithm != "" {

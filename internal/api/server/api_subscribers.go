@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
@@ -59,13 +60,7 @@ type SubscriberDetailStatus struct {
 	Registered         bool   `json:"registered"`
 	IPAddress          string `json:"ipAddress"`
 	State              string `json:"state"`
-	ConnectedRadio     string `json:"connectedRadio"`
 	Imei               string `json:"imei"`
-	Tac                string `json:"tac"`
-	CellID             string `json:"cellID"`
-	ActiveSessions     int    `json:"activeSessions"`
-	AmbrUplink         string `json:"ambrUplink"`
-	AmbrDownlink       string `json:"ambrDownlink"`
 	CipheringAlgorithm string `json:"cipheringAlgorithm"`
 	IntegrityAlgorithm string `json:"integrityAlgorithm"`
 	LastSeenAt         string `json:"lastSeenAt,omitempty"`
@@ -294,20 +289,14 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			Registered:         found && snap.State == amfContext.Registered,
 			IPAddress:          ipAddress,
 			State:              state,
-			ConnectedRadio:     snap.ConnectedRadio,
 			Imei:               imei,
-			Tac:                snap.Tac,
-			CellID:             snap.CellID,
-			ActiveSessions:     snap.ActiveSessions,
-			AmbrUplink:         snap.AmbrUplink,
-			AmbrDownlink:       snap.AmbrDownlink,
 			CipheringAlgorithm: snap.CipheringAlgorithm,
 			IntegrityAlgorithm: snap.IntegrityAlgorithm,
 			LastSeenRadio:      snap.LastSeenRadio,
 		}
 
 		if !snap.LastSeenAt.IsZero() {
-			subscriberStatus.LastSeenAt = snap.LastSeenAt.UTC().Format("2006-01-02T15:04:05Z")
+			subscriberStatus.LastSeenAt = snap.LastSeenAt.UTC().Format(time.RFC3339)
 		}
 
 		subscriber := SubscriberDetail{

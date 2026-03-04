@@ -68,7 +68,7 @@ func TestGetSubscriber_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"imsi": "001010100000022", "policyName": "default", "policyBitrateUplink": "100 Mbps", "policyBitrateDownlink": "100 Mbps", "dataNetworkName": "internet", "status": {"registered": false, "ipAddress": "", "state": "Deregistered", "connectedRadio": "", "imei": "", "tac": "", "cellID": "", "activeSessions": 0, "ambrUplink": "", "ambrDownlink": "", "cipheringAlgorithm": "", "integrityAlgorithm": ""}}`),
+			Result:     []byte(`{"imsi": "001010100000022", "policyName": "default", "policyBitrateUplink": "100 Mbps", "policyBitrateDownlink": "100 Mbps", "dataNetworkName": "internet", "status": {"registered": false, "ipAddress": "", "state": "Deregistered", "imei": "", "cipheringAlgorithm": "", "integrityAlgorithm": ""}}`),
 		},
 		err: nil,
 	}
@@ -106,14 +106,6 @@ func TestGetSubscriber_Success(t *testing.T) {
 
 	if subscriber.Status.State != "Deregistered" {
 		t.Fatalf("expected State 'Deregistered', got %s", subscriber.Status.State)
-	}
-
-	if subscriber.Status.ConnectedRadio != "" {
-		t.Fatalf("expected empty ConnectedRadio, got %s", subscriber.Status.ConnectedRadio)
-	}
-
-	if subscriber.Status.ActiveSessions != 0 {
-		t.Fatalf("expected 0 ActiveSessions, got %d", subscriber.Status.ActiveSessions)
 	}
 
 	if subscriber.Status.CipheringAlgorithm != "" {

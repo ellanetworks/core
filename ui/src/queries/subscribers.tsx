@@ -29,13 +29,7 @@ export type SubscriberDetailStatus = {
   registered?: boolean;
   ipAddress?: string;
   state?: string;
-  connectedRadio?: string;
   imei?: string;
-  tac?: string;
-  cellID?: string;
-  activeSessions?: number;
-  ambrUplink?: string;
-  ambrDownlink?: string;
   cipheringAlgorithm?: string;
   integrityAlgorithm?: string;
   lastSeenAt?: string;
