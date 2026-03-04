@@ -48,7 +48,8 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
       id: p.protocol,
       value: p.count,
       label: formatProtocol(p.protocol),
-      color: PROTOCOL_CHIP_COLORS[p.protocol] ?? PIE_COLORS[i % PIE_COLORS.length],
+      color:
+        PROTOCOL_CHIP_COLORS[p.protocol] ?? PIE_COLORS[i % PIE_COLORS.length],
     }));
   }, [statsData]);
 
@@ -74,7 +75,10 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
 
   return (
     <Box>
-      <Typography variant="subtitle2" sx={{ mb: 1, color: "text.secondary" }}>
+      <Typography
+        variant="subtitle2"
+        sx={{ mb: 1, color: "text.secondary", textAlign: "center" }}
+      >
         Protocols
       </Typography>
       <PieChart
@@ -85,6 +89,12 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
             outerRadius: 90,
             paddingAngle: 2,
             cornerRadius: 3,
+            valueFormatter: (item) => {
+              const total = pieData.reduce((s, d) => s + d.value, 0);
+              return total > 0
+                ? `${((item.value / total) * 100).toFixed(1)}%`
+                : "0%";
+            },
           },
         ]}
         height={220}

@@ -95,18 +95,18 @@ const BitrateValue: React.FC<{ uplink?: string; downlink?: string }> = ({
   );
 };
 
-const CIPHERING_DESCRIPTIONS: Record<string, string> = {
-  NEA0: "Null ciphering (no encryption)",
-  NEA1: "SNOW 3G based encryption",
-  NEA2: "AES based encryption",
-  NEA3: "ZUC based encryption",
+const CIPHERING_SHORT: Record<string, string> = {
+  NEA0: "NEA0 (Null)",
+  NEA1: "NEA1 (SNOW 3G)",
+  NEA2: "NEA2 (AES)",
+  NEA3: "NEA3 (ZUC)",
 };
 
-const INTEGRITY_DESCRIPTIONS: Record<string, string> = {
-  NIA0: "Null integrity (no protection)",
-  NIA1: "SNOW 3G based integrity",
-  NIA2: "AES based integrity",
-  NIA3: "ZUC based integrity",
+const INTEGRITY_SHORT: Record<string, string> = {
+  NIA0: "NIA0 (Null)",
+  NIA1: "NIA1 (SNOW 3G)",
+  NIA2: "NIA2 (AES)",
+  NIA3: "NIA3 (ZUC)",
 };
 
 const formatAlgorithm = (
@@ -114,8 +114,7 @@ const formatAlgorithm = (
   descriptions?: Record<string, string>,
 ): string => {
   if (!alg) return "";
-  const desc = descriptions?.[alg];
-  return desc ? `${alg} — ${desc}` : alg;
+  return descriptions?.[alg] ?? alg;
 };
 
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
@@ -169,11 +168,8 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
               variant="overline"
               sx={{
                 display: "block",
-                mt: 2.5,
+                mt: 1.5,
                 mb: 0.5,
-                pt: 1.5,
-                borderTop: "1px solid",
-                borderColor: "divider",
                 color: "text.secondary",
                 letterSpacing: 1.2,
               }}
@@ -193,11 +189,8 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
               variant="overline"
               sx={{
                 display: "block",
-                mt: 2.5,
+                mt: 1.5,
                 mb: 0.5,
-                pt: 1.5,
-                borderTop: "1px solid",
-                borderColor: "divider",
                 color: "text.secondary",
                 letterSpacing: 1.2,
               }}
@@ -208,14 +201,14 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
               label="Ciphering"
               value={formatAlgorithm(
                 status.cipheringAlgorithm,
-                CIPHERING_DESCRIPTIONS,
+                CIPHERING_SHORT,
               )}
             />
             <InfoRow
               label="Integrity"
               value={formatAlgorithm(
                 status.integrityAlgorithm,
-                INTEGRITY_DESCRIPTIONS,
+                INTEGRITY_SHORT,
               )}
             />
           </>

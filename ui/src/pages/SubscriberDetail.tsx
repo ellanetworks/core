@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { Box, Button, Card, CardContent, Chip, CircularProgress, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  Typography,
+} from "@mui/material";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -177,7 +185,7 @@ const SubscriberDetail: React.FC = () => {
             display: "grid",
             gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
             gap: 3,
-            alignItems: "start",
+            alignItems: "stretch",
           }}
         >
           {/* Left column */}
@@ -211,7 +219,7 @@ const SubscriberDetail: React.FC = () => {
                 to={`/traffic/usage?subscriber_id=${subscriber.imsi}`}
                 size="small"
               >
-                View traffic →
+                View traffic for {subscriber.imsi} →
               </Button>
             </Box>
             <Box

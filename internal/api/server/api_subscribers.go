@@ -267,8 +267,8 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 				tac = ue.Tai.Tac
 			}
 
-			if ue.Location.NrLocation != nil && ue.Location.NrLocation.Ncgi != nil {
-				cellID = ue.Location.NrLocation.Ncgi.NrCellID
+			if ue.RanUe != nil && ue.RanUe.Radio != nil && ue.RanUe.Radio.RanID != nil && ue.RanUe.Radio.RanID.GNbID != nil {
+				cellID = ue.RanUe.Radio.RanID.GNbID.GNBValue
 			}
 
 			for _, sm := range ue.SmContextList {

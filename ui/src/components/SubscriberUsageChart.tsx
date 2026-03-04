@@ -86,8 +86,13 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
     () =>
       dailyRows.map((row) => {
         const factor = UNIT_FACTORS[unit];
+        const d = new Date(row.date + "T00:00:00");
+        const label = d.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        });
         return {
-          date: row.date,
+          date: label,
           downlink: row.downlink_bytes / factor,
           uplink: row.uplink_bytes / factor,
         };
@@ -109,7 +114,10 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
 
   const content = (
     <>
-      <Typography variant="subtitle2" sx={{ mb: 1, color: "text.secondary" }}>
+      <Typography
+        variant="subtitle2"
+        sx={{ mb: 1, color: "text.secondary", textAlign: "center" }}
+      >
         Usage (last 7 days)
       </Typography>
 
@@ -127,21 +135,11 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
         </Typography>
       ) : (
         <>
-          <BarChart
-            dataset={chartDataset}
-            xAxis={[{ scaleType: "band", dataKey: "date" }]}
-            yAxis={[{ label: `Usage (${unit})` }]}
-            series={[
-              { dataKey: "downlink", label: `Downlink (${unit})` },
-              { dataKey: "uplink", label: `Uplink (${unit})` },
-            ]}
-            height={250}
-          />
           <Box
             sx={{
               display: "flex",
               gap: 3,
-              mt: 1,
+              mb: 1,
               justifyContent: "center",
             }}
           >
@@ -152,6 +150,25 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
               Total ↓ {formatBytesAutoUnit(totalDownlink)}
             </Typography>
           </Box>
+          <BarChart
+            dataset={chartDataset}
+            xAxis={[{ scaleType: "band", dataKey: "date" }]}
+            yAxis={[{ label: `Usage (${unit})` }]}
+            series={[
+              { dataKey: "downlink", label: `Downlink (${unit})` },
+              { dataKey: "uplink", label: `Uplink (${unit})` },
+            ]}
+            height={250}
+            slotProps={{
+              legend: {
+                direction: "horizontal",
+                position: {
+                  vertical: "bottom",
+                  horizontal: "center",
+                },
+              },
+            }}
+          />
         </>
       )}
     </>
