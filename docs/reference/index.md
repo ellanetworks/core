@@ -7,7 +7,6 @@ This section provides detailed reference material for Ella Core, from configurat
 - [Production Hardening](production_hardening.md)
 - [Observability](observability.md)
 - [Connectivity](connectivity.md)
-- [TLS](tls.md)
 - [Performance](performance.md)
 - [System Requirements](system_reqs.md)
 - [Supported 5G Equipment](supported_5g_equipment.md)
