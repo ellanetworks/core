@@ -61,7 +61,7 @@ const (
 )
 
 func isImsiValid(ctx context.Context, imsi string, dbInstance *db.Database) bool {
-	if !isImsiValidRegexp(imsi) {
+	if _, err := etsi.NewSUPIFromIMSI(imsi); err != nil {
 		return false
 	}
 
@@ -78,20 +78,6 @@ func isImsiValid(ctx context.Context, imsi string, dbInstance *db.Database) bool
 
 	if imsi[:3] != Mcc || imsi[3:3+mncLength] != Mnc {
 		return false
-	}
-
-	return true
-}
-
-func isImsiValidRegexp(imsi string) bool {
-	if len(imsi) != 15 {
-		return false
-	}
-
-	for _, c := range imsi {
-		if c < '0' || c > '9' {
-			return false
-		}
 	}
 
 	return true

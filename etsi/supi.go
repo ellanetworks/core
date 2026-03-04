@@ -31,7 +31,7 @@ var InvalidSUPI SUPI = SUPI{}
 const imsiPrefix = "imsi-"
 
 // NewSUPIFromIMSI creates a SUPI from a bare numeric IMSI string.
-// The IMSI must be 5 to 15 digits long and contain only digits.
+// The IMSI must be 15 digits long and contain only digits.
 func NewSUPIFromIMSI(imsi string) (SUPI, error) {
 	if err := validateIMSI(imsi); err != nil {
 		return InvalidSUPI, err
@@ -99,10 +99,10 @@ func (s SUPI) IsNAI() bool {
 	return s.supiType == supiTypeNAI
 }
 
-// validateIMSI checks that s is a valid IMSI: 5-15 digits, all numeric.
+// validateIMSI checks that s is a valid IMSI: 15 digits, all numeric.
 func validateIMSI(s string) error {
-	if len(s) < 5 || len(s) > 15 {
-		return fmt.Errorf("invalid IMSI length: %d (must be 5-15 digits)", len(s))
+	if len(s) != 15 {
+		return fmt.Errorf("invalid IMSI length: %d (must be 15 digits)", len(s))
 	}
 
 	if !isAllDigits(s) {

@@ -103,7 +103,7 @@ type AMF struct {
 
 	DBInstance               DBer
 	Ausf                     Ausf
-	UEs                      map[etsi.SUPI]*AmfUe // Key: supi
+	UEs                      map[etsi.SUPI]*AmfUe
 	Radios                   map[*sctp.SCTPConn]*Radio
 	RelativeCapacity         int64
 	Name                     string
