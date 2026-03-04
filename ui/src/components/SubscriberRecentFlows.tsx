@@ -24,6 +24,7 @@ import {
   formatBytesAutoUnit,
   formatProtocol,
   formatRelativeTime,
+  PROTOCOL_CHIP_COLORS,
 } from "@/utils/formatters";
 
 interface SubscriberRecentFlowsProps {
@@ -124,16 +125,28 @@ const SubscriberRecentFlows: React.FC<SubscriberRecentFlowsProps> = ({
         renderCell: (params) => {
           const value = params.value as number;
           if (value == null) return null;
+          const bg = PROTOCOL_CHIP_COLORS[value];
           return (
-            <Chip
-              label={formatProtocol(value)}
-              size="small"
+            <Box
               sx={{
-                fontWeight: 600,
-                fontSize: "0.75rem",
-                height: 22,
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
-            />
+            >
+              <Chip
+                label={formatProtocol(value)}
+                size="small"
+                sx={{
+                  ...(bg ? { backgroundColor: bg, color: "#fff" } : {}),
+                  fontWeight: 600,
+                  fontSize: "0.75rem",
+                  height: 22,
+                }}
+              />
+            </Box>
           );
         },
       },

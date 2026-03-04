@@ -195,6 +195,11 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if _, err := etsi.NewSUPIFromIMSI(imsi); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid IMSI format", err, logger.APILog)
+			return
+		}
+
 		dbSubscriber, err := dbInstance.GetSubscriber(r.Context(), imsi)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {

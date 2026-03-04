@@ -185,6 +185,19 @@ export const PROTOCOL_NAMES: Record<number, string> = {
 export const formatProtocol = (value: number): string =>
   PROTOCOL_NAMES[value] ?? String(value);
 
+/**
+ * Stable colors for well-known protocols, matching the PIE_COLORS palette
+ * used on the Traffic page so chips look consistent across views.
+ */
+export const PROTOCOL_CHIP_COLORS: Record<number, string> = {
+  6: "#2196F3", // TCP  — blue
+  17: "#4CAF50", // UDP  — green
+  1: "#FF9800", // ICMP — orange
+  58: "#E91E63", // IPv6-ICMP — pink
+  47: "#9C27B0", // GRE  — purple
+  132: "#00BCD4", // SCTP — cyan
+};
+
 // ──────────────────────────────────────────────────────
 // Relative time helper
 // ──────────────────────────────────────────────────────

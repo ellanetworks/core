@@ -28,19 +28,19 @@ type UsagePerDayRow = {
   total_bytes: number;
 };
 
-const getDateRange30Days = () => {
+const getDateRange7Days = () => {
   const today = new Date();
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(today.getDate() - 29);
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(today.getDate() - 6);
   const format = (d: Date) => d.toISOString().slice(0, 10);
-  return { startDate: format(thirtyDaysAgo), endDate: format(today) };
+  return { startDate: format(sevenDaysAgo), endDate: format(today) };
 };
 
 const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
   imsi,
 }) => {
   const { accessToken, authReady } = useAuth();
-  const { startDate, endDate } = useMemo(() => getDateRange30Days(), []);
+  const { startDate, endDate } = useMemo(() => getDateRange7Days(), []);
 
   const { data: usageData, isLoading } = useQuery<UsageResult>({
     queryKey: ["subscriber-usage-chart", imsi, startDate, endDate],
@@ -108,7 +108,7 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
     <Card variant="outlined">
       <CardContent>
         <Typography variant="h6" gutterBottom>
-          Usage (last 30 days)
+          Usage (last 7 days)
         </Typography>
 
         {isLoading ? (

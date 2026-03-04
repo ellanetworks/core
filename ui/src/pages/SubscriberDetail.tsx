@@ -186,14 +186,26 @@ const SubscriberDetail: React.FC = () => {
               subscriber={subscriber}
               onEditPolicy={canEdit ? () => setEditModalOpen(true) : undefined}
             />
-            <SubscriberUsageChart imsi={subscriber.imsi} />
-            <SubscriberRecentFlows imsi={subscriber.imsi} />
           </Box>
 
           {/* Right column */}
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <SubscriberConnectionCard status={subscriber.status} />
           </Box>
+        </Box>
+
+        {/* Traffic row */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+            gap: 3,
+            alignItems: "start",
+            mt: 3,
+          }}
+        >
+          <SubscriberUsageChart imsi={subscriber.imsi} />
+          <SubscriberRecentFlows imsi={subscriber.imsi} />
         </Box>
       </Box>
 

@@ -58,7 +58,12 @@ import {
 } from "@/queries/flow_accounting";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import EditUsageRetentionPolicyModal from "@/components/EditUsageRetentionPolicyModal";
 import EditFlowReportsRetentionPolicyModal from "@/components/EditFlowReportsRetentionPolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -144,6 +149,7 @@ const Traffic: React.FC = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const currentTab = TAB_PATHS.includes(
     location.pathname as (typeof TAB_PATHS)[number],
@@ -168,7 +174,9 @@ const Traffic: React.FC = () => {
 
   // ── Shared state ────────────────────────────────────
   const [{ startDate, endDate }, setDateRange] = useState(getDefaultDateRange);
-  const [selectedSubscriber, setSelectedSubscriber] = useState("");
+  const [selectedSubscriber, setSelectedSubscriber] = useState(
+    () => searchParams.get("subscriber_id") || "",
+  );
   const { showSnackbar } = useSnackbar();
 
   // ── Usage state ─────────────────────────────────────
@@ -415,7 +423,34 @@ const Traffic: React.FC = () => {
 
   const usageColumns: GridColDef<UsageRow>[] = useMemo(
     () => [
-      { field: "subscriber", headerName: "Subscriber", flex: 1, minWidth: 200 },
+      {
+        field: "subscriber",
+        headerName: "Subscriber",
+        flex: 1,
+        minWidth: 200,
+        renderCell: (params) => {
+          const imsi = params.value as string;
+          if (!imsi) return null;
+          return (
+            <Link
+              to={`/subscribers/${imsi}`}
+              style={{ color: "inherit", textDecoration: "none" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  fontFamily: "monospace",
+                  color: "primary.main",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {imsi}
+              </Typography>
+            </Link>
+          );
+        },
+      },
       {
         field: "downlink_bytes",
         headerName: "Downlink (bytes)",
@@ -469,6 +504,28 @@ const Traffic: React.FC = () => {
         headerName: "Subscriber",
         flex: 1,
         minWidth: 160,
+        renderCell: (params) => {
+          const imsi = params.value as string;
+          if (!imsi) return null;
+          return (
+            <Link
+              to={`/subscribers/${imsi}`}
+              style={{ color: "inherit", textDecoration: "none" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  fontFamily: "monospace",
+                  color: "primary.main",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {imsi}
+              </Typography>
+            </Link>
+          );
+        },
       },
       {
         field: "direction",
