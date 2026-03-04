@@ -13,7 +13,6 @@ export type APISubscriberSummary = {
   sequenceNumber: string;
   key: string;
   policyName: string;
-  dataNetworkName?: string;
   status: SubscriberListStatus;
 };
 
@@ -43,9 +42,6 @@ export type APISubscriber = {
   sequenceNumber: string;
   key: string;
   policyName: string;
-  policyBitrateUplink?: string;
-  policyBitrateDownlink?: string;
-  dataNetworkName?: string;
   status: SubscriberDetailStatus;
 };
 

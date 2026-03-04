@@ -40,13 +40,12 @@ type SubscriberStatus struct {
 
 // Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
-	Imsi            string           `json:"imsi"`
-	Opc             string           `json:"opc"`
-	SequenceNumber  string           `json:"sequenceNumber"`
-	Key             string           `json:"key"`
-	PolicyName      string           `json:"policyName"`
-	DataNetworkName string           `json:"dataNetworkName"`
-	Status          SubscriberStatus `json:"status"`
+	Imsi           string           `json:"imsi"`
+	Opc            string           `json:"opc"`
+	SequenceNumber string           `json:"sequenceNumber"`
+	Key            string           `json:"key"`
+	PolicyName     string           `json:"policyName"`
+	Status         SubscriberStatus `json:"status"`
 }
 
 type ListSubscribersResponse struct {
@@ -70,15 +69,12 @@ type SubscriberDetailStatus struct {
 
 // SubscriberDetail is the full representation returned by the get-single endpoint.
 type SubscriberDetail struct {
-	Imsi                  string                 `json:"imsi"`
-	Opc                   string                 `json:"opc"`
-	SequenceNumber        string                 `json:"sequenceNumber"`
-	Key                   string                 `json:"key"`
-	PolicyName            string                 `json:"policyName"`
-	PolicyBitrateUplink   string                 `json:"policyBitrateUplink,omitempty"`
-	PolicyBitrateDownlink string                 `json:"policyBitrateDownlink,omitempty"`
-	DataNetworkName       string                 `json:"dataNetworkName"`
-	Status                SubscriberDetailStatus `json:"status"`
+	Imsi           string                 `json:"imsi"`
+	Opc            string                 `json:"opc"`
+	SequenceNumber string                 `json:"sequenceNumber"`
+	Key            string                 `json:"key"`
+	PolicyName     string                 `json:"policyName"`
+	Status         SubscriberDetailStatus `json:"status"`
 }
 
 const (
@@ -154,7 +150,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 
 		items := make([]Subscriber, 0, len(dbSubscribers))
 
-		// Pre-fetch all policies and data networks into lookup maps.
+		// Pre-fetch all policies into a lookup map.
 		// These are small reference tables, so loading them all avoids
 		// N+1 queries per subscriber in the loop below.
 		allPolicies, _, err := dbInstance.ListPoliciesPage(ctx, 1, 1000)
@@ -168,27 +164,10 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 			policyByID[allPolicies[i].ID] = &allPolicies[i]
 		}
 
-		allDataNetworks, _, err := dbInstance.ListDataNetworksPage(ctx, 1, 1000)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list data networks", err, logger.APILog)
-			return
-		}
-
-		dataNetworkByID := make(map[int]*db.DataNetwork, len(allDataNetworks))
-		for i := range allDataNetworks {
-			dataNetworkByID[allDataNetworks[i].ID] = &allDataNetworks[i]
-		}
-
 		for _, dbSubscriber := range dbSubscribers {
 			policy, ok := policyByID[dbSubscriber.PolicyID]
 			if !ok {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", fmt.Errorf("policy ID %d not found", dbSubscriber.PolicyID), logger.APILog)
-				return
-			}
-
-			dataNetwork, ok := dataNetworkByID[policy.DataNetworkID]
-			if !ok {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve data network", fmt.Errorf("data network ID %d not found", policy.DataNetworkID), logger.APILog)
 				return
 			}
 
@@ -211,13 +190,12 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 			}
 
 			items = append(items, Subscriber{
-				Imsi:            dbSubscriber.Imsi,
-				Opc:             dbSubscriber.Opc,
-				Key:             dbSubscriber.PermanentKey,
-				SequenceNumber:  dbSubscriber.SequenceNumber,
-				PolicyName:      policy.Name,
-				DataNetworkName: dataNetwork.Name,
-				Status:          subscriberStatus,
+				Imsi:           dbSubscriber.Imsi,
+				Opc:            dbSubscriber.Opc,
+				Key:            dbSubscriber.PermanentKey,
+				SequenceNumber: dbSubscriber.SequenceNumber,
+				PolicyName:     policy.Name,
+				Status:         subscriberStatus,
 			})
 		}
 
@@ -264,12 +242,6 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		dataNetwork, err := dbInstance.GetDataNetworkByID(r.Context(), policy.DataNetworkID)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve data network", err, logger.APILog)
-			return
-		}
-
 		ipAddress := ""
 		if dbSubscriber.IPAddress != nil {
 			ipAddress = *dbSubscriber.IPAddress
@@ -306,15 +278,12 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		subscriber := SubscriberDetail{
-			Imsi:                  dbSubscriber.Imsi,
-			Opc:                   dbSubscriber.Opc,
-			SequenceNumber:        dbSubscriber.SequenceNumber,
-			Key:                   dbSubscriber.PermanentKey,
-			PolicyName:            policy.Name,
-			PolicyBitrateUplink:   policy.BitrateUplink,
-			PolicyBitrateDownlink: policy.BitrateDownlink,
-			DataNetworkName:       dataNetwork.Name,
-			Status:                subscriberStatus,
+			Imsi:           dbSubscriber.Imsi,
+			Opc:            dbSubscriber.Opc,
+			SequenceNumber: dbSubscriber.SequenceNumber,
+			Key:            dbSubscriber.PermanentKey,
+			PolicyName:     policy.Name,
+			Status:         subscriberStatus,
 		}
 
 		writeResponse(r.Context(), w, subscriber, http.StatusOK, logger.APILog)

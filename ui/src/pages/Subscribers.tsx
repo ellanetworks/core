@@ -73,14 +73,6 @@ const SubscriberPage: React.FC = () => {
       },
       { field: "policyName", headerName: "Policy", flex: 0.8, minWidth: 140 },
       {
-        field: "dataNetworkName",
-        headerName: "Data Network",
-        flex: 0.8,
-        minWidth: 140,
-        valueGetter: (_v, row: APISubscriberSummary) =>
-          row?.dataNetworkName ?? "",
-      },
-      {
         field: "registration",
         headerName: "Registration",
         width: 140,

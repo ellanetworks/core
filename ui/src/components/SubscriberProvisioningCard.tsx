@@ -14,8 +14,11 @@ import {
   South as SouthIcon,
 } from "@mui/icons-material";
 import { Link as RouterLink } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useSnackbar } from "@/contexts/SnackbarContext";
+import { useAuth } from "@/contexts/AuthContext";
 import type { APISubscriber } from "@/queries/subscribers";
+import { getPolicy } from "@/queries/policies";
 import { UPLINK_COLOR, DOWNLINK_COLOR } from "@/utils/formatters";
 
 interface SubscriberProvisioningCardProps {
@@ -101,8 +104,15 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   onEditPolicy,
 }) => {
   const { showSnackbar } = useSnackbar();
+  const { accessToken, authReady } = useAuth();
   const [keyObfuscated, setKeyObfuscated] = useState(true);
   const [opcObfuscated, setOpcObfuscated] = useState(true);
+
+  const { data: policy } = useQuery({
+    queryKey: ["policies", subscriber.policyName],
+    queryFn: () => getPolicy(accessToken!, subscriber.policyName),
+    enabled: authReady && !!accessToken && !!subscriber.policyName,
+  });
 
   const handleCopy = async (value: string, label: string) => {
     if (!navigator.clipboard) {
@@ -188,13 +198,13 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
               <SouthIcon sx={{ fontSize: 14, color: DOWNLINK_COLOR }} />
               <Typography variant="caption" color="text.secondary">
-                {subscriber.policyBitrateDownlink || "—"}
+                {policy?.bitrate_downlink || "—"}
               </Typography>
             </Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
               <NorthIcon sx={{ fontSize: 14, color: UPLINK_COLOR }} />
               <Typography variant="caption" color="text.secondary">
-                {subscriber.policyBitrateUplink || "—"}
+                {policy?.bitrate_uplink || "—"}
               </Typography>
             </Box>
           </Box>
@@ -212,7 +222,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
         </Box>
         <FieldRow
           label="Data Network"
-          value={subscriber.dataNetworkName || "—"}
+          value={policy?.data_network_name || "—"}
           linkTo="/networking?tab=data-networks"
         />
       </CardContent>

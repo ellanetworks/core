@@ -41,13 +41,12 @@ type ListSubscriberStatus struct {
 
 // ListSubscriber matches the summary representation in list responses.
 type ListSubscriber struct {
-	Imsi            string               `json:"imsi"`
-	OPc             string               `json:"opc"`
-	Key             string               `json:"key"`
-	SequenceNumber  string               `json:"sequenceNumber"`
-	PolicyName      string               `json:"policyName"`
-	DataNetworkName string               `json:"dataNetworkName"`
-	Status          ListSubscriberStatus `json:"status"`
+	Imsi           string               `json:"imsi"`
+	OPc            string               `json:"opc"`
+	Key            string               `json:"key"`
+	SequenceNumber string               `json:"sequenceNumber"`
+	PolicyName     string               `json:"policyName"`
+	Status         ListSubscriberStatus `json:"status"`
 }
 
 // SubscriberDetailStatus matches the rich status in get-single responses.
@@ -64,15 +63,12 @@ type SubscriberDetailStatus struct {
 
 // SubscriberDetail matches the full representation in get-single responses.
 type SubscriberDetail struct {
-	Imsi                  string                 `json:"imsi"`
-	OPc                   string                 `json:"opc"`
-	Key                   string                 `json:"key"`
-	SequenceNumber        string                 `json:"sequenceNumber"`
-	PolicyName            string                 `json:"policyName"`
-	PolicyBitrateUplink   string                 `json:"policyBitrateUplink,omitempty"`
-	PolicyBitrateDownlink string                 `json:"policyBitrateDownlink,omitempty"`
-	DataNetworkName       string                 `json:"dataNetworkName"`
-	Status                SubscriberDetailStatus `json:"status"`
+	Imsi           string                 `json:"imsi"`
+	OPc            string                 `json:"opc"`
+	Key            string                 `json:"key"`
+	SequenceNumber string                 `json:"sequenceNumber"`
+	PolicyName     string                 `json:"policyName"`
+	Status         SubscriberDetailStatus `json:"status"`
 }
 
 type GetSubscriberResponse struct {
@@ -387,18 +383,6 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 		if response.Result.PolicyName != PolicyName {
 			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
-		}
-
-		if response.Result.PolicyBitrateUplink != "100 Mbps" {
-			t.Fatalf("expected policyBitrateUplink '100 Mbps', got %s", response.Result.PolicyBitrateUplink)
-		}
-
-		if response.Result.PolicyBitrateDownlink != "100 Mbps" {
-			t.Fatalf("expected policyBitrateDownlink '100 Mbps', got %s", response.Result.PolicyBitrateDownlink)
-		}
-
-		if response.Result.DataNetworkName != "whatever" {
-			t.Fatalf("expected dataNetworkName 'whatever', got %s", response.Result.DataNetworkName)
 		}
 
 		if response.Result.Status.State != "Deregistered" {
@@ -761,18 +745,6 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 		if response.Result.PolicyName != PolicyName {
 			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
-		}
-
-		if response.Result.PolicyBitrateUplink != "100 Mbps" {
-			t.Fatalf("expected policyBitrateUplink '100 Mbps', got %s", response.Result.PolicyBitrateUplink)
-		}
-
-		if response.Result.PolicyBitrateDownlink != "100 Mbps" {
-			t.Fatalf("expected policyBitrateDownlink '100 Mbps', got %s", response.Result.PolicyBitrateDownlink)
-		}
-
-		if response.Result.DataNetworkName != "whatever" {
-			t.Fatalf("expected dataNetworkName 'whatever', got %s", response.Result.DataNetworkName)
 		}
 
 		if response.Result.Status.State != "Deregistered" {
