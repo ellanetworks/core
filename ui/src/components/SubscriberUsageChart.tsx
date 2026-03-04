@@ -19,6 +19,8 @@ import {
 
 interface SubscriberUsageChartProps {
   imsi: string;
+  /** When true, renders without Card wrapper (for embedding in a parent card). */
+  embedded?: boolean;
 }
 
 type UsagePerDayRow = {
@@ -38,6 +40,7 @@ const getDateRange7Days = () => {
 
 const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
   imsi,
+  embedded = false,
 }) => {
   const { accessToken, authReady } = useAuth();
   const { startDate, endDate } = useMemo(() => getDateRange7Days(), []);
@@ -104,55 +107,61 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
   const hasData =
     dailyRows.length > 0 && (totalUplink > 0 || totalDownlink > 0);
 
+  const content = (
+    <>
+      <Typography variant="subtitle2" sx={{ mb: 1, color: "text.secondary" }}>
+        Usage (last 7 days)
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+          <CircularProgress size={28} />
+        </Box>
+      ) : !hasData ? (
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ py: 4, textAlign: "center" }}
+        >
+          No usage data available for this subscriber.
+        </Typography>
+      ) : (
+        <>
+          <BarChart
+            dataset={chartDataset}
+            xAxis={[{ scaleType: "band", dataKey: "date" }]}
+            yAxis={[{ label: `Usage (${unit})` }]}
+            series={[
+              { dataKey: "downlink", label: `Downlink (${unit})` },
+              { dataKey: "uplink", label: `Uplink (${unit})` },
+            ]}
+            height={250}
+          />
+          <Box
+            sx={{
+              display: "flex",
+              gap: 3,
+              mt: 1,
+              justifyContent: "center",
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              Total ↑ {formatBytesAutoUnit(totalUplink)}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Total ↓ {formatBytesAutoUnit(totalDownlink)}
+            </Typography>
+          </Box>
+        </>
+      )}
+    </>
+  );
+
+  if (embedded) return <Box>{content}</Box>;
+
   return (
     <Card variant="outlined">
-      <CardContent>
-        <Typography variant="h6" gutterBottom>
-          Usage (last 7 days)
-        </Typography>
-
-        {isLoading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-            <CircularProgress size={28} />
-          </Box>
-        ) : !hasData ? (
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ py: 4, textAlign: "center" }}
-          >
-            No usage data available for this subscriber.
-          </Typography>
-        ) : (
-          <>
-            <BarChart
-              dataset={chartDataset}
-              xAxis={[{ scaleType: "band", dataKey: "date" }]}
-              yAxis={[{ label: `Usage (${unit})` }]}
-              series={[
-                { dataKey: "downlink", label: `Downlink (${unit})` },
-                { dataKey: "uplink", label: `Uplink (${unit})` },
-              ]}
-              height={250}
-            />
-            <Box
-              sx={{
-                display: "flex",
-                gap: 3,
-                mt: 1,
-                justifyContent: "center",
-              }}
-            >
-              <Typography variant="body2" color="text.secondary">
-                Total ↑ {formatBytesAutoUnit(totalUplink)}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Total ↓ {formatBytesAutoUnit(totalDownlink)}
-              </Typography>
-            </Box>
-          </>
-        )}
-      </CardContent>
+      <CardContent>{content}</CardContent>
     </Card>
   );
 };

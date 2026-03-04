@@ -2,6 +2,8 @@ import React from "react";
 import { Box, Card, CardContent, Typography } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import SignalWifiOffIcon from "@mui/icons-material/SignalWifiOff";
+import NorthIcon from "@mui/icons-material/North";
+import SouthIcon from "@mui/icons-material/South";
 import type { SubscriberStatus } from "@/queries/subscribers";
 
 interface SubscriberConnectionCardProps {
@@ -74,9 +76,23 @@ const formatSessions = (count?: number): string => {
   return `${count} active`;
 };
 
-const formatAmbr = (uplink?: string, downlink?: string): string => {
-  if (!uplink && !downlink) return "";
-  return `↑ ${uplink || "—"}  ↓ ${downlink || "—"}`;
+const BitrateValue: React.FC<{ uplink?: string; downlink?: string }> = ({
+  uplink,
+  downlink,
+}) => {
+  if (!uplink && !downlink) return <Typography variant="body2">—</Typography>;
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+        <NorthIcon sx={{ fontSize: 16, color: "#FF9800" }} />
+        <Typography variant="body2">{uplink || "—"}</Typography>
+      </Box>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+        <SouthIcon sx={{ fontSize: 16, color: "#4254FB" }} />
+        <Typography variant="body2">{downlink || "—"}</Typography>
+      </Box>
+    </Box>
+  );
 };
 
 const CIPHERING_DESCRIPTIONS: Record<string, string> = {
@@ -125,15 +141,42 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
               label="Active Sessions"
               value={formatSessions(status.activeSessions)}
             />
-            <InfoRow
-              label="Bitrate"
-              value={formatAmbr(status.ambrUplink, status.ambrDownlink)}
-            />
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                py: 0.75,
+                "&:not(:last-child)": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+              }}
+            >
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary", minWidth: 160, flexShrink: 0 }}
+              >
+                Bitrate
+              </Typography>
+              <BitrateValue
+                uplink={status.ambrUplink}
+                downlink={status.ambrDownlink}
+              />
+            </Box>
 
             {/* Radio section */}
             <Typography
-              variant="subtitle2"
-              sx={{ mt: 2, mb: 0.5, color: "text.secondary" }}
+              variant="overline"
+              sx={{
+                display: "block",
+                mt: 2.5,
+                mb: 0.5,
+                pt: 1.5,
+                borderTop: "1px solid",
+                borderColor: "divider",
+                color: "text.secondary",
+                letterSpacing: 1.2,
+              }}
             >
               Radio
             </Typography>
@@ -147,8 +190,17 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
 
             {/* Security section */}
             <Typography
-              variant="subtitle2"
-              sx={{ mt: 2, mb: 0.5, color: "text.secondary" }}
+              variant="overline"
+              sx={{
+                display: "block",
+                mt: 2.5,
+                mb: 0.5,
+                pt: 1.5,
+                borderTop: "1px solid",
+                borderColor: "divider",
+                color: "text.secondary",
+                letterSpacing: 1.2,
+              }}
             >
               Security
             </Typography>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Box, Button, Chip, CircularProgress, Typography } from "@mui/material";
+import { Box, Button, Card, CardContent, Chip, CircularProgress, Typography } from "@mui/material";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -14,7 +14,7 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import SubscriberProvisioningCard from "@/components/SubscriberProvisioningCard";
 import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
 import SubscriberUsageChart from "@/components/SubscriberUsageChart";
-import SubscriberRecentFlows from "@/components/SubscriberRecentFlows";
+import SubscriberProtocolChart from "@/components/SubscriberProtocolChart";
 
 const MAX_WIDTH = 1400;
 
@@ -194,19 +194,39 @@ const SubscriberDetail: React.FC = () => {
           </Box>
         </Box>
 
-        {/* Traffic row */}
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            gap: 3,
-            alignItems: "start",
-            mt: 3,
-          }}
-        >
-          <SubscriberUsageChart imsi={subscriber.imsi} />
-          <SubscriberRecentFlows imsi={subscriber.imsi} />
-        </Box>
+        {/* Traffic card */}
+        <Card variant="outlined" sx={{ mt: 3 }}>
+          <CardContent>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                mb: 2,
+              }}
+            >
+              <Typography variant="h6">Traffic</Typography>
+              <Button
+                component={RouterLink}
+                to={`/traffic/usage?subscriber_id=${subscriber.imsi}`}
+                size="small"
+              >
+                View traffic →
+              </Button>
+            </Box>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                gap: 3,
+                alignItems: "start",
+              }}
+            >
+              <SubscriberUsageChart imsi={subscriber.imsi} embedded />
+              <SubscriberProtocolChart imsi={subscriber.imsi} />
+            </Box>
+          </CardContent>
+        </Card>
       </Box>
 
       {/* Modals */}

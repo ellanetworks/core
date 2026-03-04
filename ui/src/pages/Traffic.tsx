@@ -432,22 +432,31 @@ const Traffic: React.FC = () => {
           const imsi = params.value as string;
           if (!imsi) return null;
           return (
-            <Link
-              to={`/subscribers/${imsi}`}
-              style={{ color: "inherit", textDecoration: "none" }}
-              onClick={(e) => e.stopPropagation()}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                width: "100%",
+                height: "100%",
+              }}
             >
-              <Typography
-                variant="body2"
-                sx={{
-                  fontFamily: "monospace",
-                  color: "primary.main",
-                  "&:hover": { textDecoration: "underline" },
-                }}
+              <Link
+                to={`/subscribers/${imsi}`}
+                style={{ color: "inherit", textDecoration: "none" }}
+                onClick={(e) => e.stopPropagation()}
               >
-                {imsi}
-              </Typography>
-            </Link>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontFamily: "monospace",
+                    color: "primary.main",
+                    "&:hover": { textDecoration: "underline" },
+                  }}
+                >
+                  {imsi}
+                </Typography>
+              </Link>
+            </Box>
           );
         },
       },
@@ -508,22 +517,31 @@ const Traffic: React.FC = () => {
           const imsi = params.value as string;
           if (!imsi) return null;
           return (
-            <Link
-              to={`/subscribers/${imsi}`}
-              style={{ color: "inherit", textDecoration: "none" }}
-              onClick={(e) => e.stopPropagation()}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                width: "100%",
+                height: "100%",
+              }}
             >
-              <Typography
-                variant="body2"
-                sx={{
-                  fontFamily: "monospace",
-                  color: "primary.main",
-                  "&:hover": { textDecoration: "underline" },
-                }}
+              <Link
+                to={`/subscribers/${imsi}`}
+                style={{ color: "inherit", textDecoration: "none" }}
+                onClick={(e) => e.stopPropagation()}
               >
-                {imsi}
-              </Typography>
-            </Link>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontFamily: "monospace",
+                    color: "primary.main",
+                    "&:hover": { textDecoration: "underline" },
+                  }}
+                >
+                  {imsi}
+                </Typography>
+              </Link>
+            </Box>
           );
         },
       },
