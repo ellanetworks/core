@@ -2,6 +2,7 @@ package etsi
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -74,5 +75,5 @@ func luhnCheckDigit(digits string) string {
 
 	check := (10 - (sum % 10)) % 10
 
-	return string(rune('0' + check))
+	return strconv.Itoa(check)
 }

@@ -80,6 +80,39 @@ import {
 
 const MAX_WIDTH = 1400;
 
+/** Shared cell renderer for subscriber IMSI links in data grids. */
+const renderSubscriberLink = (params: { value?: unknown }) => {
+  const imsi = params.value as string;
+  if (!imsi) return null;
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        width: "100%",
+        height: "100%",
+      }}
+    >
+      <Link
+        to={`/subscribers/${imsi}`}
+        style={{ color: "inherit", textDecoration: "none" }}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+      >
+        <Typography
+          variant="body2"
+          sx={{
+            fontFamily: "monospace",
+            color: "primary.main",
+            "&:hover": { textDecoration: "underline" },
+          }}
+        >
+          {imsi}
+        </Typography>
+      </Link>
+    </Box>
+  );
+};
+
 // ──────────────────────────────────────────────────────
 // Date defaults
 // ──────────────────────────────────────────────────────
@@ -428,37 +461,7 @@ const Traffic: React.FC = () => {
         headerName: "Subscriber",
         flex: 1,
         minWidth: 200,
-        renderCell: (params) => {
-          const imsi = params.value as string;
-          if (!imsi) return null;
-          return (
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                width: "100%",
-                height: "100%",
-              }}
-            >
-              <Link
-                to={`/subscribers/${imsi}`}
-                style={{ color: "inherit", textDecoration: "none" }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontFamily: "monospace",
-                    color: "primary.main",
-                    "&:hover": { textDecoration: "underline" },
-                  }}
-                >
-                  {imsi}
-                </Typography>
-              </Link>
-            </Box>
-          );
-        },
+        renderCell: renderSubscriberLink,
       },
       {
         field: "downlink_bytes",
@@ -513,37 +516,7 @@ const Traffic: React.FC = () => {
         headerName: "Subscriber",
         flex: 1,
         minWidth: 160,
-        renderCell: (params) => {
-          const imsi = params.value as string;
-          if (!imsi) return null;
-          return (
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                width: "100%",
-                height: "100%",
-              }}
-            >
-              <Link
-                to={`/subscribers/${imsi}`}
-                style={{ color: "inherit", textDecoration: "none" }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontFamily: "monospace",
-                    color: "primary.main",
-                    "&:hover": { textDecoration: "underline" },
-                  }}
-                >
-                  {imsi}
-                </Typography>
-              </Link>
-            </Box>
-          );
-        },
+        renderCell: renderSubscriberLink,
       },
       {
         field: "direction",

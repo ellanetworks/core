@@ -23,6 +23,7 @@ import SubscriberProvisioningCard from "@/components/SubscriberProvisioningCard"
 import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
 import SubscriberUsageChart from "@/components/SubscriberUsageChart";
 import SubscriberProtocolChart from "@/components/SubscriberProtocolChart";
+import SubscriberRecentFlows from "@/components/SubscriberRecentFlows";
 
 const MAX_WIDTH = 1400;
 
@@ -235,6 +236,11 @@ const SubscriberDetail: React.FC = () => {
             </Box>
           </CardContent>
         </Card>
+
+        {/* Recent Flows */}
+        <Box sx={{ mt: 3 }}>
+          <SubscriberRecentFlows imsi={subscriber.imsi} />
+        </Box>
       </Box>
 
       {/* Modals */}

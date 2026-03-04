@@ -24,23 +24,18 @@ type DeleteSubscriberOptions struct {
 	ID string `json:"id"`
 }
 
-type SubscriberSession struct {
-	IPAddress string `json:"ipAddress"`
-}
-
 type SubscriberStatus struct {
-	Registered         bool                `json:"registered"`
-	Sessions           []SubscriberSession `json:"sessions"`
-	State              string              `json:"state"`
-	ConnectedRadio     string              `json:"connectedRadio"`
-	Imei               string              `json:"imei"`
-	Tac                string              `json:"tac"`
-	CellID             string              `json:"cellID"`
-	ActiveSessions     int                 `json:"activeSessions"`
-	AmbrUplink         string              `json:"ambrUplink"`
-	AmbrDownlink       string              `json:"ambrDownlink"`
-	CipheringAlgorithm string              `json:"cipheringAlgorithm"`
-	IntegrityAlgorithm string              `json:"integrityAlgorithm"`
+	Registered         bool   `json:"registered"`
+	State              string `json:"state"`
+	ConnectedRadio     string `json:"connectedRadio"`
+	Imei               string `json:"imei"`
+	Tac                string `json:"tac"`
+	CellID             string `json:"cellID"`
+	ActiveSessions     int    `json:"activeSessions"`
+	AmbrUplink         string `json:"ambrUplink"`
+	AmbrDownlink       string `json:"ambrDownlink"`
+	CipheringAlgorithm string `json:"cipheringAlgorithm"`
+	IntegrityAlgorithm string `json:"integrityAlgorithm"`
 }
 
 type Subscriber struct {

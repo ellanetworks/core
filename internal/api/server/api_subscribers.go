@@ -133,18 +133,30 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 		}
 
 		items := make([]Subscriber, 0, len(dbSubscribers))
+		policyCache := make(map[int]*db.Policy)
+		dataNetworkCache := make(map[int]*db.DataNetwork)
 
 		for _, dbSubscriber := range dbSubscribers {
-			policy, err := dbInstance.GetPolicyByID(ctx, dbSubscriber.PolicyID)
-			if err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
-				return
+			policy, ok := policyCache[dbSubscriber.PolicyID]
+			if !ok {
+				policy, err = dbInstance.GetPolicyByID(ctx, dbSubscriber.PolicyID)
+				if err != nil {
+					writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
+					return
+				}
+
+				policyCache[dbSubscriber.PolicyID] = policy
 			}
 
-			dataNetwork, err := dbInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
-			if err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve data network", err, logger.APILog)
-				return
+			dataNetwork, ok := dataNetworkCache[policy.DataNetworkID]
+			if !ok {
+				dataNetwork, err = dbInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
+				if err != nil {
+					writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve data network", err, logger.APILog)
+					return
+				}
+
+				dataNetworkCache[policy.DataNetworkID] = dataNetwork
 			}
 
 			ipAddress := ""
@@ -237,68 +249,36 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		state := "Deregistered"
-		connectedRadio := ""
+		snap, found := amf.GetUESnapshot(supi)
+
 		imei := ""
-		tac := ""
-		cellID := ""
-		activeSessions := 0
-		ambrUplink := ""
-		ambrDownlink := ""
-		cipheringAlgorithm := ""
-		integrityAlgorithm := ""
 
-		registered := amf.IsSubscriberRegistered(supi)
-
-		if ue, ok := amf.FindAMFUEBySupi(supi); ok {
-			state = string(ue.GetState())
-
-			if ue.RanUe != nil && ue.RanUe.Radio != nil {
-				connectedRadio = ue.RanUe.Radio.Name
+		if snap.Pei != "" {
+			if converted, err := etsi.IMEIFromPEI(snap.Pei); err == nil {
+				imei = converted
+			} else {
+				logger.APILog.Warn("failed to convert PEI to IMEI", zap.String("pei", snap.Pei), zap.Error(err))
 			}
+		}
 
-			if ue.Pei != "" {
-				if converted, err := etsi.IMEIFromPEI(ue.Pei); err == nil {
-					imei = converted
-				}
-			}
-
-			if ue.Tai.Tac != "" {
-				tac = ue.Tai.Tac
-			}
-
-			if ue.RanUe != nil && ue.RanUe.Radio != nil && ue.RanUe.Radio.RanID != nil && ue.RanUe.Radio.RanID.GNbID != nil {
-				cellID = ue.RanUe.Radio.RanID.GNbID.GNBValue
-			}
-
-			for _, sm := range ue.SmContextList {
-				if !sm.PduSessionInactive {
-					activeSessions++
-				}
-			}
-
-			if ue.Ambr != nil {
-				ambrUplink = ue.Ambr.Uplink
-				ambrDownlink = ue.Ambr.Downlink
-			}
-
-			cipheringAlgorithm = ue.CipheringAlgName()
-			integrityAlgorithm = ue.IntegrityAlgName()
+		state := "Deregistered"
+		if found {
+			state = string(snap.State)
 		}
 
 		subscriberStatus := SubscriberStatus{
-			Registered:         registered,
+			Registered:         found && snap.State == amfContext.Registered,
 			IPAddress:          ipAddress,
 			State:              state,
-			ConnectedRadio:     connectedRadio,
+			ConnectedRadio:     snap.ConnectedRadio,
 			Imei:               imei,
-			Tac:                tac,
-			CellID:             cellID,
-			ActiveSessions:     activeSessions,
-			AmbrUplink:         ambrUplink,
-			AmbrDownlink:       ambrDownlink,
-			CipheringAlgorithm: cipheringAlgorithm,
-			IntegrityAlgorithm: integrityAlgorithm,
+			Tac:                snap.Tac,
+			CellID:             snap.CellID,
+			ActiveSessions:     snap.ActiveSessions,
+			AmbrUplink:         snap.AmbrUplink,
+			AmbrDownlink:       snap.AmbrDownlink,
+			CipheringAlgorithm: snap.CipheringAlgorithm,
+			IntegrityAlgorithm: snap.IntegrityAlgorithm,
 		}
 
 		subscriber := Subscriber{

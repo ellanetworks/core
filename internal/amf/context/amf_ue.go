@@ -264,6 +264,56 @@ func (ue *AmfUe) IntegrityAlgName() string {
 	}
 }
 
+// UESnapshot is a read-only, point-in-time copy of the UE's connection
+// state. It is safe to use from any goroutine without holding AMF or UE locks.
+type UESnapshot struct {
+	State              StateType
+	Pei                string
+	ConnectedRadio     string
+	Tac                string
+	CellID             string
+	ActiveSessions     int
+	AmbrUplink         string
+	AmbrDownlink       string
+	CipheringAlgorithm string
+	IntegrityAlgorithm string
+}
+
+// Snapshot returns a point-in-time copy of the UE's connection state.
+// The caller can safely read the returned value without holding any lock.
+func (ue *AmfUe) Snapshot() UESnapshot {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	snap := UESnapshot{
+		State:              ue.State,
+		Pei:                ue.Pei,
+		Tac:                ue.Tai.Tac,
+		CipheringAlgorithm: ue.CipheringAlgName(),
+		IntegrityAlgorithm: ue.IntegrityAlgName(),
+	}
+
+	if ue.RanUe != nil && ue.RanUe.Radio != nil {
+		snap.ConnectedRadio = ue.RanUe.Radio.Name
+		if ue.RanUe.Radio.RanID != nil && ue.RanUe.Radio.RanID.GNbID != nil {
+			snap.CellID = ue.RanUe.Radio.RanID.GNbID.GNBValue
+		}
+	}
+
+	for _, sm := range ue.SmContextList {
+		if !sm.PduSessionInactive {
+			snap.ActiveSessions++
+		}
+	}
+
+	if ue.Ambr != nil {
+		snap.AmbrUplink = ue.Ambr.Uplink
+		snap.AmbrDownlink = ue.Ambr.Downlink
+	}
+
+	return snap
+}
+
 // Kamf Derivation function defined in TS 33.501 Annex A.7
 func (ue *AmfUe) DerivateKamf() error {
 	if !ue.Supi.IsValid() || !ue.Supi.IsIMSI() {

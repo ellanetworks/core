@@ -170,7 +170,7 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
                 display: "block",
                 mt: 1.5,
                 mb: 0.5,
-                color: "text.secondary",
+                color: "text.primary",
                 letterSpacing: 1.2,
               }}
             >
@@ -191,7 +191,7 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
                 display: "block",
                 mt: 1.5,
                 mb: 0.5,
-                color: "text.secondary",
+                color: "text.primary",
                 letterSpacing: 1.2,
               }}
             >
