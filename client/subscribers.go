@@ -33,7 +33,7 @@ type SubscriberStatus struct {
 	Sessions           []SubscriberSession `json:"sessions"`
 	State              string              `json:"state"`
 	ConnectedRadio     string              `json:"connectedRadio"`
-	Pei                string              `json:"pei"`
+	Imei               string              `json:"imei"`
 	Tac                string              `json:"tac"`
 	CellID             string              `json:"cellID"`
 	ActiveSessions     int                 `json:"activeSessions"`

@@ -38,7 +38,7 @@ type SubscriberStatus struct {
 	IPAddress          string `json:"ipAddress"`
 	State              string `json:"state"`
 	ConnectedRadio     string `json:"connectedRadio"`
-	Pei                string `json:"pei"`
+	Imei               string `json:"imei"`
 	Tac                string `json:"tac"`
 	CellID             string `json:"cellID"`
 	ActiveSessions     int    `json:"activeSessions"`
@@ -384,8 +384,8 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected empty connectedRadio, got %s", response.Result.Status.ConnectedRadio)
 		}
 
-		if response.Result.Status.Pei != "" {
-			t.Fatalf("expected empty pei, got %s", response.Result.Status.Pei)
+		if response.Result.Status.Imei != "" {
+			t.Fatalf("expected empty imei, got %s", response.Result.Status.Imei)
 		}
 
 		if response.Result.Status.Tac != "" {

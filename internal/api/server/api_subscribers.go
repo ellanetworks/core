@@ -34,7 +34,7 @@ type SubscriberStatus struct {
 	IPAddress          string `json:"ipAddress"`
 	State              string `json:"state"`
 	ConnectedRadio     string `json:"connectedRadio"`
-	Pei                string `json:"pei"`
+	Imei               string `json:"imei"`
 	Tac                string `json:"tac"`
 	CellID             string `json:"cellID"`
 	ActiveSessions     int    `json:"activeSessions"`
@@ -239,7 +239,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 
 		state := "Deregistered"
 		connectedRadio := ""
-		pei := ""
+		imei := ""
 		tac := ""
 		cellID := ""
 		activeSessions := 0
@@ -257,7 +257,11 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 				connectedRadio = ue.RanUe.Radio.Name
 			}
 
-			pei = ue.Pei
+			if ue.Pei != "" {
+				if converted, err := etsi.IMEIFromPEI(ue.Pei); err == nil {
+					imei = converted
+				}
+			}
 
 			if ue.Tai.Tac != "" {
 				tac = ue.Tai.Tac
@@ -287,7 +291,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			IPAddress:          ipAddress,
 			State:              state,
 			ConnectedRadio:     connectedRadio,
-			Pei:                pei,
+			Imei:               imei,
 			Tac:                tac,
 			CellID:             cellID,
 			ActiveSessions:     activeSessions,

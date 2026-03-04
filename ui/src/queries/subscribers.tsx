@@ -5,7 +5,7 @@ export type SubscriberStatus = {
   ipAddress?: string;
   state?: string;
   connectedRadio?: string;
-  pei?: string;
+  imei?: string;
   tac?: string;
   cellID?: string;
   activeSessions?: number;

@@ -120,7 +120,7 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           <>
             <InfoRow label="IP Address" value={status.ipAddress} />
             <InfoRow label="State" value={status.state} />
-            <InfoRow label="PEI (IMEI)" value={status.pei} />
+            <InfoRow label="IMEI" value={status.imei} />
             <InfoRow
               label="Active Sessions"
               value={formatSessions(status.activeSessions)}
