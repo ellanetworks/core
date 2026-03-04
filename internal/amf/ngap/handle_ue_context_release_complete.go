@@ -125,7 +125,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 	}
 
 	if amfUe.GetState() == amfContext.Registered {
-		ranUe.Log.Debug("Release UE Context in GMM-Registered", zap.String("supi", amfUe.Supi))
+		ranUe.Log.Debug("Release UE Context in GMM-Registered", zap.String("supi", amfUe.Supi.String()))
 
 		if pDUSessionResourceList != nil {
 			for _, pduSessionReourceItem := range pDUSessionResourceList.List {
@@ -162,14 +162,14 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 
 	switch ranUe.ReleaseAction {
 	case amfContext.UeContextN2NormalRelease:
-		ran.Log.Info("Release UE Context: N2 Connection Release", zap.String("supi", amfUe.Supi))
+		ran.Log.Info("Release UE Context: N2 Connection Release", zap.String("supi", amfUe.Supi.String()))
 
 		err := ranUe.Remove()
 		if err != nil {
 			ran.Log.Error(err.Error())
 		}
 	case amfContext.UeContextReleaseUeContext:
-		ran.Log.Info("Release UE Context: Release Ue Context", zap.String("supi", amfUe.Supi))
+		ran.Log.Info("Release UE Context: Release Ue Context", zap.String("supi", amfUe.Supi.String()))
 
 		err := ranUe.Remove()
 		if err != nil {
@@ -178,11 +178,11 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 
 		// Valid Security is not exist for this UE then only delete AMfUe Context
 		if !amfUe.SecurityContextAvailable {
-			ran.Log.Info("Valid Security is not exist for the UE, so deleting AmfUe Context", zap.String("supi", amfUe.Supi))
+			ran.Log.Info("Valid Security is not exist for the UE, so deleting AmfUe Context", zap.String("supi", amfUe.Supi.String()))
 			amf.DeregisterAndRemoveAMFUE(amfUe)
 		}
 	case amfContext.UeContextReleaseDueToNwInitiatedDeregistraion:
-		ran.Log.Info("Release UE Context Due to Nw Initiated: Release Ue Context", zap.String("supi", amfUe.Supi))
+		ran.Log.Info("Release UE Context Due to Nw Initiated: Release Ue Context", zap.String("supi", amfUe.Supi.String()))
 
 		err := ranUe.Remove()
 		if err != nil {
@@ -191,7 +191,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 
 		amf.DeregisterAndRemoveAMFUE(amfUe)
 	case amfContext.UeContextReleaseHandover:
-		ran.Log.Info("Release UE Context : Release for Handover", zap.String("supi", amfUe.Supi))
+		ran.Log.Info("Release UE Context : Release for Handover", zap.String("supi", amfUe.Supi.String()))
 
 		targetRanUe := amf.FindRanUeByAmfUeNgapID(ranUe.TargetUe.AmfUeNgapID)
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -72,10 +73,10 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*context.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -130,10 +131,10 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*context.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -193,10 +194,10 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*context.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -264,10 +265,10 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*context.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -329,10 +330,10 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*context.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -398,10 +399,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*context.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -480,10 +481,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*context.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -562,10 +563,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*context.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -657,10 +658,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*context.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -716,10 +717,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[string]*context.AmfUe),
+		UEs:      make(map[etsi.SUPI]*context.AmfUe),
 		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
 	}
 
@@ -849,10 +850,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[string]*context.AmfUe),
+		UEs:      make(map[etsi.SUPI]*context.AmfUe),
 		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
 		Smf:      &FakeSmf{Error: fmt.Errorf("error activating PDU session")},
 	}
@@ -987,10 +988,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[string]*context.AmfUe),
+		UEs:      make(map[etsi.SUPI]*context.AmfUe),
 		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
 		Smf:      &FakeSmf{Error: nil},
 	}
@@ -1133,10 +1134,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[string]*context.AmfUe),
+		UEs:      make(map[etsi.SUPI]*context.AmfUe),
 		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
 		Smf:      &FakeSmf{Error: nil},
 	}
@@ -1268,10 +1269,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[string]*context.AmfUe),
+		UEs:      make(map[etsi.SUPI]*context.AmfUe),
 		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
 		Smf:      &FakeSmf{Error: nil},
 	}

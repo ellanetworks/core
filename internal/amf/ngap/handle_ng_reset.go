@@ -42,6 +42,11 @@ func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGR
 		return
 	}
 
+	if resetType == nil {
+		logger.WithTrace(ctx, logger.AmfLog).Error("ResetType IE (mandatory) is missing in NG Reset")
+		return
+	}
+
 	logger.WithTrace(ctx, logger.AmfLog).Debug("Received NG Reset with Cause", zap.String("Cause", causeToString(*cause)))
 
 	switch resetType.Present {

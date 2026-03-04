@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -379,7 +380,7 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
 	}
@@ -390,7 +391,7 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = "imsi-001019756139935"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
@@ -443,10 +444,10 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -458,7 +459,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	ue.RanUe.Tai.Tac = "CAFE64"
 
 	ue.Suci = "testsuci"
-	ue.Supi = "imsi-001019756139935"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	ue.MacFailed = false
@@ -595,10 +596,10 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -607,7 +608,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = "imsi-001019756139935"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	ue.MacFailed = false
@@ -657,7 +658,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 	ctx := context.TODO()
 	rand := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	autn := []byte{17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
-	supi := "imsi-001019756139935"
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
 	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
@@ -675,7 +676,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 			Supi:  supi,
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -742,7 +743,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	ctx := context.TODO()
 	rand := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	autn := []byte{17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
-	supi := "imsi-001019756139935"
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
 	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
@@ -760,7 +761,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 			Supi:  supi,
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()

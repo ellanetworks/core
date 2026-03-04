@@ -17,6 +17,7 @@ import (
 	"math/bits"
 	"strings"
 
+	"github.com/ellanetworks/core/etsi"
 	"golang.org/x/crypto/curve25519"
 )
 
@@ -163,36 +164,38 @@ func profileA(input, supiType, privateKey string) (string, error) {
 	return calcSchemeResult(decryptPlainText, supiType), nil
 }
 
-func ToSupi(suci string, privateKey string) (string, error) {
+func ToSupi(suci string, privateKey string) (etsi.SUPI, error) {
 	suciPart := strings.Split(suci, "-")
 	suciPrefix := suciPart[0]
 
 	switch suciPrefix {
-	case "imsi", "nai":
-		return suci, nil
+	case "imsi":
+		return etsi.NewSUPIFromPrefixed(suci)
+	case "nai":
+		return etsi.InvalidSUPI, fmt.Errorf("NAI SUPI not yet supported")
 	case "suci":
 		if len(suciPart) < 6 {
-			return "", fmt.Errorf("suci with wrong format")
+			return etsi.InvalidSUPI, fmt.Errorf("suci with wrong format")
 		}
 	default:
-		return "", fmt.Errorf("unknown suciPrefix [%s]", suciPrefix)
+		return etsi.InvalidSUPI, fmt.Errorf("unknown suciPrefix [%s]", suciPrefix)
 	}
 
 	scheme := suciPart[schemePlace]
 	mccMnc := suciPart[mccPlace] + suciPart[mncPlace]
 
 	if scheme == nullScheme {
-		return mccMnc + suciPart[len(suciPart)-1], nil
+		return etsi.NewSUPIFromIMSI(mccMnc + suciPart[len(suciPart)-1])
 	}
 
 	if scheme != profileAScheme {
-		return "", fmt.Errorf("protect Scheme (%s) is not supported", scheme)
+		return etsi.InvalidSUPI, fmt.Errorf("protect Scheme (%s) is not supported", scheme)
 	}
 
 	profileAResult, err := profileA(suciPart[len(suciPart)-1], suciPart[supiTypePlace], privateKey)
 	if err != nil {
-		return "", fmt.Errorf("profile A error: %w", err)
+		return etsi.InvalidSUPI, fmt.Errorf("profile A error: %w", err)
 	}
 
-	return mccMnc + profileAResult, nil
+	return etsi.NewSUPIFromIMSI(mccMnc + profileAResult)
 }

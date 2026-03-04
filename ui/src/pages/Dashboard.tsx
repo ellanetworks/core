@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Typography,
@@ -27,6 +27,7 @@ import { PieChart } from "@mui/x-charts/PieChart";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 import { getStatus, type APIStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
 import { unregisterFleet } from "@/queries/fleet";
@@ -371,19 +372,30 @@ const Dashboard = () => {
   const radioCount = radiosQuery.data?.total_count ?? null;
   const m = metricsQuery.data;
   const networkLogs = radioEventsQuery.data?.items ?? [];
-  const logsError = radioEventsQuery.error
-    ? "Failed to fetch radio events."
-    : null;
-
   const metricsLoading = metricsQuery.isLoading;
   const radiosLoading = radiosQuery.isLoading;
   const subscribersLoading = subscribersQuery.isLoading;
   const eventsLoading = radioEventsQuery.isLoading;
   const statusLoading = statusQuery.isLoading;
-  const error =
-    statusQuery.error || subscribersQuery.error || metricsQuery.error
-      ? "Failed to fetch dashboard data."
-      : null;
+
+  const { showSnackbar } = useSnackbar();
+
+  useEffect(() => {
+    if (statusQuery.error || subscribersQuery.error || metricsQuery.error) {
+      showSnackbar("Failed to fetch dashboard data.", "error");
+    }
+  }, [
+    statusQuery.error,
+    subscribersQuery.error,
+    metricsQuery.error,
+    showSnackbar,
+  ]);
+
+  useEffect(() => {
+    if (radioEventsQuery.error) {
+      showSnackbar("Failed to fetch radio events.", "error");
+    }
+  }, [radioEventsQuery.error, showSnackbar]);
 
   const activeSessions = m?.pduSessions ?? null;
   const heapMemory = m?.heapMemoryBytes ?? null;
@@ -484,12 +496,10 @@ const Dashboard = () => {
           </Button>
         )}
       </Box>
-
       <ConfigureFleetModal
         open={fleetModalOpen}
         onClose={() => setFleetModalOpen(false)}
       />
-
       <DeleteConfirmationModal
         open={unregisterConfirmOpen}
         onClose={() => setUnregisterConfirmOpen(false)}
@@ -519,7 +529,6 @@ const Dashboard = () => {
           {error || unregisterError}
         </Alert>
       )}
-
       {/* ─── 1. Network Status ──────────────────────── */}
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
         Network Status
@@ -657,10 +666,10 @@ const Dashboard = () => {
             loading={eventsLoading}
             minHeight={240}
           >
-            {logsError ? (
-              <Alert severity="error" sx={{ width: "100%" }}>
-                {logsError}
-              </Alert>
+            {radioEventsQuery.error ? (
+              <Typography color="error" sx={{ p: 2 }}>
+                Failed to fetch radio events.
+              </Typography>
             ) : (
               <TableContainer
                 component={Paper}
@@ -782,6 +791,15 @@ const Dashboard = () => {
                       outerRadius: 100,
                       paddingAngle: 2,
                       cornerRadius: 5,
+                      valueFormatter: (item) => {
+                        const total = protocolPieData.reduce(
+                          (s, d) => s + d.value,
+                          0,
+                        );
+                        return total > 0
+                          ? `${((item.value / total) * 100).toFixed(1)}%`
+                          : "0%";
+                      },
                     },
                   ]}
                   height={220}

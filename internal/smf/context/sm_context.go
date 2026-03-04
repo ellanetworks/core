@@ -11,6 +11,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -30,7 +31,7 @@ type UPTunnel struct {
 type SMContext struct {
 	Mutex sync.Mutex
 
-	Supi                           string
+	Supi                           etsi.SUPI
 	Dnn                            string
 	Snssai                         *models.Snssai
 	Tunnel                         *UPTunnel
@@ -40,8 +41,8 @@ type SMContext struct {
 	PDUSessionReleaseDueToDupPduID bool
 }
 
-func CanonicalName(identifier string, pduSessID uint8) string {
-	return fmt.Sprintf("%s-%d", identifier, pduSessID)
+func CanonicalName(identifier etsi.SUPI, pduSessID uint8) string {
+	return fmt.Sprintf("%s-%d", identifier.String(), pduSessID)
 }
 
 func (smContext *SMContext) SetSMPolicyData(smPolicyData *models.SmPolicyData) {

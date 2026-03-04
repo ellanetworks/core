@@ -8,6 +8,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/sctp"
@@ -123,10 +124,12 @@ func TestHandoverRequired(t *testing.T) {
 	const (
 		targetGnbID  = "000102"
 		pduSessionID = uint8(1)
-		supi         = "imsi-001010000000001"
+		supiStr      = "imsi-001010000000001"
 		dnn          = "internet"
 		kamfHex      = "0000000000000000000000000000000000000000000000000000000000000000"
 	)
+
+	supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
 
 	// Encode a minimal HandoverRequiredTransfer (all optional fields)
 	hoRequiredTransfer := ngapType.HandoverRequiredTransfer{}

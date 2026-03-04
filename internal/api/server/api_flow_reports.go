@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -71,12 +72,34 @@ func parseFlowReportFilters(r *http.Request) (*db.FlowReportFilters, error) {
 		f.Protocol = &proto
 	}
 
-	if v := strings.TrimSpace(q.Get("source_ip")); v != "" {
-		f.SourceIP = &v
+	if v := strings.TrimSpace(q.Get("source")); v != "" {
+		ip, port, err := parseEndpointFilter(v)
+		if err != nil {
+			return f, fmt.Errorf("invalid source filter: %w", err)
+		}
+
+		if ip != "" {
+			f.SourceIP = &ip
+		}
+
+		if port != nil {
+			f.SourcePort = port
+		}
 	}
 
-	if v := strings.TrimSpace(q.Get("destination_ip")); v != "" {
-		f.DestinationIP = &v
+	if v := strings.TrimSpace(q.Get("destination")); v != "" {
+		ip, port, err := parseEndpointFilter(v)
+		if err != nil {
+			return f, fmt.Errorf("invalid destination filter: %w", err)
+		}
+
+		if ip != "" {
+			f.DestinationIP = &ip
+		}
+
+		if port != nil {
+			f.DestinationPort = port
+		}
 	}
 
 	if v := strings.TrimSpace(q.Get("direction")); v != "" {
@@ -304,6 +327,51 @@ func GetFlowReportStats(dbInstance *db.Database) http.Handler {
 		}
 		writeResponse(ctx, w, response, http.StatusOK, logger.APILog)
 	})
+}
+
+// parseEndpointFilter parses a source/destination filter value.
+// Accepted formats:
+//   - "1.2.3.4"        — IPv4 only
+//   - "1.2.3.4:443"    — IPv4 + port
+//   - "[::1]:443"       — IPv6 + port
+//   - "::1"             — IPv6 only
+//   - ":443"            — port only
+func parseEndpointFilter(v string) (ip string, port *uint16, err error) {
+	// Port-only: ":443"
+	if strings.HasPrefix(v, ":") && !strings.Contains(v[1:], ":") {
+		portNum, err := strconv.ParseUint(v[1:], 10, 16)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid port number")
+		}
+
+		p := uint16(portNum)
+
+		return "", &p, nil
+	}
+
+	// Try host:port (handles "1.2.3.4:443", "[::1]:443")
+	host, portStr, splitErr := net.SplitHostPort(v)
+	if splitErr == nil {
+		portNum, err := strconv.ParseUint(portStr, 10, 16)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid port number")
+		}
+
+		if host != "" && net.ParseIP(host) == nil {
+			return "", nil, fmt.Errorf("invalid IP address: %s", host)
+		}
+
+		p := uint16(portNum)
+
+		return host, &p, nil
+	}
+
+	// IP only (no port)
+	if net.ParseIP(v) == nil {
+		return "", nil, fmt.Errorf("invalid IP address: %s", v)
+	}
+
+	return v, nil, nil
 }
 
 func dbFlowReportToAPI(r dbwriter.FlowReport) FlowReport {
