@@ -235,7 +235,7 @@ func (fng *FakeNGAPSender) SendHandoverRequest(
 }
 
 type FakeAusf struct {
-	Supi    string
+	Supi    etsi.SUPI
 	Kseaf   string
 	Error   error
 	AvKgAka *models.Av5gAka
@@ -249,12 +249,21 @@ func (a *FakeAusf) UeAuthPostRequestProcedure(ctx context.Context, suci string, 
 	return a.AvKgAka, nil
 }
 
-func (a *FakeAusf) Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (string, string, error) {
+func (a *FakeAusf) Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (etsi.SUPI, string, error) {
 	if a.Error != nil {
-		return "", "", a.Error
+		return etsi.InvalidSUPI, "", a.Error
 	}
 
 	return a.Supi, a.Kseaf, nil
+}
+
+func mustSUPIFromPrefixed(s string) etsi.SUPI { //nolint:unparam
+	supi, err := etsi.NewSUPIFromPrefixed(s)
+	if err != nil {
+		panic("mustSUPIFromPrefixed: " + err.Error())
+	}
+
+	return supi
 }
 
 type FakeSmf struct {

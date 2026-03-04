@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"go.opentelemetry.io/otel"
@@ -91,14 +92,14 @@ func UeAuthPostRequestProcedure(ctx context.Context, suci string, snName string,
 	}, nil
 }
 
-func Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (string, string, error) {
+func Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (etsi.SUPI, string, error) {
 	ausfCurrentContext := ausf.getUeAuthenticationContext(suci)
 	if ausfCurrentContext == nil {
-		return "", "", fmt.Errorf("ausf ue context is nil for suci: %s", suci)
+		return etsi.InvalidSUPI, "", fmt.Errorf("ausf ue context is nil for suci: %s", suci)
 	}
 
 	if strings.Compare(resStar, ausfCurrentContext.XresStar) != 0 {
-		return "", "", fmt.Errorf("RES* mismatch for suci: %s", suci)
+		return etsi.InvalidSUPI, "", fmt.Errorf("RES* mismatch for suci: %s", suci)
 	}
 
 	return ausfCurrentContext.Supi, ausfCurrentContext.Kseaf, nil

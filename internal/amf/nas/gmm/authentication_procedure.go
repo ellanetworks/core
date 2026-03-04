@@ -32,7 +32,7 @@ func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amf *amfContex
 }
 
 func identityVerification(ue *amfContext.AmfUe) bool {
-	return ue.Supi != "" || len(ue.Suci) != 0
+	return ue.Supi.IsValid() || len(ue.Suci) != 0
 }
 
 func authenticationProcedure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) (bool, error) {

@@ -7,6 +7,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/sctp"
@@ -90,9 +91,11 @@ func setupHandoverAckTestContext(t *testing.T) (*amfContext.Radio, *FakeNGAPSend
 
 	const (
 		pduSessionID = uint8(1)
-		supi         = "imsi-001010000000001"
+		supiStr      = "imsi-001010000000001"
 		dnn          = "internet"
 	)
+
+	supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
 
 	smfContext.InitializeSMF(nil)
 

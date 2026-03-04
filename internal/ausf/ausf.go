@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -37,7 +38,7 @@ type AUSF struct {
 }
 
 type UEAuthenticationContext struct {
-	Supi     string
+	Supi     etsi.SUPI
 	Kseaf    string
 	XresStar string
 	Rand     string
@@ -137,7 +138,7 @@ func (ausf *AUSF) CreateAuthData(ctx context.Context, snName string, resyncInfo 
 		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}
 
-	subscriber, err := ausf.dbInstance.GetSubscriber(ctx, supi)
+	subscriber, err := ausf.dbInstance.GetSubscriber(ctx, supi.IMSI())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", supi, err)
 	}
@@ -231,7 +232,7 @@ func (ausf *AUSF) CreateAuthData(ctx context.Context, snName string, resyncInfo 
 	SQNheStr := fmt.Sprintf("%x", bigSQN)
 	SQNheStr = strictHex(SQNheStr, 12)
 
-	err = ausf.dbInstance.EditSubscriberSequenceNumber(ctx, supi, SQNheStr)
+	err = ausf.dbInstance.EditSubscriberSequenceNumber(ctx, supi.IMSI(), SQNheStr)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't update subscriber %s: %v", supi, err)
 	}

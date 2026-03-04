@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -74,10 +75,10 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -119,10 +120,10 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -169,10 +170,10 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -220,10 +221,10 @@ func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityCon
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -274,10 +275,10 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -286,7 +287,7 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 	}
 
 	ue.State = amfContext.SecurityMode
-	ue.Supi = "imsi-001019756139935"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
 	ue.KnasEnc = key
@@ -342,10 +343,10 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -354,7 +355,7 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 	}
 
 	ue.State = amfContext.SecurityMode
-	ue.Supi = "imsi-001019756139935"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
 	ue.KnasEnc = key

@@ -13,7 +13,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"reflect"
-	"regexp"
 	"sync"
 	"time"
 
@@ -66,7 +65,7 @@ type AmfUe struct {
 	/* Ue Identity*/
 	PlmnID  models.PlmnID
 	Suci    string
-	Supi    string
+	Supi    etsi.SUPI
 	Pei     string
 	Tmsi    etsi.TMSI
 	OldTmsi etsi.TMSI
@@ -235,17 +234,11 @@ func (ue *AmfUe) SecurityContextIsValid() bool {
 
 // Kamf Derivation function defined in TS 33.501 Annex A.7
 func (ue *AmfUe) DerivateKamf() error {
-	supiRegexp, err := regexp.Compile("([0-9]{5,15})")
-	if err != nil {
-		return fmt.Errorf("could not compile supi regexp: %v", err)
+	if !ue.Supi.IsValid() || !ue.Supi.IsIMSI() {
+		return fmt.Errorf("supi is not a valid IMSI")
 	}
 
-	groups := supiRegexp.FindStringSubmatch(ue.Supi)
-	if groups == nil {
-		return fmt.Errorf("supi is not correct")
-	}
-
-	P0 := []byte(groups[1])
+	P0 := []byte(ue.Supi.IMSI())
 	L0 := ueauth.KDFLen(P0)
 	P1 := ue.ABBA
 	L1 := ueauth.KDFLen(P1)
@@ -699,13 +692,13 @@ func (ue *AmfUe) ResetMobileReachableTimer() {
 		ue.implicitDeregistrationTimer = nil
 	}
 
-	ue.Log.Debug("starting mobile reachable timer", zap.String("SUPI", ue.Supi))
+	ue.Log.Debug("starting mobile reachable timer", zap.String("SUPI", ue.Supi.String()))
 
 	ue.mobileReachableTimer = NewTimer(
 		ue.T3512Value+(4*time.Minute),
 		1,
 		func(expireTimes int32) {
-			ue.Log.Debug("mobile reachable timer expired", zap.String("SUPI", ue.Supi))
+			ue.Log.Debug("mobile reachable timer expired", zap.String("SUPI", ue.Supi.String()))
 			ue.startImplicitDeregistrationTimer()
 		},
 		func() {},
@@ -763,7 +756,7 @@ func (ue *AmfUe) Deregister() {
 
 	ue.releaseSmContexts()
 
-	ue.Log.Debug("ue deregistered", zap.String("SUPI", ue.Supi))
+	ue.Log.Debug("ue deregistered", zap.String("SUPI", ue.Supi.String()))
 }
 
 func (ue *AmfUe) releaseSmContexts() {
