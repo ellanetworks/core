@@ -50,7 +50,7 @@ Ella Core supports TLS `1.2` and `1.3`.
 Ella Core minimizes its attack surface through minimal packaging:
 
 - **Container image.** Built on a distroless base with no operating system layer, shell, or package manager. Only the strictly necessary runtime dependencies are included. Image size: **under 80 MB**.
-- **Snap.** Ships only the application binary and a minimal configuration file. Package size: **under 17 MB**.
+- **Snap.** Ships only the application binary and a minimal configuration file. Package size: **under 20 MB**.
 
 ## Audit Logging
 
@@ -65,3 +65,7 @@ Each audit record contains:
 | **Action** | Machine-readable action identifier (e.g., `auth_login`). |
 | **IP** | Client IP address. |
 | **Details** | Human-readable description. |
+
+### Retention
+
+Audit logs are retained for **7 days** by default. The retention period is configurable through the [Audit Logs API](../reference/api/audit_logs.md). A background worker runs every 24 hours and deletes records older than the configured retention period.

@@ -13,14 +13,14 @@ The subscriber's Universal Subscriber Identity Module (USIM) stores the identity
 
 - **IMSI (International Mobile Subscriber Identity)**: A globally unique identifier for the subscriber.
 - **Key (Subscriber's Secret Key)**: A 128-bit cryptographic key shared between the USIM and the network.
-- **OPc (Operator Code)**: A value derived from the operator key (OP) and the subscriber's secret key (K) using the Milenage algorithm (see [3GPP TS 35.206](https://www.3gpp.org/DynaReport/35206.htm)).
+- **OPc (Operator Code)**: A value derived from the operator key (OP) and the subscriber's secret key (K) using the Milenage algorithm.
 - **SQN (Sequence Number)**: A counter maintained by both the USIM and the network to prevent replay attacks.
-
-Ella Core uses the **Milenage** algorithm set built on AES-128 to produce authentication vectors.
 
 ## Subscriber Privacy (SUCI)
 
 Ella Core supports **SUCI** (Subscription Concealed Identifier) to protect subscriber identity over the air. The IMSI is encrypted by the UE before transmission using **ECIES Profile A**.  The network decrypts the SUCI to recover the SUPI. This prevents IMSI-catching attacks.
+
+To configure the UE or USIM with SUCI support, you need the home network public key. This key is available through the [Operator API](../reference/api/operator.md) and on the Operator page in the UI.
 
 ## NAS Security
 
