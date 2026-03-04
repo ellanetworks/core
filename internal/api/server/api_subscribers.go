@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -152,30 +153,43 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 		}
 
 		items := make([]Subscriber, 0, len(dbSubscribers))
-		policyCache := make(map[int]*db.Policy)
-		dataNetworkCache := make(map[int]*db.DataNetwork)
+
+		// Pre-fetch all policies and data networks into lookup maps.
+		// These are small reference tables, so loading them all avoids
+		// N+1 queries per subscriber in the loop below.
+		allPolicies, _, err := dbInstance.ListPoliciesPage(ctx, 1, 1000)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list policies", err, logger.APILog)
+			return
+		}
+
+		policyByID := make(map[int]*db.Policy, len(allPolicies))
+		for i := range allPolicies {
+			policyByID[allPolicies[i].ID] = &allPolicies[i]
+		}
+
+		allDataNetworks, _, err := dbInstance.ListDataNetworksPage(ctx, 1, 1000)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list data networks", err, logger.APILog)
+			return
+		}
+
+		dataNetworkByID := make(map[int]*db.DataNetwork, len(allDataNetworks))
+		for i := range allDataNetworks {
+			dataNetworkByID[allDataNetworks[i].ID] = &allDataNetworks[i]
+		}
 
 		for _, dbSubscriber := range dbSubscribers {
-			policy, ok := policyCache[dbSubscriber.PolicyID]
+			policy, ok := policyByID[dbSubscriber.PolicyID]
 			if !ok {
-				policy, err = dbInstance.GetPolicyByID(ctx, dbSubscriber.PolicyID)
-				if err != nil {
-					writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
-					return
-				}
-
-				policyCache[dbSubscriber.PolicyID] = policy
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", fmt.Errorf("policy ID %d not found", dbSubscriber.PolicyID), logger.APILog)
+				return
 			}
 
-			dataNetwork, ok := dataNetworkCache[policy.DataNetworkID]
+			dataNetwork, ok := dataNetworkByID[policy.DataNetworkID]
 			if !ok {
-				dataNetwork, err = dbInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
-				if err != nil {
-					writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve data network", err, logger.APILog)
-					return
-				}
-
-				dataNetworkCache[policy.DataNetworkID] = dataNetwork
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve data network", fmt.Errorf("data network ID %d not found", policy.DataNetworkID), logger.APILog)
+				return
 			}
 
 			ipAddress := ""
@@ -226,7 +240,8 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if _, err := etsi.NewSUPIFromIMSI(imsi); err != nil {
+		supi, err := etsi.NewSUPIFromIMSI(imsi)
+		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid IMSI format", err, logger.APILog)
 			return
 		}
@@ -262,41 +277,32 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 
 		amf := amfContext.AMFSelf()
 
-		supi, err := etsi.NewSUPIFromIMSI(dbSubscriber.Imsi)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Invalid subscriber IMSI", err, logger.APILog)
-			return
-		}
-
 		snap, found := amf.GetUESnapshot(supi)
 
-		imei := ""
-
-		if snap.Pei != "" {
-			if converted, err := etsi.IMEIFromPEI(snap.Pei); err == nil {
-				imei = converted
-			} else {
-				logger.APILog.Warn("failed to convert PEI to IMEI", zap.String("pei", snap.Pei), zap.Error(err))
-			}
-		}
-
-		state := "Deregistered"
-		if found {
-			state = string(snap.State)
-		}
-
 		subscriberStatus := SubscriberDetailStatus{
-			Registered:         found && snap.State == amfContext.Registered,
-			IPAddress:          ipAddress,
-			State:              state,
-			Imei:               imei,
-			CipheringAlgorithm: snap.CipheringAlgorithm,
-			IntegrityAlgorithm: snap.IntegrityAlgorithm,
-			LastSeenRadio:      snap.LastSeenRadio,
+			Registered: false,
+			IPAddress:  ipAddress,
+			State:      "Deregistered",
 		}
 
-		if !snap.LastSeenAt.IsZero() {
-			subscriberStatus.LastSeenAt = snap.LastSeenAt.UTC().Format(time.RFC3339)
+		if found {
+			subscriberStatus.Registered = snap.State == amfContext.Registered
+			subscriberStatus.State = string(snap.State)
+			subscriberStatus.CipheringAlgorithm = snap.CipheringAlgorithm
+			subscriberStatus.IntegrityAlgorithm = snap.IntegrityAlgorithm
+			subscriberStatus.LastSeenRadio = snap.LastSeenRadio
+
+			if snap.Pei != "" {
+				if converted, err := etsi.IMEIFromPEI(snap.Pei); err == nil {
+					subscriberStatus.Imei = converted
+				} else {
+					logger.APILog.Warn("failed to convert PEI to IMEI", zap.String("pei", snap.Pei), zap.Error(err))
+				}
+			}
+
+			if !snap.LastSeenAt.IsZero() {
+				subscriberStatus.LastSeenAt = snap.LastSeenAt.UTC().Format(time.RFC3339)
+			}
 		}
 
 		subscriber := SubscriberDetail{

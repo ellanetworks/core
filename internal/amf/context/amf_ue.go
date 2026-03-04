@@ -161,7 +161,7 @@ func (ue *AmfUe) SetState(s StateType) {
 }
 
 func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
-	if ranUe == nil || ranUe.Radio == nil {
+	if ranUe == nil {
 		return
 	}
 

@@ -57,33 +57,41 @@ const InfoRow: React.FC<{
 };
 
 const CIPHERING_LABELS: Record<string, string> = {
-  NEA0: "NEA0 (Null)",
-  NEA1: "NEA1 (SNOW 3G)",
-  NEA2: "NEA2 (AES)",
-  NEA3: "NEA3 (ZUC)",
+  NEA0: "NEA0",
+  NEA1: "NEA1",
+  NEA2: "NEA2",
+  NEA3: "NEA3",
 };
 
 const INTEGRITY_LABELS: Record<string, string> = {
-  NIA0: "NIA0 (Null)",
-  NIA1: "NIA1 (SNOW 3G)",
-  NIA2: "NIA2 (AES)",
-  NIA3: "NIA3 (ZUC)",
+  NIA0: "NIA0",
+  NIA1: "NIA1",
+  NIA2: "NIA2",
+  NIA3: "NIA3",
 };
 
 /** NEA0 / NIA0 are null ciphering/integrity — highlight as warning. */
 const INSECURE_ALGS = new Set(["NEA0", "NIA0"]);
 
 const AlgorithmChip: React.FC<{
+  kind: string;
   alg?: string;
   labels: Record<string, string>;
-}> = ({ alg, labels }) => {
+}> = ({ kind, alg, labels }) => {
   if (!alg) return null;
   const display = labels[alg] ?? alg;
   const isInsecure = INSECURE_ALGS.has(alg);
   return (
     <Chip
       size="small"
-      label={display}
+      label={
+        <Box component="span" sx={{ display: "inline-flex", gap: 0.5 }}>
+          <Box component="span" sx={{ opacity: 0.85, fontWeight: 400 }}>
+            {kind}:
+          </Box>
+          <Box component="span">{display}</Box>
+        </Box>
+      }
       sx={{
         fontWeight: 600,
         fontSize: "0.75rem",
@@ -130,23 +138,21 @@ const SecurityAlgorithmsValue: React.FC<{
     return <Typography variant="body2">—</Typography>;
   return (
     <Box
-      sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}
+      sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}
     >
       {ciphering && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            Ciphering
-          </Typography>
-          <AlgorithmChip alg={ciphering} labels={CIPHERING_LABELS} />
-        </Box>
+        <AlgorithmChip
+          kind="Ciphering"
+          alg={ciphering}
+          labels={CIPHERING_LABELS}
+        />
       )}
       {integrity && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            Integrity
-          </Typography>
-          <AlgorithmChip alg={integrity} labels={INTEGRITY_LABELS} />
-        </Box>
+        <AlgorithmChip
+          kind="Integrity"
+          alg={integrity}
+          labels={INTEGRITY_LABELS}
+        />
       )}
     </Box>
   );

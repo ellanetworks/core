@@ -16,9 +16,7 @@ import {
 import { Link as RouterLink } from "react-router-dom";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import type { APISubscriber } from "@/queries/subscribers";
-
-const UPLINK_COLOR = "#FF9800";
-const DOWNLINK_COLOR = "#4254FB";
+import { UPLINK_COLOR, DOWNLINK_COLOR } from "@/utils/formatters";
 
 interface SubscriberProvisioningCardProps {
   subscriber: APISubscriber;

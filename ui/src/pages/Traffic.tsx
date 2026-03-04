@@ -76,6 +76,9 @@ import {
   formatBytesAutoUnit,
   formatProtocol,
   PROTOCOL_NAMES,
+  UPLINK_COLOR,
+  DOWNLINK_COLOR,
+  PIE_COLORS,
 } from "@/utils/formatters";
 
 const MAX_WIDTH = 1400;
@@ -150,27 +153,9 @@ type UsagePerDayRow = {
 
 const TAB_PATHS = ["/traffic/usage", "/traffic/flows"] as const;
 
-const UPLINK_COLOR = "#FF9800";
-const DOWNLINK_COLOR = "#4254FB";
-
 // ──────────────────────────────────────────────────────
 // Pie chart color palette
 // ──────────────────────────────────────────────────────
-
-const PIE_COLORS = [
-  "#2196F3",
-  "#4CAF50",
-  "#FF9800",
-  "#E91E63",
-  "#9C27B0",
-  "#00BCD4",
-  "#FF5722",
-  "#795548",
-  "#607D8B",
-  "#8BC34A",
-  "#3F51B5",
-  "#CDDC39",
-];
 
 // ──────────────────────────────────────────────────────
 // Main component

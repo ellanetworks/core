@@ -17,10 +17,9 @@ import {
   UNIT_FACTORS,
   chooseUnitFromMax,
   formatBytesAutoUnit,
+  UPLINK_COLOR,
+  DOWNLINK_COLOR,
 } from "@/utils/formatters";
-
-const UPLINK_COLOR = "#FF9800";
-const DOWNLINK_COLOR = "#4254FB";
 
 interface SubscriberUsageChartProps {
   imsi: string;
@@ -48,6 +47,8 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
   embedded = false,
 }) => {
   const { accessToken, authReady } = useAuth();
+  // Date range is computed once on mount. If the page stays open past midnight
+  // the chart won't shift to include the new day until the component remounts.
   const { startDate, endDate } = useMemo(() => getDateRange7Days(), []);
 
   const { data: usageData, isLoading } = useQuery<UsageResult>({

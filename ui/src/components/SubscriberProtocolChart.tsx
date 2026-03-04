@@ -7,22 +7,11 @@ import {
   type FlowReportStatsResponse,
 } from "@/queries/flow_reports";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatProtocol, PROTOCOL_CHIP_COLORS } from "@/utils/formatters";
-
-const PIE_COLORS = [
-  "#2196F3",
-  "#4CAF50",
-  "#FF9800",
-  "#E91E63",
-  "#9C27B0",
-  "#00BCD4",
-  "#FF5722",
-  "#795548",
-  "#607D8B",
-  "#8BC34A",
-  "#3F51B5",
-  "#CDDC39",
-];
+import {
+  formatProtocol,
+  PROTOCOL_CHIP_COLORS,
+  PIE_COLORS,
+} from "@/utils/formatters";
 
 interface SubscriberProtocolChartProps {
   imsi: string;

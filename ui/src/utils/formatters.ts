@@ -220,3 +220,25 @@ export const formatRelativeTime = (dateString: string): string => {
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
 };
+
+// ──────────────────────────────────────────────────────
+// Shared chart colors
+// ──────────────────────────────────────────────────────
+
+export const UPLINK_COLOR = "#FF9800";
+export const DOWNLINK_COLOR = "#4254FB";
+
+export const PIE_COLORS = [
+  "#2196F3",
+  "#4CAF50",
+  "#FF9800",
+  "#E91E63",
+  "#9C27B0",
+  "#00BCD4",
+  "#FF5722",
+  "#795548",
+  "#607D8B",
+  "#8BC34A",
+  "#3F51B5",
+  "#CDDC39",
+];
