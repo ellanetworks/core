@@ -7,7 +7,6 @@ import (
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
-	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
@@ -103,7 +102,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 					// uplink data are pending for the corresponding PDU session identity
 					if hasUplinkData {
-						binaryDataN2SmInformation, err := pdusession.ActivateSmContext(smContext.Ref)
+						binaryDataN2SmInformation, err := amf.Smf.ActivateSmContext(smContext.Ref)
 						if err != nil {
 							ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 							reactivationResult[pduSessionID] = true
@@ -134,7 +133,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 			pduSessionID := uint8(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] {
-					err := pdusession.ReleaseSmContext(ctx, smContext.Ref)
+					err := amf.Smf.ReleaseSmContext(ctx, smContext.Ref)
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
 					} else {
