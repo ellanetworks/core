@@ -13,7 +13,7 @@ import {
 } from "@mui/x-data-grid";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
-import VisibilityIcon from "@mui/icons-material/Visibility";
+import { Link as RouterLink } from "react-router-dom";
 import {
   listSubscribers,
   deleteSubscriber,
@@ -21,7 +21,6 @@ import {
   type ListSubscribersResponse,
 } from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
-import ViewSubscriberModal from "@/components/ViewSubscriberModal";
 import EditSubscriberModal from "@/components/EditSubscriberModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
@@ -51,7 +50,6 @@ const SubscriberPage: React.FC = () => {
 
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [isViewModalOpen, setViewModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [editData, setEditData] = useState<APISubscriber | null>(null);
   const [selectedSubscriber, setSelectedSubscriber] = useState<string | null>(
@@ -76,19 +74,9 @@ const SubscriberPage: React.FC = () => {
   const rows: APISubscriber[] = data?.items ?? [];
   const rowCount = data?.total_count ?? 0;
 
-  const handleCloseViewModal = () => {
-    setSelectedSubscriber(null);
-    setViewModalOpen(false);
-  };
-
   const handleEditClick = (subscriber: APISubscriber) => {
     setEditData(subscriber);
     setEditModalOpen(true);
-  };
-
-  const handleViewClick = (subscriber: APISubscriber) => {
-    setSelectedSubscriber(subscriber.imsi);
-    setViewModalOpen(true);
   };
 
   const handleDeleteClick = (imsi: string) => {
@@ -121,12 +109,6 @@ const SubscriberPage: React.FC = () => {
       isSmDown
         ? [
             <GridActionsCellItem
-              key="view"
-              icon={<VisibilityIcon />}
-              label="View"
-              onClick={() => handleViewClick(row)}
-            />,
-            <GridActionsCellItem
               key="edit"
               icon={<EditIcon />}
               label="Edit"
@@ -143,12 +125,6 @@ const SubscriberPage: React.FC = () => {
           ]
         : [
             <GridActionsCellItem
-              key="view"
-              icon={<VisibilityIcon color="primary" />}
-              label="View"
-              onClick={() => handleViewClick(row)}
-            />,
-            <GridActionsCellItem
               key="edit"
               icon={<EditIcon color="primary" />}
               label="Edit"
@@ -163,7 +139,26 @@ const SubscriberPage: React.FC = () => {
           ];
 
     const base: GridColDef<APISubscriber>[] = [
-      { field: "imsi", headerName: "IMSI", flex: 1, minWidth: 200 },
+      {
+        field: "imsi",
+        headerName: "IMSI",
+        flex: 1,
+        minWidth: 200,
+        renderCell: (params: GridRenderCellParams<APISubscriber>) => (
+          <Box
+            component={RouterLink}
+            to={`/subscribers/${params.row.imsi}`}
+            sx={{
+              color: "primary.main",
+              textDecoration: "none",
+              "&:hover": { textDecoration: "underline" },
+              fontFamily: "monospace",
+            }}
+          >
+            {params.row.imsi}
+          </Box>
+        ),
+      },
       { field: "policyName", headerName: "Policy", flex: 0.8, minWidth: 140 },
       {
         field: "registration",
@@ -341,13 +336,6 @@ const SubscriberPage: React.FC = () => {
         </>
       )}
 
-      {isViewModalOpen && (
-        <ViewSubscriberModal
-          open
-          onClose={handleCloseViewModal}
-          imsi={selectedSubscriber || ""}
-        />
-      )}
       {isCreateModalOpen && (
         <CreateSubscriberModal
           open

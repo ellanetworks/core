@@ -3,6 +3,16 @@ import { apiFetch, apiFetchVoid } from "@/queries/utils";
 export type SubscriberStatus = {
   registered?: boolean;
   ipAddress?: string;
+  state?: string;
+  connectedRadio?: string;
+  pei?: string;
+  tac?: string;
+  cellID?: string;
+  activeSessions?: number;
+  ambrUplink?: string;
+  ambrDownlink?: string;
+  cipheringAlgorithm?: string;
+  integrityAlgorithm?: string;
 };
 
 export type APISubscriber = {
@@ -11,6 +21,7 @@ export type APISubscriber = {
   sequenceNumber: string;
   key: string;
   policyName: string;
+  dataNetworkName?: string;
   status: SubscriberStatus;
 };
 

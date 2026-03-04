@@ -1,0 +1,181 @@
+import React, { useState } from "react";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  IconButton,
+  Typography,
+} from "@mui/material";
+import { ContentCopy as CopyIcon, Edit as EditIcon } from "@mui/icons-material";
+import { Link as RouterLink } from "react-router-dom";
+import { useSnackbar } from "@/contexts/SnackbarContext";
+import type { APISubscriber } from "@/queries/subscribers";
+
+interface SubscriberProvisioningCardProps {
+  subscriber: APISubscriber;
+  onEditPolicy?: () => void;
+}
+
+const DOTS = "••••••••••••••••••••••••••••••••";
+
+const FieldRow: React.FC<{
+  label: string;
+  value: string;
+  mono?: boolean;
+  copyable?: boolean;
+  onCopy?: () => void;
+  obfuscated?: boolean;
+  onToggle?: () => void;
+  linkTo?: string;
+  actionIcon?: React.ReactNode;
+}> = ({
+  label,
+  value,
+  mono,
+  copyable,
+  onCopy,
+  obfuscated,
+  onToggle,
+  linkTo,
+  actionIcon,
+}) => (
+  <Box
+    sx={{
+      display: "flex",
+      alignItems: "center",
+      py: 0.75,
+      "&:not(:last-child)": {
+        borderBottom: "1px solid",
+        borderColor: "divider",
+      },
+    }}
+  >
+    <Typography
+      variant="body2"
+      sx={{ color: "text.secondary", minWidth: 140, flexShrink: 0 }}
+    >
+      {label}
+    </Typography>
+    <Typography
+      variant="body2"
+      sx={{
+        flex: 1,
+        fontFamily: mono
+          ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+          : undefined,
+        wordBreak: "break-all",
+      }}
+      {...(linkTo
+        ? {
+            component: RouterLink,
+            to: linkTo,
+            color: "primary",
+          }
+        : {})}
+    >
+      {obfuscated ? DOTS : value || "—"}
+    </Typography>
+    {onToggle && (
+      <Button
+        variant="text"
+        size="small"
+        onClick={onToggle}
+        sx={{ minWidth: 56 }}
+      >
+        {obfuscated ? "Show" : "Hide"}
+      </Button>
+    )}
+    {copyable && onCopy && (
+      <IconButton size="small" onClick={onCopy} aria-label={`Copy ${label}`}>
+        <CopyIcon fontSize="small" />
+      </IconButton>
+    )}
+    {actionIcon}
+  </Box>
+);
+
+const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
+  subscriber,
+  onEditPolicy,
+}) => {
+  const { showSnackbar } = useSnackbar();
+  const [keyObfuscated, setKeyObfuscated] = useState(true);
+  const [opcObfuscated, setOpcObfuscated] = useState(true);
+
+  const handleCopy = async (value: string, label: string) => {
+    if (!navigator.clipboard) {
+      showSnackbar(
+        "Clipboard API not available. Please use HTTPS or try a different browser.",
+        "error",
+      );
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(value);
+      showSnackbar("Copied to clipboard.", "success");
+    } catch {
+      showSnackbar(`Failed to copy ${label}.`, "error");
+    }
+  };
+
+  return (
+    <Card variant="outlined">
+      <CardContent>
+        <Typography variant="h6" sx={{ mb: 1.5 }}>
+          Provisioning
+        </Typography>
+        <FieldRow
+          label="Key"
+          value={subscriber.key}
+          mono
+          copyable
+          onCopy={() => handleCopy(subscriber.key, "Key")}
+          obfuscated={keyObfuscated}
+          onToggle={() => setKeyObfuscated((v) => !v)}
+        />
+        <FieldRow
+          label="OPc"
+          value={subscriber.opc}
+          mono
+          copyable
+          onCopy={() => handleCopy(subscriber.opc, "OPc")}
+          obfuscated={opcObfuscated}
+          onToggle={() => setOpcObfuscated((v) => !v)}
+        />
+        <FieldRow
+          label="Sequence Number"
+          value={subscriber.sequenceNumber}
+          mono
+          copyable
+          onCopy={() =>
+            handleCopy(subscriber.sequenceNumber, "Sequence Number")
+          }
+        />
+        <FieldRow
+          label="Policy"
+          value={subscriber.policyName}
+          linkTo="/policies"
+          actionIcon={
+            onEditPolicy ? (
+              <IconButton
+                size="small"
+                onClick={onEditPolicy}
+                aria-label="Edit policy"
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            ) : undefined
+          }
+        />
+        <FieldRow
+          label="Data Network"
+          value={subscriber.dataNetworkName || "—"}
+          linkTo="/networking?tab=data-networks"
+        />
+      </CardContent>
+    </Card>
+  );
+};
+
+export default SubscriberProvisioningCard;

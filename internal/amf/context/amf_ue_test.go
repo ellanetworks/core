@@ -90,6 +90,7 @@ func TestCipheringAlgName(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := &context.AmfUe{CipheringAlg: tc.alg}
+
 			got := ue.CipheringAlgName()
 			if got != tc.expected {
 				t.Fatalf("expected %q, got %q", tc.expected, got)
@@ -114,6 +115,7 @@ func TestIntegrityAlgName(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := &context.AmfUe{IntegrityAlg: tc.alg}
+
 			got := ue.IntegrityAlgName()
 			if got != tc.expected {
 				t.Fatalf("expected %q, got %q", tc.expected, got)
