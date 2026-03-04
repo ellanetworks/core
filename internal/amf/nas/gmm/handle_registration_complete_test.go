@@ -37,7 +37,7 @@ func TestHandleRegistrationComplete_T3550StoppedAndCleared_RegistrationDataClear
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = "imsi-001019756139935"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	ue.MacFailed = false
@@ -91,7 +91,7 @@ func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_No
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = "imsi-001019756139935"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	ue.MacFailed = false
@@ -148,7 +148,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = "imsi-001019756139935"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	ue.MacFailed = false
@@ -205,7 +205,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = "imsi-001019756139935"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	ue.MacFailed = false
@@ -262,7 +262,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 	}
 
 	ue.Suci = "testsuci"
-	ue.Supi = "imsi-001019756139935"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	ue.MacFailed = false

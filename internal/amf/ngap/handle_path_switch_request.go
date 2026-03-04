@@ -92,7 +92,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 	}
 
 	if !amfUe.SecurityContextIsValid() {
-		ranUe.Log.Error("No Security Context", zap.String("supi", amfUe.Supi))
+		ranUe.Log.Error("No Security Context", zap.String("supi", amfUe.Supi.String()))
 
 		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
@@ -100,7 +100,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 			return
 		}
 
-		ranUe.Log.Info("sent path switch request failure", zap.String("supi", amfUe.Supi))
+		ranUe.Log.Info("sent path switch request failure", zap.String("supi", amfUe.Supi.String()))
 
 		return
 	}

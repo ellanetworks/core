@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -56,7 +57,7 @@ func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextR
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		UEs: make(map[string]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*context.AmfUe),
 		Smf: &smf,
 	}
 
@@ -95,7 +96,7 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		UEs: make(map[string]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*context.AmfUe),
 		Smf: &smf,
 	}
 

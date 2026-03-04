@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -174,11 +175,11 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 						Rand: hex.EncodeToString(make([]byte, 16)),
 						Autn: hex.EncodeToString(make([]byte, 16)),
 					},
-					Supi:  "imsi-001019756139935",
+					Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 					Kseaf: "testkey",
 					Error: fmt.Errorf("failure"),
 				},
-				UEs: make(map[string]*amfContext.AmfUe),
+				UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 			}
 
 			ue, ngapSender, err := buildUeAndRadio()
@@ -237,10 +238,10 @@ func TestHandleAuthenticationResponse_DeriveKamf_Failure(t *testing.T) {
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -281,10 +282,10 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
-			Supi:  "imsi-001019756139935",
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "C0FFEE",
 		},
-		UEs: make(map[string]*amfContext.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()

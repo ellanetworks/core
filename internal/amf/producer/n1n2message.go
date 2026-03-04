@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
@@ -25,12 +26,12 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/producer")
 
-func TransferN1N2Message(ctx context.Context, supi string, req models.N1N2MessageTransferRequest) error {
+func TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
 		trace.WithAttributes(
-			attribute.String("supi", supi),
+			attribute.String("supi", supi.String()),
 		),
 	)
 	defer span.End()
@@ -103,12 +104,12 @@ func TransferN1N2Message(ctx context.Context, supi string, req models.N1N2Messag
 	return nil
 }
 
-func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2MessageTransferRequest) error {
+func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
 		trace.WithAttributes(
-			attribute.String("supi", supi),
+			attribute.String("supi", supi.String()),
 		),
 	)
 	defer span.End()
@@ -213,12 +214,12 @@ func N2MessageTransferOrPage(ctx context.Context, supi string, req models.N1N2Me
 	return nil
 }
 
-func TransferN1Msg(ctx context.Context, supi string, n1Msg []byte, pduSessionID uint8) error {
+func TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
 		trace.WithAttributes(
-			attribute.String("supi", supi),
+			attribute.String("supi", supi.String()),
 		),
 	)
 	defer span.End()
@@ -244,7 +245,7 @@ func TransferN1Msg(ctx context.Context, supi string, n1Msg []byte, pduSessionID 
 		return fmt.Errorf("send downlink nas transport error: %v", err)
 	}
 
-	ue.Log.Info("sent downlink nas transport to UE", zap.String("supi", supi))
+	ue.Log.Info("sent downlink nas transport to UE", zap.String("supi", supi.String()))
 
 	return nil
 }
