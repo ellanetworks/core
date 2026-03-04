@@ -4,9 +4,10 @@ description: Explanation of platform security - authentication, authorization, t
 
 # Platform Security
 
-Security is one of Ella Core's core tenets. From authentication and authorization to transport encryption and audit logging, security is built into every layer of the system.
+!!! info
+    To report a security vulnerability, please file a [Private Security Report](https://github.com/ellanetworks/core/security).
 
-**To report a security vulnerability, please file a [Private Security Report](https://github.com/ellanetworks/core/security).**
+Security is one of Ella Core's core tenets. From authentication and authorization to transport encryption and audit logging, security is built into every layer of the system.
 
 ## Authentication & Authorization
 

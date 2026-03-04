@@ -4,6 +4,9 @@ description: Explanation of subscriber security - authentication, privacy, and N
 
 # Subscriber Security
 
+!!! info
+    To report a security vulnerability, please file a [Private Security Report](https://github.com/ellanetworks/core/security).
+
 Ella Core implements **5G-AKA** (Authentication and Key Agreement) for secure, mutual authentication between the subscriber's device and the network.
 
 The subscriber's Universal Subscriber Identity Module (USIM) stores the identity and credentials required for authentication:
