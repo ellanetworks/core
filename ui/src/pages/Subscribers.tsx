@@ -2,27 +2,19 @@ import React, { useMemo, useState } from "react";
 import { Box, Typography, Button, CircularProgress, Chip } from "@mui/material";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
-import useMediaQuery from "@mui/material/useMediaQuery";
 import {
   DataGrid,
   GridColDef,
-  GridActionsCellItem,
   GridRenderCellParams,
-  GridRowParams,
   GridPaginationModel,
 } from "@mui/x-data-grid";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
-import { Link as RouterLink } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   listSubscribers,
-  deleteSubscriber,
   type APISubscriber,
   type ListSubscribersResponse,
 } from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
-import EditSubscriberModal from "@/components/EditSubscriberModal";
-import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -32,8 +24,8 @@ const MAX_WIDTH = 1400;
 const SubscriberPage: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
   const theme = useTheme();
-  const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
   const canEdit = role === "Admin" || role === "Network Manager";
+  const navigate = useNavigate();
 
   const gridTheme = useMemo(
     () =>
@@ -49,18 +41,12 @@ const SubscriberPage: React.FC = () => {
   });
 
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [editData, setEditData] = useState<APISubscriber | null>(null);
-  const [selectedSubscriber, setSelectedSubscriber] = useState<string | null>(
-    null,
-  );
   const { showSnackbar } = useSnackbar();
 
   const pageOneBased = paginationModel.page + 1;
   const perPage = paginationModel.pageSize;
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ["subscribers", pageOneBased, perPage],
     queryFn: (): Promise<ListSubscribersResponse> =>
       listSubscribers(accessToken || "", pageOneBased, perPage),
@@ -74,70 +60,7 @@ const SubscriberPage: React.FC = () => {
   const rows: APISubscriber[] = data?.items ?? [];
   const rowCount = data?.total_count ?? 0;
 
-  const handleEditClick = (subscriber: APISubscriber) => {
-    setEditData(subscriber);
-    setEditModalOpen(true);
-  };
-
-  const handleDeleteClick = (imsi: string) => {
-    setSelectedSubscriber(imsi);
-    setConfirmationOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    setConfirmationOpen(false);
-    if (!selectedSubscriber || !accessToken) return;
-    try {
-      await deleteSubscriber(accessToken, selectedSubscriber);
-      showSnackbar(
-        `Subscriber "${selectedSubscriber}" deleted successfully.`,
-        "success",
-      );
-      refetch();
-    } catch (error) {
-      showSnackbar(
-        `Failed to delete subscriber "${selectedSubscriber}": ${error instanceof Error ? error.message : "Unknown error"}`,
-        "error",
-      );
-    } finally {
-      setSelectedSubscriber(null);
-    }
-  };
-
   const columns: GridColDef<APISubscriber>[] = useMemo(() => {
-    const actions = (row: APISubscriber) =>
-      isSmDown
-        ? [
-            <GridActionsCellItem
-              key="edit"
-              icon={<EditIcon />}
-              label="Edit"
-              onClick={() => handleEditClick(row)}
-              showInMenu
-            />,
-            <GridActionsCellItem
-              key="delete"
-              icon={<DeleteIcon />}
-              label="Delete"
-              onClick={() => handleDeleteClick(row.imsi)}
-              showInMenu
-            />,
-          ]
-        : [
-            <GridActionsCellItem
-              key="edit"
-              icon={<EditIcon color="primary" />}
-              label="Edit"
-              onClick={() => handleEditClick(row)}
-            />,
-            <GridActionsCellItem
-              key="delete"
-              icon={<DeleteIcon color="primary" />}
-              label="Delete"
-              onClick={() => handleDeleteClick(row.imsi)}
-            />,
-          ];
-
     const base: GridColDef<APISubscriber>[] = [
       {
         field: "imsi",
@@ -146,12 +69,7 @@ const SubscriberPage: React.FC = () => {
         minWidth: 200,
         renderCell: (params: GridRenderCellParams<APISubscriber>) => (
           <Box
-            component={RouterLink}
-            to={`/subscribers/${params.row.imsi}`}
             sx={{
-              color: "primary.main",
-              textDecoration: "none",
-              "&:hover": { textDecoration: "underline" },
               fontFamily: "monospace",
             }}
           >
@@ -160,6 +78,13 @@ const SubscriberPage: React.FC = () => {
         ),
       },
       { field: "policyName", headerName: "Policy", flex: 0.8, minWidth: 140 },
+      {
+        field: "dataNetworkName",
+        headerName: "Data Network",
+        flex: 0.8,
+        minWidth: 140,
+        valueGetter: (_v, row: APISubscriber) => row?.dataNetworkName ?? "",
+      },
       {
         field: "registration",
         headerName: "Registration",
@@ -200,21 +125,8 @@ const SubscriberPage: React.FC = () => {
       },
     ];
 
-    if (canEdit) {
-      base.push({
-        field: "actions",
-        headerName: "Actions",
-        type: "actions",
-        width: 120,
-        sortable: false,
-        disableColumnMenu: true,
-        getActions: (params: GridRowParams<APISubscriber>) =>
-          actions(params.row),
-      });
-    }
-
     return base;
-  }, [canEdit, isSmDown]);
+  }, []);
 
   const columnGroupingModel = [
     {
@@ -312,10 +224,16 @@ const SubscriberPage: React.FC = () => {
                 pageSizeOptions={[10, 25, 50, 100]}
                 sortingMode="server"
                 disableColumnMenu
+                onRowClick={(params) =>
+                  navigate(`/subscribers/${params.row.imsi}`)
+                }
                 sx={{
                   width: "100%",
                   border: 1,
                   borderColor: "divider",
+                  "& .MuiDataGrid-row": {
+                    cursor: "pointer",
+                  },
                   "& .MuiDataGrid-cell": {
                     borderBottom: "1px solid",
                     borderColor: "divider",
@@ -344,26 +262,6 @@ const SubscriberPage: React.FC = () => {
             refetch();
             showSnackbar("Subscriber created successfully.", "success");
           }}
-        />
-      )}
-      {isEditModalOpen && (
-        <EditSubscriberModal
-          open
-          onClose={() => setEditModalOpen(false)}
-          onSuccess={() => {
-            refetch();
-            showSnackbar("Subscriber updated successfully.", "success");
-          }}
-          initialData={editData || { imsi: "", policyName: "" }}
-        />
-      )}
-      {isConfirmationOpen && (
-        <DeleteConfirmationModal
-          open
-          onClose={() => setConfirmationOpen(false)}
-          onConfirm={handleDeleteConfirm}
-          title="Confirm Deletion"
-          description={`Are you sure you want to delete the subscriber "${selectedSubscriber}"? This action cannot be undone.`}
         />
       )}
     </Box>

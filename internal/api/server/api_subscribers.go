@@ -141,6 +141,12 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 				return
 			}
 
+			dataNetwork, err := dbInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve data network", err, logger.APILog)
+				return
+			}
+
 			ipAddress := ""
 			if dbSubscriber.IPAddress != nil {
 				ipAddress = *dbSubscriber.IPAddress
@@ -160,12 +166,13 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 			}
 
 			items = append(items, Subscriber{
-				Imsi:           dbSubscriber.Imsi,
-				Opc:            dbSubscriber.Opc,
-				Key:            dbSubscriber.PermanentKey,
-				SequenceNumber: dbSubscriber.SequenceNumber,
-				PolicyName:     policy.Name,
-				Status:         subscriberStatus,
+				Imsi:            dbSubscriber.Imsi,
+				Opc:             dbSubscriber.Opc,
+				Key:             dbSubscriber.PermanentKey,
+				SequenceNumber:  dbSubscriber.SequenceNumber,
+				PolicyName:      policy.Name,
+				DataNetworkName: dataNetwork.Name,
+				Status:          subscriberStatus,
 			})
 		}
 

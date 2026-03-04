@@ -100,7 +100,7 @@ const SubscriberDetail: React.FC = () => {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        pt: 4,
+        pt: 6,
         pb: 4,
       }}
     >
