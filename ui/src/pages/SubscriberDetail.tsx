@@ -23,7 +23,6 @@ import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
 import SubscriberUsageChart from "@/components/SubscriberUsageChart";
 import SubscriberProtocolChart from "@/components/SubscriberProtocolChart";
 
-
 const MAX_WIDTH = 1400;
 
 const SubscriberDetail: React.FC = () => {
@@ -174,10 +173,7 @@ const SubscriberDetail: React.FC = () => {
                 >
                   /
                 </Typography>
-                <Typography
-                  component="span"
-                  variant="h4"
-                >
+                <Typography component="span" variant="h4">
                   {subscriber.imsi}
                 </Typography>
               </Typography>
@@ -207,15 +203,15 @@ const SubscriberDetail: React.FC = () => {
         >
           {/* Left column */}
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            <SubscriberConnectionCard status={subscriber.status} />
-          </Box>
-
-          {/* Right column */}
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <SubscriberProvisioningCard
               subscriber={subscriber}
               onEditPolicy={canEdit ? () => setEditModalOpen(true) : undefined}
             />
+          </Box>
+
+          {/* Right column */}
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <SubscriberConnectionCard status={subscriber.status} />
           </Box>
         </Box>
 
@@ -252,7 +248,6 @@ const SubscriberDetail: React.FC = () => {
             </Box>
           </CardContent>
         </Card>
-
       </Box>
 
       {/* Modals */}

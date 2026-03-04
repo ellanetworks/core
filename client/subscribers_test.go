@@ -68,7 +68,7 @@ func TestGetSubscriber_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"imsi": "001010100000022", "policyName": "default", "dataNetworkName": "internet", "status": {"registered": false, "ipAddress": "", "state": "Deregistered", "connectedRadio": "", "imei": "", "tac": "", "cellID": "", "activeSessions": 0, "ambrUplink": "", "ambrDownlink": "", "cipheringAlgorithm": "", "integrityAlgorithm": ""}}`),
+			Result:     []byte(`{"imsi": "001010100000022", "policyName": "default", "policyBitrateUplink": "100 Mbps", "policyBitrateDownlink": "100 Mbps", "dataNetworkName": "internet", "status": {"registered": false, "ipAddress": "", "state": "Deregistered", "connectedRadio": "", "imei": "", "tac": "", "cellID": "", "activeSessions": 0, "ambrUplink": "", "ambrDownlink": "", "cipheringAlgorithm": "", "integrityAlgorithm": ""}}`),
 		},
 		err: nil,
 	}
@@ -94,6 +94,14 @@ func TestGetSubscriber_Success(t *testing.T) {
 
 	if subscriber.DataNetworkName != "internet" {
 		t.Fatalf("expected DataNetworkName 'internet', got %s", subscriber.DataNetworkName)
+	}
+
+	if subscriber.PolicyBitrateUplink != "100 Mbps" {
+		t.Fatalf("expected PolicyBitrateUplink '100 Mbps', got %s", subscriber.PolicyBitrateUplink)
+	}
+
+	if subscriber.PolicyBitrateDownlink != "100 Mbps" {
+		t.Fatalf("expected PolicyBitrateDownlink '100 Mbps', got %s", subscriber.PolicyBitrateDownlink)
 	}
 
 	if subscriber.Status.State != "Deregistered" {

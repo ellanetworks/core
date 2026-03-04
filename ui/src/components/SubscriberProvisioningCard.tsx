@@ -7,10 +7,18 @@ import {
   IconButton,
   Typography,
 } from "@mui/material";
-import { ContentCopy as CopyIcon, Edit as EditIcon } from "@mui/icons-material";
+import {
+  ContentCopy as CopyIcon,
+  Edit as EditIcon,
+  North as NorthIcon,
+  South as SouthIcon,
+} from "@mui/icons-material";
 import { Link as RouterLink } from "react-router-dom";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import type { APISubscriber } from "@/queries/subscribers";
+
+const UPLINK_COLOR = "#FF9800";
+const DOWNLINK_COLOR = "#4254FB";
 
 interface SubscriberProvisioningCardProps {
   subscriber: APISubscriber;
@@ -115,7 +123,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   };
 
   return (
-    <Card variant="outlined">
+    <Card variant="outlined" sx={{ height: "100%" }}>
       <CardContent>
         <Typography variant="h6" sx={{ mb: 1.5 }}>
           Provisioning
@@ -149,16 +157,30 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           value={subscriber.policyName}
           linkTo="/policies"
           actionIcon={
-            onEditPolicy ? (
-              <IconButton
-                size="small"
-                onClick={onEditPolicy}
-                aria-label="Edit policy"
-                color="primary"
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-            ) : undefined
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+                <SouthIcon sx={{ fontSize: 14, color: DOWNLINK_COLOR }} />
+                <Typography variant="caption" color="text.secondary">
+                  {subscriber.policyBitrateDownlink || "—"}
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+                <NorthIcon sx={{ fontSize: 14, color: UPLINK_COLOR }} />
+                <Typography variant="caption" color="text.secondary">
+                  {subscriber.policyBitrateUplink || "—"}
+                </Typography>
+              </Box>
+              {onEditPolicy && (
+                <IconButton
+                  size="small"
+                  onClick={onEditPolicy}
+                  aria-label="Edit policy"
+                  color="primary"
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              )}
+            </Box>
           }
         />
         <FieldRow

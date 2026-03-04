@@ -68,9 +68,7 @@ const SubscriberPage: React.FC = () => {
         flex: 1,
         minWidth: 200,
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => (
-          <Box>
-            {params.row.imsi}
-          </Box>
+          <Box>{params.row.imsi}</Box>
         ),
       },
       { field: "policyName", headerName: "Policy", flex: 0.8, minWidth: 140 },
@@ -79,7 +77,8 @@ const SubscriberPage: React.FC = () => {
         headerName: "Data Network",
         flex: 0.8,
         minWidth: 140,
-        valueGetter: (_v, row: APISubscriberSummary) => row?.dataNetworkName ?? "",
+        valueGetter: (_v, row: APISubscriberSummary) =>
+          row?.dataNetworkName ?? "",
       },
       {
         field: "registration",
@@ -105,7 +104,8 @@ const SubscriberPage: React.FC = () => {
         headerName: "IP Address",
         width: 140,
         minWidth: 120,
-        valueGetter: (_v, row: APISubscriberSummary) => row?.status?.ipAddress ?? "",
+        valueGetter: (_v, row: APISubscriberSummary) =>
+          row?.status?.ipAddress ?? "",
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
           const ip = params.row?.status?.ipAddress ?? "";
           return (

@@ -68,13 +68,15 @@ type SubscriberDetailStatus struct {
 
 // SubscriberDetail is the full representation returned by the get-single endpoint.
 type SubscriberDetail struct {
-	Imsi            string                 `json:"imsi"`
-	Opc             string                 `json:"opc"`
-	SequenceNumber  string                 `json:"sequenceNumber"`
-	Key             string                 `json:"key"`
-	PolicyName      string                 `json:"policyName"`
-	DataNetworkName string                 `json:"dataNetworkName"`
-	Status          SubscriberDetailStatus `json:"status"`
+	Imsi                  string                 `json:"imsi"`
+	Opc                   string                 `json:"opc"`
+	SequenceNumber        string                 `json:"sequenceNumber"`
+	Key                   string                 `json:"key"`
+	PolicyName            string                 `json:"policyName"`
+	PolicyBitrateUplink   string                 `json:"policyBitrateUplink,omitempty"`
+	PolicyBitrateDownlink string                 `json:"policyBitrateDownlink,omitempty"`
+	DataNetworkName       string                 `json:"dataNetworkName"`
+	Status                SubscriberDetailStatus `json:"status"`
 }
 
 // CreateSubscriber creates a new subscriber with the provided options.

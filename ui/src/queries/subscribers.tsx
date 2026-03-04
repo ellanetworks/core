@@ -49,6 +49,8 @@ export type APISubscriber = {
   sequenceNumber: string;
   key: string;
   policyName: string;
+  policyBitrateUplink?: string;
+  policyBitrateDownlink?: string;
   dataNetworkName?: string;
   status: SubscriberDetailStatus;
 };

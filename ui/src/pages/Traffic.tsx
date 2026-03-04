@@ -150,6 +150,9 @@ type UsagePerDayRow = {
 
 const TAB_PATHS = ["/traffic/usage", "/traffic/flows"] as const;
 
+const UPLINK_COLOR = "#FF9800";
+const DOWNLINK_COLOR = "#4254FB";
+
 // ──────────────────────────────────────────────────────
 // Pie chart color palette
 // ──────────────────────────────────────────────────────
@@ -932,10 +935,27 @@ const Traffic: React.FC = () => {
                   xAxis={[{ scaleType: "band", dataKey: "date" }]}
                   yAxis={[{ label: `Usage (${unit})` }]}
                   series={[
-                    { dataKey: "downlink", label: `Downlink (${unit})` },
-                    { dataKey: "uplink", label: `Uplink (${unit})` },
+                    {
+                      dataKey: "downlink",
+                      label: `Downlink (${unit})`,
+                      color: DOWNLINK_COLOR,
+                    },
+                    {
+                      dataKey: "uplink",
+                      label: `Uplink (${unit})`,
+                      color: UPLINK_COLOR,
+                    },
                   ]}
                   height={300}
+                  slotProps={{
+                    legend: {
+                      direction: "horizontal",
+                      position: {
+                        vertical: "bottom",
+                        horizontal: "center",
+                      },
+                    },
+                  }}
                 />
               </Box>
 
