@@ -60,7 +60,7 @@ groups:
             model:
               expr: |
                 (
-                  sum(rate(app_registration_attempts_total{result="reject"}[5m]))
+                  (sum(rate(app_registration_attempts_total{result="reject"}[5m])) or vector(0))
                   /
                   clamp_min(sum(rate(app_registration_attempts_total[5m])), 1e-10)
                 ) * 100
@@ -107,7 +107,7 @@ groups:
             model:
               expr: |
                 (
-                  sum(rate(app_pdu_session_establishment_attempts_total{result="reject"}[5m]))
+                  (sum(rate(app_pdu_session_establishment_attempts_total{result="reject"}[5m])) or vector(0))
                   /
                   clamp_min(sum(rate(app_pdu_session_establishment_attempts_total[5m])), 1e-10)
                 ) * 100
@@ -202,7 +202,7 @@ groups:
             model:
               expr: |
                 (
-                  sum(rate(app_api_requests_total{status=~"5.."}[5m]))
+                  (sum(rate(app_api_requests_total{status=~"5.."}[5m])) or vector(0))
                   /
                   clamp_min(sum(rate(app_api_requests_total[5m])), 1e-10)
                 ) * 100
@@ -292,7 +292,7 @@ groups:
             model:
               expr: |
                 (
-                  sum(rate(app_api_authentication_attempts_total{result="failure"}[5m]))
+                  (sum(rate(app_api_authentication_attempts_total{result="failure"}[5m])) or vector(0))
                   /
                   clamp_min(sum(rate(app_api_authentication_attempts_total[5m])), 1e-10)
                 ) * 100
