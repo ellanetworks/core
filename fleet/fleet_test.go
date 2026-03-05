@@ -26,7 +26,7 @@ func sampleStatus() client.EllaCoreStatus {
 			{Name: "gnb-01", Address: "10.0.0.10"},
 		},
 		Subscribers: []client.SubscriberStatus{
-			{Imsi: "001010000000001", IPAddress: "10.1.0.2", Registered: true, State: "Registered"},
+			{Imsi: "001010000000001", IPAddress: "10.1.0.2", Registered: true},
 		},
 	}
 }
@@ -138,7 +138,6 @@ func TestStatusHash_DifferentInputs(t *testing.T) {
 		Imsi:       "001010000000002",
 		IPAddress:  "10.1.0.3",
 		Registered: false,
-		State:      "Deregistered",
 	})
 
 	h1 := statusHash(s1)
