@@ -114,10 +114,20 @@ const Operator = () => {
     );
   };
 
-  const handleCopyPublicKey = () => {
-    if (operator?.homeNetwork.publicKey) {
-      navigator.clipboard.writeText(operator.homeNetwork.publicKey);
+  const handleCopyPublicKey = async () => {
+    if (!operator?.homeNetwork.publicKey) return;
+    if (!navigator.clipboard) {
+      showSnackbar(
+        "Clipboard API not available. Please use HTTPS or try a different browser.",
+        "error",
+      );
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(operator.homeNetwork.publicKey);
       showSnackbar("Copied to clipboard.", "success");
+    } catch {
+      showSnackbar("Failed to copy public key.", "error");
     }
   };
 
