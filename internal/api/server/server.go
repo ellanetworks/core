@@ -131,6 +131,9 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("POST /api/v1/backup", Authenticate(jwtSecret, dbInstance, Authorize(PermBackup, Backup(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/restore", Authenticate(jwtSecret, dbInstance, Authorize(PermRestore, Restore(dbInstance))).ServeHTTP)
 
+	// Support bundle generation (Authenticated)
+	mux.HandleFunc("POST /api/v1/support-bundle", Authenticate(jwtSecret, dbInstance, Authorize(PermSupportBundle, SupportBundle(dbInstance))).ServeHTTP)
+
 	// Audit Logs (Authenticated)
 	mux.HandleFunc("GET /api/v1/logs/audit/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermGetAuditLogRetentionPolicy, GetAuditLogRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/logs/audit/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermSetAuditLogRetentionPolicy, UpdateAuditLogRetentionPolicy(dbInstance))).ServeHTTP)

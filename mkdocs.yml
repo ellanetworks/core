@@ -86,6 +86,7 @@ nav:
       - Users: reference/api/users.md
       - Usage: reference/api/usage.md
       - Flow Reports: reference/api/flow_reports.md
+      - Support Bundle: reference/api/support_bundle.md
     - Configuration File: reference/config_file.md
     - Production Hardening: reference/production_hardening.md
     - Observability: reference/observability.md

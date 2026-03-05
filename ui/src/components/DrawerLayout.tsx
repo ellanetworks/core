@@ -338,6 +338,21 @@ export default function DrawerLayout({
                     <ListItemText primary="Backup and Restore" />
                   </ListItemButton>
                 </ListItem>
+
+                <ListItem disablePadding>
+                  <ListItemButton
+                    component={Link}
+                    to="/support-bundle"
+                    selected={pathname === "/support-bundle"}
+                    onClick={handleNavClick}
+                    sx={drawerSelectedSx}
+                  >
+                    <ListItemIcon>
+                      <BugReportIcon color="primary" />
+                    </ListItemIcon>
+                    <ListItemText primary="Support" />
+                  </ListItemButton>
+                </ListItem>
               </>
             )}
           </List>

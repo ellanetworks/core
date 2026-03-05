@@ -45,6 +45,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermGetFlowAccountingInfo, PermUpdateFlowAccountingInfo,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermSetRadioEventRetentionPolicy, PermClearRadioEvents, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermSetFlowReportsRetentionPolicy, PermListFlowReports, PermClearFlowReports,
+		PermBackup, PermRestore, PermSupportBundle,
 	},
 }
 
@@ -133,8 +134,9 @@ const (
 	PermGetRadioEvent                = "radio_events:get"
 
 	// Backup and Restore permissions
-	PermBackup  = "backup:create"
-	PermRestore = "backup:restore"
+	PermBackup        = "backup:create"
+	PermRestore       = "backup:restore"
+	PermSupportBundle = "support_bundle:generate"
 
 	// Audit Log permissions
 	PermGetAuditLogRetentionPolicy = "audit_logs:get_retention"
