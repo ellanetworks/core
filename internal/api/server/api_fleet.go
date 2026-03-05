@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/fleet"
 	"github.com/ellanetworks/core/fleet/client"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
@@ -344,9 +345,16 @@ func getSubscribersStatus(ctx context.Context, dbInstance *db.Database) []client
 			ipAddress = *s.IPAddress
 		}
 
+		registered := false
+
+		supi, err := etsi.NewSUPIFromIMSI(s.Imsi)
+		if err == nil {
+			registered = amf.IsSubscriberRegistered(supi)
+		}
+
 		statuses = append(statuses, client.SubscriberStatus{
 			Imsi:       s.Imsi,
-			Registered: amf.IsSubscriberRegistered(s.Imsi),
+			Registered: registered,
 			IPAddress:  ipAddress,
 		})
 	}
