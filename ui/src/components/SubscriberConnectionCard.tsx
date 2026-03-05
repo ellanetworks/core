@@ -166,7 +166,10 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
         <Typography variant="h6" sx={{ mb: 1.5 }}>
           Connection
         </Typography>
-        <InfoRow label="State" value={<StateChip registered={status.registered} />} />
+        <InfoRow
+          label="State"
+          value={<StateChip registered={status.registered} />}
+        />
         <InfoRow label="IP Address" value={<IpChip ip={status.ipAddress} />} />
         <InfoRow label="IMEI" value={status.imei} />
         <InfoRow
