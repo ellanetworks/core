@@ -6,6 +6,7 @@ import Login from "./pages/Login";
 import Initialize from "./pages/Initialize";
 import Dashboard from "./pages/Dashboard";
 import Subscribers from "./pages/Subscribers";
+import SubscriberDetail from "./pages/SubscriberDetail";
 import Radios from "./pages/Radios";
 import Policies from "./pages/Policies";
 import Networking from "./pages/Networking";
@@ -29,6 +30,7 @@ export default function AppRouter() {
       <Route element={<CoreLayout />}>
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="subscribers" element={<Subscribers />} />
+        <Route path="subscribers/:imsi" element={<SubscriberDetail />} />
         <Route path="radios" element={<Radios />} />
         <Route path="policies" element={<Policies />} />
         <Route path="networking" element={<Networking />} />

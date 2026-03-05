@@ -52,6 +52,7 @@ func HandlePDUSessionResourceModifyResponse(ctx context.Context, amf *amfContext
 
 	if ranUe != nil {
 		ranUe.Radio = ran
+		ranUe.TouchLastSeen()
 		ranUe.Log.Debug("Handle PDUSessionResourceModifyResponse", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
 
 		if userLocationInformation != nil {

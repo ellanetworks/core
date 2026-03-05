@@ -16,6 +16,13 @@ export type ListPoliciesResponse = {
   total_count: number;
 };
 
+export const getPolicy = async (
+  authToken: string,
+  name: string,
+): Promise<APIPolicy> => {
+  return apiFetch<APIPolicy>(`/api/v1/policies/${name}`, { authToken });
+};
+
 export async function listPolicies(
   authToken: string,
   page: number,

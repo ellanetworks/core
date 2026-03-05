@@ -75,6 +75,9 @@ type AmfUe struct {
 	Location models.UserLocation
 	Tai      models.Tai
 	TimeZone string
+	/* Last Seen — updated on every UE-specific NGAP message */
+	LastSeenAt    time.Time
+	LastSeenRadio string
 	/* context about udm */
 	Ambr                              *models.Ambr
 	AuthenticationCtx                 *models.Av5gAka
@@ -158,7 +161,7 @@ func (ue *AmfUe) SetState(s StateType) {
 }
 
 func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
-	if ranUe == nil || ranUe.Radio == nil {
+	if ranUe == nil {
 		return
 	}
 
@@ -176,6 +179,11 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 			oldRanUe.Log.Info("Detached UeContext from previous RanUe")
 			oldRanUe.AmfUe = nil
 		}
+	}
+
+	ue.LastSeenAt = time.Now()
+	if ranUe.Radio != nil {
+		ue.LastSeenRadio = ranUe.Radio.Name
 	}
 
 	ue.Log = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
@@ -230,6 +238,81 @@ func (ue *AmfUe) IsAllowedNssai(targetSNssai *models.Snssai) bool {
 
 func (ue *AmfUe) SecurityContextIsValid() bool {
 	return ue.SecurityContextAvailable && ue.NgKsi.Ksi != nasMessage.NasKeySetIdentifierNoKeyIsAvailable && !ue.MacFailed
+}
+
+// cipheringAlgName returns the human-readable name for the negotiated NAS ciphering algorithm.
+// Must be called while holding ue.Mutex.
+func (ue *AmfUe) cipheringAlgName() string {
+	switch ue.CipheringAlg {
+	case security.AlgCiphering128NEA0:
+		return "NEA0"
+	case security.AlgCiphering128NEA1:
+		return "NEA1"
+	case security.AlgCiphering128NEA2:
+		return "NEA2"
+	case security.AlgCiphering128NEA3:
+		return "NEA3"
+	default:
+		return ""
+	}
+}
+
+// integrityAlgName returns the human-readable name for the negotiated NAS integrity algorithm.
+// Must be called while holding ue.Mutex.
+func (ue *AmfUe) integrityAlgName() string {
+	switch ue.IntegrityAlg {
+	case security.AlgIntegrity128NIA0:
+		return "NIA0"
+	case security.AlgIntegrity128NIA1:
+		return "NIA1"
+	case security.AlgIntegrity128NIA2:
+		return "NIA2"
+	case security.AlgIntegrity128NIA3:
+		return "NIA3"
+	default:
+		return ""
+	}
+}
+
+// TouchLastSeen updates the UE's last-seen timestamp and radio name.
+// Must be called while the UE mutex is NOT held (it acquires the lock).
+func (ue *AmfUe) TouchLastSeen(radioName string) {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	ue.LastSeenAt = time.Now()
+	if radioName != "" {
+		ue.LastSeenRadio = radioName
+	}
+}
+
+// UESnapshot is a read-only, point-in-time copy of the UE's connection
+// state. It is safe to use from any goroutine without holding AMF or UE locks.
+type UESnapshot struct {
+	State              StateType
+	Pei                string
+	CipheringAlgorithm string
+	IntegrityAlgorithm string
+	LastSeenAt         time.Time
+	LastSeenRadio      string
+}
+
+// Snapshot returns a point-in-time copy of the UE's connection state.
+// The caller can safely read the returned value without holding any lock.
+func (ue *AmfUe) Snapshot() UESnapshot {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	snap := UESnapshot{
+		State:              ue.State,
+		Pei:                ue.Pei,
+		CipheringAlgorithm: ue.cipheringAlgName(),
+		IntegrityAlgorithm: ue.integrityAlgName(),
+		LastSeenAt:         ue.LastSeenAt,
+		LastSeenRadio:      ue.LastSeenRadio,
+	}
+
+	return snap
 }
 
 // Kamf Derivation function defined in TS 33.501 Annex A.7

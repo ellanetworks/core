@@ -58,6 +58,7 @@ func HandleNasNonDeliveryIndication(ctx context.Context, amf *amfContext.AMF, ra
 	}
 
 	ran.Log.Debug("Handle NAS Non Delivery Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.String("cause", causeToString(*cause)))
+	ranUe.TouchLastSeen()
 
 	err := nas.HandleNAS(ctx, amf, ranUe, nASPDU.Value)
 	if err != nil {
