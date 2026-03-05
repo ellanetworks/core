@@ -106,6 +106,7 @@ Ella Core ships with pre-configured [Grafana alert rules](https://github.com/ell
 
 | Alert | Severity | Condition |
 |-------|----------|-----------|
+| Instance Down | Critical | Ella Core instance is unreachable |
 | High Memory Usage | Warning | Process memory exceeds 1 GiB for 5 minutes |
 | High Goroutine Count | Warning | More than 10,000 goroutines for 5 minutes |
 | High Database Query Latency | Warning | P99 database query latency exceeds 500ms over 5 minutes |
