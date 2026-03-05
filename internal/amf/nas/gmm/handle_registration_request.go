@@ -65,7 +65,10 @@ func handleRegistrationRequestMessage(ctx context.Context, amf *amfContext.AMF, 
 
 	// TS 24.501 4.4.6: If NASMessageContainer is present, it contains a ciphered inner Registration Request
 	// carrying non-cleartext IEs, which must be decrypted and processed instead of the outer message.
-	if registrationRequest.NASMessageContainer != nil {
+	// However, if MAC verification failed, we don't have valid security keys to decrypt the
+	// NASMessageContainer. In that case, skip it and proceed with the cleartext IEs only.
+	// The subsequent authentication procedure will re-establish the security context.
+	if registrationRequest.NASMessageContainer != nil && !ue.MacFailed {
 		contents := registrationRequest.GetNASMessageContainerContents()
 
 		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
@@ -101,6 +104,9 @@ func handleRegistrationRequestMessage(ctx context.Context, amf *amfContext.AMF, 
 		registrationRequest = m.RegistrationRequest
 
 		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
+	} else if registrationRequest.NASMessageContainer != nil && ue.MacFailed {
+		ue.Log.Info("Skipping NASMessageContainer decryption due to MAC verification failure, proceeding with cleartext IEs only")
+		ue.RetransmissionOfInitialNASMsg = true
 	}
 
 	ue.RegistrationRequest = registrationRequest

@@ -72,6 +72,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 	}
 
 	ranUe.Radio = ran
+	ranUe.TouchLastSeen()
 	ranUe.Log.Debug("Handle UE Context Release Request", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 	causeGroup := ngapType.CausePresentRadioNetwork

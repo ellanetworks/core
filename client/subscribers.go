@@ -24,15 +24,13 @@ type DeleteSubscriberOptions struct {
 	ID string `json:"id"`
 }
 
-type SubscriberSession struct {
-	IPAddress string `json:"ipAddress"`
-}
-
+// SubscriberStatus is the lightweight status returned by the list endpoint.
 type SubscriberStatus struct {
-	Registered bool                `json:"registered"`
-	Sessions   []SubscriberSession `json:"sessions"`
+	Registered bool   `json:"registered"`
+	IPAddress  string `json:"ipAddress"`
 }
 
+// Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
 	Imsi           string           `json:"imsi"`
 	Opc            string           `json:"opc"`
@@ -47,6 +45,28 @@ type ListSubscribersResponse struct {
 	Page       int          `json:"page"`
 	PerPage    int          `json:"per_page"`
 	TotalCount int          `json:"total_count"`
+}
+
+// SubscriberDetailStatus is the rich status returned by the get-single endpoint.
+type SubscriberDetailStatus struct {
+	Registered         bool   `json:"registered"`
+	IPAddress          string `json:"ipAddress"`
+	State              string `json:"state"`
+	Imei               string `json:"imei"`
+	CipheringAlgorithm string `json:"cipheringAlgorithm"`
+	IntegrityAlgorithm string `json:"integrityAlgorithm"`
+	LastSeenAt         string `json:"lastSeenAt,omitempty"`
+	LastSeenRadio      string `json:"lastSeenRadio,omitempty"`
+}
+
+// SubscriberDetail is the full representation returned by the get-single endpoint.
+type SubscriberDetail struct {
+	Imsi           string                 `json:"imsi"`
+	Opc            string                 `json:"opc"`
+	SequenceNumber string                 `json:"sequenceNumber"`
+	Key            string                 `json:"key"`
+	PolicyName     string                 `json:"policyName"`
+	Status         SubscriberDetailStatus `json:"status"`
 }
 
 // CreateSubscriber creates a new subscriber with the provided options.
@@ -86,7 +106,7 @@ func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOpt
 }
 
 // GetSubscriber retrieves a subscriber by ID.
-func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) (*Subscriber, error) {
+func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) (*SubscriberDetail, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
@@ -96,7 +116,7 @@ func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) 
 		return nil, err
 	}
 
-	var subscriberResponse Subscriber
+	var subscriberResponse SubscriberDetail
 
 	err = resp.DecodeResult(&subscriberResponse)
 	if err != nil {

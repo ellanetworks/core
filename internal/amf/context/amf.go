@@ -207,6 +207,18 @@ func (amf *AMF) FindAMFUEBySupi(supi etsi.SUPI) (*AmfUe, bool) {
 	return value, true
 }
 
+// GetUESnapshot atomically looks up the UE by SUPI and returns a
+// point-in-time snapshot of its connection state. Returns the snapshot
+// and true if the UE exists, or a zero-value snapshot and false otherwise.
+func (amf *AMF) GetUESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
+	ue, ok := amf.FindAMFUEBySupi(supi)
+	if !ok {
+		return UESnapshot{}, false
+	}
+
+	return ue.Snapshot(), true
+}
+
 func (amf *AMF) FindAMFUEBySuci(suci string) (*AmfUe, bool) {
 	amf.Mutex.Lock()
 	defer amf.Mutex.Unlock()

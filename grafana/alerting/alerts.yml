@@ -60,7 +60,7 @@ groups:
             model:
               expr: |
                 (
-                  sum(rate(app_registration_attempts_total{result="reject"}[5m]))
+                  (sum(rate(app_registration_attempts_total{result="reject"}[5m])) or vector(0))
                   /
                   clamp_min(sum(rate(app_registration_attempts_total[5m])), 1e-10)
                 ) * 100
@@ -107,7 +107,7 @@ groups:
             model:
               expr: |
                 (
-                  sum(rate(app_pdu_session_establishment_attempts_total{result="reject"}[5m]))
+                  (sum(rate(app_pdu_session_establishment_attempts_total{result="reject"}[5m])) or vector(0))
                   /
                   clamp_min(sum(rate(app_pdu_session_establishment_attempts_total[5m])), 1e-10)
                 ) * 100
@@ -202,7 +202,7 @@ groups:
             model:
               expr: |
                 (
-                  sum(rate(app_api_requests_total{status=~"5.."}[5m]))
+                  (sum(rate(app_api_requests_total{status=~"5.."}[5m])) or vector(0))
                   /
                   clamp_min(sum(rate(app_api_requests_total[5m])), 1e-10)
                 ) * 100
@@ -292,7 +292,7 @@ groups:
             model:
               expr: |
                 (
-                  sum(rate(app_api_authentication_attempts_total{result="failure"}[5m]))
+                  (sum(rate(app_api_authentication_attempts_total{result="failure"}[5m])) or vector(0))
                   /
                   clamp_min(sum(rate(app_api_authentication_attempts_total[5m])), 1e-10)
                 ) * 100
@@ -332,6 +332,48 @@ groups:
     folder: Ella Core Alerts
     interval: 1m
     rules:
+      - uid: ella-instance-down
+        title: Instance Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: up{job="ella-core"}
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: lt
+                    params:
+                      - 1
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 0s
+        labels:
+          severity: critical
+          component: runtime
+        annotations:
+          summary: Ella Core instance is unreachable.
+          description: "The Prometheus scrape target `up{job=\"ella-core\"}` is 0, meaning the instance is down or unresponsive. This fires immediately — check for a crash or network issue."
+
       - uid: ella-high-memory
         title: High Memory Usage
         condition: C

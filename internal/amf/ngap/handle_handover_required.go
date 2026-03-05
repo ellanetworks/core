@@ -160,6 +160,8 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		return
 	}
 
+	sourceUe.TouchLastSeen()
+
 	if targetID.Present != ngapType.TargetIDPresentTargetRANNodeID {
 		ran.Log.Error("targetID type is not supported", zap.Int("targetID", targetID.Present))
 		return

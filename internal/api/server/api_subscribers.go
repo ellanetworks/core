@@ -5,8 +5,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
@@ -29,11 +31,14 @@ type UpdateSubscriberParams struct {
 	PolicyName string `json:"policyName"`
 }
 
+// SubscriberStatus is the lightweight status returned by the list endpoint.
+// It preserves the same fields as the main branch for backward compatibility.
 type SubscriberStatus struct {
 	Registered bool   `json:"registered"`
 	IPAddress  string `json:"ipAddress"`
 }
 
+// Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
 	Imsi           string           `json:"imsi"`
 	Opc            string           `json:"opc"`
@@ -48,6 +53,28 @@ type ListSubscribersResponse struct {
 	Page       int          `json:"page"`
 	PerPage    int          `json:"per_page"`
 	TotalCount int          `json:"total_count"`
+}
+
+// SubscriberDetailStatus is the rich status returned by the get-single endpoint.
+type SubscriberDetailStatus struct {
+	Registered         bool   `json:"registered"`
+	IPAddress          string `json:"ipAddress"`
+	State              string `json:"state"`
+	Imei               string `json:"imei"`
+	CipheringAlgorithm string `json:"cipheringAlgorithm"`
+	IntegrityAlgorithm string `json:"integrityAlgorithm"`
+	LastSeenAt         string `json:"lastSeenAt,omitempty"`
+	LastSeenRadio      string `json:"lastSeenRadio,omitempty"`
+}
+
+// SubscriberDetail is the full representation returned by the get-single endpoint.
+type SubscriberDetail struct {
+	Imsi           string                 `json:"imsi"`
+	Opc            string                 `json:"opc"`
+	SequenceNumber string                 `json:"sequenceNumber"`
+	Key            string                 `json:"key"`
+	PolicyName     string                 `json:"policyName"`
+	Status         SubscriberDetailStatus `json:"status"`
 }
 
 const (
@@ -123,10 +150,24 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 
 		items := make([]Subscriber, 0, len(dbSubscribers))
 
+		// Pre-fetch all policies into a lookup map.
+		// These are small reference tables, so loading them all avoids
+		// N+1 queries per subscriber in the loop below.
+		allPolicies, _, err := dbInstance.ListPoliciesPage(ctx, 1, 1000)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list policies", err, logger.APILog)
+			return
+		}
+
+		policyByID := make(map[int]*db.Policy, len(allPolicies))
+		for i := range allPolicies {
+			policyByID[allPolicies[i].ID] = &allPolicies[i]
+		}
+
 		for _, dbSubscriber := range dbSubscribers {
-			policy, err := dbInstance.GetPolicyByID(ctx, dbSubscriber.PolicyID)
-			if err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
+			policy, ok := policyByID[dbSubscriber.PolicyID]
+			if !ok {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", fmt.Errorf("policy ID %d not found", dbSubscriber.PolicyID), logger.APILog)
 				return
 			}
 
@@ -177,6 +218,12 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		supi, err := etsi.NewSUPIFromIMSI(imsi)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid IMSI format", err, logger.APILog)
+			return
+		}
+
 		dbSubscriber, err := dbInstance.GetSubscriber(r.Context(), imsi)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
@@ -202,18 +249,35 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 
 		amf := amfContext.AMFSelf()
 
-		supi, err := etsi.NewSUPIFromIMSI(dbSubscriber.Imsi)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Invalid subscriber IMSI", err, logger.APILog)
-			return
-		}
+		snap, found := amf.GetUESnapshot(supi)
 
-		subscriberStatus := SubscriberStatus{
-			Registered: amf.IsSubscriberRegistered(supi),
+		subscriberStatus := SubscriberDetailStatus{
+			Registered: false,
 			IPAddress:  ipAddress,
+			State:      "Deregistered",
 		}
 
-		subscriber := Subscriber{
+		if found {
+			subscriberStatus.Registered = snap.State == amfContext.Registered
+			subscriberStatus.State = string(snap.State)
+			subscriberStatus.CipheringAlgorithm = snap.CipheringAlgorithm
+			subscriberStatus.IntegrityAlgorithm = snap.IntegrityAlgorithm
+			subscriberStatus.LastSeenRadio = snap.LastSeenRadio
+
+			if snap.Pei != "" {
+				if converted, err := etsi.IMEIFromPEI(snap.Pei); err == nil {
+					subscriberStatus.Imei = converted
+				} else {
+					logger.APILog.Warn("failed to convert PEI to IMEI", zap.String("pei", snap.Pei), zap.Error(err))
+				}
+			}
+
+			if !snap.LastSeenAt.IsZero() {
+				subscriberStatus.LastSeenAt = snap.LastSeenAt.UTC().Format(time.RFC3339)
+			}
+		}
+
+		subscriber := SubscriberDetail{
 			Imsi:           dbSubscriber.Imsi,
 			Opc:            dbSubscriber.Opc,
 			SequenceNumber: dbSubscriber.SequenceNumber,

@@ -70,6 +70,7 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 	}
 
 	targetUe.Radio = ran
+	targetUe.TouchLastSeen()
 
 	sourceUe := targetUe.SourceUe
 	if sourceUe == nil {

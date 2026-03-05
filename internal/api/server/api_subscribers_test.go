@@ -18,10 +18,10 @@ const (
 )
 
 type ListSubscriberResponseResult struct {
-	Items      []Subscriber `json:"items"`
-	Page       int          `json:"page"`
-	PerPage    int          `json:"per_page"`
-	TotalCount int          `json:"total_count"`
+	Items      []ListSubscriber `json:"items"`
+	Page       int              `json:"page"`
+	PerPage    int              `json:"per_page"`
+	TotalCount int              `json:"total_count"`
 }
 
 type ListSubscriberResponse struct {
@@ -33,17 +33,47 @@ type CreateSubscriberSuccessResponse struct {
 	Message string `json:"message"`
 }
 
-type Subscriber struct {
-	Imsi           string `json:"imsi"`
-	OPc            string `json:"opc"`
-	Key            string `json:"key"`
-	SequenceNumber string `json:"sequenceNumber"`
-	PolicyName     string `json:"policyName"`
+// ListSubscriberStatus matches the lightweight status in list responses.
+type ListSubscriberStatus struct {
+	Registered bool   `json:"registered"`
+	IPAddress  string `json:"ipAddress"`
+}
+
+// ListSubscriber matches the summary representation in list responses.
+type ListSubscriber struct {
+	Imsi           string               `json:"imsi"`
+	OPc            string               `json:"opc"`
+	Key            string               `json:"key"`
+	SequenceNumber string               `json:"sequenceNumber"`
+	PolicyName     string               `json:"policyName"`
+	Status         ListSubscriberStatus `json:"status"`
+}
+
+// SubscriberDetailStatus matches the rich status in get-single responses.
+type SubscriberDetailStatus struct {
+	Registered         bool   `json:"registered"`
+	IPAddress          string `json:"ipAddress"`
+	State              string `json:"state"`
+	Imei               string `json:"imei"`
+	CipheringAlgorithm string `json:"cipheringAlgorithm"`
+	IntegrityAlgorithm string `json:"integrityAlgorithm"`
+	LastSeenAt         string `json:"lastSeenAt,omitempty"`
+	LastSeenRadio      string `json:"lastSeenRadio,omitempty"`
+}
+
+// SubscriberDetail matches the full representation in get-single responses.
+type SubscriberDetail struct {
+	Imsi           string                 `json:"imsi"`
+	OPc            string                 `json:"opc"`
+	Key            string                 `json:"key"`
+	SequenceNumber string                 `json:"sequenceNumber"`
+	PolicyName     string                 `json:"policyName"`
+	Status         SubscriberDetailStatus `json:"status"`
 }
 
 type GetSubscriberResponse struct {
-	Result Subscriber `json:"result"`
-	Error  string     `json:"error,omitempty"`
+	Result SubscriberDetail `json:"result"`
+	Error  string           `json:"error,omitempty"`
 }
 
 type CreateSubscriberParams struct {
@@ -353,6 +383,22 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 		if response.Result.PolicyName != PolicyName {
 			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
+		}
+
+		if response.Result.Status.State != "Deregistered" {
+			t.Fatalf("expected state 'Deregistered', got %s", response.Result.Status.State)
+		}
+
+		if response.Result.Status.Imei != "" {
+			t.Fatalf("expected empty imei, got %s", response.Result.Status.Imei)
+		}
+
+		if response.Result.Status.CipheringAlgorithm != "" {
+			t.Fatalf("expected empty cipheringAlgorithm, got %s", response.Result.Status.CipheringAlgorithm)
+		}
+
+		if response.Result.Status.IntegrityAlgorithm != "" {
+			t.Fatalf("expected empty integrityAlgorithm, got %s", response.Result.Status.IntegrityAlgorithm)
 		}
 
 		if response.Error != "" {
@@ -699,6 +745,18 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 		if response.Result.PolicyName != PolicyName {
 			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
+		}
+
+		if response.Result.Status.State != "Deregistered" {
+			t.Fatalf("expected state 'Deregistered', got %s", response.Result.Status.State)
+		}
+
+		if response.Result.Status.CipheringAlgorithm != "" {
+			t.Fatalf("expected empty cipheringAlgorithm, got %s", response.Result.Status.CipheringAlgorithm)
+		}
+
+		if response.Result.Status.IntegrityAlgorithm != "" {
+			t.Fatalf("expected empty integrityAlgorithm, got %s", response.Result.Status.IntegrityAlgorithm)
 		}
 
 		if response.Error != "" {

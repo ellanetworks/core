@@ -54,6 +54,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 
 	if ranUe != nil {
 		ranUe.Radio = ran
+		ranUe.TouchLastSeen()
 
 		amfUe := ranUe.AmfUe
 		if amfUe == nil {
