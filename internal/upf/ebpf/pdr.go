@@ -186,6 +186,10 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 }
 
 func addRemoteIPToNeigh(ctx context.Context, remoteIP uint32) {
+	if remoteIP == 0 {
+		return
+	}
+
 	ip_bytes := make([]byte, 4)
 	binary.NativeEndian.PutUint32(ip_bytes, remoteIP)
 	ip := net.IP(ip_bytes)
