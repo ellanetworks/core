@@ -332,6 +332,48 @@ groups:
     folder: Ella Core Alerts
     interval: 1m
     rules:
+      - uid: ella-instance-down
+        title: Instance Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: up{job="ella-core"}
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: lt
+                    params:
+                      - 1
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 0s
+        labels:
+          severity: critical
+          component: runtime
+        annotations:
+          summary: Ella Core instance is unreachable.
+          description: "The Prometheus scrape target `up{job=\"ella-core\"}` is 0, meaning the instance is down or unresponsive. This fires immediately — check for a crash or network issue."
+
       - uid: ella-high-memory
         title: High Memory Usage
         condition: C
