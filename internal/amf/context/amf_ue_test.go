@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/free5gc/nas/security"
 )
 
 func TestDecodePayloadTooShort(t *testing.T) {
@@ -68,6 +69,56 @@ func TestAllocateRegistrationArea(t *testing.T) {
 
 			if !reflect.DeepEqual(tc.expected, ue.RegistrationArea) && len(tc.expected) != 0 && len(ue.RegistrationArea) != 0 {
 				t.Fatalf("expected: %v, got: %v", tc.expected, ue.RegistrationArea)
+			}
+		})
+	}
+}
+
+func TestSnapshotCipheringAlgorithm(t *testing.T) {
+	tests := []struct {
+		name     string
+		alg      uint8
+		expected string
+	}{
+		{"NEA0", security.AlgCiphering128NEA0, "NEA0"},
+		{"NEA1", security.AlgCiphering128NEA1, "NEA1"},
+		{"NEA2", security.AlgCiphering128NEA2, "NEA2"},
+		{"NEA3", security.AlgCiphering128NEA3, "NEA3"},
+		{"unknown", 0xFF, ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ue := &context.AmfUe{CipheringAlg: tc.alg}
+
+			snap := ue.Snapshot()
+			if snap.CipheringAlgorithm != tc.expected {
+				t.Fatalf("expected %q, got %q", tc.expected, snap.CipheringAlgorithm)
+			}
+		})
+	}
+}
+
+func TestSnapshotIntegrityAlgorithm(t *testing.T) {
+	tests := []struct {
+		name     string
+		alg      uint8
+		expected string
+	}{
+		{"NIA0", security.AlgIntegrity128NIA0, "NIA0"},
+		{"NIA1", security.AlgIntegrity128NIA1, "NIA1"},
+		{"NIA2", security.AlgIntegrity128NIA2, "NIA2"},
+		{"NIA3", security.AlgIntegrity128NIA3, "NIA3"},
+		{"unknown", 0xFF, ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ue := &context.AmfUe{IntegrityAlg: tc.alg}
+
+			snap := ue.Snapshot()
+			if snap.IntegrityAlgorithm != tc.expected {
+				t.Fatalf("expected %q, got %q", tc.expected, snap.IntegrityAlgorithm)
 			}
 		})
 	}

@@ -49,6 +49,21 @@ type RanUe struct {
 	Log                              *zap.Logger
 }
 
+// TouchLastSeen propagates a last-seen timestamp to the associated AmfUe.
+// Safe to call on nil receivers or when AmfUe/Radio is nil.
+func (ranUe *RanUe) TouchLastSeen() {
+	if ranUe == nil || ranUe.AmfUe == nil {
+		return
+	}
+
+	radioName := ""
+	if ranUe.Radio != nil {
+		radioName = ranUe.Radio.Name
+	}
+
+	ranUe.AmfUe.TouchLastSeen(radioName)
+}
+
 func (ranUe *RanUe) Remove() error {
 	if ranUe == nil {
 		return fmt.Errorf("ran ue is nil")

@@ -69,6 +69,8 @@ func HandleInitialContextSetupResponse(ctx context.Context, ran *amfContext.Radi
 		return
 	}
 
+	ranUe.TouchLastSeen()
+
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
 		ran.Log.Error("amfUe is nil")
