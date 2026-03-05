@@ -858,6 +858,7 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 	// Build a registration request with a ciphered NASMessageContainer
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
+
 	m, err := buildTestRegistrationRequestMessage(algo, &key, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
