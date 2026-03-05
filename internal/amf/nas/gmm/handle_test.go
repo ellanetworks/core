@@ -77,11 +77,19 @@ type NGUEContextReleaseCommand struct {
 	cause       aper.Enumerated
 }
 
+type NGPDUSessionResourceReleaseCommand struct {
+	AmfUeNGAPID int64
+	RanUeNGAPID int64
+	NasPdu      []byte
+	List        ngapType.PDUSessionResourceToReleaseListRelCmd
+}
+
 type FakeNGAPSender struct {
-	SentDownlinkNASTransport           []*NGDLNasTransport
-	SentPDUSessionResourceSetupRequest []*NGPDUSessionResourceSetupRequest
-	SentInitialContextSetupRequest     []*NGInitialContextSetupRequest
-	SentUEContextReleaseCommand        []*NGUEContextReleaseCommand
+	SentDownlinkNASTransport             []*NGDLNasTransport
+	SentPDUSessionResourceSetupRequest   []*NGPDUSessionResourceSetupRequest
+	SentInitialContextSetupRequest       []*NGInitialContextSetupRequest
+	SentUEContextReleaseCommand          []*NGUEContextReleaseCommand
+	SentPDUSessionResourceReleaseCommand []*NGPDUSessionResourceReleaseCommand
 }
 
 func (fng *FakeNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error {
@@ -157,6 +165,16 @@ func (fng *FakeNGAPSender) SendDownlinkNasTransport(ctx context.Context, amfUeNg
 }
 
 func (fng *FakeNGAPSender) SendPDUSessionResourceReleaseCommand(ctx context.Context, amfUENgapID int64, ranUENgapID int64, nasPdu []byte, pduSessionResourceReleasedList ngapType.PDUSessionResourceToReleaseListRelCmd) error {
+	fng.SentPDUSessionResourceReleaseCommand = append(
+		fng.SentPDUSessionResourceReleaseCommand,
+		&NGPDUSessionResourceReleaseCommand{
+			AmfUeNGAPID: amfUENgapID,
+			RanUeNGAPID: ranUENgapID,
+			NasPdu:      nasPdu,
+			List:        pduSessionResourceReleasedList,
+		},
+	)
+
 	return nil
 }
 
@@ -266,20 +284,91 @@ func mustSUPIFromPrefixed(s string) etsi.SUPI { //nolint:unparam
 	return supi
 }
 
+type SmfActivateSmContextCall struct {
+	SmContextRef string
+}
+
+type SmfReleaseSmContextCall struct {
+	SmContextRef string
+}
+
 type FakeSmf struct {
 	Error             error
 	ReleasedSmContext []string
+
+	// ActivateSmContext fields
+	ActivateSmContextResponse []byte
+	ActivateSmContextError    error
+	ActivateSmContextCalls    []SmfActivateSmContextCall
+
+	// ReleaseSmContext fields
+	ReleaseSmContextError error
+	ReleaseSmContextCalls []SmfReleaseSmContextCall
+
+	// UpdateSmContextN1Msg fields
+	UpdateN1MsgResponse *models.UpdateSmContextResponse
+	UpdateN1MsgError    error
+	UpdateN1MsgCalls    []SmfUpdateN1MsgCall
+
+	// CreateSmContext fields
+	CreateSmContextRef     string
+	CreateSmContextErrResp []byte
+	CreateSmContextError   error
+	CreateSmContextCalls   []SmfCreateSmContextCall
+
+	// UpdateSmContextCauseDuplicatePDUSessionID fields
+	DuplicatePDUResponse []byte
+	DuplicatePDUError    error
+	DuplicatePDUCalls    []SmfDuplicatePDUCall
+}
+
+type SmfUpdateN1MsgCall struct {
+	SmContextRef string
+	N1Msg        []byte
+}
+
+type SmfCreateSmContextCall struct {
+	Supi         etsi.SUPI
+	PduSessionID uint8
+	Dnn          string
+	Snssai       *models.Snssai
+	N1Msg        []byte
+}
+
+type SmfDuplicatePDUCall struct {
+	SmContextRef string
 }
 
 func (s *FakeSmf) ActivateSmContext(smContextRef string) ([]byte, error) {
+	s.ActivateSmContextCalls = append(s.ActivateSmContextCalls, SmfActivateSmContextCall{
+		SmContextRef: smContextRef,
+	})
+
+	if s.ActivateSmContextError != nil {
+		return nil, s.ActivateSmContextError
+	}
+
 	if s.Error != nil {
 		return nil, s.Error
 	}
 
-	return []byte{}, nil
+	resp := s.ActivateSmContextResponse
+	if resp == nil {
+		resp = []byte{}
+	}
+
+	return resp, nil
 }
 
 func (s *FakeSmf) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+	s.ReleaseSmContextCalls = append(s.ReleaseSmContextCalls, SmfReleaseSmContextCall{
+		SmContextRef: smContextRef,
+	})
+
+	if s.ReleaseSmContextError != nil {
+		return s.ReleaseSmContextError
+	}
+
 	if s.Error != nil {
 		return s.Error
 	}
@@ -295,6 +384,35 @@ func (s *FakeSmf) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, sm
 
 func (s *FakeSmf) UpdateSmContextHandoverFailed(smContextRef string, n2Data []byte) error {
 	return s.Error
+}
+
+func (s *FakeSmf) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error) {
+	s.UpdateN1MsgCalls = append(s.UpdateN1MsgCalls, SmfUpdateN1MsgCall{
+		SmContextRef: smContextRef,
+		N1Msg:        n1Msg,
+	})
+
+	return s.UpdateN1MsgResponse, s.UpdateN1MsgError
+}
+
+func (s *FakeSmf) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error) {
+	s.CreateSmContextCalls = append(s.CreateSmContextCalls, SmfCreateSmContextCall{
+		Supi:         supi,
+		PduSessionID: pduSessionID,
+		Dnn:          dnn,
+		Snssai:       snssai,
+		N1Msg:        n1Msg,
+	})
+
+	return s.CreateSmContextRef, s.CreateSmContextErrResp, s.CreateSmContextError
+}
+
+func (s *FakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error) {
+	s.DuplicatePDUCalls = append(s.DuplicatePDUCalls, SmfDuplicatePDUCall{
+		SmContextRef: smContextRef,
+	})
+
+	return s.DuplicatePDUResponse, s.DuplicatePDUError
 }
 
 func mustTestGuti(mcc string, mnc string, amfid string, tmsi uint32) etsi.GUTI {

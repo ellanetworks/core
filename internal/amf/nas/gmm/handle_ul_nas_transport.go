@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -19,12 +18,13 @@ import (
 
 func forward5GSMMessageToSMF(
 	ctx context.Context,
+	amf *amfContext.AMF,
 	ue *amfContext.AmfUe,
 	pduSessionID uint8,
 	smContextRef string,
 	smMessage []byte,
 ) error {
-	response, err := pdusession.UpdateSmContextN1Msg(ctx, smContextRef, smMessage)
+	response, err := amf.Smf.UpdateSmContextN1Msg(ctx, smContextRef, smMessage)
 	if err != nil {
 		return fmt.Errorf("couldn't send update sm context request: %s", err)
 	}
@@ -138,7 +138,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	if smContextExist {
 		// case i) Request type IE is either not included
 		if requestType == nil {
-			return forward5GSMMessageToSMF(ctx, ue, pduSessionID, smContext.Ref, smMessage)
+			return forward5GSMMessageToSMF(ctx, amf, ue, pduSessionID, smContext.Ref, smMessage)
 		}
 
 		switch requestType.GetRequestTypeValue() {
@@ -147,7 +147,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			// the SMF to perform a local release of the PDU session
 			ue.Log.Warn("Duplicated PDU session ID", zap.Uint8("pduSessionID", pduSessionID))
 
-			n2Rsp, err := pdusession.UpdateSmContextCauseDuplicatePDUSessionID(ctx, smContext.Ref)
+			n2Rsp, err := amf.Smf.UpdateSmContextCauseDuplicatePDUSessionID(ctx, smContext.Ref)
 			if err != nil {
 				return fmt.Errorf("couldn't send update sm context request for duplicate pdu session id: %s", err)
 			}
@@ -167,7 +167,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		// case ii) AMF has a PDU session routing context, and Request type is "existing PDU session"
 		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
 			if ue.IsAllowedNssai(smContext.Snssai) {
-				return forward5GSMMessageToSMF(ctx, ue, pduSessionID, smContext.Ref, smMessage)
+				return forward5GSMMessageToSMF(ctx, amf, ue, pduSessionID, smContext.Ref, smMessage)
 			}
 
 			ue.Log.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai), zap.Uint8("pduSessionID", pduSessionID))
@@ -181,7 +181,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		// other requestType: AMF forward the 5GSM message, and the PDU session ID IE towards the SMF identified
 		// by the SMF ID of the PDU session routing context
 		default:
-			return forward5GSMMessageToSMF(ctx, ue, pduSessionID, smContext.Ref, smMessage)
+			return forward5GSMMessageToSMF(ctx, amf, ue, pduSessionID, smContext.Ref, smMessage)
 		}
 	} else { // AMF does not have a PDU session routing context for the PDU session ID and the UE
 		switch requestType.GetRequestTypeValue() {
@@ -219,7 +219,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 				dnn = dnnResp
 			}
 
-			smContextRef, errResponse, err := pdusession.CreateSmContext(ctx, ue.Supi, pduSessionID, dnn, snssai, smMessage)
+			smContextRef, errResponse, err := amf.Smf.CreateSmContext(ctx, ue.Supi, pduSessionID, dnn, snssai, smMessage)
 			if err != nil {
 				ue.Log.Error("couldn't send create sm context request", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 			}

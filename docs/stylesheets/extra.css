@@ -26,3 +26,9 @@
 .alert-link {
     color: #fff !important;
 }
+
+/* Highlight active navigation item in bright blue */
+.md-nav__link--active {
+    color: #2979ff !important;
+    font-weight: 700;
+}
