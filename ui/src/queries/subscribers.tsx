@@ -27,7 +27,6 @@ export type ListSubscribersResponse = {
 export type SubscriberDetailStatus = {
   registered?: boolean;
   ipAddress?: string;
-  state?: string;
   imei?: string;
   cipheringAlgorithm?: string;
   integrityAlgorithm?: string;
