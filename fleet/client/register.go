@@ -156,9 +156,15 @@ type Radio struct {
 }
 
 type SubscriberStatus struct {
-	Imsi       string `json:"imsi"`
-	Registered bool   `json:"registered"`
-	IPAddress  string `json:"ip_address"`
+	Imsi               string `json:"imsi"`
+	Registered         bool   `json:"registered"`
+	IPAddress          string `json:"ip_address"`
+	State              string `json:"state"`
+	Imei               string `json:"imei,omitempty"`
+	CipheringAlgorithm string `json:"ciphering_algorithm,omitempty"`
+	IntegrityAlgorithm string `json:"integrity_algorithm,omitempty"`
+	LastSeenAt         string `json:"last_seen_at,omitempty"`
+	LastSeenRadio      string `json:"last_seen_radio,omitempty"`
 }
 
 type EllaCoreStatus struct {

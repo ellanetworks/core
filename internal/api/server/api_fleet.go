@@ -345,18 +345,34 @@ func getSubscribersStatus(ctx context.Context, dbInstance *db.Database) []client
 			ipAddress = *s.IPAddress
 		}
 
-		registered := false
+		status := client.SubscriberStatus{
+			Imsi:      s.Imsi,
+			IPAddress: ipAddress,
+			State:     "Deregistered",
+		}
 
 		supi, err := etsi.NewSUPIFromIMSI(s.Imsi)
 		if err == nil {
-			registered = amf.IsSubscriberRegistered(supi)
+			if snap, found := amf.GetUESnapshot(supi); found {
+				status.Registered = snap.State == amfContext.Registered
+				status.State = string(snap.State)
+				status.CipheringAlgorithm = snap.CipheringAlgorithm
+				status.IntegrityAlgorithm = snap.IntegrityAlgorithm
+				status.LastSeenRadio = snap.LastSeenRadio
+
+				if snap.Pei != "" {
+					if converted, convErr := etsi.IMEIFromPEI(snap.Pei); convErr == nil {
+						status.Imei = converted
+					}
+				}
+
+				if !snap.LastSeenAt.IsZero() {
+					status.LastSeenAt = snap.LastSeenAt.UTC().Format(time.RFC3339)
+				}
+			}
 		}
 
-		statuses = append(statuses, client.SubscriberStatus{
-			Imsi:       s.Imsi,
-			Registered: registered,
-			IPAddress:  ipAddress,
-		})
+		statuses = append(statuses, status)
 	}
 
 	return statuses
