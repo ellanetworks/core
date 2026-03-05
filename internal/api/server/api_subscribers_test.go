@@ -53,7 +53,6 @@ type ListSubscriber struct {
 type SubscriberDetailStatus struct {
 	Registered         bool   `json:"registered"`
 	IPAddress          string `json:"ipAddress"`
-	State              string `json:"state"`
 	Imei               string `json:"imei"`
 	CipheringAlgorithm string `json:"cipheringAlgorithm"`
 	IntegrityAlgorithm string `json:"integrityAlgorithm"`
@@ -385,8 +384,8 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
 		}
 
-		if response.Result.Status.State != "Deregistered" {
-			t.Fatalf("expected state 'Deregistered', got %s", response.Result.Status.State)
+		if response.Result.Status.Registered != false {
+			t.Fatalf("expected registered false, got %v", response.Result.Status.Registered)
 		}
 
 		if response.Result.Status.Imei != "" {
@@ -747,8 +746,8 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
 		}
 
-		if response.Result.Status.State != "Deregistered" {
-			t.Fatalf("expected state 'Deregistered', got %s", response.Result.Status.State)
+		if response.Result.Status.Registered != false {
+			t.Fatalf("expected registered false, got %v", response.Result.Status.Registered)
 		}
 
 		if response.Result.Status.CipheringAlgorithm != "" {

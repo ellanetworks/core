@@ -51,7 +51,6 @@ type ListSubscribersResponse struct {
 type SubscriberDetailStatus struct {
 	Registered         bool   `json:"registered"`
 	IPAddress          string `json:"ipAddress"`
-	State              string `json:"state"`
 	Imei               string `json:"imei"`
 	CipheringAlgorithm string `json:"cipheringAlgorithm"`
 	IntegrityAlgorithm string `json:"integrityAlgorithm"`
