@@ -159,7 +159,6 @@ type SubscriberStatus struct {
 	Imsi               string `json:"imsi"`
 	Registered         bool   `json:"registered"`
 	IPAddress          string `json:"ip_address"`
-	State              string `json:"state"`
 	Imei               string `json:"imei,omitempty"`
 	CipheringAlgorithm string `json:"ciphering_algorithm,omitempty"`
 	IntegrityAlgorithm string `json:"integrity_algorithm,omitempty"`

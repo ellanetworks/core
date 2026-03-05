@@ -348,14 +348,12 @@ func getSubscribersStatus(ctx context.Context, dbInstance *db.Database) []client
 		status := client.SubscriberStatus{
 			Imsi:      s.Imsi,
 			IPAddress: ipAddress,
-			State:     "Deregistered",
 		}
 
 		supi, err := etsi.NewSUPIFromIMSI(s.Imsi)
 		if err == nil {
 			if snap, found := amf.GetUESnapshot(supi); found {
 				status.Registered = snap.State == amfContext.Registered
-				status.State = string(snap.State)
 				status.CipheringAlgorithm = snap.CipheringAlgorithm
 				status.IntegrityAlgorithm = snap.IntegrityAlgorithm
 				status.LastSeenRadio = snap.LastSeenRadio
