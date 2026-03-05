@@ -24,6 +24,10 @@ func forward5GSMMessageToSMF(
 	smContextRef string,
 	smMessage []byte,
 ) error {
+	if ue.RanUe == nil {
+		return fmt.Errorf("RAN UE context is nil, cannot forward 5GSM message to SMF")
+	}
+
 	response, err := amf.Smf.UpdateSmContextN1Msg(ctx, smContextRef, smMessage)
 	if err != nil {
 		return fmt.Errorf("couldn't send update sm context request: %s", err)
