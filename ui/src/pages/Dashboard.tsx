@@ -3,7 +3,6 @@ import {
   Box,
   Typography,
   CircularProgress,
-  Alert,
   Button,
   Card,
   CardHeader,
@@ -295,7 +294,6 @@ const Dashboard = () => {
   const [fleetModalOpen, setFleetModalOpen] = useState(false);
   const [unregisterLoading, setUnregisterLoading] = useState(false);
   const [unregisterConfirmOpen, setUnregisterConfirmOpen] = useState(false);
-  const [unregisterError, setUnregisterError] = useState<string | null>(null);
 
   const statusQuery = useQuery<APIStatus>({
     queryKey: ["dashboardStatus"],
@@ -509,14 +507,14 @@ const Dashboard = () => {
           setUnregisterConfirmOpen(false);
           if (!accessToken) return;
           setUnregisterLoading(true);
-          setUnregisterError(null);
           try {
             await unregisterFleet(accessToken);
           } catch (e) {
-            setUnregisterError(
+            showSnackbar(
               e instanceof Error
                 ? e.message
                 : "Failed to unregister from Fleet.",
+              "error",
             );
           } finally {
             setUnregisterLoading(false);
@@ -524,11 +522,6 @@ const Dashboard = () => {
         }}
       />
 
-      {(error || unregisterError) && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error || unregisterError}
-        </Alert>
-      )}
       {/* ─── 1. Network Status ──────────────────────── */}
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
         Network Status
