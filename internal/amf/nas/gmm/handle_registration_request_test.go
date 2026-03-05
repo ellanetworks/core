@@ -817,6 +817,84 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	}
 }
 
+// TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer validates that
+// when MAC verification fails (no valid security context), the NASMessageContainer
+// decryption is skipped and the registration proceeds with cleartext IEs only,
+// triggering an authentication request instead of a decode error.
+func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testing.T) {
+	ctx := context.TODO()
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
+	amf := &amfContext.AMF{
+		DBInstance: &FakeDBInstance{
+			Operator: &db.Operator{
+				Mcc:           "001",
+				Mnc:           "01",
+				Sst:           1,
+				SupportedTACs: "[\"000001\"]",
+			},
+		},
+		Ausf: &FakeAusf{
+			AvKgAka: &models.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
+			Supi:  supi,
+			Kseaf: "testkey",
+		},
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
+	}
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.Supi = supi
+	// Simulate MAC verification failure (AMF has no valid security context)
+	ue.MacFailed = true
+	ue.SecurityContextAvailable = false
+
+	// Build a registration request with a ciphered NASMessageContainer
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+	algo := security.AlgCiphering128NEA2
+	m, err := buildTestRegistrationRequestMessage(algo, &key, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amf, ue, m)
+	if err != nil {
+		t.Fatalf("registration request with MAC failure should proceed with cleartext IEs, got: %v", err)
+	}
+
+	// Should have sent an authentication request (not a registration reject)
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message, got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+		t.Fatalf("expected a plain NAS message")
+	}
+
+	err = nm.PlainNasDecode(&resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not decode plain NAS message: %v", err)
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeAuthenticationRequest {
+		t.Fatalf("expected an authentication request (re-auth after MAC failure), got '%v'", nm.GmmHeader.GetMessageType())
+	}
+
+	if !ue.RetransmissionOfInitialNASMsg {
+		t.Fatalf("RetransmissionOfInitialNASMsg should be set when MAC failed with NASMessageContainer")
+	}
+}
+
 func buildTestRegistrationRequestMessage(cipherAlg uint8, key *[16]uint8, ulcount uint32) (*nas.GmmMessage, error) {
 	m := nas.NewGmmMessage()
 
