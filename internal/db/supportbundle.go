@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -75,17 +76,53 @@ func (db *Database) ExportSupportData(ctx context.Context) (map[string]any, erro
 		}
 	}
 
-	total, err := db.CountSubscribers(ctx)
-	if err != nil {
-		logger.DBLog.Warn("failed to count subscribers for support export", zap.Error(err))
+	// Include a list of subscribers (IMSI + assigned IP if any). Do not include
+	// secret fields such as PermanentKey or Opc.
+	subscribersList := []any{}
+
+	perPage := 1000
+
+	page := 1
+	for {
+		subs, total, err := db.ListSubscribersPage(ctx, page, perPage)
+		if err != nil {
+			logger.DBLog.Warn("failed to list subscribers for support export", zap.Error(err))
+			break
+		}
+
+		for _, s := range subs {
+			entry := map[string]any{"imsi": s.Imsi}
+			if s.IPAddress != nil && strings.TrimSpace(*s.IPAddress) != "" {
+				entry["ip_address"] = *s.IPAddress
+			}
+
+			subscribersList = append(subscribersList, entry)
+		}
+
+		// If we've collected all subscribers, stop paging.
+		if len(subs) == 0 || page*perPage >= total {
+			break
+		}
+
+		page++
 	}
 
-	withIP, err := db.CountSubscribersWithIP(ctx)
-	if err != nil {
-		logger.DBLog.Warn("failed to count subscribers with IP for support export", zap.Error(err))
-	}
+	out["subscribers"] = subscribersList
 
-	out["subscribers_summary"] = map[string]any{"total": total, "with_ip": withIP}
+	// Include the last 100 radio logs (if any). Use the existing DB helper to
+	// fetch the most recent entries; convert to a JSON-friendly []any using
+	// toAnySlice so the support bundle contains structured entries.
+	if logs, _, err := db.ListRadioEvents(ctx, 1, 100, nil); err != nil {
+		logger.DBLog.Warn("failed to list radio logs for support export", zap.Error(err))
+	} else {
+		if lAny, err := toAnySlice(logs); err != nil {
+			logger.DBLog.Warn("failed to convert radio logs for support export", zap.Error(err))
+
+			out["radio_logs"] = logs
+		} else {
+			out["radio_logs"] = lAny
+		}
+	}
 
 	duration := time.Since(start)
 	if DBQueryDuration != nil {

@@ -16,7 +16,6 @@ import Profile from "./pages/Profile";
 import AuditLogs from "./pages/AuditLogs";
 import BackupRestore from "./pages/BackupRestore";
 import Traffic from "./pages/Traffic";
-import SupportBundle from "./pages/SupportBundle";
 
 export default function AppRouter() {
   return (
@@ -40,7 +39,6 @@ export default function AppRouter() {
         <Route path="profile" element={<Profile />} />
         <Route path="audit-logs" element={<AuditLogs />} />
         <Route path="backup-restore" element={<BackupRestore />} />
-        <Route path="support-bundle" element={<SupportBundle />} />
         <Route path="traffic/usage" element={<Traffic />} />
         <Route path="traffic/flows" element={<Traffic />} />
         <Route

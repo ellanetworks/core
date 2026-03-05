@@ -14,11 +14,11 @@ import (
 func TestGenerateSupportBundleFromData(t *testing.T) {
 	captured := time.Now().UTC().Format(time.RFC3339)
 	data := map[string]any{
-		"bundle_metadata":     map[string]any{"version": "1.0", "captured_at": captured},
-		"operator":            map[string]any{"operatorCode": "*", "homeNetworkPrivateKey": "*"},
-		"policies":            []any{map[string]any{"name": "p1"}},
-		"networking":          []any{map[string]any{"name": "net1"}},
-		"subscribers_summary": map[string]any{"total": 1, "with_ip": 1},
+		"bundle_metadata": map[string]any{"version": "1.0", "captured_at": captured},
+		"operator":        map[string]any{"operatorCode": "*", "homeNetworkPrivateKey": "*"},
+		"policies":        []any{map[string]any{"name": "p1"}},
+		"networking":      []any{map[string]any{"name": "net1"}},
+		"subscribers":     []any{map[string]any{"imsi": "001010000000001", "ip_address": "10.0.0.1"}},
 	}
 
 	var buf bytes.Buffer
@@ -80,11 +80,15 @@ func TestGenerateSupportBundleFromData(t *testing.T) {
 			t.Fatalf("db.json missing networking")
 		}
 
-		if ss, ok := got["subscribers_summary"].(map[string]any); !ok {
-			t.Fatalf("db.json subscribers_summary missing or wrong type")
+		if subsAny, ok := got["subscribers"].([]any); !ok {
+			t.Fatalf("db.json subscribers missing or wrong type")
+		} else if len(subsAny) != 1 {
+			t.Fatalf("unexpected subscribers length: %d", len(subsAny))
 		} else {
-			if total, ok := ss["total"].(float64); !ok || int(total) != 1 {
-				t.Fatalf("unexpected subscribers_summary.total: %#v", ss["total"])
+			if first, ok := subsAny[0].(map[string]any); !ok {
+				t.Fatalf("subscriber entry wrong type: %T", subsAny[0])
+			} else if imsi, ok := first["imsi"].(string); !ok || imsi != "001010000000001" {
+				t.Fatalf("unexpected subscriber imsi: %#v", first["imsi"])
 			}
 		}
 

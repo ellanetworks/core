@@ -2,6 +2,7 @@ package db_test
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -72,22 +73,13 @@ func TestExportSupportData_Default(t *testing.T) {
 		t.Fatalf("expected at least one data network in export")
 	}
 
-	// subscribers summary
-	ss, ok := out["subscribers_summary"].(map[string]any)
+	// subscribers list
+	subsAny, ok := out["subscribers"].([]any)
 	if !ok {
-		t.Fatalf("subscribers_summary missing or wrong type")
+		t.Fatalf("subscribers missing or wrong type: %T", out["subscribers"])
 	}
-	// totals may be numeric (float64 after JSON roundtrip)
-	switch v := ss["total"].(type) {
-	case int:
-		// ok
-		_ = v
-	case float64:
-		// ok
-		_ = v
-	default:
-		t.Fatalf("subscribers_summary.total missing or wrong type: %T", ss["total"])
-	}
+
+	_ = subsAny
 }
 
 func TestExportSupportData_WithEntries(t *testing.T) {
@@ -183,22 +175,13 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 		t.Fatalf("ExportSupportData failed: %v", err)
 	}
 
-	ss, ok := out["subscribers_summary"].(map[string]any)
+	subsAny, ok := out["subscribers"].([]any)
 	if !ok {
-		t.Fatalf("subscribers_summary missing or wrong type")
+		t.Fatalf("subscribers missing or wrong type: %T", out["subscribers"])
 	}
-	// totals may be numeric (float64 after redaction), accept int or float64
-	switch v := ss["total"].(type) {
-	case int:
-		if v != 1 {
-			t.Fatalf("expected total subscribers 1, got %d", v)
-		}
-	case float64:
-		if int(v) != 1 {
-			t.Fatalf("expected total subscribers 1, got %v", v)
-		}
-	default:
-		t.Fatalf("subscribers_summary.total wrong type: %T", ss["total"])
+
+	if len(subsAny) != 1 {
+		t.Fatalf("expected 1 subscriber, got %d", len(subsAny))
 	}
 
 	// operator's home network private key and operator code should be redacted
@@ -307,5 +290,159 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 
 	if !foundNet {
 		t.Fatalf("created data network not found in export")
+	}
+}
+
+func TestExportSupportData_IncludesRadioLogs(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	// insert a radio event
+	re := &dbwriter.RadioEvent{
+		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		Protocol:      "NGAP",
+		MessageType:   "InitialUEMessage",
+		Direction:     "inbound",
+		LocalAddress:  "10.0.0.1:38412",
+		RemoteAddress: "192.0.2.1:38412",
+		Raw:           []byte("raw-bytes"),
+		Details:       "test-details",
+	}
+
+	if err := database.InsertRadioEvent(context.Background(), re); err != nil {
+		t.Fatalf("InsertRadioEvent failed: %v", err)
+	}
+
+	out, err := database.ExportSupportData(context.Background())
+	if err != nil {
+		t.Fatalf("ExportSupportData failed: %v", err)
+	}
+
+	logsAny, ok := out["radio_logs"]
+	if !ok {
+		t.Fatalf("radio_logs missing from export")
+	}
+
+	logsSlice, ok := logsAny.([]any)
+	if !ok {
+		t.Fatalf("radio_logs wrong type: %T", logsAny)
+	}
+
+	if len(logsSlice) == 0 {
+		t.Fatalf("expected at least one radio log in export")
+	}
+
+	// inspect first entry for expected fields (accept either lower or uppercased keys)
+	first, ok := logsSlice[0].(map[string]any)
+	if !ok {
+		t.Fatalf("radio_log entry wrong type: %T", logsSlice[0])
+	}
+
+	var proto string
+	if v, ok := first["protocol"].(string); ok {
+		proto = v
+	} else if v, ok := first["Protocol"].(string); ok {
+		proto = v
+	}
+
+	if proto != "NGAP" {
+		t.Fatalf("unexpected protocol in radio log: %v", proto)
+	}
+}
+
+func TestExportSupportData_RadioLogsLimit(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	// insert 150 radio events; ExportSupportData should include only the last 100
+	total := 150
+	for i := 1; i <= total; i++ {
+		re := &dbwriter.RadioEvent{
+			Timestamp:     time.Now().UTC().Add(time.Duration(i) * time.Second).Format(time.RFC3339),
+			Protocol:      "NGAP",
+			MessageType:   fmt.Sprintf("msg-%d", i),
+			Direction:     "inbound",
+			LocalAddress:  "10.0.0.1:38412",
+			RemoteAddress: "192.0.2.1:38412",
+			Raw:           []byte("raw-bytes"),
+			Details:       "test-details",
+		}
+
+		if err := database.InsertRadioEvent(context.Background(), re); err != nil {
+			t.Fatalf("InsertRadioEvent failed at %d: %v", i, err)
+		}
+	}
+
+	out, err := database.ExportSupportData(context.Background())
+	if err != nil {
+		t.Fatalf("ExportSupportData failed: %v", err)
+	}
+
+	logsAny, ok := out["radio_logs"]
+	if !ok {
+		t.Fatalf("radio_logs missing from export")
+	}
+
+	logsSlice, ok := logsAny.([]any)
+	if !ok {
+		t.Fatalf("radio_logs wrong type: %T", logsAny)
+	}
+
+	if len(logsSlice) != 100 {
+		t.Fatalf("expected 100 radio logs in export, got %d", len(logsSlice))
+	}
+
+	// first should be the most recent (msg-150)
+	first, ok := logsSlice[0].(map[string]any)
+	if !ok {
+		t.Fatalf("radio_log entry wrong type: %T", logsSlice[0])
+	}
+
+	var firstMsg string
+	if v, ok := first["message_type"].(string); ok {
+		firstMsg = v
+	} else if v, ok := first["MessageType"].(string); ok {
+		firstMsg = v
+	}
+
+	if firstMsg != fmt.Sprintf("msg-%d", total) {
+		t.Fatalf("unexpected first radio log message: %v", firstMsg)
+	}
+
+	// last element (index 99) should be msg-51 (the 100th most recent)
+	last, ok := logsSlice[99].(map[string]any)
+	if !ok {
+		t.Fatalf("radio_log entry wrong type: %T", logsSlice[99])
+	}
+
+	var lastMsg string
+	if v, ok := last["message_type"].(string); ok {
+		lastMsg = v
+	} else if v, ok := last["MessageType"].(string); ok {
+		lastMsg = v
+	}
+
+	if lastMsg != fmt.Sprintf("msg-%d", total-99) {
+		t.Fatalf("unexpected last radio log message: %v", lastMsg)
 	}
 }
