@@ -393,7 +393,7 @@ export default function DrawerLayout({
                   <ListItemIcon>
                     <SupportIcon color="primary" />
                   </ListItemIcon>
-                  <ListItemText primary="Support bundle" />
+                  <ListItemText primary="Support Bundle" />
                 </ListItemButton>
               </ListItem>
             )}
