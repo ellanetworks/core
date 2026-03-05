@@ -194,7 +194,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "100 * (\n  sum(rate(app_registration_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"accept\"}[$__rate_interval]))\n  /\n  sum(rate(app_registration_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]))\n)\nand\nsum(rate(app_registration_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])) > 0",
+          "expr": "(\n  100 * (\n    sum(rate(app_registration_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"accept\"}[$__rate_interval]))\n    /\n    sum(rate(app_registration_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]))\n  )\n  and\n  sum(rate(app_registration_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])) > 0\n)\nor vector(100)",
           "interval": "1m",
           "legendFormat": "__auto",
           "range": true,
@@ -269,7 +269,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "100 * (\n  sum(rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"accept\"}[$__rate_interval]))\n  /\n  sum(rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]))\n)\nand\nsum(rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])) > 0",
+          "expr": "(\n  100 * (\n    sum(rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"accept\"}[$__rate_interval]))\n    /\n    sum(rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]))\n  )\n  and\n  sum(rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])) > 0\n)\nor vector(100)",
           "interval": "1m",
           "legendFormat": "__auto",
           "range": true,
