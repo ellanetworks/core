@@ -70,6 +70,7 @@ func HandleHandoverCancel(ctx context.Context, ran *amfContext.Radio, msg *ngapT
 	}
 
 	ran.Log.Debug("Handle Handover Cancel", zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID))
+	sourceUe.TouchLastSeen()
 
 	causePresent := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem

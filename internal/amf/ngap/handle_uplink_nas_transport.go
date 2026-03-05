@@ -59,6 +59,7 @@ func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amf
 	}
 
 	ranUe.Radio = ran
+	ranUe.TouchLastSeen()
 
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {

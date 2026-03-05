@@ -74,6 +74,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 	}
 
 	ranUe.Radio = ran
+	ranUe.TouchLastSeen()
 	ranUe.Log.Debug("Handle Path Switch Request", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 	amfUe := ranUe.AmfUe

@@ -57,6 +57,8 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amf *amfContex
 		ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 	}
 
+	ranUe.TouchLastSeen()
+
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
 		ranUe.Log.Error("amfUe is nil")

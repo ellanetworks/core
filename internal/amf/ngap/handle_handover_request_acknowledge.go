@@ -75,6 +75,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amf *amfContext.AMF, 
 	}
 
 	targetUe.Radio = ran
+	targetUe.TouchLastSeen()
 	ran.Log.Debug("Handle Handover Request Acknowledge", zap.Any("RanUeNgapID", targetUe.RanUeNgapID), zap.Any("AmfUeNgapID", targetUe.AmfUeNgapID))
 
 	amfUe := targetUe.AmfUe

@@ -59,6 +59,7 @@ func HandleUERadioCapabilityInfoIndication(ran *context.Radio, msg *ngapType.UER
 	}
 
 	ran.Log.Debug("Handle UE Radio Capability Info Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
+	ranUe.TouchLastSeen()
 	amfUe := ranUe.AmfUe
 
 	if amfUe == nil {

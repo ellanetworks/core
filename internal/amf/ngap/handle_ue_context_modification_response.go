@@ -58,6 +58,7 @@ func HandleUEContextModificationResponse(ctx context.Context, amf *amfContext.AM
 
 	if ranUe != nil {
 		ranUe.Radio = ran
+		ranUe.TouchLastSeen()
 		ranUe.Log.Debug("Handle UE Context Modification Response", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 		if rRCState != nil {

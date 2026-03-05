@@ -55,6 +55,8 @@ func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.Radio
 		return
 	}
 
+	ranUe.TouchLastSeen()
+
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
 		ran.Log.Error("amfUe is nil")

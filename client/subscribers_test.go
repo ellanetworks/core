@@ -68,7 +68,7 @@ func TestGetSubscriber_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"imsi": "001010100000022", "policyName": "default"}`),
+			Result:     []byte(`{"imsi": "001010100000022", "policyName": "default", "status": {"registered": false, "ipAddress": "", "state": "Deregistered", "imei": "", "cipheringAlgorithm": "", "integrityAlgorithm": ""}}`),
 		},
 		err: nil,
 	}
@@ -90,6 +90,18 @@ func TestGetSubscriber_Success(t *testing.T) {
 
 	if subscriber.Imsi != imsi {
 		t.Fatalf("expected IMSI %s, got %s", imsi, subscriber.Imsi)
+	}
+
+	if subscriber.Status.State != "Deregistered" {
+		t.Fatalf("expected State 'Deregistered', got %s", subscriber.Status.State)
+	}
+
+	if subscriber.Status.CipheringAlgorithm != "" {
+		t.Fatalf("expected empty CipheringAlgorithm, got %s", subscriber.Status.CipheringAlgorithm)
+	}
+
+	if subscriber.Status.IntegrityAlgorithm != "" {
+		t.Fatalf("expected empty IntegrityAlgorithm, got %s", subscriber.Status.IntegrityAlgorithm)
 	}
 }
 

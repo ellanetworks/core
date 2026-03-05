@@ -59,6 +59,7 @@ func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 	}
 
 	ranUe.UpdateLocation(ctx, amf, userLocationInformation)
+	ranUe.TouchLastSeen()
 
 	// ranUe.Log.Debugf("Report Area[%d]", locationReportingRequestType.ReportArea.Value)
 	ranUe.Log.Debug("Handle Location Report", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Any("ReportArea", locationReportingRequestType.ReportArea))
