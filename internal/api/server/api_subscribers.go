@@ -59,7 +59,6 @@ type ListSubscribersResponse struct {
 type SubscriberDetailStatus struct {
 	Registered         bool   `json:"registered"`
 	IPAddress          string `json:"ipAddress"`
-	State              string `json:"state"`
 	Imei               string `json:"imei"`
 	CipheringAlgorithm string `json:"cipheringAlgorithm"`
 	IntegrityAlgorithm string `json:"integrityAlgorithm"`
@@ -254,12 +253,10 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 		subscriberStatus := SubscriberDetailStatus{
 			Registered: false,
 			IPAddress:  ipAddress,
-			State:      "Deregistered",
 		}
 
 		if found {
 			subscriberStatus.Registered = snap.State == amfContext.Registered
-			subscriberStatus.State = string(snap.State)
 			subscriberStatus.CipheringAlgorithm = snap.CipheringAlgorithm
 			subscriberStatus.IntegrityAlgorithm = snap.IntegrityAlgorithm
 			subscriberStatus.LastSeenRadio = snap.LastSeenRadio

@@ -104,14 +104,13 @@ const AlgorithmChip: React.FC<{
   );
 };
 
-const StateChip: React.FC<{ state?: string }> = ({ state }) => {
-  if (!state) return <Typography variant="body2">—</Typography>;
-  const isRegistered = state === "Registered";
+const StateChip: React.FC<{ registered?: boolean }> = ({ registered }) => {
+  const label = registered ? "Registered" : "Deregistered";
   return (
     <Chip
       size="small"
-      label={state}
-      color={isRegistered ? "success" : "default"}
+      label={label}
+      color={registered ? "success" : "default"}
       variant="filled"
     />
   );
@@ -167,7 +166,10 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
         <Typography variant="h6" sx={{ mb: 1.5 }}>
           Connection
         </Typography>
-        <InfoRow label="State" value={<StateChip state={status.state} />} />
+        <InfoRow
+          label="State"
+          value={<StateChip registered={status.registered} />}
+        />
         <InfoRow label="IP Address" value={<IpChip ip={status.ipAddress} />} />
         <InfoRow label="IMEI" value={status.imei} />
         <InfoRow
