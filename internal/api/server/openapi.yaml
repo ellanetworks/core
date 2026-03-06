@@ -56,7 +56,7 @@ tags:
   - name: Users
     description: Manage user accounts and API tokens.
   - name: Subscribers
-    description: Provision and manage 5G SIM card subscribers on the network.
+    description: Provision and manage 5G subscribers on the network.
   - name: Subscriber Usage
     description: Monitor and manage subscriber data usage records.
   - name: Policies
@@ -456,7 +456,7 @@ paths:
       tags: [Subscribers]
       summary: List subscribers
       description: |
-        Returns a paginated list of all provisioned SIM card subscribers.
+        Returns a paginated list of all provisioned 5G subscribers.
         Each entry includes the IMSI, assigned QoS policy, and connection status
         (whether the device is currently registered on the network and its IP address).
       parameters:
@@ -476,7 +476,7 @@ paths:
       tags: [Subscribers]
       summary: Provision a subscriber
       description: |
-        Registers a new SIM card on the network. Requires the IMSI, permanent key (K),
+        Registers a new 5G subscriber on the network. Requires the IMSI, permanent key (K),
         sequence number, and an existing QoS policy name. Optionally provide the OPc
         value — if omitted, it is derived from the operator code.
         Maximum 1000 subscribers.
@@ -546,7 +546,7 @@ paths:
       operationId: deleteSubscriber
       tags: [Subscribers]
       summary: Delete a subscriber
-      description: Deregisters the SIM card from the network and removes it from the database. If the device is currently connected, its session is terminated.
+      description: Deregisters the 5G subscriber from the network and removes it from the database. If the device is currently connected, its session is terminated.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       responses:
