@@ -25,6 +25,9 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	// Status (Unauthenticated)
 	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance).ServeHTTP)
 
+	// OpenAPI Specification (Unauthenticated)
+	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
+
 	// Metrics (Unauthenticated)
 	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
 
