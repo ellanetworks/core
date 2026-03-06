@@ -81,3 +81,4 @@ To iterate all items, increment `page` until `page * per_page >= total_count`.
 - 5QI valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80
 - ARP range: 1-15
 - Policy, data network, and subscriber names/IMSIs must be unique
+- Usage endpoints return byte counts as raw integers. When presenting data volumes to users, convert to binary units: divide by 1,048,576 for MiB or 1,073,741,824 for GiB. Always display values rounded to one decimal place with the unit suffix (e.g. "46.2 MiB", "1.3 GiB"). Verify that uplink + downlink = total before presenting.
