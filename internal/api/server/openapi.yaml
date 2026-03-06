@@ -4,7 +4,7 @@ info:
   description: |
     RESTful API for managing a 5G private mobile network powered by Ella Core.
 
-    Manage subscribers (SIM cards), QoS policies, data networks, network routes,
+    Manage subscribers, QoS policies, data networks, network routes,
     operator configuration, radios, and observability data.
 
     ## Authentication
