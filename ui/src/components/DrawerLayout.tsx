@@ -38,6 +38,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import Logo from "@/components/Logo";
 import SupportModal from "@/components/SupportModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
@@ -78,6 +79,7 @@ export default function DrawerLayout({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const { role, setAuthData } = useAuth();
+  const { isFleetManaged } = useFleet();
 
   const [supportOpen, setSupportOpen] = useState(false);
 
@@ -133,11 +135,19 @@ export default function DrawerLayout({
             Ella Core
           </Typography>
 
-          <Chip
-            label="free"
-            variant="filled"
-            sx={{ ml: 2, color: "text.primary", backgroundColor: "#F5F5F5" }}
-          />
+          {isFleetManaged ? (
+            <Chip
+              label="Fleet managed"
+              variant="filled"
+              sx={{ ml: 2, color: "text.primary", backgroundColor: "#FFD21F" }}
+            />
+          ) : (
+            <Chip
+              label="Free"
+              variant="filled"
+              sx={{ ml: 2, color: "text.primary", backgroundColor: "#F5F5F5" }}
+            />
+          )}
 
           <Box sx={{ flexGrow: 1 }} />
 

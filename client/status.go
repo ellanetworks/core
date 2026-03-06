@@ -2,9 +2,15 @@ package client
 
 import "context"
 
+type FleetStatus struct {
+	Managed    bool   `json:"managed"`
+	LastSyncAt string `json:"lastSyncAt,omitempty"`
+}
+
 type Status struct {
-	Version     string `json:"version"`
-	Initialized bool   `json:"initialized"`
+	Version     string      `json:"version"`
+	Initialized bool        `json:"initialized"`
+	Fleet       FleetStatus `json:"fleet"`
 }
 
 // GetStatus retrieves the current status of the system.

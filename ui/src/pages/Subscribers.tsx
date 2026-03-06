@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Box, Typography, Button, CircularProgress, Chip } from "@mui/material";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import {
   DataGrid,
   GridColDef,
@@ -17,14 +18,18 @@ import {
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { useQuery } from "@tanstack/react-query";
 
 const MAX_WIDTH = 1400;
 
 const SubscriberPage: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
+  const { isFleetManaged } = useFleet();
   const theme = useTheme();
-  const canEdit = role === "Admin" || role === "Network Manager";
+  const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
+  const canEdit =
+    (role === "Admin" || role === "Network Manager") && !isFleetManaged;
   const navigate = useNavigate();
 
   const gridTheme = useMemo(
