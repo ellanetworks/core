@@ -20,6 +20,7 @@ var PermissionsByRole = map[RoleID][]string{
 
 	RoleReadOnly: {
 		PermReadMyUser, PermUpdateMyUserPassword,
+		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
 		PermReadOperator, PermGetOperatorSlice, PermGetOperatorTracking,
 		PermListSubscribers, PermReadSubscriber,
 		PermListDataNetworks, PermReadDataNetwork,
@@ -35,6 +36,7 @@ var PermissionsByRole = map[RoleID][]string{
 
 	RoleNetworkManager: {
 		PermReadUser, PermReadMyUser, PermUpdateMyUserPassword,
+		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
 		PermReadOperator, PermUpdateOperatorSlice, PermGetOperatorSlice, PermUpdateOperatorTracking, PermGetOperatorTracking,
 		PermListDataNetworks, PermCreateDataNetwork, PermUpdateDataNetwork, PermReadDataNetwork, PermDeleteDataNetwork,
 		PermListSubscribers, PermCreateSubscriber, PermUpdateSubscriber, PermReadSubscriber, PermDeleteSubscriber,
