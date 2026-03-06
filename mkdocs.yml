@@ -66,6 +66,7 @@ nav:
     - Tune Network Performance: how_to/performance_tuning.md
     - Co-host with OCUDU: how_to/co_host_with_ocudu.md
     - Exchange routes through BGP: how_to/bgp.md
+    - Manage Your Network with AI Agents: how_to/ai_agents.md
   - Reference:
     - reference/index.md
     - API:
