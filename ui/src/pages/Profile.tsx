@@ -75,11 +75,21 @@ export default function Profile() {
   };
 
   const copyToken = async () => {
+    if (!navigator.clipboard) {
+      showSnackbar(
+        "Clipboard API not available. Please use HTTPS or try a different browser.",
+        "error",
+      );
+      return;
+    }
     try {
       await navigator.clipboard.writeText(justCreatedToken ?? "");
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch {}
+      showSnackbar("Copied to clipboard.", "success");
+    } catch {
+      showSnackbar("Failed to copy API token.", "error");
+    }
   };
 
   const { showSnackbar } = useSnackbar();
