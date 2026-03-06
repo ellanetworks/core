@@ -4,7 +4,7 @@ description: How to use AI coding agents to interact with Ella Core.
 
 # Manage Your Network with AI Agents
 
-Ella Core ships with an [Agent Skill](https://agentskills.io/) that teaches AI agents how to interact with Ella Core through its REST API using its OpenAPI specification. This lets you manage your 5G network using natural language.
+Ella Core ships with an [Agent Skill](https://agentskills.io/) that lets AI agents manage your 5G network using natural language. The skill provides the OpenAPI specification so agents can discover and call the REST API on your behalf.
 
 ## Prerequisites
 

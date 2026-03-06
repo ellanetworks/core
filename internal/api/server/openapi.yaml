@@ -2190,10 +2190,12 @@ components:
       type: object
       properties:
         result:
-          type: object
-          description: "Map of date strings or IMSI strings to usage objects, depending on group_by."
-          additionalProperties:
-            $ref: "#/components/schemas/SubscriberUsage"
+          type: array
+          description: "Array of single-key objects. Each key is a date (YYYY-MM-DD) when group_by=day, or an IMSI string when group_by=subscriber. The value is a usage summary."
+          items:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/SubscriberUsage"
 
     # ── Policies ────────────────────────────────────────────────────────
     Policy:
@@ -2798,7 +2800,43 @@ components:
           description: Base64-encoded raw NGAP message bytes.
         decoded:
           type: object
-          description: Decoded NGAP message structure.
+          description: Decoded NGAP message structure. The shape depends on the NGAP PDU type.
+          properties:
+            pdu_type:
+              type: string
+              description: "NGAP PDU type (e.g. InitiatingMessage, SuccessfulOutcome, UnsuccessfulOutcome)."
+            procedure_code:
+              type: object
+              description: "NGAP procedure code."
+              properties:
+                type:
+                  type: string
+                value:
+                  type: integer
+                label:
+                  type: string
+                unknown:
+                  type: boolean
+            message_type:
+              type: string
+              description: "NGAP message type name (e.g. InitialContextSetupResponse)."
+            criticality:
+              type: object
+              description: "NGAP criticality."
+              properties:
+                type:
+                  type: string
+                value:
+                  type: integer
+                label:
+                  type: string
+                unknown:
+                  type: boolean
+            value:
+              type: object
+              description: "Decoded NGAP message payload. Structure varies by message type."
+              additionalProperties: true
+          additionalProperties: true
 
     RadioEventDetailResponseEnvelope:
       type: object
