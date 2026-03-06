@@ -98,14 +98,15 @@ const renderSubscriberLink = (params: { value?: unknown }) => {
     >
       <Link
         to={`/subscribers/${imsi}`}
-        style={{ color: "inherit", textDecoration: "none" }}
+        style={{ textDecoration: "none" }}
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
         <Typography
           variant="body2"
           sx={{
             fontFamily: "monospace",
-            color: "primary.main",
+            color: "#4254FB",
+            textDecoration: "underline",
             "&:hover": { textDecoration: "underline" },
           }}
         >

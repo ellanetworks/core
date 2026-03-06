@@ -193,8 +193,8 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
                       component={RouterLink}
                       to="/radios"
                       sx={{
-                        color: "primary.main",
-                        textDecoration: "none",
+                        color: "#4254FB",
+                        textDecoration: "underline",
                         "&:hover": { textDecoration: "underline" },
                       }}
                     >

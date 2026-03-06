@@ -231,6 +231,11 @@ const SubscriberDetail: React.FC = () => {
                 component={RouterLink}
                 to={`/traffic/usage?subscriber_id=${subscriber.imsi}`}
                 size="small"
+                sx={{
+                  color: "#4254FB",
+                  textDecoration: "underline",
+                  "&:hover": { textDecoration: "underline" },
+                }}
               >
                 View traffic for {subscriber.imsi} →
               </Button>
