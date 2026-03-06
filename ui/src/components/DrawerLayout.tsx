@@ -32,9 +32,11 @@ import {
   Person as PersonIcon,
   Storage as StorageIcon,
   Lan as LanIcon,
+  HelpCenter as SupportIcon,
 } from "@mui/icons-material";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Logo from "@/components/Logo";
+import SupportModal from "@/components/SupportModal";
 import { useAuth } from "@/contexts/AuthContext";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
@@ -76,6 +78,11 @@ export default function DrawerLayout({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const { role, setAuthData } = useAuth();
+
+  const [supportOpen, setSupportOpen] = useState(false);
+
+  const openSupport = () => setSupportOpen(true);
+  const closeSupport = () => setSupportOpen(false);
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
@@ -346,6 +353,7 @@ export default function DrawerLayout({
         <Divider />
         <Box>
           <List>
+            <ListSubheader>Support</ListSubheader>
             <ListItem disablePadding>
               <ListItemButton
                 component="a"
@@ -374,8 +382,24 @@ export default function DrawerLayout({
                 <ListItemText primary="Report a bug" />
               </ListItemButton>
             </ListItem>
+            {role === "Admin" && (
+              <ListItem disablePadding>
+                <ListItemButton
+                  onClick={() => {
+                    setSupportOpen(true);
+                    handleNavClick();
+                  }}
+                >
+                  <ListItemIcon>
+                    <SupportIcon color="primary" />
+                  </ListItemIcon>
+                  <ListItemText primary="Support Bundle" />
+                </ListItemButton>
+              </ListItem>
+            )}
           </List>
         </Box>
+        <SupportModal open={supportOpen} onClose={closeSupport} />
       </Drawer>
       <Box
         component="main"

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -21,6 +22,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	smf_pfcp "github.com/ellanetworks/core/internal/smf/pfcp"
+	"github.com/ellanetworks/core/internal/supportbundle"
 	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/internal/upf"
 	upf_pfcp "github.com/ellanetworks/core/internal/upf/core"
@@ -84,6 +86,14 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	bufferedWriter := dbwriter.NewBufferedDBWriter(dbInstance, 1000, logger.NetworkLog)
 	logger.SetDb(bufferedWriter)
+
+	// Provide the runtime config file contents to the supportbundle generator
+	// so support bundles include the exact YAML used at startup. This is safe
+	// because main controls what is exposed via the provider; here we simply
+	// read the file from the configured path.
+	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
+		return os.ReadFile(rc.ConfigPath)
+	}
 
 	jobs.StartDataRetentionWorker(dbInstance)
 

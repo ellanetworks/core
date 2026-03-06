@@ -52,3 +52,17 @@ body:
       label: Relevant log output
       description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
       render: shell
+  - type: markdown
+    attributes:
+      value: >
+        Optional: Support bundle
+
+        If available, please attach a support bundle generated using Ella Core's built-in "Export Support Bundle" feature in the UI. The bundle contains application-collected diagnostic and configuration data intended to help maintainers reproduce and diagnose issues. Providing a bundle is optional.
+
+        Note: Attachments inherit the repository visibility. Do not include secrets or other sensitive personal data in a bundle attached to a public repository. If your bundle contains sensitive information, share it with maintainers through a private channel instead of uploading it here.
+  - type: input
+    id: support_bundle
+    attributes:
+      label: Support bundle filename or link
+      description: >
+        If you attached the bundle directly to this issue, enter the filename (for example `support-bundle.tar.gz`). Or paste a link to a private share (presigned S3 URL, private drive link, etc.). Leave blank if not applicable.
