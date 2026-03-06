@@ -52,6 +52,16 @@ func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 		}
 	}
 
+	if rANUENGAPID == nil {
+		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in LocationReport")
+		return
+	}
+
+	if locationReportingRequestType == nil {
+		ran.Log.Error("LocationReportingRequestType IE (mandatory) is missing in LocationReport")
+		return
+	}
+
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))

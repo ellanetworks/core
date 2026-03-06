@@ -58,6 +58,11 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 		return
 	}
 
+	if rANUENGAPID == nil {
+		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in PathSwitchRequest")
+		return
+	}
+
 	ranUe := amf.FindRanUeByAmfUeNgapID(sourceAMFUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", sourceAMFUENGAPID.Value))
@@ -122,9 +127,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 		// not support any E-UTRA algorithms
 	}
 
-	if rANUENGAPID != nil {
-		ranUe.RanUeNgapID = rANUENGAPID.Value
-	}
+	ranUe.RanUeNgapID = rANUENGAPID.Value
 
 	ranUe.UpdateLocation(ctx, amf, userLocationInformation)
 

@@ -44,6 +44,16 @@ func HandleHandoverCancel(ctx context.Context, ran *amfContext.Radio, msg *ngapT
 		}
 	}
 
+	if aMFUENGAPID == nil {
+		ran.Log.Error("AMFUENGAPID IE (mandatory) is missing in HandoverCancel")
+		return
+	}
+
+	if rANUENGAPID == nil {
+		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in HandoverCancel")
+		return
+	}
+
 	sourceUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if sourceUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))

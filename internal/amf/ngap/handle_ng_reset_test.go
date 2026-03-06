@@ -235,3 +235,12 @@ func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 		t.Fatalf("expected 1 UE to remain in the RAN, but got %d", len(ran.RanUEs))
 	}
 }
+
+func TestHandleNGReset_EmptyIEs(t *testing.T) {
+	ran := newTestRadio()
+	msg := &ngapType.NGReset{}
+
+	assertNoPanic(t, "HandleNGReset(empty IEs)", func() {
+		ngap.HandleNGReset(context.Background(), ran, msg)
+	})
+}

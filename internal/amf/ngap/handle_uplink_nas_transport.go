@@ -52,6 +52,21 @@ func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amf
 		}
 	}
 
+	if aMFUENGAPID == nil {
+		ran.Log.Error("AMFUENGAPID IE (mandatory) is missing in UplinkNASTransport")
+		return
+	}
+
+	if rANUENGAPID == nil {
+		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in UplinkNASTransport")
+		return
+	}
+
+	if nASPDU == nil {
+		ran.Log.Error("NASPDU IE (mandatory) is missing in UplinkNASTransport")
+		return
+	}
+
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("ran ue is nil", zap.Int64("ranUeNgapID", rANUENGAPID.Value))

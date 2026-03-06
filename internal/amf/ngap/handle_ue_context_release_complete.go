@@ -52,6 +52,16 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 		}
 	}
 
+	if aMFUENGAPID == nil {
+		ran.Log.Error("AMFUENGAPID IE (mandatory) is missing in UEContextReleaseComplete")
+		return
+	}
+
+	if rANUENGAPID == nil {
+		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in UEContextReleaseComplete")
+		return
+	}
+
 	ranUe := amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No RanUe Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))

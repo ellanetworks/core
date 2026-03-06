@@ -6,10 +6,13 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"testing"
 
 	"github.com/ellanetworks/core/etsi"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/nas/nasType"
@@ -385,4 +388,35 @@ func (fng *FakeNGAPSender) SendHandoverRequest(
 	})
 
 	return nil
+}
+
+// assertNoPanic runs fn and fails the test if it panics.
+func assertNoPanic(t *testing.T, name string, fn func()) {
+	t.Helper()
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("%s panicked (nil pointer dereference with missing IEs): %v", name, r)
+		}
+	}()
+
+	fn()
+}
+
+// newTestRadio creates a minimal Radio with a FakeNGAPSender for testing.
+func newTestRadio() *amfContext.Radio {
+	sender := &FakeNGAPSender{}
+	ran := &amfContext.Radio{
+		Log:           logger.AmfLog,
+		NGAPSender:    sender,
+		RanUEs:        make(map[int64]*amfContext.RanUe),
+		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+	}
+
+	return ran
+}
+
+// newTestAMF creates a minimal AMF context for testing.
+func newTestAMF() *amfContext.AMF {
+	return &amfContext.AMF{}
 }
