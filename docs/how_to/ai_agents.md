@@ -2,16 +2,9 @@
 description: How to use AI coding agents to interact with Ella Core.
 ---
 
-# Use AI Agents with Ella Core
+# Manage Your Network with AI Agents
 
-Ella Core ships with an [Agent Skill](https://agentskills.io/) that teaches AI coding agents how to interact with the Ella Core REST API. This lets you manage your 5G network using natural language — querying subscribers, checking data usage, provisioning SIM cards, and more — directly from your editor or terminal.
-
-## Supported tools
-
-The skill works with any tool that supports the [Agent Skills](https://agentskills.io/) open format, including:
-
-- [GitHub Copilot](https://github.com/features/copilot) (agent mode in VS Code, Copilot coding agent, Copilot CLI)
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+Ella Core ships with an [Agent Skill](https://agentskills.io/) that teaches AI agents how to interact with Ella Core through its REST API using its OpenAPI specification. This lets you manage your 5G network using natural language — querying subscribers, checking data usage, provisioning SIM cards, and more.
 
 ## Prerequisites
 
@@ -22,20 +15,18 @@ Before using the skill, you need:
 
 ## 1. Install the skill
 
-Download the [`SKILL.md`](https://raw.githubusercontent.com/ellanetworks/core/main/.github/skills/ella-core-api/SKILL.md) file and place it in a skills directory that your AI tool can discover:
-
-```bash
-mkdir -p <project>/.agents/skills/ella-core-api
-curl -o <project>/.agents/skills/ella-core-api/SKILL.md \
-  https://raw.githubusercontent.com/ellanetworks/core/main/.github/skills/ella-core-api/SKILL.md
-```
-
-Replace `<project>` with the path to your project root.
-
-!!! note
-    Some tools use different skill directories (e.g. `.github/skills/`, `.claude/skills/`, `~/.copilot/skills/`). Check your tool's documentation for the expected location.
+Download the [`SKILL.md`](https://raw.githubusercontent.com/ellanetworks/core/main/.github/skills/ella-core-api/SKILL.md) file and place it in a skills directory that your AI tool can discover (e.g. `<project>/.agents/skills/ella-core-api/SKILL.md`).
 
 ## 2. Prompt the agent
 
 Once the skill is active, you can ask things like:
-> "Which subscriber consumed the most data in the last 7 days?"
+
+- "Which subscriber consumed the most data in the last 7 days?"
+- "List all subscribers and their associated policies."
+- "Create a new QoS policy with 50 Mbps uplink and 100 Mbps downlink on the internet data network."
+- "Show me the current radios connected to the network."
+
+<figure markdown="span">
+  ![Integrate with AI agents](../images/ai_prompt.png){ width="700" }
+  <figcaption>5G Overview</figcaption>
+</figure>

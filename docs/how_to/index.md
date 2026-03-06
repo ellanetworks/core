@@ -9,4 +9,4 @@ These how-to guides cover key operations and common tasks in Ella Core.
 - [Tune Network Performance](performance_tuning.md)
 - [Co-host with OCUDU](co_host_with_ocudu.md)
 - [Exchange routes through BGP](bgp.md)
-- [Use AI Agents with Ella Core](ai_agents.md)
+- [Manage Your Network with AI Agents](ai_agents.md)
