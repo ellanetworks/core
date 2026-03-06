@@ -20,7 +20,7 @@ None
 
 On success the server returns `200` with the body containing a gzipped tar archive and a `Content-Disposition` header recommending a filename like `ella-support-<timestamp>.tar.gz`. The response Content-Type is `application/gzip`.
 
-The archive contains a best-effort collection of relevant diagnostics (database-derived JSON exports, YAML configuration files, system/network diagnostics, and eBPF BPF maps data). The bundle is intended to be inspected locally before sharing.
+The archive contains a best-effort collection of relevant diagnostics (database-derived JSON exports, YAML configuration files, system/network diagnostics, and eBPF maps data). The bundle is intended to be inspected locally before sharing.
 
 ## Bundle Contents
 
@@ -29,8 +29,8 @@ The archive contains a best-effort collection of relevant diagnostics (database-
 - `config.yaml`: Runtime configuration file
 - `system/`: System information including version, OS release, kernel version, memory, CPU, disk space, and network diagnostics
 
-### eBPF BPF Maps
-The bundle includes eBPF BPF map data in a `bpf/` directory (best-effort):
+### eBPF Maps
+The bundle includes eBPF map data in a `bpf/` directory (best-effort):
 - Each map is exported as compressed NDJSON (`mapname.ndjson.gz`) with decoded key/value entries using generated Go struct types for accurate field representation
 - Each map includes a corresponding `mapname_metadata.json` file containing:
   - Map name, type (Hash, Array, RingBuf, etc.), key/value sizes
