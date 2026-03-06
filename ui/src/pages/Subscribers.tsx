@@ -8,7 +8,7 @@ import {
   GridRenderCellParams,
   GridPaginationModel,
 } from "@mui/x-data-grid";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   listSubscribers,
   type APISubscriberSummary,
@@ -68,7 +68,32 @@ const SubscriberPage: React.FC = () => {
         flex: 1,
         minWidth: 200,
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => (
-          <Box>{params.row.imsi}</Box>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Link
+              to={`/subscribers/${params.row.imsi}`}
+              style={{ textDecoration: "none" }}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  fontFamily: "monospace",
+                  color: "#4254FB",
+                  textDecoration: "underline",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {params.row.imsi}
+              </Typography>
+            </Link>
+          </Box>
         ),
       },
       { field: "policyName", headerName: "Policy", flex: 0.8, minWidth: 140 },
@@ -212,16 +237,10 @@ const SubscriberPage: React.FC = () => {
                 pageSizeOptions={[10, 25, 50, 100]}
                 sortingMode="server"
                 disableColumnMenu
-                onRowClick={(params) =>
-                  navigate(`/subscribers/${params.row.imsi}`)
-                }
                 sx={{
                   width: "100%",
                   border: 1,
                   borderColor: "divider",
-                  "& .MuiDataGrid-row": {
-                    cursor: "pointer",
-                  },
                   "& .MuiDataGrid-cell": {
                     borderBottom: "1px solid",
                     borderColor: "divider",

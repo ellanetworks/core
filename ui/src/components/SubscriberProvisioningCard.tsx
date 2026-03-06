@@ -69,12 +69,18 @@ const FieldRow: React.FC<{
       sx={{
         flex: 1,
         wordBreak: "break-all",
+        ...(linkTo
+          ? {
+              color: "#4254FB",
+              textDecoration: "underline",
+              "&:hover": { textDecoration: "underline" },
+            }
+          : {}),
       }}
       {...(linkTo
         ? {
             component: RouterLink,
             to: linkTo,
-            color: "primary",
           }
         : {})}
     >
@@ -187,8 +193,8 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
             component={RouterLink}
             to="/policies"
             sx={{
-              color: "primary.main",
-              textDecoration: "none",
+              color: "#4254FB",
+              textDecoration: "underline",
               "&:hover": { textDecoration: "underline" },
             }}
           >
