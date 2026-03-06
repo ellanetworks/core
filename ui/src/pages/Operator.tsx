@@ -426,7 +426,10 @@ const Operator = () => {
                       {operator?.homeNetwork.publicKey || "N/A"}
                     </Typography>
                   </Tooltip>
-                  <IconButton onClick={handleCopyPublicKey} sx={{ ml: 1 }}>
+                  <IconButton
+                    onClick={handleCopyPublicKey}
+                    sx={{ ml: 1, my: -0.5 }}
+                  >
                     <CopyIcon fontSize="small" color={"primary"} />
                   </IconButton>
                 </Grid>

@@ -655,6 +655,7 @@ export default function NetworkingPage() {
                           <IconButton
                             size="small"
                             onClick={() => setEditN3Open(true)}
+                            color="primary"
                           >
                             <EditIcon fontSize="small" />
                           </IconButton>
