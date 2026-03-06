@@ -253,3 +253,13 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 		t.Fatalf("expected no ErrorIndication, got %d", len(targetNGAPSender.SentErrorIndications))
 	}
 }
+
+func TestHandleHandoverNotify_EmptyIEs(t *testing.T) {
+	ran := newTestRadio()
+	amf := newTestAMF()
+	msg := &ngapType.HandoverNotify{}
+
+	assertNoPanic(t, "HandleHandoverNotify(empty IEs)", func() {
+		ngap.HandleHandoverNotify(context.Background(), amf, ran, msg)
+	})
+}

@@ -47,6 +47,21 @@ func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.Radio
 		}
 	}
 
+	if aMFUENGAPID == nil {
+		ran.Log.Error("AMFUENGAPID IE (mandatory) is missing in InitialContextSetupFailure")
+		return
+	}
+
+	if rANUENGAPID == nil {
+		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in InitialContextSetupFailure")
+		return
+	}
+
+	if cause == nil {
+		ran.Log.Error("Cause IE (mandatory) is missing in InitialContextSetupFailure")
+		return
+	}
+
 	ran.Log.Warn("Initial Context Setup Failure received", zap.String("Cause", causeToString(*cause)))
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)

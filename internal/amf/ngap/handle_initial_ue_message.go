@@ -101,6 +101,18 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		}
 
 		ran.Log.Info("sent error indication")
+
+		return
+	}
+
+	if rANUENGAPID == nil {
+		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in InitialUEMessage")
+		return
+	}
+
+	if nASPDU == nil {
+		ran.Log.Error("NASPDU IE (mandatory) is missing in InitialUEMessage")
+		return
 	}
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)

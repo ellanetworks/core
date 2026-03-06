@@ -52,6 +52,16 @@ func HandleUERadioCapabilityInfoIndication(ran *context.Radio, msg *ngapType.UER
 		}
 	}
 
+	if aMFUENGAPID == nil {
+		ran.Log.Error("AMFUENGAPID IE (mandatory) is missing in UERadioCapabilityInfoIndication")
+		return
+	}
+
+	if rANUENGAPID == nil {
+		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in UERadioCapabilityInfoIndication")
+		return
+	}
+
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))

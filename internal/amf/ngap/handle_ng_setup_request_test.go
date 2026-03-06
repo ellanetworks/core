@@ -337,3 +337,13 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected AmfRelativeCapacity to be 0xff, but got %d", response.AmfRelativeCapacity)
 	}
 }
+
+func TestHandleNGSetupRequest_EmptyIEs(t *testing.T) {
+	ran := newTestRadio()
+	amf := newTestAMF()
+	msg := &ngapType.NGSetupRequest{}
+
+	assertNoPanic(t, "HandleNGSetupRequest(empty IEs)", func() {
+		ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg)
+	})
+}

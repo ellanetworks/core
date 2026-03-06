@@ -904,3 +904,31 @@ func TestPathSwitchRequest_UESecurityCapabilitiesUpdated(t *testing.T) {
 			len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
 	}
 }
+
+func TestHandlePathSwitchRequest_EmptyIEs(t *testing.T) {
+	ran := newTestRadio()
+	amf := newTestAMF()
+	msg := &ngapType.PathSwitchRequest{}
+
+	assertNoPanic(t, "HandlePathSwitchRequest(empty IEs)", func() {
+		ngap.HandlePathSwitchRequest(context.Background(), amf, ran, msg)
+	})
+}
+
+func TestHandlePathSwitchRequest_MissingRANUENGAPID(t *testing.T) {
+	ran := newTestRadio()
+	amf := newTestAMF()
+	msg := &ngapType.PathSwitchRequest{}
+	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.PathSwitchRequestIEs{
+		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDSourceAMFUENGAPID},
+		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentReject},
+		Value: ngapType.PathSwitchRequestIEsValue{
+			Present:           ngapType.PathSwitchRequestIEsPresentSourceAMFUENGAPID,
+			SourceAMFUENGAPID: &ngapType.AMFUENGAPID{Value: 1},
+		},
+	})
+
+	assertNoPanic(t, "HandlePathSwitchRequest(missing RANUENGAPID)", func() {
+		ngap.HandlePathSwitchRequest(context.Background(), amf, ran, msg)
+	})
+}

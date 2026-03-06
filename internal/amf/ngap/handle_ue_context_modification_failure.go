@@ -41,9 +41,16 @@ func HandleUEContextModificationFailure(amf *context.AMF, ran *context.Radio, ms
 	var ranUe *context.RanUe
 
 	if rANUENGAPID != nil {
-		ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
-		if ranUe == nil {
-			ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value), zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+		if aMFUENGAPID != nil {
+			ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
+			if ranUe == nil {
+				ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value), zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+			}
+		} else {
+			ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
+			if ranUe == nil {
+				ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+			}
 		}
 	}
 

@@ -51,6 +51,26 @@ func HandleNasNonDeliveryIndication(ctx context.Context, amf *amfContext.AMF, ra
 		}
 	}
 
+	if rANUENGAPID == nil {
+		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in NASNonDeliveryIndication")
+		return
+	}
+
+	if aMFUENGAPID == nil {
+		ran.Log.Error("AMFUENGAPID IE (mandatory) is missing in NASNonDeliveryIndication")
+		return
+	}
+
+	if nASPDU == nil {
+		ran.Log.Error("NASPDU IE (mandatory) is missing in NASNonDeliveryIndication")
+		return
+	}
+
+	if cause == nil {
+		ran.Log.Error("Cause IE (mandatory) is missing in NASNonDeliveryIndication")
+		return
+	}
+
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
 		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))

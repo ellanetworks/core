@@ -46,6 +46,16 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amf *amfContext.AMF, ra
 		}
 	}
 
+	if rANUENGAPID == nil {
+		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in PDUSessionResourceNotify")
+		return
+	}
+
+	if aMFUENGAPID == nil {
+		ran.Log.Error("AMFUENGAPID IE (mandatory) is missing in PDUSessionResourceNotify")
+		return
+	}
+
 	var ranUe *amfContext.RanUe
 
 	ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)

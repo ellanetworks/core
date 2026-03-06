@@ -48,35 +48,41 @@ func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran 
 		}
 	}
 
-	for i := 0; i < len(supportedTAList.List); i++ {
-		supportedTAItem := supportedTAList.List[i]
-		tac := hex.EncodeToString(supportedTAItem.TAC.Value)
-		capOfSupportTai := cap(ran.SupportedTAIs)
+	if supportedTAList == nil {
+		ran.Log.Warn("SupportedTAList IE is missing in RANConfigurationUpdate")
+	}
 
-		for j := 0; j < len(supportedTAItem.BroadcastPLMNList.List); j++ {
-			supportedTAI := amfContext.SupportedTAI{}
-			supportedTAI.SNssaiList = make([]models.Snssai, 0)
-			supportedTAI.Tai.Tac = tac
-			broadcastPLMNItem := supportedTAItem.BroadcastPLMNList.List[j]
-			plmnID := util.PlmnIDToModels(broadcastPLMNItem.PLMNIdentity)
-			supportedTAI.Tai.PlmnID = &plmnID
-			capOfSNssaiList := cap(supportedTAI.SNssaiList)
+	if supportedTAList != nil {
+		for i := 0; i < len(supportedTAList.List); i++ {
+			supportedTAItem := supportedTAList.List[i]
+			tac := hex.EncodeToString(supportedTAItem.TAC.Value)
+			capOfSupportTai := cap(ran.SupportedTAIs)
 
-			for k := 0; k < len(broadcastPLMNItem.TAISliceSupportList.List); k++ {
-				tAISliceSupportItem := broadcastPLMNItem.TAISliceSupportList.List[k]
-				if len(supportedTAI.SNssaiList) < capOfSNssaiList {
-					supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, util.SNssaiToModels(tAISliceSupportItem.SNSSAI))
+			for j := 0; j < len(supportedTAItem.BroadcastPLMNList.List); j++ {
+				supportedTAI := amfContext.SupportedTAI{}
+				supportedTAI.SNssaiList = make([]models.Snssai, 0)
+				supportedTAI.Tai.Tac = tac
+				broadcastPLMNItem := supportedTAItem.BroadcastPLMNList.List[j]
+				plmnID := util.PlmnIDToModels(broadcastPLMNItem.PLMNIdentity)
+				supportedTAI.Tai.PlmnID = &plmnID
+				capOfSNssaiList := cap(supportedTAI.SNssaiList)
+
+				for k := 0; k < len(broadcastPLMNItem.TAISliceSupportList.List); k++ {
+					tAISliceSupportItem := broadcastPLMNItem.TAISliceSupportList.List[k]
+					if len(supportedTAI.SNssaiList) < capOfSNssaiList {
+						supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, util.SNssaiToModels(tAISliceSupportItem.SNSSAI))
+					} else {
+						break
+					}
+				}
+
+				ran.Log.Debug("handle ran configuration update", zap.Any("PLMN_ID", plmnID), zap.String("TAC", tac))
+
+				if len(ran.SupportedTAIs) < capOfSupportTai {
+					ran.SupportedTAIs = append(ran.SupportedTAIs, supportedTAI)
 				} else {
 					break
 				}
-			}
-
-			ran.Log.Debug("handle ran configuration update", zap.Any("PLMN_ID", plmnID), zap.String("TAC", tac))
-
-			if len(ran.SupportedTAIs) < capOfSupportTai {
-				ran.SupportedTAIs = append(ran.SupportedTAIs, supportedTAI)
-			} else {
-				break
 			}
 		}
 	}
