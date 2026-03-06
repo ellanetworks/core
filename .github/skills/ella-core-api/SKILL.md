@@ -12,12 +12,12 @@ description: >
 
 ## Connection details
 
-Before making any API call, you need two pieces of information from the user:
+Before making any API call, you need two pieces of information:
 
 1. **Base URL** — the address of the Ella Core instance (e.g. `http://192.168.1.10:5000`)
 2. **API Token** — a token prefixed with `ellacore_`
 
-If the user has not provided these, ask for them before proceeding.
+**You MUST ask the user to provide both values before proceeding.**
 
 Authenticate every request with the header:
 
