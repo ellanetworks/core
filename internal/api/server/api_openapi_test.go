@@ -31,6 +31,7 @@ func TestOpenAPISpecEndpoint(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't send request: %s", err)
 		}
+
 		defer func() {
 			if err := res.Body.Close(); err != nil {
 				t.Fatal(err)
@@ -76,6 +77,7 @@ func TestOpenAPISpecEndpoint(t *testing.T) {
 		if err != nil {
 			t.Fatalf("couldn't send request: %s", err)
 		}
+
 		defer func() {
 			if err := res.Body.Close(); err != nil {
 				t.Fatal(err)
