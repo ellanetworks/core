@@ -133,8 +133,6 @@ Single YAML file parsed in `internal/config/`. Key sections: `interfaces` (n2/n3
 
 The full API is described by an OpenAPI 3.1 specification embedded in the binary and served at `GET /api/v1/openapi.yaml` (unauthenticated). When interacting with a running Ella Core instance, fetch the spec first to discover all endpoints, request/response schemas, and authentication requirements.
 
-Local dev instance: `https://localhost:5000`
-
 Authenticate using an API token (prefix `ellacore_`) in the `Authorization: Bearer <token>` header.
 
 ## Key Dependencies
