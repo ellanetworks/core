@@ -1,0 +1,2977 @@
+openapi: "3.1.0"
+info:
+  title: Ella Core API
+  description: |
+    RESTful API for managing a 5G private mobile network powered by Ella Core.
+
+    Manage subscribers, QoS policies, data networks, network routes,
+    operator configuration, radios, and observability data.
+
+    ## Authentication
+
+    Most endpoints require a Bearer token in the `Authorization` header.
+    The token can be either:
+
+    - A **JWT** obtained from the login endpoint (short-lived, 15 minutes).
+    - An **API token** (prefix `ellacore_`) created via the API tokens endpoint (long-lived, optional expiry).
+
+    Example: `Authorization: Bearer ellacore_abc123_secretpart`
+
+    ## Response Envelope
+
+    All JSON responses are wrapped:
+    - Success: `{"result": <payload>}`
+    - Error: `{"error": "message"}`
+
+    ## Pagination
+
+    List endpoints accept `page` (default 1) and `per_page` (default 25, max 100) query parameters.
+    Responses include `items`, `page`, `per_page`, and `total_count`.
+  version: "1.0.0"
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: "{scheme}://{host}"
+    variables:
+      scheme:
+        default: https
+        enum: [https, http]
+      host:
+        default: localhost:5000
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Status
+    description: System health and version information (unauthenticated).
+  - name: Metrics
+    description: Prometheus metrics endpoint (unauthenticated).
+  - name: Initialization
+    description: First-time setup to create the initial admin user (unauthenticated).
+  - name: Authentication
+    description: Login, token refresh, logout, and token validation.
+  - name: Users
+    description: Manage user accounts and API tokens.
+  - name: Subscribers
+    description: Provision and manage 5G subscribers on the network.
+  - name: Subscriber Usage
+    description: Monitor and manage subscriber data usage records.
+  - name: Policies
+    description: Define QoS policies (bitrate limits, 5QI, ARP) assigned to subscribers.
+  - name: Operator
+    description: Configure the mobile network operator identity, slice, tracking areas, and cryptographic keys.
+  - name: Data Networks
+    description: Manage data networks (DNNs/APNs) that subscribers connect through.
+  - name: Routes
+    description: Manage static IP routes on the network interfaces.
+  - name: NAT
+    description: Enable or disable Network Address Translation on the user plane.
+  - name: Flow Accounting
+    description: Enable or disable per-flow traffic accounting on the user plane.
+  - name: Interfaces
+    description: View and configure network interface settings (N2, N3, N6, API).
+  - name: Radios
+    description: View connected radio base stations (gNBs) and their configuration.
+  - name: Radio Events
+    description: View and manage NGAP protocol events between the core and radios.
+  - name: Flow Reports
+    description: View and manage per-flow traffic reports collected by the user plane.
+  - name: Audit Logs
+    description: View audit log entries that record administrative actions.
+  - name: Backup & Restore
+    description: Create and restore full database backups.
+  - name: Support Bundle
+    description: Generate a diagnostic support bundle for troubleshooting.
+
+paths:
+  # ── Status ──────────────────────────────────────────────────────────────
+  /api/v1/status:
+    get:
+      operationId: getStatus
+      tags: [Status]
+      summary: Get system status
+      description: Returns the software version, git revision, and whether the system has been initialized with a first user.
+      security: []
+      responses:
+        "200":
+          description: System status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponseEnvelope"
+
+  # ── Metrics ─────────────────────────────────────────────────────────────
+  /api/v1/metrics:
+    get:
+      operationId: getMetrics
+      tags: [Metrics]
+      summary: Get Prometheus metrics
+      description: Returns all application metrics in Prometheus text exposition format.
+      security: []
+      responses:
+        "200":
+          description: Prometheus metrics.
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  # ── Initialization ──────────────────────────────────────────────────────
+  /api/v1/init:
+    post:
+      operationId: initialize
+      tags: [Initialization]
+      summary: Initialize the system
+      description: |
+        Creates the first admin user. This endpoint only works when the system
+        has zero users (i.e., `GET /api/v1/status` returns `initialized: false`).
+        Returns a JWT and sets a session cookie.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitializeParams"
+      responses:
+        "201":
+          description: System initialized, first admin user created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InitializeResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ── Authentication ──────────────────────────────────────────────────────
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      tags: [Authentication]
+      summary: Log in
+      description: Authenticates a user with email and password. Returns a JWT and sets a session cookie for token refresh.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginParams"
+      responses:
+        "200":
+          description: Login successful.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/refresh:
+    post:
+      operationId: refreshToken
+      tags: [Authentication]
+      summary: Refresh JWT
+      description: Issues a new JWT using the session cookie set during login. No request body needed.
+      security: []
+      responses:
+        "200":
+          description: New JWT issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      tags: [Authentication]
+      summary: Log out
+      description: Deletes the server-side session and clears the session cookie.
+      security: []
+      responses:
+        "204":
+          description: Logged out successfully. No body returned.
+
+  /api/v1/auth/lookup-token:
+    post:
+      operationId: lookupToken
+      tags: [Authentication]
+      summary: Validate a token
+      description: Checks whether the Bearer token in the Authorization header is valid.
+      responses:
+        "200":
+          description: Token validity result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LookupTokenResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  # ── Users ───────────────────────────────────────────────────────────────
+  /api/v1/users/me:
+    get:
+      operationId: getLoggedInUser
+      tags: [Users]
+      summary: Get current user
+      description: Returns the email and role of the currently authenticated user.
+      responses:
+        "200":
+          description: Current user info.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/users/me/password:
+    put:
+      operationId: updateMyPassword
+      tags: [Users]
+      summary: Update own password
+      description: Change the password of the currently authenticated user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePasswordParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/users/me/api-tokens:
+    get:
+      operationId: listMyAPITokens
+      tags: [Users]
+      summary: List my API tokens
+      description: Returns a paginated list of API tokens belonging to the current user. Token secrets are never returned.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of API tokens.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListAPITokensResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createMyAPIToken
+      tags: [Users]
+      summary: Create an API token
+      description: |
+        Creates a new API token for the current user. The full token string
+        (prefixed with `ellacore_`) is returned once and cannot be retrieved again.
+        Maximum 12 tokens per user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAPITokenParams"
+      responses:
+        "201":
+          description: Token created. The full token is in the response — store it securely.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateAPITokenResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/users/me/api-tokens/{id}:
+    delete:
+      operationId: deleteMyAPIToken
+      tags: [Users]
+      summary: Delete an API token
+      description: Revokes and deletes one of the current user's API tokens by its token ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The token ID (not the full token string).
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/users:
+    get:
+      operationId: listUsers
+      tags: [Users]
+      summary: List users
+      description: Returns a paginated list of all user accounts. Requires admin privileges.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of users.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUsersResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createUser
+      tags: [Users]
+      summary: Create a user
+      description: Creates a new user account. Maximum 50 users. Requires admin privileges.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/users/{email}:
+    get:
+      operationId: getUser
+      tags: [Users]
+      summary: Get a user
+      description: Returns the email and role of a specific user.
+      parameters:
+        - $ref: "#/components/parameters/EmailPath"
+      responses:
+        "200":
+          description: User details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateUser
+      tags: [Users]
+      summary: Update a user's role
+      description: Changes the role of an existing user. Requires admin privileges.
+      parameters:
+        - $ref: "#/components/parameters/EmailPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteUser
+      tags: [Users]
+      summary: Delete a user
+      description: Permanently deletes a user account and all associated API tokens.
+      parameters:
+        - $ref: "#/components/parameters/EmailPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/users/{email}/password:
+    put:
+      operationId: updateUserPassword
+      tags: [Users]
+      summary: Update a user's password (admin)
+      description: Resets the password of any user. Requires admin privileges.
+      parameters:
+        - $ref: "#/components/parameters/EmailPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePasswordParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Subscribers ─────────────────────────────────────────────────────────
+  /api/v1/subscribers:
+    get:
+      operationId: listSubscribers
+      tags: [Subscribers]
+      summary: List subscribers
+      description: |
+        Returns a paginated list of all provisioned 5G subscribers.
+        Each entry includes the IMSI, assigned QoS policy, and connection status
+        (whether the device is currently registered on the network and its IP address).
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of subscribers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListSubscribersResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createSubscriber
+      tags: [Subscribers]
+      summary: Provision a subscriber
+      description: |
+        Registers a new 5G subscriber on the network. Requires the IMSI, permanent key (K),
+        sequence number, and an existing QoS policy name. Optionally provide the OPc
+        value — if omitted, it is derived from the operator code.
+        Maximum 1000 subscribers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSubscriberParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/subscribers/{imsi}:
+    get:
+      operationId: getSubscriber
+      tags: [Subscribers]
+      summary: Get subscriber details
+      description: |
+        Returns full details of a subscriber including connection status,
+        assigned IP address, IMEI of the connected device, negotiated
+        ciphering/integrity algorithms, and last-seen radio information.
+      parameters:
+        - $ref: "#/components/parameters/ImsiPath"
+      responses:
+        "200":
+          description: Subscriber details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriberDetailResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateSubscriber
+      tags: [Subscribers]
+      summary: Update a subscriber
+      description: Updates the QoS policy assigned to a subscriber.
+      parameters:
+        - $ref: "#/components/parameters/ImsiPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSubscriberParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteSubscriber
+      tags: [Subscribers]
+      summary: Delete a subscriber
+      description: Deregisters the 5G subscriber from the network and removes it from the database. If the device is currently connected, its session is terminated.
+      parameters:
+        - $ref: "#/components/parameters/ImsiPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Subscriber Usage ────────────────────────────────────────────────────
+  /api/v1/subscriber-usage:
+    get:
+      operationId: getSubscriberUsage
+      tags: [Subscriber Usage]
+      summary: Get subscriber usage data
+      description: |
+        Returns subscriber data usage (uplink, downlink, total bytes), grouped by day or by subscriber.
+        Supports date range filtering and filtering by specific subscriber IMSI.
+      parameters:
+        - name: group_by
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [day, subscriber]
+          description: Group results by date or by subscriber IMSI.
+        - name: start
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start date (YYYY-MM-DD). Defaults to 7 days ago.
+        - name: end
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End date (YYYY-MM-DD). Defaults to today.
+        - name: subscriber
+          in: query
+          schema:
+            type: string
+          description: Filter to a specific subscriber IMSI.
+      responses:
+        "200":
+          description: Usage data grouped by the requested dimension.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriberUsageResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      operationId: clearSubscriberUsage
+      tags: [Subscriber Usage]
+      summary: Clear all usage data
+      description: Permanently deletes all subscriber usage records.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/subscriber-usage/retention:
+    get:
+      operationId: getSubscriberUsageRetention
+      tags: [Subscriber Usage]
+      summary: Get usage retention policy
+      description: Returns the number of days subscriber usage data is retained before automatic deletion.
+      responses:
+        "200":
+          description: Retention policy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetentionPolicyResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateSubscriberUsageRetention
+      tags: [Subscriber Usage]
+      summary: Update usage retention policy
+      description: Sets the number of days to retain subscriber usage data.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetentionPolicyParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Policies ────────────────────────────────────────────────────────────
+  /api/v1/policies:
+    get:
+      operationId: listPolicies
+      tags: [Policies]
+      summary: List policies
+      description: Returns a paginated list of all QoS policies. Policies define bitrate limits, 5QI class, allocation/retention priority, and which data network they apply to.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of policies.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListPoliciesResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createPolicy
+      tags: [Policies]
+      summary: Create a policy
+      description: |
+        Creates a new QoS policy. Requires a unique name, uplink/downlink bitrate limits,
+        a 5QI value, an ARP priority, and the name of an existing data network.
+        Maximum 12 policies.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePolicyParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/policies/{name}:
+    get:
+      operationId: getPolicy
+      tags: [Policies]
+      summary: Get a policy
+      description: Returns the details of a specific QoS policy.
+      parameters:
+        - $ref: "#/components/parameters/PolicyNamePath"
+      responses:
+        "200":
+          description: Policy details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updatePolicy
+      tags: [Policies]
+      summary: Update a policy
+      description: Updates all fields of a QoS policy.
+      parameters:
+        - $ref: "#/components/parameters/PolicyNamePath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePolicyParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deletePolicy
+      tags: [Policies]
+      summary: Delete a policy
+      description: Deletes a QoS policy. Fails if any subscribers are currently assigned to this policy.
+      parameters:
+        - $ref: "#/components/parameters/PolicyNamePath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  # ── Operator ────────────────────────────────────────────────────────────
+  /api/v1/operator:
+    get:
+      operationId: getOperator
+      tags: [Operator]
+      summary: Get operator configuration
+      description: Returns the full operator configuration including PLMN ID (MCC/MNC), network slice (SST/SD), tracking area codes, and home network public key.
+      responses:
+        "200":
+          description: Operator configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperatorResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/operator/slice:
+    get:
+      operationId: getOperatorSlice
+      tags: [Operator]
+      summary: Get network slice
+      description: Returns the S-NSSAI (SST and SD) of the configured network slice.
+      responses:
+        "200":
+          description: Slice configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperatorSliceResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateOperatorSlice
+      tags: [Operator]
+      summary: Update network slice
+      description: Sets the S-NSSAI (SST and optional SD) for the network slice.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOperatorSliceParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/operator/tracking:
+    get:
+      operationId: getOperatorTracking
+      tags: [Operator]
+      summary: Get tracking areas
+      description: Returns the list of supported Tracking Area Codes (TACs).
+      responses:
+        "200":
+          description: Tracking area configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperatorTrackingResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateOperatorTracking
+      tags: [Operator]
+      summary: Update tracking areas
+      description: Sets the list of supported Tracking Area Codes. Maximum 12 TACs. Each TAC is a 6-character hex string.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOperatorTrackingParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/operator/id:
+    get:
+      operationId: getOperatorId
+      tags: [Operator]
+      summary: Get PLMN ID
+      description: Returns the operator's Mobile Country Code (MCC) and Mobile Network Code (MNC).
+      responses:
+        "200":
+          description: PLMN ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperatorIDResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateOperatorId
+      tags: [Operator]
+      summary: Update PLMN ID
+      description: Changes the MCC and MNC. Cannot be changed while subscribers exist — delete all subscribers first.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOperatorIDParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/operator/code:
+    put:
+      operationId: updateOperatorCode
+      tags: [Operator]
+      summary: Update operator code
+      description: Sets the operator code (OP). Cannot be changed while subscribers exist. The OPc for each subscriber is derived from this value and the subscriber's permanent key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOperatorCodeParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/operator/home-network:
+    put:
+      operationId: updateOperatorHomeNetwork
+      tags: [Operator]
+      summary: Update home network key
+      description: Sets the Curve25519 private key used for SUPI concealment (5G-AKA). The corresponding public key is returned in the operator configuration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOperatorHomeNetworkParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Data Networks ───────────────────────────────────────────────────────
+  /api/v1/networking/data-networks:
+    get:
+      operationId: listDataNetworks
+      tags: [Data Networks]
+      summary: List data networks
+      description: Returns a paginated list of data networks (DNNs). Each data network defines an IP pool, DNS server, and MTU for subscriber sessions.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of data networks.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListDataNetworksResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createDataNetwork
+      tags: [Data Networks]
+      summary: Create a data network
+      description: |
+        Creates a new data network (DNN/APN). The name must be a valid DNN
+        format (lowercase alphanumeric, hyphens, dots). Maximum 12 data networks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDataNetworkParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/networking/data-networks/{name}:
+    get:
+      operationId: getDataNetwork
+      tags: [Data Networks]
+      summary: Get a data network
+      description: Returns the configuration and active session count for a specific data network.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+      responses:
+        "200":
+          description: Data network details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataNetworkResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateDataNetwork
+      tags: [Data Networks]
+      summary: Update a data network
+      description: Updates the IP pool, DNS, and MTU settings of a data network.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDataNetworkParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteDataNetwork
+      tags: [Data Networks]
+      summary: Delete a data network
+      description: Deletes a data network. Fails if any QoS policies reference this data network.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  # ── Routes ──────────────────────────────────────────────────────────────
+  /api/v1/networking/routes:
+    get:
+      operationId: listRoutes
+      tags: [Routes]
+      summary: List routes
+      description: Returns a paginated list of static IP routes configured on the network interfaces.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of routes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListRoutesResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createRoute
+      tags: [Routes]
+      summary: Create a route
+      description: |
+        Adds a static IP route to both the database and the Linux kernel routing table.
+        Maximum 12 routes. The interface must be `n3` or `n6`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRouteParams"
+      responses:
+        "201":
+          description: Route created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateRouteResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/networking/routes/{id}:
+    get:
+      operationId: getRoute
+      tags: [Routes]
+      summary: Get a route
+      description: Returns the details of a specific static route.
+      parameters:
+        - $ref: "#/components/parameters/RouteIdPath"
+      responses:
+        "200":
+          description: Route details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RouteResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteRoute
+      tags: [Routes]
+      summary: Delete a route
+      description: Removes a static route from the database and the Linux kernel routing table.
+      parameters:
+        - $ref: "#/components/parameters/RouteIdPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── NAT ─────────────────────────────────────────────────────────────────
+  /api/v1/networking/nat:
+    get:
+      operationId: getNATInfo
+      tags: [NAT]
+      summary: Get NAT status
+      description: Returns whether NAT (Network Address Translation) is currently enabled on the user plane.
+      responses:
+        "200":
+          description: NAT status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NATInfoResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateNATInfo
+      tags: [NAT]
+      summary: Enable or disable NAT
+      description: Enables or disables NAT on the user plane. When enabled, subscriber traffic is NATed before leaving the N6 interface.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNATInfoParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Flow Accounting ─────────────────────────────────────────────────────
+  /api/v1/networking/flow-accounting:
+    get:
+      operationId: getFlowAccountingInfo
+      tags: [Flow Accounting]
+      summary: Get flow accounting status
+      description: Returns whether per-flow traffic accounting is currently enabled on the user plane.
+      responses:
+        "200":
+          description: Flow accounting status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlowAccountingInfoResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateFlowAccountingInfo
+      tags: [Flow Accounting]
+      summary: Enable or disable flow accounting
+      description: Enables or disables per-flow traffic accounting. When enabled, the user plane records per-flow traffic statistics accessible via the flow reports endpoints.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFlowAccountingInfoParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Interfaces ──────────────────────────────────────────────────────────
+  /api/v1/networking/interfaces:
+    get:
+      operationId: listNetworkInterfaces
+      tags: [Interfaces]
+      summary: List network interfaces
+      description: Returns the configuration of all network interfaces (N2 for control plane, N3 for user plane ingress, N6 for user plane egress, and the API interface).
+      responses:
+        "200":
+          description: Interface configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkInterfacesResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/networking/interfaces/n3:
+    put:
+      operationId: updateN3Interface
+      tags: [Interfaces]
+      summary: Update N3 interface settings
+      description: Updates the external/advertised address of the N3 (GTP-U) interface. Set to empty string to use the default address.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateN3SettingsParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Radios ──────────────────────────────────────────────────────────────
+  /api/v1/ran/radios:
+    get:
+      operationId: listRadios
+      tags: [Radios]
+      summary: List connected radios
+      description: Returns a paginated list of radio base stations (gNBs) currently connected to the AMF via NGAP. Includes their supported tracking areas and network slices.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of radios.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListRadiosResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/ran/radios/{name}:
+    get:
+      operationId: getRadio
+      tags: [Radios]
+      summary: Get a radio
+      description: Returns the details of a specific connected radio base station.
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Radio name.
+      responses:
+        "200":
+          description: Radio details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RadioResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Radio Events ────────────────────────────────────────────────────────
+  /api/v1/ran/events:
+    get:
+      operationId: listRadioEvents
+      tags: [Radio Events]
+      summary: List radio events
+      description: Returns a paginated, filterable list of NGAP protocol events between the core network and radio base stations.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: protocol
+          in: query
+          schema:
+            type: string
+          description: Filter by protocol name.
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [inbound, outbound]
+          description: Filter by message direction.
+        - name: local_address
+          in: query
+          schema:
+            type: string
+          description: Filter by local address.
+        - name: remote_address
+          in: query
+          schema:
+            type: string
+          description: Filter by remote address.
+        - name: message_type
+          in: query
+          schema:
+            type: string
+          description: Filter by NGAP message type.
+        - name: timestamp_from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter events after this timestamp (RFC 3339).
+        - name: timestamp_to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter events before this timestamp (RFC 3339).
+      responses:
+        "200":
+          description: Paginated list of radio events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListRadioEventsResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      operationId: clearRadioEvents
+      tags: [Radio Events]
+      summary: Clear all radio events
+      description: Permanently deletes all recorded radio events.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/ran/events/retention:
+    get:
+      operationId: getRadioEventRetention
+      tags: [Radio Events]
+      summary: Get radio event retention policy
+      description: Returns the number of days radio events are retained before automatic deletion.
+      responses:
+        "200":
+          description: Retention policy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetentionPolicyResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateRadioEventRetention
+      tags: [Radio Events]
+      summary: Update radio event retention policy
+      description: Sets the number of days to retain radio events.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetentionPolicyParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/ran/events/{id}:
+    get:
+      operationId: getRadioEvent
+      tags: [Radio Events]
+      summary: Get a radio event
+      description: Returns the raw bytes and decoded NGAP message of a specific radio event.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Radio event ID.
+      responses:
+        "200":
+          description: Radio event with decoded NGAP payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RadioEventDetailResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Flow Reports ────────────────────────────────────────────────────────
+  /api/v1/flow-reports:
+    get:
+      operationId: listFlowReports
+      tags: [Flow Reports]
+      summary: List flow reports
+      description: |
+        Returns per-flow traffic reports collected by the user plane. Supports filtering
+        by subscriber, protocol, source/destination IP or port, direction, and date range.
+        Can optionally group results by day or by subscriber.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: group_by
+          in: query
+          schema:
+            type: string
+            enum: [day, subscriber]
+          description: Optionally group results by date or subscriber.
+        - name: subscriber_id
+          in: query
+          schema:
+            type: string
+          description: Filter by subscriber IMSI.
+        - name: protocol
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 255
+          description: Filter by IP protocol number (e.g. 6 for TCP, 17 for UDP).
+        - name: source
+          in: query
+          schema:
+            type: string
+          description: "Filter by source. Accepts: IP, IP:port, or :port."
+        - name: destination
+          in: query
+          schema:
+            type: string
+          description: "Filter by destination. Accepts: IP, IP:port, or :port."
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [uplink, downlink]
+          description: Filter by traffic direction.
+        - name: start
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start date (YYYY-MM-DD). Defaults to 7 days ago.
+        - name: end
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End date (YYYY-MM-DD). Defaults to today.
+      responses:
+        "200":
+          description: Flow reports (flat list or grouped).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListFlowReportsResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      operationId: clearFlowReports
+      tags: [Flow Reports]
+      summary: Clear all flow reports
+      description: Permanently deletes all flow report records.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/flow-reports/retention:
+    get:
+      operationId: getFlowReportsRetention
+      tags: [Flow Reports]
+      summary: Get flow reports retention policy
+      description: Returns the number of days flow reports are retained before automatic deletion.
+      responses:
+        "200":
+          description: Retention policy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetentionPolicyResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateFlowReportsRetention
+      tags: [Flow Reports]
+      summary: Update flow reports retention policy
+      description: Sets the number of days to retain flow reports.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetentionPolicyParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/flow-reports/stats:
+    get:
+      operationId: getFlowReportStats
+      tags: [Flow Reports]
+      summary: Get flow report statistics
+      description: Returns aggregated statistics including top protocols and top uplink destination IPs. Accepts the same filters as the list endpoint.
+      parameters:
+        - name: subscriber_id
+          in: query
+          schema:
+            type: string
+        - name: protocol
+          in: query
+          schema:
+            type: integer
+        - name: source
+          in: query
+          schema:
+            type: string
+        - name: destination
+          in: query
+          schema:
+            type: string
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [uplink, downlink]
+        - name: start
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Aggregated flow statistics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlowReportStatsResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Audit Logs ──────────────────────────────────────────────────────────
+  /api/v1/logs/audit:
+    get:
+      operationId: listAuditLogs
+      tags: [Audit Logs]
+      summary: List audit logs
+      description: Returns a paginated list of audit log entries recording administrative actions (user logins, configuration changes, etc.).
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of audit log entries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListAuditLogsResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/logs/audit/retention:
+    get:
+      operationId: getAuditLogRetention
+      tags: [Audit Logs]
+      summary: Get audit log retention policy
+      description: Returns the number of days audit logs are retained before automatic deletion.
+      responses:
+        "200":
+          description: Retention policy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetentionPolicyResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateAuditLogRetention
+      tags: [Audit Logs]
+      summary: Update audit log retention policy
+      description: Sets the number of days to retain audit logs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetentionPolicyParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Backup & Restore ────────────────────────────────────────────────────
+  /api/v1/backup:
+    post:
+      operationId: createBackup
+      tags: [Backup & Restore]
+      summary: Create a database backup
+      description: Downloads a complete binary backup of the SQLite database.
+      responses:
+        "200":
+          description: Database backup file.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/restore:
+    post:
+      operationId: restoreBackup
+      tags: [Backup & Restore]
+      summary: Restore from backup
+      description: Restores the database from an uploaded backup file. Maximum file size is 32 MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [backup]
+              properties:
+                backup:
+                  type: string
+                  format: binary
+                  description: The database backup file.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Support Bundle ──────────────────────────────────────────────────────
+  /api/v1/support-bundle:
+    post:
+      operationId: createSupportBundle
+      tags: [Support Bundle]
+      summary: Generate a support bundle
+      description: Generates and downloads a gzipped tar archive containing diagnostic information for troubleshooting.
+      responses:
+        "200":
+          description: Support bundle archive.
+          content:
+            application/gzip:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: "JWT token from login or API token (prefixed `ellacore_`)."
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+      description: Page number.
+    PerPage:
+      name: per_page
+      in: query
+      schema:
+        type: integer
+        default: 25
+        minimum: 1
+        maximum: 100
+      description: Items per page.
+    EmailPath:
+      name: email
+      in: path
+      required: true
+      schema:
+        type: string
+        format: email
+      description: User email address.
+    ImsiPath:
+      name: imsi
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[0-9]{15}$"
+      description: "15-digit IMSI (International Mobile Subscriber Identity)."
+    PolicyNamePath:
+      name: name
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Policy name.
+    DataNetworkNamePath:
+      name: name
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Data network name (DNN).
+    RouteIdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      description: Route ID.
+
+  responses:
+    Success:
+      description: Operation succeeded.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              result:
+                $ref: "#/components/schemas/SuccessResponse"
+    BadRequest:
+      description: Invalid request parameters.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Missing or invalid authentication token.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Insufficient permissions.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Resource already exists or is in use.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Internal server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    # ── Common ──────────────────────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    SuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    CreateSuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        id:
+          type: integer
+          format: int64
+      required: [message, id]
+
+    RetentionPolicyParams:
+      type: object
+      required: [days]
+      properties:
+        days:
+          type: integer
+          minimum: 1
+          description: Number of days to retain data.
+
+    RetentionPolicy:
+      type: object
+      properties:
+        days:
+          type: integer
+      required: [days]
+
+    RetentionPolicyResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/RetentionPolicy"
+
+    # ── Status ──────────────────────────────────────────────────────────
+    StatusResponse:
+      type: object
+      properties:
+        version:
+          type: string
+          description: Software version.
+        revision:
+          type: string
+          description: Git commit hash.
+        initialized:
+          type: boolean
+          description: True if the system has at least one user.
+      required: [version, revision, initialized]
+
+    StatusResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/StatusResponse"
+
+    # ── Initialization ──────────────────────────────────────────────────
+    InitializeParams:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    InitializeResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        token:
+          type: string
+          description: JWT token.
+      required: [message, token]
+
+    InitializeResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/InitializeResponse"
+
+    # ── Authentication ──────────────────────────────────────────────────
+    LoginParams:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        token:
+          type: string
+          description: JWT token (15-minute expiry).
+      required: [message, token]
+
+    LoginResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/LoginResponse"
+
+    RefreshResponse:
+      type: object
+      properties:
+        token:
+          type: string
+      required: [token]
+
+    RefreshResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/RefreshResponse"
+
+    LookupTokenResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+      required: [valid]
+
+    LookupTokenResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/LookupTokenResponse"
+
+    # ── Users ───────────────────────────────────────────────────────────
+    User:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        role_id:
+          type: integer
+          description: "1 = Admin, 2 = ReadOnly, 3 = NetworkManager."
+          enum: [1, 2, 3]
+      required: [email, role_id]
+
+    UserResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/User"
+
+    ListUsersResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListUsersResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListUsersResponse"
+
+    CreateUserParams:
+      type: object
+      required: [email, password, role_id]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        role_id:
+          type: integer
+          description: "1 = Admin, 2 = ReadOnly, 3 = NetworkManager."
+          enum: [1, 2, 3]
+
+    UpdateUserParams:
+      type: object
+      required: [role_id]
+      properties:
+        role_id:
+          type: integer
+          enum: [1, 2, 3]
+
+    UpdatePasswordParams:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+
+    APIToken:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Token ID (not the secret).
+        name:
+          type: string
+        expires_at:
+          type: string
+          description: Expiration time (RFC 3339) or empty if no expiry.
+      required: [id, name]
+
+    ListAPITokensResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/APIToken"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListAPITokensResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListAPITokensResponse"
+
+    CreateAPITokenParams:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 50
+          description: A human-readable name for the token.
+        expires_at:
+          type: string
+          format: date-time
+          description: Optional expiration time (RFC 3339). Must be in the future.
+
+    CreateAPITokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: "Full API token string (prefixed `ellacore_`). Store securely — it cannot be retrieved again."
+      required: [token]
+
+    CreateAPITokenResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/CreateAPITokenResponse"
+
+    # ── Subscribers ─────────────────────────────────────────────────────
+    SubscriberStatus:
+      type: object
+      properties:
+        registered:
+          type: boolean
+          description: Whether the device is currently registered on the network.
+        ipAddress:
+          type: string
+          description: Assigned IP address (empty if not connected).
+      required: [registered, ipAddress]
+
+    Subscriber:
+      type: object
+      properties:
+        imsi:
+          type: string
+          description: "15-digit International Mobile Subscriber Identity."
+        opc:
+          type: string
+          description: "32-character hex OPc value."
+        sequenceNumber:
+          type: string
+          description: "Sequence number (6-byte hex)."
+        key:
+          type: string
+          description: "32-character hex permanent key."
+        policyName:
+          type: string
+          description: Name of the assigned QoS policy.
+        status:
+          $ref: "#/components/schemas/SubscriberStatus"
+      required: [imsi, opc, sequenceNumber, key, policyName, status]
+
+    ListSubscribersResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Subscriber"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListSubscribersResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListSubscribersResponse"
+
+    SubscriberDetailStatus:
+      type: object
+      properties:
+        registered:
+          type: boolean
+        ipAddress:
+          type: string
+        imei:
+          type: string
+          description: IMEI of the connected device.
+        cipheringAlgorithm:
+          type: string
+          description: Negotiated ciphering algorithm.
+        integrityAlgorithm:
+          type: string
+          description: Negotiated integrity algorithm.
+        lastSeenAt:
+          type: string
+          description: Timestamp of last activity (RFC 3339).
+        lastSeenRadio:
+          type: string
+          description: Name of the radio the device was last seen on.
+      required: [registered, ipAddress, imei, cipheringAlgorithm, integrityAlgorithm]
+
+    SubscriberDetail:
+      type: object
+      properties:
+        imsi:
+          type: string
+        opc:
+          type: string
+        sequenceNumber:
+          type: string
+        key:
+          type: string
+        policyName:
+          type: string
+        status:
+          $ref: "#/components/schemas/SubscriberDetailStatus"
+      required: [imsi, opc, sequenceNumber, key, policyName, status]
+
+    SubscriberDetailResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/SubscriberDetail"
+
+    CreateSubscriberParams:
+      type: object
+      required: [imsi, key, sequenceNumber, policyName]
+      properties:
+        imsi:
+          type: string
+          pattern: "^[0-9]{15}$"
+          description: "15-digit IMSI. Must start with the operator's MCC+MNC."
+        key:
+          type: string
+          pattern: "^[0-9a-fA-F]{32}$"
+          description: "32-character hex permanent key (K)."
+        opc:
+          type: string
+          pattern: "^[0-9a-fA-F]{32}$"
+          description: "32-character hex OPc. If omitted, derived from the operator code."
+        sequenceNumber:
+          type: string
+          description: "6-byte hex sequence number."
+        policyName:
+          type: string
+          description: Name of an existing QoS policy.
+
+    UpdateSubscriberParams:
+      type: object
+      required: [imsi, policyName]
+      properties:
+        imsi:
+          type: string
+        policyName:
+          type: string
+          description: Name of an existing QoS policy.
+
+    # ── Subscriber Usage ────────────────────────────────────────────────
+    SubscriberUsage:
+      type: object
+      properties:
+        uplink_bytes:
+          type: integer
+          format: int64
+        downlink_bytes:
+          type: integer
+          format: int64
+        total_bytes:
+          type: integer
+          format: int64
+      required: [uplink_bytes, downlink_bytes, total_bytes]
+
+    SubscriberUsageResponseEnvelope:
+      type: object
+      properties:
+        result:
+          type: array
+          description: "Array of single-key objects. Each key is a date (YYYY-MM-DD) when group_by=day, or an IMSI string when group_by=subscriber. The value is a usage summary."
+          items:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/SubscriberUsage"
+
+    # ── Policies ────────────────────────────────────────────────────────
+    Policy:
+      type: object
+      properties:
+        name:
+          type: string
+        bitrate_uplink:
+          type: string
+          description: "Uplink bitrate limit (e.g. \"100 Mbps\")."
+        bitrate_downlink:
+          type: string
+          description: "Downlink bitrate limit (e.g. \"200 Mbps\")."
+        var5qi:
+          type: integer
+          description: "5G QoS Identifier. Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80."
+          enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
+        arp:
+          type: integer
+          description: "Allocation and Retention Priority (1-15)."
+          minimum: 1
+          maximum: 15
+        data_network_name:
+          type: string
+          description: Name of the data network this policy applies to.
+      required: [name, bitrate_uplink, bitrate_downlink, var5qi, arp, data_network_name]
+
+    PolicyResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/Policy"
+
+    ListPoliciesResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Policy"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListPoliciesResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListPoliciesResponse"
+
+    CreatePolicyParams:
+      type: object
+      required: [name, bitrate_uplink, bitrate_downlink, var5qi, arp, data_network_name]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        bitrate_uplink:
+          type: string
+          description: "e.g. \"100 Mbps\""
+        bitrate_downlink:
+          type: string
+          description: "e.g. \"200 Mbps\""
+        var5qi:
+          type: integer
+          enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
+        arp:
+          type: integer
+          minimum: 1
+          maximum: 15
+        data_network_name:
+          type: string
+          description: Name of an existing data network.
+
+    # ── Operator ────────────────────────────────────────────────────────
+    OperatorID:
+      type: object
+      properties:
+        mcc:
+          type: string
+          description: "Mobile Country Code (3 digits)."
+        mnc:
+          type: string
+          description: "Mobile Network Code (2-3 digits)."
+      required: [mcc, mnc]
+
+    OperatorSlice:
+      type: object
+      properties:
+        sst:
+          type: integer
+          description: "Slice/Service Type (0-255)."
+        sd:
+          type: string
+          description: "Slice Differentiator (up to 6 hex chars)."
+      required: [sst]
+
+    OperatorTracking:
+      type: object
+      properties:
+        supportedTacs:
+          type: array
+          items:
+            type: string
+          description: "List of 6-character hex Tracking Area Codes."
+      required: [supportedTacs]
+
+    OperatorHomeNetwork:
+      type: object
+      properties:
+        publicKey:
+          type: string
+          description: Curve25519 public key (hex).
+
+    OperatorResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/OperatorID"
+        slice:
+          $ref: "#/components/schemas/OperatorSlice"
+        tracking:
+          $ref: "#/components/schemas/OperatorTracking"
+        homeNetwork:
+          $ref: "#/components/schemas/OperatorHomeNetwork"
+
+    OperatorResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/OperatorResponse"
+
+    OperatorSliceResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/OperatorSlice"
+
+    OperatorTrackingResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/OperatorTracking"
+
+    OperatorIDResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/OperatorID"
+
+    UpdateOperatorSliceParams:
+      type: object
+      required: [sst]
+      properties:
+        sst:
+          type: integer
+          minimum: 0
+          maximum: 255
+        sd:
+          type: string
+          maxLength: 6
+          description: "Optional Slice Differentiator (hex)."
+
+    UpdateOperatorTrackingParams:
+      type: object
+      required: [supportedTacs]
+      properties:
+        supportedTacs:
+          type: array
+          maxItems: 12
+          items:
+            type: string
+            pattern: "^[0-9a-fA-F]{6}$"
+
+    UpdateOperatorIDParams:
+      type: object
+      required: [mcc, mnc]
+      properties:
+        mcc:
+          type: string
+          pattern: "^[0-9]{3}$"
+          description: "3-digit Mobile Country Code."
+        mnc:
+          type: string
+          pattern: "^[0-9]{2,3}$"
+          description: "2 or 3-digit Mobile Network Code."
+
+    UpdateOperatorCodeParams:
+      type: object
+      required: [operatorCode]
+      properties:
+        operatorCode:
+          type: string
+          pattern: "^[0-9a-fA-F]{32}$"
+          description: "32-character hex operator code (OP)."
+
+    UpdateOperatorHomeNetworkParams:
+      type: object
+      required: [privateKey]
+      properties:
+        privateKey:
+          type: string
+          pattern: "^[0-9a-fA-F]{64}$"
+          description: "64-character hex X25519 private key."
+
+    # ── Data Networks ───────────────────────────────────────────────────
+    DataNetworkStatus:
+      type: object
+      properties:
+        sessions:
+          type: integer
+          description: Number of active PDU sessions on this data network.
+      required: [sessions]
+
+    DataNetwork:
+      type: object
+      properties:
+        name:
+          type: string
+        ip_pool:
+          type: string
+          description: "IP pool in CIDR notation."
+        dns:
+          type: string
+          description: DNS server IP address.
+        mtu:
+          type: integer
+          description: "Maximum Transmission Unit (0-65535)."
+        status:
+          $ref: "#/components/schemas/DataNetworkStatus"
+      required: [name, ip_pool, dns, mtu, status]
+
+    DataNetworkResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/DataNetwork"
+
+    ListDataNetworksResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataNetwork"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListDataNetworksResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListDataNetworksResponse"
+
+    CreateDataNetworkParams:
+      type: object
+      required: [name, ip_pool, dns, mtu]
+      properties:
+        name:
+          type: string
+          description: "Valid DNN format (lowercase alphanumeric, hyphens, dots)."
+        ip_pool:
+          type: string
+          description: "CIDR notation (e.g. \"10.0.0.0/24\")."
+        dns:
+          type: string
+          description: DNS server IP address.
+        mtu:
+          type: integer
+          minimum: 0
+          maximum: 65535
+
+    # ── Routes ──────────────────────────────────────────────────────────
+    Route:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        destination:
+          type: string
+          description: "Destination in CIDR notation."
+        gateway:
+          type: string
+          description: Gateway IPv4 address.
+        interface:
+          type: string
+          description: "Network interface: `n3` or `n6`."
+          enum: [n3, n6]
+        metric:
+          type: integer
+      required: [id, destination, gateway, interface, metric]
+
+    RouteResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/Route"
+
+    ListRoutesResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Route"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListRoutesResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListRoutesResponse"
+
+    CreateRouteParams:
+      type: object
+      required: [destination, gateway, interface, metric]
+      properties:
+        destination:
+          type: string
+          description: "Destination in CIDR notation."
+        gateway:
+          type: string
+          description: Gateway IPv4 address.
+        interface:
+          type: string
+          enum: [n3, n6]
+        metric:
+          type: integer
+          minimum: 0
+
+    CreateRouteResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/CreateSuccessResponse"
+
+    # ── NAT ─────────────────────────────────────────────────────────────
+    NATInfo:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+      required: [enabled]
+
+    NATInfoResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/NATInfo"
+
+    UpdateNATInfoParams:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+
+    # ── Flow Accounting ─────────────────────────────────────────────────
+    FlowAccountingInfo:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+      required: [enabled]
+
+    FlowAccountingInfoResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/FlowAccountingInfo"
+
+    UpdateFlowAccountingInfoParams:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+
+    # ── Interfaces ──────────────────────────────────────────────────────
+    Vlan:
+      type: object
+      properties:
+        master_interface:
+          type: string
+        vlan_id:
+          type: integer
+
+    N2Interface:
+      type: object
+      properties:
+        address:
+          type: string
+        port:
+          type: integer
+      required: [address, port]
+
+    N3Interface:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        external_address:
+          type: string
+        vlan:
+          $ref: "#/components/schemas/Vlan"
+      required: [name, address, external_address]
+
+    N6Interface:
+      type: object
+      properties:
+        name:
+          type: string
+        vlan:
+          $ref: "#/components/schemas/Vlan"
+      required: [name]
+
+    APIInterface:
+      type: object
+      properties:
+        address:
+          type: string
+        port:
+          type: integer
+      required: [address, port]
+
+    NetworkInterfaces:
+      type: object
+      properties:
+        n2:
+          $ref: "#/components/schemas/N2Interface"
+        n3:
+          $ref: "#/components/schemas/N3Interface"
+        n6:
+          $ref: "#/components/schemas/N6Interface"
+        api:
+          $ref: "#/components/schemas/APIInterface"
+
+    NetworkInterfacesResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/NetworkInterfaces"
+
+    UpdateN3SettingsParams:
+      type: object
+      properties:
+        external_address:
+          type: string
+          description: "External/advertised IP address. Empty string to use default."
+
+    # ── Radios ──────────────────────────────────────────────────────────
+    PlmnID:
+      type: object
+      properties:
+        mcc:
+          type: string
+        mnc:
+          type: string
+      required: [mcc, mnc]
+
+    Tai:
+      type: object
+      properties:
+        plmnID:
+          $ref: "#/components/schemas/PlmnID"
+        tac:
+          type: string
+      required: [plmnID, tac]
+
+    Snssai:
+      type: object
+      properties:
+        sst:
+          type: integer
+        sd:
+          type: string
+
+    SupportedTAI:
+      type: object
+      properties:
+        tai:
+          $ref: "#/components/schemas/Tai"
+        snssais:
+          type: array
+          items:
+            $ref: "#/components/schemas/Snssai"
+
+    Radio:
+      type: object
+      properties:
+        name:
+          type: string
+        id:
+          type: string
+        address:
+          type: string
+        supported_tais:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupportedTAI"
+      required: [name, id, address, supported_tais]
+
+    RadioResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/Radio"
+
+    ListRadiosResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Radio"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListRadiosResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListRadiosResponse"
+
+    # ── Radio Events ────────────────────────────────────────────────────
+    RadioEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        timestamp:
+          type: string
+        protocol:
+          type: string
+        message_type:
+          type: string
+        direction:
+          type: string
+          enum: [inbound, outbound]
+        local_address:
+          type: string
+        remote_address:
+          type: string
+        raw:
+          type: string
+          format: byte
+          description: Base64-encoded raw message bytes.
+        details:
+          type: string
+      required: [id, timestamp, protocol, message_type, direction, local_address, remote_address]
+
+    ListRadioEventsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RadioEvent"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListRadioEventsResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListRadioEventsResponse"
+
+    RadioEventDetail:
+      type: object
+      properties:
+        raw:
+          type: string
+          format: byte
+          description: Base64-encoded raw NGAP message bytes.
+        decoded:
+          type: object
+          description: Decoded NGAP message structure. The shape depends on the NGAP PDU type.
+          properties:
+            pdu_type:
+              type: string
+              description: "NGAP PDU type (e.g. InitiatingMessage, SuccessfulOutcome, UnsuccessfulOutcome)."
+            procedure_code:
+              type: object
+              description: "NGAP procedure code."
+              properties:
+                type:
+                  type: string
+                value:
+                  type: integer
+                label:
+                  type: string
+                unknown:
+                  type: boolean
+            message_type:
+              type: string
+              description: "NGAP message type name (e.g. InitialContextSetupResponse)."
+            criticality:
+              type: object
+              description: "NGAP criticality."
+              properties:
+                type:
+                  type: string
+                value:
+                  type: integer
+                label:
+                  type: string
+                unknown:
+                  type: boolean
+            value:
+              type: object
+              description: "Decoded NGAP message payload. Structure varies by message type."
+              additionalProperties: true
+          additionalProperties: true
+
+    RadioEventDetailResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/RadioEventDetail"
+
+    # ── Flow Reports ────────────────────────────────────────────────────
+    FlowReport:
+      type: object
+      properties:
+        id:
+          type: integer
+        subscriber_id:
+          type: string
+          description: Subscriber IMSI.
+        source_ip:
+          type: string
+        destination_ip:
+          type: string
+        source_port:
+          type: integer
+        destination_port:
+          type: integer
+        protocol:
+          type: integer
+          description: IP protocol number.
+        packets:
+          type: integer
+        bytes:
+          type: integer
+        start_time:
+          type: string
+        end_time:
+          type: string
+        direction:
+          type: string
+          enum: [uplink, downlink]
+      required: [id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction]
+
+    ListFlowReportsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FlowReport"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListFlowReportsResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListFlowReportsResponse"
+
+    FlowReportProtocolStat:
+      type: object
+      properties:
+        protocol:
+          type: integer
+        count:
+          type: integer
+
+    FlowReportIPStat:
+      type: object
+      properties:
+        ip:
+          type: string
+        count:
+          type: integer
+
+    FlowReportStats:
+      type: object
+      properties:
+        protocols:
+          type: array
+          items:
+            $ref: "#/components/schemas/FlowReportProtocolStat"
+        top_destinations_uplink:
+          type: array
+          items:
+            $ref: "#/components/schemas/FlowReportIPStat"
+
+    FlowReportStatsResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/FlowReportStats"
+
+    # ── Audit Logs ──────────────────────────────────────────────────────
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        timestamp:
+          type: string
+        level:
+          type: string
+        actor:
+          type: string
+          description: Email of the user who performed the action.
+        action:
+          type: string
+          description: Action identifier (e.g. create_subscriber, delete_route).
+        ip:
+          type: string
+          description: Client IP address.
+        details:
+          type: string
+      required: [id, timestamp, level, actor, action, ip, details]
+
+    ListAuditLogsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListAuditLogsResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListAuditLogsResponse"

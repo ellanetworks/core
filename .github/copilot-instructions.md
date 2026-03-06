@@ -129,6 +129,12 @@ Single YAML file parsed in `internal/config/`. Key sections: `interfaces` (n2/n3
 - `internal/sessions/`: Cleans expired PDU sessions every 30 seconds
 - `internal/jobs/`: Data retention worker runs every 24 hours, enforcing configurable retention for audit logs, radio events, and subscriber usage
 
+## Ella Core API
+
+The full API is described by an OpenAPI 3.1 specification embedded in the binary and served at `GET /api/v1/openapi.yaml` (unauthenticated). When interacting with a running Ella Core instance, fetch the spec first to discover all endpoints, request/response schemas, and authentication requirements.
+
+Authenticate using an API token (prefix `ellacore_`) in the `Authorization: Bearer <token>` header.
+
 ## Key Dependencies
 
 - **sqlair** (Canonical) — SQL ORM with struct binding
