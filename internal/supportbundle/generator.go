@@ -12,7 +12,9 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/version"
+	"go.uber.org/zap"
 )
 
 func getVersionInfo() *struct{ Version, Revision string } {
@@ -28,6 +30,10 @@ func getVersionInfo() *struct{ Version, Revision string } {
 // bytes to include in support bundles. If nil, the generator falls back to
 // repository-local config paths.
 var ConfigProvider func(ctx context.Context) ([]byte, error)
+
+// BpfDumper writes BPF map data into the provided tar writer. Returns nil if
+// BPF objects are not available.
+var BpfDumper func(ctx context.Context, tw *tar.Writer) error
 
 // GenerateSupportBundleFromData writes a minimal support bundle containing the
 // provided redacted data as db.json into the writer as a gzipped tar archive.
@@ -144,6 +150,27 @@ func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w i
 		_ = writeFile("system/netstat.txt", out2)
 	} else {
 		_ = writeFile("system/error-netstat.txt", []byte(err.Error()))
+	}
+
+	// Attempt to dump BPF data if a dumper is installed. This is best-effort:
+	// failures are logged and included in the bundle, but do not abort creation.
+	if BpfDumper != nil {
+		if err := BpfDumper(ctx, tw); err != nil {
+			// Structured log the error
+			logger.APILog.Error("bpf dump failed", zap.Error(err))
+
+			// Include error text in the bundle so it's visible to support tooling.
+			errBs := []byte(err.Error())
+
+			hdr := &tar.Header{Name: "bpf/error.txt", Size: int64(len(errBs)), Mode: 0o600, ModTime: time.Now()}
+			if werr := tw.WriteHeader(hdr); werr != nil {
+				logger.APILog.Warn("failed to write tar header for bpf error file", zap.Error(werr))
+			} else {
+				if _, werr2 := tw.Write(errBs); werr2 != nil {
+					logger.APILog.Warn("failed to write bpf error file to tar", zap.Error(werr2))
+				}
+			}
+		}
 	}
 
 	return nil

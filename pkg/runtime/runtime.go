@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"archive/tar"
 	"context"
 	"fmt"
 	"io/fs"
@@ -25,6 +26,7 @@ import (
 	"github.com/ellanetworks/core/internal/supportbundle"
 	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/internal/upf"
+	"github.com/ellanetworks/core/internal/upf/bpfdump"
 	upf_pfcp "github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/version"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -127,6 +129,33 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3, n3Address, advertisedN3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled, isFlowAccountingEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
+	}
+
+	// Wire supportbundle BPF dumper to dump live BPF maps from the UPF process.
+	// The closure captures the live BPF objects via the PFCP connection stored
+	// in the UPF core package. If the UPF hasn't initialized BPF objects, the
+	// dumper is a no-op.
+	supportbundle.BpfDumper = func(ctx context.Context, tw *tar.Writer) error {
+		conn := upf_pfcp.GetConnection()
+		if conn == nil || conn.BpfObjects == nil {
+			// graceful no-op
+			return nil
+		}
+
+		opts := bpfdump.DumpOptions{
+			Exclude:          []string{"nat_ct", "flow_stats", "nocp_map"},
+			MaxEntriesPerMap: 10000,
+		}
+
+		_, err := bpfdump.DumpAll(ctx, conn.BpfObjects, opts, tw)
+		if err != nil {
+			logger.EllaLog.Error("supportbundle: bpf dump failed", zap.Error(err))
+			return err
+		}
+
+		logger.EllaLog.Info("supportbundle: bpf dump completed")
+
+		return nil
 	}
 
 	server.RegisterMetrics()
