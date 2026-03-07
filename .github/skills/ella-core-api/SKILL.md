@@ -17,7 +17,7 @@ Before making any API call, you need two pieces of information:
 1. **Base URL** — the address of the Ella Core instance (e.g. `http://192.168.1.10:5000`)
 2. **API Token** — a token prefixed with `ellacore_`
 
-**You MUST ask the user to provide both values before proceeding.**
+**Ask the user to provide both values if they are not already present in the conversation context.**
 
 Authenticate every request with the header:
 
@@ -35,11 +35,15 @@ The complete OpenAPI 3.1 specification is served unauthenticated at:
 curl -s <BASE_URL>/api/v1/openapi.yaml
 ```
 
-**Always fetch this spec first** when you need to understand an endpoint's parameters, request body, or response schema. The spec is the source of truth — do not guess endpoint shapes.
+**Always fetch this spec before calling any endpoint you have not already confirmed in the current session.** The spec is the source of truth — never guess endpoint paths, query parameters, or request body shapes. Fetch the spec once per session (it covers all endpoints), then reuse it. Do not pre-fetch resource lists (e.g. subscribers) unless the task explicitly requires their IDs — aggregate endpoints often return all data in a single call without needing known IDs.
 
 ## How to call the API
 
 Use `curl` in the terminal. Always use `-s` for silent mode and pipe JSON responses through `python3 -m json.tool` or `jq` for readability.
+
+### Confirming write operations
+
+**Before executing any POST, PUT, PATCH, or DELETE request, confirm with the user** — describe what will be created, modified, or deleted and ask for explicit approval. This is especially important for destructive operations (e.g. deleting a subscriber, clearing all usage data).
 
 ### Read example
 
@@ -70,7 +74,24 @@ All JSON responses are wrapped:
 List endpoints accept `page` (default 1) and `per_page` (default 25, max 100) query parameters.
 Responses include `items`, `page`, `per_page`, and `total_count`.
 
-To iterate all items, increment `page` until `page * per_page >= total_count`.
+To iterate all items, increment `page` until `page * per_page >= total_count`. When fetching all records for analysis, use `per_page=100` to minimize round-trips.
+
+## Multi-step provisioning
+
+Some operations require multiple API calls in a specific order. In general:
+
+1. **Data network** must exist before it can be referenced by a policy or subscriber.
+2. **Policy** must exist before it can be assigned to a subscriber.
+3. **Subscriber** is created last, referencing an existing policy and data network.
+
+When provisioning, verify prerequisites exist first (via GET) before creating dependent resources.
+
+## Documentation
+
+If you need guidance beyond what the OpenAPI spec provides, WebFetch the relevant page from the public docs at `https://docs.ellanetworks.com/` — for example:
+- `https://docs.ellanetworks.com/how_to/ai_agents/` — managing the network with AI agents
+- `https://docs.ellanetworks.com/how_to/backup_and_restore/` — backup and restore workflows
+- `https://docs.ellanetworks.com/reference/` — non-API reference material
 
 ## Important notes
 

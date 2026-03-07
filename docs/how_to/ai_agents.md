@@ -19,9 +19,9 @@ Download [`SKILL.md`](https://raw.githubusercontent.com/ellanetworks/core/main/.
 
 ## 2. Prompt the agent
 
-Once the skill is active, you can ask things like "Which subscriber consumed the most data in the last 7 days?".
+Once the skill is active, you can ask things like "Which subscribers used the most data over the last 7 days?".
 
 <figure markdown="span">
-  ![Integrate with AI agents](../images/ai_prompt.png){ width="700" }
-  <figcaption>Claude Opus Response to "Which subscriber consumed the most data in the last 7 days?"</figcaption>
+  <div data-cast="../../casts/ella-demo.cast"></div>
+  <figcaption>Claude Opus responds to "Which subscribers used the most data over the last 7 days?" using its Ella Core skill.</figcaption>
 </figure>

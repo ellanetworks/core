@@ -19,6 +19,10 @@ theme:
   custom_dir: docs/overrides
 extra_css:
   - stylesheets/extra.css
+  - https://cdn.jsdelivr.net/npm/asciinema-player@3/dist/bundle/asciinema-player.min.css
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/asciinema-player@3/dist/bundle/asciinema-player.min.js
+  - javascripts/asciinema.js
 repo_url: https://github.com/ellanetworks/core
 repo_name: ellanetworks/core
 copyright: Copyright &copy; 2026 Ella Networks
