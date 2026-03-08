@@ -65,7 +65,7 @@ const UserDetail: React.FC = () => {
 
   const { data: auditData } = useQuery<ListAuditLogsResponse>({
     queryKey: ["userAuditLogs", email],
-    queryFn: () => listAuditLogs(accessToken!, 1, 10, email!),
+    queryFn: () => listAuditLogs(accessToken!, 1, 10, { actor: email! }),
     enabled: authReady && !!accessToken && !!email,
     refetchInterval: 5000,
   });
@@ -261,7 +261,7 @@ const UserDetail: React.FC = () => {
 
         {/* Recent Audit Logs — full width */}
         <Box sx={{ mt: 3 }}>
-          <UserAuditLogsCard logs={auditLogs} />
+          <UserAuditLogsCard logs={auditLogs} email={email!} />
         </Box>
       </Box>
 

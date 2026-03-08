@@ -29,7 +29,7 @@ func TestAuditLogsEndToEnd(t *testing.T) {
 
 	ctx := context.Background()
 
-	res, total, err := database.ListAuditLogsPage(ctx, 1, 10)
+	res, total, err := database.ListAuditLogsPage(ctx, nil, 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list audit logs: %s", err)
 	}
@@ -66,7 +66,7 @@ func TestAuditLogsEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't insert audit log: %s", err)
 	}
 
-	res, total, err = database.ListAuditLogsPage(ctx, 1, 10)
+	res, total, err = database.ListAuditLogsPage(ctx, nil, 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list audit logs: %s", err)
 	}
@@ -88,7 +88,7 @@ func TestAuditLogsEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't delete old audit logs: %s", err)
 	}
 
-	res, total, err = database.ListAuditLogsPage(ctx, 1, 10)
+	res, total, err = database.ListAuditLogsPage(ctx, nil, 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list audit logs after deletion: %s", err)
 	}
@@ -149,7 +149,7 @@ func TestAuditLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	insert(boundary, "boundary_exact")
 	insert(fresh, "fresh")
 
-	logs, total, err := database.ListAuditLogsPage(ctx, 1, 10)
+	logs, total, err := database.ListAuditLogsPage(ctx, nil, 1, 10)
 	if err != nil {
 		t.Fatalf("list before purge failed: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestAuditLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	}
 
 	// Verify only newer + boundary remain.
-	logs, total, err = database.ListAuditLogsPage(ctx, 1, 10)
+	logs, total, err = database.ListAuditLogsPage(ctx, nil, 1, 10)
 	if err != nil {
 		t.Fatalf("list after purge failed: %v", err)
 	}

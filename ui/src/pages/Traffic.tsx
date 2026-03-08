@@ -75,6 +75,7 @@ import {
   formatBytesWithUnit,
   formatBytesAutoUnit,
   formatProtocol,
+  formatDateTime,
   PROTOCOL_NAMES,
   UPLINK_COLOR,
   DOWNLINK_COLOR,
@@ -621,16 +622,14 @@ const Traffic: React.FC = () => {
         headerName: "Start",
         flex: 1,
         minWidth: 180,
-        valueFormatter: (value: string) =>
-          value ? new Date(value).toLocaleString() : "",
+        valueFormatter: (value: string) => (value ? formatDateTime(value) : ""),
       },
       {
         field: "end_time",
         headerName: "End",
         flex: 1,
         minWidth: 180,
-        valueFormatter: (value: string) =>
-          value ? new Date(value).toLocaleString() : "",
+        valueFormatter: (value: string) => (value ? formatDateTime(value) : ""),
       },
     ],
     [theme, protocolColorMap],
