@@ -10,7 +10,7 @@ import (
 
 func releaseTunnel(ctx context.Context, smf *smfContext.SMF, smContext *smfContext.SMContext) error {
 	if smContext.Tunnel == nil {
-		return fmt.Errorf("tunnel not found")
+		return nil
 	}
 
 	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR(smf)
