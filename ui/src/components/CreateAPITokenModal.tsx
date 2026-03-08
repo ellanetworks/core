@@ -14,7 +14,7 @@ import {
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
-import { createAPIToken } from "@/queries/api_tokens";
+import { createAPIToken, createUserAPIToken } from "@/queries/api_tokens";
 import { useNavigate } from "react-router-dom";
 
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -27,6 +27,7 @@ interface CreateAPITokenModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (token: string) => void;
+  targetEmail?: string;
 }
 
 const schema = yup.object({
@@ -60,6 +61,7 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
   open,
   onClose,
   onSuccess,
+  targetEmail,
 }) => {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
@@ -161,11 +163,14 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
           ? ""
           : formValues.expiry.toDate().toISOString();
 
-      const res = await createAPIToken(
-        accessToken,
-        formValues.name.trim(),
-        expiryISO,
-      );
+      const res = targetEmail
+        ? await createUserAPIToken(
+            accessToken,
+            targetEmail,
+            formValues.name.trim(),
+            expiryISO,
+          )
+        : await createAPIToken(accessToken, formValues.name.trim(), expiryISO);
 
       onClose();
       onSuccess(res.token);

@@ -206,3 +206,79 @@ func (c *Client) DeleteMyAPIToken(ctx context.Context, tokenID string) error {
 
 	return nil
 }
+
+// ListUserAPITokens lists API tokens for a specific user with pagination. Requires admin privileges.
+func (c *Client) ListUserAPITokens(ctx context.Context, email string, p *ListParams) (*ListAPITokensResponse, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/users/" + email + "/api-tokens",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var tokens ListAPITokensResponse
+
+	err = resp.DecodeResult(&tokens)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tokens, nil
+}
+
+// CreateUserAPIToken creates a new API token for the specified user. Requires admin privileges.
+func (c *Client) CreateUserAPIToken(ctx context.Context, email string, opts *CreateAPITokenOptions) (*CreateAPITokenResponse, error) {
+	payload := struct {
+		Name   string `json:"name"`
+		Expiry string `json:"expiry,omitempty"`
+	}{
+		Name:   opts.Name,
+		Expiry: opts.Expiry,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "POST",
+		Path:   "api/v1/users/" + email + "/api-tokens",
+		Body:   &body,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var tokenResponse CreateAPITokenResponse
+
+	err = resp.DecodeResult(&tokenResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tokenResponse, nil
+}
+
+// DeleteUserAPIToken deletes an API token for the specified user by token ID. Requires admin privileges.
+func (c *Client) DeleteUserAPIToken(ctx context.Context, email string, tokenID string) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "DELETE",
+		Path:   "api/v1/users/" + email + "/api-tokens/" + tokenID,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

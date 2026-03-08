@@ -328,3 +328,167 @@ func TestListMyAPITokens_Failure(t *testing.T) {
 		t.Fatalf("expected no tokens, got: %v", tokens)
 	}
 }
+
+func TestListUserAPITokens_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"items": [{"name": "agent-token"}], "page": 1, "per_page": 10, "total_count": 1}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	param := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	resp, err := clientObj.ListUserAPITokens(ctx, "user@example.com", param)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 token, got: %d", len(resp.Items))
+	}
+
+	if resp.Items[0].Name != "agent-token" {
+		t.Fatalf("expected token name 'agent-token', got: %s", resp.Items[0].Name)
+	}
+}
+
+func TestListUserAPITokens_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 404,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "User not found"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	param := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	tokens, err := clientObj.ListUserAPITokens(ctx, "nonexistent@example.com", param)
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+
+	if tokens != nil {
+		t.Fatalf("expected no tokens, got: %v", tokens)
+	}
+}
+
+func TestCreateUserAPIToken_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 201,
+			Headers:    http.Header{},
+			Result:     []byte(`{"token": "ellacore_abc123_secret456"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	opts := &client.CreateAPITokenOptions{
+		Name: "ci-pipeline",
+	}
+
+	resp, err := clientObj.CreateUserAPIToken(ctx, "user@example.com", opts)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if resp.Token != "ellacore_abc123_secret456" {
+		t.Fatalf("expected token 'ellacore_abc123_secret456', got: %s", resp.Token)
+	}
+}
+
+func TestCreateUserAPIToken_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 400,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Token name must be between 3 and 50 characters"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	opts := &client.CreateAPITokenOptions{
+		Name: "ab",
+	}
+
+	resp, err := clientObj.CreateUserAPIToken(ctx, "user@example.com", opts)
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+
+	if resp != nil {
+		t.Fatalf("expected no response, got: %v", resp)
+	}
+}
+
+func TestDeleteUserAPIToken_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "API token deleted successfully"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.DeleteUserAPIToken(ctx, "user@example.com", "token-id-123")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
+func TestDeleteUserAPIToken_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 404,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "API token not found"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.DeleteUserAPIToken(ctx, "user@example.com", "nonexistent-id")
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}

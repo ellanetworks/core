@@ -22,15 +22,16 @@ func newFrontendFileServer(embedFS fs.FS) (http.Handler, error) {
 	fsHandler := http.FileServer(http.FS(uiFS))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Serve static assets (JS, CSS, images, etc.) directly.
-		if strings.HasPrefix(r.URL.Path, "/assets/") || strings.Contains(r.URL.Path, ".") {
-			// Vite hashed assets are immutable — cache them aggressively.
-			if strings.HasPrefix(r.URL.Path, "/assets/") {
-				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-			}
+		// Vite hashed assets are immutable — cache them aggressively.
+		if strings.HasPrefix(r.URL.Path, "/assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
 
+		// Serve static files that exist in the embedded FS directly.
+		// We check existence rather than relying on dots in the path,
+		// because SPA routes may contain dots (e.g. email addresses).
+		if fileExists(uiFS, r.URL.Path) {
 			serveFileServer(w, r, fsHandler, r.URL.Path)
-
 			return
 		}
 

@@ -67,6 +67,9 @@ const (
 	PermListMyAPITokens      = "user:list_my_api_tokens"      // #nosec: G101
 	PermCreateMyAPIToken     = "user:create_my_api_token"
 	PermDeleteMyAPIToken     = "user:delete_my_api_token"
+	PermListUserAPITokens    = "user:list_user_api_tokens" // #nosec: G101
+	PermCreateUserAPIToken   = "user:create_user_api_token"
+	PermDeleteUserAPIToken   = "user:delete_user_api_token"
 
 	// Data Network permissions
 	PermListDataNetworks  = "data_network:list"

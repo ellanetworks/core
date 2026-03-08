@@ -16,10 +16,11 @@ This path returns the list of audit logs.
 
 ### Query Parameters
 
-| Name       | In    | Type | Default | Allowed | Description                   |
-| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
-| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
-| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
+| Name       | In    | Type   | Default | Allowed | Description                                                                 |
+| ---------- | ----- | ------ | ------- | ------- | --------------------------------------------------------------------------- |
+| `page`     | query | int    | `1`     | `>= 1`  | 1-based page index.                                                         |
+| `per_page` | query | int    | `25`    | `1…100` | Number of items per page.                                                   |
+| `actor`    | query | string | —       | —       | Filter audit logs by actor email. When omitted, all audit logs are returned. |
 
 ### Sample Response
 

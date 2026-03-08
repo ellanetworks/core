@@ -20,10 +20,11 @@ import (
 const AuditLogsTableName = "audit_logs"
 
 const (
-	insertAuditLogStmt     = "INSERT INTO %s (timestamp, level, actor, action, ip, details) VALUES ($AuditLog.timestamp, $AuditLog.level, $AuditLog.actor, $AuditLog.action, $AuditLog.ip, $AuditLog.details)"
-	listAuditLogsPageStmt  = "SELECT &AuditLog.*, COUNT(*) OVER() AS &NumItems.count FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	deleteOldAuditLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
-	countAuditLogsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	insertAuditLogStmt           = "INSERT INTO %s (timestamp, level, actor, action, ip, details) VALUES ($AuditLog.timestamp, $AuditLog.level, $AuditLog.actor, $AuditLog.action, $AuditLog.ip, $AuditLog.details)"
+	listAuditLogsPageStmt        = "SELECT &AuditLog.*, COUNT(*) OVER() AS &NumItems.count FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listAuditLogsByActorPageStmt = "SELECT &AuditLog.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE actor==$AuditLog.actor ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	deleteOldAuditLogsStmt       = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
+	countAuditLogsStmt           = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 // InsertAuditLogJSON parses the zap JSON and inserts a structured row.
@@ -151,6 +152,62 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 	span.SetStatus(codes.Ok, "")
 
 	return nil
+}
+
+func (db *Database) ListAuditLogsByActorPage(ctx context.Context, actor string, page, perPage int) ([]dbwriter.AuditLog, int, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (paged by actor)", "SELECT", AuditLogsTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("SELECT"),
+			attribute.String("db.collection", AuditLogsTableName),
+			attribute.String("actor", actor),
+			attribute.Int("page", page),
+			attribute.Int("per_page", perPage),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(AuditLogsTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "select").Inc()
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
+	}
+
+	filter := dbwriter.AuditLog{Actor: actor}
+
+	var logs []dbwriter.AuditLog
+
+	var counts []NumItems
+
+	err := db.conn.Query(ctx, db.listAuditLogsByActorStmt, args, filter).GetAll(&logs, &counts)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+
+			return nil, 0, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	count := 0
+	if len(counts) > 0 {
+		count = counts[0].Count
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return logs, count, nil
 }
 
 func (db *Database) CountAuditLogs(ctx context.Context) (int, error) {
