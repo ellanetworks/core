@@ -193,7 +193,14 @@ const (
 // openSQLiteConnection opens a SQLite database at the given path and configures
 // connection limits, busy timeout, WAL journaling, synchronous mode, and foreign keys.
 func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, error) {
-	sqlConnection, err := sql.Open("sqlite3", databasePath)
+	// _txlock=immediate makes every BEGIN use BEGIN IMMEDIATE, which
+	// acquires a write lock up front. This is important for migrations
+	// (prevents two processes from entering the same migration) and is
+	// harmless for normal operations because SetMaxOpenConns(1) already
+	// serialises all in-process access.
+	dsn := databasePath + "?_txlock=immediate"
+
+	sqlConnection, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

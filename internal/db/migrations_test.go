@@ -99,7 +99,7 @@ func schemaVersion(t *testing.T, db *sql.DB) int {
 
 	var v int
 
-	err := db.QueryRowContext(ctx, "SELECT version FROM schema_version LIMIT 1").Scan(&v)
+	err := db.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE id = 1").Scan(&v)
 	if err != nil {
 		t.Fatalf("failed to read schema version: %v", err)
 	}
@@ -341,7 +341,7 @@ func TestMigrateV1_ExistingDatabase(t *testing.T) {
 		fmt.Sprintf(v1CreatePoliciesTable, PoliciesTableName),
 		fmt.Sprintf(v1CreateSubscribersTable, SubscribersTableName),
 		fmt.Sprintf(v1CreateUsersTable, UsersTableName),
-		v1CreateSessionsTable,
+		fmt.Sprintf(v1CreateSessionsTable, SessionsTableName),
 	}
 
 	for _, stmt := range oldStyleDDL {

@@ -5,7 +5,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -40,9 +39,9 @@ func latestVersion() int {
 // RunMigrations applies all pending schema migrations to the database.
 // It creates the schema_version tracking table if it does not exist,
 // reads the current version, and applies each migration whose version
-// exceeds the current one. Each migration runs inside its own transaction
-// (with BEGIN IMMEDIATE to prevent concurrent writers) so a failure rolls
-// back cleanly and leaves the database at the last successful version.
+// exceeds the current one. Each migration runs inside its own IMMEDIATE
+// transaction (via the _txlock=immediate DSN parameter) so a failure
+// rolls back cleanly and leaves the database at the last successful version.
 func RunMigrations(ctx context.Context, sqlConn *sql.DB) error {
 	// Validate migration registry invariants.
 	for i, m := range migrations {
@@ -56,25 +55,29 @@ func RunMigrations(ctx context.Context, sqlConn *sql.DB) error {
 	}
 
 	// Create the version tracking table (idempotent).
+	// The CHECK constraint enforces exactly one row (singleton).
 	_, err := sqlConn.ExecContext(ctx,
-		"CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
+		`CREATE TABLE IF NOT EXISTS schema_version (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			version INTEGER NOT NULL
+		)`)
 	if err != nil {
 		return fmt.Errorf("failed to create schema_version table: %w", err)
 	}
 
-	// Read current schema version. A missing row means version 0.
+	// Seed version 0 if no row exists. INSERT OR IGNORE is atomic and
+	// safe against concurrent execution (the singleton PK prevents dupes).
+	if _, err := sqlConn.ExecContext(ctx,
+		"INSERT OR IGNORE INTO schema_version (id, version) VALUES (1, 0)"); err != nil {
+		return fmt.Errorf("failed to seed schema_version: %w", err)
+	}
+
+	// Read current schema version.
 	current := 0
 
-	row := sqlConn.QueryRowContext(ctx, "SELECT version FROM schema_version LIMIT 1")
+	row := sqlConn.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE id = 1")
 	if err := row.Scan(&current); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("failed to read schema version: %w", err)
-		}
-		// No row — seed with version 0.
-		if _, err := sqlConn.ExecContext(ctx,
-			"INSERT INTO schema_version (version) VALUES (0)"); err != nil {
-			return fmt.Errorf("failed to seed schema_version: %w", err)
-		}
+		return fmt.Errorf("failed to read schema version: %w", err)
 	}
 
 	// Apply each pending migration in order.
@@ -88,20 +91,13 @@ func RunMigrations(ctx context.Context, sqlConn *sql.DB) error {
 			zap.String("description", m.description),
 		)
 
-		// Use BEGIN IMMEDIATE to acquire a write lock immediately, preventing
-		// a second process from entering the same migration concurrently.
+		// The connection uses _txlock=immediate, so BeginTx acquires a
+		// write lock up front, preventing a second process from entering
+		// the same migration concurrently.
 		tx, err := sqlConn.BeginTx(ctx, &sql.TxOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to begin transaction for migration %d: %w", m.version, err)
 		}
-
-		// SQLite requires PRAGMA foreign_keys to be set outside transactions,
-		// and the connection already has it enabled. Temporarily disable it
-		// during the migration so that table restructuring (the 12-step ALTER
-		// TABLE pattern) can reorder table creation without FK violations.
-		// Note: PRAGMA foreign_keys changes inside a tx are no-ops in SQLite,
-		// so we must disable before the transaction for restructure migrations.
-		// For simple ADD COLUMN migrations this is not needed.
 
 		if err := m.fn(ctx, tx); err != nil {
 			_ = tx.Rollback()
@@ -109,7 +105,7 @@ func RunMigrations(ctx context.Context, sqlConn *sql.DB) error {
 		}
 
 		if _, err := tx.ExecContext(ctx,
-			"UPDATE schema_version SET version = ?", m.version); err != nil {
+			"UPDATE schema_version SET version = ? WHERE id = 1", m.version); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("failed to update schema_version to %d: %w", m.version, err)
 		}

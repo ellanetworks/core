@@ -154,11 +154,11 @@ const v1CreateUsersTable = `
 )`
 
 const v1CreateSessionsTable = `
-  CREATE TABLE IF NOT EXISTS sessions (
+  CREATE TABLE IF NOT EXISTS %s (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id     INTEGER NOT NULL,
   token_hash  BLOB    NOT NULL UNIQUE,
-  created_at  INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+  created_at  INTEGER NOT NULL DEFAULT (strftime('%%s','now')),
   expires_at  INTEGER NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 )`
@@ -247,7 +247,7 @@ func migrateV1(ctx context.Context, tx *sql.Tx) error {
 
 		// Users → sessions, api_tokens (FK chain)
 		fmt.Sprintf(v1CreateUsersTable, UsersTableName),
-		v1CreateSessionsTable,
+		fmt.Sprintf(v1CreateSessionsTable, SessionsTableName),
 		fmt.Sprintf(v1CreateAPITokensTable, APITokensTableName),
 
 		// Tables depending on subscribers
