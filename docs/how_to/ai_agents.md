@@ -19,7 +19,7 @@ Download [`SKILL.md`](https://raw.githubusercontent.com/ellanetworks/core/main/.
 
 ## 2. Prompt the agent
 
-Once the skill is active, you can ask things like "Which subscribers used the most data over the last 7 days?".
+Once the skill is active, you can ask things like "Which subscribers used the most data over the last 7 days?". The agent will ask you for the Ella Core URL and an API token — use the token you generated earlier.
 
 <figure markdown="span">
   <div data-cast="../../casts/ella-demo.cast"></div>
