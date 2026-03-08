@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"sync"
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
@@ -22,7 +23,8 @@ var tracer = otel.Tracer("ella-core/db")
 
 // Database is the object used to communicate with the established repository.
 type Database struct {
-	filepath string
+	filepath  string
+	restoreMu sync.Mutex
 
 	// Subscriber statements
 	listSubscribersStmt          *sqlair.Statement

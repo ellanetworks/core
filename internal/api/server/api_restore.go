@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -63,7 +64,18 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 		}
 
 		if err := dbInstance.Restore(r.Context(), tempFile); err != nil {
+			if errors.Is(err, db.ErrRestoreInProgress) {
+				writeError(r.Context(), w, http.StatusConflict, "A restore is already in progress", nil, logger.APILog)
+				return
+			}
+
+			if errors.Is(err, db.ErrInvalidBackupFile) {
+				writeError(r.Context(), w, http.StatusBadRequest, "Invalid backup file: not a valid SQLite database", err, logger.APILog)
+				return
+			}
+
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to restore database", err, logger.APILog)
+
 			return
 		}
 
