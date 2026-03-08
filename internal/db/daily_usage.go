@@ -18,19 +18,6 @@ import (
 
 const DailyUsageTableName = "daily_usage"
 
-const QueryCreateDailyUsageTable = `
-	CREATE TABLE IF NOT EXISTS %s (
-		epoch_day INTEGER NOT NULL,
-
-		imsi TEXT NOT NULL,
-		bytes_uplink   INTEGER NOT NULL DEFAULT 0 CHECK (bytes_uplink   >= 0),
-    bytes_downlink INTEGER NOT NULL DEFAULT 0 CHECK (bytes_downlink >= 0),
-
-		PRIMARY KEY (epoch_day, imsi),
-
-		FOREIGN KEY (imsi) REFERENCES subscribers(imsi) ON DELETE CASCADE
-)`
-
 const (
 	incrementDailyUsageStmt = "INSERT INTO %s (epoch_day, imsi, bytes_uplink, bytes_downlink) VALUES ($DailyUsage.epoch_day, $DailyUsage.imsi, $DailyUsage.bytes_uplink, $DailyUsage.bytes_downlink) ON CONFLICT(epoch_day, imsi) DO UPDATE SET bytes_uplink = bytes_uplink + $DailyUsage.bytes_uplink, bytes_downlink = bytes_downlink + $DailyUsage.bytes_downlink"
 	deleteOldDailyUsageStmt = "DELETE FROM %s WHERE epoch_day < $cutoffDaysArgs.cutoff_days"

@@ -18,15 +18,6 @@ import (
 
 const RoutesTableName = "routes"
 
-const QueryCreateRoutesTable = `
-	CREATE TABLE IF NOT EXISTS %s (
- 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		destination TEXT NOT NULL,
-		gateway TEXT NOT NULL,
-		interface TEXT NOT NULL,
-		metric INTEGER NOT NULL
-)`
-
 const (
 	listRoutesPageStmt = "SELECT &Route.*, COUNT(*) OVER() AS &NumItems.count FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getRouteStmt       = "SELECT &Route.* FROM %s WHERE id==$Route.id"

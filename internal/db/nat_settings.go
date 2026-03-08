@@ -17,14 +17,6 @@ const (
 
 const NATSettingsTableName = "nat_settings"
 
-const QueryCreateNATSettingsTable = `
-CREATE TABLE IF NOT EXISTS %s (
-  singleton BOOLEAN PRIMARY KEY DEFAULT TRUE,
-  enabled   BOOLEAN NOT NULL DEFAULT TRUE,
-  CHECK (singleton)
-);
-`
-
 const insertDefaultNATSettingsStmt = `INSERT OR IGNORE INTO %s (singleton, enabled) VALUES (TRUE, $NATSettings.enabled);`
 
 const upsertNATSettingsStmt = `

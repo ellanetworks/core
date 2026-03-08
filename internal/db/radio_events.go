@@ -17,29 +17,6 @@ import (
 
 const RadioEventsTableName = "network_logs"
 
-// Structured table (no raw blob). Keep strings NOT NULL with empty defaults to avoid NullString hassle.
-const QueryCreateRadioEventsTable = `
-	CREATE TABLE IF NOT EXISTS %s (
-		id         INTEGER PRIMARY KEY AUTOINCREMENT,
-		timestamp  TEXT NOT NULL,                      -- RFC3339
-		protocol      TEXT NOT NULL,
-		message_type TEXT NOT NULL,
-		direction	TEXT NOT NULL DEFAULT '',       -- inbound|outbound
-		local_address TEXT NOT NULL DEFAULT '',
-		remote_address TEXT NOT NULL DEFAULT '',
-		raw			 BLOB NOT NULL,
-		details    TEXT NOT NULL DEFAULT ''
-);`
-
-const QueryCreateRadioEventsIndex = `
-	CREATE INDEX IF NOT EXISTS idx_network_logs_protocol ON network_logs (protocol);
-	CREATE INDEX IF NOT EXISTS idx_network_logs_timestamp ON network_logs (timestamp);
-	CREATE INDEX IF NOT EXISTS idx_network_logs_message_type ON network_logs (message_type);
-	CREATE INDEX IF NOT EXISTS idx_network_logs_direction ON network_logs (direction);
-	CREATE INDEX IF NOT EXISTS idx_network_logs_local_address ON network_logs (local_address);
-	CREATE INDEX IF NOT EXISTS idx_network_logs_remote_address ON network_logs (remote_address);
-`
-
 const (
 	insertRadioEventStmt     = "INSERT INTO %s (timestamp, protocol, message_type, direction, local_address, remote_address, raw, details) VALUES ($RadioEvent.timestamp, $RadioEvent.protocol, $RadioEvent.message_type, $RadioEvent.direction, $RadioEvent.local_address, $RadioEvent.remote_address, $RadioEvent.raw, $RadioEvent.details)"
 	getRadioEventByIDStmt    = "SELECT &RadioEvent.* FROM %s WHERE id = $RadioEvent.id"

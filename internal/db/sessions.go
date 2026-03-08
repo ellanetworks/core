@@ -16,16 +16,6 @@ import (
 
 const SessionsTableName = "sessions"
 
-const createSessionsTableSQL = `
-  CREATE TABLE IF NOT EXISTS sessions (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id     INTEGER NOT NULL,
-  token_hash  BLOB    NOT NULL UNIQUE,
-  created_at  INTEGER NOT NULL DEFAULT (strftime('%s','now')),
-  expires_at  INTEGER NOT NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-)`
-
 const (
 	createSessionStmt            = "INSERT INTO %s (user_id, token_hash, expires_at) VALUES ($Session.user_id, $Session.token_hash, $Session.expires_at)"
 	getSessionByTokenHashStmt    = "SELECT &Session.* FROM %s WHERE token_hash==$Session.token_hash"

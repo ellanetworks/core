@@ -335,13 +335,13 @@ func TestMigrateV1_ExistingDatabase(t *testing.T) {
 	ctx := context.Background()
 
 	oldStyleDDL := []string{
-		fmt.Sprintf(QueryCreateOperatorTable, OperatorTableName),
-		fmt.Sprintf(QueryCreateRoutesTable, RoutesTableName),
-		fmt.Sprintf(QueryCreateDataNetworksTable, DataNetworksTableName),
-		fmt.Sprintf(QueryCreatePoliciesTable, PoliciesTableName),
-		fmt.Sprintf(QueryCreateSubscribersTable, SubscribersTableName),
-		fmt.Sprintf(QueryCreateUsersTable, UsersTableName),
-		createSessionsTableSQL,
+		fmt.Sprintf(v1CreateOperatorTable, OperatorTableName),
+		fmt.Sprintf(v1CreateRoutesTable, RoutesTableName),
+		fmt.Sprintf(v1CreateDataNetworksTable, DataNetworksTableName),
+		fmt.Sprintf(v1CreatePoliciesTable, PoliciesTableName),
+		fmt.Sprintf(v1CreateSubscribersTable, SubscribersTableName),
+		fmt.Sprintf(v1CreateUsersTable, UsersTableName),
+		v1CreateSessionsTable,
 	}
 
 	for _, stmt := range oldStyleDDL {

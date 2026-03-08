@@ -18,22 +18,6 @@ import (
 
 const PoliciesTableName = "policies"
 
-const QueryCreatePoliciesTable = `
-	CREATE TABLE IF NOT EXISTS %s (
- 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-		name TEXT NOT NULL UNIQUE,
-
-		bitrateUplink TEXT NOT NULL,
-		bitrateDownlink TEXT NOT NULL,
-		var5qi INTEGER NOT NULL,
-		arp INTEGER NOT NULL,
-
-		dataNetworkID INTEGER NOT NULL,
-
-		FOREIGN KEY (dataNetworkID) REFERENCES data_networks (id) ON DELETE CASCADE
-)`
-
 const (
 	listPoliciesPagedStmt = "SELECT &Policy.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getPolicyStmt         = "SELECT &Policy.* from %s WHERE name==$Policy.name"

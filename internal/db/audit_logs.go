@@ -19,18 +19,6 @@ import (
 
 const AuditLogsTableName = "audit_logs"
 
-// Structured table (no raw blob). Keep strings NOT NULL with empty defaults to avoid NullString hassle.
-const QueryCreateAuditLogsTable = `
-	CREATE TABLE IF NOT EXISTS %s (
-		id         INTEGER PRIMARY KEY AUTOINCREMENT,
-		timestamp  TEXT NOT NULL,                      -- RFC3339
-		level      TEXT NOT NULL,                      -- info|warn|error...
-		actor      TEXT NOT NULL DEFAULT '',
-		action     TEXT NOT NULL,
-		ip         TEXT NOT NULL DEFAULT '',
-		details    TEXT NOT NULL DEFAULT ''
-);`
-
 const (
 	insertAuditLogStmt     = "INSERT INTO %s (timestamp, level, actor, action, ip, details) VALUES ($AuditLog.timestamp, $AuditLog.level, $AuditLog.actor, $AuditLog.action, $AuditLog.ip, $AuditLog.details)"
 	listAuditLogsPageStmt  = "SELECT &AuditLog.*, COUNT(*) OVER() AS &NumItems.count FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"

@@ -21,19 +21,6 @@ import (
 
 const OperatorTableName = "operator"
 
-const QueryCreateOperatorTable = `
-	CREATE TABLE IF NOT EXISTS %s (
- 		id INTEGER PRIMARY KEY CHECK (id = 1),
-
-		mcc TEXT NOT NULL,
-		mnc TEXT NOT NULL,
-		operatorCode TEXT NOT NULL,
-		supportedTACs TEXT DEFAULT '[]',
-		sst INTEGER NOT NULL,
-		sd BLOB NULLABLE,  -- 3 bytes
-		homeNetworkPrivateKey TEXT NOT NULL
-)`
-
 const (
 	getOperatorStmt                         = "SELECT &Operator.* FROM %s WHERE id=1"
 	updateOperatorCodeStmt                  = "UPDATE %s SET operatorCode=$Operator.operatorCode WHERE id=1"

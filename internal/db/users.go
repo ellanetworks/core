@@ -18,15 +18,6 @@ import (
 
 const UsersTableName = "users"
 
-const QueryCreateUsersTable = `
-	CREATE TABLE IF NOT EXISTS %s (
- 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-		email TEXT NOT NULL UNIQUE,
-		roleID INTEGER NOT NULL,
-		hashedPassword TEXT NOT NULL
-)`
-
 const (
 	listUsersPageStmt    = "SELECT &User.*, COUNT(*) OVER() AS &NumItems.count from %s ORDER BY id LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getUserStmt          = "SELECT &User.* from %s WHERE email==$User.email"

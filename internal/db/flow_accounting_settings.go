@@ -17,14 +17,6 @@ const (
 
 const FlowAccountingSettingsTableName = "flow_accounting_settings"
 
-const QueryCreateFlowAccountingSettingsTable = `
-CREATE TABLE IF NOT EXISTS %s (
-  singleton BOOLEAN PRIMARY KEY DEFAULT TRUE,
-  enabled   BOOLEAN NOT NULL DEFAULT TRUE,
-  CHECK (singleton)
-);
-`
-
 const insertDefaultFlowAccountingSettingsStmt = `INSERT OR IGNORE INTO %s (singleton, enabled) VALUES (TRUE, $FlowAccountingSettings.enabled);`
 
 const upsertFlowAccountingSettingsStmt = `
