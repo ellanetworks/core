@@ -9,13 +9,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
+
+const safetyCopyFilename = "restore_safety_copy.db"
 
 // validateSQLiteFile opens the file as a SQLite database and runs
 // PRAGMA integrity_check. It returns nil only when the file is a valid,
@@ -40,30 +41,24 @@ func validateSQLiteFile(ctx context.Context, path string) error {
 	return nil
 }
 
-// safePath cleans the given path and verifies it resides under the
-// database's parent directory. This prevents path-traversal when
-// constructing file paths derived from db.filepath.
-func (db *Database) safePath(p string) (string, error) {
-	cleaned := filepath.Clean(p)
-	allowedDir := filepath.Dir(db.filepath)
-
-	if !strings.HasPrefix(cleaned, allowedDir+string(os.PathSeparator)) && cleaned != allowedDir {
-		return "", fmt.Errorf("path %q is outside the database directory %q", cleaned, allowedDir)
-	}
-
-	return cleaned, nil
+// dbDirRoot opens the database's parent directory as an os.Root, scoping
+// all file access to that directory and preventing path traversal.
+func (db *Database) dbDirRoot() (*os.Root, error) {
+	return os.OpenRoot(filepath.Dir(db.filepath))
 }
 
 // rollbackFromSafetyCopy restores the original database from the safety copy
 // and reopens the connection. It is called when the restore fails after the
 // production database has already been overwritten.
-func (db *Database) rollbackFromSafetyCopy(ctx context.Context, safetyCopyPath string) error {
-	cleanPath, err := db.safePath(safetyCopyPath)
+func (db *Database) rollbackFromSafetyCopy(ctx context.Context) error {
+	root, err := db.dbDirRoot()
 	if err != nil {
-		return fmt.Errorf("invalid safety copy path: %w", err)
+		return fmt.Errorf("failed to open database directory: %w", err)
 	}
 
-	src, err := os.Open(cleanPath)
+	defer func() { _ = root.Close() }()
+
+	src, err := root.Open(safetyCopyFilename)
 	if err != nil {
 		return fmt.Errorf("failed to open safety copy: %w", err)
 	}
@@ -126,29 +121,33 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	}
 
 	// ── Step 2: Create a safety copy of the current database. ──
-	safetyCopyPath := filepath.Join(filepath.Dir(db.filepath), "restore_safety_copy.db")
-
-	cleanSafetyCopyPath, err := db.safePath(safetyCopyPath)
+	root, err := db.dbDirRoot()
 	if err != nil {
-		return fmt.Errorf("invalid safety copy path: %w", err)
+		return fmt.Errorf("failed to open database directory: %w", err)
 	}
 
-	safetyCopyFile, err := os.Create(cleanSafetyCopyPath)
+	safetyCopyFile, err := root.Create(safetyCopyFilename)
 	if err != nil {
+		_ = root.Close()
 		return fmt.Errorf("failed to create safety copy file: %w", err)
 	}
 
 	if err := db.Backup(ctx, safetyCopyFile); err != nil {
 		_ = safetyCopyFile.Close()
-		_ = os.Remove(cleanSafetyCopyPath)
+		_ = root.Remove(safetyCopyFilename)
+		_ = root.Close()
 
 		return fmt.Errorf("failed to create safety copy of current database: %w", err)
 	}
 
 	_ = safetyCopyFile.Close()
+	_ = root.Close()
 
 	defer func() {
-		_ = os.Remove(cleanSafetyCopyPath)
+		if cleanupRoot, err := db.dbDirRoot(); err == nil {
+			_ = cleanupRoot.Remove(safetyCopyFilename)
+			_ = cleanupRoot.Close()
+		}
 	}()
 
 	// ── Step 3: Close the live connection and overwrite the DB file. ──
@@ -158,7 +157,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 
 	destinationFile, err := os.Create(db.filepath)
 	if err != nil {
-		if rbErr := db.rollbackFromSafetyCopy(ctx, cleanSafetyCopyPath); rbErr != nil {
+		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
 			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
 		}
 
@@ -169,7 +168,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	if err != nil {
 		_ = destinationFile.Close()
 
-		if rbErr := db.rollbackFromSafetyCopy(ctx, cleanSafetyCopyPath); rbErr != nil {
+		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
 			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
 		}
 
@@ -177,7 +176,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	}
 
 	if err := destinationFile.Close(); err != nil {
-		if rbErr := db.rollbackFromSafetyCopy(ctx, cleanSafetyCopyPath); rbErr != nil {
+		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
 			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
 		}
 
@@ -199,7 +198,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	// ── Step 5: Reopen, migrate, and re-prepare. ──
 	sqlConnection, err := openSQLiteConnection(ctx, db.filepath)
 	if err != nil {
-		if rbErr := db.rollbackFromSafetyCopy(ctx, cleanSafetyCopyPath); rbErr != nil {
+		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
 			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
 		}
 
@@ -211,7 +210,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	if err := RunMigrations(ctx, sqlConnection); err != nil {
 		_ = sqlConnection.Close()
 
-		if rbErr := db.rollbackFromSafetyCopy(ctx, cleanSafetyCopyPath); rbErr != nil {
+		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
 			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
 		}
 
@@ -221,7 +220,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	db.conn = sqlair.NewDB(sqlConnection)
 
 	if err := db.PrepareStatements(); err != nil {
-		if rbErr := db.rollbackFromSafetyCopy(ctx, cleanSafetyCopyPath); rbErr != nil {
+		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
 			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
 		}
 

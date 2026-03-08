@@ -144,7 +144,7 @@ func TestRestore_ConcurrentRestore(t *testing.T) {
 	makeBackup := func(name string) string {
 		path := filepath.Join(tempDir, name)
 
-		f, err := os.Create(path)
+		f, err := os.Create(path) //nolint:gosec // test-only; path is from t.TempDir()
 		if err != nil {
 			t.Fatalf("failed to create backup file %s: %v", name, err)
 		}
@@ -172,7 +172,7 @@ func TestRestore_ConcurrentRestore(t *testing.T) {
 	restoreFromPath := func(idx int, path string) {
 		defer wg.Done()
 
-		f, err := os.Open(path)
+		f, err := os.Open(path) //nolint:gosec // test-only; path is from t.TempDir()
 		if err != nil {
 			errs[idx] = err
 			return
