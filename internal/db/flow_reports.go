@@ -265,7 +265,7 @@ func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
 	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "delete").Inc()
 
 	// Compute UTC cutoff so string comparison works lexicographically for RFC3339
-	cutoff := time.Now().AddDate(0, 0, -days).UTC().Format(time.RFC3339)
+	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format(time.RFC3339)
 
 	args := cutoffArgs{Cutoff: cutoff}
 

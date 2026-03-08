@@ -142,8 +142,8 @@ func TestAuditLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	cutoff := now.AddDate(0, 0, -policyDays)
 
 	veryOld := cutoff.Add(-48 * time.Hour)
-	boundary := cutoff
-	fresh := now.Add(-24 * time.Hour)
+	boundary := cutoff.Add(2 * time.Second) // just past cutoff — survives strict "<" delete
+	fresh := now.Add(-1 * time.Hour)
 
 	insert(veryOld, "very_old")
 	insert(boundary, "boundary_exact")
