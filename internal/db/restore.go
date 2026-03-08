@@ -61,6 +61,13 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("failed to reopen database after restore: %w", err)
 	}
 
+	// Migrate the restored database to the current schema. This handles
+	// restoring a backup taken from an older version of the binary.
+	if err := RunMigrations(ctx, sqlConnection); err != nil {
+		_ = sqlConnection.Close()
+		return fmt.Errorf("schema migration after restore failed: %w", err)
+	}
+
 	db.conn = sqlair.NewDB(sqlConnection)
 
 	if err := db.PrepareStatements(); err != nil {

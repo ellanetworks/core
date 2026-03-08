@@ -239,77 +239,9 @@ func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 		return nil, err
 	}
 
-	// Initialize tables
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateSubscribersTable, SubscribersTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreatePoliciesTable, PoliciesTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateRoutesTable, RoutesTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateOperatorTable, OperatorTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateDataNetworksTable, DataNetworksTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateUsersTable, UsersTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, createSessionsTableSQL); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateAuditLogsTable, AuditLogsTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateRadioEventsTable, RadioEventsTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, QueryCreateRadioEventsIndex); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateRetentionPolicyTable, RetentionPolicyTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateAPITokensTable, APITokensTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateNATSettingsTable, NATSettingsTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateFlowAccountingSettingsTable, FlowAccountingSettingsTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateN3SettingsTable, N3SettingsTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateDailyUsageTable, DailyUsageTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateFlowReportsTable, FlowReportsTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, QueryCreateFlowReportsIndex); err != nil {
-		return nil, err
+	if err := RunMigrations(ctx, sqlConnection); err != nil {
+		_ = sqlConnection.Close()
+		return nil, fmt.Errorf("schema migration failed: %w", err)
 	}
 
 	db := new(Database)
