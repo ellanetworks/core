@@ -197,3 +197,128 @@ func TestAuditLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 		t.Fatalf("expected fresh log to remain")
 	}
 }
+
+func TestListAuditLogsByActorPage(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %v", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %v", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	// Insert logs from different actors
+	err = database.InsertAuditLog(ctx, &dbwriter.AuditLog{
+		Timestamp: "2024-10-01T12:00:00Z",
+		Level:     "info",
+		Actor:     "admin@example.com",
+		Action:    "create_user",
+		IP:        "1.2.3.4",
+		Details:   "Created a user",
+	})
+	if err != nil {
+		t.Fatalf("couldn't insert audit log: %v", err)
+	}
+
+	err = database.InsertAuditLog(ctx, &dbwriter.AuditLog{
+		Timestamp: "2024-10-01T13:00:00Z",
+		Level:     "info",
+		Actor:     "viewer@example.com",
+		Action:    "login",
+		IP:        "2.3.4.5",
+		Details:   "User logged in",
+	})
+	if err != nil {
+		t.Fatalf("couldn't insert audit log: %v", err)
+	}
+
+	err = database.InsertAuditLog(ctx, &dbwriter.AuditLog{
+		Timestamp: "2024-10-01T14:00:00Z",
+		Level:     "info",
+		Actor:     "admin@example.com",
+		Action:    "delete_user",
+		IP:        "1.2.3.4",
+		Details:   "Deleted a user",
+	})
+	if err != nil {
+		t.Fatalf("couldn't insert audit log: %v", err)
+	}
+
+	// Filter by admin@example.com — should return 2
+	logs, total, err := database.ListAuditLogsByActorPage(ctx, "admin@example.com", 1, 10)
+	if err != nil {
+		t.Fatalf("couldn't list audit logs by actor: %v", err)
+	}
+
+	if total != 2 {
+		t.Fatalf("expected total 2, got %d", total)
+	}
+
+	if len(logs) != 2 {
+		t.Fatalf("expected 2 logs, got %d", len(logs))
+	}
+
+	// Verify ordering (newest first)
+	if logs[0].Action != "delete_user" {
+		t.Fatalf("expected first log action 'delete_user', got '%s'", logs[0].Action)
+	}
+
+	if logs[1].Action != "create_user" {
+		t.Fatalf("expected second log action 'create_user', got '%s'", logs[1].Action)
+	}
+
+	// Filter by viewer@example.com — should return 1
+	logs, total, err = database.ListAuditLogsByActorPage(ctx, "viewer@example.com", 1, 10)
+	if err != nil {
+		t.Fatalf("couldn't list audit logs by actor: %v", err)
+	}
+
+	if total != 1 {
+		t.Fatalf("expected total 1, got %d", total)
+	}
+
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 log, got %d", len(logs))
+	}
+
+	if logs[0].Action != "login" {
+		t.Fatalf("expected log action 'login', got '%s'", logs[0].Action)
+	}
+
+	// Filter by unknown actor — should return 0
+	logs, total, err = database.ListAuditLogsByActorPage(ctx, "unknown@example.com", 1, 10)
+	if err != nil {
+		t.Fatalf("couldn't list audit logs by actor: %v", err)
+	}
+
+	if total != 0 {
+		t.Fatalf("expected total 0, got %d", total)
+	}
+
+	if len(logs) != 0 {
+		t.Fatalf("expected 0 logs, got %d", len(logs))
+	}
+
+	// Test pagination with actor filter
+	logs, total, err = database.ListAuditLogsByActorPage(ctx, "admin@example.com", 1, 1)
+	if err != nil {
+		t.Fatalf("couldn't list audit logs by actor with pagination: %v", err)
+	}
+
+	if total != 2 {
+		t.Fatalf("expected total 2 with pagination, got %d", total)
+	}
+
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 log with pagination, got %d", len(logs))
+	}
+}

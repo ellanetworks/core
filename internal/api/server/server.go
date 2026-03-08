@@ -55,6 +55,9 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("PUT /api/v1/users/{email}/password", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateUserPassword, UpdateUserPassword(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/users/{email}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadUser, GetUser(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/users/{email}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteUser, DeleteUser(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/users/{email}/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermListUserAPITokens, ListUserAPITokens(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/users/{email}/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateUserAPIToken, CreateUserAPIToken(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/users/{email}/api-tokens/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteUserAPIToken, DeleteUserAPIToken(dbInstance))).ServeHTTP)
 
 	// Subscribers (Authenticated)
 	mux.HandleFunc("GET /api/v1/subscribers", Authenticate(jwtSecret, dbInstance, Authorize(PermListSubscribers, ListSubscribers(dbInstance))).ServeHTTP)

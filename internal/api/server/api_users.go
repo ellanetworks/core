@@ -76,6 +76,8 @@ const (
 	UpdateUserPasswordAction = "update_user_password"
 	CreateAPITokenAction     = "create_api_token"
 	DeleteAPITokenAction     = "delete_api_token"
+	CreateUserAPITokenAction = "create_user_api_token"
+	DeleteUserAPITokenAction = "delete_user_api_token"
 )
 
 const (
@@ -727,6 +729,269 @@ func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 			email,
 			getClientIP(r),
 			fmt.Sprintf("User deleted API token: %s", token.Name),
+		)
+	})
+}
+
+func ListUserAPITokens(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		page := atoiDefault(q.Get("page"), 1)
+		perPage := atoiDefault(q.Get("per_page"), 25)
+
+		if page < 1 {
+			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			return
+		}
+
+		if perPage < 1 || perPage > 100 {
+			writeError(r.Context(), w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			return
+		}
+
+		emailParam := r.PathValue("email")
+		if emailParam == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
+			return
+		}
+
+		targetUser, err := dbInstance.GetUser(r.Context(), emailParam)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
+
+			return
+		}
+
+		tokens, total, err := dbInstance.ListAPITokensPage(r.Context(), targetUser.ID, page, perPage)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Unable to retrieve API tokens", err, logger.APILog)
+			return
+		}
+
+		items := make([]APIToken, 0, len(tokens))
+		for _, token := range tokens {
+			var expiresAt string
+			if token.ExpiresAt != nil {
+				expiresAt = token.ExpiresAt.Format(time.RFC3339)
+			}
+
+			items = append(items, APIToken{
+				ID:        token.TokenID,
+				Name:      token.Name,
+				ExpiresAt: expiresAt,
+			})
+		}
+
+		response := ListAPITokensResponse{
+			Items:      items,
+			Page:       page,
+			PerPage:    perPage,
+			TotalCount: total,
+		}
+
+		writeResponse(r.Context(), w, response, http.StatusOK, logger.APILog)
+	})
+}
+
+func CreateUserAPIToken(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value(contextKeyEmail)
+
+		adminEmail, ok := emailAny.(string)
+		if !ok || adminEmail == "" {
+			writeError(r.Context(), w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
+			return
+		}
+
+		emailParam := r.PathValue("email")
+		if emailParam == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
+			return
+		}
+
+		targetUser, err := dbInstance.GetUser(r.Context(), emailParam)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
+
+			return
+		}
+
+		var params CreateAPITokenParams
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
+			return
+		}
+
+		if params.Name == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "Token name is required", errors.New("missing token name"), logger.APILog)
+			return
+		}
+
+		if len(params.Name) < 3 || len(params.Name) > 50 {
+			writeError(r.Context(), w, http.StatusBadRequest, "Token name must be between 3 and 50 characters", errors.New("invalid token name length"), logger.APILog)
+			return
+		}
+
+		var expiresAt *time.Time
+
+		if params.ExpiresAt != "" {
+			t, err := time.Parse(time.RFC3339, params.ExpiresAt)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, "Invalid expiration time format", err, logger.APILog)
+				return
+			}
+
+			if t.Before(time.Now()) {
+				writeError(r.Context(), w, http.StatusBadRequest, "Expiration time must be in the future", errors.New("invalid expiration time"), logger.APILog)
+				return
+			}
+
+			expiresAt = &t
+		}
+
+		numTokens, err := dbInstance.CountAPITokens(r.Context(), targetUser.ID)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count API tokens", err, logger.APILog)
+			return
+		}
+
+		if numTokens >= MaxNumAPITokens {
+			writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of API tokens reached ("+strconv.Itoa(MaxNumAPITokens)+")", nil, logger.APILog)
+			return
+		}
+
+		tokenID, err := randAlphaNum(12)
+		if err != nil {
+			logger.APILog.Error("Failed to generate token ID", zap.Error(err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to generate token ID", err, logger.APILog)
+
+			return
+		}
+
+		secret, err := randAlphaNum(24)
+		if err != nil {
+			logger.APILog.Error("Failed to generate secret", zap.Error(err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to generate secret", err, logger.APILog)
+
+			return
+		}
+
+		token := fmt.Sprintf("ellacore_%s_%s", tokenID, secret)
+
+		hash := hashAPIToken(secret)
+
+		apiToken := &db.APIToken{
+			TokenID:   tokenID,
+			Name:      params.Name,
+			UserID:    targetUser.ID,
+			TokenHash: hash,
+			ExpiresAt: expiresAt,
+		}
+
+		err = dbInstance.CreateAPIToken(r.Context(), apiToken)
+		if err != nil {
+			if errors.Is(err, db.ErrAlreadyExists) {
+				writeError(r.Context(), w, http.StatusConflict, "API token already exists", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create API token", err, logger.APILog)
+
+			return
+		}
+
+		response := CreateAPITokenResponse{
+			Token: token,
+		}
+
+		writeResponse(r.Context(), w, response, http.StatusCreated, logger.APILog)
+
+		logger.LogAuditEvent(
+			r.Context(),
+			CreateUserAPITokenAction,
+			adminEmail,
+			getClientIP(r),
+			fmt.Sprintf("Admin %s created API token '%s' for user %s", adminEmail, apiToken.Name, emailParam),
+		)
+	})
+}
+
+func DeleteUserAPIToken(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value(contextKeyEmail)
+
+		adminEmail, ok := emailAny.(string)
+		if !ok || adminEmail == "" {
+			writeError(r.Context(), w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
+			return
+		}
+
+		emailParam := r.PathValue("email")
+		if emailParam == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
+			return
+		}
+
+		idParam := r.PathValue("id")
+		if idParam == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing token ID parameter", errors.New("missing param"), logger.APILog)
+			return
+		}
+
+		targetUser, err := dbInstance.GetUser(r.Context(), emailParam)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
+
+			return
+		}
+
+		token, err := dbInstance.GetAPITokenByTokenID(r.Context(), idParam)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "API token not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve API token", err, logger.APILog)
+
+			return
+		}
+
+		if token.UserID != targetUser.ID {
+			writeError(r.Context(), w, http.StatusNotFound, "API token not found", errors.New("token does not belong to target user"), logger.APILog)
+			return
+		}
+
+		if err := dbInstance.DeleteAPIToken(r.Context(), token.ID); err != nil {
+			logger.APILog.Warn("Failed to delete API token", zap.Error(err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete API token", err, logger.APILog)
+
+			return
+		}
+
+		writeResponse(r.Context(), w, SuccessResponse{Message: "API token deleted successfully"}, http.StatusOK, logger.APILog)
+
+		logger.LogAuditEvent(
+			r.Context(),
+			DeleteUserAPITokenAction,
+			adminEmail,
+			getClientIP(r),
+			fmt.Sprintf("Admin %s deleted API token '%s' for user %s", adminEmail, token.Name, emailParam),
 		)
 	})
 }

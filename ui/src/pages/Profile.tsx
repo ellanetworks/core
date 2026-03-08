@@ -1,30 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Box,
-  Alert,
   Typography,
-  Card,
-  CardHeader,
-  CardContent,
-  TableContainer,
-  Table,
-  TableHead,
-  TableBody,
-  TableRow,
-  TableCell,
-  IconButton,
-  Paper,
-  Button,
-  Chip,
   Skeleton,
-  Stack,
   Select,
   MenuItem,
+  Button,
+  Stack,
 } from "@mui/material";
-import Grid from "@mui/material/Grid";
 import EditMyUserPasswordModal from "@/components/EditMyUserPasswordModal";
-import CreateAPITokenModal from "@/components/CreateAPITokenModal";
-import DeleteIcon from "@mui/icons-material/Delete";
 import { getLoggedInUser, type APIUser } from "@/queries/users";
 import {
   listAPITokens,
@@ -34,63 +18,22 @@ import {
 } from "@/queries/api_tokens";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import EmailIcon from "@mui/icons-material/Email";
-import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import CloseIcon from "@mui/icons-material/Close";
 import { useSnackbar } from "@/contexts/SnackbarContext";
+import UserAccountCard from "@/components/UserAccountCard";
+import UserPasswordCard from "@/components/UserPasswordCard";
+import UserAPITokensCard from "@/components/UserAPITokensCard";
 
 const MAX_WIDTH = 1400;
 
-const headerStyles = {
-  backgroundColor: "#F5F5F5",
-  color: "#000000ff",
-  borderTopLeftRadius: 12,
-  borderTopRightRadius: 12,
-  "& .MuiCardHeader-title": { color: "#000000ff" },
-  "& .MuiIconButton-root": { color: "#000000ff" },
-};
-
 export default function Profile() {
   const navigate = useNavigate();
-  const { role, accessToken, authReady } = useAuth();
+  const { accessToken, authReady } = useAuth();
 
   useEffect(() => {
     if (authReady && !accessToken) navigate("/login");
   }, [authReady, accessToken, navigate]);
 
   const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
-  const [isCreateAPITokenModalOpen, setCreateAPITokenModalOpen] =
-    useState(false);
-
-  const [justCreatedToken, setJustCreatedToken] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const handleCreateAPITokenSuccess = (token: string) => {
-    setCreateAPITokenModalOpen(false);
-    setJustCreatedToken(token);
-    setPage(1);
-    fetchAPITokens(1, perPage);
-    showSnackbar("API token created successfully.", "success");
-  };
-
-  const copyToken = async () => {
-    if (!navigator.clipboard) {
-      showSnackbar(
-        "Clipboard API not available. Please use HTTPS or try a different browser.",
-        "error",
-      );
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(justCreatedToken ?? "");
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-      showSnackbar("Copied to clipboard.", "success");
-    } catch {
-      showSnackbar("Failed to copy API token.", "error");
-    }
-  };
 
   const { showSnackbar } = useSnackbar();
 
@@ -103,12 +46,6 @@ export default function Profile() {
   const [page, setPage] = useState<number>(1);
   const [perPage, setPerPage] = useState<number>(10);
   const [totalCount, setTotalCount] = useState<number>(0);
-
-  const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
-  const [selectedTokenName, setSelectedTokenName] = useState<string | null>(
-    null,
-  );
-  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
 
   const fetchUser = useCallback(async () => {
     if (!authReady || !accessToken) return;
@@ -128,22 +65,9 @@ export default function Profile() {
     fetchUser();
   }, [fetchUser]);
 
-  const handleEditPasswordClick = (user: APIUser | null) => {
-    if (!user) return;
-    setEditPasswordModalOpen(true);
-  };
-
-  const handleOpenCreateAPITokenModal = () => setCreateAPITokenModalOpen(true);
-
   const handlePasswordSuccess = () => {
     setEditPasswordModalOpen(false);
     showSnackbar("Password updated successfully.", "success");
-  };
-
-  const handleDeleteClick = (tokenId: number, tokenName: string) => {
-    setSelectedTokenId(tokenId);
-    setSelectedTokenName(tokenName);
-    setConfirmationOpen(true);
   };
 
   const fetchAPITokens = useCallback(
@@ -174,16 +98,14 @@ export default function Profile() {
     fetchAPITokens(page, perPage);
   }, [fetchAPITokens, page, perPage]);
 
-  const handleDeleteConfirm = async () => {
-    setConfirmationOpen(false);
-    if (!selectedTokenId || !accessToken) return;
+  const handleDeleteToken = async (token: APIToken) => {
+    if (!accessToken) return;
     try {
-      await deleteAPIToken(accessToken, selectedTokenId);
+      await deleteAPIToken(accessToken, token.id);
       showSnackbar(
-        `API token "${selectedTokenName}" deleted successfully.`,
+        `API token "${token.name}" deleted successfully.`,
         "success",
       );
-      // If this was the last item on the page and not the first page, go back one page
       const remainingOnPage = apiTokens.length - 1;
       if (remainingOnPage <= 0 && page > 1) {
         const newPage = page - 1;
@@ -194,290 +116,84 @@ export default function Profile() {
       }
     } catch (error) {
       showSnackbar(
-        `Failed to delete token "${selectedTokenName}": ${
+        `Failed to delete token: ${
           error instanceof Error ? error.message : "Unknown error"
         }`,
         "error",
       );
-    } finally {
-      setSelectedTokenId(null);
-      setSelectedTokenName(null);
     }
   };
 
-  const descriptionText = "Manage how you authenticate with Ella Core.";
+  const handleTokenCreated = () => {
+    setPage(1);
+    fetchAPITokens(1, perPage);
+  };
 
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
   const from = totalCount === 0 ? 0 : (page - 1) * perPage + 1;
   const to = Math.min(page * perPage, totalCount);
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 3, md: 4 }, maxWidth: MAX_WIDTH, mx: "auto" }}>
-      <Typography variant="h4" sx={{ mb: 1 }}>
-        My Profile
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-        {descriptionText}
-      </Typography>
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        pt: 6,
+        pb: 4,
+      }}
+    >
+      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+        <Typography variant="h4" sx={{ mb: 1 }}>
+          My Profile
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+          Manage how you authenticate with Ella Core.
+        </Typography>
 
-      <Grid container spacing={3} alignItems="stretch">
-        <Grid size={{ xs: 12, sm: 12, md: 4 }}>
-          <Card sx={{ height: "100%", borderRadius: 3, boxShadow: 2 }}>
-            <CardHeader title="Account" sx={headerStyles} />
-            <CardContent>
-              {loadingUser ? (
-                <>
-                  <Stack
-                    direction="row"
-                    spacing={2}
-                    alignItems="center"
-                    sx={{ mb: 2 }}
-                  >
-                    <Skeleton variant="circular" width={56} height={56} />
-                    <Box sx={{ flex: 1 }}>
-                      <Skeleton variant="text" width="80%" />
-                      <Skeleton variant="text" width="50%" />
-                    </Box>
-                  </Stack>
-                  <Skeleton variant="rectangular" height={20} sx={{ mb: 1 }} />
-                  <Skeleton variant="rectangular" height={20} width="60%" />
-                </>
-              ) : (
-                <>
-                  <Stack
-                    direction="row"
-                    spacing={2}
-                    alignItems="center"
-                    sx={{ mb: 2 }}
-                  >
-                    <Box sx={{ minWidth: 0 }}>
-                      <Stack
-                        direction="row"
-                        alignItems="center"
-                        spacing={1}
-                        sx={{ mb: 0.5 }}
-                      >
-                        <EmailIcon fontSize="small" />
-                        <Typography
-                          variant="body1"
-                          noWrap
-                          title={loggedInUser?.email}
-                          sx={{ maxWidth: 220 }}
-                        >
-                          {loggedInUser?.email || "—"}
-                        </Typography>
-                      </Stack>
-                      <Chip
-                        size="small"
-                        label={role || "User"}
-                        color="default"
-                        variant="outlined"
-                        sx={{ mt: 0.5 }}
-                      />
-                    </Box>
-                  </Stack>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
+        {/* Two-column body */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+            gap: 3,
+            alignItems: "stretch",
+          }}
+        >
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {loadingUser || !loggedInUser ? (
+              <Skeleton variant="rounded" height={140} />
+            ) : (
+              <UserAccountCard user={loggedInUser} />
+            )}
+          </Box>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <UserPasswordCard
+              onChangePassword={() => setEditPasswordModalOpen(true)}
+              disabled={loadingUser || !loggedInUser}
+            />
+          </Box>
+        </Box>
 
-        <Grid size={{ xs: 12, sm: 12, md: 8 }}>
-          <Card sx={{ height: "100%", borderRadius: 3, boxShadow: 2 }}>
-            <CardHeader title="Password" sx={headerStyles} />
-            <CardContent
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-                flexGrow: 1,
-              }}
-            >
-              <Typography variant="body2" color="text.secondary">
-                Keep your account secure by using a strong password and updating
-                it periodically.
-              </Typography>
+        {/* API Tokens — full width */}
+        <Box sx={{ mt: 3 }}>
+          {loadingTokens && apiTokens.length === 0 ? (
+            <Skeleton variant="rounded" height={300} />
+          ) : (
+            <>
+              <UserAPITokensCard
+                tokens={apiTokens}
+                onDeleteToken={handleDeleteToken}
+                onTokenCreated={handleTokenCreated}
+              />
 
-              <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
-                <Button
-                  variant="contained"
-                  onClick={() => handleEditPasswordClick(loggedInUser)}
-                  disabled={loadingUser || !loggedInUser}
-                >
-                  Change Password
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 12, md: 12 }}>
-          <Card sx={{ height: "100%", borderRadius: 3, boxShadow: 2 }}>
-            <CardHeader title="API Tokens" sx={headerStyles} />
-            <CardContent
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-                flexGrow: 1,
-              }}
-            >
-              <Typography variant="body2" color="text.secondary">
-                Manage your API tokens to authenticate programmatically with
-                Ella Core. Your API token will have the same permissions as your
-                user account. Actions performed with the token will be logged
-                under your user account.
-              </Typography>
-              <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={handleOpenCreateAPITokenModal}
-                  disabled={loadingUser || !loggedInUser}
-                >
-                  Create Token
-                </Button>
-              </Box>
-
-              {justCreatedToken && (
-                <Alert
-                  severity="success"
-                  variant="outlined"
-                  sx={{ alignItems: "center" }}
-                  action={
-                    <Stack direction="row" spacing={1}>
-                      <IconButton
-                        aria-label="copy token"
-                        size="small"
-                        onClick={copyToken}
-                        title={copied ? "Copied!" : "Copy"}
-                      >
-                        <ContentCopyIcon fontSize="inherit" />
-                      </IconButton>
-                      <IconButton
-                        aria-label="dismiss"
-                        size="small"
-                        onClick={() => setJustCreatedToken(null)}
-                        title="Dismiss"
-                      >
-                        <CloseIcon fontSize="inherit" />
-                      </IconButton>
-                    </Stack>
-                  }
-                >
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Copy your API token now. You won’t be able to see it again!
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontFamily: "monospace",
-                      wordBreak: "break-all",
-                      userSelect: "all",
-                    }}
-                  >
-                    {justCreatedToken}
-                  </Typography>
-                  {copied && (
-                    <Typography variant="caption" sx={{ ml: 0.5 }}>
-                      Copied!
-                    </Typography>
-                  )}
-                </Alert>
-              )}
-
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Name</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Expiry</TableCell>
-                      <TableCell>Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {loadingTokens && (
-                      <>
-                        {[...Array(3)].map((_, i) => (
-                          <TableRow key={`sk-${i}`}>
-                            <TableCell colSpan={4}>
-                              <Skeleton variant="text" />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </>
-                    )}
-
-                    {!loadingTokens && apiTokens.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4}>
-                          <Typography variant="body2" color="text.secondary">
-                            No API tokens yet. Click “Create Token” to add one.
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    )}
-
-                    {!loadingTokens &&
-                      apiTokens.map((t) => {
-                        const isExpired = t.expires_at
-                          ? new Date(t.expires_at).getTime() < Date.now()
-                          : false;
-
-                        return (
-                          <TableRow key={t.id}>
-                            <TableCell>{t.name}</TableCell>
-                            <TableCell>
-                              {isExpired ? (
-                                <Chip
-                                  label="Expired"
-                                  size="small"
-                                  sx={{
-                                    backgroundColor: "#C69026",
-                                    color: "#fff",
-                                  }}
-                                />
-                              ) : (
-                                <Chip
-                                  label="Active"
-                                  color="success"
-                                  size="small"
-                                />
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Typography
-                                variant="body2"
-                                color="text.secondary"
-                              >
-                                {t.expires_at
-                                  ? new Date(t.expires_at).toDateString()
-                                  : "Never"}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <IconButton
-                                aria-label="delete"
-                                size="small"
-                                onClick={() => handleDeleteClick(t.id, t.name)}
-                                disabled={loadingTokens}
-                              >
-                                <DeleteIcon color="primary" />
-                              </IconButton>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-
+              {/* Pagination */}
               <Stack
                 direction={{ xs: "column", sm: "row" }}
                 spacing={2}
                 alignItems={{ xs: "stretch", sm: "center" }}
                 justifyContent="space-between"
+                sx={{ mt: 2 }}
               >
                 <Typography variant="body2" color="text.secondary">
                   {totalCount > 0
@@ -524,32 +240,16 @@ export default function Profile() {
                   </Button>
                 </Stack>
               </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+            </>
+          )}
+        </Box>
+      </Box>
 
       {isEditPasswordModalOpen && (
         <EditMyUserPasswordModal
           open
           onClose={() => setEditPasswordModalOpen(false)}
           onSuccess={handlePasswordSuccess}
-        />
-      )}
-      {isCreateAPITokenModalOpen && (
-        <CreateAPITokenModal
-          open
-          onClose={() => setCreateAPITokenModalOpen(false)}
-          onSuccess={handleCreateAPITokenSuccess}
-        />
-      )}
-      {isConfirmationOpen && (
-        <DeleteConfirmationModal
-          open
-          onClose={() => setConfirmationOpen(false)}
-          onConfirm={handleDeleteConfirm}
-          title="Confirm Deletion"
-          description={`Are you sure you want to delete the API Token "${selectedTokenName}"? This action cannot be undone.`}
         />
       )}
     </Box>

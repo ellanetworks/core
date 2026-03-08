@@ -45,3 +45,39 @@ export const deleteAPIToken = async (
     authToken,
   });
 };
+
+export async function listUserAPITokens(
+  authToken: string,
+  email: string,
+  page: number,
+  perPage: number,
+): Promise<ListAPITokensResponse> {
+  return apiFetch<ListAPITokensResponse>(
+    `/api/v1/users/${email}/api-tokens?page=${page}&per_page=${perPage}`,
+    { authToken },
+  );
+}
+
+export const createUserAPIToken = async (
+  authToken: string,
+  email: string,
+  name: string,
+  expires_at: string,
+): Promise<{ token: string }> => {
+  return apiFetch<{ token: string }>(`/api/v1/users/${email}/api-tokens`, {
+    method: "POST",
+    authToken,
+    body: { name, expires_at },
+  });
+};
+
+export const deleteUserAPIToken = async (
+  authToken: string,
+  email: string,
+  id: number,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/users/${email}/api-tokens/${id}`, {
+    method: "DELETE",
+    authToken,
+  });
+};

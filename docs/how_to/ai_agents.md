@@ -11,7 +11,7 @@ Ella Core ships with an [Agent Skill](https://agentskills.io/) that lets AI agen
 Before using the skill, you need:
 
 1. **A running Ella Core instance** with its API accessible (e.g. `http://192.168.1.10:5000`).
-2. **An API token** — create one in the Ella Core UI under your user profile, or via the API. Tokens are prefixed with `ellacore_`.
+2. **A UI user with an API token** — create a user for your agent in the UI with a role that matches the permissions you want to grant (e.g. "network manager" for full network access, "read only" for monitoring). Then generate an API token for that user and copy it.
 
 ## 1. Install the skill
 

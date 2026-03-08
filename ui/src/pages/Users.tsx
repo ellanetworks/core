@@ -5,32 +5,34 @@ import { useSnackbar } from "@/contexts/SnackbarContext";
 import {
   DataGrid,
   type GridColDef,
-  GridActionsCellItem,
+  type GridRenderCellParams,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
-import PasswordIcon from "@mui/icons-material/Password";
 import {
   listUsers,
-  deleteUser,
   roleIDToLabel,
   type ListUsersResponse,
   type APIUser,
-  RoleID,
 } from "@/queries/users";
 import CreateUserModal from "@/components/CreateUserModal";
-import EditUserModal from "@/components/EditUserModal";
-import EditUserPasswordModal from "@/components/EditUserPasswordModal";
-import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import { useAuth } from "@/contexts/AuthContext";
+import { Link } from "react-router-dom";
 
 const MAX_WIDTH = 1400;
 
 const UserPage: React.FC = () => {
   const { accessToken, authReady } = useAuth();
+  const theme = useTheme();
+
+  const gridTheme = useMemo(
+    () =>
+      createTheme(theme, {
+        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+      }),
+    [theme],
+  );
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -38,24 +40,7 @@ const UserPage: React.FC = () => {
   });
 
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
-  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [editData, setEditData] = useState<APIUser | null>(null);
-  const [editPasswordData, setEditPasswordData] = useState<APIUser | null>(
-    null,
-  );
-  const [selectedUser, setSelectedUser] = useState<string | null>(null); // email
   const { showSnackbar } = useSnackbar();
-
-  const outerTheme = useTheme();
-  const gridTheme = useMemo(
-    () =>
-      createTheme(outerTheme, {
-        palette: { DataGrid: { headerBg: "#F5F5F5" } },
-      }),
-    [outerTheme],
-  );
 
   const queryClient = useQueryClient();
   const pageOneBased = paginationModel.page + 1;
@@ -72,75 +57,47 @@ const UserPage: React.FC = () => {
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
 
-  const handleEditPasswordClick = (user: APIUser) => {
-    setEditPasswordData(user);
-    setEditPasswordModalOpen(true);
-  };
-
-  const handleEditClick = (user: APIUser) => {
-    setEditData(user);
-    setEditModalOpen(true);
-  };
-
-  const handleDeleteClick = (email: string) => {
-    setSelectedUser(email);
-    setConfirmationOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    setConfirmationOpen(false);
-    if (!selectedUser || !accessToken) return;
-    try {
-      await deleteUser(accessToken, selectedUser);
-      showSnackbar(`User "${selectedUser}" deleted successfully.`, "success");
-      queryClient.invalidateQueries({ queryKey: ["users"] });
-    } catch (error) {
-      showSnackbar(
-        `Failed to delete user "${selectedUser}": ${error instanceof Error ? error.message : "Unknown error"}`,
-        "error",
-      );
-    } finally {
-      setSelectedUser(null);
-    }
-  };
-
   const columns: GridColDef<APIUser>[] = useMemo(
     () => [
-      { field: "email", headerName: "Email", flex: 1, minWidth: 220 },
+      {
+        field: "email",
+        headerName: "Email",
+        flex: 1,
+        minWidth: 220,
+        renderCell: (params: GridRenderCellParams<APIUser>) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Link
+              to={`/users/${encodeURIComponent(params.row.email)}`}
+              style={{ textDecoration: "none" }}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "#4254FB",
+                  textDecoration: "underline",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {params.row.email}
+              </Typography>
+            </Link>
+          </Box>
+        ),
+      },
       {
         field: "roleID",
         headerName: "Role",
         flex: 0.6,
         minWidth: 120,
         valueGetter: (_v, row) => roleIDToLabel(row.role_id),
-      },
-      {
-        field: "actions",
-        headerName: "Actions",
-        type: "actions",
-        width: 200,
-        sortable: false,
-        disableColumnMenu: true,
-        getActions: (params) => [
-          <GridActionsCellItem
-            key="edit"
-            icon={<EditIcon color="primary" />}
-            label="Edit"
-            onClick={() => handleEditClick(params.row)}
-          />,
-          <GridActionsCellItem
-            key="password"
-            icon={<PasswordIcon color="primary" />}
-            label="Change Password"
-            onClick={() => handleEditPasswordClick(params.row)}
-          />,
-          <GridActionsCellItem
-            key="delete"
-            icon={<DeleteIcon color="primary" />}
-            label="Delete"
-            onClick={() => handleDeleteClick(params.row.email)}
-          />,
-        ],
       },
     ],
     [],
@@ -255,40 +212,6 @@ const UserPage: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ["users"] });
             showSnackbar("User created successfully.", "success");
           }}
-        />
-      )}
-
-      {isEditModalOpen && (
-        <EditUserModal
-          open
-          onClose={() => setEditModalOpen(false)}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["users"] });
-            showSnackbar("User updated successfully.", "success");
-          }}
-          initialData={editData || { email: "", role_id: RoleID.ReadOnly }}
-        />
-      )}
-
-      {isEditPasswordModalOpen && (
-        <EditUserPasswordModal
-          open
-          onClose={() => setEditPasswordModalOpen(false)}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["users"] });
-            showSnackbar("Password updated successfully.", "success");
-          }}
-          initialData={editPasswordData || { email: "" }}
-        />
-      )}
-
-      {isConfirmationOpen && (
-        <DeleteConfirmationModal
-          open
-          onClose={() => setConfirmationOpen(false)}
-          onConfirm={handleDeleteConfirm}
-          title="Confirm Deletion"
-          description={`Are you sure you want to delete the user "${selectedUser}"? This action cannot be undone.`}
         />
       )}
     </Box>

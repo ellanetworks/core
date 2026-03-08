@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 )
 
@@ -106,7 +107,20 @@ func ListAuditLogs(dbInstance *db.Database) http.Handler {
 
 		ctx := r.Context()
 
-		logs, total, err := dbInstance.ListAuditLogsPage(ctx, page, perPage)
+		actor := q.Get("actor")
+
+		var logs []dbwriter.AuditLog
+
+		var total int
+
+		var err error
+
+		if actor != "" {
+			logs, total, err = dbInstance.ListAuditLogsByActorPage(ctx, actor, page, perPage)
+		} else {
+			logs, total, err = dbInstance.ListAuditLogsPage(ctx, page, perPage)
+		}
+
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve audit logs", err, logger.APILog)
 			return

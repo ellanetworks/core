@@ -103,3 +103,10 @@ export const deleteUser = async (
     authToken,
   });
 };
+
+export const getUser = async (
+  authToken: string,
+  email: string,
+): Promise<APIUser> => {
+  return apiFetch<APIUser>(`/api/v1/users/${email}`, { authToken });
+};

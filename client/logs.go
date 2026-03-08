@@ -58,6 +58,32 @@ func (c *Client) ListAuditLogs(ctx context.Context, p *ListParams) (*ListAuditLo
 	return &auditLogs, nil
 }
 
+// ListAuditLogsByActor retrieves a paginated list of audit logs filtered by actor email.
+func (c *Client) ListAuditLogsByActor(ctx context.Context, actor string, p *ListParams) (*ListAuditLogsResponse, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/logs/audit",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+			"actor":    {actor},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var auditLogs ListAuditLogsResponse
+
+	err = resp.DecodeResult(&auditLogs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &auditLogs, nil
+}
+
 // GetAuditLogRetentionPolicy retrieves the current audit log retention policy.
 func (c *Client) GetAuditLogRetentionPolicy(ctx context.Context) (*GetAuditLogsRetentionPolicy, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{

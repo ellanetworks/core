@@ -231,3 +231,80 @@ None
     }
 }
 ```
+
+## List a User's API Tokens (Admin)
+
+This path returns a paginated list of API tokens belonging to the specified user. Requires admin privileges.
+
+| Method | Path                                    |
+| ------ | --------------------------------------- |
+| GET    | `/api/v1/users/{email}/api-tokens`      |
+
+### Query Parameters
+
+| Name       | In    | Type | Default | Allowed | Description               |
+| ---------- | ----- | ---- | ------- | ------- | ------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.       |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page. |
+
+### Sample Response
+
+```json
+{
+    "result": [
+        {
+            "id": "Xl2yU1rcy2BP",
+            "name": "CI Pipeline",
+            "expires_at": "2026-12-31T23:59:59Z"
+        }
+    ]
+}
+```
+
+## Create an API Token for a User (Admin)
+
+This path creates a new API token for the specified user. The token will have the same permissions as the target user's account. Actions performed with the token will be logged under the target user's account. Requires admin privileges. Maximum 12 tokens per user.
+
+| Method | Path                                    |
+| ------ | --------------------------------------- |
+| POST   | `/api/v1/users/{email}/api-tokens`      |
+
+### Parameters
+
+- `name` (string): The name of the API token (3–50 characters).
+- `expires_at` (string, optional): The expiration date of the API token in RFC 3339 format. If not provided, the token will never expire.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "token": "ellacore_Ab3cD4eFgHiJ_9x8wVuTsRqPoNmLkJiHgFeDcBa"
+    }
+}
+```
+
+!!! note
+    The API token is only returned once when created. Make sure to copy it and store it securely.
+
+## Delete a User's API Token (Admin)
+
+This path deletes an API token belonging to the specified user. Requires admin privileges.
+
+| Method | Path                                         |
+| ------ | -------------------------------------------- |
+| DELETE | `/api/v1/users/{email}/api-tokens/{tokenID}` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "API token deleted successfully"
+    }
+}
+```

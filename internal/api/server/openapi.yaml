@@ -449,6 +449,81 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/users/{email}/api-tokens:
+    get:
+      operationId: listUserAPITokens
+      tags: [Users]
+      summary: List a user's API tokens (admin)
+      description: Returns a paginated list of API tokens belonging to the specified user. Requires admin privileges.
+      parameters:
+        - $ref: "#/components/parameters/EmailPath"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of API tokens.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListAPITokensResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: createUserAPIToken
+      tags: [Users]
+      summary: Create an API token for a user (admin)
+      description: |
+        Creates a new API token for the specified user. The full token string
+        (prefixed with `ellacore_`) is returned once and cannot be retrieved again.
+        Maximum 12 tokens per user. Requires admin privileges.
+      parameters:
+        - $ref: "#/components/parameters/EmailPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAPITokenParams"
+      responses:
+        "201":
+          description: Token created. The full token is in the response — store it securely.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateAPITokenResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/users/{email}/api-tokens/{id}:
+    delete:
+      operationId: deleteUserAPIToken
+      tags: [Users]
+      summary: Delete a user's API token (admin)
+      description: Revokes and deletes one of the specified user's API tokens by its token ID. Requires admin privileges.
+      parameters:
+        - $ref: "#/components/parameters/EmailPath"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The token ID (not the full token string).
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # ── Subscribers ─────────────────────────────────────────────────────────
   /api/v1/subscribers:
     get:
@@ -1539,6 +1614,12 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
+        - name: actor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter audit logs by actor email. When omitted, all audit logs are returned.
       responses:
         "200":
           description: Paginated list of audit log entries.

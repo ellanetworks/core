@@ -188,3 +188,63 @@ func TestUpdateAuditLogRetentionPolicy_Failure(t *testing.T) {
 		t.Fatalf("expected error, got none")
 	}
 }
+
+func TestListAuditLogsByActor_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "level": "info", "actor": "admin@example.com", "action": "create_user", "ip": "1.2.3.4", "details": "Created user"}], "page": 1, "per_page": 10, "total_count": 1}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	resp, err := clientObj.ListAuditLogsByActor(ctx, "admin@example.com", params)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 audit log, got %d", len(resp.Items))
+	}
+
+	if resp.Items[0].Actor != "admin@example.com" {
+		t.Fatalf("expected actor 'admin@example.com', got '%s'", resp.Items[0].Actor)
+	}
+}
+
+func TestListAuditLogsByActor_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 500,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Internal server error"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	_, err := clientObj.ListAuditLogsByActor(ctx, "admin@example.com", params)
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}

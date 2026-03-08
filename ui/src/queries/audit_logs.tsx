@@ -25,11 +25,13 @@ export async function listAuditLogs(
   authToken: string,
   page: number,
   perPage: number,
+  actor?: string,
 ): Promise<ListAuditLogsResponse> {
-  return apiFetch<ListAuditLogsResponse>(
-    `/api/v1/logs/audit?page=${page}&per_page=${perPage}`,
-    { authToken },
-  );
+  let url = `/api/v1/logs/audit?page=${page}&per_page=${perPage}`;
+  if (actor) {
+    url += `&actor=${encodeURIComponent(actor)}`;
+  }
+  return apiFetch<ListAuditLogsResponse>(url, { authToken });
 }
 
 export const getAuditLogRetentionPolicy = async (

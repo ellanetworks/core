@@ -12,6 +12,7 @@ import Policies from "./pages/Policies";
 import Networking from "./pages/Networking";
 import Operator from "./pages/Operator";
 import Users from "./pages/Users";
+import UserDetail from "./pages/UserDetail";
 import Profile from "./pages/Profile";
 import AuditLogs from "./pages/AuditLogs";
 import BackupRestore from "./pages/BackupRestore";
@@ -36,6 +37,7 @@ export default function AppRouter() {
         <Route path="networking" element={<Networking />} />
         <Route path="operator" element={<Operator />} />
         <Route path="users" element={<Users />} />
+        <Route path="users/:email" element={<UserDetail />} />
         <Route path="profile" element={<Profile />} />
         <Route path="audit-logs" element={<AuditLogs />} />
         <Route path="backup-restore" element={<BackupRestore />} />
