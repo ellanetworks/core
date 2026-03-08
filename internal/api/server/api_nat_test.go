@@ -108,7 +108,7 @@ func TestApiNATInfoEndToEnd(t *testing.T) {
 
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {

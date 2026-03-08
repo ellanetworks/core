@@ -274,7 +274,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -774,7 +774,7 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -871,7 +871,7 @@ func TestCreateSubscriberValidInput(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -948,7 +948,7 @@ func TestCreateTooManySubscribers(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {

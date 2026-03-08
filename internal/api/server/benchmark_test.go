@@ -16,7 +16,7 @@ func BenchmarkLoginHandler(b *testing.B) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	user := &CreateUserParams{
 		Email:    FirstUserEmail,

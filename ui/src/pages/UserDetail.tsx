@@ -30,10 +30,11 @@ const MAX_WIDTH = 1400;
 const UserDetail: React.FC = () => {
   const { email } = useParams<{ email: string }>();
   const navigate = useNavigate();
-  const { role, accessToken, authReady } = useAuth();
+  const { role, email: loggedInEmail, accessToken, authReady } = useAuth();
   const { showSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const isAdmin = role === "Admin";
+  const isSelf = loggedInEmail === email;
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
@@ -211,7 +212,7 @@ const UserDetail: React.FC = () => {
               </Typography>
             </Typography>
           </Box>
-          {isAdmin && (
+          {isAdmin && !isSelf && (
             <Button
               variant="outlined"
               color="error"
@@ -234,7 +235,7 @@ const UserDetail: React.FC = () => {
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <UserAccountCard
               user={user}
-              canEdit={isAdmin}
+              canEdit={isAdmin && !isSelf}
               onEdit={() => setEditModalOpen(true)}
             />
           </Box>

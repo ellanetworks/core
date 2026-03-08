@@ -227,7 +227,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -438,7 +438,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	imsi1 := "001010100007487"
 	imsi2 := "001010100007488"
@@ -649,7 +649,7 @@ func TestAPISubscriberUsageRetentionPolicyEndToEnd(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -728,7 +728,7 @@ func TestUpdateSubscriberUsageRetentionPolicyInvalidInput(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {

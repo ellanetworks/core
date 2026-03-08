@@ -151,7 +151,7 @@ func TestAPIAuditLogs(t *testing.T) {
 
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -194,7 +194,7 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -333,7 +333,7 @@ func TestAPIAuditLogRetentionPolicyEndToEnd(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -412,7 +412,7 @@ func TestUpdateAuditLogRetentionPolicyInvalidInput(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {

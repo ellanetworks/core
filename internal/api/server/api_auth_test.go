@@ -163,7 +163,7 @@ func TestLoginEndToEnd(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	t.Run("1. Initialize", func(t *testing.T) {
 		initParams := &InitializeParams{
@@ -325,7 +325,7 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	adminToken, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -442,17 +442,26 @@ func TestRefreshAfterUserDeletion(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	// Use the first client for the admin whose session we want to test refresh on
+	firstClient := newTestClient(ts)
 
-	adminToken, err := initializeAndRefresh(ts.URL, client)
+	adminToken, err := initializeAndRefresh(ts.URL, firstClient)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	t.Run("1. Delete user", func(t *testing.T) {
-		statusCode, _, err := deleteUser(ts.URL, client, adminToken, FirstUserEmail)
+	// Use a separate client so the second admin's session cookie doesn't overwrite the first's
+	secondClient := newTestClient(ts)
+
+	secondAdminToken, err := createUserAndLogin(ts.URL, adminToken, "second.admin@ellanetworks.com", 1, secondClient)
+	if err != nil {
+		t.Fatalf("couldn't create second admin: %s", err)
+	}
+
+	t.Run("1. Delete user via second admin", func(t *testing.T) {
+		statusCode, _, err := deleteUser(ts.URL, secondClient, secondAdminToken, FirstUserEmail)
 		if err != nil {
-			t.Fatalf("couldn't list users: %s", err)
+			t.Fatalf("couldn't delete user: %s", err)
 		}
 
 		if statusCode != http.StatusOK {
@@ -461,7 +470,7 @@ func TestRefreshAfterUserDeletion(t *testing.T) {
 	})
 
 	t.Run("2. Refresh", func(t *testing.T) {
-		statusCode, resp, err := refresh(ts.URL, client)
+		statusCode, resp, err := refresh(ts.URL, firstClient)
 		if err != nil {
 			t.Fatalf("couldn't refresh token: %s", err)
 		}
@@ -486,7 +495,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	adminToken, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -679,7 +688,7 @@ func TestLookupToken(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	t.Run("Lookup valid token", func(t *testing.T) {
 		initializeParams := &InitializeParams{
@@ -798,7 +807,7 @@ func TestLogout(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -847,7 +856,7 @@ func TestLogout(t *testing.T) {
 
 	t.Run("Success - logout without session (no error)", func(t *testing.T) {
 		// Create new client without session
-		newClient := ts.Client()
+		newClient := newTestClient(ts)
 
 		statusCode, err := logout(ts.URL, newClient)
 		if err != nil {
@@ -861,7 +870,7 @@ func TestLogout(t *testing.T) {
 
 	t.Run("Success - logout with invalid session token (no error)", func(t *testing.T) {
 		// Create new client and set invalid session cookie
-		newClient := ts.Client()
+		newClient := newTestClient(ts)
 
 		req, err := http.NewRequestWithContext(context.Background(), "GET", ts.URL, nil)
 		if err != nil {
@@ -928,7 +937,7 @@ func TestRefreshEdgeCases(t *testing.T) {
 
 	t.Run("No session token", func(t *testing.T) {
 		// Create new client without session
-		newClient := ts.Client()
+		newClient := newTestClient(ts)
 
 		statusCode, response, err := refresh(ts.URL, newClient)
 		if err != nil {
@@ -946,7 +955,7 @@ func TestRefreshEdgeCases(t *testing.T) {
 
 	t.Run("Invalid token encoding", func(t *testing.T) {
 		// Create client with invalid base64 token
-		newClient := ts.Client()
+		newClient := newTestClient(ts)
 		newClient.Jar.SetCookies(mustParseURL(ts.URL), []*http.Cookie{
 			{
 				Name:  "session_token",
@@ -970,7 +979,7 @@ func TestRefreshEdgeCases(t *testing.T) {
 
 	t.Run("Invalid token length", func(t *testing.T) {
 		// Create client with valid base64 but wrong length (16 bytes instead of 32)
-		newClient := ts.Client()
+		newClient := newTestClient(ts)
 		shortToken := make([]byte, 16)
 		newClient.Jar.SetCookies(mustParseURL(ts.URL), []*http.Cookie{
 			{
@@ -995,7 +1004,7 @@ func TestRefreshEdgeCases(t *testing.T) {
 
 	t.Run("Invalid session token (not in database)", func(t *testing.T) {
 		// Create client with valid base64 (32 bytes) but non-existent session
-		newClient := ts.Client()
+		newClient := newTestClient(ts)
 
 		fakeToken := make([]byte, 32)
 		for i := range fakeToken {
@@ -1035,7 +1044,7 @@ func TestSessionLimitPerUser(t *testing.T) {
 
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	_, err = initializeAndRefresh(ts.URL, client)
 	if err != nil {

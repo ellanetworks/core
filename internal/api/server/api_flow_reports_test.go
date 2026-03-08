@@ -204,7 +204,7 @@ func TestAPIFlowReports(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -251,7 +251,7 @@ func TestGetFlowReportsRetentionPolicy(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -286,7 +286,7 @@ func TestUpdateFlowReportsRetentionPolicy(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -336,7 +336,7 @@ func TestUpdateFlowReportsRetentionPolicyInvalidInput(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -434,7 +434,7 @@ func TestListFlowReportsPagination(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -521,7 +521,7 @@ func TestListFlowReportsFilterBySubscriber(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -625,7 +625,7 @@ func TestClearFlowReports(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -769,7 +769,7 @@ func TestGetFlowReportStats_Empty(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -808,7 +808,7 @@ func TestGetFlowReportStats_WithData(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -894,7 +894,7 @@ func TestGetFlowReportStats_FilterBySubscriber(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -991,7 +991,7 @@ func TestGetFlowReportStats_FilterByProtocol(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -1077,7 +1077,7 @@ func TestGetFlowReportStats_Unauthenticated(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	// Initialize so the server is ready, but don't use the token
 	_, err = initializeAndRefresh(ts.URL, client)

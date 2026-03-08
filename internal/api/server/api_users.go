@@ -310,6 +310,11 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if requester == emailParam {
+			writeError(r.Context(), w, http.StatusForbidden, "Cannot modify your own account", errors.New("self-modification not allowed"), logger.APILog)
+			return
+		}
+
 		var updateUserParams UpdateUserParams
 
 		err := json.NewDecoder(r.Body).Decode(&updateUserParams)
@@ -447,6 +452,11 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 		emailParam := r.PathValue("email")
 		if emailParam == "" {
 			writeError(r.Context(), w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
+			return
+		}
+
+		if requester == emailParam {
+			writeError(r.Context(), w, http.StatusForbidden, "Cannot delete your own account", errors.New("self-deletion not allowed"), logger.APILog)
 			return
 		}
 

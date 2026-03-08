@@ -19,7 +19,7 @@ func TestOpenAPISpecEndpoint(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	t.Run("Returns valid YAML with correct content type", func(t *testing.T) {
 		req, err := http.NewRequestWithContext(context.Background(), "GET", ts.URL+"/api/v1/openapi.yaml", nil)

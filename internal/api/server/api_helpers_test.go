@@ -109,16 +109,19 @@ func setupServer(filepath string) (*httptest.Server, []byte, *db.Database, error
 		return []byte("fake test config"), nil
 	}
 
-	client := ts.Client()
-
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	client.Jar = jar
-
 	return ts, jwtSecret, testdb, nil
+}
+
+// newTestClient returns an independent HTTP client for the given test server.
+// Each call creates a fresh cookie jar, so different users/sessions don't
+// interfere with each other. The TLS transport is shared from the server.
+func newTestClient(ts *httptest.Server) *http.Client {
+	jar, _ := cookiejar.New(nil)
+
+	return &http.Client{
+		Transport: ts.Client().Transport,
+		Jar:       jar,
+	}
 }
 
 func initializeAndRefresh(url string, client *http.Client) (string, error) {
