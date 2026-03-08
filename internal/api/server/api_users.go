@@ -76,8 +76,8 @@ const (
 	UpdateUserPasswordAction = "update_user_password"
 	CreateAPITokenAction     = "create_api_token"
 	DeleteAPITokenAction     = "delete_api_token"
-	CreateUserAPITokenAction = "create_user_api_token"
-	DeleteUserAPITokenAction = "delete_user_api_token"
+	CreateUserAPITokenAction = "create_user_api_token" // #nosec: G101
+	DeleteUserAPITokenAction = "delete_user_api_token" // #nosec: G101
 )
 
 const (
