@@ -15,13 +15,6 @@ import (
 
 const RetentionPolicyTableName = "retention_policies"
 
-const QueryCreateRetentionPolicyTable = `
-	CREATE TABLE IF NOT EXISTS %s (
-		id              INTEGER PRIMARY KEY AUTOINCREMENT,
-		category        TEXT NOT NULL UNIQUE,
-		retention_days  INTEGER NOT NULL CHECK (retention_days >= 1)
-);`
-
 const (
 	selectRetentionPolicyStmt = "SELECT &RetentionPolicy.* FROM %s WHERE category = $RetentionPolicy.category"
 	upsertRetentionPolicyStmt = `

@@ -193,7 +193,14 @@ const (
 // openSQLiteConnection opens a SQLite database at the given path and configures
 // connection limits, busy timeout, WAL journaling, synchronous mode, and foreign keys.
 func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, error) {
-	sqlConnection, err := sql.Open("sqlite3", databasePath)
+	// _txlock=immediate makes every BEGIN use BEGIN IMMEDIATE, which
+	// acquires a write lock up front. This is important for migrations
+	// (prevents two processes from entering the same migration) and is
+	// harmless for normal operations because SetMaxOpenConns(1) already
+	// serialises all in-process access.
+	dsn := databasePath + "?_txlock=immediate"
+
+	sqlConnection, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -239,77 +246,9 @@ func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
 		return nil, err
 	}
 
-	// Initialize tables
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateSubscribersTable, SubscribersTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreatePoliciesTable, PoliciesTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateRoutesTable, RoutesTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateOperatorTable, OperatorTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateDataNetworksTable, DataNetworksTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateUsersTable, UsersTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, createSessionsTableSQL); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateAuditLogsTable, AuditLogsTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateRadioEventsTable, RadioEventsTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, QueryCreateRadioEventsIndex); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateRetentionPolicyTable, RetentionPolicyTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateAPITokensTable, APITokensTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateNATSettingsTable, NATSettingsTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateFlowAccountingSettingsTable, FlowAccountingSettingsTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateN3SettingsTable, N3SettingsTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateDailyUsageTable, DailyUsageTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, fmt.Sprintf(QueryCreateFlowReportsTable, FlowReportsTableName)); err != nil {
-		return nil, err
-	}
-
-	if _, err := sqlConnection.ExecContext(ctx, QueryCreateFlowReportsIndex); err != nil {
-		return nil, err
+	if err := RunMigrations(ctx, sqlConnection); err != nil {
+		_ = sqlConnection.Close()
+		return nil, fmt.Errorf("schema migration failed: %w", err)
 	}
 
 	db := new(Database)

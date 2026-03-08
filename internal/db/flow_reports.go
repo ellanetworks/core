@@ -20,33 +20,6 @@ import (
 
 const FlowReportsTableName = "flow_reports"
 
-// Schema for flow reports table
-const QueryCreateFlowReportsTable = `
-	CREATE TABLE IF NOT EXISTS %s (
-		id              INTEGER PRIMARY KEY AUTOINCREMENT,
-		subscriber_id   TEXT NOT NULL,              -- IMSI (looked up from PDR ID)
-		source_ip       TEXT NOT NULL,              -- IP address as string
-		destination_ip  TEXT NOT NULL,              -- IP address as string
-		source_port     INTEGER NOT NULL DEFAULT 0, -- 0 if N/A
-		destination_port INTEGER NOT NULL DEFAULT 0,-- 0 if N/A
-		protocol        INTEGER NOT NULL,           -- IP protocol number
-		packets         INTEGER NOT NULL,           -- Total packets
-		bytes           INTEGER NOT NULL,           -- Total bytes
-		start_time      TEXT NOT NULL,              -- RFC3339
-		end_time        TEXT NOT NULL,              -- RFC3339
-		direction       TEXT NOT NULL,              -- 'uplink' or 'downlink'
-
-		FOREIGN KEY (subscriber_id) REFERENCES subscribers(imsi) ON DELETE CASCADE
-	);`
-
-const QueryCreateFlowReportsIndex = `
-	CREATE INDEX IF NOT EXISTS idx_flow_reports_subscriber_id ON flow_reports (subscriber_id);
-	CREATE INDEX IF NOT EXISTS idx_flow_reports_end_time ON flow_reports (end_time);
-	CREATE INDEX IF NOT EXISTS idx_flow_reports_protocol ON flow_reports (protocol);
-	CREATE INDEX IF NOT EXISTS idx_flow_reports_source_ip ON flow_reports (source_ip);
-	CREATE INDEX IF NOT EXISTS idx_flow_reports_destination_ip ON flow_reports (destination_ip);
-`
-
 const (
 	insertFlowReportStmt     = "INSERT INTO %s (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction) VALUES ($FlowReport.subscriber_id, $FlowReport.source_ip, $FlowReport.destination_ip, $FlowReport.source_port, $FlowReport.destination_port, $FlowReport.protocol, $FlowReport.packets, $FlowReport.bytes, $FlowReport.start_time, $FlowReport.end_time, $FlowReport.direction)"
 	getFlowReportByIDStmt    = "SELECT &FlowReport.* FROM %s WHERE id = $FlowReport.id"
@@ -292,7 +265,7 @@ func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
 	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "delete").Inc()
 
 	// Compute UTC cutoff so string comparison works lexicographically for RFC3339
-	cutoff := time.Now().AddDate(0, 0, -days).UTC().Format(time.RFC3339)
+	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format(time.RFC3339)
 
 	args := cutoffArgs{Cutoff: cutoff}
 

@@ -17,14 +17,6 @@ const (
 
 const N3SettingsTableName = "n3_settings"
 
-const QueryCreateN3SettingsTable = `
-CREATE TABLE IF NOT EXISTS %s (
-  singleton BOOLEAN PRIMARY KEY DEFAULT TRUE,
-  external_address   TEXT NOT NULL DEFAULT TRUE,
-  CHECK (singleton)
-);
-`
-
 const insertDefaultN3SettingsStmt = `
 INSERT OR IGNORE INTO %s (singleton, external_address)
 VALUES (TRUE, $N3Settings.external_address);

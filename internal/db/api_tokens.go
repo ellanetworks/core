@@ -16,20 +16,6 @@ import (
 
 const APITokensTableName = "api_tokens"
 
-const QueryCreateAPITokensTable = `
-	CREATE TABLE IF NOT EXISTS %s (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-	token_id    TEXT NOT NULL UNIQUE,
-  name        TEXT NOT NULL,
-  token_hash  TEXT NOT NULL,
-  user_id     INTEGER NOT NULL,
-  expires_at  DATETIME,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-
-	UNIQUE (name, user_id)
-);
-` // #nosec: G101
-
 type APIToken struct {
 	ID        int        `db:"id"`
 	TokenID   string     `db:"token_id"`

@@ -18,17 +18,6 @@ import (
 
 const DataNetworksTableName = "data_networks"
 
-const QueryCreateDataNetworksTable = `
-	CREATE TABLE IF NOT EXISTS %s (
- 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-		name TEXT NOT NULL UNIQUE,
-
-		ipPool TEXT NOT NULL,
-		dns TEXT NOT NULL,
-		mtu INTEGER NOT NULL
-)`
-
 const (
 	listDataNetworksPagedStmt = "SELECT &DataNetwork.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getDataNetworkStmt        = "SELECT &DataNetwork.* from %s WHERE name==$DataNetwork.name"
