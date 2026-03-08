@@ -21,6 +21,8 @@ This path returns the list of audit logs.
 | `page`     | query | int    | `1`     | `>= 1`  | 1-based page index.                                                         |
 | `per_page` | query | int    | `25`    | `1…100` | Number of items per page.                                                   |
 | `actor`    | query | string | —       | —       | Filter audit logs by actor email. When omitted, all audit logs are returned. |
+| `start`    | query | string | —       | —       | Start date (`YYYY-MM-DD`). Only logs on or after this date are returned.      |
+| `end`      | query | string | —       | —       | End date (`YYYY-MM-DD`). Only logs before (exclusive) the day after are returned. |
 
 ### Sample Response
 

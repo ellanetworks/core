@@ -24,7 +24,7 @@ func TestListAuditLogs_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	params := &client.ListParams{
+	params := &client.ListAuditLogsParams{
 		Page:    1,
 		PerPage: 10,
 	}
@@ -82,7 +82,7 @@ func TestListAuditLogs_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	params := &client.ListParams{
+	params := &client.ListAuditLogsParams{
 		Page:    1,
 		PerPage: 10,
 	}

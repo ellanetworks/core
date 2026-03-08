@@ -33,16 +33,50 @@ type ListAuditLogsResponse struct {
 	TotalCount int        `json:"total_count"`
 }
 
-// ListAuditLogs retrieves a paginated list of audit logs.
-func (c *Client) ListAuditLogs(ctx context.Context, p *ListParams) (*ListAuditLogsResponse, error) {
+// ListAuditLogsParams contains all filter and pagination options for listing audit logs.
+type ListAuditLogsParams struct {
+	Page    int    `json:"page"`
+	PerPage int    `json:"per_page"`
+	Actor   string `json:"actor"`
+	Start   string `json:"start"`
+	End     string `json:"end"`
+}
+
+func buildAuditLogQuery(p *ListAuditLogsParams) url.Values {
+	query := url.Values{}
+
+	if p.Page > 0 {
+		query.Set("page", fmt.Sprintf("%d", p.Page))
+	}
+
+	if p.PerPage > 0 {
+		query.Set("per_page", fmt.Sprintf("%d", p.PerPage))
+	}
+
+	if p.Actor != "" {
+		query.Set("actor", p.Actor)
+	}
+
+	if p.Start != "" {
+		query.Set("start", p.Start)
+	}
+
+	if p.End != "" {
+		query.Set("end", p.End)
+	}
+
+	return query
+}
+
+// ListAuditLogs retrieves a paginated list of audit logs with optional filters.
+func (c *Client) ListAuditLogs(ctx context.Context, p *ListAuditLogsParams) (*ListAuditLogsResponse, error) {
+	query := buildAuditLogQuery(p)
+
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/logs/audit",
-		Query: url.Values{
-			"page":     {fmt.Sprintf("%d", p.Page)},
-			"per_page": {fmt.Sprintf("%d", p.PerPage)},
-		},
+		Query:  query,
 	})
 	if err != nil {
 		return nil, err
@@ -59,29 +93,13 @@ func (c *Client) ListAuditLogs(ctx context.Context, p *ListParams) (*ListAuditLo
 }
 
 // ListAuditLogsByActor retrieves a paginated list of audit logs filtered by actor email.
+// Deprecated: Use ListAuditLogs with ListAuditLogsParams.Actor instead.
 func (c *Client) ListAuditLogsByActor(ctx context.Context, actor string, p *ListParams) (*ListAuditLogsResponse, error) {
-	resp, err := c.Requester.Do(ctx, &RequestOptions{
-		Type:   SyncRequest,
-		Method: "GET",
-		Path:   "api/v1/logs/audit",
-		Query: url.Values{
-			"page":     {fmt.Sprintf("%d", p.Page)},
-			"per_page": {fmt.Sprintf("%d", p.PerPage)},
-			"actor":    {actor},
-		},
+	return c.ListAuditLogs(ctx, &ListAuditLogsParams{
+		Page:    p.Page,
+		PerPage: p.PerPage,
+		Actor:   actor,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	var auditLogs ListAuditLogsResponse
-
-	err = resp.DecodeResult(&auditLogs)
-	if err != nil {
-		return nil, err
-	}
-
-	return &auditLogs, nil
 }
 
 // GetAuditLogRetentionPolicy retrieves the current audit log retention policy.

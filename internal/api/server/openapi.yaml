@@ -1620,6 +1620,18 @@ paths:
           schema:
             type: string
           description: Filter audit logs by actor email. When omitted, all audit logs are returned.
+        - name: start
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start date (YYYY-MM-DD). Defaults to 7 days ago.
+        - name: end
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End date (YYYY-MM-DD). Defaults to today.
       responses:
         "200":
           description: Paginated list of audit log entries.
