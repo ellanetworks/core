@@ -901,6 +901,7 @@ const Traffic: React.FC = () => {
                     <IconButton
                       aria-label="edit usage retention"
                       size="small"
+                      color="primary"
                       onClick={() => setEditUsageRetentionOpen(true)}
                     >
                       <EditIcon fontSize="small" />
@@ -1012,6 +1013,7 @@ const Traffic: React.FC = () => {
                     <IconButton
                       aria-label="edit flow reports retention"
                       size="small"
+                      color="primary"
                       onClick={() => setEditFlowRetentionOpen(true)}
                     >
                       <EditIcon fontSize="small" />

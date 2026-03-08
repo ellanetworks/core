@@ -1,6 +1,13 @@
 import React, { useMemo, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Box, Typography, Button, TextField, MenuItem } from "@mui/material";
+import {
+  Box,
+  Typography,
+  TextField,
+  MenuItem,
+  IconButton,
+} from "@mui/material";
+import { Edit as EditIcon } from "@mui/icons-material";
 import { Link, useSearchParams } from "react-router-dom";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
@@ -271,27 +278,29 @@ const AuditLog: React.FC = () => {
               </MenuItem>
             ))}
           </TextField>
-        </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          {canEdit && (
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => setEditModalOpen(true)}
-              sx={{ minWidth: 140 }}
-            >
-              Edit Retention
-            </Button>
-          )}
-
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ ml: "auto" }}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              ml: { sm: "auto" },
+            }}
           >
-            Retention: <strong>{retentionPolicy?.days ?? "…"}</strong> days
-          </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Retention: <strong>{retentionPolicy?.days ?? "…"}</strong> days
+            </Typography>
+            {canEdit && (
+              <IconButton
+                aria-label="edit audit log retention"
+                size="small"
+                color="primary"
+                onClick={() => setEditModalOpen(true)}
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            )}
+          </Box>
         </Box>
       </Box>
 

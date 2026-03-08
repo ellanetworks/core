@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Box, Button, Tooltip, Typography } from "@mui/material";
+import { Box, Button, IconButton, Tooltip, Typography } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -82,15 +82,14 @@ export function EventToolbar() {
         >
           Retention: <strong>{retentionDays ?? "…"}</strong> days
           {canEdit && (
-            <Button
-              variant="text"
+            <IconButton
+              aria-label="edit radio event retention"
               size="small"
-              startIcon={<EditIcon fontSize="small" />}
+              color="primary"
               onClick={onEditRetention}
-              sx={{ minWidth: 0, px: 0.75, flexShrink: 0 }}
             >
-              Edit
-            </Button>
+              <EditIcon fontSize="small" />
+            </IconButton>
           )}
         </Typography>
 
