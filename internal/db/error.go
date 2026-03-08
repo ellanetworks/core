@@ -7,8 +7,10 @@ import (
 )
 
 var (
-	ErrAlreadyExists = errors.New("already exists")
-	ErrNotFound      = errors.New("not found")
+	ErrAlreadyExists     = errors.New("already exists")
+	ErrNotFound          = errors.New("not found")
+	ErrRestoreInProgress = errors.New("a restore is already in progress")
+	ErrInvalidBackupFile = errors.New("uploaded file is not a valid SQLite database")
 )
 
 func isUniqueNameError(err error) bool {

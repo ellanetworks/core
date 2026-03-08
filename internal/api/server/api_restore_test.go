@@ -137,4 +137,33 @@ func TestRestoreEndpoint(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
 		}
 	})
+
+	t.Run("3. Trigger restore with invalid file returns 400", func(t *testing.T) {
+		invalidFilePath := filepath.Join(tempDir, "invalid.db")
+		if err := os.WriteFile(invalidFilePath, []byte("not a sqlite database"), 0o600); err != nil {
+			t.Fatalf("failed to write invalid file: %s", err)
+		}
+
+		statusCode, restoreResponse, err := restore(ts.URL, client, token, invalidFilePath)
+		if err != nil {
+			t.Fatalf("couldn't trigger restore: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d: %s", http.StatusBadRequest, statusCode, restoreResponse.Error)
+		}
+	})
+
+	t.Run("4. Database still works after rejected restore", func(t *testing.T) {
+		// After the invalid restore in test 3, the original DB should still work.
+		// Verify by triggering a successful restore.
+		statusCode, restoreResponse, err := restore(ts.URL, client, token, restoreFilePath)
+		if err != nil {
+			t.Fatalf("couldn't trigger restore: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d: %s", http.StatusOK, statusCode, restoreResponse.Error)
+		}
+	})
 }
