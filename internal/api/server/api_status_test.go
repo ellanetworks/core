@@ -55,7 +55,7 @@ func TestStatusEndToEnd(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	t.Run("1. Get status", func(t *testing.T) {
 		statusCode, response, err := getStatus(ts.URL, client)

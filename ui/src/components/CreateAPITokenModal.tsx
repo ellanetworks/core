@@ -208,6 +208,7 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
       onClose={handleClose}
       aria-labelledby="create-api-token-modal-title"
       aria-describedby="create-api-token-modal-description"
+      PaperProps={{ sx: { width: { xs: 320, sm: 440 } } }}
     >
       <DialogTitle id="create-api-token-modal-title">
         Create API Token
@@ -224,7 +225,7 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
           </Alert>
         </Collapse>
 
-        <Stack spacing={2} sx={{ mt: 1, minWidth: { xs: 280, sm: 420 } }}>
+        <Stack spacing={2} sx={{ mt: 1 }}>
           <TextField
             fullWidth
             label="Name"
@@ -232,7 +233,9 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
             onChange={(e) => handleChange("name", e.target.value)}
             onBlur={() => handleBlur("name")}
             error={!!errors.name && touched.name}
-            helperText={touched.name ? errors.name : "3–50 characters"}
+            helperText={
+              touched.name && errors.name ? errors.name : "3–50 characters"
+            }
             autoFocus
             margin="normal"
             placeholder="e.g., CI Pipeline, Local Script"
@@ -252,23 +255,26 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
                   error:
                     !!errors.expiry && touched.expiry && !formValues.noExpiry,
                   helperText:
-                    touched.expiry && !formValues.noExpiry ? errors.expiry : "",
+                    touched.expiry && errors.expiry && !formValues.noExpiry
+                      ? errors.expiry
+                      : " ",
                 },
               }}
             />
           </LocalizationProvider>
-
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={formValues.noExpiry}
-                onChange={(e) => handleChange("noExpiry", e.target.checked)}
-                onBlur={() => handleBlur("noExpiry")}
-              />
-            }
-            label="No expiry"
-          />
         </Stack>
+
+        <FormControlLabel
+          sx={{ mt: -0.5 }}
+          control={
+            <Checkbox
+              checked={formValues.noExpiry}
+              onChange={(e) => handleChange("noExpiry", e.target.checked)}
+              onBlur={() => handleBlur("noExpiry")}
+            />
+          }
+          label="No expiry"
+        />
       </DialogContent>
 
       <DialogActions>

@@ -65,7 +65,7 @@ func TestInitializeInvalidInput(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	tests := []struct {
 		email    string

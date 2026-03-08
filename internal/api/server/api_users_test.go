@@ -476,7 +476,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -675,7 +675,7 @@ func TestUpdateUserPasswordSuccess(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	adminToken, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -733,7 +733,7 @@ func TestUpdateUserPasswordValidation(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	adminToken, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -786,7 +786,7 @@ func TestUpdateUserPasswordInvalidJSON(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	adminToken, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -835,7 +835,7 @@ func TestUpdateUserPasswordNotFound(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	adminToken, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -870,7 +870,7 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	adminToken, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -957,7 +957,7 @@ func TestCreateUserInvalidInput(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -1040,7 +1040,7 @@ func TestEditUnexistentUser(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -1075,7 +1075,7 @@ func TestUpdateUserInvalidRoleID(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	adminToken, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -1127,7 +1127,7 @@ func TestCreateTooManyUsers(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -1187,7 +1187,7 @@ func TestCreateAPIToken(t *testing.T) {
 
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -1261,7 +1261,7 @@ func TestCreateAPITokenInvalidInput(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -1323,7 +1323,7 @@ func TestListUsersPagination(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {
@@ -1482,7 +1482,7 @@ func TestGetLoggedInUser(t *testing.T) {
 	}
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newTestClient(ts)
 
 	token, err := initializeAndRefresh(ts.URL, client)
 	if err != nil {

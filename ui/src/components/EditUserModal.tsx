@@ -89,6 +89,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       onClose={onClose}
       aria-labelledby="edit-user-modal-title"
       aria-describedby="edit-user-modal-description"
+      PaperProps={{ sx: { width: { xs: 320, sm: 440 } } }}
     >
       <DialogTitle>Edit User</DialogTitle>
       <DialogContent dividers>
