@@ -21,17 +21,31 @@ export type ListAuditLogsResponse = {
   total_count: number;
 };
 
+export type AuditLogFilters = {
+  start?: string;
+  end?: string;
+  actor?: string;
+};
+
 export async function listAuditLogs(
   authToken: string,
   page: number,
   perPage: number,
-  actor?: string,
+  params?: AuditLogFilters,
 ): Promise<ListAuditLogsResponse> {
-  let url = `/api/v1/logs/audit?page=${page}&per_page=${perPage}`;
-  if (actor) {
-    url += `&actor=${encodeURIComponent(actor)}`;
+  const url = new URL(`/api/v1/logs/audit`, window.location.origin);
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("per_page", String(perPage));
+
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== "") {
+        url.searchParams.set(k, v);
+      }
+    }
   }
-  return apiFetch<ListAuditLogsResponse>(url, { authToken });
+
+  return apiFetch<ListAuditLogsResponse>(url.toString(), { authToken });
 }
 
 export const getAuditLogRetentionPolicy = async (

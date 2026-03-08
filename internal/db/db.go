@@ -118,11 +118,10 @@ type Database struct {
 	countRoutesStmt *sqlair.Statement
 
 	// Audit Log statements
-	insertAuditLogStmt       *sqlair.Statement
-	listAuditLogsStmt        *sqlair.Statement
-	listAuditLogsByActorStmt *sqlair.Statement
-	deleteOldAuditLogsStmt   *sqlair.Statement
-	countAuditLogsStmt       *sqlair.Statement
+	insertAuditLogStmt        *sqlair.Statement
+	listAuditLogsFilteredStmt *sqlair.Statement
+	deleteOldAuditLogsStmt    *sqlair.Statement
+	countAuditLogsStmt        *sqlair.Statement
 
 	// Flow Report statements
 	insertFlowReportStmt                *sqlair.Statement
@@ -376,8 +375,7 @@ func (db *Database) PrepareStatements() error {
 
 		// Audit Logs
 		{&db.insertAuditLogStmt, fmt.Sprintf(insertAuditLogStmt, AuditLogsTableName), []any{dbwriter.AuditLog{}}},
-		{&db.listAuditLogsStmt, fmt.Sprintf(listAuditLogsPageStmt, AuditLogsTableName), []any{ListArgs{}, dbwriter.AuditLog{}, NumItems{}}},
-		{&db.listAuditLogsByActorStmt, fmt.Sprintf(listAuditLogsByActorPageStmt, AuditLogsTableName), []any{ListArgs{}, dbwriter.AuditLog{}, NumItems{}}},
+		{&db.listAuditLogsFilteredStmt, fmt.Sprintf(listAuditLogsFilteredPageStmt, AuditLogsTableName), []any{ListArgs{}, AuditLogFilters{}, dbwriter.AuditLog{}, NumItems{}}},
 		{&db.deleteOldAuditLogsStmt, fmt.Sprintf(deleteOldAuditLogsStmt, AuditLogsTableName), []any{cutoffArgs{}}},
 		{&db.countAuditLogsStmt, fmt.Sprintf(countAuditLogsStmt, AuditLogsTableName), []any{NumItems{}}},
 

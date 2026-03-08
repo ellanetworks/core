@@ -20,12 +20,29 @@ import (
 const AuditLogsTableName = "audit_logs"
 
 const (
-	insertAuditLogStmt           = "INSERT INTO %s (timestamp, level, actor, action, ip, details) VALUES ($AuditLog.timestamp, $AuditLog.level, $AuditLog.actor, $AuditLog.action, $AuditLog.ip, $AuditLog.details)"
-	listAuditLogsPageStmt        = "SELECT &AuditLog.*, COUNT(*) OVER() AS &NumItems.count FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	listAuditLogsByActorPageStmt = "SELECT &AuditLog.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE actor==$AuditLog.actor ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	deleteOldAuditLogsStmt       = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
-	countAuditLogsStmt           = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	insertAuditLogStmt     = "INSERT INTO %s (timestamp, level, actor, action, ip, details) VALUES ($AuditLog.timestamp, $AuditLog.level, $AuditLog.actor, $AuditLog.action, $AuditLog.ip, $AuditLog.details)"
+	deleteOldAuditLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
+	countAuditLogsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
+
+const listAuditLogsFilteredPageStmt = `
+  SELECT &AuditLog.*, COUNT(*) OVER() AS &NumItems.count
+  FROM %s
+  WHERE
+    ($AuditLogFilters.actor IS NULL OR actor = $AuditLogFilters.actor)
+    AND ($AuditLogFilters.timestamp_from IS NULL OR timestamp >= $AuditLogFilters.timestamp_from)
+    AND ($AuditLogFilters.timestamp_to IS NULL OR timestamp < $AuditLogFilters.timestamp_to)
+  ORDER BY id DESC
+  LIMIT $ListArgs.limit
+  OFFSET $ListArgs.offset
+`
+
+// AuditLogFilters holds optional filters for audit log queries.
+type AuditLogFilters struct {
+	Actor         *string `db:"actor"`          // exact match
+	TimestampFrom *string `db:"timestamp_from"` // RFC3339 (UTC), inclusive lower bound
+	TimestampTo   *string `db:"timestamp_to"`   // RFC3339 (UTC), exclusive upper bound
+}
 
 // InsertAuditLogJSON parses the zap JSON and inserts a structured row.
 func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.AuditLog) error {
@@ -59,7 +76,11 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 	return nil
 }
 
-func (db *Database) ListAuditLogsPage(ctx context.Context, page, perPage int) ([]dbwriter.AuditLog, int, error) {
+func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilters, page, perPage int) ([]dbwriter.AuditLog, int, error) {
+	if filters == nil {
+		filters = &AuditLogFilters{}
+	}
+
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (paged)", "SELECT", AuditLogsTableName),
@@ -88,17 +109,12 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, page, perPage int) ([
 
 	var counts []NumItems
 
-	err := db.conn.Query(ctx, db.listAuditLogsStmt, args).GetAll(&logs, &counts)
+	err := db.conn.Query(ctx, db.listAuditLogsFilteredStmt, args, *filters).GetAll(&logs, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 
-			fallbackCount, countErr := db.CountAuditLogs(ctx)
-			if countErr != nil {
-				return nil, 0, nil
-			}
-
-			return nil, fallbackCount, nil
+			return nil, 0, nil
 		}
 
 		span.RecordError(err)
@@ -154,60 +170,10 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 	return nil
 }
 
+// ListAuditLogsByActorPage is a convenience wrapper that filters by actor only.
 func (db *Database) ListAuditLogsByActorPage(ctx context.Context, actor string, page, perPage int) ([]dbwriter.AuditLog, int, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s (paged by actor)", "SELECT", AuditLogsTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
-			attribute.String("db.collection", AuditLogsTableName),
-			attribute.String("actor", actor),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(AuditLogsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "select").Inc()
-
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
-	filter := dbwriter.AuditLog{Actor: actor}
-
-	var logs []dbwriter.AuditLog
-
-	var counts []NumItems
-
-	err := db.conn.Query(ctx, db.listAuditLogsByActorStmt, args, filter).GetAll(&logs, &counts)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
-			return nil, 0, nil
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return nil, 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return logs, count, nil
+	filters := &AuditLogFilters{Actor: &actor}
+	return db.ListAuditLogsPage(ctx, filters, page, perPage)
 }
 
 func (db *Database) CountAuditLogs(ctx context.Context) (int, error) {

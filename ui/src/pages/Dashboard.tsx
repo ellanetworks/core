@@ -39,6 +39,7 @@ import {
   type FlowReportStatsResponse,
 } from "@/queries/flow_reports";
 import { getUsage, type UsageResult } from "@/queries/usage";
+import { formatDateTime } from "@/utils/formatters";
 
 const MAX_WIDTH = 1400;
 
@@ -79,21 +80,6 @@ const formatBytesAutoUnit = (bytes: number): string => {
   }
   const decimals = n >= 100 ? 0 : n >= 10 ? 1 : 2;
   return `${n.toFixed(decimals)} ${units[i]}`;
-};
-
-const formatTimestamp = (s: string) => {
-  if (!s) return "";
-  const d = new Date(s);
-  if (isNaN(d.getTime())) {
-    return s.replace(/\s*[+-]\d{4}$/, "");
-  }
-  return d.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
 };
 
 // ──────────────────────────────────────────────────────
@@ -523,7 +509,7 @@ const Dashboard = () => {
               <KpiCard
                 title="Up Since"
                 loading={metricsLoading}
-                value={upSince ? formatTimestamp(upSince.toISOString()) : "N/A"}
+                value={upSince ? formatDateTime(upSince.toISOString()) : "N/A"}
               />
             </Box>
           </Tooltip>
@@ -643,7 +629,7 @@ const Dashboard = () => {
                     {(networkLogs ?? []).slice(0, 10).map((row) => (
                       <TableRow key={row.id} hover>
                         <TableCell sx={{ whiteSpace: "nowrap" }}>
-                          {formatTimestamp(row.timestamp)}
+                          {formatDateTime(row.timestamp)}
                         </TableCell>
 
                         <TableCell sx={{ whiteSpace: "nowrap" }}>

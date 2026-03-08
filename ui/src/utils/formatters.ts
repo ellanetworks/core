@@ -199,6 +199,30 @@ export const PROTOCOL_CHIP_COLORS: Record<number, string> = {
 };
 
 // ──────────────────────────────────────────────────────
+// Date / time formatting
+// ──────────────────────────────────────────────────────
+
+/**
+ * Human-readable date-time format used across the UI.
+ * Example: "Mar 8, 14:32"   (same day) or "Mar 8, 14:32" (always)
+ */
+export const formatDateTime = (value: string): string => {
+  if (!value) return "";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) {
+    // Strip timezone offset suffix if the string doesn't parse
+    return value.replace(/\s*[+-]\d{4}$/, "");
+  }
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+};
+
+// ──────────────────────────────────────────────────────
 // Relative time helper
 // ──────────────────────────────────────────────────────
 

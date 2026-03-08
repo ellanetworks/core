@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 )
 
@@ -107,20 +107,29 @@ func ListAuditLogs(dbInstance *db.Database) http.Handler {
 
 		ctx := r.Context()
 
-		actor := q.Get("actor")
+		filters := &db.AuditLogFilters{}
 
-		var logs []dbwriter.AuditLog
-
-		var total int
-
-		var err error
-
-		if actor != "" {
-			logs, total, err = dbInstance.ListAuditLogsByActorPage(ctx, actor, page, perPage)
-		} else {
-			logs, total, err = dbInstance.ListAuditLogsPage(ctx, page, perPage)
+		if v := q.Get("actor"); v != "" {
+			filters.Actor = &v
 		}
 
+		if v := q.Get("start"); v != "" {
+			t := stotimeDefault(v, time.Time{})
+			if !t.IsZero() {
+				s := t.UTC().Format(time.RFC3339)
+				filters.TimestampFrom = &s
+			}
+		}
+
+		if v := q.Get("end"); v != "" {
+			t := stotimeDefault(v, time.Time{})
+			if !t.IsZero() {
+				s := t.AddDate(0, 0, 1).UTC().Format(time.RFC3339)
+				filters.TimestampTo = &s
+			}
+		}
+
+		logs, total, err := dbInstance.ListAuditLogsPage(ctx, filters, page, perPage)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve audit logs", err, logger.APILog)
 			return

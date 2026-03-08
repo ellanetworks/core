@@ -15,12 +15,17 @@ import {
 } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import type { APIAuditLog } from "@/queries/audit_logs";
+import { formatDateTime } from "@/utils/formatters";
 
 interface UserAuditLogsCardProps {
   logs: APIAuditLog[];
+  email: string;
 }
 
-const UserAuditLogsCard: React.FC<UserAuditLogsCardProps> = ({ logs }) => {
+const UserAuditLogsCard: React.FC<UserAuditLogsCardProps> = ({
+  logs,
+  email,
+}) => {
   return (
     <Card variant="outlined">
       <CardContent>
@@ -35,7 +40,7 @@ const UserAuditLogsCard: React.FC<UserAuditLogsCardProps> = ({ logs }) => {
           <Typography variant="h6">Recent Audit Logs</Typography>
           <Button
             component={RouterLink}
-            to="/audit-logs"
+            to={`/audit-logs?actor=${encodeURIComponent(email)}`}
             size="small"
             sx={{
               color: "#4254FB",
@@ -43,7 +48,7 @@ const UserAuditLogsCard: React.FC<UserAuditLogsCardProps> = ({ logs }) => {
               "&:hover": { textDecoration: "underline" },
             }}
           >
-            View all audit logs &rarr;
+            View Audit Logs for {email} &rarr;
           </Button>
         </Box>
 
@@ -66,7 +71,7 @@ const UserAuditLogsCard: React.FC<UserAuditLogsCardProps> = ({ logs }) => {
                 {logs.map((log) => (
                   <TableRow key={log.id}>
                     <TableCell sx={{ whiteSpace: "nowrap" }}>
-                      {new Date(log.timestamp).toLocaleString()}
+                      {formatDateTime(log.timestamp)}
                     </TableCell>
                     <TableCell>{log.action}</TableCell>
                     <TableCell>{log.ip}</TableCell>
