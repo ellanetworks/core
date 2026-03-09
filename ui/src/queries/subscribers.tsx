@@ -9,9 +9,6 @@ export type SubscriberListStatus = {
 /** Summary representation returned by the list endpoint. */
 export type APISubscriberSummary = {
   imsi: string;
-  opc: string;
-  sequenceNumber: string;
-  key: string;
   policyName: string;
   status: SubscriberListStatus;
 };
@@ -37,12 +34,6 @@ export type SubscriberDetailStatus = {
 /** Full representation returned by the get-single endpoint. */
 export type APISubscriber = {
   imsi: string;
-  /** @deprecated Use getSubscriberCredentials instead. */
-  opc: string;
-  /** @deprecated Use getSubscriberCredentials instead. */
-  sequenceNumber: string;
-  /** @deprecated Use getSubscriberCredentials instead. */
-  key: string;
   policyName: string;
   status: SubscriberDetailStatus;
 };

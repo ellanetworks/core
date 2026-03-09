@@ -157,7 +157,9 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           copyable={canViewCredentials && !!credentials?.key}
           onCopy={() => handleCopy(credentials?.key ?? "", "Key")}
           obfuscated={keyObfuscated}
-          onToggle={canViewCredentials ? () => setKeyObfuscated((v) => !v) : undefined}
+          onToggle={
+            canViewCredentials ? () => setKeyObfuscated((v) => !v) : undefined
+          }
         />
         <FieldRow
           label="OPc"
@@ -165,7 +167,9 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           copyable={canViewCredentials && !!credentials?.opc}
           onCopy={() => handleCopy(credentials?.opc ?? "", "OPc")}
           obfuscated={opcObfuscated}
-          onToggle={canViewCredentials ? () => setOpcObfuscated((v) => !v) : undefined}
+          onToggle={
+            canViewCredentials ? () => setOpcObfuscated((v) => !v) : undefined
+          }
         />
         <FieldRow
           label="Sequence Number"

@@ -294,8 +294,14 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 	})
 }
 
+const (
+	ViewSubscriberCredentialsAction = "view_subscriber_credentials"
+)
+
 func GetSubscriberCredentials(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		email := getEmailFromContext(r)
+
 		imsi := r.PathValue("imsi")
 		if imsi == "" {
 			writeError(r.Context(), w, http.StatusBadRequest, "Missing imsi parameter", errors.New("imsi required"), logger.APILog)
@@ -321,6 +327,8 @@ func GetSubscriberCredentials(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(r.Context(), w, creds, http.StatusOK, logger.APILog)
+
+		logger.LogAuditEvent(r.Context(), ViewSubscriberCredentialsAction, email, getClientIP(r), "User viewed credentials for subscriber: "+imsi)
 	})
 }
 
