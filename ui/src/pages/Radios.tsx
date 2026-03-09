@@ -226,7 +226,7 @@ function filtersToParams(
 const DirectionCell: React.FC<{ value?: string }> = ({ value }) => {
   const theme = useTheme();
   if (!value) return null;
-  const Icon = value === "inbound" ? EastIcon : WestIcon;
+  const Icon = value === "outbound" ? EastIcon : WestIcon;
   const title = value === "inbound" ? "Receive (inbound)" : "Send (outbound)";
   const color =
     value === "inbound" ? theme.palette.success.main : theme.palette.info.main;
@@ -414,21 +414,6 @@ const EventsTab: React.FC = () => {
         filterOperators: DATE_AFTER_BEFORE_ONLY,
       },
       {
-        field: "direction",
-        headerName: "Dir",
-        width: 70,
-        align: "center",
-        headerAlign: "center",
-        sortable: false,
-        type: "singleSelect",
-        valueOptions: [
-          { value: "inbound", label: "Inbound" },
-          { value: "outbound", label: "Outbound" },
-        ],
-        filterOperators: DIR_EQ,
-        renderCell: (p) => <DirectionCell value={p.row.direction} />,
-      },
-      {
         field: "message_type",
         headerName: "Message Type",
         type: "singleSelect",
@@ -445,6 +430,21 @@ const EventsTab: React.FC = () => {
         minWidth: 150,
         sortable: false,
         filterOperators: STRING_EQ,
+      },
+      {
+        field: "direction",
+        headerName: "Dir",
+        width: 70,
+        align: "center",
+        headerAlign: "center",
+        sortable: false,
+        type: "singleSelect",
+        valueOptions: [
+          { value: "inbound", label: "Inbound" },
+          { value: "outbound", label: "Outbound" },
+        ],
+        filterOperators: DIR_EQ,
+        renderCell: (p) => <DirectionCell value={p.row.direction} />,
       },
       {
         field: "remote_address",
