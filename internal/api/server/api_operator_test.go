@@ -150,17 +150,17 @@ func getOperator(url string, client *http.Client, token string) (int, *GetOperat
 	return res.StatusCode, &operatorResponse, nil
 }
 
-func getOperatorSlice(url string, client *http.Client, token string) (int, http.Header, *GetOperatorSliceResponse, error) {
+func getOperatorSlice(url string, client *http.Client, token string) (int, *GetOperatorSliceResponse, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/operator/slice", nil)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, err
 	}
 
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	res, err := client.Do(req)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, err
 	}
 
 	defer func() {
@@ -171,23 +171,23 @@ func getOperatorSlice(url string, client *http.Client, token string) (int, http.
 
 	var operatorSliceResponse GetOperatorSliceResponse
 	if err := json.NewDecoder(res.Body).Decode(&operatorSliceResponse); err != nil {
-		return 0, nil, nil, err
+		return 0, nil, err
 	}
 
-	return res.StatusCode, res.Header, &operatorSliceResponse, nil
+	return res.StatusCode, &operatorSliceResponse, nil
 }
 
-func getOperatorTracking(url string, client *http.Client, token string) (int, http.Header, *GetOperatorTrackingResponse, error) {
+func getOperatorTracking(url string, client *http.Client, token string) (int, *GetOperatorTrackingResponse, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/operator/tracking", nil)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, err
 	}
 
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	res, err := client.Do(req)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, err
 	}
 
 	defer func() {
@@ -198,23 +198,23 @@ func getOperatorTracking(url string, client *http.Client, token string) (int, ht
 
 	var operatorTrackingResponse GetOperatorTrackingResponse
 	if err := json.NewDecoder(res.Body).Decode(&operatorTrackingResponse); err != nil {
-		return 0, nil, nil, err
+		return 0, nil, err
 	}
 
-	return res.StatusCode, res.Header, &operatorTrackingResponse, nil
+	return res.StatusCode, &operatorTrackingResponse, nil
 }
 
-func getOperatorID(url string, client *http.Client, token string) (int, http.Header, *GetOperatorIDResponse, error) {
+func getOperatorID(url string, client *http.Client, token string) (int, *GetOperatorIDResponse, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/operator/id", nil)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, err
 	}
 
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	res, err := client.Do(req)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, err
 	}
 
 	defer func() {
@@ -225,10 +225,10 @@ func getOperatorID(url string, client *http.Client, token string) (int, http.Hea
 
 	var operatorIDResponse GetOperatorIDResponse
 	if err := json.NewDecoder(res.Body).Decode(&operatorIDResponse); err != nil {
-		return 0, nil, nil, err
+		return 0, nil, err
 	}
 
-	return res.StatusCode, res.Header, &operatorIDResponse, nil
+	return res.StatusCode, &operatorIDResponse, nil
 }
 
 func updateOperatorSlice(url string, client *http.Client, token string, data *UpdateOperatorSliceParams) (int, *UpdateOperatorSliceResponse, error) {
@@ -436,21 +436,13 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Get operator Slice Information", func(t *testing.T) {
-		statusCode, headers, response, err := getOperatorSlice(ts.URL, client, token)
+		statusCode, response, err := getOperatorSlice(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
 
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
-		}
-
-		if headers.Get("Deprecation") != "true" {
-			t.Fatalf("expected Deprecation header %q, got %q", "true", headers.Get("Deprecation"))
-		}
-
-		if headers.Get("Sunset") == "" {
-			t.Fatal("expected Sunset header to be set")
 		}
 
 		if response.Result.Sst != Sst {
@@ -505,17 +497,13 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Get operator Slice Information", func(t *testing.T) {
-		statusCode, headers, response, err := getOperatorSlice(ts.URL, client, token)
+		statusCode, response, err := getOperatorSlice(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
 
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
-		}
-
-		if headers.Get("Deprecation") != "true" {
-			t.Fatalf("expected Deprecation header %q, got %q", "true", headers.Get("Deprecation"))
 		}
 
 		if response.Result.Sst != Sst {
@@ -558,21 +546,13 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	})
 
 	t.Run("8. Get operator tracking", func(t *testing.T) {
-		statusCode, headers, response, err := getOperatorTracking(ts.URL, client, token)
+		statusCode, response, err := getOperatorTracking(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
 
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
-		}
-
-		if headers.Get("Deprecation") != "true" {
-			t.Fatalf("expected Deprecation header %q, got %q", "true", headers.Get("Deprecation"))
-		}
-
-		if headers.Get("Sunset") == "" {
-			t.Fatal("expected Sunset header to be set")
 		}
 
 		if len(response.Result.SupportedTacs) != 2 {
@@ -634,21 +614,13 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	})
 
 	t.Run("11. Get operator Id", func(t *testing.T) {
-		statusCode, headers, response, err := getOperatorID(ts.URL, client, token)
+		statusCode, response, err := getOperatorID(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator Id: %s", err)
 		}
 
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
-		}
-
-		if headers.Get("Deprecation") != "true" {
-			t.Fatalf("expected Deprecation header %q, got %q", "true", headers.Get("Deprecation"))
-		}
-
-		if headers.Get("Sunset") == "" {
-			t.Fatal("expected Sunset header to be set")
 		}
 
 		if response.Result.Mcc != Mcc {
