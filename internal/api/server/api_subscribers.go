@@ -41,9 +41,9 @@ type SubscriberStatus struct {
 // Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
 	Imsi           string           `json:"imsi"`
-	Opc            string           `json:"opc"`
-	SequenceNumber string           `json:"sequenceNumber"`
-	Key            string           `json:"key"`
+	Opc            string           `json:"opc"`            // Deprecated: use GET /api/v1/subscribers/{imsi}/credentials instead.
+	SequenceNumber string           `json:"sequenceNumber"` // Deprecated: use GET /api/v1/subscribers/{imsi}/credentials instead.
+	Key            string           `json:"key"`            // Deprecated: use GET /api/v1/subscribers/{imsi}/credentials instead.
 	PolicyName     string           `json:"policyName"`
 	Status         SubscriberStatus `json:"status"`
 }
@@ -69,11 +69,18 @@ type SubscriberDetailStatus struct {
 // SubscriberDetail is the full representation returned by the get-single endpoint.
 type SubscriberDetail struct {
 	Imsi           string                 `json:"imsi"`
-	Opc            string                 `json:"opc"`
-	SequenceNumber string                 `json:"sequenceNumber"`
-	Key            string                 `json:"key"`
+	Opc            string                 `json:"opc"`            // Deprecated: use GET /api/v1/subscribers/{imsi}/credentials instead.
+	SequenceNumber string                 `json:"sequenceNumber"` // Deprecated: use GET /api/v1/subscribers/{imsi}/credentials instead.
+	Key            string                 `json:"key"`            // Deprecated: use GET /api/v1/subscribers/{imsi}/credentials instead.
 	PolicyName     string                 `json:"policyName"`
 	Status         SubscriberDetailStatus `json:"status"`
+}
+
+// SubscriberCredentials is the response for the dedicated credentials endpoint.
+type SubscriberCredentials struct {
+	Key            string `json:"key"`
+	Opc            string `json:"opc"`
+	SequenceNumber string `json:"sequenceNumber"`
 }
 
 const (
@@ -284,6 +291,44 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(r.Context(), w, subscriber, http.StatusOK, logger.APILog)
+	})
+}
+
+const (
+	ViewSubscriberCredentialsAction = "view_subscriber_credentials"
+)
+
+func GetSubscriberCredentials(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		email := getEmailFromContext(r)
+
+		imsi := r.PathValue("imsi")
+		if imsi == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing imsi parameter", errors.New("imsi required"), logger.APILog)
+			return
+		}
+
+		dbSubscriber, err := dbInstance.GetSubscriber(r.Context(), imsi)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve subscriber", err, logger.APILog)
+
+			return
+		}
+
+		creds := SubscriberCredentials{
+			Key:            dbSubscriber.PermanentKey,
+			Opc:            dbSubscriber.Opc,
+			SequenceNumber: dbSubscriber.SequenceNumber,
+		}
+
+		writeResponse(r.Context(), w, creds, http.StatusOK, logger.APILog)
+
+		logger.LogAuditEvent(r.Context(), ViewSubscriberCredentialsAction, email, getClientIP(r), "User viewed credentials for subscriber: "+imsi)
 	})
 }
 

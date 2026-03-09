@@ -601,6 +601,44 @@ func TestRolesEndToEnd(t *testing.T) {
 		}
 	})
 
+	t.Run("5b. Use ReadOnly user to get subscriber credentials - should fail", func(t *testing.T) {
+		statusCode, response, err := getSubscriberCredentials(ts.URL, client, readOnlyToken, "001010100007487")
+		if err != nil {
+			t.Fatalf("couldn't get subscriber credentials: %s", err)
+		}
+
+		if statusCode != http.StatusForbidden {
+			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
+		}
+
+		if response.Error != "Forbidden" {
+			t.Fatalf("expected error %q, got %q", "Forbidden", response.Error)
+		}
+	})
+
+	t.Run("5c. Use Network Manager user to get subscriber credentials - should succeed (404 = no subscriber)", func(t *testing.T) {
+		statusCode, _, err := getSubscriberCredentials(ts.URL, client, networkManagerToken, "001010100007487")
+		if err != nil {
+			t.Fatalf("couldn't get subscriber credentials: %s", err)
+		}
+
+		// No subscribers exist yet, so 404 means the permission check passed.
+		if statusCode != http.StatusNotFound {
+			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
+		}
+	})
+
+	t.Run("5d. Use Admin user to get subscriber credentials - should succeed (404 = no subscriber)", func(t *testing.T) {
+		statusCode, _, err := getSubscriberCredentials(ts.URL, client, adminToken, "001010100007487")
+		if err != nil {
+			t.Fatalf("couldn't get subscriber credentials: %s", err)
+		}
+
+		if statusCode != http.StatusNotFound {
+			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
+		}
+	})
+
 	t.Run("6. Use ReadOnly user to list users - should fail", func(t *testing.T) {
 		statusCode, response, err := listUsers(ts.URL, client, readOnlyToken, 1, 10)
 		if err != nil {

@@ -39,7 +39,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
 		PermReadOperator, PermUpdateOperatorSlice, PermGetOperatorSlice, PermUpdateOperatorTracking, PermGetOperatorTracking,
 		PermListDataNetworks, PermCreateDataNetwork, PermUpdateDataNetwork, PermReadDataNetwork, PermDeleteDataNetwork,
-		PermListSubscribers, PermCreateSubscriber, PermUpdateSubscriber, PermReadSubscriber, PermDeleteSubscriber,
+		PermListSubscribers, PermCreateSubscriber, PermUpdateSubscriber, PermReadSubscriber, PermDeleteSubscriber, PermReadSubscriberCredentials,
 		PermListPolicies, PermCreatePolicy, PermUpdatePolicy, PermReadPolicy, PermDeletePolicy,
 		PermListRoutes, PermCreateRoute, PermReadRoute, PermDeleteRoute,
 		PermListRadios, PermReadRadio,
@@ -90,11 +90,12 @@ const (
 	PermUpdateOperatorHomeNetwork = "operator:update_home_network"
 
 	// Subscriber permissions
-	PermListSubscribers  = "subscriber:list"
-	PermCreateSubscriber = "subscriber:create"
-	PermUpdateSubscriber = "subscriber:update"
-	PermReadSubscriber   = "subscriber:read"
-	PermDeleteSubscriber = "subscriber:delete"
+	PermListSubscribers           = "subscriber:list"
+	PermCreateSubscriber          = "subscriber:create"
+	PermUpdateSubscriber          = "subscriber:update"
+	PermReadSubscriber            = "subscriber:read"
+	PermDeleteSubscriber          = "subscriber:delete"
+	PermReadSubscriberCredentials = "subscriber:read_credentials"
 
 	// Subscriber Usage permissions
 	PermGetSubscriberUsageRetentionPolicy = "subscriber_usage:get_retention"

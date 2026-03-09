@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useAuth } from "@/contexts/AuthContext";
 import type { APISubscriber } from "@/queries/subscribers";
+import { getSubscriberCredentials } from "@/queries/subscribers";
 import { getPolicy } from "@/queries/policies";
 import { UPLINK_COLOR, DOWNLINK_COLOR } from "@/utils/formatters";
 
@@ -96,11 +97,15 @@ const FieldRow: React.FC<{
         {obfuscated ? "Show" : "Hide"}
       </Button>
     )}
-    {copyable && onCopy && (
+    {copyable && onCopy ? (
       <IconButton size="small" onClick={onCopy} aria-label={`Copy ${label}`}>
         <CopyIcon fontSize="small" />
       </IconButton>
-    )}
+    ) : onCopy ? (
+      <IconButton size="small" sx={{ visibility: "hidden" }} aria-hidden>
+        <CopyIcon fontSize="small" />
+      </IconButton>
+    ) : null}
     {actionIcon}
   </Box>
 );
@@ -110,9 +115,26 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   onEditPolicy,
 }) => {
   const { showSnackbar } = useSnackbar();
-  const { accessToken, authReady } = useAuth();
-  const [keyObfuscated, setKeyObfuscated] = useState(true);
-  const [opcObfuscated, setOpcObfuscated] = useState(true);
+  const { role, accessToken, authReady } = useAuth();
+  const [credentialsVisible, setCredentialsVisible] = useState(false);
+
+  const canViewCredentials = role === "Admin" || role === "Network Manager";
+
+  const [credentialsRequested, setCredentialsRequested] = useState(false);
+
+  const { data: credentials } = useQuery({
+    queryKey: ["subscriberCredentials", subscriber.imsi],
+    queryFn: () => getSubscriberCredentials(accessToken!, subscriber.imsi),
+    enabled:
+      authReady && !!accessToken && canViewCredentials && credentialsRequested,
+  });
+
+  const handleToggleCredentials = () => {
+    if (!credentialsVisible) {
+      setCredentialsRequested(true);
+    }
+    setCredentialsVisible((v) => !v);
+  };
 
   const { data: policy } = useQuery({
     queryKey: ["policies", subscriber.policyName],
@@ -139,32 +161,55 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   return (
     <Card variant="outlined" sx={{ height: "100%" }}>
       <CardContent>
-        <Typography variant="h6" sx={{ mb: 1.5 }}>
-          Provisioning
-        </Typography>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 1.5,
+          }}
+        >
+          <Typography variant="h6">Provisioning</Typography>
+          {canViewCredentials && (
+            <Button
+              variant="text"
+              size="small"
+              onClick={handleToggleCredentials}
+            >
+              {credentialsVisible ? "Hide credentials" : "Show credentials"}
+            </Button>
+          )}
+        </Box>
         <FieldRow
           label="Key"
-          value={subscriber.key}
-          copyable
-          onCopy={() => handleCopy(subscriber.key, "Key")}
-          obfuscated={keyObfuscated}
-          onToggle={() => setKeyObfuscated((v) => !v)}
+          value={credentials?.key ?? ""}
+          copyable={
+            canViewCredentials && credentialsVisible && !!credentials?.key
+          }
+          onCopy={() => handleCopy(credentials?.key ?? "", "Key")}
+          obfuscated={!credentialsVisible}
         />
         <FieldRow
           label="OPc"
-          value={subscriber.opc}
-          copyable
-          onCopy={() => handleCopy(subscriber.opc, "OPc")}
-          obfuscated={opcObfuscated}
-          onToggle={() => setOpcObfuscated((v) => !v)}
+          value={credentials?.opc ?? ""}
+          copyable={
+            canViewCredentials && credentialsVisible && !!credentials?.opc
+          }
+          onCopy={() => handleCopy(credentials?.opc ?? "", "OPc")}
+          obfuscated={!credentialsVisible}
         />
         <FieldRow
           label="Sequence Number"
-          value={subscriber.sequenceNumber}
-          copyable
-          onCopy={() =>
-            handleCopy(subscriber.sequenceNumber, "Sequence Number")
+          value={credentials?.sequenceNumber ?? ""}
+          copyable={
+            canViewCredentials &&
+            credentialsVisible &&
+            !!credentials?.sequenceNumber
           }
+          onCopy={() =>
+            handleCopy(credentials?.sequenceNumber ?? "", "Sequence Number")
+          }
+          obfuscated={!credentialsVisible}
         />
         <Box
           sx={{
