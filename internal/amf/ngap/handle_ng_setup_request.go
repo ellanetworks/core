@@ -143,4 +143,6 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 		ran.Log.Error("error sending NG Setup Response", zap.Error(err))
 		return
 	}
+
+	ran.Log.Info("Radio completed NG Setup", zap.String("name", ran.Name))
 }
