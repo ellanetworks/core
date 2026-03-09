@@ -433,7 +433,7 @@ const EventsTab: React.FC = () => {
       {
         field: "direction",
         headerName: "Direction",
-        width: 50,
+        width: 90,
         align: "center",
         headerAlign: "center",
         sortable: false,
