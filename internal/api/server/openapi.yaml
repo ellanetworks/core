@@ -872,7 +872,10 @@ paths:
       operationId: getOperatorSlice
       tags: [Operator]
       summary: Get network slice
-      description: Returns the S-NSSAI (SST and SD) of the configured network slice.
+      deprecated: true
+      description: |
+        **Deprecated** — use `GET /api/v1/operator` instead, which returns the full operator configuration including slice data.
+        This endpoint will be removed after 2026-04-01.
       responses:
         "200":
           description: Slice configuration.
@@ -906,7 +909,10 @@ paths:
       operationId: getOperatorTracking
       tags: [Operator]
       summary: Get tracking areas
-      description: Returns the list of supported Tracking Area Codes (TACs).
+      deprecated: true
+      description: |
+        **Deprecated** — use `GET /api/v1/operator` instead, which returns the full operator configuration including tracking data.
+        This endpoint will be removed after 2026-04-01.
       responses:
         "200":
           description: Tracking area configuration.
@@ -940,7 +946,10 @@ paths:
       operationId: getOperatorId
       tags: [Operator]
       summary: Get PLMN ID
-      description: Returns the operator's Mobile Country Code (MCC) and Mobile Network Code (MNC).
+      deprecated: true
+      description: |
+        **Deprecated** — use `GET /api/v1/operator` instead, which returns the full operator configuration including the PLMN ID.
+        This endpoint will be removed after 2026-04-01.
       responses:
         "200":
           description: PLMN ID.

@@ -81,13 +81,16 @@ const (
 	// Operator permissions
 	PermReadOperator              = "operator:read"
 	PermUpdateOperatorSlice       = "operator:update_slice"
-	PermGetOperatorSlice          = "operator:get_slice"
 	PermUpdateOperatorTracking    = "operator:update_tracking"
-	PermGetOperatorTracking       = "operator:get_tracking"
 	PermUpdateOperatorID          = "operator:update_id"
-	PermGetOperatorID             = "operator:get_id"
 	PermUpdateOperatorCode        = "operator:update_code"
 	PermUpdateOperatorHomeNetwork = "operator:update_home_network"
+
+	// Deprecated: sub-resource GET permissions. Use operator:read instead.
+	// These will be removed in a future release.
+	PermGetOperatorSlice    = "operator:get_slice"
+	PermGetOperatorTracking = "operator:get_tracking"
+	PermGetOperatorID       = "operator:get_id"
 
 	// Subscriber permissions
 	PermListSubscribers           = "subscriber:list"

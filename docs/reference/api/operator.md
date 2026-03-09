@@ -68,29 +68,6 @@ This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Netw
 }
 ```
 
-## Get Operator ID
-
-This path returns the operator ID.
-
-| Method | Path                  |
-| ------ | --------------------- |
-| GET    | `/api/v1/operator/id` |
-
-### Parameters
-
-None
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "mcc": "001",
-        "mnc": "01",
-    }
-}
-```
-
 ## Update the Operator Slice Information
 
 This path updates the operator slice information. Only one slice is supported. The Slice Service Type (SST) and Service Differentiator (SD) are used to identify the slice.
@@ -114,29 +91,6 @@ This path updates the operator slice information. Only one slice is supported. T
 }
 ```
 
-## Get Operator Slice Information
-
-This path returns the operator Slice Information.
-
-| Method | Path                     |
-| ------ | ------------------------ |
-| GET    | `/api/v1/operator/slice` |
-
-### Parameters
-
-None
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "sst": 1,
-        "sd": ""
-    }
-}
-```
-
 ## Update the Operator Tracking Information
 
 This path updates the operator tracking information. The Tracking Area Codes (TACs) are used to identify the tracking areas supported by the operator. 5G radios will need to be configured with one or more of these TACs to connect to the network.
@@ -155,32 +109,6 @@ This path updates the operator tracking information. The Tracking Area Codes (TA
 {
     "result": {
         "message": "Operator tracking information updated successfully"
-    }
-}
-```
-
-## Get Operator Tracking Information
-
-This path returns the operator Tracking Information.
-
-| Method | Path                        |
-| ------ | --------------------------- |
-| GET    | `/api/v1/operator/tracking` |
-
-### Parameters
-
-None
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "supportedTACs": [
-            "001",
-            "002",
-            "003"
-        ],
     }
 }
 ```
