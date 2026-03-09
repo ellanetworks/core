@@ -473,7 +473,7 @@ const EventsTab: React.FC = () => {
   }, []);
 
   const subDescription =
-    "Review network events in Ella Core. These logs are useful for auditing and troubleshooting purposes.";
+    "Review NGAP messages between Ella Core and 5G radios. These logs are useful for auditing and troubleshooting purposes.";
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
