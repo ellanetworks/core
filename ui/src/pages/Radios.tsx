@@ -491,6 +491,10 @@ const EventsTab: React.FC = () => {
                       rows={networkRows}
                       columns={networkColumns}
                       getRowId={(row) => row.id}
+                      loading={
+                        networkLogsQuery.isLoading ||
+                        networkLogsQuery.isPlaceholderData
+                      }
                       paginationMode="server"
                       rowCount={subRowCount}
                       paginationModel={paginationModel}

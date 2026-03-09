@@ -43,6 +43,7 @@ export default function Profile() {
   // --- API tokens state (paginated) ---
   const [apiTokens, setAPITokens] = useState<APIToken[]>([]);
   const [loadingTokens, setLoadingTokens] = useState(true);
+  const [initialTokenLoadDone, setInitialTokenLoadDone] = useState(false);
   const [page, setPage] = useState<number>(1);
   const [perPage, setPerPage] = useState<number>(10);
   const [totalCount, setTotalCount] = useState<number>(0);
@@ -82,6 +83,7 @@ export default function Profile() {
         );
         setAPITokens(res.items ?? []);
         setTotalCount(res.total_count ?? 0);
+        setInitialTokenLoadDone(true);
       } catch (error) {
         console.error("Error fetching API Tokens:", error);
         showSnackbar("Failed to load API tokens.", "error");
@@ -177,7 +179,7 @@ export default function Profile() {
 
         {/* API Tokens — full width */}
         <Box sx={{ mt: 3 }}>
-          {loadingTokens && apiTokens.length === 0 ? (
+          {!initialTokenLoadDone ? (
             <Skeleton variant="rounded" height={300} />
           ) : (
             <>
