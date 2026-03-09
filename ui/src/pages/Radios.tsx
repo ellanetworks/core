@@ -426,15 +426,14 @@ const EventsTab: React.FC = () => {
       {
         field: "local_address",
         headerName: "Local Address",
-        flex: 1,
-        minWidth: 150,
+        width: 180,
         sortable: false,
         filterOperators: STRING_EQ,
       },
       {
         field: "direction",
-        headerName: "Dir",
-        width: 70,
+        headerName: "Direction",
+        width: 50,
         align: "center",
         headerAlign: "center",
         sortable: false,
@@ -449,8 +448,7 @@ const EventsTab: React.FC = () => {
       {
         field: "remote_address",
         headerName: "Remote Address",
-        flex: 1,
-        minWidth: 150,
+        width: 180,
         sortable: false,
         filterOperators: STRING_EQ,
       },
