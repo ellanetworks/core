@@ -232,8 +232,12 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 	})
 }
 
+// Deprecated: Use GET /api/v1/operator instead, which returns the full operator
+// configuration including slice data. This endpoint will be removed in a future release.
 func GetOperatorSlice(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setDeprecationHeaders(w)
+
 		dbOperator, err := dbInstance.GetOperator(r.Context())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Operator not found", err, logger.APILog)
@@ -249,8 +253,12 @@ func GetOperatorSlice(dbInstance *db.Database) http.Handler {
 	})
 }
 
+// Deprecated: Use GET /api/v1/operator instead, which returns the full operator
+// configuration including tracking data. This endpoint will be removed in a future release.
 func GetOperatorTracking(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setDeprecationHeaders(w)
+
 		dbOperator, err := dbInstance.GetOperator(r.Context())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Operator not found", err, logger.APILog)
@@ -273,8 +281,12 @@ func GetOperatorTracking(dbInstance *db.Database) http.Handler {
 	})
 }
 
+// Deprecated: Use GET /api/v1/operator instead, which returns the full operator
+// configuration including the PLMN ID. This endpoint will be removed in a future release.
 func GetOperatorID(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setDeprecationHeaders(w)
+
 		dbOperator, err := dbInstance.GetOperator(r.Context())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Operator not found", err, logger.APILog)

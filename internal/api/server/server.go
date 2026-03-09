@@ -83,10 +83,13 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	// Operator (Authenticated)
 	mux.HandleFunc("GET /api/v1/operator", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOperator, GetOperator(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/slice", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSlice, UpdateOperatorSlice(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/operator/slice", Authenticate(jwtSecret, dbInstance, Authorize(PermGetOperatorSlice, GetOperatorSlice(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/tracking", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorTracking, UpdateOperatorTracking(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/operator/tracking", Authenticate(jwtSecret, dbInstance, Authorize(PermGetOperatorTracking, GetOperatorTracking(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/id", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorID, UpdateOperatorID(dbInstance))).ServeHTTP)
+
+	// Deprecated: sub-resource GETs — use GET /api/v1/operator instead.
+	// These endpoints return the Deprecation and Sunset headers and will be removed in a future release.
+	mux.HandleFunc("GET /api/v1/operator/slice", Authenticate(jwtSecret, dbInstance, Authorize(PermGetOperatorSlice, GetOperatorSlice(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/operator/tracking", Authenticate(jwtSecret, dbInstance, Authorize(PermGetOperatorTracking, GetOperatorTracking(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/operator/id", Authenticate(jwtSecret, dbInstance, Authorize(PermGetOperatorID, GetOperatorID(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/code", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorCode, UpdateOperatorCode(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/home-network", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorHomeNetwork, UpdateOperatorHomeNetwork(dbInstance))).ServeHTTP)

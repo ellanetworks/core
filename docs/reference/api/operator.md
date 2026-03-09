@@ -70,6 +70,10 @@ This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Netw
 
 ## Get Operator ID
 
+!!! warning "Deprecated"
+    This endpoint is deprecated and will be removed after 2026-06-01.
+    Use **GET /api/v1/operator** instead, which returns the full operator configuration including the PLMN ID.
+
 This path returns the operator ID.
 
 | Method | Path                  |
@@ -116,6 +120,10 @@ This path updates the operator slice information. Only one slice is supported. T
 
 ## Get Operator Slice Information
 
+!!! warning "Deprecated"
+    This endpoint is deprecated and will be removed after 2026-06-01.
+    Use **GET /api/v1/operator** instead, which returns the full operator configuration including slice data.
+
 This path returns the operator Slice Information.
 
 | Method | Path                     |
@@ -160,6 +168,10 @@ This path updates the operator tracking information. The Tracking Area Codes (TA
 ```
 
 ## Get Operator Tracking Information
+
+!!! warning "Deprecated"
+    This endpoint is deprecated and will be removed after 2026-06-01.
+    Use **GET /api/v1/operator** instead, which returns the full operator configuration including tracking data.
 
 This path returns the operator Tracking Information.
 
