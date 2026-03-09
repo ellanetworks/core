@@ -97,11 +97,15 @@ const FieldRow: React.FC<{
         {obfuscated ? "Show" : "Hide"}
       </Button>
     )}
-    {copyable && onCopy && (
+    {copyable && onCopy ? (
       <IconButton size="small" onClick={onCopy} aria-label={`Copy ${label}`}>
         <CopyIcon fontSize="small" />
       </IconButton>
-    )}
+    ) : onCopy ? (
+      <IconButton size="small" sx={{ visibility: "hidden" }} aria-hidden>
+        <CopyIcon fontSize="small" />
+      </IconButton>
+    ) : null}
     {actionIcon}
   </Box>
 );
@@ -112,8 +116,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
 }) => {
   const { showSnackbar } = useSnackbar();
   const { role, accessToken, authReady } = useAuth();
-  const [keyObfuscated, setKeyObfuscated] = useState(true);
-  const [opcObfuscated, setOpcObfuscated] = useState(true);
+  const [credentialsVisible, setCredentialsVisible] = useState(false);
 
   const canViewCredentials = role === "Admin" || role === "Network Manager";
 
@@ -126,18 +129,11 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
       authReady && !!accessToken && canViewCredentials && credentialsRequested,
   });
 
-  const handleShowKey = () => {
-    if (keyObfuscated) {
+  const handleToggleCredentials = () => {
+    if (!credentialsVisible) {
       setCredentialsRequested(true);
     }
-    setKeyObfuscated((v) => !v);
-  };
-
-  const handleShowOpc = () => {
-    if (opcObfuscated) {
-      setCredentialsRequested(true);
-    }
-    setOpcObfuscated((v) => !v);
+    setCredentialsVisible((v) => !v);
   };
 
   const { data: policy } = useQuery({
@@ -165,32 +161,55 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   return (
     <Card variant="outlined" sx={{ height: "100%" }}>
       <CardContent>
-        <Typography variant="h6" sx={{ mb: 1.5 }}>
-          Provisioning
-        </Typography>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 1.5,
+          }}
+        >
+          <Typography variant="h6">Provisioning</Typography>
+          {canViewCredentials && (
+            <Button
+              variant="text"
+              size="small"
+              onClick={handleToggleCredentials}
+            >
+              {credentialsVisible ? "Hide credentials" : "Show credentials"}
+            </Button>
+          )}
+        </Box>
         <FieldRow
           label="Key"
           value={credentials?.key ?? ""}
-          copyable={canViewCredentials && !!credentials?.key}
+          copyable={
+            canViewCredentials && credentialsVisible && !!credentials?.key
+          }
           onCopy={() => handleCopy(credentials?.key ?? "", "Key")}
-          obfuscated={keyObfuscated}
-          onToggle={canViewCredentials ? handleShowKey : undefined}
+          obfuscated={!credentialsVisible}
         />
         <FieldRow
           label="OPc"
           value={credentials?.opc ?? ""}
-          copyable={canViewCredentials && !!credentials?.opc}
+          copyable={
+            canViewCredentials && credentialsVisible && !!credentials?.opc
+          }
           onCopy={() => handleCopy(credentials?.opc ?? "", "OPc")}
-          obfuscated={opcObfuscated}
-          onToggle={canViewCredentials ? handleShowOpc : undefined}
+          obfuscated={!credentialsVisible}
         />
         <FieldRow
           label="Sequence Number"
           value={credentials?.sequenceNumber ?? ""}
-          copyable={canViewCredentials && !!credentials?.sequenceNumber}
+          copyable={
+            canViewCredentials &&
+            credentialsVisible &&
+            !!credentials?.sequenceNumber
+          }
           onCopy={() =>
             handleCopy(credentials?.sequenceNumber ?? "", "Sequence Number")
           }
+          obfuscated={!credentialsVisible}
         />
         <Box
           sx={{
