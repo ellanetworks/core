@@ -117,11 +117,28 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
 
   const canViewCredentials = role === "Admin" || role === "Network Manager";
 
+  const [credentialsRequested, setCredentialsRequested] = useState(false);
+
   const { data: credentials } = useQuery({
     queryKey: ["subscriberCredentials", subscriber.imsi],
     queryFn: () => getSubscriberCredentials(accessToken!, subscriber.imsi),
-    enabled: authReady && !!accessToken && canViewCredentials,
+    enabled:
+      authReady && !!accessToken && canViewCredentials && credentialsRequested,
   });
+
+  const handleShowKey = () => {
+    if (keyObfuscated) {
+      setCredentialsRequested(true);
+    }
+    setKeyObfuscated((v) => !v);
+  };
+
+  const handleShowOpc = () => {
+    if (opcObfuscated) {
+      setCredentialsRequested(true);
+    }
+    setOpcObfuscated((v) => !v);
+  };
 
   const { data: policy } = useQuery({
     queryKey: ["policies", subscriber.policyName],
@@ -157,9 +174,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           copyable={canViewCredentials && !!credentials?.key}
           onCopy={() => handleCopy(credentials?.key ?? "", "Key")}
           obfuscated={keyObfuscated}
-          onToggle={
-            canViewCredentials ? () => setKeyObfuscated((v) => !v) : undefined
-          }
+          onToggle={canViewCredentials ? handleShowKey : undefined}
         />
         <FieldRow
           label="OPc"
@@ -167,9 +182,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           copyable={canViewCredentials && !!credentials?.opc}
           onCopy={() => handleCopy(credentials?.opc ?? "", "OPc")}
           obfuscated={opcObfuscated}
-          onToggle={
-            canViewCredentials ? () => setOpcObfuscated((v) => !v) : undefined
-          }
+          onToggle={canViewCredentials ? handleShowOpc : undefined}
         />
         <FieldRow
           label="Sequence Number"
