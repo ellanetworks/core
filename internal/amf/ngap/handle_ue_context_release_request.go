@@ -91,7 +91,12 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 	var err error
 
 	if cause != nil {
-		ranUe.Log.Info("UE Context Release Cause", zap.String("Cause", causeToString(*cause)))
+		fields := []zap.Field{zap.String("Cause", causeToString(*cause))}
+		if ranUe.AmfUe != nil {
+			fields = append(fields, zap.String("supi", ranUe.AmfUe.Supi.String()))
+		}
+
+		ranUe.Log.Info("UE Context Release Cause", fields...)
 
 		causeGroup, causeValue, err = getCause(cause)
 		if err != nil {

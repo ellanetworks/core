@@ -5,7 +5,6 @@ import {
   CircularProgress,
   Tabs,
   Tab,
-  Chip,
   Tooltip,
   IconButton,
 } from "@mui/material";
@@ -70,9 +69,91 @@ const STRING_EQ = getGridStringOperators().filter(
   (op) => op.value === "equals",
 );
 const DIR_EQ = getGridSingleSelectOperators().filter((op) => op.value === "is");
-const PROTOCOL_EQ = getGridSingleSelectOperators().filter(
+const MESSAGE_TYPE_EQ = getGridSingleSelectOperators().filter(
   (op) => op.value === "is",
 );
+
+const NGAP_MESSAGE_TYPES = [
+  "AMFConfigurationUpdate",
+  "AMFConfigurationUpdateAcknowledge",
+  "AMFConfigurationUpdateFailure",
+  "AMFStatusIndication",
+  "CellTrafficTrace",
+  "DeactivateTrace",
+  "DownlinkNASTransport",
+  "DownlinkNonUEAssociatedNRPPaTransport",
+  "DownlinkRANConfigurationTransfer",
+  "DownlinkRANStatusTransfer",
+  "DownlinkUEAssociatedNRPPaTransport",
+  "ErrorIndication",
+  "HandoverCancel",
+  "HandoverCancelAcknowledge",
+  "HandoverCommand",
+  "HandoverFailure",
+  "HandoverNotify",
+  "HandoverPreparationFailure",
+  "HandoverRequest",
+  "HandoverRequestAcknowledge",
+  "HandoverRequired",
+  "InitialContextSetupFailure",
+  "InitialContextSetupRequest",
+  "InitialContextSetupResponse",
+  "InitialUEMessage",
+  "LocationReport",
+  "LocationReportingControl",
+  "LocationReportingFailureIndication",
+  "NASNonDeliveryIndication",
+  "NGReset",
+  "NGResetAcknowledge",
+  "NGSetupFailure",
+  "NGSetupRequest",
+  "NGSetupResponse",
+  "OverloadStart",
+  "OverloadStop",
+  "Paging",
+  "PathSwitchRequest",
+  "PathSwitchRequestAcknowledge",
+  "PathSwitchRequestFailure",
+  "PDUSessionResourceModifyConfirm",
+  "PDUSessionResourceModifyIndication",
+  "PDUSessionResourceModifyRequest",
+  "PDUSessionResourceModifyResponse",
+  "PDUSessionResourceNotify",
+  "PDUSessionResourceReleaseCommand",
+  "PDUSessionResourceReleaseResponse",
+  "PDUSessionResourceSetupRequest",
+  "PDUSessionResourceSetupResponse",
+  "PrivateMessage",
+  "PWSCancelRequest",
+  "PWSCancelResponse",
+  "PWSFailureIndication",
+  "PWSRestartIndication",
+  "RANConfigurationUpdate",
+  "RANConfigurationUpdateAcknowledge",
+  "RANConfigurationUpdateFailure",
+  "RerouteNASRequest",
+  "RRCInactiveTransitionReport",
+  "SecondaryRATDataUsageReport",
+  "TraceFailureIndication",
+  "TraceStart",
+  "UEContextModificationFailure",
+  "UEContextModificationRequest",
+  "UEContextModificationResponse",
+  "UEContextReleaseCommand",
+  "UEContextReleaseComplete",
+  "UEContextReleaseRequest",
+  "UERadioCapabilityCheckRequest",
+  "UERadioCapabilityCheckResponse",
+  "UERadioCapabilityInfoIndication",
+  "UETNLABindingReleaseRequest",
+  "UplinkNASTransport",
+  "UplinkNonUEAssociatedNRPPaTransport",
+  "UplinkRANConfigurationTransfer",
+  "UplinkRANStatusTransfer",
+  "UplinkUEAssociatedNRPPaTransport",
+  "WriteReplaceWarningRequest",
+  "WriteReplaceWarningResponse",
+];
 const normalizeRfc3339Offset = (s: string) =>
   s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
 
@@ -96,30 +177,6 @@ function formatRfc3339WithOffset(d: Date): string {
   const tzM = pad(Math.abs(tzMin) % 60);
   return `${y}-${m}-${day}T${hh}:${mm}:${ss}.${ms}${sign}${tzH}:${tzM}`;
 }
-
-const ProtocolCell: React.FC<{ value?: string }> = ({ value }) => {
-  if (!value) return null;
-  const val = String(value).toUpperCase();
-  const styles =
-    val === "NGAP"
-      ? { backgroundColor: "#003366", color: "#fff" }
-      : val === "NAS"
-        ? { backgroundColor: "#ff7300ff", color: "#fff" }
-        : {
-            backgroundColor: "transparent",
-            color: "text.primary",
-            border: "1px solid",
-            borderColor: "divider",
-          };
-  return (
-    <Chip
-      label={val}
-      size="small"
-      sx={{ fontWeight: 600, letterSpacing: 0.25, height: 22, ...styles }}
-      aria-label={`Protocol ${val}`}
-    />
-  );
-};
 
 function toBackendTimestamp(v: unknown): string | undefined {
   if (v instanceof Date) return formatRfc3339WithOffset(v);
@@ -169,7 +226,7 @@ function filtersToParams(
 const DirectionCell: React.FC<{ value?: string }> = ({ value }) => {
   const theme = useTheme();
   if (!value) return null;
-  const Icon = value === "inbound" ? EastIcon : WestIcon;
+  const Icon = value === "outbound" ? EastIcon : WestIcon;
   const title = value === "inbound" ? "Receive (inbound)" : "Send (outbound)";
   const color =
     value === "inbound" ? theme.palette.success.main : theme.palette.info.main;
@@ -357,9 +414,26 @@ const EventsTab: React.FC = () => {
         filterOperators: DATE_AFTER_BEFORE_ONLY,
       },
       {
+        field: "message_type",
+        headerName: "Message Type",
+        type: "singleSelect",
+        valueOptions: NGAP_MESSAGE_TYPES,
+        flex: 1,
+        minWidth: 220,
+        sortable: false,
+        filterOperators: MESSAGE_TYPE_EQ,
+      },
+      {
+        field: "local_address",
+        headerName: "Local Address",
+        width: 180,
+        sortable: false,
+        filterOperators: STRING_EQ,
+      },
+      {
         field: "direction",
-        headerName: "Dir",
-        width: 70,
+        headerName: "Direction",
+        width: 120,
         align: "center",
         headerAlign: "center",
         sortable: false,
@@ -372,39 +446,9 @@ const EventsTab: React.FC = () => {
         renderCell: (p) => <DirectionCell value={p.row.direction} />,
       },
       {
-        field: "protocol",
-        headerName: "Protocol",
-        type: "singleSelect",
-        valueOptions: [
-          { value: "NGAP", label: "NGAP" },
-          { value: "NAS", label: "NAS" },
-        ],
-        width: 120,
-        sortable: false,
-        filterOperators: PROTOCOL_EQ,
-        renderCell: (p) => <ProtocolCell value={p.row.protocol} />,
-      },
-      {
-        field: "message_type",
-        headerName: "Message Type",
-        flex: 1,
-        minWidth: 220,
-        sortable: false,
-        filterOperators: STRING_EQ,
-      },
-      {
-        field: "local_address",
-        headerName: "Local Address",
-        flex: 1,
-        minWidth: 150,
-        sortable: false,
-        filterOperators: STRING_EQ,
-      },
-      {
         field: "remote_address",
         headerName: "Remote Address",
-        flex: 1,
-        minWidth: 150,
+        width: 180,
         sortable: false,
         filterOperators: STRING_EQ,
       },
@@ -427,7 +471,7 @@ const EventsTab: React.FC = () => {
   }, []);
 
   const subDescription =
-    "Review network events in Ella Core. These logs are useful for auditing and troubleshooting purposes.";
+    "Review NGAP messages between Ella Core and 5G radios. These logs are useful for auditing and troubleshooting purposes.";
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
