@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useAuth } from "@/contexts/AuthContext";
 import type { APISubscriber } from "@/queries/subscribers";
+import { getSubscriberCredentials } from "@/queries/subscribers";
 import { getPolicy } from "@/queries/policies";
 import { UPLINK_COLOR, DOWNLINK_COLOR } from "@/utils/formatters";
 
@@ -110,9 +111,17 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   onEditPolicy,
 }) => {
   const { showSnackbar } = useSnackbar();
-  const { accessToken, authReady } = useAuth();
+  const { role, accessToken, authReady } = useAuth();
   const [keyObfuscated, setKeyObfuscated] = useState(true);
   const [opcObfuscated, setOpcObfuscated] = useState(true);
+
+  const canViewCredentials = role === "Admin" || role === "Network Manager";
+
+  const { data: credentials } = useQuery({
+    queryKey: ["subscriberCredentials", subscriber.imsi],
+    queryFn: () => getSubscriberCredentials(accessToken!, subscriber.imsi),
+    enabled: authReady && !!accessToken && canViewCredentials,
+  });
 
   const { data: policy } = useQuery({
     queryKey: ["policies", subscriber.policyName],
@@ -144,26 +153,26 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
         </Typography>
         <FieldRow
           label="Key"
-          value={subscriber.key}
-          copyable
-          onCopy={() => handleCopy(subscriber.key, "Key")}
+          value={credentials?.key ?? ""}
+          copyable={canViewCredentials && !!credentials?.key}
+          onCopy={() => handleCopy(credentials?.key ?? "", "Key")}
           obfuscated={keyObfuscated}
-          onToggle={() => setKeyObfuscated((v) => !v)}
+          onToggle={canViewCredentials ? () => setKeyObfuscated((v) => !v) : undefined}
         />
         <FieldRow
           label="OPc"
-          value={subscriber.opc}
-          copyable
-          onCopy={() => handleCopy(subscriber.opc, "OPc")}
+          value={credentials?.opc ?? ""}
+          copyable={canViewCredentials && !!credentials?.opc}
+          onCopy={() => handleCopy(credentials?.opc ?? "", "OPc")}
           obfuscated={opcObfuscated}
-          onToggle={() => setOpcObfuscated((v) => !v)}
+          onToggle={canViewCredentials ? () => setOpcObfuscated((v) => !v) : undefined}
         />
         <FieldRow
           label="Sequence Number"
-          value={subscriber.sequenceNumber}
-          copyable
+          value={credentials?.sequenceNumber ?? ""}
+          copyable={canViewCredentials && !!credentials?.sequenceNumber}
           onCopy={() =>
-            handleCopy(subscriber.sequenceNumber, "Sequence Number")
+            handleCopy(credentials?.sequenceNumber ?? "", "Sequence Number")
           }
         />
         <Box

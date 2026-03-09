@@ -229,6 +229,45 @@ type UpdateSubscriberSuccessResponse struct {
 	Message string `json:"message"`
 }
 
+// SubscriberCredentials matches the credentials endpoint response.
+type SubscriberCredentials struct {
+	Key            string `json:"key"`
+	Opc            string `json:"opc"`
+	SequenceNumber string `json:"sequenceNumber"`
+}
+
+type GetSubscriberCredentialsResponse struct {
+	Result SubscriberCredentials `json:"result"`
+	Error  string                `json:"error,omitempty"`
+}
+
+func getSubscriberCredentials(url string, client *http.Client, token string, imsi string) (int, *GetSubscriberCredentialsResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/subscribers/"+imsi+"/credentials", nil)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var credsResponse GetSubscriberCredentialsResponse
+	if err := json.NewDecoder(res.Body).Decode(&credsResponse); err != nil {
+		return 0, nil, err
+	}
+
+	return res.StatusCode, &credsResponse, nil
+}
+
 func updateSubscriber(url string, client *http.Client, token string, imsi string, data *UpdateSubscriberParams) (int, *UpdateSubscriberResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
@@ -402,6 +441,48 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	})
+
+	t.Run("3b. Get subscriber credentials", func(t *testing.T) {
+		statusCode, response, err := getSubscriberCredentials(ts.URL, client, token, Imsi)
+		if err != nil {
+			t.Fatalf("couldn't get subscriber credentials: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Result.Key != Key {
+			t.Fatalf("expected key %s, got %s", Key, response.Result.Key)
+		}
+
+		if response.Result.Opc != Opc {
+			t.Fatalf("expected opc %s, got %s", Opc, response.Result.Opc)
+		}
+
+		if response.Result.SequenceNumber != SequenceNumber {
+			t.Fatalf("expected sequenceNumber %s, got %s", SequenceNumber, response.Result.SequenceNumber)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	})
+
+	t.Run("3c. Get subscriber credentials - not found", func(t *testing.T) {
+		statusCode, response, err := getSubscriberCredentials(ts.URL, client, token, "001010100007488")
+		if err != nil {
+			t.Fatalf("couldn't get subscriber credentials: %s", err)
+		}
+
+		if statusCode != http.StatusNotFound {
+			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
+		}
+
+		if response.Error != "Subscriber not found" {
+			t.Fatalf("expected error %q, got %q", "Subscriber not found", response.Error)
 		}
 	})
 

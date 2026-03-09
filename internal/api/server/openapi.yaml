@@ -632,6 +632,31 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/subscribers/{imsi}/credentials:
+    get:
+      operationId: getSubscriberCredentials
+      tags: [Subscribers]
+      summary: Get subscriber credentials
+      description: |
+        Returns the authentication credentials (permanent key, OPc, and sequence number)
+        for a subscriber. Requires the `subscriber:read_credentials` permission,
+        which is granted only to Admin and Network Manager roles.
+      parameters:
+        - $ref: "#/components/parameters/ImsiPath"
+      responses:
+        "200":
+          description: Subscriber credentials.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriberCredentialsResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # ── Subscriber Usage ────────────────────────────────────────────────────
   /api/v1/subscriber-usage:
     get:
@@ -2150,12 +2175,15 @@ components:
         opc:
           type: string
           description: "32-character hex OPc value."
+          deprecated: true
         sequenceNumber:
           type: string
           description: "Sequence number (6-byte hex)."
+          deprecated: true
         key:
           type: string
           description: "32-character hex permanent key."
+          deprecated: true
         policyName:
           type: string
           description: Name of the assigned QoS policy.
@@ -2215,15 +2243,38 @@ components:
           type: string
         opc:
           type: string
+          deprecated: true
         sequenceNumber:
           type: string
+          deprecated: true
         key:
           type: string
+          deprecated: true
         policyName:
           type: string
         status:
           $ref: "#/components/schemas/SubscriberDetailStatus"
       required: [imsi, opc, sequenceNumber, key, policyName, status]
+
+    SubscriberCredentials:
+      type: object
+      properties:
+        key:
+          type: string
+          description: "32-character hex permanent key (K)."
+        opc:
+          type: string
+          description: "32-character hex OPc value."
+        sequenceNumber:
+          type: string
+          description: "Sequence number (6-byte hex)."
+      required: [key, opc, sequenceNumber]
+
+    SubscriberCredentialsResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/SubscriberCredentials"
 
     SubscriberDetailResponseEnvelope:
       type: object

@@ -238,3 +238,65 @@ func TestListSubscribers_Failure(t *testing.T) {
 		t.Fatalf("expected error, got none")
 	}
 }
+
+func TestGetSubscriberCredentials_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"key": "5122250214c33e723a5dd523fc145fc0", "opc": "b9f9d006cbe505a0b79f1ad0b3e44d95", "sequenceNumber": "16f3b3f70fc2"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	opts := &client.GetSubscriberCredentialsOptions{
+		ID: "001010100000022",
+	}
+
+	creds, err := clientObj.GetSubscriberCredentials(ctx, opts)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if creds.Key != "5122250214c33e723a5dd523fc145fc0" {
+		t.Fatalf("expected key 5122250214c33e723a5dd523fc145fc0, got %s", creds.Key)
+	}
+
+	if creds.Opc != "b9f9d006cbe505a0b79f1ad0b3e44d95" {
+		t.Fatalf("expected opc b9f9d006cbe505a0b79f1ad0b3e44d95, got %s", creds.Opc)
+	}
+
+	if creds.SequenceNumber != "16f3b3f70fc2" {
+		t.Fatalf("expected sequenceNumber 16f3b3f70fc2, got %s", creds.SequenceNumber)
+	}
+}
+
+func TestGetSubscriberCredentials_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 404,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Subscriber not found"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	opts := &client.GetSubscriberCredentialsOptions{
+		ID: "non_existent_imsi",
+	}
+
+	_, err := clientObj.GetSubscriberCredentials(ctx, opts)
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}

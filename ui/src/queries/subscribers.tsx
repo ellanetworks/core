@@ -37,11 +37,21 @@ export type SubscriberDetailStatus = {
 /** Full representation returned by the get-single endpoint. */
 export type APISubscriber = {
   imsi: string;
+  /** @deprecated Use getSubscriberCredentials instead. */
   opc: string;
+  /** @deprecated Use getSubscriberCredentials instead. */
   sequenceNumber: string;
+  /** @deprecated Use getSubscriberCredentials instead. */
   key: string;
   policyName: string;
   status: SubscriberDetailStatus;
+};
+
+/** Credentials returned by the dedicated credentials endpoint. */
+export type SubscriberCredentials = {
+  key: string;
+  opc: string;
+  sequenceNumber: string;
 };
 
 export async function listSubscribers(
@@ -60,6 +70,16 @@ export const getSubscriber = async (
   imsi: string,
 ): Promise<APISubscriber> => {
   return apiFetch<APISubscriber>(`/api/v1/subscribers/${imsi}`, { authToken });
+};
+
+export const getSubscriberCredentials = async (
+  authToken: string,
+  imsi: string,
+): Promise<SubscriberCredentials> => {
+  return apiFetch<SubscriberCredentials>(
+    `/api/v1/subscribers/${imsi}/credentials`,
+    { authToken },
+  );
 };
 
 export const createSubscriber = async (

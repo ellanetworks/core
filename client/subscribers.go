@@ -33,9 +33,9 @@ type SubscriberStatus struct {
 // Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
 	Imsi           string           `json:"imsi"`
-	Opc            string           `json:"opc"`
-	SequenceNumber string           `json:"sequenceNumber"`
-	Key            string           `json:"key"`
+	Opc            string           `json:"opc"`            // Deprecated: use GetSubscriberCredentials instead.
+	SequenceNumber string           `json:"sequenceNumber"` // Deprecated: use GetSubscriberCredentials instead.
+	Key            string           `json:"key"`            // Deprecated: use GetSubscriberCredentials instead.
 	PolicyName     string           `json:"policyName"`
 	Status         SubscriberStatus `json:"status"`
 }
@@ -61,11 +61,23 @@ type SubscriberDetailStatus struct {
 // SubscriberDetail is the full representation returned by the get-single endpoint.
 type SubscriberDetail struct {
 	Imsi           string                 `json:"imsi"`
-	Opc            string                 `json:"opc"`
-	SequenceNumber string                 `json:"sequenceNumber"`
-	Key            string                 `json:"key"`
+	Opc            string                 `json:"opc"`            // Deprecated: use GetSubscriberCredentials instead.
+	SequenceNumber string                 `json:"sequenceNumber"` // Deprecated: use GetSubscriberCredentials instead.
+	Key            string                 `json:"key"`            // Deprecated: use GetSubscriberCredentials instead.
 	PolicyName     string                 `json:"policyName"`
 	Status         SubscriberDetailStatus `json:"status"`
+}
+
+// SubscriberCredentials contains the authentication credentials for a subscriber.
+type SubscriberCredentials struct {
+	Key            string `json:"key"`
+	Opc            string `json:"opc"`
+	SequenceNumber string `json:"sequenceNumber"`
+}
+
+// GetSubscriberCredentialsOptions holds the parameters for GetSubscriberCredentials.
+type GetSubscriberCredentialsOptions struct {
+	ID string `json:"id"`
 }
 
 // CreateSubscriber creates a new subscriber with the provided options.
@@ -162,4 +174,26 @@ func (c *Client) ListSubscribers(ctx context.Context, p *ListParams) (*ListSubsc
 	}
 
 	return &subscribers, nil
+}
+
+// GetSubscriberCredentials retrieves the authentication credentials for a subscriber.
+// requires Admin or Network Manager role.
+func (c *Client) GetSubscriberCredentials(ctx context.Context, opts *GetSubscriberCredentialsOptions) (*SubscriberCredentials, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/subscribers/" + opts.ID + "/credentials",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var creds SubscriberCredentials
+
+	err = resp.DecodeResult(&creds)
+	if err != nil {
+		return nil, err
+	}
+
+	return &creds, nil
 }
