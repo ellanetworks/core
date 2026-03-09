@@ -50,14 +50,6 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, v any, status int
 	}
 }
 
-// setDeprecationHeaders marks a response as coming from a deprecated endpoint.
-// Clients should migrate to the replacement endpoint indicated in the response body or docs.
-func setDeprecationHeaders(w http.ResponseWriter) {
-	w.Header().Set("Deprecation", "true")
-	w.Header().Set("Sunset", "2026-06-01")
-	w.Header().Set("Link", "</api/v1/operator>; rel=\"successor-version\"")
-}
-
 // writeError is a helper function that logs errors and writes http response for errors
 func writeError(ctx context.Context, w http.ResponseWriter, status int, message string, err error, l *zap.Logger) {
 	log := logger.WithTrace(ctx, l)

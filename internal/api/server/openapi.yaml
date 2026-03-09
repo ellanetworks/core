@@ -875,7 +875,7 @@ paths:
       deprecated: true
       description: |
         **Deprecated** — use `GET /api/v1/operator` instead, which returns the full operator configuration including slice data.
-        This endpoint will be removed after 2026-06-01.
+        This endpoint will be removed after 2026-04-01.
       responses:
         "200":
           description: Slice configuration.
@@ -912,7 +912,7 @@ paths:
       deprecated: true
       description: |
         **Deprecated** — use `GET /api/v1/operator` instead, which returns the full operator configuration including tracking data.
-        This endpoint will be removed after 2026-06-01.
+        This endpoint will be removed after 2026-04-01.
       responses:
         "200":
           description: Tracking area configuration.
@@ -949,7 +949,7 @@ paths:
       deprecated: true
       description: |
         **Deprecated** — use `GET /api/v1/operator` instead, which returns the full operator configuration including the PLMN ID.
-        This endpoint will be removed after 2026-06-01.
+        This endpoint will be removed after 2026-04-01.
       responses:
         "200":
           description: PLMN ID.
