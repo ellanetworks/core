@@ -223,6 +223,7 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
             (touched.sst && errors.sst) || "Enter an integer between 0 and 255."
           }
           margin="normal"
+          autoFocus
           inputProps={{
             inputMode: "numeric",
             pattern: "[0-9]*",

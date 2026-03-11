@@ -226,6 +226,7 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
           helperText={touched.destination ? errors.destination : ""}
           margin="normal"
           disabled={formValues.defaultRoute}
+          autoFocus
         />
         <TextField
           fullWidth

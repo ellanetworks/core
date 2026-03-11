@@ -289,7 +289,9 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       aria-labelledby="create-subscriber-modal-title"
       aria-describedby="create-subscriber-modal-description"
     >
-      <DialogTitle>Create Subscriber</DialogTitle>
+      <DialogTitle id="create-subscriber-modal-title">
+        Create Subscriber
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -318,6 +320,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             error={(!!errors.msin && touched.msin) || !!imsiMismatch}
             helperText={(touched.msin && errors.msin) || imsiMismatch}
             margin="normal"
+            autoFocus
             slotProps={{
               input: {
                 startAdornment: (

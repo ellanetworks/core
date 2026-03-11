@@ -232,7 +232,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
       aria-labelledby="edit-policy-modal-title"
       aria-describedby="edit-policy-modal-description"
     >
-      <DialogTitle>Edit Policy</DialogTitle>
+      <DialogTitle id="edit-policy-modal-title">Edit Policy</DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -258,6 +258,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           </InputLabel>
           <Select
             labelId="data-network-select-label"
+            autoFocus
             label="Data Network Name"
             value={formValues.data_network_name}
             onChange={(e) => handleChange("data_network_name", e.target.value)}

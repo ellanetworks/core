@@ -130,7 +130,9 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
       aria-labelledby="edit-operator-id-modal-title"
       aria-describedby="edit-operator-id-modal-description"
     >
-      <DialogTitle>Edit Operator ID</DialogTitle>
+      <DialogTitle id="edit-operator-id-modal-title">
+        Edit Operator ID
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -155,6 +157,7 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
           error={touched.mcc && !!errors.mcc}
           helperText={touched.mcc ? errors.mcc : ""}
           margin="normal"
+          autoFocus
         />
         <TextField
           fullWidth

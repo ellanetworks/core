@@ -152,7 +152,9 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
       aria-labelledby="edit-data-network-modal-title"
       aria-describedby="edit-data-network-modal-description"
     >
-      <DialogTitle>Edit Data Network</DialogTitle>
+      <DialogTitle id="edit-data-network-modal-title">
+        Edit Data Network
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -179,6 +181,7 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
           error={!!errors.ip_pool && touched.ip_pool}
           helperText={touched.ip_pool ? errors.ip_pool : ""}
           margin="normal"
+          autoFocus
         />
         <TextField
           fullWidth

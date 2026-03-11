@@ -110,7 +110,9 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
       aria-labelledby="edit-subscriber-modal-title"
       aria-describedby="edit-subscriber-modal-description"
     >
-      <DialogTitle>Edit Subscriber</DialogTitle>
+      <DialogTitle id="edit-subscriber-modal-title">
+        Edit Subscriber
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -138,6 +140,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
             value={formValues.policyName}
             onChange={(e) => handleChange("policyName", e.target.value)}
             error={!!errors.policyName}
+            autoFocus
           >
             {policies.map((policy) => (
               <MenuItem key={policy} value={policy}>

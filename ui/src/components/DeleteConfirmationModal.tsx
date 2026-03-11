@@ -42,7 +42,7 @@ const DeleteConfirmationModal: React.FC<ConfirmationModalProps> = ({
       aria-labelledby="confirmation-modal-title"
       aria-describedby="confirmation-modal-description"
     >
-      <DialogTitle>{title}</DialogTitle>
+      <DialogTitle id="confirmation-modal-title">{title}</DialogTitle>
       <DialogContent dividers>
         <DialogContentText>{description}</DialogContentText>
       </DialogContent>

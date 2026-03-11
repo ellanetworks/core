@@ -74,9 +74,18 @@ export default function SupportModal({
         <CircularProgress color="inherit" />
       </Backdrop>
 
-      <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-        <DialogTitle>Generate Support Bundle</DialogTitle>
-        <DialogContent>
+      <Dialog
+        open={open}
+        onClose={onClose}
+        fullWidth
+        maxWidth="sm"
+        aria-labelledby="support-modal-title"
+        aria-describedby="support-modal-description"
+      >
+        <DialogTitle id="support-modal-title">
+          Generate Support Bundle
+        </DialogTitle>
+        <DialogContent dividers>
           <Typography variant="body2" color="text.secondary">
             The support bundle contains system diagnostics, configuration and
             database-derived information to help Ella Networks investigate
@@ -90,7 +99,7 @@ export default function SupportModal({
           </Button>
           <Button
             variant="contained"
-            color="primary"
+            color="success"
             onClick={handleGenerate}
             disabled={isGenerating}
           >

@@ -110,7 +110,9 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
       aria-labelledby="edit-operator-tracking-modal-title"
       aria-describedby="edit-operator-tracking-modal-description"
     >
-      <DialogTitle>Edit Operator Tracking Information</DialogTitle>
+      <DialogTitle id="edit-operator-tracking-modal-title">
+        Edit Operator Tracking Information
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -146,6 +148,7 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
                 errors.supportedTacs ||
                 "Enter each TAC as a 3 bytes hex string (e.g., 000001)"
               }
+              autoFocus
             />
           )}
           sx={{ marginBottom: 2 }}

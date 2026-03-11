@@ -161,6 +161,7 @@ const EditInterfaceN3Modal: React.FC<EditInterfaceN3ModalProps> = ({
             "Leave empty to use N3's configured address."
           }
           margin="normal"
+          autoFocus
         />
       </DialogContent>
       <DialogActions>

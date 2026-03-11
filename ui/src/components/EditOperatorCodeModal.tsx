@@ -130,7 +130,9 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
       aria-labelledby="edit-operator-code-modal-title"
       aria-describedby="edit-operator-code-modal-description"
     >
-      <DialogTitle>Edit Operator Code</DialogTitle>
+      <DialogTitle id="edit-operator-code-modal-title">
+        Edit Operator Code
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -159,6 +161,7 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
           error={touched.operatorCode && !!errors.operatorCode}
           helperText={touched.operatorCode ? errors.operatorCode : ""}
           margin="normal"
+          autoFocus
         />
       </DialogContent>
       <DialogActions>

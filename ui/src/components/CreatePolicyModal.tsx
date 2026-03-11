@@ -214,7 +214,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
       aria-labelledby="create-policy-modal-title"
       aria-describedby="create-policy-modal-description"
     >
-      <DialogTitle>Create Policy</DialogTitle>
+      <DialogTitle id="create-policy-modal-title">Create Policy</DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -235,6 +235,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           error={!!errors.name && touched.name}
           helperText={touched.name ? errors.name : ""}
           margin="normal"
+          autoFocus
         />
 
         <FormControl fullWidth margin="normal">

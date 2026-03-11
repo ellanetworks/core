@@ -122,7 +122,9 @@ const EditUsageRetentionPolicyModal: React.FC<
       aria-labelledby="edit-usage-retention-policy-modal-title"
       aria-describedby="edit-usage-retention-policy-modal-description"
     >
-      <DialogTitle>Edit Usage Retention Policy</DialogTitle>
+      <DialogTitle id="edit-usage-retention-policy-modal-title">
+        Edit Usage Retention Policy
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -146,6 +148,7 @@ const EditUsageRetentionPolicyModal: React.FC<
           error={!!errors.days}
           helperText={errors.days || "Enter a value between 1 and 3650."}
           margin="normal"
+          autoFocus
         />
       </DialogContent>
       <DialogActions>

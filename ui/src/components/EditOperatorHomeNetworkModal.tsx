@@ -125,7 +125,9 @@ const EditOperatorHomeNetworkModal: React.FC<
       aria-labelledby="edit-operator-home-network-modal-title"
       aria-describedby="edit-operator-home-network-modal-description"
     >
-      <DialogTitle>Edit Operator Home Network Information</DialogTitle>
+      <DialogTitle id="edit-operator-home-network-modal-title">
+        Edit Operator Home Network Information
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -155,6 +157,7 @@ const EditOperatorHomeNetworkModal: React.FC<
           error={touched.privateKey && !!errors.privateKey}
           helperText={touched.privateKey ? errors.privateKey : ""}
           margin="normal"
+          autoFocus
         />
       </DialogContent>
       <DialogActions>

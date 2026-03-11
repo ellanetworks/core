@@ -85,10 +85,12 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      aria-labelledby="edit-user-modal-title"
-      aria-describedby="edit-user-modal-description"
+      aria-labelledby="edit-my-user-password-modal-title"
+      aria-describedby="edit-my-user-password-modal-description"
     >
-      <DialogTitle>Change Password</DialogTitle>
+      <DialogTitle id="edit-my-user-password-modal-title">
+        Change Password
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert

@@ -117,7 +117,9 @@ const EditFlowReportsRetentionPolicyModal: React.FC<
       aria-labelledby="edit-flow-reports-retention-policy-modal-title"
       aria-describedby="edit-flow-reports-retention-policy-modal-description"
     >
-      <DialogTitle>Edit Flow Reports Retention Policy</DialogTitle>
+      <DialogTitle id="edit-flow-reports-retention-policy-modal-title">
+        Edit Flow Reports Retention Policy
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -141,6 +143,7 @@ const EditFlowReportsRetentionPolicyModal: React.FC<
           error={!!errors.days}
           helperText={errors.days || "Enter a value between 1 and 3650."}
           margin="normal"
+          autoFocus
         />
       </DialogContent>
       <DialogActions>

@@ -77,7 +77,9 @@ const EditRadioEventRetentionPolicyModal: React.FC<
       aria-labelledby="edit-network-log-retention-policy-modal-title"
       aria-describedby="edit-network-log-retention-policy-modal-description"
     >
-      <DialogTitle>Edit Network Log Retention Policy</DialogTitle>
+      <DialogTitle id="edit-network-log-retention-policy-modal-title">
+        Edit Network Log Retention Policy
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -101,6 +103,7 @@ const EditRadioEventRetentionPolicyModal: React.FC<
           error={!!errors.days}
           helperText={errors.days}
           margin="normal"
+          autoFocus
         />
       </DialogContent>
       <DialogActions>

@@ -190,6 +190,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           helperText={touched.email ? errors.email : ""}
           margin="normal"
           autoComplete="email"
+          autoFocus
         />
         <TextField
           fullWidth

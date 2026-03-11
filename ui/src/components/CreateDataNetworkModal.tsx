@@ -161,10 +161,12 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      aria-labelledby="create-policy-modal-title"
-      aria-describedby="create-policy-modal-description"
+      aria-labelledby="create-data-network-modal-title"
+      aria-describedby="create-data-network-modal-description"
     >
-      <DialogTitle>Create Data Network</DialogTitle>
+      <DialogTitle id="create-data-network-modal-title">
+        Create Data Network
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -184,6 +186,7 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
           error={!!errors.name && touched.name}
           helperText={touched.name ? errors.name : ""}
           margin="normal"
+          autoFocus
         />
         <TextField
           fullWidth

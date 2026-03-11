@@ -119,7 +119,9 @@ const EditAuditLogRetentionPolicyModal: React.FC<
       aria-labelledby="edit-audit-log-retention-policy-modal-title"
       aria-describedby="edit-audit-log-retention-policy-modal-description"
     >
-      <DialogTitle>Edit Audit Log Retention Policy</DialogTitle>
+      <DialogTitle id="edit-audit-log-retention-policy-modal-title">
+        Edit Audit Log Retention Policy
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -149,6 +151,7 @@ const EditAuditLogRetentionPolicyModal: React.FC<
           error={!!errors.days}
           helperText={errors.days || "1 to 3650 days"}
           margin="normal"
+          autoFocus
           slotProps={{ input: { inputProps: { min: 1, max: 3650 } } }}
         />
       </DialogContent>

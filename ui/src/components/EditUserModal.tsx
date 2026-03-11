@@ -91,7 +91,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       aria-describedby="edit-user-modal-description"
       PaperProps={{ sx: { width: { xs: 320, sm: 440 } } }}
     >
-      <DialogTitle>Edit User</DialogTitle>
+      <DialogTitle id="edit-user-modal-title">Edit User</DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -117,6 +117,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             value={formValues.role.toString()}
             label="Role"
             onChange={handleChange}
+            autoFocus
           >
             <MenuItem value={RoleID.Admin.toString()}>
               {roleIDToLabel(RoleID.Admin)}
