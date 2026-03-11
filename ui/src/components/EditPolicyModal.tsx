@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Box,
   Dialog,
@@ -21,6 +21,8 @@ import {
 } from "@/queries/data_networks";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import * as yup from "yup";
+import { ValidationError } from "yup";
 
 interface EditPolicyModalProps {
   open: boolean;
@@ -38,7 +40,43 @@ type FormState = Omit<APIPolicy, "bitrate_uplink" | "bitrate_downlink"> & {
 
 const PER_PAGE = 12;
 
-const NON_GBR_5QI_OPTIONS = [5, 6, 7, 8, 9, 69, 70, 79, 80];
+const NON_GBR_5QI_OPTIONS: { value: number; label: string }[] = [
+  { value: 5, label: "5 — IMS Signalling" },
+  { value: 6, label: "6 — TCP (buffered streaming, web)" },
+  { value: 7, label: "7 — Voice, live video, gaming" },
+  { value: 8, label: "8 — TCP (buffered streaming)" },
+  { value: 9, label: "9 — TCP (default)" },
+  { value: 69, label: "69 — Mission critical signalling" },
+  { value: 70, label: "70 — Mission critical data" },
+  { value: 79, label: "79 — V2X messages" },
+  { value: 80, label: "80 — Low latency eMBB" },
+];
+
+const NON_GBR_5QI_VALUES = NON_GBR_5QI_OPTIONS.map((o) => o.value);
+
+const schema = yup.object().shape({
+  bitrateUpValue: yup
+    .number()
+    .min(1, "Bitrate value must be between 1 and 999")
+    .max(999, "Bitrate value must be between 1 and 999")
+    .required("Bitrate value is required"),
+  bitrateUpUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
+  bitrateDownValue: yup
+    .number()
+    .min(1, "Bitrate value must be between 1 and 999")
+    .max(999, "Bitrate value must be between 1 and 999")
+    .required("Bitrate value is required"),
+  bitrateDownUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
+  var5qi: yup
+    .number()
+    .oneOf(
+      NON_GBR_5QI_VALUES,
+      `5QI must be one of: ${NON_GBR_5QI_VALUES.join(", ")}`,
+    )
+    .required("5QI is required"),
+  arp: yup.number().min(1).max(15).required("ARP is required"),
+  data_network_name: yup.string().required("Data Network Name is required."),
+});
 
 const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   open,
@@ -68,6 +106,8 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
 
   const [dataNetworks, setDataNetworks] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
@@ -89,6 +129,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
       data_network_name: initialData.data_network_name,
     });
     setErrors({});
+    setTouched({});
   }, [open, initialData]);
 
   useEffect(() => {
@@ -110,7 +151,48 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
 
   const handleChange = (field: keyof FormState, value: string | number) => {
     setFormValues((prev) => ({ ...prev, [field]: value as never }));
+    validateField(field, value);
   };
+
+  const handleBlur = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const validateField = async (field: string, value: string | number) => {
+    try {
+      const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
+      await fieldSchema.validate(value);
+      setErrors((prev) => ({ ...prev, [field]: "" }));
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
+      }
+    }
+  };
+
+  const validateForm = useCallback(async () => {
+    try {
+      await schema.validate(formValues, { abortEarly: false });
+      setErrors({});
+      setIsValid(true);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        const validationErrors = err.inner.reduce(
+          (acc, curr) => {
+            acc[curr.path!] = curr.message;
+            return acc;
+          },
+          {} as Record<string, string>,
+        );
+        setErrors(validationErrors);
+      }
+      setIsValid(false);
+    }
+  }, [formValues]);
+
+  useEffect(() => {
+    validateForm();
+  }, [validateForm, formValues]);
 
   const handleSubmit = async () => {
     if (!accessToken) return;
@@ -141,7 +223,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
     }
   };
 
-  const fiveQiIsAllowed = NON_GBR_5QI_OPTIONS.includes(formValues.var5qi);
+  const fiveQiIsAllowed = NON_GBR_5QI_VALUES.includes(formValues.var5qi);
 
   return (
     <Dialog
@@ -179,7 +261,8 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             label="Data Network Name"
             value={formValues.data_network_name}
             onChange={(e) => handleChange("data_network_name", e.target.value)}
-            error={!!errors.data_network_name}
+            onBlur={() => handleBlur("data_network_name")}
+            error={!!errors.data_network_name && touched.data_network_name}
           >
             {dataNetworks.map((name) => (
               <MenuItem key={name} value={name}>
@@ -197,8 +280,9 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             onChange={(e) =>
               handleChange("bitrateUpValue", Number(e.target.value))
             }
-            error={!!errors.bitrateUpValue}
-            helperText={errors.bitrateUpValue}
+            onBlur={() => handleBlur("bitrateUpValue")}
+            error={!!errors.bitrateUpValue && touched.bitrateUpValue}
+            helperText={touched.bitrateUpValue ? errors.bitrateUpValue : ""}
             margin="normal"
           />
           <TextField
@@ -206,6 +290,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             label="Unit"
             value={formValues.bitrateUpUnit}
             onChange={(e) => handleChange("bitrateUpUnit", e.target.value)}
+            onBlur={() => handleBlur("bitrateUpUnit")}
             margin="normal"
           >
             <MenuItem value="Mbps">Mbps</MenuItem>
@@ -221,8 +306,9 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             onChange={(e) =>
               handleChange("bitrateDownValue", Number(e.target.value))
             }
-            error={!!errors.bitrateDownValue}
-            helperText={errors.bitrateDownValue}
+            onBlur={() => handleBlur("bitrateDownValue")}
+            error={!!errors.bitrateDownValue && touched.bitrateDownValue}
+            helperText={touched.bitrateDownValue ? errors.bitrateDownValue : ""}
             margin="normal"
           />
           <TextField
@@ -230,6 +316,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             label="Unit"
             value={formValues.bitrateDownUnit}
             onChange={(e) => handleChange("bitrateDownUnit", e.target.value)}
+            onBlur={() => handleBlur("bitrateDownUnit")}
             margin="normal"
           >
             <MenuItem value="Mbps">Mbps</MenuItem>
@@ -244,16 +331,17 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             label="5QI (non-GBR)"
             value={formValues.var5qi}
             onChange={(e) => handleChange("var5qi", Number(e.target.value))}
-            error={!!errors.var5qi}
+            onBlur={() => handleBlur("var5qi")}
+            error={!!errors.var5qi && touched.var5qi}
           >
             {!fiveQiIsAllowed && (
               <MenuItem value={formValues.var5qi} disabled>
                 {formValues.var5qi} (current, unsupported)
               </MenuItem>
             )}
-            {NON_GBR_5QI_OPTIONS.map((val) => (
-              <MenuItem key={val} value={val}>
-                {val}
+            {NON_GBR_5QI_OPTIONS.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>
+                {opt.label}
               </MenuItem>
             ))}
           </Select>
@@ -265,8 +353,13 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           type="number"
           value={formValues.arp}
           onChange={(e) => handleChange("arp", Number(e.target.value))}
-          error={!!errors.arp}
-          helperText={errors.arp}
+          onBlur={() => handleBlur("arp")}
+          error={!!errors.arp && touched.arp}
+          helperText={
+            touched.arp && errors.arp
+              ? errors.arp
+              : "1 (highest) to 15 (lowest)"
+          }
           margin="normal"
         />
       </DialogContent>
@@ -277,7 +370,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           variant="contained"
           color="success"
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={!isValid || loading}
         >
           {loading ? "Updating..." : "Update"}
         </Button>

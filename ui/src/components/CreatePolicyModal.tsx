@@ -31,7 +31,19 @@ interface CreatePolicyModalProps {
   onSuccess: () => void;
 }
 
-const NON_GBR_5QI_OPTIONS = [5, 6, 7, 8, 9, 69, 70, 79, 80];
+const NON_GBR_5QI_OPTIONS: { value: number; label: string }[] = [
+  { value: 5, label: "5 — IMS Signalling" },
+  { value: 6, label: "6 — TCP (buffered streaming, web)" },
+  { value: 7, label: "7 — Voice, live video, gaming" },
+  { value: 8, label: "8 — TCP (buffered streaming)" },
+  { value: 9, label: "9 — TCP (default)" },
+  { value: 69, label: "69 — Mission critical signalling" },
+  { value: 70, label: "70 — Mission critical data" },
+  { value: 79, label: "79 — V2X messages" },
+  { value: 80, label: "80 — Low latency eMBB" },
+];
+
+const NON_GBR_5QI_VALUES = NON_GBR_5QI_OPTIONS.map((o) => o.value);
 
 const schema = yup.object().shape({
   name: yup.string().min(1).max(256).required("Name is required"),
@@ -50,8 +62,8 @@ const schema = yup.object().shape({
   fiveQi: yup
     .number()
     .oneOf(
-      NON_GBR_5QI_OPTIONS,
-      `5QI must be one of: ${NON_GBR_5QI_OPTIONS.join(", ")}`,
+      NON_GBR_5QI_VALUES,
+      `5QI must be one of: ${NON_GBR_5QI_VALUES.join(", ")}`,
     )
     .required("5QI is required"),
   arp: yup.number().min(1).max(15).required("ARP is required"),
@@ -316,9 +328,9 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
             onBlur={() => handleBlur("fiveQi")}
             error={!!errors.fiveQi && touched.fiveQi}
           >
-            {NON_GBR_5QI_OPTIONS.map((val) => (
-              <MenuItem key={val} value={val}>
-                {val}
+            {NON_GBR_5QI_OPTIONS.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>
+                {opt.label}
               </MenuItem>
             ))}
           </Select>
@@ -337,6 +349,11 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           onChange={(e) => handleChange("arp", Number(e.target.value))}
           onBlur={() => handleBlur("arp")}
           error={!!errors.arp && touched.arp}
+          helperText={
+            touched.arp && errors.arp
+              ? errors.arp
+              : "1 (highest) to 15 (lowest)"
+          }
           margin="normal"
         />
       </DialogContent>

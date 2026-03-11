@@ -5,6 +5,7 @@ import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import {
   DataGrid,
   type GridColDef,
+  type GridRenderCellParams,
   GridActionsCellItem,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
@@ -24,6 +25,7 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { MAX_WIDTH } from "@/utils/layout";
+import { Link } from "react-router-dom";
 
 const PolicyPage = () => {
   const { role, accessToken, authReady } = useAuth();
@@ -123,6 +125,33 @@ const PolicyPage = () => {
         headerName: "Data Network",
         flex: 1,
         minWidth: 160,
+        renderCell: (params: GridRenderCellParams<APIPolicy>) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Link
+              to="/networking?tab=data-networks"
+              style={{ textDecoration: "none" }}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  color: theme.palette.link,
+                  textDecoration: "underline",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {params.row.data_network_name}
+              </Typography>
+            </Link>
+          </Box>
+        ),
       },
       ...(canEdit
         ? [
@@ -237,10 +266,6 @@ const PolicyPage = () => {
                   "& .MuiDataGrid-columnHeaders": {
                     borderBottom: "1px solid",
                     borderColor: "divider",
-                    backgroundColor:
-                      theme.palette.mode === "light"
-                        ? theme.palette.backgroundSubtle
-                        : "inherit",
                   },
                   "& .MuiDataGrid-footerContainer": {
                     borderTop: "1px solid",
