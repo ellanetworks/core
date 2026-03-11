@@ -333,6 +333,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             variant="contained"
             color="primary"
             sx={{ flex: "0 0 120px", minWidth: 120, flexShrink: 0 }}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={generateRandomMSIN}
           >
             Generate
@@ -354,6 +355,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             variant="contained"
             color="primary"
             sx={{ flex: "0 0 120px", minWidth: 120, flexShrink: 0 }}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               const randomKey = [...Array(32)]
                 .map(() => Math.floor(Math.random() * 16).toString(16))
