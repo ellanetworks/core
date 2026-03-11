@@ -79,7 +79,7 @@ struct far_info {
 
 /* FAR ID -> FAR */
 struct {
-	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__uint(type, BPF_MAP_TYPE_HASH);
 	__type(key, __u32);
 	__type(value, struct far_info);
 	__uint(max_entries, FAR_MAP_SIZE);
