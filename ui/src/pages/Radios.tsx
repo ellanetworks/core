@@ -795,7 +795,6 @@ const Radio = () => {
                     paginationModel={paginationModel}
                     onPaginationModelChange={setPaginationModel}
                     pageSizeOptions={[10, 25, 50, 100]}
-                    sortingMode="server"
                     disableColumnMenu
                     disableRowSelectionOnClick
                     columnVisibilityModel={{ id: !isSmDown }}
