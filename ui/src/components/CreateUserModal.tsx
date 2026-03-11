@@ -182,6 +182,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
         </Collapse>
         <TextField
           fullWidth
+          required
           label="Email"
           value={formValues.email}
           onChange={(e) => handleChange("email", e.target.value)}
@@ -194,6 +195,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
         />
         <TextField
           fullWidth
+          required
           label="Password"
           type="password"
           value={formValues.password}

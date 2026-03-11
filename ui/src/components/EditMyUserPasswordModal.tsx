@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -9,9 +9,17 @@ import {
   Alert,
   Collapse,
 } from "@mui/material";
+import * as yup from "yup";
 import { updateMyUserPassword } from "@/queries/users";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+
+const schema = yup.object().shape({
+  password: yup
+    .string()
+    .min(1, "Password is required")
+    .required("Password is required"),
+});
 
 interface EditMyUserPasswordModalProps {
   open: boolean;
@@ -40,23 +48,52 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
+  const validateForm = useCallback(async () => {
+    try {
+      await schema.validate(formValues, { abortEarly: false });
+      setIsValid(true);
+    } catch {
+      setIsValid(false);
+    }
+  }, [formValues]);
+
+  useEffect(() => {
+    validateForm();
+  }, [validateForm]);
+
   useEffect(() => {
     if (open) {
-      setFormValues({
-        password: "",
-      });
+      setFormValues({ password: "" });
       setErrors({});
+      setTouched({});
+      setIsValid(false);
     }
   }, [open]);
 
+  const validateField = async (field: string, value: string) => {
+    try {
+      const fieldSchema = yup.reach(schema, field);
+      await (fieldSchema as yup.StringSchema).validate(value);
+      setErrors((prev) => ({ ...prev, [field]: "" }));
+    } catch (err: unknown) {
+      if (err instanceof yup.ValidationError) {
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
+      }
+    }
+  };
+
   const handleChange = (field: keyof FormValues, value: string) => {
-    setFormValues((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setFormValues((prev) => ({ ...prev, [field]: value }));
+    validateField(field, value);
+  };
+
+  const handleBlur = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
   const handleSubmit = async () => {
@@ -103,12 +140,14 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
         </Collapse>
         <TextField
           fullWidth
+          required
           label="New Password"
           type="password"
           value={formValues.password}
           onChange={(e) => handleChange("password", e.target.value)}
-          error={!!errors.password}
-          helperText={errors.password}
+          onBlur={() => handleBlur("password")}
+          error={!!errors.password && touched.password}
+          helperText={touched.password ? errors.password : ""}
           margin="normal"
           autoFocus
           autoComplete="new-password"
@@ -120,7 +159,7 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
           variant="contained"
           color="success"
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={!isValid || loading}
         >
           {loading ? "Updating..." : "Update"}
         </Button>
