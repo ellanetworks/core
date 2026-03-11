@@ -41,7 +41,7 @@ struct qer_info {
 
 /* QER ID -> QER */
 struct {
-	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__uint(type, BPF_MAP_TYPE_HASH);
 	__type(key, __u32);
 	__type(value, struct qer_info);
 	__uint(max_entries, QER_MAP_SIZE);

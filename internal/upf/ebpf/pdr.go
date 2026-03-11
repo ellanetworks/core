@@ -108,7 +108,7 @@ func (bpfObjects *BpfObjects) UpdateFar(ctx context.Context, id uint32, farInfo 
 }
 
 func (bpfObjects *BpfObjects) DeleteFar(id uint32) error {
-	err := bpfObjects.FarMap.Update(id, unsafe.Pointer(&FarInfo{}), ebpf.UpdateExist)
+	err := bpfObjects.FarMap.Delete(id)
 	if err != nil {
 		return fmt.Errorf("failed to delete FAR: %w", err)
 	}
@@ -145,7 +145,7 @@ func (bpfObjects *BpfObjects) UpdateQer(id uint32, qerInfo QerInfo) error {
 }
 
 func (bpfObjects *BpfObjects) DeleteQer(id uint32) error {
-	err := bpfObjects.QerMap.Update(id, unsafe.Pointer(&QerInfo{}), ebpf.UpdateExist)
+	err := bpfObjects.QerMap.Delete(id)
 	if err != nil {
 		return fmt.Errorf("failed to delete QER: %w", err)
 	}
@@ -159,6 +159,15 @@ func (bpfObjects *BpfObjects) NewUrr(id uint32) error {
 	err := bpfObjects.UrrMap.Put(id, zeroVals)
 	if err != nil {
 		return fmt.Errorf("failed to put urr id %d: %w", id, err)
+	}
+
+	return nil
+}
+
+func (bpfObjects *BpfObjects) DeleteUrr(id uint32) error {
+	err := bpfObjects.UrrMap.Delete(id)
+	if err != nil {
+		return fmt.Errorf("failed to delete URR: %w", err)
 	}
 
 	return nil
