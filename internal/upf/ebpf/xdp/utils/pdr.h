@@ -25,7 +25,6 @@
 #define PDR_MAP_UPLINK_SIZE MAX_PDU_SESSIONS
 #define PDR_MAP_DOWNLINK_IPV4_SIZE MAX_PDU_SESSIONS
 #define PDR_MAP_DOWNLINK_IPV6_SIZE MAX_PDU_SESSIONS
-#define FAR_MAP_SIZE MAX_PDU_SESSIONS * 2
 
 enum outer_header_removal_values {
 	OHR_GTP_U_UDP_IPv4 = 0,
@@ -37,16 +36,6 @@ enum outer_header_removal_values {
 	OHR_GTP_U_UDP_IP = 6,
 	OHR_VLAN_S_TAG = 7,
 	OHR_S_TAG_C_TAG = 8,
-};
-
-struct pdr_info {
-	__u64 local_seid;
-	__u64 imsi;
-	__u32 pdr_id;
-	__u32 far_id;
-	__u32 qer_id;
-	__u32 urr_id;
-	__u8 outer_header_removal;
 };
 
 enum far_action_mask {
@@ -77,10 +66,29 @@ struct far_info {
 	__u16 transport_level_marking;
 };
 
-/* FAR ID -> FAR */
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, __u32);
-	__type(value, struct far_info);
-	__uint(max_entries, FAR_MAP_SIZE);
-} far_map SEC(".maps");
+enum gate_status {
+	GATE_STATUS_OPEN = 0,
+	GATE_STATUS_CLOSED = 1,
+	GATE_STATUS_RESERVED1 = 2,
+	GATE_STATUS_RESERVED2 = 3,
+};
+
+struct qer_info {
+	__u8 ul_gate_status;
+	__u8 dl_gate_status;
+	__u8 qfi;
+	__u64 ul_maximum_bitrate;
+	__u64 dl_maximum_bitrate;
+	volatile __u64 ul_start;
+	volatile __u64 dl_start;
+};
+
+struct pdr_info {
+	__u64 local_seid;
+	__u64 imsi;
+	__u32 pdr_id;
+	__u32 urr_id;
+	__u8 outer_header_removal;
+	struct far_info far;
+	struct qer_info qer;
+};

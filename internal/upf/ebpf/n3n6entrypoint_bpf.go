@@ -12,18 +12,6 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-type N3N6EntrypointFarInfo struct {
-	_                     structs.HostLayout
-	Action                uint8
-	OuterHeaderCreation   uint8
-	_                     [2]byte
-	Teid                  uint32
-	Remoteip              uint32
-	Localip               uint32
-	TransportLevelMarking uint16
-	_                     [2]byte
-}
-
 type N3N6EntrypointFiveTuple struct {
 	_     structs.HostLayout
 	Saddr uint32
@@ -75,23 +63,31 @@ type N3N6EntrypointPdrInfo struct {
 	LocalSeid          uint64
 	Imsi               uint64
 	PdrId              uint32
-	FarId              uint32
-	QerId              uint32
 	UrrId              uint32
 	OuterHeaderRemoval uint8
-	_                  [7]byte
-}
-
-type N3N6EntrypointQerInfo struct {
-	_                structs.HostLayout
-	UlGateStatus     uint8
-	DlGateStatus     uint8
-	Qfi              uint8
-	_                [5]byte
-	UlMaximumBitrate uint64
-	DlMaximumBitrate uint64
-	UlStart          uint64
-	DlStart          uint64
+	_                  [3]byte
+	Far                struct {
+		_                     structs.HostLayout
+		Action                uint8
+		OuterHeaderCreation   uint8
+		_                     [2]byte
+		Teid                  uint32
+		Remoteip              uint32
+		Localip               uint32
+		TransportLevelMarking uint16
+		_                     [2]byte
+	}
+	Qer struct {
+		_                structs.HostLayout
+		UlGateStatus     uint8
+		DlGateStatus     uint8
+		Qfi              uint8
+		_                [5]byte
+		UlMaximumBitrate uint64
+		DlMaximumBitrate uint64
+		UlStart          uint64
+		DlStart          uint64
+	}
 }
 
 type N3N6EntrypointRouteStat struct {
@@ -171,7 +167,6 @@ type N3N6EntrypointProgramSpecs struct {
 type N3N6EntrypointMapSpecs struct {
 	DownlinkRouteStats *ebpf.MapSpec `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.MapSpec `ebpf:"downlink_statistics"`
-	FarMap             *ebpf.MapSpec `ebpf:"far_map"`
 	FlowStats          *ebpf.MapSpec `ebpf:"flow_stats"`
 	NatCt              *ebpf.MapSpec `ebpf:"nat_ct"`
 	NoNeighMap         *ebpf.MapSpec `ebpf:"no_neigh_map"`
@@ -179,7 +174,6 @@ type N3N6EntrypointMapSpecs struct {
 	PdrsDownlinkIp4    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink         *ebpf.MapSpec `ebpf:"pdrs_uplink"`
-	QerMap             *ebpf.MapSpec `ebpf:"qer_map"`
 	UplinkRouteStats   *ebpf.MapSpec `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.MapSpec `ebpf:"uplink_statistics"`
 	UrrMap             *ebpf.MapSpec `ebpf:"urr_map"`
@@ -219,7 +213,6 @@ func (o *N3N6EntrypointObjects) Close() error {
 type N3N6EntrypointMaps struct {
 	DownlinkRouteStats *ebpf.Map `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.Map `ebpf:"downlink_statistics"`
-	FarMap             *ebpf.Map `ebpf:"far_map"`
 	FlowStats          *ebpf.Map `ebpf:"flow_stats"`
 	NatCt              *ebpf.Map `ebpf:"nat_ct"`
 	NoNeighMap         *ebpf.Map `ebpf:"no_neigh_map"`
@@ -227,7 +220,6 @@ type N3N6EntrypointMaps struct {
 	PdrsDownlinkIp4    *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink         *ebpf.Map `ebpf:"pdrs_uplink"`
-	QerMap             *ebpf.Map `ebpf:"qer_map"`
 	UplinkRouteStats   *ebpf.Map `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.Map `ebpf:"uplink_statistics"`
 	UrrMap             *ebpf.Map `ebpf:"urr_map"`
@@ -237,7 +229,6 @@ func (m *N3N6EntrypointMaps) Close() error {
 	return _N3N6EntrypointClose(
 		m.DownlinkRouteStats,
 		m.DownlinkStatistics,
-		m.FarMap,
 		m.FlowStats,
 		m.NatCt,
 		m.NoNeighMap,
@@ -245,7 +236,6 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.PdrsDownlinkIp4,
 		m.PdrsDownlinkIp6,
 		m.PdrsUplink,
-		m.QerMap,
 		m.UplinkRouteStats,
 		m.UplinkStatistics,
 		m.UrrMap,

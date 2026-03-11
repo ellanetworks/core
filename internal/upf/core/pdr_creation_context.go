@@ -22,17 +22,19 @@ func NewPDRCreationContext(session *Session, resourceManager *FteIDResourceManag
 	}
 }
 
-func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo) error {
+func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo, farMap map[uint32]ebpf.FarInfo, qerMap map[uint32]ebpf.QerInfo) error {
 	if outerHeaderRemoval, err := pdr.OuterHeaderRemovalDescription(); err == nil {
 		spdrInfo.PdrInfo.OuterHeaderRemoval = outerHeaderRemoval
 	}
 
 	if farid, err := pdr.FARID(); err == nil {
 		spdrInfo.PdrInfo.FarID = farid
+		spdrInfo.PdrInfo.Far = farMap[farid]
 	}
 
 	if qerid, err := pdr.QERID(); err == nil {
 		spdrInfo.PdrInfo.QerID = qerid
+		spdrInfo.PdrInfo.Qer = qerMap[qerid]
 	}
 
 	if urrid, err := pdr.URRID(); err == nil {

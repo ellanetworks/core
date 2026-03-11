@@ -3,6 +3,7 @@
 #pragma once
 
 #include "xdp/utils/routing.h"
+#include "xdp/utils/trace.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
@@ -64,40 +65,28 @@ handle_gtp_packet(struct packet_context *ctx)
 
 	ctx->interface = INTERFACE_N3;
 
-	__u32 far_id = pdr->far_id;
-	__u32 qer_id = pdr->qer_id;
 	__u32 urr_id = pdr->urr_id;
 	__u8 outer_header_removal = pdr->outer_header_removal;
 
-	/* Lookup FAR and QER (both expected to be for uplink) */
-	struct far_info *far = bpf_map_lookup_elem(&far_map, &far_id);
-	if (!far) {
-		upf_printk("upf: no session far for teid:%d far:%d", teid,
-			   far_id);
+	struct far_info *far = &pdr->far;
+	struct qer_info *qer = &pdr->qer;
+
+	upf_printk("upf: far action:%d outer_header_creation:%d", far->action, far->outer_header_creation);
+	if (!(far->action & FAR_FORW)) {
 		return XDP_DROP;
 	}
-	upf_printk("upf: far:%d action:%d outer_header_creation:%d", far_id,
-		   far->action, far->outer_header_creation);
-	if (!(far->action & FAR_FORW))
-		return XDP_DROP;
-	struct qer_info *qer = bpf_map_lookup_elem(&qer_map, &qer_id);
-	if (!qer) {
-		upf_printk("upf: no session qer for teid:%d qer:%d", teid,
-			   qer_id);
+
+	upf_printk("upf: qer gate_status:%d mbr:%d", qer->ul_gate_status, qer->ul_maximum_bitrate);
+	if (qer->ul_gate_status != GATE_STATUS_OPEN) {
 		return XDP_DROP;
 	}
-	upf_printk("upf: qer:%d gate_status:%d mbr:%d", qer_id,
-		   qer->ul_gate_status, qer->ul_maximum_bitrate);
-	if (qer->ul_gate_status != GATE_STATUS_OPEN)
-		return XDP_DROP;
 
 	const __u64 packet_size = ctx->data_end - ctx->data;
 	if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->ul_start,
 						  qer->ul_maximum_bitrate))
 		return XDP_DROP;
 
-	upf_printk("upf: session for teid:%d far:%d outer_header_removal:%d",
-		   teid, pdr->far_id, outer_header_removal);
+	upf_printk("upf: session for teid:%d outer_header_removal:%d", teid, outer_header_removal);
 	if (far->outer_header_creation & OHC_GTP_U_UDP_IPv4) {
 		upf_printk("upf: session for teid:%d -> %d remote:%pI4", teid,
 			   far->teid, &far->remoteip);

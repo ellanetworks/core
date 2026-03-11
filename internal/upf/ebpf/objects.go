@@ -127,7 +127,6 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 	replacements := map[string]*ebpf.Map{
 		"downlink_route_stats": bpfObjects.DownlinkRouteStats,
 		"downlink_statistics":  bpfObjects.DownlinkStatistics,
-		"far_map":              bpfObjects.FarMap,
 		"flow_stats":           bpfObjects.FlowStats,
 		"nat_ct":               bpfObjects.NatCt,
 		"no_neigh_map":         bpfObjects.NoNeighMap,
@@ -135,7 +134,6 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		"pdrs_downlink_ip4":    bpfObjects.PdrsDownlinkIp4,
 		"pdrs_downlink_ip6":    bpfObjects.PdrsDownlinkIp6,
 		"pdrs_uplink":          bpfObjects.PdrsUplink,
-		"qer_map":              bpfObjects.QerMap,
 		"uplink_route_stats":   bpfObjects.UplinkRouteStats,
 		"uplink_statistics":    bpfObjects.UplinkStatistics,
 		"urr_map":              bpfObjects.UrrMap,
