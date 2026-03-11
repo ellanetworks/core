@@ -15,6 +15,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -46,7 +47,6 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
   const { showSnackbar } = useSnackbar();
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [newToken, setNewToken] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [selectedToken, setSelectedToken] = useState<APIToken | null>(null);
 
@@ -60,8 +60,6 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
     }
     try {
       await navigator.clipboard.writeText(newToken ?? "");
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
       showSnackbar("Copied to clipboard.", "success");
     } catch {
       showSnackbar("Failed to copy API token.", "error");
@@ -101,18 +99,28 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
             }}
           >
             <Typography variant="h6">API Tokens</Typography>
-            <Button
-              variant="contained"
-              color="success"
-              size="small"
-              onClick={() => {
-                setNewToken(null);
-                setCreateModalOpen(true);
-              }}
-              disabled={tokens.length >= maxTokens}
+            <Tooltip
+              title={
+                tokens.length >= maxTokens
+                  ? `Maximum of ${maxTokens} API tokens reached.`
+                  : ""
+              }
             >
-              Create Token
-            </Button>
+              <span>
+                <Button
+                  variant="contained"
+                  color="success"
+                  size="small"
+                  onClick={() => {
+                    setNewToken(null);
+                    setCreateModalOpen(true);
+                  }}
+                  disabled={tokens.length >= maxTokens}
+                >
+                  Create Token
+                </Button>
+              </span>
+            </Tooltip>
           </Box>
 
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -132,7 +140,7 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
                     aria-label="copy token"
                     size="small"
                     onClick={copyToken}
-                    title={copied ? "Copied!" : "Copy"}
+                    title="Copy"
                   >
                     <ContentCopyIcon fontSize="inherit" />
                   </IconButton>
@@ -160,11 +168,6 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
               >
                 {newToken}
               </Typography>
-              {copied && (
-                <Typography variant="caption" sx={{ ml: 0.5 }}>
-                  Copied!
-                </Typography>
-              )}
             </Alert>
           )}
 

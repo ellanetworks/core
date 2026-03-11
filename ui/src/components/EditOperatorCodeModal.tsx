@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -44,14 +44,18 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    navigate("/login");
-  }
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState<FormValues>({
     operatorCode: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
@@ -59,6 +63,7 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
     if (open) {
       setFormValues({ operatorCode: "" });
       setErrors({});
+      setTouched({});
     }
   }, [open]);
 
@@ -67,35 +72,40 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
       ...prev,
       [field]: value,
     }));
-
-    setErrors((prev) => ({
-      ...prev,
-      [field]: "",
-    }));
+    validateField(field, value);
   };
 
-  const validate = async (): Promise<boolean> => {
+  const handleBlur = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const validateField = async (field: string, value: string) => {
     try {
-      await schema.validate(formValues, { abortEarly: false });
-      setErrors({});
-      return true;
+      const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
+      await fieldSchema.validate(value);
+      setErrors((prev) => ({ ...prev, [field]: "" }));
     } catch (err) {
       if (err instanceof ValidationError) {
-        const validationErrors: Record<string, string> = {};
-        err.inner.forEach((error) => {
-          if (error.path) {
-            validationErrors[error.path] = error.message;
-          }
-        });
-        setErrors(validationErrors);
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
       }
-      return false;
     }
   };
 
+  const validateForm = useCallback(async () => {
+    try {
+      await schema.validate(formValues, { abortEarly: false });
+      setIsValid(true);
+    } catch {
+      setIsValid(false);
+    }
+  }, [formValues]);
+
+  useEffect(() => {
+    validateForm();
+  }, [validateForm]);
+
   const handleSubmit = async () => {
-    const isValid = await validate();
-    if (!isValid || !accessToken) return;
+    if (!accessToken) return;
 
     setLoading(true);
     setAlert({ message: "" });
@@ -136,13 +146,18 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
           operator and provision SIM cards. Keep this code secure as it
           can&apos;t be retrieved once set.
         </DialogContentText>
+        <Alert severity="warning" sx={{ mt: 2, mb: 2 }}>
+          This operation cannot be undone. The operator code cannot be retrieved
+          once set.
+        </Alert>
         <TextField
           fullWidth
           label="Operator Code"
           value={formValues.operatorCode}
           onChange={(e) => handleChange("operatorCode", e.target.value)}
-          error={!!errors.operatorCode}
-          helperText={errors.operatorCode}
+          onBlur={() => handleBlur("operatorCode")}
+          error={touched.operatorCode && !!errors.operatorCode}
+          helperText={touched.operatorCode ? errors.operatorCode : ""}
           margin="normal"
         />
       </DialogContent>
@@ -152,7 +167,7 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
           variant="contained"
           color="success"
           onClick={handleSubmit}
-          disabled={loading || !formValues.operatorCode}
+          disabled={!isValid || loading}
         >
           {loading ? "Updating..." : "Update"}
         </Button>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -11,6 +11,7 @@ import {
   Collapse,
 } from "@mui/material";
 import * as yup from "yup";
+import { ValidationError } from "yup";
 import { updateOperatorID } from "@/queries/operator";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,12 +46,16 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    navigate("/login");
-  }
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState(initialData);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
@@ -58,6 +63,7 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
     if (open) {
       setFormValues(initialData);
       setErrors({});
+      setTouched({});
     }
   }, [open, initialData]);
 
@@ -66,35 +72,40 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
       ...prev,
       [field]: value,
     }));
-
-    setErrors((prev) => ({
-      ...prev,
-      [field]: "",
-    }));
+    validateField(field, value);
   };
 
-  const validate = async (): Promise<boolean> => {
+  const handleBlur = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const validateField = async (field: string, value: string) => {
     try {
-      await schema.validate(formValues, { abortEarly: false });
-      setErrors({});
-      return true;
-    } catch (err: unknown) {
-      if (err instanceof yup.ValidationError) {
-        const validationErrors: Record<string, string> = {};
-        err.inner.forEach((error) => {
-          if (error.path) {
-            validationErrors[error.path] = error.message;
-          }
-        });
-        setErrors(validationErrors);
+      const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
+      await fieldSchema.validate(value);
+      setErrors((prev) => ({ ...prev, [field]: "" }));
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
       }
-      return false;
     }
   };
 
+  const validateForm = useCallback(async () => {
+    try {
+      await schema.validate(formValues, { abortEarly: false });
+      setIsValid(true);
+    } catch {
+      setIsValid(false);
+    }
+  }, [formValues]);
+
+  useEffect(() => {
+    validateForm();
+  }, [validateForm]);
+
   const handleSubmit = async () => {
-    const isValid = await validate();
-    if (!isValid || !accessToken) return;
+    if (!accessToken) return;
 
     setLoading(true);
     setAlert({ message: "" });
@@ -140,8 +151,9 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
           label="MCC"
           value={formValues.mcc}
           onChange={(e) => handleChange("mcc", e.target.value)}
-          error={!!errors.mcc}
-          helperText={errors.mcc}
+          onBlur={() => handleBlur("mcc")}
+          error={touched.mcc && !!errors.mcc}
+          helperText={touched.mcc ? errors.mcc : ""}
           margin="normal"
         />
         <TextField
@@ -149,8 +161,9 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
           label="MNC"
           value={formValues.mnc}
           onChange={(e) => handleChange("mnc", e.target.value)}
-          error={!!errors.mnc}
-          helperText={errors.mnc}
+          onBlur={() => handleBlur("mnc")}
+          error={touched.mnc && !!errors.mnc}
+          helperText={touched.mnc ? errors.mnc : ""}
           margin="normal"
         />
       </DialogContent>
@@ -160,7 +173,7 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
           variant="contained"
           color="success"
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={!isValid || loading}
         >
           {loading ? "Updating..." : "Update"}
         </Button>

@@ -73,7 +73,9 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-      setAlert({ message: `Failed to update user: ${errorMessage}` });
+      setAlert({
+        message: `Failed to update password: ${errorMessage.replace(/^\d{3}: [A-Za-z ]+\.\s*/, "")}`,
+      });
     } finally {
       setLoading(false);
     }
@@ -86,7 +88,7 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
       aria-labelledby="edit-user-modal-title"
       aria-describedby="edit-user-modal-description"
     >
-      <DialogTitle>Change My Password</DialogTitle>
+      <DialogTitle>Change Password</DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -106,6 +108,7 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
           error={!!errors.password}
           helperText={errors.password}
           margin="normal"
+          autoFocus
         />
       </DialogContent>
       <DialogActions>

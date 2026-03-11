@@ -1,7 +1,9 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Alert,
   Box,
+  CircularProgress,
   IconButton,
   Typography,
   Chip,
@@ -152,6 +154,18 @@ const Operator = () => {
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
         {descriptionText}
       </Typography>
+
+      {operatorQuery.isLoading && !operator && (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+          <CircularProgress />
+        </Box>
+      )}
+
+      {operatorQuery.isError && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          Failed to load operator configuration.
+        </Alert>
+      )}
 
       <Grid
         container

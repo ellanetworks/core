@@ -1,13 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
-import {
-  Box,
-  Typography,
-  Skeleton,
-  Select,
-  MenuItem,
-  Button,
-  Stack,
-} from "@mui/material";
+import React, { useEffect, useState } from "react";
+import { Box, Typography, Skeleton } from "@mui/material";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import EditMyUserPasswordModal from "@/components/EditMyUserPasswordModal";
 import { getLoggedInUser, type APIUser } from "@/queries/users";
 import {
@@ -27,6 +20,7 @@ import { MAX_WIDTH } from "@/utils/layout";
 export default function Profile() {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (authReady && !accessToken) navigate("/login");
@@ -36,68 +30,27 @@ export default function Profile() {
 
   const { showSnackbar } = useSnackbar();
 
-  const [loggedInUser, setLoggedInUser] = useState<APIUser | null>(null);
-  const [loadingUser, setLoadingUser] = useState(true);
+  const { data: loggedInUser, isLoading: loadingUser } = useQuery<APIUser>({
+    queryKey: ["loggedInUser"],
+    queryFn: () => getLoggedInUser(accessToken!),
+    enabled: authReady && !!accessToken,
+    refetchInterval: 5000,
+  });
 
-  // --- API tokens state (paginated) ---
-  const [apiTokens, setAPITokens] = useState<APIToken[]>([]);
-  const [loadingTokens, setLoadingTokens] = useState(true);
-  const [initialTokenLoadDone, setInitialTokenLoadDone] = useState(false);
-  const [page, setPage] = useState<number>(1);
-  const [perPage, setPerPage] = useState<number>(10);
-  const [totalCount, setTotalCount] = useState<number>(0);
+  const { data: tokensData, isLoading: loadingTokens } =
+    useQuery<ListAPITokensResponse>({
+      queryKey: ["myAPITokens"],
+      queryFn: () => listAPITokens(accessToken!, 1, 100),
+      enabled: authReady && !!accessToken,
+      refetchInterval: 5000,
+    });
 
-  const fetchUser = useCallback(async () => {
-    if (!authReady || !accessToken) return;
-    try {
-      setLoadingUser(true);
-      const data = await getLoggedInUser(accessToken);
-      setLoggedInUser(data);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      showSnackbar("Failed to load profile info.", "error");
-    } finally {
-      setLoadingUser(false);
-    }
-  }, [accessToken, authReady]);
-
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+  const apiTokens: APIToken[] = tokensData?.items ?? [];
 
   const handlePasswordSuccess = () => {
     setEditPasswordModalOpen(false);
     showSnackbar("Password updated successfully.", "success");
   };
-
-  const fetchAPITokens = useCallback(
-    async (p = page, pp = perPage) => {
-      if (!authReady || !accessToken) return;
-      setLoadingTokens(true);
-      try {
-        const res: ListAPITokensResponse = await listAPITokens(
-          accessToken,
-          p,
-          pp,
-        );
-        setAPITokens(res.items ?? []);
-        setTotalCount(res.total_count ?? 0);
-        setInitialTokenLoadDone(true);
-      } catch (error) {
-        console.error("Error fetching API Tokens:", error);
-        showSnackbar("Failed to load API tokens.", "error");
-        setAPITokens([]);
-        setTotalCount(0);
-      } finally {
-        setLoadingTokens(false);
-      }
-    },
-    [accessToken, authReady, page, perPage],
-  );
-
-  useEffect(() => {
-    fetchAPITokens(page, perPage);
-  }, [fetchAPITokens, page, perPage]);
 
   const handleDeleteToken = async (token: APIToken) => {
     if (!accessToken) return;
@@ -107,14 +60,7 @@ export default function Profile() {
         `API token "${token.name}" deleted successfully.`,
         "success",
       );
-      const remainingOnPage = apiTokens.length - 1;
-      if (remainingOnPage <= 0 && page > 1) {
-        const newPage = page - 1;
-        setPage(newPage);
-        fetchAPITokens(newPage, perPage);
-      } else {
-        fetchAPITokens(page, perPage);
-      }
+      queryClient.invalidateQueries({ queryKey: ["myAPITokens"] });
     } catch (error) {
       showSnackbar(
         `Failed to delete token: ${
@@ -126,13 +72,8 @@ export default function Profile() {
   };
 
   const handleTokenCreated = () => {
-    setPage(1);
-    fetchAPITokens(1, perPage);
+    queryClient.invalidateQueries({ queryKey: ["myAPITokens"] });
   };
-
-  const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
-  const from = totalCount === 0 ? 0 : (page - 1) * perPage + 1;
-  const to = Math.min(page * perPage, totalCount);
 
   return (
     <Box
@@ -178,70 +119,14 @@ export default function Profile() {
 
         {/* API Tokens — full width */}
         <Box sx={{ mt: 3 }}>
-          {!initialTokenLoadDone ? (
+          {loadingTokens && apiTokens.length === 0 ? (
             <Skeleton variant="rounded" height={300} />
           ) : (
-            <>
-              <UserAPITokensCard
-                tokens={apiTokens}
-                onDeleteToken={handleDeleteToken}
-                onTokenCreated={handleTokenCreated}
-              />
-
-              {/* Pagination */}
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={2}
-                alignItems={{ xs: "stretch", sm: "center" }}
-                justifyContent="space-between"
-                sx={{ mt: 2 }}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  {totalCount > 0
-                    ? `${from}–${to} of ${totalCount}`
-                    : "0 items"}
-                </Typography>
-
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography variant="body2" color="text.secondary">
-                    Rows per page
-                  </Typography>
-                  <Select
-                    size="small"
-                    value={perPage}
-                    onChange={(e) => {
-                      const next = Number(e.target.value);
-                      setPerPage(next);
-                      setPage(1);
-                    }}
-                  >
-                    {[5, 10, 25, 50].map((n) => (
-                      <MenuItem key={n} value={n}>
-                        {n}
-                      </MenuItem>
-                    ))}
-                  </Select>
-
-                  <Button
-                    size="small"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page <= 1 || loadingTokens}
-                  >
-                    Prev
-                  </Button>
-                  <Typography variant="body2" sx={{ mx: 1 }}>
-                    Page {page} / {totalPages}
-                  </Typography>
-                  <Button
-                    size="small"
-                    onClick={() => setPage((p) => (p < totalPages ? p + 1 : p))}
-                    disabled={page >= totalPages || loadingTokens}
-                  >
-                    Next
-                  </Button>
-                </Stack>
-              </Stack>
-            </>
+            <UserAPITokensCard
+              tokens={apiTokens}
+              onDeleteToken={handleDeleteToken}
+              onTokenCreated={handleTokenCreated}
+            />
           )}
         </Box>
       </Box>

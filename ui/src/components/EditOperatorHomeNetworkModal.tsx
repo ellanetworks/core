@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -37,14 +37,18 @@ const EditOperatorHomeNetworkModal: React.FC<
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    navigate("/login");
-  }
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState<{ privateKey: string }>({
     privateKey: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
@@ -52,6 +56,7 @@ const EditOperatorHomeNetworkModal: React.FC<
     if (open) {
       setFormValues({ privateKey: "" });
       setErrors({});
+      setTouched({});
     }
   }, [open]);
 
@@ -60,37 +65,40 @@ const EditOperatorHomeNetworkModal: React.FC<
       ...prev,
       [field]: value,
     }));
-
-    setErrors((prev) => ({
-      ...prev,
-      [field]: "",
-    }));
+    validateField(field, value);
   };
 
-  const validate = async (): Promise<boolean> => {
+  const handleBlur = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const validateField = async (field: string, value: string) => {
+    try {
+      const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
+      await fieldSchema.validate(value);
+      setErrors((prev) => ({ ...prev, [field]: "" }));
+    } catch (err) {
+      if (err instanceof yup.ValidationError) {
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
+      }
+    }
+  };
+
+  const validateForm = useCallback(async () => {
     try {
       await schema.validate(formValues, { abortEarly: false });
-      setErrors({});
-      return true;
-    } catch (err: unknown) {
-      if (err instanceof yup.ValidationError) {
-        const validationErrors: Record<string, string> = {};
-        err.inner.forEach((error) => {
-          if (error.path) {
-            validationErrors[error.path] = error.message;
-          }
-        });
-        setErrors(validationErrors);
-      }
-      return false;
+      setIsValid(true);
+    } catch {
+      setIsValid(false);
     }
-  };
+  }, [formValues]);
+
+  useEffect(() => {
+    validateForm();
+  }, [validateForm]);
 
   const handleSubmit = async () => {
-    const isValid = await validate();
-    if (!isValid || !accessToken) {
-      return;
-    }
+    if (!accessToken) return;
 
     setLoading(true);
     setAlert({ message: "" });
@@ -134,13 +142,18 @@ const EditOperatorHomeNetworkModal: React.FC<
           to the network. The network will then use the private key to decrypt
           the IMSI.
         </DialogContentText>
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Changing the private key will affect all subscriber IMSI encryption.
+          Ensure all UE devices are updated with the corresponding public key.
+        </Alert>
         <TextField
           fullWidth
           label="Private Key"
           value={formValues.privateKey}
           onChange={(e) => handleChange("privateKey", e.target.value)}
-          error={!!errors.privateKey}
-          helperText={errors.privateKey}
+          onBlur={() => handleBlur("privateKey")}
+          error={touched.privateKey && !!errors.privateKey}
+          helperText={touched.privateKey ? errors.privateKey : ""}
           margin="normal"
         />
       </DialogContent>
@@ -150,7 +163,7 @@ const EditOperatorHomeNetworkModal: React.FC<
           variant="contained"
           color="success"
           onClick={handleSubmit}
-          disabled={loading || !formValues.privateKey}
+          disabled={!isValid || loading}
         >
           {loading ? "Updating..." : "Update"}
         </Button>

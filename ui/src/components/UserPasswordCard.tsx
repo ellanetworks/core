@@ -22,6 +22,7 @@ const UserPasswordCard: React.FC<UserPasswordCardProps> = ({
         </Typography>
         <Button
           variant="contained"
+          color="success"
           onClick={onChangePassword}
           disabled={disabled}
         >
