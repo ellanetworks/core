@@ -208,6 +208,7 @@ const PolicyPage = () => {
           button={canEdit}
           buttonText="Create"
           onCreate={handleOpenCreateModal}
+          readOnlyHint="Ask an administrator to create a policy."
         />
       ) : (
         <>

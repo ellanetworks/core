@@ -1211,8 +1211,6 @@ const Traffic: React.FC = () => {
                   primaryText="No flow reports found"
                   secondaryText="No flows match the current filters, or flow accounting has not recorded any data yet."
                   button={false}
-                  buttonText=""
-                  onCreate={() => {}}
                 />
               ) : (
                 <ThemeProvider theme={gridTheme}>

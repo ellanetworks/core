@@ -464,6 +464,7 @@ export default function NetworkingPage() {
               button={canEdit}
               buttonText="Create"
               onCreate={handleOpenCreateDN}
+              readOnlyHint="Ask an administrator to create a data network."
             />
           ) : (
             <>
@@ -758,6 +759,7 @@ export default function NetworkingPage() {
               button={canEdit}
               buttonText="Create"
               onCreate={handleOpenCreateRoute}
+              readOnlyHint="Ask an administrator to create a route."
             />
           ) : (
             <>

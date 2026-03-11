@@ -189,6 +189,7 @@ const SubscriberPage: React.FC = () => {
           button={canEdit}
           buttonText="Create"
           onCreate={() => setCreateModalOpen(true)}
+          readOnlyHint="Ask an administrator to create a subscriber."
         />
       ) : (
         <>

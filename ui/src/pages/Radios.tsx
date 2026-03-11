@@ -754,8 +754,6 @@ const Radio = () => {
                 </Typography>
               }
               button={false}
-              buttonText="Create"
-              onCreate={() => {}}
             />
           ) : (
             <>
