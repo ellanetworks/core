@@ -18,8 +18,7 @@ import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
 
 const SubscriberPage: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();

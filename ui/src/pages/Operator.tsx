@@ -30,7 +30,7 @@ const formatSd = (sd?: string | null) => {
   return v.toLowerCase();
 };
 
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const Operator = () => {
   const { role, accessToken, authReady } = useAuth();
@@ -144,7 +144,7 @@ const Operator = () => {
     "Review and configure your operator identifiers and core settings.";
 
   return (
-    <Box sx={{ p: 4, maxWidth: MAX_WIDTH, mx: "auto" }}>
+    <Box sx={{ py: 4, px: PAGE_PADDING_X, maxWidth: MAX_WIDTH, mx: "auto" }}>
       <Typography variant="h4" sx={{ mb: 1 }}>
         Operator
       </Typography>

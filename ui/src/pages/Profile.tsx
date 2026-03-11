@@ -22,8 +22,7 @@ import { useSnackbar } from "@/contexts/SnackbarContext";
 import UserAccountCard from "@/components/UserAccountCard";
 import UserPasswordCard from "@/components/UserPasswordCard";
 import UserAPITokensCard from "@/components/UserAPITokensCard";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
 
 export default function Profile() {
   const navigate = useNavigate();

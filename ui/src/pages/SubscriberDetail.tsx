@@ -22,8 +22,7 @@ import SubscriberProvisioningCard from "@/components/SubscriberProvisioningCard"
 import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
 import SubscriberUsageChart from "@/components/SubscriberUsageChart";
 import SubscriberProtocolChart from "@/components/SubscriberProtocolChart";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
 
 const SubscriberDetail: React.FC = () => {
   const { imsi } = useParams<{ imsi: string }>();

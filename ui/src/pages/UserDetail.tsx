@@ -24,8 +24,7 @@ import UserAccountCard from "@/components/UserAccountCard";
 import UserPasswordCard from "@/components/UserPasswordCard";
 import UserAPITokensCard from "@/components/UserAPITokensCard";
 import UserAuditLogsCard from "@/components/UserAuditLogsCard";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
 
 const UserDetail: React.FC = () => {
   const { email } = useParams<{ email: string }>();

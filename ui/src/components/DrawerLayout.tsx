@@ -76,7 +76,7 @@ export default function DrawerLayout({
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const isMobile = useMediaQuery(theme.breakpoints.down("lg"));
   const { role, setAuthData } = useAuth();
 
   const [supportOpen, setSupportOpen] = useState(false);

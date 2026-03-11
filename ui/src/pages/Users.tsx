@@ -19,8 +19,7 @@ import EmptyState from "@/components/EmptyState";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
 
 const UserPage: React.FC = () => {
   const { accessToken, authReady } = useAuth();

@@ -40,8 +40,7 @@ import {
 } from "@/queries/flow_reports";
 import { getUsage, type UsageResult } from "@/queries/usage";
 import { formatDateTime } from "@/utils/formatters";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
 
 const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>

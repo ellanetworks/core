@@ -81,8 +81,7 @@ import {
   DOWNLINK_COLOR,
   PIE_COLORS,
 } from "@/utils/formatters";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
 
 /** Shared cell renderer for subscriber IMSI links in data grids. */
 const renderSubscriberLink = (params: { value?: unknown }) => {

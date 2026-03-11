@@ -57,9 +57,7 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditRadioEventRetentionPolicyModal from "@/components/EditRadioEventRetentionPolicyModal";
 import EventDetails from "@/components/EventDetails";
 import type { LogRow } from "@/components/EventDetails";
-
-const MAX_WIDTH = 1400;
-const PAGE_PAD = { xs: 2, sm: 4 };
+import { MAX_WIDTH, PAGE_PADDING_X as PAGE_PAD } from "@/utils/layout";
 
 type TabKey = "radios" | "events";
 

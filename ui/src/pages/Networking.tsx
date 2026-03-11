@@ -68,8 +68,7 @@ import {
   type GridRenderCellParams,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
 
 type TabKey =
   | "data-networks"

@@ -14,8 +14,7 @@ import Grid from "@mui/material/Grid";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import theme from "@/utils/theme";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
 
 const headerStyles = {
   backgroundColor: theme.palette.backgroundSubtle,

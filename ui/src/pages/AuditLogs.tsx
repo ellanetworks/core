@@ -28,8 +28,7 @@ import { listUsers, type ListUsersResponse } from "@/queries/users";
 import { useAuth } from "@/contexts/AuthContext";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 import { formatDateTime } from "@/utils/formatters";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
 
 const getDefaultDateRange = () => {
   const today = new Date();
