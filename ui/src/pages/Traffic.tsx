@@ -30,7 +30,6 @@ import {
   DataGrid,
   type GridColDef,
   type GridPaginationModel,
-  type GridSortModel,
 } from "@mui/x-data-grid";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { PieChart } from "@mui/x-charts/PieChart";
@@ -81,7 +80,7 @@ import {
   DOWNLINK_COLOR,
   PIE_COLORS,
 } from "@/utils/formatters";
-import { MAX_WIDTH } from "@/utils/layout";
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 /** Shared cell renderer for subscriber IMSI links in data grids. */
 const renderSubscriberLink = (params: { value?: unknown }) => {
@@ -210,7 +209,6 @@ const Traffic: React.FC = () => {
   // ── Flow Reports state ──────────────────────────────
   const [flowPaginationModel, setFlowPaginationModel] =
     useState<GridPaginationModel>({ page: 0, pageSize: 25 });
-  const [flowSortModel, setFlowSortModel] = useState<GridSortModel>([]);
   const [sourceFilter, setSourceFilter] = useState("");
   const [destinationFilter, setDestinationFilter] = useState("");
   const [appliedProtocol, setAppliedProtocol] = useState("");
@@ -794,7 +792,7 @@ const Traffic: React.FC = () => {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
-            px: { xs: 2, sm: 4 },
+            px: PAGE_PADDING_X,
             display: "flex",
             flexDirection: "column",
             gap: 2,
@@ -1226,9 +1224,7 @@ const Traffic: React.FC = () => {
                     rowCount={flowRowCount}
                     paginationModel={flowPaginationModel}
                     onPaginationModelChange={setFlowPaginationModel}
-                    sortModel={flowSortModel}
-                    onSortModelChange={setFlowSortModel}
-                    sortingMode="client"
+                    disableColumnSorting
                     disableColumnMenu
                     disableRowSelectionOnClick
                     pageSizeOptions={[10, 25, 50, 100]}

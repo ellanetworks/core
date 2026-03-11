@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -10,12 +10,23 @@ import {
   Alert,
   Collapse,
 } from "@mui/material";
+import * as yup from "yup";
 import {
   updateFlowReportsRetentionPolicy,
   type FlowReportsRetentionPolicy,
 } from "@/queries/flow_reports";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+
+const schema = yup.object().shape({
+  days: yup
+    .number()
+    .typeError("Days must be a number")
+    .integer("Days must be a whole number")
+    .min(1, "Must retain data for at least 1 day")
+    .max(3650, "Retention cannot exceed 3650 days (10 years)")
+    .required("Days is required"),
+});
 
 interface EditFlowReportsRetentionPolicyModalProps {
   open: boolean;
@@ -30,12 +41,15 @@ const EditFlowReportsRetentionPolicyModal: React.FC<
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    navigate("/login");
-  }
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState(initialData);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isValid, setIsValid] = useState(true);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
@@ -46,9 +60,35 @@ const EditFlowReportsRetentionPolicyModal: React.FC<
     }
   }, [open, initialData]);
 
-  const handleChange = (field: string, value: string | number) => {
+  const handleChange = (field: string, value: number) => {
     setFormValues((prev) => ({ ...prev, [field]: value }));
+    validateField(field, value);
   };
+
+  const validateField = async (field: string, value: number) => {
+    try {
+      const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
+      await fieldSchema.validate(value);
+      setErrors((prev) => ({ ...prev, [field]: "" }));
+    } catch (err) {
+      if (err instanceof yup.ValidationError) {
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
+      }
+    }
+  };
+
+  const validateForm = useCallback(async () => {
+    try {
+      await schema.validate(formValues, { abortEarly: false });
+      setIsValid(true);
+    } catch {
+      setIsValid(false);
+    }
+  }, [formValues]);
+
+  useEffect(() => {
+    validateForm();
+  }, [validateForm]);
 
   const handleSubmit = async () => {
     if (!accessToken) return;
@@ -99,7 +139,7 @@ const EditFlowReportsRetentionPolicyModal: React.FC<
           value={formValues.days}
           onChange={(e) => handleChange("days", Number(e.target.value))}
           error={!!errors.days}
-          helperText={errors.days}
+          helperText={errors.days || "Enter a value between 1 and 3650."}
           margin="normal"
         />
       </DialogContent>
@@ -109,7 +149,7 @@ const EditFlowReportsRetentionPolicyModal: React.FC<
           variant="contained"
           color="success"
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={!isValid || loading}
         >
           {loading ? "Updating..." : "Update"}
         </Button>
