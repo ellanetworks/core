@@ -20,33 +20,6 @@
 #include <bpf/bpf_helpers.h>
 #include "xdp/utils/pdr.h"
 
-enum gate_status {
-	GATE_STATUS_OPEN = 0,
-	GATE_STATUS_CLOSED = 1,
-	GATE_STATUS_RESERVED1 = 2,
-	GATE_STATUS_RESERVED2 = 3,
-};
-
-struct qer_info {
-	__u8 ul_gate_status;
-	__u8 dl_gate_status;
-	__u8 qfi;
-	__u64 ul_maximum_bitrate;
-	__u64 dl_maximum_bitrate;
-	volatile __u64 ul_start;
-	volatile __u64 dl_start;
-};
-
-#define QER_MAP_SIZE MAX_PDU_SESSIONS
-
-/* QER ID -> QER */
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, __u32);
-	__type(value, struct qer_info);
-	__uint(max_entries, QER_MAP_SIZE);
-} qer_map SEC(".maps");
-
 static __always_inline enum xdp_action
 limit_rate_sliding_window(const __u64 packet_size, volatile __u64 *windows_start,
 			  const __u64 rate)

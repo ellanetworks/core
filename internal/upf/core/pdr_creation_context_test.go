@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/upf/core"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/wmnsk/go-pfcp/ie"
 )
 
@@ -88,7 +89,7 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 				FteIDResourceManager: tt.fields.FteIDResourceManager,
 				TEIDCache:            tt.fields.TEIDCache,
 			}
-			if err := pdrContext.ExtractPDR(tt.args.pdr, tt.args.spdrInfo); (err != nil) != tt.wantErr {
+			if err := pdrContext.ExtractPDR(tt.args.pdr, tt.args.spdrInfo, map[uint32]ebpf.FarInfo{}, map[uint32]ebpf.QerInfo{}); (err != nil) != tt.wantErr {
 				t.Errorf("PDRCreationContext.extractPDR() error: %v, expected error: %v", err, tt.wantErr)
 			}
 		})

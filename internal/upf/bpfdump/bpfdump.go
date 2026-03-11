@@ -141,8 +141,6 @@ func getMapDecoder(mapName string) typedDecoder {
 		return decodeDownlinkRouteStats
 	case "downlink_statistics":
 		return decodeDownlinkStatistics
-	case "far_map":
-		return decodeFarMap
 	case "flow_stats":
 		return decodeFlowStats
 	case "nat_ct":
@@ -153,8 +151,6 @@ func getMapDecoder(mapName string) typedDecoder {
 		return decodePdrsDownlinkIp6
 	case "pdrs_uplink":
 		return decodePdrsUplink
-	case "qer_map":
-		return decodeQerMap
 	case "uplink_route_stats":
 		return decodeUplinkRouteStats
 	case "uplink_statistics":
@@ -212,34 +208,6 @@ func decodeDownlinkStatistics(m *bpf.Map, mapName string, opts DumpOptions, enc 
 	}
 
 	return 1, false, nil
-}
-
-// decodeFarMap decodes far_map (Array of N3N6EntrypointFarInfo).
-func decodeFarMap(m *bpf.Map, mapName string, opts DumpOptions, enc *json.Encoder) (int, bool, error) {
-	iter := m.Iterate()
-
-	var (
-		key   uint32
-		val   ebpf.N3N6EntrypointFarInfo
-		count int
-	)
-
-	for iter.Next(&key, &val) {
-		if err := enc.Encode(map[string]any{"key": key, "value": val}); err != nil {
-			return count, false, fmt.Errorf("encode failed: %w", err)
-		}
-
-		count++
-		if opts.MaxEntriesPerMap > 0 && count >= opts.MaxEntriesPerMap {
-			return count, true, nil
-		}
-	}
-
-	if err := iter.Err(); err != nil {
-		return count, false, fmt.Errorf("iterate error: %w", err)
-	}
-
-	return count, false, nil
 }
 
 // decodeFlowStats decodes flow_stats (LRU_HASH with Flow key and FlowStats value).
@@ -363,34 +331,6 @@ func decodePdrsUplink(m *bpf.Map, mapName string, opts DumpOptions, enc *json.En
 	var (
 		key   uint32
 		val   ebpf.N3N6EntrypointPdrInfo
-		count int
-	)
-
-	for iter.Next(&key, &val) {
-		if err := enc.Encode(map[string]any{"key": key, "value": val}); err != nil {
-			return count, false, fmt.Errorf("encode failed: %w", err)
-		}
-
-		count++
-		if opts.MaxEntriesPerMap > 0 && count >= opts.MaxEntriesPerMap {
-			return count, true, nil
-		}
-	}
-
-	if err := iter.Err(); err != nil {
-		return count, false, fmt.Errorf("iterate error: %w", err)
-	}
-
-	return count, false, nil
-}
-
-// decodeQerMap decodes qer_map (Array of N3N6EntrypointQerInfo).
-func decodeQerMap(m *bpf.Map, mapName string, opts DumpOptions, enc *json.Encoder) (int, bool, error) {
-	iter := m.Iterate()
-
-	var (
-		key   uint32
-		val   ebpf.N3N6EntrypointQerInfo
 		count int
 	)
 
