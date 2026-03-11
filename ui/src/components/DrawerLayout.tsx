@@ -48,11 +48,12 @@ import { logout } from "@/queries/auth";
 const drawerWidth = 250;
 
 const drawerSelectedSx = {
-  // remove the filled background
+  // normalise hover background for all states
+  "&:hover": { bgcolor: "transparent" },
   "&.Mui-selected": { bgcolor: "transparent" },
   "&.Mui-selected:hover": { bgcolor: "transparent" },
 
-  // make the label bold + underline
+  // make the label bold + underline when selected
   "&.Mui-selected .MuiListItemText-primary": {
     fontWeight: 700,
     textDecoration: "underline",
@@ -63,8 +64,10 @@ const drawerSelectedSx = {
 
   // on hover, show the underline even when not selected
   "&:hover .MuiListItemText-primary": {
+    textDecoration: "underline",
     textDecorationColor: "primary.main",
     textUnderlineOffset: "4px",
+    textDecorationThickness: "2px",
   },
 };
 
@@ -365,6 +368,7 @@ export default function DrawerLayout({
                 target="_blank"
                 rel="noreferrer"
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <InfoIcon color="primary" />
@@ -379,6 +383,7 @@ export default function DrawerLayout({
                 target="_blank"
                 rel="noreferrer"
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <BugReportIcon color="primary" />
@@ -393,6 +398,7 @@ export default function DrawerLayout({
                     setSupportOpen(true);
                     handleNavClick();
                   }}
+                  sx={drawerSelectedSx}
                 >
                   <ListItemIcon>
                     <SupportIcon color="primary" />
