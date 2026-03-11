@@ -56,7 +56,11 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
 }) => {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
-  if (!authReady || !accessToken) navigate("/login");
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState({
     name: "",
@@ -88,18 +92,15 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
 
   const validateField = async (field: string, value: string | number) => {
     try {
-      const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
-      await fieldSchema.validate(value);
-      setErrors((prev) => ({
-        ...prev,
-        [field]: "",
-      }));
+      await schema.validateAt(field, { ...formValues, [field]: value });
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
     } catch (err) {
       if (err instanceof ValidationError) {
-        setErrors((prev) => ({
-          ...prev,
-          [field]: err.message,
-        }));
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
       }
     }
   };

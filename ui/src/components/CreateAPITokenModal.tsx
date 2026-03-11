@@ -65,7 +65,11 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
 }) => {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
-  if (!authReady || !accessToken) navigate("/login");
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState<{
     name: string;
@@ -108,11 +112,18 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
           ...formValues,
           [field]: value,
         });
-        setErrors((prev) => ({ ...prev, expiry: "" }));
+        setErrors((prev) => {
+          const next = { ...prev };
+          delete next.expiry;
+          return next;
+        });
       } else {
-        const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
-        await fieldSchema.validate(value);
-        setErrors((prev) => ({ ...prev, [field]: "" }));
+        await schema.validateAt(field, { ...formValues, [field]: value });
+        setErrors((prev) => {
+          const next = { ...prev };
+          delete next[field as string];
+          return next;
+        });
       }
     } catch (err) {
       if (err instanceof ValidationError) {

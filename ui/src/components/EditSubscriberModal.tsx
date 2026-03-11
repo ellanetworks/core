@@ -41,9 +41,11 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    navigate("/login");
-  }
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState(initialData);
   const [policies, setPolicies] = useState<string[]>([]);

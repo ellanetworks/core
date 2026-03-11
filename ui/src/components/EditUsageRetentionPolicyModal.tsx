@@ -72,9 +72,12 @@ const EditUsageRetentionPolicyModal: React.FC<
 
   const validateField = async (field: string, value: number) => {
     try {
-      const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
-      await fieldSchema.validate(value);
-      setErrors((prev) => ({ ...prev, [field]: "" }));
+      await schema.validateAt(field, { [field]: value });
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
     } catch (err) {
       if (err instanceof yup.ValidationError) {
         setErrors((prev) => ({ ...prev, [field]: err.message }));

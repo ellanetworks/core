@@ -81,9 +81,12 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
 
   const validateField = async (field: string, value: string) => {
     try {
-      const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
-      await fieldSchema.validate(value);
-      setErrors((prev) => ({ ...prev, [field]: "" }));
+      await schema.validateAt(field, { [field]: value });
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
     } catch (err) {
       if (err instanceof ValidationError) {
         setErrors((prev) => ({ ...prev, [field]: err.message }));

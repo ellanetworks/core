@@ -43,7 +43,11 @@ const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
 }) => {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
-  if (!authReady || !accessToken) navigate("/login");
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState<FormValues>({
     email: initialData.email,
@@ -83,9 +87,12 @@ const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
 
   const validateField = async (field: string, value: string) => {
     try {
-      const fieldSchema = yup.reach(schema, field);
-      await (fieldSchema as yup.StringSchema).validate(value);
-      setErrors((prev) => ({ ...prev, [field]: "" }));
+      await schema.validateAt(field, { [field]: value });
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
     } catch (err: unknown) {
       if (err instanceof yup.ValidationError) {
         setErrors((prev) => ({ ...prev, [field]: err.message }));

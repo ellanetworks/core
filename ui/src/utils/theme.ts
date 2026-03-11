@@ -72,7 +72,7 @@ const theme = createTheme({
       fontWeight: 500,
     },
     body1: {
-      fontWeight: 400,
+      fontWeight: 500,
     },
     body2: {
       fontWeight: 400,
