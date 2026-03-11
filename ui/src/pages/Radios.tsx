@@ -567,9 +567,6 @@ const EventsTab: React.FC = () => {
                           borderTop: "1px solid",
                           borderColor: "divider",
                         },
-                        "& .MuiDataGrid-columnHeaderTitle": {
-                          fontWeight: "bold",
-                        },
                         "& .MuiDataGrid-row:hover": { cursor: "pointer" },
                         "& .MuiDataGrid-row.Mui-selected": {
                           backgroundColor: (t) => t.palette.action.selected,
@@ -702,7 +699,7 @@ const Radio = () => {
   const gridTheme = useMemo(
     () =>
       createTheme(theme, {
-        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
       }),
     [theme],
   );
@@ -814,14 +811,11 @@ const Radio = () => {
                       "& .MuiDataGrid-columnHeaders": {
                         borderBottom: "1px solid",
                         borderColor: "divider",
-                        backgroundColor: "#F5F5F5",
+                        backgroundColor: "backgroundSubtle",
                       },
                       "& .MuiDataGrid-footerContainer": {
                         borderTop: "1px solid",
                         borderColor: "divider",
-                      },
-                      "& .MuiDataGrid-columnHeaderTitle": {
-                        fontWeight: "bold",
                       },
                     }}
                   />

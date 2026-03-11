@@ -209,7 +209,7 @@ function KpiCard({
       <CardHeader
         title={title}
         sx={{
-          backgroundColor: "#F5F5F5",
+          backgroundColor: "backgroundSubtle",
           borderTopLeftRadius: 8,
           borderTopRightRadius: 8,
           "& .MuiCardHeader-title": {

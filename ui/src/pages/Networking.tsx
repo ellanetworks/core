@@ -142,7 +142,9 @@ export default function NetworkingPage() {
   const gridTheme = useMemo(
     () =>
       createTheme(outerTheme, {
-        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+        palette: {
+          DataGrid: { headerBg: outerTheme.palette.backgroundSubtle },
+        },
       }),
     [outerTheme],
   );
@@ -548,7 +550,6 @@ export default function NetworkingPage() {
                       borderTop: "1px solid",
                       borderColor: "divider",
                     },
-                    "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
                   }}
                 />
               </ThemeProvider>
@@ -845,7 +846,6 @@ export default function NetworkingPage() {
                       borderTop: "1px solid",
                       borderColor: "divider",
                     },
-                    "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
                   }}
                 />
               </ThemeProvider>

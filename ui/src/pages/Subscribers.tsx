@@ -30,7 +30,7 @@ const SubscriberPage: React.FC = () => {
   const gridTheme = useMemo(
     () =>
       createTheme(theme, {
-        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
       }),
     [theme],
   );
@@ -85,7 +85,7 @@ const SubscriberPage: React.FC = () => {
                 variant="body2"
                 sx={{
                   fontFamily: "monospace",
-                  color: "#4254FB",
+                  color: theme.palette.link,
                   textDecoration: "underline",
                   "&:hover": { textDecoration: "underline" },
                 }}
@@ -253,7 +253,6 @@ const SubscriberPage: React.FC = () => {
                     borderTop: "1px solid",
                     borderColor: "divider",
                   },
-                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
                 }}
               />
             </ThemeProvider>

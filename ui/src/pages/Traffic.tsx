@@ -106,7 +106,7 @@ const renderSubscriberLink = (params: { value?: unknown }) => {
           variant="body2"
           sx={{
             fontFamily: "monospace",
-            color: "#4254FB",
+            color: (t) => t.palette.link,
             textDecoration: "underline",
             "&:hover": { textDecoration: "underline" },
           }}
@@ -190,7 +190,7 @@ const Traffic: React.FC = () => {
   const gridTheme = useMemo(
     () =>
       createTheme(theme, {
-        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
       }),
     [theme],
   );
@@ -518,7 +518,7 @@ const Traffic: React.FC = () => {
           if (!dir) return null;
           const Icon = dir === "uplink" ? NorthIcon : SouthIcon;
           const title = dir === "uplink" ? "Uplink" : "Downlink";
-          const color = dir === "uplink" ? "#FF9800" : "#4254FB";
+          const color = dir === "uplink" ? UPLINK_COLOR : DOWNLINK_COLOR;
           return (
             <Tooltip title={title}>
               <Box
@@ -764,13 +764,12 @@ const Traffic: React.FC = () => {
     "& .MuiDataGrid-columnHeaders": {
       borderBottom: "1px solid",
       borderColor: "divider",
-      backgroundColor: "#F5F5F5",
+      backgroundColor: "backgroundSubtle",
     },
     "& .MuiDataGrid-footerContainer": {
       borderTop: "1px solid",
       borderColor: "divider",
     },
-    "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
   };
 
   // ── Render ──────────────────────────────────────────

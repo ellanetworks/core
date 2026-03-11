@@ -136,7 +136,11 @@ export default function DrawerLayout({
           <Chip
             label="free"
             variant="filled"
-            sx={{ ml: 2, color: "text.primary", backgroundColor: "#F5F5F5" }}
+            sx={{
+              ml: 2,
+              color: "text.primary",
+              backgroundColor: "backgroundSubtle",
+            }}
           />
 
           <Box sx={{ flexGrow: 1 }} />

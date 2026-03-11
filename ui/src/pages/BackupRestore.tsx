@@ -13,15 +13,16 @@ import { backup, restore } from "@/queries/backup";
 import Grid from "@mui/material/Grid";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
+import theme from "@/utils/theme";
 
 const MAX_WIDTH = 1400;
 
 const headerStyles = {
-  backgroundColor: "#F5F5F5",
-  color: "#000000ff",
+  backgroundColor: theme.palette.backgroundSubtle,
+  color: "text.primary",
   borderTopLeftRadius: 12,
   borderTopRightRadius: 12,
-  "& .MuiCardHeader-title": { color: "#000000ff" },
+  "& .MuiCardHeader-title": { color: "text.primary" },
 };
 
 const BackupRestore = () => {

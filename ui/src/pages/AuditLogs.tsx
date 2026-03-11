@@ -160,7 +160,7 @@ const AuditLog: React.FC = () => {
                 <Typography
                   variant="body2"
                   sx={{
-                    color: "#4254FB",
+                    color: outerTheme.palette.link,
                     textDecoration: "underline",
                     "&:hover": { textDecoration: "underline" },
                   }}
@@ -330,13 +330,12 @@ const AuditLog: React.FC = () => {
               "& .MuiDataGrid-columnHeaders": {
                 borderBottom: "1px solid",
                 borderColor: "divider",
-                backgroundColor: "#F5F5F5",
+                backgroundColor: "backgroundSubtle",
               },
               "& .MuiDataGrid-footerContainer": {
                 borderTop: "1px solid",
                 borderColor: "divider",
               },
-              "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
             }}
           />
         </ThemeProvider>

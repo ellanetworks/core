@@ -232,7 +232,7 @@ const SubscriberDetail: React.FC = () => {
                 to={`/traffic/usage?subscriber_id=${subscriber.imsi}`}
                 size="small"
                 sx={{
-                  color: "#4254FB",
+                  color: (theme) => theme.palette.link,
                   textDecoration: "underline",
                   "&:hover": { textDecoration: "underline" },
                 }}

@@ -132,12 +132,12 @@ const Operator = () => {
   };
 
   const headerStyles = {
-    backgroundColor: "#F5F5F5",
-    color: "#000000ff",
+    backgroundColor: "backgroundSubtle",
+    color: "text.primary",
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
-    "& .MuiCardHeader-title": { color: "#000000ff" },
-    "& .MuiIconButton-root": { color: "#000000ff" },
+    "& .MuiCardHeader-title": { color: "text.primary" },
+    "& .MuiIconButton-root": { color: "text.primary" },
   };
 
   const descriptionText =

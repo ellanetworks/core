@@ -29,7 +29,7 @@ const UserPage: React.FC = () => {
   const gridTheme = useMemo(
     () =>
       createTheme(theme, {
-        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
       }),
     [theme],
   );
@@ -81,7 +81,7 @@ const UserPage: React.FC = () => {
               <Typography
                 variant="body2"
                 sx={{
-                  color: "#4254FB",
+                  color: theme.palette.link,
                   textDecoration: "underline",
                   "&:hover": { textDecoration: "underline" },
                 }}
@@ -196,7 +196,6 @@ const UserPage: React.FC = () => {
                     borderTop: "1px solid",
                     borderColor: "divider",
                   },
-                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
                 }}
               />
             </ThemeProvider>

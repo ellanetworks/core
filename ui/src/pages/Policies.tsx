@@ -34,7 +34,7 @@ const PolicyPage = () => {
   const gridTheme = useMemo(
     () =>
       createTheme(theme, {
-        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
       }),
     [theme],
   );
@@ -238,13 +238,14 @@ const PolicyPage = () => {
                     borderBottom: "1px solid",
                     borderColor: "divider",
                     backgroundColor:
-                      theme.palette.mode === "light" ? "#F5F5F5" : "inherit",
+                      theme.palette.mode === "light"
+                        ? theme.palette.backgroundSubtle
+                        : "inherit",
                   },
                   "& .MuiDataGrid-footerContainer": {
                     borderTop: "1px solid",
                     borderColor: "divider",
                   },
-                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
                 }}
               />
             </ThemeProvider>
