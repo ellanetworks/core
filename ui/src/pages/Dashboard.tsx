@@ -39,7 +39,12 @@ import {
   type FlowReportStatsResponse,
 } from "@/queries/flow_reports";
 import { getUsage, type UsageResult } from "@/queries/usage";
-import { formatDateTime } from "@/utils/formatters";
+import {
+  formatDateTime,
+  formatBytesAutoUnit,
+  formatProtocol,
+  PIE_COLORS,
+} from "@/utils/formatters";
 import { MAX_WIDTH } from "@/utils/layout";
 
 const nf = new Intl.NumberFormat();
@@ -67,58 +72,6 @@ const formatMemory = (value: number | null | undefined): string => {
   const sign = value < 0 ? "-" : "";
   return `${sign}${numFmt.format(n)} ${units[i]}`;
 };
-
-const formatBytesAutoUnit = (bytes: number): string => {
-  if (!Number.isFinite(bytes)) return "";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let i = 0;
-  let n = Math.abs(bytes);
-  while (n >= 1024 && i < units.length - 1) {
-    n /= 1024;
-    i++;
-  }
-  const decimals = n >= 100 ? 0 : n >= 10 ? 1 : 2;
-  return `${n.toFixed(decimals)} ${units[i]}`;
-};
-
-// ──────────────────────────────────────────────────────
-// Protocol helpers
-// ──────────────────────────────────────────────────────
-
-const PROTOCOL_NAMES: Record<number, string> = {
-  1: "ICMP",
-  6: "TCP",
-  17: "UDP",
-  41: "IPv6",
-  47: "GRE",
-  50: "ESP",
-  51: "AH",
-  58: "IPv6-ICMP",
-  89: "OSPFIGP",
-  132: "SCTP",
-};
-
-const formatProtocol = (value: number): string =>
-  PROTOCOL_NAMES[value] ?? String(value);
-
-// ──────────────────────────────────────────────────────
-// Pie chart color palette
-// ──────────────────────────────────────────────────────
-
-const PIE_COLORS = [
-  "#2196F3",
-  "#4CAF50",
-  "#FF9800",
-  "#E91E63",
-  "#9C27B0",
-  "#00BCD4",
-  "#FF5722",
-  "#795548",
-  "#607D8B",
-  "#8BC34A",
-  "#3F51B5",
-  "#CDDC39",
-];
 
 // ──────────────────────────────────────────────────────
 // Metrics parsing
@@ -174,6 +127,7 @@ type KpiCardProps = {
   title: React.ReactNode;
   value?: React.ReactNode;
   loading?: boolean;
+  error?: boolean;
   onClick?: () => void;
   children?: React.ReactNode;
   minHeight?: number;
@@ -183,6 +137,7 @@ function KpiCard({
   title,
   value,
   loading,
+  error,
   onClick,
   children,
   minHeight = 200,
@@ -191,6 +146,10 @@ function KpiCard({
     children ??
     (loading ? (
       <Skeleton width={120} height={40} />
+    ) : error ? (
+      <Typography variant="body2" color="error">
+        Failed to load data.
+      </Typography>
     ) : (
       <Typography variant="h4">{value}</Typography>
     ));
@@ -467,6 +426,7 @@ const Dashboard = () => {
               <KpiCard
                 title="Radios"
                 loading={radiosLoading}
+                error={!!radiosQuery.error}
                 value={formatNumber(radioCount)}
                 onClick={() => navigate("/radios")}
               />
@@ -482,6 +442,7 @@ const Dashboard = () => {
               <KpiCard
                 title="Subscribers"
                 loading={subscribersLoading}
+                error={!!subscribersQuery.error}
                 value={formatNumber(subscriberCount)}
                 onClick={() => navigate("/subscribers")}
               />
@@ -497,6 +458,7 @@ const Dashboard = () => {
               <KpiCard
                 title="Active Sessions"
                 loading={metricsLoading}
+                error={!!metricsQuery.error}
                 value={formatNumber(activeSessions)}
               />
             </Box>
@@ -508,6 +470,7 @@ const Dashboard = () => {
               <KpiCard
                 title="Up Since"
                 loading={metricsLoading}
+                error={!!metricsQuery.error}
                 value={upSince ? formatDateTime(upSince.toISOString()) : "N/A"}
               />
             </Box>
@@ -530,6 +493,7 @@ const Dashboard = () => {
           <KpiCard
             title="IP Allocation"
             loading={metricsLoading}
+            error={!!metricsQuery.error}
             minHeight={240}
           >
             {metricsLoading ? (
@@ -687,7 +651,7 @@ const Dashboard = () => {
                   cursor: "pointer",
                 }}
               >
-                Flow Protocols
+                Flow Protocols (Last 7 days)
               </Box>
             }
             loading={flowStatsQuery.isLoading}
@@ -740,7 +704,7 @@ const Dashboard = () => {
                   cursor: "pointer",
                 }}
               >
-                Top 10 Data Users
+                Top 10 Data Users (Last 7 days)
               </Box>
             }
             loading={usageQuery.isLoading}
@@ -822,6 +786,7 @@ const Dashboard = () => {
               <KpiCard
                 title="Heap Memory"
                 loading={metricsLoading}
+                error={!!metricsQuery.error}
                 value={formatMemory(heapMemory)}
               />
             </Box>
@@ -833,6 +798,7 @@ const Dashboard = () => {
               <KpiCard
                 title="Total Memory"
                 loading={metricsLoading}
+                error={!!metricsQuery.error}
                 value={formatMemory(totalMemory)}
               />
             </Box>
@@ -844,6 +810,7 @@ const Dashboard = () => {
               <KpiCard
                 title="Database Size"
                 loading={metricsLoading}
+                error={!!metricsQuery.error}
                 value={formatMemory(databaseSize)}
               />
             </Box>
@@ -858,6 +825,7 @@ const Dashboard = () => {
               <KpiCard
                 title="Routines"
                 loading={metricsLoading}
+                error={!!metricsQuery.error}
                 value={routines != null ? `${routines}` : "N/A"}
               />
             </Box>
