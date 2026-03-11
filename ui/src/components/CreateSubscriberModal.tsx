@@ -419,8 +419,13 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             value={formValues.opc}
             onChange={(e) => handleChange("opc", e.target.value)}
             onBlur={() => handleBlur("opc")}
+            error={!!errors.opc && touched.opc}
+            helperText={
+              touched.opc && errors.opc
+                ? errors.opc
+                : "Leave blank to use centrally managed OP"
+            }
             margin="normal"
-            helperText="Leave blank to use centrally managed OP"
           />
         )}
       </DialogContent>
