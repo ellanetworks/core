@@ -33,6 +33,7 @@ import {
   Storage as StorageIcon,
   Lan as LanIcon,
   HelpCenter as SupportIcon,
+  OpenInNew as OpenInNewIcon,
 } from "@mui/icons-material";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Logo from "@/components/Logo";
@@ -374,6 +375,9 @@ export default function DrawerLayout({
                   <InfoIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Documentation" />
+                <OpenInNewIcon
+                  sx={{ fontSize: 16, ml: 1, color: "action.active" }}
+                />
               </ListItemButton>
             </ListItem>
             <ListItem disablePadding>
@@ -389,6 +393,9 @@ export default function DrawerLayout({
                   <BugReportIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Report a bug" />
+                <OpenInNewIcon
+                  sx={{ fontSize: 16, ml: 1, color: "action.active" }}
+                />
               </ListItemButton>
             </ListItem>
             {role === "Admin" && (
