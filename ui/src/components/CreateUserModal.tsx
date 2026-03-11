@@ -189,6 +189,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           error={!!errors.email && touched.email}
           helperText={touched.email ? errors.email : ""}
           margin="normal"
+          autoComplete="email"
         />
         <TextField
           fullWidth
@@ -200,6 +201,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           error={!!errors.password && touched.password}
           helperText={touched.password ? errors.password : ""}
           margin="normal"
+          autoComplete="new-password"
         />
         <FormControl fullWidth margin="normal">
           <InputLabel id="role-select-label">Role</InputLabel>

@@ -109,6 +109,7 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
           helperText={errors.password}
           margin="normal"
           autoFocus
+          autoComplete="new-password"
         />
       </DialogContent>
       <DialogActions>
