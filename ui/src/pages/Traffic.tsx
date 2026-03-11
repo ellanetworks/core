@@ -952,6 +952,8 @@ const Traffic: React.FC = () => {
                   paginationModel={usagePaginationModel}
                   onPaginationModelChange={setUsagePaginationModel}
                   pageSizeOptions={[10, 25, 50, 100]}
+                  disableColumnMenu
+                  disableRowSelectionOnClick
                   columnVisibilityModel={{ subscriber: !isSmDown }}
                   sx={gridSx}
                 />
