@@ -128,12 +128,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setAccessToken(null);
       setAuthData(null);
       clearRefreshTimer();
-      navigate("/login");
+      navigate("/login", { state: { from: location.pathname } });
     } finally {
       refreshingRef.current = false;
       setAuthReady(true);
     }
-  }, [navigate, scheduleRefresh, clearRefreshTimer]);
+  }, [navigate, location.pathname, scheduleRefresh, clearRefreshTimer]);
 
   // Apply a token directly (from login response or navigation state).
   // Returns true if the token was valid and applied.

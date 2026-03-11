@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
   Button,
@@ -29,6 +29,9 @@ const schema = yup.object().shape({
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo =
+    (location.state as { from?: string } | null)?.from || "/dashboard";
   const { showSnackbar } = useSnackbar();
 
   const [email, setEmail] = useState("");
@@ -95,7 +98,7 @@ const LoginPage = () => {
       try {
         const r = await refresh();
         if (r?.token) {
-          navigate("/dashboard", { state: { token: r.token } });
+          navigate(redirectTo, { state: { token: r.token } });
           return;
         }
       } catch {
@@ -115,7 +118,7 @@ const LoginPage = () => {
       if (!loginResp?.token)
         throw new Error("Login succeeded but could not obtain access token.");
 
-      navigate("/dashboard", { state: { token: loginResp.token } });
+      navigate(redirectTo, { state: { token: loginResp.token } });
     } catch (err) {
       const error = err as Error;
       showSnackbar(error.message || "Login failed", "error");
