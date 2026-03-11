@@ -70,13 +70,14 @@ const UserDetail: React.FC = () => {
   });
 
   const handleDeleteConfirm = async () => {
-    setDeleteConfirmOpen(false);
     if (!email || !accessToken) return;
     try {
       await deleteUser(accessToken, email);
+      setDeleteConfirmOpen(false);
       showSnackbar(`User "${email}" deleted successfully.`, "success");
       navigate("/users");
     } catch (err) {
+      setDeleteConfirmOpen(false);
       showSnackbar(
         `Failed to delete user: ${err instanceof Error ? err.message : "Unknown error"}`,
         "error",

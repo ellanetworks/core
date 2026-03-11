@@ -149,16 +149,17 @@ export default function NetworkingPage() {
   );
 
   const handleConfirmDeleteDN = async () => {
-    setDeleteDNOpen(false);
     if (!selectedDNName || !accessToken) return;
     try {
       await deleteDataNetwork(accessToken, selectedDNName);
+      setDeleteDNOpen(false);
       showSnackbar(
         `Data network "${selectedDNName}" deleted successfully.`,
         "success",
       );
       refetchDataNetworks();
     } catch (error: unknown) {
+      setDeleteDNOpen(false);
       showSnackbar(
         `Failed to delete data network "${selectedDNName}": ${String(error)}`,
         "error",
@@ -291,7 +292,6 @@ export default function NetworkingPage() {
   };
 
   const handleConfirmDeleteRoute = async () => {
-    setDeleteRouteOpen(false);
     if (!selectedRouteId || !accessToken) return;
     const idNum = Number(selectedRouteId);
     if (Number.isNaN(idNum)) {
@@ -301,12 +301,14 @@ export default function NetworkingPage() {
     }
     try {
       await deleteRoute(accessToken, idNum);
+      setDeleteRouteOpen(false);
       showSnackbar(
         `Route "${selectedRouteId}" deleted successfully.`,
         "success",
       );
       refetchRoutes();
     } catch (error: unknown) {
+      setDeleteRouteOpen(false);
       showSnackbar(
         `Failed to delete route "${selectedRouteId}": ${String(error)}`,
         "error",

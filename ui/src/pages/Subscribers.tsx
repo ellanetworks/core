@@ -234,7 +234,6 @@ const SubscriberPage: React.FC = () => {
                 paginationModel={paginationModel}
                 onPaginationModelChange={setPaginationModel}
                 pageSizeOptions={[10, 25, 50, 100]}
-                sortingMode="server"
                 disableColumnMenu
                 sx={{
                   width: "100%",

@@ -388,13 +388,14 @@ const EventsTab: React.FC = () => {
   const subRowCount = networkLogsQuery.data?.total_count ?? 0;
 
   const handleConfirmDeleteRadioEvents = async () => {
-    setNetworkClearModalOpen(false);
     if (!accessToken) return;
     try {
       await clearRadioEvents(accessToken);
+      setNetworkClearModalOpen(false);
       showSnackbar("All radio events cleared successfully.", "success");
       networkLogsQuery.refetch();
     } catch (error: unknown) {
+      setNetworkClearModalOpen(false);
       showSnackbar(`Failed to clear radio events: ${String(error)}`, "error");
     }
   };

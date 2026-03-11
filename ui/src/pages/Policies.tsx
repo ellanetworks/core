@@ -76,16 +76,17 @@ const PolicyPage = () => {
     setConfirmationOpen(true);
   };
   const handleDeleteConfirm = async () => {
-    setConfirmationOpen(false);
     if (!selectedPolicy || !authReady || !accessToken) return;
     try {
       await deletePolicy(accessToken, selectedPolicy);
+      setConfirmationOpen(false);
       showSnackbar(
         `Policy "${selectedPolicy}" deleted successfully.`,
         "success",
       );
       queryClient.invalidateQueries({ queryKey: ["policies"] });
     } catch (error) {
+      setConfirmationOpen(false);
       showSnackbar(
         `Failed to delete policy "${selectedPolicy}": ${
           error instanceof Error ? error.message : "Unknown error"

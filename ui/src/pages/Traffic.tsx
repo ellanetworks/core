@@ -715,13 +715,14 @@ const Traffic: React.FC = () => {
     setDateRange((prev) => ({ ...prev, endDate: e.target.value }));
 
   const handleConfirmClearUsage = async () => {
-    setUsageClearModalOpen(false);
     if (!accessToken) return;
     try {
       await clearUsageData(accessToken);
       await Promise.allSettled([refetchUsagePerSub(), refetchUsagePerDay()]);
+      setUsageClearModalOpen(false);
       showSnackbar("All usage data cleared successfully.", "success");
     } catch (error: unknown) {
+      setUsageClearModalOpen(false);
       showSnackbar(
         `Failed to clear usage data: ${error instanceof Error ? error.message : String(error)}`,
         "error",
@@ -730,13 +731,14 @@ const Traffic: React.FC = () => {
   };
 
   const handleConfirmClearFlows = async () => {
-    setFlowClearModalOpen(false);
     if (!accessToken) return;
     try {
       await clearFlowReports(accessToken);
       await refetchFlowReports();
+      setFlowClearModalOpen(false);
       showSnackbar("All flow report data cleared successfully.", "success");
     } catch (error: unknown) {
+      setFlowClearModalOpen(false);
       showSnackbar(
         `Failed to clear flow report data: ${error instanceof Error ? error.message : String(error)}`,
         "error",

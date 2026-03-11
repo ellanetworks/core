@@ -51,13 +51,14 @@ const SubscriberDetail: React.FC = () => {
   });
 
   const handleDeleteConfirm = async () => {
-    setDeleteConfirmOpen(false);
     if (!imsi || !accessToken) return;
     try {
       await deleteSubscriber(accessToken, imsi);
+      setDeleteConfirmOpen(false);
       showSnackbar(`Subscriber "${imsi}" deleted successfully.`, "success");
       navigate("/subscribers");
     } catch (err) {
+      setDeleteConfirmOpen(false);
       showSnackbar(
         `Failed to delete subscriber: ${err instanceof Error ? err.message : "Unknown error"}`,
         "error",
