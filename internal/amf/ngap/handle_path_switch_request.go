@@ -118,6 +118,12 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 	}
 
 	if uESecurityCapabilities != nil {
+		if len(uESecurityCapabilities.NRencryptionAlgorithms.Value.Bytes) == 0 ||
+			len(uESecurityCapabilities.NRintegrityProtectionAlgorithms.Value.Bytes) == 0 {
+			ranUe.Log.Error("UE security capabilities have empty NR algorithm bitstrings")
+			return
+		}
+
 		amfUe.UESecurityCapability.SetEA1_128_5G((uESecurityCapabilities.NRencryptionAlgorithms.Value.Bytes[0] & 0x80) >> 7)
 		amfUe.UESecurityCapability.SetEA2_128_5G((uESecurityCapabilities.NRencryptionAlgorithms.Value.Bytes[0] & 0x40) >> 6)
 		amfUe.UESecurityCapability.SetEA3_128_5G((uESecurityCapabilities.NRencryptionAlgorithms.Value.Bytes[0] & 0x20) >> 5)
