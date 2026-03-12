@@ -111,6 +111,8 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
       onClose={onClose}
       aria-labelledby="edit-subscriber-modal-title"
       aria-describedby="edit-subscriber-modal-description"
+      fullWidth
+      maxWidth="sm"
     >
       <DialogTitle id="edit-subscriber-modal-title">
         Edit Subscriber

@@ -234,6 +234,8 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
       onClose={onClose}
       aria-labelledby="edit-policy-modal-title"
       aria-describedby="edit-policy-modal-description"
+      fullWidth
+      maxWidth="sm"
     >
       <DialogTitle id="edit-policy-modal-title">Edit Policy</DialogTitle>
       <DialogContent dividers>

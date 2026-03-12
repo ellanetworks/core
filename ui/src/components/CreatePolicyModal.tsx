@@ -216,6 +216,8 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
       onClose={onClose}
       aria-labelledby="create-policy-modal-title"
       aria-describedby="create-policy-modal-description"
+      fullWidth
+      maxWidth="sm"
     >
       <DialogTitle id="create-policy-modal-title">Create Policy</DialogTitle>
       <DialogContent dividers>

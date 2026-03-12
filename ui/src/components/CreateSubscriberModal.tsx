@@ -297,6 +297,8 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       onClose={onClose}
       aria-labelledby="create-subscriber-modal-title"
       aria-describedby="create-subscriber-modal-description"
+      fullWidth
+      maxWidth="sm"
     >
       <DialogTitle id="create-subscriber-modal-title">
         Create Subscriber

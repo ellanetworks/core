@@ -167,6 +167,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
       onClose={onClose}
       aria-labelledby="create-user-modal-title"
       aria-describedby="create-user-modal-description"
+      fullWidth
+      maxWidth="sm"
     >
       <DialogTitle id="create-user-modal-title">Create User</DialogTitle>
       <DialogContent dividers>
