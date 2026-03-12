@@ -932,3 +932,63 @@ func TestHandlePathSwitchRequest_MissingRANUENGAPID(t *testing.T) {
 		ngap.HandlePathSwitchRequest(context.Background(), amf, ran, msg)
 	})
 }
+
+func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
+	sourceNGAPSender := &FakeNGAPSender{}
+	sourceRan := &amfContext.Radio{
+		Log:        logger.AmfLog,
+		NGAPSender: sourceNGAPSender,
+		RanUEs:     make(map[int64]*amfContext.RanUe),
+	}
+
+	amfUe := newValidAmfUe()
+
+	ranUe := &amfContext.RanUe{
+		RanUeNgapID: 1,
+		AmfUeNgapID: 10,
+		AmfUe:       amfUe,
+		Radio:       sourceRan,
+		Log:         logger.AmfLog,
+	}
+	amfUe.RanUe = ranUe
+	sourceRan.RanUEs[1] = ranUe
+
+	targetNGAPSender := &FakeNGAPSender{}
+	targetRan := &amfContext.Radio{
+		Log:        logger.AmfLog,
+		NGAPSender: targetNGAPSender,
+		RanUEs:     make(map[int64]*amfContext.RanUe),
+	}
+
+	fakeSmf := &FakeSmfSbi{}
+	amf := newTestAMFWithSmf(fakeSmf)
+	amf.Radios[new(sctp.SCTPConn)] = sourceRan
+
+	// UESecurityCapabilities with empty Bytes slices — must not panic
+	emptyCaps := &ngapType.UESecurityCapabilities{
+		NRencryptionAlgorithms: ngapType.NRencryptionAlgorithms{
+			Value: aper.BitString{Bytes: []byte{}, BitLength: 0},
+		},
+		NRintegrityProtectionAlgorithms: ngapType.NRintegrityProtectionAlgorithms{
+			Value: aper.BitString{Bytes: []byte{}, BitLength: 0},
+		},
+		EUTRAencryptionAlgorithms: ngapType.EUTRAencryptionAlgorithms{
+			Value: aper.BitString{Bytes: []byte{}, BitLength: 0},
+		},
+		EUTRAintegrityProtectionAlgorithms: ngapType.EUTRAintegrityProtectionAlgorithms{
+			Value: aper.BitString{Bytes: []byte{}, BitLength: 0},
+		},
+	}
+
+	msg := buildPathSwitchRequest(
+		&ngapType.AMFUENGAPID{Value: 10},
+		&ngapType.RANUENGAPID{Value: 2},
+		nil,
+		nil,
+		emptyCaps,
+	)
+
+	assertNoPanic(t, "HandlePathSwitchRequest(empty security capability bytes)", func() {
+		ngap.HandlePathSwitchRequest(context.Background(), amf, targetRan, msg)
+	})
+}

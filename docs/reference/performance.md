@@ -25,7 +25,7 @@ The following table outlines the performance test results of Ella Core's data pl
 
 | Packet size (bytes) | Uplink    | Downlink  |
 | ------------------- | --------- | --------- |
-| 46                  | 2.50 Mpps | 3.79 Mpps |
+| 46                  | 2.50 Mpps | 5.20 Mpps |
 | 494                 | 2.17 Mpps | 2.17 Mpps |
 | 1456                | 812  Kpps | 812  Kpps |
 

@@ -100,28 +100,12 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 
 	ctx->interface = INTERFACE_N6;
 
-	__u32 far_id = pdr->far_id;
-	__u32 qer_id = pdr->qer_id;
 	__u32 urr_id = pdr->urr_id;
 
-	struct far_info *far = bpf_map_lookup_elem(&far_map, &far_id);
-	if (!far) {
-		upf_printk("upf: no downlink session far for ip:%pI4 far:%d",
-			   &ip4->daddr, far_id);
-		return XDP_DROP;
-	}
+	struct far_info *far = &pdr->far;
+	struct qer_info *qer = &pdr->qer;
 
-	upf_printk("upf: downlink session for ip:%pI4 far:%d action:%d",
-		   &ip4->daddr, far_id, far->action);
-
-	struct qer_info *qer = bpf_map_lookup_elem(&qer_map, &qer_id);
-	if (!qer) {
-		upf_printk("upf: no downlink session qer for ip:%pI4 qer:%d",
-			   &ip4->daddr, qer_id);
-		return XDP_DROP;
-	}
-	upf_printk("upf: qer:%d gate_status:%d mbr:%d", qer_id,
-		   qer->dl_gate_status, qer->dl_maximum_bitrate);
+	upf_printk("upf: downlink session for ip:%pI4 action:%d", &ip4->daddr, far->action);
 
 	if (far->action & (FAR_BUFF | FAR_NOCP)) {
 		upf_printk("upf: need to notify CP for pdr:%d and qfi:%d", pdr->pdr_id, qer->qfi);
@@ -133,12 +117,15 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		return XDP_DROP;
 	}
 	if (!(far->action & FAR_FORW)) {
+		upf_printk("upf: far not set to forward, dropping packet");
 		return XDP_DROP;
 	}
 	if (!(far->outer_header_creation & OHC_GTP_U_UDP_IPv4)) {
+		upf_printk("upf: far not set to encapsulate in gtp, dropping packet");
 		return XDP_DROP;
 	}
 
+	upf_printk("upf: qer gate_status:%d mbr:%d", qer->dl_gate_status, qer->dl_maximum_bitrate);
 	if (qer->dl_gate_status != GATE_STATUS_OPEN)
 		return XDP_DROP;
 
@@ -181,26 +168,10 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 
 	ctx->interface = INTERFACE_N6;
 
-	__u32 far_id = pdr->far_id;
-	__u32 qer_id = pdr->qer_id;
+	struct far_info *far = &pdr->far;
+	struct qer_info *qer = &pdr->qer;
 
-	struct far_info *far = bpf_map_lookup_elem(&far_map, &far_id);
-	if (!far) {
-		upf_printk("upf: no downlink session far for ip:%pI6c far:%d",
-			   &ip6->daddr, far_id);
-		return XDP_DROP;
-	}
-	upf_printk("upf: downlink session for ip:%pI6c far:%d action:%d",
-		   &ip6->daddr, far_id, far->action);
-
-	struct qer_info *qer = bpf_map_lookup_elem(&qer_map, &qer_id);
-	if (!qer) {
-		upf_printk("upf: no downlink session qer for ip:%pI6c qer:%d",
-			   &ip6->daddr, qer_id);
-		return XDP_DROP;
-	}
-	upf_printk("upf: qer:%d gate_status:%d mbr:%d", qer_id,
-		   qer->dl_gate_status, qer->dl_maximum_bitrate);
+	upf_printk("upf: downlink session for ip:%pI6c action:%d", &ip6->daddr, far->action);
 
 	if (far->action & (FAR_BUFF | FAR_NOCP)) {
 		upf_printk("upf: need to notify CP for pdr:%d and qfi:%d", pdr->pdr_id, qer->qfi);
@@ -216,6 +187,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	if (!(far->outer_header_creation & OHC_GTP_U_UDP_IPv4))
 		return XDP_DROP;
 
+	upf_printk("upf: qer gate_status:%d mbr:%d", qer->dl_gate_status, qer->dl_maximum_bitrate);
 	if (qer->dl_gate_status != GATE_STATUS_OPEN)
 		return XDP_DROP;
 

@@ -8,6 +8,7 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/wmnsk/go-pfcp/ie"
@@ -75,6 +76,10 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 	createdPDRs := []SPDRInfo{}
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 
+	// Build in-memory FAR and QER maps for injection into PDRs below.
+	farMap := make(map[uint32]ebpf.FarInfo)
+	qerMap := make(map[uint32]ebpf.QerInfo)
+
 	err = func() error {
 		bpfObjects := conn.BpfObjects
 		for _, far := range msg.CreateFAR {
@@ -88,12 +93,10 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 				return fmt.Errorf("FAR ID missing: %s", err.Error())
 			}
 
-			err = bpfObjects.NewFar(ctx, farid, farInfo)
-			if err != nil {
-				return fmt.Errorf("can't put FAR: %s", err.Error())
-			}
+			go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 
 			session.NewFar(farid, farInfo)
+			farMap[farid] = farInfo
 
 			logger.WithTrace(ctx, logger.UpfLog).Info("Created Forwarding Action Rule", zap.Uint32("farID", farid), zap.Any("farInfo", farInfo))
 		}
@@ -108,12 +111,8 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 			updateQer(&qerInfo, qer)
 
-			err = bpfObjects.NewQer(qerID, qerInfo)
-			if err != nil {
-				return fmt.Errorf("can't put QER: %s", err.Error())
-			}
-
 			session.NewQer(qerID, qerInfo)
+			qerMap[qerID] = qerInfo
 
 			logger.WithTrace(ctx, logger.UpfLog).Info("Created QoS Enforcement Rule", zap.Uint32("qerID", qerID), zap.Any("qerInfo", qerInfo))
 		}
@@ -155,7 +154,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 			spdrInfo := SPDRInfo{PdrID: uint32(pdrID), PdrInfo: ebpf.PdrInfo{SEID: seid, PdrID: uint32(pdrID), IMSI: imsiStr}}
 
-			err = pdrContext.ExtractPDR(pdr, &spdrInfo)
+			err = pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap)
 			if err != nil {
 				return fmt.Errorf("couldn't extract PDR info: %s", err.Error())
 			}
@@ -169,7 +168,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 			logger.WithTrace(ctx, logger.UpfLog).Info("Applied packet detection rule", zap.Uint32("pdrID", spdrInfo.PdrID))
 			createdPDRs = append(createdPDRs, spdrInfo)
-			bpfObjects.ClearNotified(seid, pdrID, session.GetQer(spdrInfo.PdrInfo.QerID).Qfi)
+			bpfObjects.ClearNotified(seid, pdrID, spdrInfo.PdrInfo.Qer.Qfi)
 		}
 
 		return nil
@@ -221,18 +220,6 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 	for _, pdrInfo := range session.ListPDRs() {
 		if err := pdrContext.deletePDR(pdrInfo, bpfObjects); err != nil {
-			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
-		}
-	}
-
-	for id := range session.ListFARs() {
-		if err := bpfObjects.DeleteFar(id); err != nil {
-			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
-		}
-	}
-
-	for id := range session.ListQERs() {
-		if err := bpfObjects.DeleteQer(id); err != nil {
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
@@ -292,10 +279,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				return fmt.Errorf("FAR ID missing: %s", err.Error())
 			}
 
-			err = bpfObjects.NewFar(ctx, farid, farInfo)
-			if err != nil {
-				return fmt.Errorf("can't put FAR: %s", err.Error())
-			}
+			go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 
 			session.NewFar(farid, farInfo)
 
@@ -315,11 +299,23 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				return fmt.Errorf("couldn't extract FAR info: %s", err.Error())
 			}
 
+			go addRemoteIPToNeigh(ctx, sFarInfo.RemoteIP)
+
 			session.UpdateFar(farid, sFarInfo)
 
-			if err := bpfObjects.UpdateFar(ctx, farid, sFarInfo); err != nil {
-				return fmt.Errorf("can't update FAR: %s", err.Error())
+			// Re-apply all PDRs that reference this FAR with the updated embedded FAR.
+			for _, spdrInfo := range session.ListPDRs() {
+				if spdrInfo.PdrInfo.FarID == farid {
+					spdrInfo.PdrInfo.Far = sFarInfo
+					session.PutPDR(spdrInfo.PdrID, spdrInfo)
+
+					if err := applyPDR(spdrInfo, bpfObjects); err != nil {
+						return fmt.Errorf("can't update PDR after FAR update: %s", err.Error())
+					}
+				}
 			}
+
+			logger.WithTrace(ctx, logger.UpfLog).Info("Updated Forwarding Action Rule", zap.Uint32("farID", farid), zap.Any("farInfo", sFarInfo))
 		}
 
 		for _, far := range msg.RemoveFAR {
@@ -330,9 +326,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 			session.RemoveFar(farid)
 
-			if err := bpfObjects.DeleteFar(farid); err != nil {
-				return fmt.Errorf("can't remove FAR: %s", err.Error())
-			}
+			logger.WithTrace(ctx, logger.UpfLog).Debug("Removed Forwarding Action Rule", zap.Uint32("farID", farid))
 		}
 
 		for _, qer := range msg.CreateQER {
@@ -345,12 +339,19 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 			updateQer(&qerInfo, qer)
 
-			err = bpfObjects.NewQer(qerID, qerInfo)
-			if err != nil {
-				return fmt.Errorf("can't put QER: %s", err.Error())
-			}
-
 			session.NewQer(qerID, qerInfo)
+
+			// Re-apply all PDRs that reference this QER with the updated embedded QER.
+			for _, spdrInfo := range session.ListPDRs() {
+				if spdrInfo.PdrInfo.QerID == qerID {
+					spdrInfo.PdrInfo.Qer = qerInfo
+					session.PutPDR(spdrInfo.PdrID, spdrInfo)
+
+					if err := applyPDR(spdrInfo, bpfObjects); err != nil {
+						return fmt.Errorf("can't apply PDR for new QER: %s", err.Error())
+					}
+				}
+			}
 
 			logger.WithTrace(ctx, logger.UpfLog).Info("Created QoS Enforcement Rule", zap.Uint32("qerID", qerID), zap.Any("qerInfo", qerInfo))
 		}
@@ -361,14 +362,22 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				return fmt.Errorf("QER ID missing: %s", err.Error())
 			}
 
+			// Build updated QerInfo from the IE.
 			sQerInfo := session.GetQer(qerID)
-
 			updateQer(&sQerInfo, qer)
 
-			session.UpdateQer(qerID, sQerInfo)
+			session.NewQer(qerID, sQerInfo)
 
-			if err := bpfObjects.UpdateQer(qerID, sQerInfo); err != nil {
-				return fmt.Errorf("can't update QER: %s", err.Error())
+			// Re-apply all PDRs that reference this QER with the updated embedded QER.
+			for _, spdrInfo := range session.ListPDRs() {
+				if spdrInfo.PdrInfo.QerID == qerID {
+					spdrInfo.PdrInfo.Qer = sQerInfo
+					session.PutPDR(spdrInfo.PdrID, spdrInfo)
+
+					if err := applyPDR(spdrInfo, bpfObjects); err != nil {
+						return fmt.Errorf("can't update PDR after QER update: %s", err.Error())
+					}
+				}
 			}
 		}
 
@@ -378,11 +387,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				return fmt.Errorf("QER ID missing: %s", err.Error())
 			}
 
-			session.RemoveQer(qerID)
-
-			if err := bpfObjects.DeleteQer(qerID); err != nil {
-				return fmt.Errorf("can't remove QER: %s", err.Error())
-			}
+			logger.WithTrace(ctx, logger.UpfLog).Debug("Received QER remove (no-op for embedded QER)", zap.Uint32("qerID", qerID))
 		}
 
 		for _, urr := range msg.CreateURR {
@@ -440,6 +445,17 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			logger.WithTrace(ctx, logger.UpfLog).Debug("Received Usage Reporting Rule remove - Not yet supported", zap.Uint32("urrID", urrId))
 		}
 
+		// Build in-memory FAR and QER maps from the session for PDR injection.
+		farMap := make(map[uint32]ebpf.FarInfo)
+		for id, info := range session.ListFARs() {
+			farMap[id] = info
+		}
+
+		qerMap := make(map[uint32]ebpf.QerInfo)
+		for id, info := range session.ListQERs() {
+			qerMap[id] = info
+		}
+
 		for _, pdr := range msg.CreatePDR {
 			// PDR should be created last, because we need to reference FARs and QERs global id
 			pdrID, err := pdr.PDRID()
@@ -449,7 +465,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 			spdrInfo := SPDRInfo{PdrID: uint32(pdrID), PdrInfo: ebpf.PdrInfo{SEID: msg.SEID(), PdrID: uint32(pdrID)}}
 
-			err = pdrContext.ExtractPDR(pdr, &spdrInfo)
+			err = pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap)
 			if err != nil {
 				return fmt.Errorf("couldn't extract PDR info: %s", err.Error())
 			}
@@ -462,7 +478,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			}
 
 			createdPDRs = append(createdPDRs, spdrInfo)
-			bpfObjects.ClearNotified(msg.SEID(), pdrID, session.GetQer(spdrInfo.PdrInfo.QerID).Qfi)
+			bpfObjects.ClearNotified(msg.SEID(), pdrID, spdrInfo.PdrInfo.Qer.Qfi)
 		}
 
 		for _, pdr := range msg.UpdatePDR {
@@ -473,7 +489,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 			spdrInfo := session.GetPDR(pdrID)
 
-			err = pdrContext.ExtractPDR(pdr, &spdrInfo)
+			err = pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap)
 			if err != nil {
 				return fmt.Errorf("couldn't extract PDR info: %s", err.Error())
 			}
@@ -485,7 +501,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				return fmt.Errorf("couldn't apply PDR: %s", err.Error())
 			}
 
-			bpfObjects.ClearNotified(msg.SEID(), pdrID, session.GetQer(spdrInfo.PdrInfo.QerID).Qfi)
+			bpfObjects.ClearNotified(msg.SEID(), pdrID, spdrInfo.PdrInfo.Qer.Qfi)
 		}
 
 		for _, pdr := range msg.RemovePDR {
@@ -734,4 +750,20 @@ func extractImsiFromUserID(msg *message.SessionEstablishmentRequest) (uint64, er
 	}
 
 	return imsiUint64, nil
+}
+
+// addRemoteIPToNeigh adds the given remote IP (encoded as a little-endian uint32)
+// to the kernel neighbour table so that GTP encapsulated packets can be forwarded.
+func addRemoteIPToNeigh(ctx context.Context, remoteIP uint32) {
+	if remoteIP == 0 {
+		return
+	}
+
+	ip_bytes := make([]byte, 4)
+	binary.NativeEndian.PutUint32(ip_bytes, remoteIP)
+	ip := net.IP(ip_bytes)
+
+	if err := kernel.AddNeighbour(ctx, ip); err != nil {
+		logger.UpfLog.Warn("could not add gnb IP to neighbour list", zap.String("IP", ip.String()), zap.Error(err))
+	}
 }

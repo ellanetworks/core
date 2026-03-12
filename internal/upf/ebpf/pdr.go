@@ -1,22 +1,21 @@
 package ebpf
 
 import (
-	"context"
-	"encoding/binary"
 	"fmt"
 	"net"
 	"runtime"
 	"strconv"
 	"unsafe"
 
-	"github.com/cilium/ebpf"
-	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
 
-// The BPF_ARRAY map type has no delete operation. The only way to delete an element is to replace it with a new one.
-
+// PdrInfo holds all data needed to program a PDR into the BPF maps.
+// FAR and QER are embedded directly so that only a single BPF map lookup
+// is required per packet.
+// FarID and QerID are kept as bookkeeping fields so that UpdateFAR/UpdateQER
+// messages can locate which PDRs reference a given FAR or QER.
 type PdrInfo struct {
 	SEID               uint64
 	OuterHeaderRemoval uint8
@@ -25,6 +24,8 @@ type PdrInfo struct {
 	QerID              uint32
 	UrrID              uint32
 	IMSI               string
+	Far                FarInfo
+	Qer                QerInfo
 }
 
 type IPWMask struct {
@@ -77,45 +78,17 @@ func (bpfObjects *BpfObjects) DeleteDownlinkPdrIP6(ipv6 net.IP) error {
 	return bpfObjects.PdrsDownlinkIp6.Delete(ipv6)
 }
 
+// FarInfo holds Forwarding Action Rule parameters embedded directly in each PDR.
 type FarInfo struct {
-	Action              uint8
-	OuterHeaderCreation uint8
-	TeID                uint32
-	RemoteIP            uint32
-	LocalIP             uint32
+	Action                uint8
+	OuterHeaderCreation   uint8
+	TeID                  uint32
+	RemoteIP              uint32
+	LocalIP               uint32
+	TransportLevelMarking uint16
 }
 
-func (bpfObjects *BpfObjects) NewFar(ctx context.Context, farID uint32, farInfo FarInfo) error {
-	go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
-
-	err := bpfObjects.FarMap.Put(farID, unsafe.Pointer(&farInfo))
-	if err != nil {
-		return fmt.Errorf("failed to put FAR: %w", err)
-	}
-
-	return nil
-}
-
-func (bpfObjects *BpfObjects) UpdateFar(ctx context.Context, id uint32, farInfo FarInfo) error {
-	go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
-
-	err := bpfObjects.FarMap.Update(id, unsafe.Pointer(&farInfo), ebpf.UpdateExist)
-	if err != nil {
-		return fmt.Errorf("failed to update FAR: %w", err)
-	}
-
-	return nil
-}
-
-func (bpfObjects *BpfObjects) DeleteFar(id uint32) error {
-	err := bpfObjects.FarMap.Delete(id)
-	if err != nil {
-		return fmt.Errorf("failed to delete FAR: %w", err)
-	}
-
-	return nil
-}
-
+// QerInfo holds QoS Enforcement Rule parameters embedded directly in each PDR.
 type QerInfo struct {
 	GateStatusUL uint8
 	GateStatusDL uint8
@@ -124,33 +97,6 @@ type QerInfo struct {
 	MaxBitrateDL uint64
 	StartUL      uint64
 	StartDL      uint64
-}
-
-func (bpfObjects *BpfObjects) NewQer(id uint32, qerInfo QerInfo) error {
-	err := bpfObjects.QerMap.Put(id, unsafe.Pointer(&qerInfo))
-	if err != nil {
-		return fmt.Errorf("failed to create QER: %w", err)
-	}
-
-	return nil
-}
-
-func (bpfObjects *BpfObjects) UpdateQer(id uint32, qerInfo QerInfo) error {
-	err := bpfObjects.QerMap.Update(id, unsafe.Pointer(&qerInfo), ebpf.UpdateExist)
-	if err != nil {
-		return fmt.Errorf("failed to update QER: %w", err)
-	}
-
-	return nil
-}
-
-func (bpfObjects *BpfObjects) DeleteQer(id uint32) error {
-	err := bpfObjects.QerMap.Delete(id)
-	if err != nil {
-		return fmt.Errorf("failed to delete QER: %w", err)
-	}
-
-	return nil
 }
 
 func (bpfObjects *BpfObjects) NewUrr(id uint32) error {
@@ -173,14 +119,14 @@ func (bpfObjects *BpfObjects) DeleteUrr(id uint32) error {
 	return nil
 }
 
+// ToN3N6EntrypointPdrInfo converts a PdrInfo (with embedded FAR and QER) to
+// the auto-generated BPF map value type.
 func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 	var pdrToStore N3N6EntrypointPdrInfo
 
 	pdrToStore.LocalSeid = defaultPdr.SEID
 	pdrToStore.OuterHeaderRemoval = defaultPdr.OuterHeaderRemoval
 	pdrToStore.PdrId = defaultPdr.PdrID
-	pdrToStore.FarId = defaultPdr.FarID
-	pdrToStore.QerId = defaultPdr.QerID
 	pdrToStore.UrrId = defaultPdr.UrrID
 
 	imsiUint64, err := strconv.ParseUint(defaultPdr.IMSI, 10, 64)
@@ -191,19 +137,20 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 
 	pdrToStore.Imsi = imsiUint64
 
+	pdrToStore.Far.Action = defaultPdr.Far.Action
+	pdrToStore.Far.OuterHeaderCreation = defaultPdr.Far.OuterHeaderCreation
+	pdrToStore.Far.Teid = defaultPdr.Far.TeID
+	pdrToStore.Far.Remoteip = defaultPdr.Far.RemoteIP
+	pdrToStore.Far.Localip = defaultPdr.Far.LocalIP
+	pdrToStore.Far.TransportLevelMarking = defaultPdr.Far.TransportLevelMarking
+
+	pdrToStore.Qer.UlGateStatus = defaultPdr.Qer.GateStatusUL
+	pdrToStore.Qer.DlGateStatus = defaultPdr.Qer.GateStatusDL
+	pdrToStore.Qer.Qfi = defaultPdr.Qer.Qfi
+	pdrToStore.Qer.UlMaximumBitrate = defaultPdr.Qer.MaxBitrateUL
+	pdrToStore.Qer.DlMaximumBitrate = defaultPdr.Qer.MaxBitrateDL
+	pdrToStore.Qer.UlStart = defaultPdr.Qer.StartUL
+	pdrToStore.Qer.DlStart = defaultPdr.Qer.StartDL
+
 	return pdrToStore
-}
-
-func addRemoteIPToNeigh(ctx context.Context, remoteIP uint32) {
-	if remoteIP == 0 {
-		return
-	}
-
-	ip_bytes := make([]byte, 4)
-	binary.NativeEndian.PutUint32(ip_bytes, remoteIP)
-	ip := net.IP(ip_bytes)
-
-	if err := kernel.AddNeighbour(ctx, ip); err != nil {
-		logger.UpfLog.Warn("could not add gnb IP to neighbour list", zap.String("IP", ip.String()), zap.Error(err))
-	}
 }

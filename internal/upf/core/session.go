@@ -63,34 +63,6 @@ func (s *Session) RemoveFar(id uint32) {
 	delete(s.fars, id)
 }
 
-func (s *Session) NewQer(id uint32, qerInfo ebpf.QerInfo) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.qers[id] = qerInfo
-}
-
-func (s *Session) UpdateQer(id uint32, qerInfo ebpf.QerInfo) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.qers[id] = qerInfo
-}
-
-func (s *Session) GetQer(id uint32) ebpf.QerInfo {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.qers[id]
-}
-
-func (s *Session) RemoveQer(id uint32) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	delete(s.qers, id)
-}
-
 func (s *Session) PutPDR(id uint32, info SPDRInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -144,6 +116,22 @@ func (s *Session) ListFARs() map[uint32]ebpf.FarInfo {
 	maps.Copy(c, s.fars)
 
 	return c
+}
+
+// NewQer stores a QER by ID so that future PDR creation can look it up.
+func (s *Session) NewQer(id uint32, qerInfo ebpf.QerInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.qers[id] = qerInfo
+}
+
+// GetQer returns the QER with the given ID.
+func (s *Session) GetQer(id uint32) ebpf.QerInfo {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.qers[id]
 }
 
 // ListQERs returns a snapshot copy of the QER map.
