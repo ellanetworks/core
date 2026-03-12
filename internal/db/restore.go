@@ -41,10 +41,15 @@ func validateSQLiteFile(ctx context.Context, path string) error {
 	return nil
 }
 
+// Dir returns the parent directory of the database file.
+func (db *Database) Dir() string {
+	return filepath.Dir(db.filepath)
+}
+
 // dbDirRoot opens the database's parent directory as an os.Root, scoping
 // all file access to that directory and preventing path traversal.
 func (db *Database) dbDirRoot() (*os.Root, error) {
-	return os.OpenRoot(filepath.Dir(db.filepath))
+	return os.OpenRoot(db.Dir())
 }
 
 // rollbackFromSafetyCopy restores the original database from the safety copy
