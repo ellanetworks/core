@@ -109,7 +109,9 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 		if len(payload) < 7 {
 			return nil, fmt.Errorf("integrity-protected nas payload is too short")
 		}
+
 		p := payload[7:]
+
 		if err := msg.PlainNasDecode(&p); err != nil {
 			return nil, fmt.Errorf("error decoding plain nas: %+v", err)
 		}
