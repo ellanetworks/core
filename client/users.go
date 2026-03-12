@@ -16,6 +16,15 @@ const (
 	RoleNetworkManager RoleID = 3
 )
 
+type UpdateMyPasswordOptions struct {
+	CurrentPassword string `json:"current_password"`
+	Password        string `json:"password"`
+}
+
+type UpdateUserPasswordOptions struct {
+	Password string `json:"password"`
+}
+
 type CreateUserOptions struct {
 	Email    string `json:"email"`
 	RoleID   RoleID `json:"role_id"`
@@ -275,6 +284,50 @@ func (c *Client) DeleteUserAPIToken(ctx context.Context, email string, tokenID s
 		Type:   SyncRequest,
 		Method: "DELETE",
 		Path:   "api/v1/users/" + email + "/api-tokens/" + tokenID,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateMyPassword changes the password of the currently authenticated user.
+func (c *Client) UpdateMyPassword(ctx context.Context, opts *UpdateMyPasswordOptions) error {
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(opts)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/users/me/password",
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateUserPassword changes the password of the specified user. Requires admin privileges.
+func (c *Client) UpdateUserPassword(ctx context.Context, email string, opts *UpdateUserPasswordOptions) error {
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(opts)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/users/" + email + "/password",
+		Body:   &body,
 	})
 	if err != nil {
 		return err

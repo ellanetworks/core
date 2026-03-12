@@ -73,12 +73,13 @@ export const updateUserPassword = async (
 
 export const updateMyUserPassword = async (
   authToken: string,
+  currentPassword: string,
   password: string,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/users/me/password`, {
     method: "PUT",
     authToken,
-    body: { password },
+    body: { current_password: currentPassword, password },
   });
 };
 

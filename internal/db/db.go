@@ -142,6 +142,7 @@ type Database struct {
 	deleteExpiredSessionsStmt    *sqlair.Statement
 	countSessionsByUserStmt      *sqlair.Statement
 	deleteOldestSessionsStmt     *sqlair.Statement
+	deleteAllSessionsForUserStmt *sqlair.Statement
 
 	// User statements
 	listUsersStmt        *sqlair.Statement
@@ -398,6 +399,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteExpiredSessionsStmt, fmt.Sprintf(deleteExpiredSessionsStmt, SessionsTableName), nil},
 		{&db.countSessionsByUserStmt, fmt.Sprintf(countSessionsByUserStmt, SessionsTableName), []any{UserIDArgs{}, NumItems{}}},
 		{&db.deleteOldestSessionsStmt, fmt.Sprintf(deleteOldestSessionsStmt, SessionsTableName, SessionsTableName), []any{DeleteOldestArgs{}}},
+		{&db.deleteAllSessionsForUserStmt, fmt.Sprintf(deleteAllSessionsForUserStmt, SessionsTableName), []any{UserIDArgs{}}},
 
 		// Users
 		{&db.listUsersStmt, fmt.Sprintf(listUsersPageStmt, UsersTableName), []any{ListArgs{}, User{}, NumItems{}}},

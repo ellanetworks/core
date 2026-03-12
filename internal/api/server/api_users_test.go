@@ -58,7 +58,8 @@ type UpdateUserPasswordParams struct {
 }
 
 type UpdateMyUserPasswordParams struct {
-	Password string `json:"password"`
+	CurrentPassword string `json:"current_password"`
+	Password        string `json:"password"`
 }
 
 type UpdateUserParams struct {
@@ -926,7 +927,8 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 	roToken := refreshResp.Result.Token
 
 	updateUserPasswordParams := &UpdateMyUserPasswordParams{
-		Password: "newpassword123",
+		CurrentPassword: Password,
+		Password:        "newpassword123",
 	}
 
 	statusCode, updateResponse, err := editMyUserPassword(ts.URL, client, roToken, updateUserPasswordParams)
@@ -944,6 +946,77 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 
 	if updateResponse.Result.Message != "User password updated successfully" {
 		t.Fatalf("expected message %q, got %q", "User password updated successfully", updateResponse.Result.Message)
+	}
+}
+
+func TestUpdateMyPasswordWrongCurrentPassword(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := newTestClient(ts)
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	updateParams := &UpdateMyUserPasswordParams{
+		CurrentPassword: "wrongpassword",
+		Password:        "newpassword123",
+	}
+
+	statusCode, updateResponse, err := editMyUserPassword(ts.URL, client, token, updateParams)
+	if err != nil {
+		t.Fatalf("couldn't make request: %s", err)
+	}
+
+	if statusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
+	}
+
+	if updateResponse.Error != "Current password is incorrect" {
+		t.Fatalf("expected error %q, got %q", "Current password is incorrect", updateResponse.Error)
+	}
+}
+
+func TestUpdateMyPasswordMissingCurrentPassword(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := newTestClient(ts)
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	updateParams := &UpdateMyUserPasswordParams{
+		Password: "newpassword123",
+	}
+
+	statusCode, updateResponse, err := editMyUserPassword(ts.URL, client, token, updateParams)
+	if err != nil {
+		t.Fatalf("couldn't make request: %s", err)
+	}
+
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+	}
+
+	if updateResponse.Error != "current_password is missing" {
+		t.Fatalf("expected error %q, got %q", "current_password is missing", updateResponse.Error)
 	}
 }
 

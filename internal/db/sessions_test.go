@@ -295,3 +295,88 @@ func TestDeleteManyExpiredSessions(t *testing.T) {
 		}
 	}
 }
+
+func TestDeleteAllSessionsForUser(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	user1 := &db.User{
+		Email:          "user1@example.com",
+		HashedPassword: "hash1",
+	}
+
+	userID1, err := database.CreateUser(context.Background(), user1)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateUser: %s", err)
+	}
+
+	user2 := &db.User{
+		Email:          "user2@example.com",
+		HashedPassword: "hash2",
+	}
+
+	userID2, err := database.CreateUser(context.Background(), user2)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateUser: %s", err)
+	}
+
+	expiresAt := time.Now().Add(1 * time.Hour).Unix()
+
+	// Create 3 sessions for user1 and 1 for user2
+	for i := range 3 {
+		session := &db.Session{
+			UserID:    userID1,
+			TokenHash: []byte{byte(i + 1)},
+			ExpiresAt: expiresAt,
+		}
+
+		_, err = database.CreateSession(context.Background(), session)
+		if err != nil {
+			t.Fatalf("Couldn't complete CreateSession: %s", err)
+		}
+	}
+
+	user2Session := &db.Session{
+		UserID:    userID2,
+		TokenHash: []byte{10},
+		ExpiresAt: expiresAt,
+	}
+
+	_, err = database.CreateSession(context.Background(), user2Session)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateSession: %s", err)
+	}
+
+	err = database.DeleteAllSessionsForUser(context.Background(), userID1)
+	if err != nil {
+		t.Fatalf("Couldn't complete DeleteAllSessionsForUser: %s", err)
+	}
+
+	// All user1 sessions should be gone
+	for i := range 3 {
+		_, err := database.GetSessionByTokenHash(context.Background(), []byte{byte(i + 1)})
+		if err == nil {
+			t.Fatalf("Expected error when retrieving deleted session %d for user1", i)
+		}
+	}
+
+	// User2 session should still exist
+	retrieved, err := database.GetSessionByTokenHash(context.Background(), user2Session.TokenHash)
+	if err != nil {
+		t.Fatalf("Couldn't retrieve user2 session after deleting user1 sessions: %s", err)
+	}
+
+	if retrieved == nil {
+		t.Fatalf("Expected user2 session to still exist")
+	}
+}

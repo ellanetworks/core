@@ -492,3 +492,113 @@ func TestDeleteUserAPIToken_Failure(t *testing.T) {
 		t.Fatalf("expected error, got none")
 	}
 }
+
+func TestUpdateMyPassword_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "User password updated successfully"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateMyPassword(ctx, &client.UpdateMyPasswordOptions{
+		CurrentPassword: "oldpass",
+		Password:        "newpass",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "PUT" {
+		t.Fatalf("expected method PUT, got %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/users/me/password" {
+		t.Fatalf("expected path %q, got %q", "api/v1/users/me/password", fake.lastOpts.Path)
+	}
+}
+
+func TestUpdateMyPassword_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 401,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Current password is incorrect"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateMyPassword(ctx, &client.UpdateMyPasswordOptions{
+		CurrentPassword: "wrongpass",
+		Password:        "newpass",
+	})
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
+func TestUpdateUserPassword_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "User password updated successfully"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateUserPassword(ctx, "user@example.com", &client.UpdateUserPasswordOptions{
+		Password: "newpass",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "PUT" {
+		t.Fatalf("expected method PUT, got %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/users/user@example.com/password" {
+		t.Fatalf("expected path %q, got %q", "api/v1/users/user@example.com/password", fake.lastOpts.Path)
+	}
+}
+
+func TestUpdateUserPassword_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 404,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "User not found"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateUserPassword(ctx, "nonexistent@example.com", &client.UpdateUserPasswordOptions{
+		Password: "newpass",
+	})
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}

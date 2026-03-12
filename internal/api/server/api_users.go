@@ -32,7 +32,8 @@ type UpdateUserPasswordParams struct {
 }
 
 type UpdateMyUserPasswordParams struct {
-	Password string `json:"password"`
+	CurrentPassword string `json:"current_password"`
+	Password        string `json:"password"`
 }
 
 type User struct {
@@ -392,6 +393,13 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		targetUser, err := dbInstance.GetUser(r.Context(), emailParam)
+		if err == nil {
+			if err := dbInstance.DeleteAllSessionsForUser(r.Context(), targetUser.ID); err != nil {
+				logger.APILog.Warn("Failed to invalidate sessions after password change", zap.Error(err))
+			}
+		}
+
 		writeResponse(r.Context(), w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), UpdateUserPasswordAction, requester, getClientIP(r), "User updated password for user: "+emailParam)
@@ -408,6 +416,14 @@ func UpdateMyUserPassword(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		userIDAny := r.Context().Value(contextKeyUserID)
+
+		userID, ok := userIDAny.(int64)
+		if !ok {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
+			return
+		}
+
 		var updateUserParams UpdateMyUserPasswordParams
 
 		err := json.NewDecoder(r.Body).Decode(&updateUserParams)
@@ -416,8 +432,24 @@ func UpdateMyUserPassword(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if updateUserParams.CurrentPassword == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "current_password is missing", errors.New("missing current_password"), logger.APILog)
+			return
+		}
+
 		if updateUserParams.Password == "" {
 			writeError(r.Context(), w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
+			return
+		}
+
+		user, err := dbInstance.GetUser(r.Context(), email)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
+			return
+		}
+
+		if err := bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(updateUserParams.CurrentPassword)); err != nil {
+			writeError(r.Context(), w, http.StatusUnauthorized, "Current password is incorrect", nil, logger.APILog)
 			return
 		}
 
@@ -431,6 +463,10 @@ func UpdateMyUserPassword(dbInstance *db.Database) http.Handler {
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update password", err, logger.APILog)
 			return
+		}
+
+		if err := dbInstance.DeleteAllSessionsForUser(r.Context(), userID); err != nil {
+			logger.APILog.Warn("Failed to invalidate sessions after password change", zap.Error(err))
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
