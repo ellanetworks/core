@@ -15,10 +15,14 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 const schema = yup.object().shape({
+  currentPassword: yup
+    .string()
+    .min(1, "Current password is required")
+    .required("Current password is required"),
   password: yup
     .string()
-    .min(1, "Password is required")
-    .required("Password is required"),
+    .min(1, "New password is required")
+    .required("New password is required"),
 });
 
 interface EditMyUserPasswordModalProps {
@@ -28,6 +32,7 @@ interface EditMyUserPasswordModalProps {
 }
 
 interface FormValues {
+  currentPassword: string;
   password: string;
 }
 
@@ -46,6 +51,7 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
   }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState<FormValues>({
+    currentPassword: "",
     password: "",
   });
 
@@ -70,7 +76,7 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
 
   useEffect(() => {
     if (open) {
-      setFormValues({ password: "" });
+      setFormValues({ currentPassword: "", password: "" });
       setErrors({});
       setTouched({});
       setIsValid(false);
@@ -107,7 +113,11 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
     setAlert({ message: "" });
 
     try {
-      await updateMyUserPassword(accessToken, formValues.password);
+      await updateMyUserPassword(
+        accessToken,
+        formValues.currentPassword,
+        formValues.password,
+      );
       onClose();
       onSuccess();
     } catch (error: unknown) {
@@ -146,6 +156,20 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
         <TextField
           fullWidth
           required
+          label="Current Password"
+          type="password"
+          value={formValues.currentPassword}
+          onChange={(e) => handleChange("currentPassword", e.target.value)}
+          onBlur={() => handleBlur("currentPassword")}
+          error={!!errors.currentPassword && touched.currentPassword}
+          helperText={touched.currentPassword ? errors.currentPassword : ""}
+          margin="normal"
+          autoFocus
+          autoComplete="current-password"
+        />
+        <TextField
+          fullWidth
+          required
           label="New Password"
           type="password"
           value={formValues.password}
@@ -154,7 +178,6 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
           error={!!errors.password && touched.password}
           helperText={touched.password ? errors.password : ""}
           margin="normal"
-          autoFocus
           autoComplete="new-password"
         />
       </DialogContent>

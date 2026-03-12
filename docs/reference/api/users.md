@@ -136,9 +136,32 @@ None
 }
 ```
 
+## Update My Password
+
+This path updates the password of the currently authenticated user. The user must provide their current password for verification. After a successful password change, all existing sessions for the user are invalidated.
+
+| Method | Path                         |
+| ------ | ---------------------------- |
+| PUT    | `/api/v1/users/me/password`  |
+
+### Parameters
+
+- `current_password` (string): The user's current password.
+- `password` (string): The new password.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "User password updated successfully"
+    }
+}
+```
+
 ## Update a User Password
 
-This path updates the password of a specific system user.
+This path updates the password of a specific system user. After a successful password change, all existing sessions for the target user are invalidated. This path requires admin privileges.
 
 | Method | Path                             |
 | ------ | -------------------------------- |
@@ -146,7 +169,7 @@ This path updates the password of a specific system user.
 
 ### Parameters
 
-- `password` (string): The password of the user.
+- `password` (string): The new password of the user.
 
 ### Sample Response
 
