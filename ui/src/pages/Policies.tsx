@@ -5,6 +5,7 @@ import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import {
   DataGrid,
   type GridColDef,
+  type GridRenderCellParams,
   GridActionsCellItem,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
@@ -23,8 +24,8 @@ import EditPolicyModal from "@/components/EditPolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
+import { Link } from "react-router-dom";
 
 const PolicyPage = () => {
   const { role, accessToken, authReady } = useAuth();
@@ -34,7 +35,7 @@ const PolicyPage = () => {
   const gridTheme = useMemo(
     () =>
       createTheme(theme, {
-        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
       }),
     [theme],
   );
@@ -77,16 +78,17 @@ const PolicyPage = () => {
     setConfirmationOpen(true);
   };
   const handleDeleteConfirm = async () => {
-    setConfirmationOpen(false);
     if (!selectedPolicy || !authReady || !accessToken) return;
     try {
       await deletePolicy(accessToken, selectedPolicy);
+      setConfirmationOpen(false);
       showSnackbar(
         `Policy "${selectedPolicy}" deleted successfully.`,
         "success",
       );
       queryClient.invalidateQueries({ queryKey: ["policies"] });
     } catch (error) {
+      setConfirmationOpen(false);
       showSnackbar(
         `Failed to delete policy "${selectedPolicy}": ${
           error instanceof Error ? error.message : "Unknown error"
@@ -123,6 +125,33 @@ const PolicyPage = () => {
         headerName: "Data Network",
         flex: 1,
         minWidth: 160,
+        renderCell: (params: GridRenderCellParams<APIPolicy>) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Link
+              to="/networking?tab=data-networks"
+              style={{ textDecoration: "none" }}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  color: theme.palette.link,
+                  textDecoration: "underline",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {params.row.data_network_name}
+              </Typography>
+            </Link>
+          </Box>
+        ),
       },
       ...(canEdit
         ? [
@@ -179,6 +208,7 @@ const PolicyPage = () => {
           button={canEdit}
           buttonText="Create"
           onCreate={handleOpenCreateModal}
+          readOnlyHint="Ask an administrator to create a policy."
         />
       ) : (
         <>
@@ -237,14 +267,11 @@ const PolicyPage = () => {
                   "& .MuiDataGrid-columnHeaders": {
                     borderBottom: "1px solid",
                     borderColor: "divider",
-                    backgroundColor:
-                      theme.palette.mode === "light" ? "#F5F5F5" : "inherit",
                   },
                   "& .MuiDataGrid-footerContainer": {
                     borderTop: "1px solid",
                     borderColor: "divider",
                   },
-                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
                 }}
               />
             </ThemeProvider>

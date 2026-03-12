@@ -64,9 +64,11 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    navigate("/login");
-  }
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState({
     email: "",
@@ -97,18 +99,15 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
   const validateField = async (field: string, value: string | number) => {
     try {
-      const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
-      await fieldSchema.validate(value);
-      setErrors((prev) => ({
-        ...prev,
-        [field]: "",
-      }));
+      await schema.validateAt(field, { ...formValues, [field]: value });
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
     } catch (err) {
       if (err instanceof ValidationError) {
-        setErrors((prev) => ({
-          ...prev,
-          [field]: err.message,
-        }));
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
       }
     }
   };
@@ -168,6 +167,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
       onClose={onClose}
       aria-labelledby="create-user-modal-title"
       aria-describedby="create-user-modal-description"
+      fullWidth
+      maxWidth="sm"
     >
       <DialogTitle id="create-user-modal-title">Create User</DialogTitle>
       <DialogContent dividers>
@@ -182,6 +183,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
         </Collapse>
         <TextField
           fullWidth
+          required
           label="Email"
           value={formValues.email}
           onChange={(e) => handleChange("email", e.target.value)}
@@ -189,9 +191,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           error={!!errors.email && touched.email}
           helperText={touched.email ? errors.email : ""}
           margin="normal"
+          autoComplete="email"
+          autoFocus
         />
         <TextField
           fullWidth
+          required
           label="Password"
           type="password"
           value={formValues.password}
@@ -200,6 +205,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           error={!!errors.password && touched.password}
           helperText={touched.password ? errors.password : ""}
           margin="normal"
+          autoComplete="new-password"
         />
         <FormControl fullWidth margin="normal">
           <InputLabel id="role-select-label">Role</InputLabel>

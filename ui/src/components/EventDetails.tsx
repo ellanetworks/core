@@ -76,9 +76,7 @@ const MetaRow: React.FC<{
     <Typography variant="caption" sx={{ color: "text.secondary" }}>
       {label}
     </Typography>
-    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-      {value ?? "—"}
-    </Typography>
+    <Typography variant="subtitle2">{value ?? "—"}</Typography>
   </Box>
 );
 

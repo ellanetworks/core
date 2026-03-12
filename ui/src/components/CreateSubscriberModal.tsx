@@ -101,9 +101,11 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    navigate("/login");
-  }
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState<FormValues>({
     msin: "",
@@ -159,9 +161,16 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
 
   const validateField = async (field: string, value: string | number) => {
     try {
-      const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
-      await fieldSchema.validate(value, { context: { mncLength: mnc.length } });
-      setErrors((prev) => ({ ...prev, [field]: "" }));
+      await schema.validateAt(
+        field,
+        { ...formValues, [field]: value },
+        { context: { mncLength: mnc.length } },
+      );
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
     } catch (err) {
       if (err instanceof ValidationError) {
         setErrors((prev) => ({ ...prev, [field]: err.message }));
@@ -288,8 +297,12 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       onClose={onClose}
       aria-labelledby="create-subscriber-modal-title"
       aria-describedby="create-subscriber-modal-description"
+      fullWidth
+      maxWidth="sm"
     >
-      <DialogTitle>Create Subscriber</DialogTitle>
+      <DialogTitle id="create-subscriber-modal-title">
+        Create Subscriber
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -318,6 +331,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             error={(!!errors.msin && touched.msin) || !!imsiMismatch}
             helperText={(touched.msin && errors.msin) || imsiMismatch}
             margin="normal"
+            autoFocus
             slotProps={{
               input: {
                 startAdornment: (
@@ -330,6 +344,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             variant="contained"
             color="primary"
             sx={{ flex: "0 0 120px", minWidth: 120, flexShrink: 0 }}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={generateRandomMSIN}
           >
             Generate
@@ -351,6 +366,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             variant="contained"
             color="primary"
             sx={{ flex: "0 0 120px", minWidth: 120, flexShrink: 0 }}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               const randomKey = [...Array(32)]
                 .map(() => Math.floor(Math.random() * 16).toString(16))
@@ -416,8 +432,13 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             value={formValues.opc}
             onChange={(e) => handleChange("opc", e.target.value)}
             onBlur={() => handleBlur("opc")}
+            error={!!errors.opc && touched.opc}
+            helperText={
+              touched.opc && errors.opc
+                ? errors.opc
+                : "Leave blank to use centrally managed OP"
+            }
             margin="normal"
-            helperText="Leave blank to use centrally managed OP"
           />
         )}
       </DialogContent>

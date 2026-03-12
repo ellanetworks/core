@@ -33,6 +33,7 @@ import {
   Storage as StorageIcon,
   Lan as LanIcon,
   HelpCenter as SupportIcon,
+  OpenInNew as OpenInNewIcon,
 } from "@mui/icons-material";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Logo from "@/components/Logo";
@@ -48,11 +49,12 @@ import { logout } from "@/queries/auth";
 const drawerWidth = 250;
 
 const drawerSelectedSx = {
-  // remove the filled background
+  // normalise hover background for all states
+  "&:hover": { bgcolor: "transparent" },
   "&.Mui-selected": { bgcolor: "transparent" },
   "&.Mui-selected:hover": { bgcolor: "transparent" },
 
-  // make the label bold + underline
+  // make the label bold + underline when selected
   "&.Mui-selected .MuiListItemText-primary": {
     fontWeight: 700,
     textDecoration: "underline",
@@ -63,8 +65,10 @@ const drawerSelectedSx = {
 
   // on hover, show the underline even when not selected
   "&:hover .MuiListItemText-primary": {
+    textDecoration: "underline",
     textDecorationColor: "primary.main",
     textUnderlineOffset: "4px",
+    textDecorationThickness: "2px",
   },
 };
 
@@ -76,7 +80,7 @@ export default function DrawerLayout({
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const isMobile = useMediaQuery(theme.breakpoints.down("lg"));
   const { role, setAuthData } = useAuth();
 
   const [supportOpen, setSupportOpen] = useState(false);
@@ -136,7 +140,11 @@ export default function DrawerLayout({
           <Chip
             label="free"
             variant="filled"
-            sx={{ ml: 2, color: "text.primary", backgroundColor: "#F5F5F5" }}
+            sx={{
+              ml: 2,
+              color: "text.primary",
+              backgroundColor: "backgroundSubtle",
+            }}
           />
 
           <Box sx={{ flexGrow: 1 }} />
@@ -361,11 +369,15 @@ export default function DrawerLayout({
                 target="_blank"
                 rel="noreferrer"
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <InfoIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Documentation" />
+                <OpenInNewIcon
+                  sx={{ fontSize: 16, ml: 1, color: "action.active" }}
+                />
               </ListItemButton>
             </ListItem>
             <ListItem disablePadding>
@@ -375,11 +387,15 @@ export default function DrawerLayout({
                 target="_blank"
                 rel="noreferrer"
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <BugReportIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Report a bug" />
+                <OpenInNewIcon
+                  sx={{ fontSize: 16, ml: 1, color: "action.active" }}
+                />
               </ListItemButton>
             </ListItem>
             {role === "Admin" && (
@@ -389,6 +405,7 @@ export default function DrawerLayout({
                     setSupportOpen(true);
                     handleNavClick();
                   }}
+                  sx={drawerSelectedSx}
                 >
                   <ListItemIcon>
                     <SupportIcon color="primary" />

@@ -213,9 +213,12 @@ export const formatDateTime = (value: string): string => {
     // Strip timezone offset suffix if the string doesn't parse
     return value.replace(/\s*[+-]\d{4}$/, "");
   }
+  const now = new Date();
+  const includeYear = d.getFullYear() !== now.getFullYear();
   return d.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
+    ...(includeYear && { year: "numeric" }),
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,

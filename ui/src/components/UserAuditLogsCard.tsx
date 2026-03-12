@@ -43,7 +43,7 @@ const UserAuditLogsCard: React.FC<UserAuditLogsCardProps> = ({
             to={`/audit-logs?actor=${encodeURIComponent(email)}`}
             size="small"
             sx={{
-              color: "#4254FB",
+              color: (theme) => theme.palette.link,
               textDecoration: "underline",
               "&:hover": { textDecoration: "underline" },
             }}

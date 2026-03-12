@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -68,8 +68,7 @@ import {
   type GridRenderCellParams,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 type TabKey =
   | "data-networks"
@@ -142,22 +141,25 @@ export default function NetworkingPage() {
   const gridTheme = useMemo(
     () =>
       createTheme(outerTheme, {
-        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+        palette: {
+          DataGrid: { headerBg: outerTheme.palette.backgroundSubtle },
+        },
       }),
     [outerTheme],
   );
 
   const handleConfirmDeleteDN = async () => {
-    setDeleteDNOpen(false);
     if (!selectedDNName || !accessToken) return;
     try {
       await deleteDataNetwork(accessToken, selectedDNName);
+      setDeleteDNOpen(false);
       showSnackbar(
         `Data network "${selectedDNName}" deleted successfully.`,
         "success",
       );
       refetchDataNetworks();
     } catch (error: unknown) {
+      setDeleteDNOpen(false);
       showSnackbar(
         `Failed to delete data network "${selectedDNName}": ${String(error)}`,
         "error",
@@ -167,11 +169,8 @@ export default function NetworkingPage() {
     }
   };
 
-  const dnDescription = useMemo(
-    () =>
-      "Manage the IP networks used by your subscribers. Data Network Names (DNNs) are used to identify different networks, and must be configured on the subscriber device to connect to the correct network.",
-    [],
-  );
+  const dnDescription =
+    "Manage the IP networks used by your subscribers. Data Network Names (DNNs) are used to identify different networks, and must be configured on the subscriber device to connect to the correct network.";
 
   const dnColumns: GridColDef<APIDataNetwork>[] = useMemo(() => {
     return [
@@ -183,16 +182,9 @@ export default function NetworkingPage() {
         field: "sessions",
         headerName: "Sessions",
         width: 120,
-        valueGetter: (_v, row) =>
-          Number(
-            (row as unknown as { status?: { sessions?: number } })?.status
-              ?.sessions ?? 0,
-          ),
+        valueGetter: (_v, row) => row.status?.sessions ?? 0,
         renderCell: (params: GridRenderCellParams<APIDataNetwork>) => {
-          const count = Number(
-            (params.row as unknown as { status?: { sessions?: number } })
-              ?.status?.sessions ?? 0,
-          );
+          const count = params.row.status?.sessions ?? 0;
           return (
             <Chip
               size="small"
@@ -244,11 +236,8 @@ export default function NetworkingPage() {
     refetchOnWindowFocus: true,
   });
 
-  const interfacesDescription = useMemo(
-    () =>
-      "View the network interfaces used by Ella Core for control plane (N2), user plane (N3), external networks (N6), and the API endpoint. Interfaces are primarily configured in the Ella Core configuration file; this page reflects that configuration, with N3's external address as the only editable field.",
-    [],
-  );
+  const interfacesDescription =
+    "View the network interfaces used by Ella Core for control plane (N2), user plane (N3), external networks (N6), and the API endpoint. Interfaces are primarily configured in the Ella Core configuration file; this page reflects that configuration, with N3's external address as the only editable field.";
 
   // N3 edit modal state
   const [isEditN3Open, setEditN3Open] = useState(false);
@@ -281,31 +270,26 @@ export default function NetworkingPage() {
 
   const [isCreateRouteOpen, setCreateRouteOpen] = useState(false);
   const [isDeleteRouteOpen, setDeleteRouteOpen] = useState(false);
-  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
 
   const handleOpenCreateRoute = () => setCreateRouteOpen(true);
-  const handleRequestDeleteRoute = (routeID: string) => {
+  const handleRequestDeleteRoute = (routeID: number) => {
     setSelectedRouteId(routeID);
     setDeleteRouteOpen(true);
   };
 
   const handleConfirmDeleteRoute = async () => {
-    setDeleteRouteOpen(false);
-    if (!selectedRouteId || !accessToken) return;
-    const idNum = Number(selectedRouteId);
-    if (Number.isNaN(idNum)) {
-      showSnackbar(`Invalid route id "${selectedRouteId}".`, "error");
-      setSelectedRouteId(null);
-      return;
-    }
+    if (selectedRouteId == null || !accessToken) return;
     try {
-      await deleteRoute(accessToken, idNum);
+      await deleteRoute(accessToken, selectedRouteId);
+      setDeleteRouteOpen(false);
       showSnackbar(
         `Route "${selectedRouteId}" deleted successfully.`,
         "success",
       );
       refetchRoutes();
     } catch (error: unknown) {
+      setDeleteRouteOpen(false);
       showSnackbar(
         `Failed to delete route "${selectedRouteId}": ${String(error)}`,
         "error",
@@ -315,11 +299,8 @@ export default function NetworkingPage() {
     }
   };
 
-  const routesDescription = useMemo(
-    () =>
-      "Manage the routing table for subscriber traffic. Created routes are applied as kernel routes on the node running Ella Core.",
-    [],
-  );
+  const routesDescription =
+    "Manage the routing table for subscriber traffic. Created routes are applied as kernel routes on the node running Ella Core.";
 
   const rtColumns: GridColDef<APIRoute>[] = useMemo(() => {
     return [
@@ -347,7 +328,7 @@ export default function NetworkingPage() {
                   key="delete"
                   icon={<DeleteIcon color="primary" />}
                   label="Delete"
-                  onClick={() => handleRequestDeleteRoute(String(p.row.id))}
+                  onClick={() => handleRequestDeleteRoute(p.row.id)}
                 />,
               ],
             } as GridColDef<APIRoute>,
@@ -383,11 +364,8 @@ export default function NetworkingPage() {
     },
   });
 
-  const natDescription = useMemo(
-    () =>
-      "Network Address Translation (NAT) simplifies networking as it lets subscribers use private IP addresses without requiring an external router. It uses Ella Core's N6 IP as the source for outbound traffic. Enabling NAT adds processing overhead and some niche protocols won't work (e.g., FTP active mode).",
-    [],
-  );
+  const natDescription =
+    "Network Address Translation (NAT) simplifies networking as it lets subscribers use private IP addresses without requiring an external router. It uses Ella Core's N6 IP as the source for outbound traffic. Enabling NAT adds processing overhead and some niche protocols won't work (e.g., FTP active mode).";
 
   // ====================== Flow Accounting ======================
   const {
@@ -419,11 +397,8 @@ export default function NetworkingPage() {
     },
   });
 
-  const flowAccountingDescription = useMemo(
-    () =>
-      "Flow accounting records per-flow network usage (source/destination IP and port, protocol, bytes, packets) for each subscriber session. Disabling flow accounting reduces processing overhead and stops collection of new flow data.",
-    [],
-  );
+  const flowAccountingDescription =
+    "Flow accounting records per-flow network usage (source/destination IP and port, protocol, bytes, packets) for each subscriber session. Disabling flow accounting reduces processing overhead and stops collection of new flow data.";
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: TabKey) => {
     setTab(newValue);
@@ -441,7 +416,7 @@ export default function NetworkingPage() {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PADDING_X }}>
         <Typography variant="h4" sx={{ mb: 1 }}>
           Networking
         </Typography>
@@ -470,7 +445,7 @@ export default function NetworkingPage() {
             width: "100%",
             mt: 2,
             maxWidth: MAX_WIDTH,
-            px: { xs: 2, sm: 4 },
+            px: PAGE_PADDING_X,
           }}
         >
           {dnLoading && dnRowCount === 0 ? (
@@ -489,6 +464,7 @@ export default function NetworkingPage() {
               button={canEdit}
               buttonText="Create"
               onCreate={handleOpenCreateDN}
+              readOnlyHint="Ask an administrator to create a data network."
             />
           ) : (
             <>
@@ -529,7 +505,6 @@ export default function NetworkingPage() {
                   paginationModel={dnPagination}
                   onPaginationModelChange={setDnPagination}
                   pageSizeOptions={[10, 25, 50, 100]}
-                  sortingMode="server"
                   disableColumnMenu
                   disableRowSelectionOnClick
                   sx={{
@@ -548,7 +523,6 @@ export default function NetworkingPage() {
                       borderTop: "1px solid",
                       borderColor: "divider",
                     },
-                    "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
                   }}
                 />
               </ThemeProvider>
@@ -563,7 +537,7 @@ export default function NetworkingPage() {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
-            px: { xs: 2, sm: 4 },
+            px: PAGE_PADDING_X,
             mt: 2,
           }}
         >
@@ -765,7 +739,7 @@ export default function NetworkingPage() {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
-            px: { xs: 2, sm: 4 },
+            px: PAGE_PADDING_X,
             mt: 2,
           }}
         >
@@ -785,6 +759,7 @@ export default function NetworkingPage() {
               button={canEdit}
               buttonText="Create"
               onCreate={handleOpenCreateRoute}
+              readOnlyHint="Ask an administrator to create a route."
             />
           ) : (
             <>
@@ -826,7 +801,6 @@ export default function NetworkingPage() {
                   paginationModel={rtPagination}
                   onPaginationModelChange={setRtPagination}
                   pageSizeOptions={[10, 25, 50, 100]}
-                  sortingMode="server"
                   disableColumnMenu
                   disableRowSelectionOnClick
                   sx={{
@@ -845,7 +819,6 @@ export default function NetworkingPage() {
                       borderTop: "1px solid",
                       borderColor: "divider",
                     },
-                    "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
                   }}
                 />
               </ThemeProvider>
@@ -860,7 +833,7 @@ export default function NetworkingPage() {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
-            px: { xs: 2, sm: 4 },
+            px: PAGE_PADDING_X,
             mt: 2,
           }}
         >
@@ -906,7 +879,7 @@ export default function NetworkingPage() {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
-            px: { xs: 2, sm: 4 },
+            px: PAGE_PADDING_X,
             mt: 2,
           }}
         >

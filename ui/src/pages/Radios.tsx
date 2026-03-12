@@ -57,9 +57,7 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditRadioEventRetentionPolicyModal from "@/components/EditRadioEventRetentionPolicyModal";
 import EventDetails from "@/components/EventDetails";
 import type { LogRow } from "@/components/EventDetails";
-
-const MAX_WIDTH = 1400;
-const PAGE_PAD = { xs: 2, sm: 4 };
+import { MAX_WIDTH, PAGE_PADDING_X as PAGE_PAD } from "@/utils/layout";
 
 type TabKey = "radios" | "events";
 
@@ -309,9 +307,6 @@ const EventsTab: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin";
 
-  const outerTheme = useTheme();
-  const gridTheme = useMemo(() => createTheme(outerTheme), [outerTheme]);
-
   const { showSnackbar } = useSnackbar();
   const [viewEventDrawerOpen, setViewEventDrawerOpen] = useState(false);
   const [selectedRow, setSelectedRow] = useState<LogRow | null>(null);
@@ -390,13 +385,14 @@ const EventsTab: React.FC = () => {
   const subRowCount = networkLogsQuery.data?.total_count ?? 0;
 
   const handleConfirmDeleteRadioEvents = async () => {
-    setNetworkClearModalOpen(false);
     if (!accessToken) return;
     try {
       await clearRadioEvents(accessToken);
+      setNetworkClearModalOpen(false);
       showSnackbar("All radio events cleared successfully.", "success");
       networkLogsQuery.refetch();
     } catch (error: unknown) {
+      setNetworkClearModalOpen(false);
       showSnackbar(`Failed to clear radio events: ${String(error)}`, "error");
     }
   };
@@ -529,64 +525,59 @@ const EventsTab: React.FC = () => {
               </Box>
 
               <Box sx={{ flex: 1, minHeight: 0 }}>
-                <ThemeProvider theme={gridTheme}>
-                  <EventToolbarContext.Provider value={subToolbarValue}>
-                    <DataGrid<APIRadioEvent>
-                      rows={networkRows}
-                      columns={networkColumns}
-                      getRowId={(row) => row.id}
-                      loading={
-                        networkLogsQuery.isLoading ||
-                        networkLogsQuery.isPlaceholderData
-                      }
-                      paginationMode="server"
-                      rowCount={subRowCount}
-                      paginationModel={paginationModel}
-                      onPaginationModelChange={setPaginationModel}
-                      disableColumnMenu
-                      sortingMode="server"
-                      filterMode="server"
-                      onFilterModelChange={onSubFilterModelChange}
-                      pageSizeOptions={[10, 25, 50, 100]}
-                      slots={{ toolbar: EventToolbar }}
-                      onRowClick={handleRowClick}
-                      rowSelectionModel={selectionModel}
-                      disableRowSelectionOnClick
-                      onRowSelectionModelChange={(model) =>
-                        setSelectionModel(model)
-                      }
-                      showToolbar
-                      density="compact"
-                      autoHeight
-                      sx={{
-                        border: 1,
+                <EventToolbarContext.Provider value={subToolbarValue}>
+                  <DataGrid<APIRadioEvent>
+                    rows={networkRows}
+                    columns={networkColumns}
+                    getRowId={(row) => row.id}
+                    loading={
+                      networkLogsQuery.isLoading ||
+                      networkLogsQuery.isPlaceholderData
+                    }
+                    paginationMode="server"
+                    rowCount={subRowCount}
+                    paginationModel={paginationModel}
+                    onPaginationModelChange={setPaginationModel}
+                    disableColumnMenu
+                    sortingMode="server"
+                    filterMode="server"
+                    onFilterModelChange={onSubFilterModelChange}
+                    pageSizeOptions={[10, 25, 50, 100]}
+                    slots={{ toolbar: EventToolbar }}
+                    onRowClick={handleRowClick}
+                    rowSelectionModel={selectionModel}
+                    disableRowSelectionOnClick
+                    onRowSelectionModelChange={(model) =>
+                      setSelectionModel(model)
+                    }
+                    showToolbar
+                    density="compact"
+                    autoHeight
+                    sx={{
+                      border: 1,
+                      borderColor: "divider",
+                      height: "100%",
+                      "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
+                      "& .MuiDataGrid-footerContainer": {
+                        borderTop: "1px solid",
                         borderColor: "divider",
-                        height: "100%",
-                        "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
-                        "& .MuiDataGrid-footerContainer": {
-                          borderTop: "1px solid",
-                          borderColor: "divider",
-                        },
-                        "& .MuiDataGrid-columnHeaderTitle": {
-                          fontWeight: "bold",
-                        },
-                        "& .MuiDataGrid-row:hover": { cursor: "pointer" },
-                        "& .MuiDataGrid-row.Mui-selected": {
+                      },
+                      "& .MuiDataGrid-row:hover": { cursor: "pointer" },
+                      "& .MuiDataGrid-row.Mui-selected": {
+                        backgroundColor: (t) => t.palette.action.selected,
+                        "&:hover": {
                           backgroundColor: (t) => t.palette.action.selected,
-                          "&:hover": {
-                            backgroundColor: (t) => t.palette.action.selected,
-                          },
-                          "& .MuiDataGrid-cell": { fontWeight: 500 },
-                          "&::before": { display: "none" },
                         },
-                        "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
-                          { outline: "none" },
-                        "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
-                          { outline: "none" },
-                      }}
-                    />
-                  </EventToolbarContext.Provider>
-                </ThemeProvider>
+                        "& .MuiDataGrid-cell": { fontWeight: 500 },
+                        "&::before": { display: "none" },
+                      },
+                      "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
+                        { outline: "none" },
+                      "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
+                        { outline: "none" },
+                    }}
+                  />
+                </EventToolbarContext.Provider>
               </Box>
             </Box>
           </Box>
@@ -702,7 +693,7 @@ const Radio = () => {
   const gridTheme = useMemo(
     () =>
       createTheme(theme, {
-        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
       }),
     [theme],
   );
@@ -758,8 +749,6 @@ const Radio = () => {
                 </Typography>
               }
               button={false}
-              buttonText="Create"
-              onCreate={() => {}}
             />
           ) : (
             <>
@@ -799,7 +788,6 @@ const Radio = () => {
                     paginationModel={paginationModel}
                     onPaginationModelChange={setPaginationModel}
                     pageSizeOptions={[10, 25, 50, 100]}
-                    sortingMode="server"
                     disableColumnMenu
                     disableRowSelectionOnClick
                     columnVisibilityModel={{ id: !isSmDown }}
@@ -814,14 +802,10 @@ const Radio = () => {
                       "& .MuiDataGrid-columnHeaders": {
                         borderBottom: "1px solid",
                         borderColor: "divider",
-                        backgroundColor: "#F5F5F5",
                       },
                       "& .MuiDataGrid-footerContainer": {
                         borderTop: "1px solid",
                         borderColor: "divider",
-                      },
-                      "& .MuiDataGrid-columnHeaderTitle": {
-                        fontWeight: "bold",
                       },
                     }}
                   />

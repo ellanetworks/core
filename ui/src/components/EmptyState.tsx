@@ -5,18 +5,20 @@ interface EmptyStateProps {
   primaryText: string;
   secondaryText: string;
   extraContent?: React.ReactNode;
-  button: boolean;
-  buttonText: string;
-  onCreate: () => void;
+  button?: boolean;
+  buttonText?: string;
+  onCreate?: () => void;
+  readOnlyHint?: string;
 }
 
 const EmptyState: React.FC<EmptyStateProps> = ({
   primaryText,
   secondaryText,
   extraContent,
-  button,
+  button = false,
   buttonText,
   onCreate,
+  readOnlyHint,
 }) => {
   return (
     <Box
@@ -51,7 +53,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
         </Box>
       )}
 
-      {button && (
+      {button && buttonText && onCreate && (
         <Button
           variant="contained"
           color="success"
@@ -60,6 +62,12 @@ const EmptyState: React.FC<EmptyStateProps> = ({
         >
           {buttonText}
         </Button>
+      )}
+
+      {!button && readOnlyHint && (
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+          {readOnlyHint}
+        </Typography>
       )}
     </Box>
   );

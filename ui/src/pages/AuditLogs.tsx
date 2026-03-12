@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Box,
@@ -6,8 +6,9 @@ import {
   TextField,
   MenuItem,
   IconButton,
+  Tooltip,
 } from "@mui/material";
-import { Edit as EditIcon } from "@mui/icons-material";
+import EditIcon from "@mui/icons-material/Edit";
 import { Link, useSearchParams } from "react-router-dom";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
@@ -28,8 +29,7 @@ import { listUsers, type ListUsersResponse } from "@/queries/users";
 import { useAuth } from "@/contexts/AuthContext";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 import { formatDateTime } from "@/utils/formatters";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const getDefaultDateRange = () => {
   const today = new Date();
@@ -44,7 +44,15 @@ const AuditLog: React.FC = () => {
   const canEdit = role === "Admin";
 
   const outerTheme = useTheme();
-  const gridTheme = useMemo(() => createTheme(outerTheme), [outerTheme]);
+  const gridTheme = useMemo(
+    () =>
+      createTheme(outerTheme, {
+        palette: {
+          DataGrid: { headerBg: outerTheme.palette.backgroundSubtle },
+        },
+      }),
+    [outerTheme],
+  );
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -107,19 +115,33 @@ const AuditLog: React.FC = () => {
     return f;
   }, [startDate, endDate, selectedActor]);
 
-  const { data: auditLogsData, isLoading: loading } =
-    useQuery<ListAuditLogsResponse>({
-      queryKey: ["auditLogs", pageOneBased, paginationModel.pageSize, filters],
-      queryFn: () =>
-        listAuditLogs(
-          accessToken || "",
-          pageOneBased,
-          paginationModel.pageSize,
-          filters,
-        ),
-      enabled: authReady && !!accessToken,
-      placeholderData: (prev) => prev,
-    });
+  const {
+    data: auditLogsData,
+    isLoading: loading,
+    error: auditLogsError,
+  } = useQuery<ListAuditLogsResponse>({
+    queryKey: ["auditLogs", pageOneBased, paginationModel.pageSize, filters],
+    queryFn: () =>
+      listAuditLogs(
+        accessToken || "",
+        pageOneBased,
+        paginationModel.pageSize,
+        filters,
+      ),
+    enabled: authReady && !!accessToken,
+    placeholderData: (prev) => prev,
+  });
+
+  useEffect(() => {
+    if (auditLogsError) {
+      showSnackbar("Failed to fetch audit logs. Please try again.", "error");
+    }
+  }, [auditLogsError, showSnackbar]);
+
+  const dateError =
+    startDate && endDate && startDate > endDate
+      ? "End date must be after start date"
+      : "";
 
   const rows: APIAuditLog[] = auditLogsData?.items ?? [];
   const rowCount = auditLogsData?.total_count ?? 0;
@@ -160,7 +182,7 @@ const AuditLog: React.FC = () => {
                 <Typography
                   variant="body2"
                   sx={{
-                    color: "#4254FB",
+                    color: outerTheme.palette.link,
                     textDecoration: "underline",
                     "&:hover": { textDecoration: "underline" },
                   }}
@@ -192,23 +214,28 @@ const AuditLog: React.FC = () => {
         flex: 2,
         minWidth: 300,
         sortable: false,
-        renderCell: (params) => (
-          <Box
-            sx={{
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              whiteSpace: "normal",
-              lineHeight: 1.4,
-            }}
-          >
-            {params.value as string}
-          </Box>
-        ),
+        renderCell: (params) => {
+          const text = params.value as string;
+          return (
+            <Tooltip title={text || ""} enterDelay={500} placement="top-start">
+              <Box
+                sx={{
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                  whiteSpace: "normal",
+                  lineHeight: 1.4,
+                }}
+              >
+                {text}
+              </Box>
+            </Tooltip>
+          );
+        },
       },
     ],
-    [],
+    [outerTheme],
   );
 
   return (
@@ -225,7 +252,7 @@ const AuditLog: React.FC = () => {
         sx={{
           width: "100%",
           maxWidth: MAX_WIDTH,
-          px: { xs: 2, sm: 4 },
+          px: PAGE_PADDING_X,
           mb: 3,
           display: "flex",
           flexDirection: "column",
@@ -262,6 +289,11 @@ const AuditLog: React.FC = () => {
             onChange={handleEndChange}
             InputLabelProps={{ shrink: true }}
             size="small"
+            error={!!dateError}
+            helperText={dateError}
+            slotProps={{
+              input: { inputProps: { min: startDate || undefined } },
+            }}
           />
           <TextField
             select
@@ -304,7 +336,7 @@ const AuditLog: React.FC = () => {
         </Box>
       </Box>
 
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PADDING_X }}>
         <ThemeProvider theme={gridTheme}>
           <DataGrid<APIAuditLog>
             rows={rows}
@@ -314,7 +346,6 @@ const AuditLog: React.FC = () => {
             rowCount={rowCount}
             paginationModel={paginationModel}
             onPaginationModelChange={setPaginationModel}
-            sortingMode="server"
             disableColumnMenu
             disableRowSelectionOnClick
             pageSizeOptions={[10, 25, 50, 100]}
@@ -330,13 +361,11 @@ const AuditLog: React.FC = () => {
               "& .MuiDataGrid-columnHeaders": {
                 borderBottom: "1px solid",
                 borderColor: "divider",
-                backgroundColor: "#F5F5F5",
               },
               "& .MuiDataGrid-footerContainer": {
                 borderTop: "1px solid",
                 borderColor: "divider",
               },
-              "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
             }}
           />
         </ThemeProvider>

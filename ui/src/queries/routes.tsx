@@ -1,7 +1,7 @@
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type APIRoute = {
-  id: string;
+  id: number;
   destination: string;
   gateway: string;
   interface: string;

@@ -1,4 +1,16 @@
 import { createTheme } from "@mui/material/styles";
+import type {} from "@mui/x-data-grid/themeAugmentation";
+
+declare module "@mui/material/styles" {
+  interface Palette {
+    link: string;
+    backgroundSubtle: string;
+  }
+  interface PaletteOptions {
+    link?: string;
+    backgroundSubtle?: string;
+  }
+}
 
 const theme = createTheme({
   palette: {
@@ -9,14 +21,23 @@ const theme = createTheme({
       main: "#1b6c1c",
     },
     error: {
-      main: "#eb2d37",
+      main: "#c62828",
     },
+    link: "#4254FB",
+    backgroundSubtle: "#F5F5F5",
   },
   components: {
     MuiListItemText: {
       styleOverrides: {
         primary: {
           color: "#26374a",
+        },
+      },
+    },
+    MuiDataGrid: {
+      styleOverrides: {
+        columnHeaderTitle: {
+          fontWeight: 600,
         },
       },
     },

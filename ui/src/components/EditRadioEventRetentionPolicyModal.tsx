@@ -10,9 +10,20 @@ import {
   Alert,
   Collapse,
 } from "@mui/material";
+import * as yup from "yup";
 import { updateRadioEventRetentionPolicy } from "@/queries/radio_events";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+
+const validationSchema = yup.object().shape({
+  days: yup
+    .number()
+    .typeError("Days must be a number")
+    .integer("Days must be a whole number")
+    .min(1, "Minimum retention is 1 day")
+    .max(3650, "Maximum retention is 3650 days (10 years)")
+    .required("Days is required"),
+});
 
 interface EditRadioEventRetentionPolicyModalProps {
   open: boolean;
@@ -33,6 +44,7 @@ const EditRadioEventRetentionPolicyModal: React.FC<
 
   const [formValues, setFormValues] = useState({ days: initialDays });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isValid, setIsValid] = useState(true);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
@@ -40,14 +52,37 @@ const EditRadioEventRetentionPolicyModal: React.FC<
     if (open) {
       setFormValues({ days: initialDays });
       setErrors({});
+      setIsValid(true);
     }
   }, [open, initialDays]);
 
-  const handleChange = (field: string, value: string | number) => {
+  const validateField = async (field: string, value: number) => {
+    try {
+      await validationSchema.validateAt(field, { [field]: value });
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    } catch (err: unknown) {
+      if (err instanceof yup.ValidationError) {
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
+      }
+    }
+    try {
+      await validationSchema.validate({ ...formValues, [field]: value });
+      setIsValid(true);
+    } catch {
+      setIsValid(false);
+    }
+  };
+
+  const handleChange = (field: string, value: number) => {
     setFormValues((prev) => ({
       ...prev,
       [field]: value,
     }));
+    validateField(field, value);
   };
 
   const handleSubmit = async () => {
@@ -77,7 +112,9 @@ const EditRadioEventRetentionPolicyModal: React.FC<
       aria-labelledby="edit-network-log-retention-policy-modal-title"
       aria-describedby="edit-network-log-retention-policy-modal-description"
     >
-      <DialogTitle>Edit Network Log Retention Policy</DialogTitle>
+      <DialogTitle id="edit-network-log-retention-policy-modal-title">
+        Edit Network Log Retention Policy
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -92,15 +129,28 @@ const EditRadioEventRetentionPolicyModal: React.FC<
           Set the number of days to retain radio events. After this period, logs
           will be automatically deleted.
         </DialogContentText>
+        {formValues.days < initialDays && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Reducing the retention period will permanently delete radio events
+            older than {formValues.days} day{formValues.days !== 1 ? "s" : ""}.
+          </Alert>
+        )}
         <TextField
           fullWidth
+          required
           type="number"
           label="Days"
           value={formValues.days}
           onChange={(e) => handleChange("days", Number(e.target.value))}
           error={!!errors.days}
-          helperText={errors.days}
+          helperText={errors.days || "1 to 3650 days"}
           margin="normal"
+          autoFocus
+          slotProps={{
+            input: {
+              inputProps: { min: 1, max: 3650 },
+            },
+          }}
         />
       </DialogContent>
       <DialogActions>
@@ -109,7 +159,7 @@ const EditRadioEventRetentionPolicyModal: React.FC<
           variant="contained"
           color="success"
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={loading || !isValid}
         >
           {loading ? "Updating..." : "Update"}
         </Button>

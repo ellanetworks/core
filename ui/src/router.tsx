@@ -17,6 +17,7 @@ import Profile from "./pages/Profile";
 import AuditLogs from "./pages/AuditLogs";
 import BackupRestore from "./pages/BackupRestore";
 import Traffic from "./pages/Traffic";
+import RequireAdmin from "./components/RequireAdmin";
 
 export default function AppRouter() {
   return (
@@ -36,11 +37,13 @@ export default function AppRouter() {
         <Route path="policies" element={<Policies />} />
         <Route path="networking" element={<Networking />} />
         <Route path="operator" element={<Operator />} />
-        <Route path="users" element={<Users />} />
-        <Route path="users/:email" element={<UserDetail />} />
+        <Route element={<RequireAdmin />}>
+          <Route path="users" element={<Users />} />
+          <Route path="users/:email" element={<UserDetail />} />
+          <Route path="audit-logs" element={<AuditLogs />} />
+          <Route path="backup-restore" element={<BackupRestore />} />
+        </Route>
         <Route path="profile" element={<Profile />} />
-        <Route path="audit-logs" element={<AuditLogs />} />
-        <Route path="backup-restore" element={<BackupRestore />} />
         <Route path="traffic/usage" element={<Traffic />} />
         <Route path="traffic/flows" element={<Traffic />} />
         <Route

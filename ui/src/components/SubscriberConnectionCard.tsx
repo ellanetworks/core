@@ -1,5 +1,6 @@
 import React from "react";
 import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Link as RouterLink } from "react-router-dom";
 import type { SubscriberDetailStatus } from "@/queries/subscribers";
 import { formatRelativeTime } from "@/utils/formatters";
@@ -84,6 +85,11 @@ const AlgorithmChip: React.FC<{
   return (
     <Chip
       size="small"
+      icon={
+        isInsecure ? (
+          <WarningAmberIcon sx={{ fontSize: 14, color: "#fff" }} />
+        ) : undefined
+      }
       label={
         <Box component="span" sx={{ display: "inline-flex", gap: 0.5 }}>
           <Box component="span" sx={{ opacity: 0.85, fontWeight: 400 }}>
@@ -193,7 +199,7 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
                       component={RouterLink}
                       to="/radios"
                       sx={{
-                        color: "#4254FB",
+                        color: (theme) => theme.palette.link,
                         textDecoration: "underline",
                         "&:hover": { textDecoration: "underline" },
                       }}

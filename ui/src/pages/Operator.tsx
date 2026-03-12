@@ -1,7 +1,9 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Alert,
   Box,
+  CircularProgress,
   IconButton,
   Typography,
   Chip,
@@ -30,7 +32,7 @@ const formatSd = (sd?: string | null) => {
   return v.toLowerCase();
 };
 
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const Operator = () => {
   const { role, accessToken, authReady } = useAuth();
@@ -132,19 +134,19 @@ const Operator = () => {
   };
 
   const headerStyles = {
-    backgroundColor: "#F5F5F5",
-    color: "#000000ff",
+    backgroundColor: "backgroundSubtle",
+    color: "text.primary",
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
-    "& .MuiCardHeader-title": { color: "#000000ff" },
-    "& .MuiIconButton-root": { color: "#000000ff" },
+    "& .MuiCardHeader-title": { color: "text.primary" },
+    "& .MuiIconButton-root": { color: "text.primary" },
   };
 
   const descriptionText =
     "Review and configure your operator identifiers and core settings.";
 
   return (
-    <Box sx={{ p: 4, maxWidth: MAX_WIDTH, mx: "auto" }}>
+    <Box sx={{ py: 4, px: PAGE_PADDING_X, maxWidth: MAX_WIDTH, mx: "auto" }}>
       <Typography variant="h4" sx={{ mb: 1 }}>
         Operator
       </Typography>
@@ -152,6 +154,18 @@ const Operator = () => {
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
         {descriptionText}
       </Typography>
+
+      {operatorQuery.isLoading && !operator && (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+          <CircularProgress />
+        </Box>
+      )}
+
+      {operatorQuery.isError && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          Failed to load operator configuration.
+        </Alert>
+      )}
 
       <Grid
         container

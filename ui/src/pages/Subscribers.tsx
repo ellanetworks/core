@@ -18,8 +18,7 @@ import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
 
 const SubscriberPage: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
@@ -30,7 +29,7 @@ const SubscriberPage: React.FC = () => {
   const gridTheme = useMemo(
     () =>
       createTheme(theme, {
-        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
       }),
     [theme],
   );
@@ -85,7 +84,7 @@ const SubscriberPage: React.FC = () => {
                 variant="body2"
                 sx={{
                   fontFamily: "monospace",
-                  color: "#4254FB",
+                  color: theme.palette.link,
                   textDecoration: "underline",
                   "&:hover": { textDecoration: "underline" },
                 }}
@@ -190,6 +189,7 @@ const SubscriberPage: React.FC = () => {
           button={canEdit}
           buttonText="Create"
           onCreate={() => setCreateModalOpen(true)}
+          readOnlyHint="Ask an administrator to create a subscriber."
         />
       ) : (
         <>
@@ -235,7 +235,6 @@ const SubscriberPage: React.FC = () => {
                 paginationModel={paginationModel}
                 onPaginationModelChange={setPaginationModel}
                 pageSizeOptions={[10, 25, 50, 100]}
-                sortingMode="server"
                 disableColumnMenu
                 sx={{
                   width: "100%",
@@ -253,7 +252,6 @@ const SubscriberPage: React.FC = () => {
                     borderTop: "1px solid",
                     borderColor: "divider",
                   },
-                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
                 }}
               />
             </ThemeProvider>

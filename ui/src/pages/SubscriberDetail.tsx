@@ -22,8 +22,7 @@ import SubscriberProvisioningCard from "@/components/SubscriberProvisioningCard"
 import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
 import SubscriberUsageChart from "@/components/SubscriberUsageChart";
 import SubscriberProtocolChart from "@/components/SubscriberProtocolChart";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
 
 const SubscriberDetail: React.FC = () => {
   const { imsi } = useParams<{ imsi: string }>();
@@ -52,13 +51,14 @@ const SubscriberDetail: React.FC = () => {
   });
 
   const handleDeleteConfirm = async () => {
-    setDeleteConfirmOpen(false);
     if (!imsi || !accessToken) return;
     try {
       await deleteSubscriber(accessToken, imsi);
+      setDeleteConfirmOpen(false);
       showSnackbar(`Subscriber "${imsi}" deleted successfully.`, "success");
       navigate("/subscribers");
     } catch (err) {
+      setDeleteConfirmOpen(false);
       showSnackbar(
         `Failed to delete subscriber: ${err instanceof Error ? err.message : "Unknown error"}`,
         "error",
@@ -232,7 +232,7 @@ const SubscriberDetail: React.FC = () => {
                 to={`/traffic/usage?subscriber_id=${subscriber.imsi}`}
                 size="small"
                 sx={{
-                  color: "#4254FB",
+                  color: (theme) => theme.palette.link,
                   textDecoration: "underline",
                   "&:hover": { textDecoration: "underline" },
                 }}

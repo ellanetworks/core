@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -9,9 +9,17 @@ import {
   Alert,
   Collapse,
 } from "@mui/material";
+import * as yup from "yup";
 import { updateUserPassword } from "@/queries/users";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+
+const schema = yup.object().shape({
+  password: yup
+    .string()
+    .min(1, "Password is required")
+    .required("Password is required"),
+});
 
 interface EditUserPasswordModalProps {
   open: boolean;
@@ -35,7 +43,11 @@ const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
 }) => {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
-  if (!authReady || !accessToken) navigate("/login");
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState<FormValues>({
     email: initialData.email,
@@ -43,24 +55,58 @@ const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
+  const validateForm = useCallback(async () => {
+    try {
+      await schema.validate(
+        { password: formValues.password },
+        { abortEarly: false },
+      );
+      setIsValid(true);
+    } catch {
+      setIsValid(false);
+    }
+  }, [formValues.password]);
+
+  useEffect(() => {
+    validateForm();
+  }, [validateForm]);
+
   useEffect(() => {
     if (open) {
-      setFormValues({
-        email: initialData.email,
-        password: "",
-      });
+      setFormValues({ email: initialData.email, password: "" });
       setErrors({});
+      setTouched({});
+      setIsValid(false);
     }
   }, [open, initialData]);
 
+  const validateField = async (field: string, value: string) => {
+    try {
+      await schema.validateAt(field, { [field]: value });
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    } catch (err: unknown) {
+      if (err instanceof yup.ValidationError) {
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
+      }
+    }
+  };
+
   const handleChange = (field: keyof FormValues, value: string) => {
-    setFormValues((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setFormValues((prev) => ({ ...prev, [field]: value }));
+    if (field === "password") validateField(field, value);
+  };
+
+  const handleBlur = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
   const handleSubmit = async () => {
@@ -81,7 +127,9 @@ const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-      setAlert({ message: `Failed to update user: ${errorMessage}` });
+      setAlert({
+        message: `Failed to update password: ${errorMessage.replace(/^\d{3}: [A-Za-z ]+\.\s*/, "")}`,
+      });
     } finally {
       setLoading(false);
     }
@@ -91,10 +139,12 @@ const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      aria-labelledby="edit-user-modal-title"
-      aria-describedby="edit-user-modal-description"
+      aria-labelledby="edit-user-password-modal-title"
+      aria-describedby="edit-user-password-modal-description"
     >
-      <DialogTitle>Edit User Password</DialogTitle>
+      <DialogTitle id="edit-user-password-modal-title">
+        Change Password
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -114,13 +164,17 @@ const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
         />
         <TextField
           fullWidth
+          required
           label="New Password"
           type="password"
           value={formValues.password}
           onChange={(e) => handleChange("password", e.target.value)}
-          error={!!errors.password}
-          helperText={errors.password}
+          onBlur={() => handleBlur("password")}
+          error={!!errors.password && touched.password}
+          helperText={touched.password ? errors.password : ""}
           margin="normal"
+          autoFocus
+          autoComplete="new-password"
         />
       </DialogContent>
       <DialogActions>
@@ -129,7 +183,7 @@ const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
           variant="contained"
           color="success"
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={!isValid || loading}
         >
           {loading ? "Updating..." : "Update"}
         </Button>

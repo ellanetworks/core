@@ -1,23 +1,46 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useCallback, useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
   Button,
+  IconButton,
+  InputAdornment,
   TextField,
   Typography,
   CircularProgress,
 } from "@mui/material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
+import * as yup from "yup";
+import { ValidationError } from "yup";
 import { login, refresh } from "@/queries/auth";
 import { getStatus } from "@/queries/status";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 
+const schema = yup.object().shape({
+  email: yup
+    .string()
+    .email("Must be a valid email")
+    .required("Email is required"),
+  password: yup
+    .string()
+    .min(1, "Password is required")
+    .required("Password is required"),
+});
+
 const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo =
+    (location.state as { from?: string } | null)?.from || "/dashboard";
   const { showSnackbar } = useSnackbar();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const [checkingInitialization, setCheckingInitialization] = useState(true);
@@ -40,13 +63,42 @@ const LoginPage = () => {
     })();
   }, [navigate]);
 
+  const validateField = async (field: string, value: string) => {
+    try {
+      const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
+      await fieldSchema.validate(value);
+      setErrors((prev) => ({ ...prev, [field]: "" }));
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
+      }
+    }
+  };
+
+  const handleBlur = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const validateForm = useCallback(async () => {
+    try {
+      await schema.validate({ email, password }, { abortEarly: false });
+      setIsValid(true);
+    } catch {
+      setIsValid(false);
+    }
+  }, [email, password]);
+
+  useEffect(() => {
+    validateForm();
+  }, [email, password, validateForm]);
+
   useEffect(() => {
     if (checkingInitialization) return;
     (async () => {
       try {
         const r = await refresh();
         if (r?.token) {
-          navigate("/dashboard", { state: { token: r.token } });
+          navigate(redirectTo, { state: { token: r.token } });
           return;
         }
       } catch {
@@ -66,7 +118,7 @@ const LoginPage = () => {
       if (!loginResp?.token)
         throw new Error("Login succeeded but could not obtain access token.");
 
-      navigate("/dashboard", { state: { token: loginResp.token } });
+      navigate(redirectTo, { state: { token: loginResp.token } });
     } catch (err) {
       const error = err as Error;
       showSnackbar(error.message || "Login failed", "error");
@@ -125,20 +177,52 @@ const LoginPage = () => {
             variant="outlined"
             margin="normal"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              validateField("email", e.target.value);
+            }}
+            onBlur={() => handleBlur("email")}
+            error={!!errors.email && touched.email}
+            helperText={touched.email ? errors.email : ""}
             fullWidth
             required
+            autoFocus
+            autoComplete="email"
           />
 
           <TextField
             label="Password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             variant="outlined"
             value={password}
             margin="normal"
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              validateField("password", e.target.value);
+            }}
+            onBlur={() => handleBlur("password")}
+            error={!!errors.password && touched.password}
+            helperText={touched.password ? errors.password : ""}
             fullWidth
             required
+            autoComplete="current-password"
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
           />
 
           <Button
@@ -147,7 +231,7 @@ const LoginPage = () => {
             color="success"
             fullWidth
             sx={{ mt: 2 }}
-            disabled={loading}
+            disabled={!isValid || loading}
           >
             {loading ? <CircularProgress size={24} /> : "Login"}
           </Button>

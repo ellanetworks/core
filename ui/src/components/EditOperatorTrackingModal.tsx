@@ -41,14 +41,17 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    navigate("/login");
-  }
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState<{ supportedTacs: string[] }>({
     supportedTacs: [],
   });
   const [errors, setErrors] = useState<{ supportedTacs?: string }>({});
+  const [isValid, setIsValid] = useState(true);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
@@ -56,6 +59,7 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
     if (open) {
       setFormValues(initialData);
       setErrors({});
+      setIsValid(true);
     }
   }, [open, initialData]);
 
@@ -63,9 +67,11 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
     const invalidTacs = tacs.filter((tac) => !schema.isValidSync(tac));
     if (invalidTacs.length > 0) {
       setErrors({ supportedTacs: `Invalid TACs: ${invalidTacs.join(", ")}` });
+      setIsValid(false);
       return false;
     }
     setErrors({});
+    setIsValid(true);
     return true;
   };
 
@@ -104,7 +110,9 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
       aria-labelledby="edit-operator-tracking-modal-title"
       aria-describedby="edit-operator-tracking-modal-description"
     >
-      <DialogTitle>Edit Operator Tracking Information</DialogTitle>
+      <DialogTitle id="edit-operator-tracking-modal-title">
+        Edit Operator Tracking Information
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -140,6 +148,7 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
                 errors.supportedTacs ||
                 "Enter each TAC as a 3 bytes hex string (e.g., 000001)"
               }
+              autoFocus
             />
           )}
           sx={{ marginBottom: 2 }}
@@ -153,7 +162,7 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
           variant="contained"
           color="success"
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={!isValid || loading}
         >
           {loading ? "Updating..." : "Update"}
         </Button>

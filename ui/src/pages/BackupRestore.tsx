@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
+  Alert,
   Box,
   Typography,
   Button,
@@ -8,20 +9,25 @@ import {
   CardContent,
   Backdrop,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import { backup, restore } from "@/queries/backup";
 import Grid from "@mui/material/Grid";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
-
-const MAX_WIDTH = 1400;
+import theme from "@/utils/theme";
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const headerStyles = {
-  backgroundColor: "#F5F5F5",
-  color: "#000000ff",
+  backgroundColor: theme.palette.backgroundSubtle,
+  color: "text.primary",
   borderTopLeftRadius: 12,
   borderTopRightRadius: 12,
-  "& .MuiCardHeader-title": { color: "#000000ff" },
+  "& .MuiCardHeader-title": { color: "text.primary" },
 };
 
 const BackupRestore = () => {
@@ -30,6 +36,9 @@ const BackupRestore = () => {
 
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const pageDescription =
     "Create and download a full backup of Ella Core, or restore from a .backup file. Take regular backups to ensure you can recover your data in case of a hardware failure or data loss.";
@@ -80,7 +89,7 @@ const BackupRestore = () => {
     }
   };
 
-  const handleRestore = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRestore = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!authReady || !accessToken) {
       showSnackbar(
         "Authentication not ready. Please try again later.",
@@ -93,6 +102,13 @@ const BackupRestore = () => {
     if (!file) return;
 
     event.target.value = "";
+    setPendingFile(file);
+    setIsConfirmOpen(true);
+  };
+
+  const handleConfirmRestore = async () => {
+    if (!accessToken || !pendingFile) return;
+    setIsConfirmOpen(false);
 
     try {
       setIsRestoring(true);
@@ -101,7 +117,7 @@ const BackupRestore = () => {
         "info",
       );
 
-      await restore(accessToken, file);
+      await restore(accessToken, pendingFile);
 
       showSnackbar(
         "Restore completed successfully. You may need to refresh the page.",
@@ -113,7 +129,13 @@ const BackupRestore = () => {
       showSnackbar(`Failed to restore backup: ${errorMessage}`, "error");
     } finally {
       setIsRestoring(false);
+      setPendingFile(null);
     }
+  };
+
+  const handleCancelRestore = () => {
+    setIsConfirmOpen(false);
+    setPendingFile(null);
   };
 
   const actionsDisabled = isRestoring;
@@ -152,7 +174,7 @@ const BackupRestore = () => {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
-            px: { xs: 2, sm: 4 },
+            px: PAGE_PADDING_X,
             mb: 3,
             display: "flex",
             flexDirection: "column",
@@ -165,7 +187,7 @@ const BackupRestore = () => {
           </Typography>
         </Box>
 
-        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PADDING_X }}>
           <Grid container spacing={4} justifyContent="flex-start">
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <Card
@@ -237,18 +259,19 @@ const BackupRestore = () => {
                   <Box sx={{ display: "flex", justifyContent: "center" }}>
                     <Button
                       variant="contained"
-                      component="label"
                       color="primary"
+                      onClick={() => fileInputRef.current?.click()}
                       disabled={actionsDisabled}
                     >
                       {isRestoring ? "Restoring…" : "Upload File"}
-                      <input
-                        type="file"
-                        hidden
-                        accept=".backup"
-                        onChange={handleRestore}
-                      />
                     </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      hidden
+                      accept=".backup"
+                      onChange={handleRestore}
+                    />
                   </Box>
                 </CardContent>
               </Card>
@@ -256,6 +279,35 @@ const BackupRestore = () => {
           </Grid>
         </Box>
       </Box>
+
+      <Dialog
+        open={isConfirmOpen}
+        onClose={handleCancelRestore}
+        aria-labelledby="restore-confirm-title"
+        aria-describedby="restore-confirm-description"
+      >
+        <DialogTitle id="restore-confirm-title">Confirm Restore</DialogTitle>
+        <DialogContent dividers>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This operation will overwrite all current data and cannot be undone.
+          </Alert>
+          <DialogContentText id="restore-confirm-description">
+            Are you sure you want to restore from{" "}
+            <strong>{pendingFile?.name}</strong>? All existing configuration and
+            data will be replaced with the contents of this backup file.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelRestore}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleConfirmRestore}
+          >
+            Restore
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 };

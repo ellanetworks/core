@@ -39,7 +39,11 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) navigate("/login");
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState<FormValues>({
     email: "",
@@ -89,9 +93,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       onClose={onClose}
       aria-labelledby="edit-user-modal-title"
       aria-describedby="edit-user-modal-description"
-      PaperProps={{ sx: { width: { xs: 320, sm: 440 } } }}
+      fullWidth
+      maxWidth="sm"
     >
-      <DialogTitle>Edit User</DialogTitle>
+      <DialogTitle id="edit-user-modal-title">Edit User</DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -117,6 +122,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             value={formValues.role.toString()}
             label="Role"
             onChange={handleChange}
+            autoFocus
           >
             <MenuItem value={RoleID.Admin.toString()}>
               {roleIDToLabel(RoleID.Admin)}

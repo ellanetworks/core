@@ -19,8 +19,7 @@ import EmptyState from "@/components/EmptyState";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH } from "@/utils/layout";
 
 const UserPage: React.FC = () => {
   const { accessToken, authReady } = useAuth();
@@ -29,7 +28,7 @@ const UserPage: React.FC = () => {
   const gridTheme = useMemo(
     () =>
       createTheme(theme, {
-        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
       }),
     [theme],
   );
@@ -81,7 +80,7 @@ const UserPage: React.FC = () => {
               <Typography
                 variant="body2"
                 sx={{
-                  color: "#4254FB",
+                  color: theme.palette.link,
                   textDecoration: "underline",
                   "&:hover": { textDecoration: "underline" },
                 }}
@@ -196,7 +195,6 @@ const UserPage: React.FC = () => {
                     borderTop: "1px solid",
                     borderColor: "divider",
                   },
-                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
                 }}
               />
             </ThemeProvider>

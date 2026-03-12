@@ -41,9 +41,11 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    navigate("/login");
-  }
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState(initialData);
   const [policies, setPolicies] = useState<string[]>([]);
@@ -109,8 +111,12 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
       onClose={onClose}
       aria-labelledby="edit-subscriber-modal-title"
       aria-describedby="edit-subscriber-modal-description"
+      fullWidth
+      maxWidth="sm"
     >
-      <DialogTitle>Edit Subscriber</DialogTitle>
+      <DialogTitle id="edit-subscriber-modal-title">
+        Edit Subscriber
+      </DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -138,6 +144,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
             value={formValues.policyName}
             onChange={(e) => handleChange("policyName", e.target.value)}
             error={!!errors.policyName}
+            autoFocus
           >
             {policies.map((policy) => (
               <MenuItem key={policy} value={policy}>

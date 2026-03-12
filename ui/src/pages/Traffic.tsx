@@ -30,7 +30,6 @@ import {
   DataGrid,
   type GridColDef,
   type GridPaginationModel,
-  type GridSortModel,
 } from "@mui/x-data-grid";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { PieChart } from "@mui/x-charts/PieChart";
@@ -81,8 +80,7 @@ import {
   DOWNLINK_COLOR,
   PIE_COLORS,
 } from "@/utils/formatters";
-
-const MAX_WIDTH = 1400;
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 /** Shared cell renderer for subscriber IMSI links in data grids. */
 const renderSubscriberLink = (params: { value?: unknown }) => {
@@ -106,7 +104,7 @@ const renderSubscriberLink = (params: { value?: unknown }) => {
           variant="body2"
           sx={{
             fontFamily: "monospace",
-            color: "#4254FB",
+            color: (t) => t.palette.link,
             textDecoration: "underline",
             "&:hover": { textDecoration: "underline" },
           }}
@@ -190,7 +188,7 @@ const Traffic: React.FC = () => {
   const gridTheme = useMemo(
     () =>
       createTheme(theme, {
-        palette: { DataGrid: { headerBg: "#F5F5F5" } },
+        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
       }),
     [theme],
   );
@@ -211,7 +209,6 @@ const Traffic: React.FC = () => {
   // ── Flow Reports state ──────────────────────────────
   const [flowPaginationModel, setFlowPaginationModel] =
     useState<GridPaginationModel>({ page: 0, pageSize: 25 });
-  const [flowSortModel, setFlowSortModel] = useState<GridSortModel>([]);
   const [sourceFilter, setSourceFilter] = useState("");
   const [destinationFilter, setDestinationFilter] = useState("");
   const [appliedProtocol, setAppliedProtocol] = useState("");
@@ -518,7 +515,7 @@ const Traffic: React.FC = () => {
           if (!dir) return null;
           const Icon = dir === "uplink" ? NorthIcon : SouthIcon;
           const title = dir === "uplink" ? "Uplink" : "Downlink";
-          const color = dir === "uplink" ? "#FF9800" : "#4254FB";
+          const color = dir === "uplink" ? UPLINK_COLOR : DOWNLINK_COLOR;
           return (
             <Tooltip title={title}>
               <Box
@@ -716,13 +713,14 @@ const Traffic: React.FC = () => {
     setDateRange((prev) => ({ ...prev, endDate: e.target.value }));
 
   const handleConfirmClearUsage = async () => {
-    setUsageClearModalOpen(false);
     if (!accessToken) return;
     try {
       await clearUsageData(accessToken);
       await Promise.allSettled([refetchUsagePerSub(), refetchUsagePerDay()]);
+      setUsageClearModalOpen(false);
       showSnackbar("All usage data cleared successfully.", "success");
     } catch (error: unknown) {
+      setUsageClearModalOpen(false);
       showSnackbar(
         `Failed to clear usage data: ${error instanceof Error ? error.message : String(error)}`,
         "error",
@@ -731,13 +729,14 @@ const Traffic: React.FC = () => {
   };
 
   const handleConfirmClearFlows = async () => {
-    setFlowClearModalOpen(false);
     if (!accessToken) return;
     try {
       await clearFlowReports(accessToken);
       await refetchFlowReports();
+      setFlowClearModalOpen(false);
       showSnackbar("All flow report data cleared successfully.", "success");
     } catch (error: unknown) {
+      setFlowClearModalOpen(false);
       showSnackbar(
         `Failed to clear flow report data: ${error instanceof Error ? error.message : String(error)}`,
         "error",
@@ -764,13 +763,12 @@ const Traffic: React.FC = () => {
     "& .MuiDataGrid-columnHeaders": {
       borderBottom: "1px solid",
       borderColor: "divider",
-      backgroundColor: "#F5F5F5",
+      backgroundColor: "backgroundSubtle",
     },
     "& .MuiDataGrid-footerContainer": {
       borderTop: "1px solid",
       borderColor: "divider",
     },
-    "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
   };
 
   // ── Render ──────────────────────────────────────────
@@ -794,7 +792,7 @@ const Traffic: React.FC = () => {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
-            px: { xs: 2, sm: 4 },
+            px: PAGE_PADDING_X,
             display: "flex",
             flexDirection: "column",
             gap: 2,
@@ -954,6 +952,8 @@ const Traffic: React.FC = () => {
                   paginationModel={usagePaginationModel}
                   onPaginationModelChange={setUsagePaginationModel}
                   pageSizeOptions={[10, 25, 50, 100]}
+                  disableColumnMenu
+                  disableRowSelectionOnClick
                   columnVisibilityModel={{ subscriber: !isSmDown }}
                   sx={gridSx}
                 />
@@ -1213,8 +1213,6 @@ const Traffic: React.FC = () => {
                   primaryText="No flow reports found"
                   secondaryText="No flows match the current filters, or flow accounting has not recorded any data yet."
                   button={false}
-                  buttonText=""
-                  onCreate={() => {}}
                 />
               ) : (
                 <ThemeProvider theme={gridTheme}>
@@ -1226,9 +1224,7 @@ const Traffic: React.FC = () => {
                     rowCount={flowRowCount}
                     paginationModel={flowPaginationModel}
                     onPaginationModelChange={setFlowPaginationModel}
-                    sortModel={flowSortModel}
-                    onSortModelChange={setFlowSortModel}
-                    sortingMode="client"
+                    disableColumnSorting
                     disableColumnMenu
                     disableRowSelectionOnClick
                     pageSizeOptions={[10, 25, 50, 100]}

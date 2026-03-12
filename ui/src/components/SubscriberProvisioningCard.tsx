@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useAuth } from "@/contexts/AuthContext";
 import type { APISubscriber } from "@/queries/subscribers";
+import theme from "@/utils/theme";
 import { getSubscriberCredentials } from "@/queries/subscribers";
 import { getPolicy } from "@/queries/policies";
 import { UPLINK_COLOR, DOWNLINK_COLOR } from "@/utils/formatters";
@@ -72,7 +73,7 @@ const FieldRow: React.FC<{
         wordBreak: "break-all",
         ...(linkTo
           ? {
-              color: "#4254FB",
+              color: theme.palette.link,
               textDecoration: "underline",
               "&:hover": { textDecoration: "underline" },
             }
@@ -238,7 +239,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
             component={RouterLink}
             to="/policies"
             sx={{
-              color: "#4254FB",
+              color: theme.palette.link,
               textDecoration: "underline",
               "&:hover": { textDecoration: "underline" },
             }}

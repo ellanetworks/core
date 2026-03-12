@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -95,6 +95,8 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
@@ -105,47 +107,61 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
         sd: (initialData.sd ?? "").replace(/^0x/i, "").slice(0, 6),
       });
       setErrors({});
+      setTouched({});
       setAlert({ message: "" });
     }
   }, [open, initialData]);
 
   const handleChange = (field: "sst" | "sd", value: string) => {
-    setFormValues((prev) => {
-      if (field === "sst") return { ...prev, sst: value };
-      // field === "sd"
-      return { ...prev, sd: sanitizeSdInput(value) };
-    });
-    setErrors((prev) => ({ ...prev, [field]: "" }));
+    const sanitized = field === "sd" ? sanitizeSdInput(value) : value;
+    setFormValues((prev) => ({
+      ...prev,
+      [field]: sanitized,
+    }));
+    validateField(field, field === "sst" ? Number(sanitized) : sanitized);
   };
 
-  const validate = async (): Promise<boolean> => {
+  const handleBlur = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const validateField = async (field: string, value: string | number) => {
+    try {
+      await schema.validateAt(field, { ...formValues, [field]: value });
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    } catch (err) {
+      if (err instanceof yup.ValidationError) {
+        setErrors((prev) => ({ ...prev, [field]: err.message }));
+      }
+    }
+  };
+
+  const validateForm = useCallback(async () => {
     try {
       const prepared = {
         sst:
           typeof formValues.sst === "string"
             ? Number(formValues.sst)
             : formValues.sst,
-        sd: formValues.sd, // already sanitized
+        sd: formValues.sd,
       };
       await schema.validate(prepared, { abortEarly: false });
-      setErrors({});
-      return true;
-    } catch (err) {
-      if (err instanceof yup.ValidationError) {
-        const validationErrors: Record<string, string> = {};
-        err.inner.forEach((e) => {
-          if (e.path) validationErrors[e.path] = e.message;
-        });
-        setErrors(validationErrors);
-      }
-      return false;
+      setIsValid(true);
+    } catch {
+      setIsValid(false);
     }
-  };
+  }, [formValues]);
+
+  useEffect(() => {
+    validateForm();
+  }, [validateForm]);
 
   const handleSubmit = async () => {
     if (!accessToken) return;
-    const isValid = await validate();
-    if (!isValid) return;
 
     setLoading(true);
     setAlert({ message: "" });
@@ -204,9 +220,13 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
           label="SST"
           value={formValues.sst}
           onChange={(e) => handleChange("sst", e.target.value)}
-          error={!!errors.sst}
-          helperText={errors.sst || "Enter an integer between 0 and 255."}
+          onBlur={() => handleBlur("sst")}
+          error={touched.sst && !!errors.sst}
+          helperText={
+            (touched.sst && errors.sst) || "Enter an integer between 0 and 255."
+          }
           margin="normal"
+          autoFocus
           inputProps={{
             inputMode: "numeric",
             pattern: "[0-9]*",
@@ -220,8 +240,9 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
           label="SD (optional)"
           value={formValues.sd}
           onChange={(e) => handleChange("sd", e.target.value)}
-          error={!!errors.sd}
-          helperText={errors.sd || "Enter 6 hex digits."}
+          onBlur={() => handleBlur("sd")}
+          error={touched.sd && !!errors.sd}
+          helperText={(touched.sd && errors.sd) || "Enter 6 hex digits."}
           margin="normal"
           placeholder="012030"
           inputProps={{ spellCheck: false, inputMode: "text" }}
@@ -239,7 +260,7 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
           variant="contained"
           color="success"
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={!isValid || loading}
         >
           {loading ? "Updating..." : "Update"}
         </Button>

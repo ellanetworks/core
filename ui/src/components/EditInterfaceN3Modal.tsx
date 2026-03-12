@@ -52,9 +52,11 @@ const EditInterfaceN3Modal: React.FC<EditInterfaceN3ModalProps> = ({
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
-  if (!authReady || !accessToken) {
-    navigate("/login");
-  }
+  useEffect(() => {
+    if (!authReady || !accessToken) {
+      navigate("/login");
+    }
+  }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState<{ externalAddress: string }>({
     externalAddress: "",
@@ -161,6 +163,7 @@ const EditInterfaceN3Modal: React.FC<EditInterfaceN3ModalProps> = ({
             "Leave empty to use N3's configured address."
           }
           margin="normal"
+          autoFocus
         />
       </DialogContent>
       <DialogActions>
