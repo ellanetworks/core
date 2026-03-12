@@ -21,7 +21,7 @@ func Backup(dbInstance *db.Database) http.HandlerFunc {
 			return
 		}
 
-		tempFile, err := os.CreateTemp("", "backup_*.db")
+		tempFile, err := os.CreateTemp(dbInstance.Dir(), "backup_*.db")
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create temp backup file", err, logger.APILog)
 			return

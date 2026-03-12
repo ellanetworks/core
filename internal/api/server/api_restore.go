@@ -42,7 +42,7 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 			}
 		}()
 
-		tempFile, err := os.CreateTemp("", "restore_*.db")
+		tempFile, err := os.CreateTemp(dbInstance.Dir(), "restore_*.db")
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create temporary file", err, logger.APILog)
 			return
