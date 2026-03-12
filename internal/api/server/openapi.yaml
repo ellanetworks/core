@@ -246,13 +246,15 @@ paths:
       operationId: updateMyPassword
       tags: [Users]
       summary: Update own password
-      description: Change the password of the currently authenticated user.
+      description: |
+        Change the password of the currently authenticated user.
+        Requires the current password for verification.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdatePasswordParams"
+              $ref: "#/components/schemas/UpdateMyPasswordParams"
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -2100,6 +2102,17 @@ components:
       properties:
         password:
           type: string
+
+    UpdateMyPasswordParams:
+      type: object
+      required: [current_password, password]
+      properties:
+        current_password:
+          type: string
+          description: The user's current password, required for verification.
+        password:
+          type: string
+          description: The new password to set.
 
     APIToken:
       type: object
