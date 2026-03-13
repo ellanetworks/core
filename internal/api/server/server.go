@@ -44,7 +44,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("POST /api/v1/init", Initialize(dbInstance, jwtSecret, secureCookie).ServeHTTP)
 
 	// Users (Authenticated except for first user creation)
-	mux.HandleFunc("GET /api/v1/users/me", Authenticate(jwtSecret, dbInstance, GetLoggedInUser(dbInstance)).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/users/me", Authenticate(jwtSecret, dbInstance, Authorize(PermReadMyUser, GetLoggedInUser(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/users/me/password", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateMyUserPassword, UpdateMyUserPassword(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/users/me/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermListMyAPITokens, ListMyAPITokens(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/users/me/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateMyAPIToken, CreateMyAPIToken(dbInstance))).ServeHTTP)
