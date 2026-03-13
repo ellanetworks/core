@@ -24,6 +24,8 @@ const (
 	SessionTokenCookieName = "session_token"
 	TokenLength            = 32 // Bytes
 	MaxSessionsPerUser     = 10 // Maximum number of concurrent sessions per user
+	LoginRateLimit         = 20 // Maximum login attempts per IP per window
+	LoginRateWindow        = 1 * time.Minute
 )
 
 type LoginParams struct {
@@ -156,8 +158,17 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.
 	})
 }
 
-func Login(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.Handler {
+func Login(dbInstance *db.Database, jwtSecret []byte, secureCookie bool, loginLimiter *ipRateLimiter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		clientIP := getClientIP(r)
+
+		if !loginLimiter.allow(clientIP) {
+			w.Header().Set("Retry-After", "60")
+			writeError(r.Context(), w, http.StatusTooManyRequests, "Too many login attempts. Please try again later.", fmt.Errorf("rate limit exceeded for IP %s", clientIP), logger.APILog)
+
+			return
+		}
+
 		var success bool
 
 		defer func() {
