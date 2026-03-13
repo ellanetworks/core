@@ -40,12 +40,9 @@ type SubscriberStatus struct {
 
 // Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
-	Imsi           string           `json:"imsi"`
-	Opc            string           `json:"opc"`            // Deprecated: use GET /api/v1/subscribers/{imsi}/credentials instead.
-	SequenceNumber string           `json:"sequenceNumber"` // Deprecated: use GET /api/v1/subscribers/{imsi}/credentials instead.
-	Key            string           `json:"key"`            // Deprecated: use GET /api/v1/subscribers/{imsi}/credentials instead.
-	PolicyName     string           `json:"policyName"`
-	Status         SubscriberStatus `json:"status"`
+	Imsi       string           `json:"imsi"`
+	PolicyName string           `json:"policyName"`
+	Status     SubscriberStatus `json:"status"`
 }
 
 type ListSubscribersResponse struct {
@@ -68,12 +65,9 @@ type SubscriberDetailStatus struct {
 
 // SubscriberDetail is the full representation returned by the get-single endpoint.
 type SubscriberDetail struct {
-	Imsi           string                 `json:"imsi"`
-	Opc            string                 `json:"opc"`            // Deprecated: use GET /api/v1/subscribers/{imsi}/credentials instead.
-	SequenceNumber string                 `json:"sequenceNumber"` // Deprecated: use GET /api/v1/subscribers/{imsi}/credentials instead.
-	Key            string                 `json:"key"`            // Deprecated: use GET /api/v1/subscribers/{imsi}/credentials instead.
-	PolicyName     string                 `json:"policyName"`
-	Status         SubscriberDetailStatus `json:"status"`
+	Imsi       string                 `json:"imsi"`
+	PolicyName string                 `json:"policyName"`
+	Status     SubscriberDetailStatus `json:"status"`
 }
 
 // SubscriberCredentials is the response for the dedicated credentials endpoint.
@@ -196,12 +190,9 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 			}
 
 			items = append(items, Subscriber{
-				Imsi:           dbSubscriber.Imsi,
-				Opc:            dbSubscriber.Opc,
-				Key:            dbSubscriber.PermanentKey,
-				SequenceNumber: dbSubscriber.SequenceNumber,
-				PolicyName:     policy.Name,
-				Status:         subscriberStatus,
+				Imsi:       dbSubscriber.Imsi,
+				PolicyName: policy.Name,
+				Status:     subscriberStatus,
 			})
 		}
 
@@ -282,12 +273,9 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		subscriber := SubscriberDetail{
-			Imsi:           dbSubscriber.Imsi,
-			Opc:            dbSubscriber.Opc,
-			SequenceNumber: dbSubscriber.SequenceNumber,
-			Key:            dbSubscriber.PermanentKey,
-			PolicyName:     policy.Name,
-			Status:         subscriberStatus,
+			Imsi:       dbSubscriber.Imsi,
+			PolicyName: policy.Name,
+			Status:     subscriberStatus,
 		}
 
 		writeResponse(r.Context(), w, subscriber, http.StatusOK, logger.APILog)

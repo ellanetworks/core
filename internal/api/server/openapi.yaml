@@ -2194,24 +2194,12 @@ components:
         imsi:
           type: string
           description: "15-digit International Mobile Subscriber Identity."
-        opc:
-          type: string
-          description: "32-character hex OPc value."
-          deprecated: true
-        sequenceNumber:
-          type: string
-          description: "Sequence number (6-byte hex)."
-          deprecated: true
-        key:
-          type: string
-          description: "32-character hex permanent key."
-          deprecated: true
         policyName:
           type: string
           description: Name of the assigned QoS policy.
         status:
           $ref: "#/components/schemas/SubscriberStatus"
-      required: [imsi, opc, sequenceNumber, key, policyName, status]
+      required: [imsi, policyName, status]
 
     ListSubscribersResponse:
       type: object
@@ -2263,20 +2251,11 @@ components:
       properties:
         imsi:
           type: string
-        opc:
-          type: string
-          deprecated: true
-        sequenceNumber:
-          type: string
-          deprecated: true
-        key:
-          type: string
-          deprecated: true
         policyName:
           type: string
         status:
           $ref: "#/components/schemas/SubscriberDetailStatus"
-      required: [imsi, opc, sequenceNumber, key, policyName, status]
+      required: [imsi, policyName, status]
 
     SubscriberCredentials:
       type: object

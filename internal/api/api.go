@@ -73,6 +73,8 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 		srv := &http.Server{
 			Addr:              httpAddr,
 			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       1 * time.Minute,
+			WriteTimeout:      5 * time.Minute,
 			Handler:           h2c.NewHandler(router, h2Server),
 		}
 		if scheme == HTTPS {

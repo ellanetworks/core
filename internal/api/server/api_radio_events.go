@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -58,11 +59,29 @@ func isRFC3339(s string) bool {
 	return true
 }
 
+// isValidAddress checks that s is either a valid IP address or a valid IP:port pair.
+func isValidAddress(s string) bool {
+	if net.ParseIP(s) != nil {
+		return true
+	}
+
+	host, _, err := net.SplitHostPort(s)
+	if err != nil {
+		return false
+	}
+
+	return net.ParseIP(host) != nil
+}
+
 func parseRadioEventFilters(r *http.Request) (*db.RadioEventFilters, error) {
 	q := r.URL.Query()
 	f := &db.RadioEventFilters{}
 
 	if v := strings.TrimSpace(q.Get("protocol")); v != "" {
+		if len(v) > 64 {
+			return f, fmt.Errorf("protocol filter too long (max 64 characters)")
+		}
+
 		f.Protocol = &v
 	}
 
@@ -76,14 +95,26 @@ func parseRadioEventFilters(r *http.Request) (*db.RadioEventFilters, error) {
 	}
 
 	if v := strings.TrimSpace(q.Get("local_address")); v != "" {
+		if !isValidAddress(v) {
+			return f, fmt.Errorf("invalid local_address: must be a valid IP or IP:port")
+		}
+
 		f.LocalAddress = &v
 	}
 
 	if v := strings.TrimSpace(q.Get("remote_address")); v != "" {
+		if !isValidAddress(v) {
+			return f, fmt.Errorf("invalid remote_address: must be a valid IP or IP:port")
+		}
+
 		f.RemoteAddress = &v
 	}
 
 	if v := strings.TrimSpace(q.Get("message_type")); v != "" {
+		if len(v) > 128 {
+			return f, fmt.Errorf("message_type filter too long (max 128 characters)")
+		}
+
 		f.MessageType = &v
 	}
 

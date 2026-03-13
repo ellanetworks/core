@@ -112,7 +112,7 @@ func isValidOperatorCode(operatorCode string) bool {
 
 	_, err := hex.DecodeString(operatorCode)
 	if err != nil {
-		logger.APILog.Warn("Invalid operator code", zap.Error(err), zap.String("operatorCode", operatorCode))
+		logger.APILog.Warn("Invalid operator code: not valid hex", zap.Error(err))
 		return false
 	}
 

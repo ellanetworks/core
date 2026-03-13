@@ -32,12 +32,9 @@ type SubscriberStatus struct {
 
 // Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
-	Imsi           string           `json:"imsi"`
-	Opc            string           `json:"opc"`            // Deprecated: use GetSubscriberCredentials instead.
-	SequenceNumber string           `json:"sequenceNumber"` // Deprecated: use GetSubscriberCredentials instead.
-	Key            string           `json:"key"`            // Deprecated: use GetSubscriberCredentials instead.
-	PolicyName     string           `json:"policyName"`
-	Status         SubscriberStatus `json:"status"`
+	Imsi       string           `json:"imsi"`
+	PolicyName string           `json:"policyName"`
+	Status     SubscriberStatus `json:"status"`
 }
 
 type ListSubscribersResponse struct {
@@ -60,12 +57,9 @@ type SubscriberDetailStatus struct {
 
 // SubscriberDetail is the full representation returned by the get-single endpoint.
 type SubscriberDetail struct {
-	Imsi           string                 `json:"imsi"`
-	Opc            string                 `json:"opc"`            // Deprecated: use GetSubscriberCredentials instead.
-	SequenceNumber string                 `json:"sequenceNumber"` // Deprecated: use GetSubscriberCredentials instead.
-	Key            string                 `json:"key"`            // Deprecated: use GetSubscriberCredentials instead.
-	PolicyName     string                 `json:"policyName"`
-	Status         SubscriberDetailStatus `json:"status"`
+	Imsi       string                 `json:"imsi"`
+	PolicyName string                 `json:"policyName"`
+	Status     SubscriberDetailStatus `json:"status"`
 }
 
 // SubscriberCredentials contains the authentication credentials for a subscriber.

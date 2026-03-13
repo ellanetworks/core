@@ -29,9 +29,6 @@ This path returns the list of network subscribers.
         "items": [
             {
                 "imsi": "001010100007487",
-                "opc": "981d464c7c52eb6e5036234984ad0bcf",
-                "sequenceNumber": "16f3b3f70fc7",
-                "key": "5122250214c33e723a5dd523fc145fc0",
                 "policyName": "default",
                 "status": {
                     "registered": true,
@@ -49,10 +46,6 @@ This path returns the list of network subscribers.
     }
 }
 ```
-
-!!! warning "Deprecated fields"
-    The `key`, `opc`, and `sequenceNumber` fields in each subscriber item are deprecated and will be removed in a future release.
-    Use **GET /api/v1/subscribers/{imsi}/credentials** to retrieve authentication credentials instead.
 
 ## Create a Subscriber
 
@@ -120,9 +113,6 @@ None
 {
     "result": {
         "imsi": "001010100007487",
-        "opc": "981d464c7c52eb6e5036234984ad0bcf",
-        "sequenceNumber": "16f3b3f70fc7",
-        "key": "5122250214c33e723a5dd523fc145fc0",
         "policyName": "default",
         "status": {
             "registered": true,
@@ -135,10 +125,6 @@ None
     }
 }
 ```
-
-!!! warning "Deprecated fields"
-    The `key`, `opc`, and `sequenceNumber` fields are deprecated and will be removed in a future release.
-    Use **GET /api/v1/subscribers/{imsi}/credentials** to retrieve authentication credentials instead.
 
 ## Get Subscriber Credentials
 
