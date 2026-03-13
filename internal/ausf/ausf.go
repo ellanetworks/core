@@ -7,11 +7,11 @@ package ausf
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"math/big"
-	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -193,8 +193,8 @@ func (ausf *AUSF) CreateAuthData(ctx context.Context, snName string, resyncInfo 
 			return nil, fmt.Errorf("failed to re-sync SQN with supi %s: %w", supi, err)
 		}
 
-		if !reflect.DeepEqual(macS, auts[6:]) {
-			return nil, fmt.Errorf("failed to re-sync MAC with supi %s, macS %x, auts[6:] %x, sqn %x", supi, macS, auts[6:], SQNms)
+		if !hmac.Equal(macS, auts[6:]) {
+			return nil, fmt.Errorf("failed to re-sync MAC with supi %s", supi)
 		}
 
 		_, err = rand.Read(RAND)
