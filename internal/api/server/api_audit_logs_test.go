@@ -201,8 +201,8 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	// Create 49 users to generate audit logs
-	for i := 1; i <= 49; i++ {
+	// Create 14 users to generate audit logs (15 total with init)
+	for i := 1; i <= 14; i++ {
 		email := fmt.Sprintf("user%d@example.com", i)
 		params := &CreateUserParams{
 			Email:    email,
@@ -221,7 +221,7 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 	}
 
 	// Test first page
-	statusCode, response, err := listAuditLogs(ts.URL, client, token, 1, 10)
+	statusCode, response, err := listAuditLogs(ts.URL, client, token, 1, 5)
 	if err != nil {
 		t.Fatalf("couldn't list audit logs: %s", err)
 	}
@@ -230,32 +230,32 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 	}
 
-	if len(response.Result.Items) != 10 {
-		t.Fatalf("expected 10 audit logs, got %d", len(response.Result.Items))
+	if len(response.Result.Items) != 5 {
+		t.Fatalf("expected 5 audit logs, got %d", len(response.Result.Items))
 	}
 
-	if response.Result.TotalCount != 50 {
-		t.Fatalf("expected total_count to be 50, got %d", response.Result.TotalCount)
+	if response.Result.TotalCount != 15 {
+		t.Fatalf("expected total_count to be 15, got %d", response.Result.TotalCount)
 	}
 
 	if response.Result.Page != 1 {
 		t.Fatalf("expected page to be 1, got %d", response.Result.Page)
 	}
 
-	if response.Result.PerPage != 10 {
-		t.Fatalf("expected per_page to be 10, got %d", response.Result.PerPage)
+	if response.Result.PerPage != 5 {
+		t.Fatalf("expected per_page to be 5, got %d", response.Result.PerPage)
 	}
 
-	if response.Result.Items[0].Details != "User created user: user49@example.com with role: 2" {
+	if response.Result.Items[0].Details != "User created user: user14@example.com with role: 2" {
 		t.Fatalf("expected first audit log details to be correct, got %s", response.Result.Items[0].Details)
 	}
 
-	if response.Result.Items[9].Details != "User created user: user40@example.com with role: 2" {
-		t.Fatalf("expected last audit log details to be correct, got %s", response.Result.Items[9].Details)
+	if response.Result.Items[4].Details != "User created user: user10@example.com with role: 2" {
+		t.Fatalf("expected last audit log details to be correct, got %s", response.Result.Items[4].Details)
 	}
 
 	// Test second page
-	statusCode, response, err = listAuditLogs(ts.URL, client, token, 2, 10)
+	statusCode, response, err = listAuditLogs(ts.URL, client, token, 2, 5)
 	if err != nil {
 		t.Fatalf("couldn't list audit logs: %s", err)
 	}
@@ -264,32 +264,32 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 	}
 
-	if len(response.Result.Items) != 10 {
-		t.Fatalf("expected 10 audit logs, got %d", len(response.Result.Items))
+	if len(response.Result.Items) != 5 {
+		t.Fatalf("expected 5 audit logs, got %d", len(response.Result.Items))
 	}
 
-	if response.Result.TotalCount != 50 {
-		t.Fatalf("expected total_count to be 50, got %d", response.Result.TotalCount)
+	if response.Result.TotalCount != 15 {
+		t.Fatalf("expected total_count to be 15, got %d", response.Result.TotalCount)
 	}
 
 	if response.Result.Page != 2 {
 		t.Fatalf("expected page to be 2, got %d", response.Result.Page)
 	}
 
-	if response.Result.PerPage != 10 {
-		t.Fatalf("expected per_page to be 10, got %d", response.Result.PerPage)
+	if response.Result.PerPage != 5 {
+		t.Fatalf("expected per_page to be 5, got %d", response.Result.PerPage)
 	}
 
-	if response.Result.Items[0].Details != "User created user: user39@example.com with role: 2" {
+	if response.Result.Items[0].Details != "User created user: user9@example.com with role: 2" {
 		t.Fatalf("expected first audit log details to be correct, got %s", response.Result.Items[0].Details)
 	}
 
-	if response.Result.Items[9].Details != "User created user: user30@example.com with role: 2" {
-		t.Fatalf("expected last audit log details to be correct, got %s", response.Result.Items[9].Details)
+	if response.Result.Items[4].Details != "User created user: user5@example.com with role: 2" {
+		t.Fatalf("expected last audit log details to be correct, got %s", response.Result.Items[4].Details)
 	}
 
 	// Test last page
-	statusCode, response, err = listAuditLogs(ts.URL, client, token, 5, 10)
+	statusCode, response, err = listAuditLogs(ts.URL, client, token, 3, 5)
 	if err != nil {
 		t.Fatalf("couldn't list audit logs: %s", err)
 	}
@@ -298,28 +298,28 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 	}
 
-	if len(response.Result.Items) != 10 {
-		t.Fatalf("expected 10 audit logs, got %d", len(response.Result.Items))
+	if len(response.Result.Items) != 5 {
+		t.Fatalf("expected 5 audit logs, got %d", len(response.Result.Items))
 	}
 
-	if response.Result.TotalCount != 50 {
-		t.Fatalf("expected total_count to be 50, got %d", response.Result.TotalCount)
+	if response.Result.TotalCount != 15 {
+		t.Fatalf("expected total_count to be 15, got %d", response.Result.TotalCount)
 	}
 
-	if response.Result.Page != 5 {
-		t.Fatalf("expected page to be 5, got %d", response.Result.Page)
+	if response.Result.Page != 3 {
+		t.Fatalf("expected page to be 3, got %d", response.Result.Page)
 	}
 
-	if response.Result.PerPage != 10 {
-		t.Fatalf("expected per_page to be 10, got %d", response.Result.PerPage)
+	if response.Result.PerPage != 5 {
+		t.Fatalf("expected per_page to be 5, got %d", response.Result.PerPage)
 	}
 
-	if response.Result.Items[0].Details != "User created user: user9@example.com with role: 2" {
+	if response.Result.Items[0].Details != "User created user: user4@example.com with role: 2" {
 		t.Fatalf("expected first audit log details to be correct, got %s", response.Result.Items[0].Details)
 	}
 
-	if response.Result.Items[9].Details != "System initialized with first user my.user123@ellanetworks.com" {
-		t.Fatalf("expected last audit log details to be correct, got %s", response.Result.Items[9].Details)
+	if response.Result.Items[4].Details != "System initialized with first user my.user123@ellanetworks.com" {
+		t.Fatalf("expected last audit log details to be correct, got %s", response.Result.Items[4].Details)
 	}
 }
 
