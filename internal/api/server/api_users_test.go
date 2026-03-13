@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ellanetworks/core/internal/db"
 )
 
 const (
@@ -1194,7 +1196,7 @@ func TestCreateTooManyUsers(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	ts, _, dbInstance, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -1207,24 +1209,15 @@ func TestCreateTooManyUsers(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	for i := 0; i < 49; i++ { // We use 49 instead of 50 because the first user was just created
-		createUserParams := &CreateUserParams{
-			Email:    "user" + strconv.Itoa(i) + "@ellanetworks.com",
-			Password: Password,
-			RoleID:   RoleReadOnly,
-		}
-
-		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
+	// Insert users directly into DB to fill up to the limit (bypasses HTTP + bcrypt overhead)
+	for i := 0; i < 49; i++ { // 50 - 1 because init already created one user
+		_, err := dbInstance.CreateUser(context.Background(), &db.User{
+			Email:          "user" + strconv.Itoa(i) + "@ellanetworks.com",
+			HashedPassword: "placeholder-hash",
+			RoleID:         db.RoleID(RoleReadOnly),
+		})
 		if err != nil {
-			t.Fatalf("couldn't create user: %s", err)
-		}
-
-		if statusCode != http.StatusCreated {
-			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
-		}
-
-		if response.Error != "" {
-			t.Fatalf("unexpected error :%q", response.Error)
+			t.Fatalf("couldn't insert user %d: %s", i, err)
 		}
 	}
 
