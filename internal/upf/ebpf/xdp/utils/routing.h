@@ -41,7 +41,7 @@ struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(key, 0);
 	__uint(value, 0);
-	__uint(max_entries, 4096);
+	__uint(max_entries, 16384);
 } no_neigh_map SEC(".maps");
 
 struct route_stat {
