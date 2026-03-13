@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
@@ -25,8 +26,9 @@ import (
 )
 
 const (
-	SqnMAx int64 = 0x7FFFFFFFFFF
-	ind    int64 = 32
+	SqnMAx         int64         = 0x7FFFFFFFFFF
+	ind            int64         = 32
+	authContextTTL time.Duration = 60 * time.Second
 )
 
 type AUSF struct {
@@ -38,16 +40,18 @@ type AUSF struct {
 }
 
 type UEAuthenticationContext struct {
-	Supi     etsi.SUPI
-	Kseaf    string
-	XresStar string
-	Rand     string
+	Supi      etsi.SUPI
+	Kseaf     string
+	XresStar  string
+	Rand      string
+	CreatedAt time.Time
 }
 
 var ausf *AUSF
 
-func Start(dbInstance *db.Database) {
+func Start(ctx context.Context, dbInstance *db.Database) {
 	ausf = NewAUSF(dbInstance)
+	go ausf.cleanupExpiredContexts(ctx)
 }
 
 func NewAUSF(dbInstance *db.Database) *AUSF {
@@ -75,6 +79,39 @@ func (a *AUSF) getUeAuthenticationContext(suci string) *UEAuthenticationContext 
 	}
 
 	return ausfUeContext
+}
+
+func (a *AUSF) deleteUeAuthenticationContext(suci string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	delete(a.uePool, suci)
+}
+
+func (a *AUSF) cleanupExpiredContexts(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			a.evictExpiredContexts()
+		}
+	}
+}
+
+func (a *AUSF) evictExpiredContexts() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	now := time.Now()
+	for suci, ueCtx := range a.uePool {
+		if now.Sub(ueCtx.CreatedAt) > authContextTTL {
+			delete(a.uePool, suci)
+		}
+	}
 }
 
 func (a *AUSF) isServingNetworkAuthorized(lookup string) bool {

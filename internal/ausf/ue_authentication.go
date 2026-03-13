@@ -10,6 +10,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
@@ -79,10 +80,11 @@ func UeAuthPostRequestProcedure(ctx context.Context, suci string, snName string,
 	}
 
 	ausf.addUeAuthenticationContextToPool(suci, &UEAuthenticationContext{
-		Supi:     authInfoResult.Supi,
-		XresStar: authInfoResult.AuthenticationVector.XresStar,
-		Kseaf:    hex.EncodeToString(kSeaf),
-		Rand:     authInfoResult.AuthenticationVector.Rand,
+		Supi:      authInfoResult.Supi,
+		XresStar:  authInfoResult.AuthenticationVector.XresStar,
+		Kseaf:     hex.EncodeToString(kSeaf),
+		Rand:      authInfoResult.AuthenticationVector.Rand,
+		CreatedAt: time.Now(),
 	})
 
 	return &models.Av5gAka{
@@ -99,8 +101,14 @@ func Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (etsi.SUPI, s
 	}
 
 	if subtle.ConstantTimeCompare([]byte(resStar), []byte(ausfCurrentContext.XresStar)) != 1 {
+		ausf.deleteUeAuthenticationContext(suci)
 		return etsi.InvalidSUPI, "", fmt.Errorf("RES* mismatch for suci: %s", suci)
 	}
 
-	return ausfCurrentContext.Supi, ausfCurrentContext.Kseaf, nil
+	supi := ausfCurrentContext.Supi
+	kseaf := ausfCurrentContext.Kseaf
+
+	ausf.deleteUeAuthenticationContext(suci)
+
+	return supi, kseaf, nil
 }
