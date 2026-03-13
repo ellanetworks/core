@@ -65,6 +65,7 @@ func (rl *ipRateLimiter) cleanup() {
 		select {
 		case <-ticker.C:
 			rl.mu.Lock()
+
 			now := time.Now()
 
 			for ip, entry := range rl.entries {
