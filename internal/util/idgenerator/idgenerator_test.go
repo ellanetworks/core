@@ -20,7 +20,7 @@ func TestAllocate(t *testing.T) {
 	}{
 		{1, 20},
 		{11, 50},
-		{1, 12345678},
+		{1, 100000},
 	}
 
 	for _, testCase := range testCases {

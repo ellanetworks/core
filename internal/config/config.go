@@ -299,6 +299,10 @@ func Validate(filePath string) (Config, error) {
 		config.Interfaces.API.TLS.Key = c.Interfaces.API.TLS.Key
 	}
 
+	if (c.Interfaces.API.TLS.Cert != "") != (c.Interfaces.API.TLS.Key != "") {
+		return Config{}, errors.New("both interfaces.api.tls.cert and interfaces.api.tls.key must be provided together")
+	}
+
 	if c.XDP == (XDPYaml{}) {
 		return Config{}, errors.New("xdp is empty")
 	}

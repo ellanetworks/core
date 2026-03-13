@@ -3,6 +3,7 @@ package gmm
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 
@@ -41,8 +42,8 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 	hResStarBytes := sha256.Sum256(concat)
 	hResStar := hex.EncodeToString(hResStarBytes[16:])
 
-	if hResStar != ue.AuthenticationCtx.HxresStar {
-		ue.Log.Error("HRES* Validation Failure", zap.String("received", hResStar), zap.String("expected", ue.AuthenticationCtx.HxresStar))
+	if subtle.ConstantTimeCompare([]byte(hResStar), []byte(ue.AuthenticationCtx.HxresStar)) != 1 {
+		ue.Log.Error("HRES* Validation Failure")
 
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 			err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)

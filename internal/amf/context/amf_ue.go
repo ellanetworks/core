@@ -9,6 +9,7 @@ package context
 
 import (
 	"context"
+	"crypto/hmac"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -715,8 +716,8 @@ func (ue *AmfUe) DecodeNASMessage(payload []byte) (*nas.Message, error) {
 			return nil, fmt.Errorf("error calculating mac: %+v", err)
 		}
 
-		if !reflect.DeepEqual(mac32, receivedMac32) {
-			ue.Log.Warn("MAC verification failed", zap.String("received", hex.EncodeToString(receivedMac32)), zap.String("expected", hex.EncodeToString(mac32)))
+		if !hmac.Equal(mac32, receivedMac32) {
+			ue.Log.Warn("NAS MAC verification failed")
 			ue.MacFailed = true
 		} else {
 			ue.MacFailed = false
