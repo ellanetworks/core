@@ -5,10 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 )
+
+var initMu sync.Mutex
 
 type InitializeParams struct {
 	Email    string `json:"email"`
@@ -47,6 +50,9 @@ func Initialize(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) ht
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid email format", errors.New("bad format"), logger.APILog)
 			return
 		}
+
+		initMu.Lock()
+		defer initMu.Unlock()
 
 		numUsers, err := dbInstance.CountUsers(r.Context())
 		if err != nil {

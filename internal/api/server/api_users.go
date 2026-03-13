@@ -591,14 +591,13 @@ func randAlphaNum(n int) (string, error) {
 	return string(b), nil
 }
 
-func hashAPIToken(token string) string {
+func hashAPIToken(token string) (string, error) {
 	hashedToken, err := bcrypt.GenerateFromPassword([]byte(token), bcrypt.DefaultCost)
 	if err != nil {
-		logger.APILog.Error("Failed to hash API token", zap.Error(err))
-		return ""
+		return "", fmt.Errorf("failed to hash API token: %w", err)
 	}
 
-	return string(hashedToken)
+	return string(hashedToken), nil
 }
 
 func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
@@ -681,7 +680,11 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 
 		token := fmt.Sprintf("ellacore_%s_%s", tokenID, secret)
 
-		hash := hashAPIToken(secret)
+		hash, err := hashAPIToken(secret)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash API token", err, logger.APILog)
+			return
+		}
 
 		apiToken := &db.APIToken{
 			TokenID:   tokenID,
@@ -934,7 +937,11 @@ func CreateUserAPIToken(dbInstance *db.Database) http.Handler {
 
 		token := fmt.Sprintf("ellacore_%s_%s", tokenID, secret)
 
-		hash := hashAPIToken(secret)
+		hash, err := hashAPIToken(secret)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash API token", err, logger.APILog)
+			return
+		}
 
 		apiToken := &db.APIToken{
 			TokenID:   tokenID,

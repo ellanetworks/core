@@ -315,6 +315,89 @@ func TestLoginEndToEnd(t *testing.T) {
 	})
 }
 
+func TestLoginRateLimiting(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := newTestClient(ts)
+
+	// Initialize the system first
+	initParams := &InitializeParams{
+		Email:    FirstUserEmail,
+		Password: "password123",
+	}
+
+	statusCode, _, err := initialize(ts.URL, client, initParams)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	if statusCode != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+	}
+
+	t.Run("1. Exhaust rate limit with failed attempts", func(t *testing.T) {
+		wrongPassword := &LoginParams{
+			Email:    FirstUserEmail,
+			Password: "wrong-password",
+		}
+
+		// Send LoginRateLimit (10) requests — all should get 401 (not 429)
+		for i := 0; i < server.LoginRateLimit; i++ {
+			statusCode, _, err := login(ts.URL, client, wrongPassword)
+			if err != nil {
+				t.Fatalf("request %d: unexpected error: %s", i+1, err)
+			}
+
+			if statusCode != http.StatusUnauthorized {
+				t.Fatalf("request %d: expected status %d, got %d", i+1, http.StatusUnauthorized, statusCode)
+			}
+		}
+	})
+
+	t.Run("2. Next request is rate limited", func(t *testing.T) {
+		wrongPassword := &LoginParams{
+			Email:    FirstUserEmail,
+			Password: "wrong-password",
+		}
+
+		statusCode, loginResponse, err := login(ts.URL, client, wrongPassword)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		if statusCode != http.StatusTooManyRequests {
+			t.Fatalf("expected status %d, got %d", http.StatusTooManyRequests, statusCode)
+		}
+
+		if loginResponse.Error != "Too many login attempts. Please try again later." {
+			t.Fatalf("expected rate limit error message, got %q", loginResponse.Error)
+		}
+	})
+
+	t.Run("3. Correct password is also rate limited", func(t *testing.T) {
+		correctPassword := &LoginParams{
+			Email:    FirstUserEmail,
+			Password: "password123",
+		}
+
+		statusCode, _, err := login(ts.URL, client, correctPassword)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		if statusCode != http.StatusTooManyRequests {
+			t.Fatalf("expected status %d even with correct password, got %d", http.StatusTooManyRequests, statusCode)
+		}
+	})
+}
+
 func TestAuthAPITokenEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")

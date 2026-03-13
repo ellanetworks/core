@@ -13,7 +13,7 @@ Security is one of Ella Core's core tenets. From authentication and authorizatio
 
 Ella Core enforces authentication on API requests towards most endpoints. Two authentication methods are supported:
 
-- **Session-based authentication.** Users authenticate with email and password. A session cookie and a short-lived access token are issued.
+- **Session-based authentication.** Users authenticate with email and password. A session cookie and a short-lived access token are issued. The login endpoint enforces per-IP rate limiting to protect against brute-force attacks.
 - **API tokens.** Per-user tokens with explicit expiry that can be revoked individually. Recommended for programmatic access.
 
 ### Role-Based Access Control

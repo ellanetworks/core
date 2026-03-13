@@ -127,9 +127,14 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 		return 0, "", 0, err
 	}
 
+	u, err := store.GetUserByID(ctx, cl.ID)
+	if err != nil || u == nil {
+		return 0, "", 0, errors.New("user not found")
+	}
+
 	success = true
 
-	return cl.ID, cl.Email, cl.RoleID, nil
+	return u.ID, u.Email, RoleID(u.RoleID), nil
 }
 
 // putIdentity adds identity to context.

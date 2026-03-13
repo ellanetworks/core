@@ -89,7 +89,15 @@ func TestRestoreEndpoint(t *testing.T) {
 	}
 	defer ts.Close()
 
+	client := newTestClient(ts)
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
 	// Create a real SQLite backup file using the database's Backup method
+	// (after initialization so the backup contains the admin user)
 	restoreFilePath := filepath.Join(tempDir, "restore_test.db")
 
 	backupFile, err := os.Create(restoreFilePath)
@@ -104,13 +112,6 @@ func TestRestoreEndpoint(t *testing.T) {
 	}
 
 	_ = backupFile.Close()
-
-	client := newTestClient(ts)
-
-	token, err := initializeAndRefresh(ts.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
 
 	t.Run("1. Trigger restore successfully", func(t *testing.T) {
 		statusCode, restoreResponse, err := restore(ts.URL, client, token, restoreFilePath)
