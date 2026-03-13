@@ -106,3 +106,103 @@ func TestGenerateSupportBundleFromData(t *testing.T) {
 		t.Fatalf("db.json not found in archive")
 	}
 }
+
+func TestGenerateSupportBundleFromData_AMFUesSeparateFile(t *testing.T) {
+	// Set AMFDumper to return test data.
+	origDumper := AMFDumper
+
+	defer func() { AMFDumper = origDumper }()
+
+	AMFDumper = func(ctx context.Context) (any, error) {
+		return []map[string]any{
+			{"supi": "imsi-001010000000099", "state": "Registered"},
+		}, nil
+	}
+
+	captured := time.Now().UTC().Format(time.RFC3339)
+	data := map[string]any{
+		"bundle_metadata": map[string]any{"version": "1.0", "captured_at": captured},
+		"subscribers":     []any{},
+	}
+
+	var buf bytes.Buffer
+	if err := GenerateSupportBundleFromData(context.Background(), data, &buf); err != nil {
+		t.Fatalf("GenerateSupportBundleFromData failed: %v", err)
+	}
+
+	gr, err := gzip.NewReader(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatalf("gzip.NewReader: %v", err)
+	}
+
+	defer func() { _ = gr.Close() }()
+
+	tr := tar.NewReader(gr)
+	foundDBJSON := false
+	foundAMFUes := false
+
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			t.Fatalf("tar.Next: %v", err)
+		}
+
+		switch hdr.Name {
+		case "db.json":
+			foundDBJSON = true
+
+			b, err := io.ReadAll(tr)
+			if err != nil {
+				t.Fatalf("read db.json: %v", err)
+			}
+
+			var got map[string]any
+			if err := json.Unmarshal(b, &got); err != nil {
+				t.Fatalf("unmarshal db.json: %v", err)
+			}
+
+			// db.json must NOT contain amf_ues
+			if _, ok := got["amf_ues"]; ok {
+				t.Fatalf("db.json should not contain amf_ues key")
+			}
+
+		case "amf_ues.json":
+			foundAMFUes = true
+
+			b, err := io.ReadAll(tr)
+			if err != nil {
+				t.Fatalf("read amf_ues.json: %v", err)
+			}
+
+			var got []any
+			if err := json.Unmarshal(b, &got); err != nil {
+				t.Fatalf("unmarshal amf_ues.json: %v", err)
+			}
+
+			if len(got) != 1 {
+				t.Fatalf("expected 1 AMF UE entry, got %d", len(got))
+			}
+
+			entry, ok := got[0].(map[string]any)
+			if !ok {
+				t.Fatalf("amf_ues entry wrong type: %T", got[0])
+			}
+
+			if supi, ok := entry["supi"].(string); !ok || supi != "imsi-001010000000099" {
+				t.Fatalf("unexpected supi: %#v", entry["supi"])
+			}
+		}
+	}
+
+	if !foundDBJSON {
+		t.Fatalf("db.json not found in archive")
+	}
+
+	if !foundAMFUes {
+		t.Fatalf("amf_ues.json not found in archive")
+	}
+}
