@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 )
@@ -52,6 +53,12 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 		groupBy := q.Get("group_by")
 
 		subscriber := q.Get("subscriber")
+		if subscriber != "" {
+			if _, err := etsi.NewSUPIFromIMSI(subscriber); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, "invalid subscriber: must be a valid 15-digit IMSI", nil, logger.APILog)
+				return
+			}
+		}
 
 		ctx := r.Context()
 

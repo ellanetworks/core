@@ -110,6 +110,11 @@ func ListAuditLogs(dbInstance *db.Database) http.Handler {
 		filters := &db.AuditLogFilters{}
 
 		if v := q.Get("actor"); v != "" {
+			if len(v) > 254 {
+				writeError(r.Context(), w, http.StatusBadRequest, "actor filter too long (max 254 characters)", nil, logger.APILog)
+				return
+			}
+
 			filters.Actor = &v
 		}
 
