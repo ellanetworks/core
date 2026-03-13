@@ -7,9 +7,9 @@ package ausf
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
-	"strings"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
@@ -98,7 +98,7 @@ func Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (etsi.SUPI, s
 		return etsi.InvalidSUPI, "", fmt.Errorf("ausf ue context is nil for suci: %s", suci)
 	}
 
-	if strings.Compare(resStar, ausfCurrentContext.XresStar) != 0 {
+	if subtle.ConstantTimeCompare([]byte(resStar), []byte(ausfCurrentContext.XresStar)) != 1 {
 		return etsi.InvalidSUPI, "", fmt.Errorf("RES* mismatch for suci: %s", suci)
 	}
 
