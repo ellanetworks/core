@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
+	amfcontext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/api"
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/ausf"
@@ -179,6 +180,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	if err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, &pdusession.EllaSmfSbi{}); err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
+	}
+
+	supportbundle.AMFDumper = func(ctx context.Context) (any, error) {
+		return amfcontext.ExportUEs(ctx)
 	}
 
 	defer func() {

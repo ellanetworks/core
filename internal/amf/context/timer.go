@@ -16,6 +16,7 @@ type Timer struct {
 	expireTimes   int32 // accessed atomically
 	maxRetryTimes int32 // accessed atomically
 	done          chan bool
+	active        int32 // 1 = active, 0 = stopped; accessed atomically
 }
 
 // NewTimer will return a Timer struct and create a goroutine. Then it calls expiredFunc every time interval d until
@@ -26,6 +27,7 @@ func NewTimer(d time.Duration, maxRetryTimes int32, expiredFunc func(expireTimes
 	t := &Timer{}
 	atomic.StoreInt32(&t.expireTimes, 0)
 	atomic.StoreInt32(&t.maxRetryTimes, maxRetryTimes)
+	atomic.StoreInt32(&t.active, 1)
 	t.done = make(chan bool, 1)
 	t.ticker = time.NewTicker(d)
 
@@ -40,7 +42,9 @@ func NewTimer(d time.Duration, maxRetryTimes int32, expiredFunc func(expireTimes
 				atomic.AddInt32(&t.expireTimes, 1)
 
 				if t.ExpireTimes() > t.MaxRetryTimes() {
+					atomic.StoreInt32(&t.active, 0)
 					cancelFunc()
+
 					return
 				} else {
 					expiredFunc(t.ExpireTimes())
@@ -62,9 +66,16 @@ func (t *Timer) ExpireTimes() int32 {
 	return atomic.LoadInt32(&t.expireTimes)
 }
 
+// IsActive returns true if the timer has not been stopped.
+func (t *Timer) IsActive() bool {
+	return atomic.LoadInt32(&t.active) == 1
+}
+
 // Stop turns off the timer, after Stop, no more timeout event will be triggered. User should call Stop() only once
 // otherwise it may hang on writing to done channel
 func (t *Timer) Stop() {
+	atomic.StoreInt32(&t.active, 0)
+
 	t.done <- true
 
 	close(t.done)
