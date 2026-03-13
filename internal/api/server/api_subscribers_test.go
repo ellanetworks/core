@@ -41,12 +41,9 @@ type ListSubscriberStatus struct {
 
 // ListSubscriber matches the summary representation in list responses.
 type ListSubscriber struct {
-	Imsi           string               `json:"imsi"`
-	OPc            string               `json:"opc"`
-	Key            string               `json:"key"`
-	SequenceNumber string               `json:"sequenceNumber"`
-	PolicyName     string               `json:"policyName"`
-	Status         ListSubscriberStatus `json:"status"`
+	Imsi       string               `json:"imsi"`
+	PolicyName string               `json:"policyName"`
+	Status     ListSubscriberStatus `json:"status"`
 }
 
 // SubscriberDetailStatus matches the rich status in get-single responses.
@@ -62,12 +59,9 @@ type SubscriberDetailStatus struct {
 
 // SubscriberDetail matches the full representation in get-single responses.
 type SubscriberDetail struct {
-	Imsi           string                 `json:"imsi"`
-	OPc            string                 `json:"opc"`
-	Key            string                 `json:"key"`
-	SequenceNumber string                 `json:"sequenceNumber"`
-	PolicyName     string                 `json:"policyName"`
-	Status         SubscriberDetailStatus `json:"status"`
+	Imsi       string                 `json:"imsi"`
+	PolicyName string                 `json:"policyName"`
+	Status     SubscriberDetailStatus `json:"status"`
 }
 
 type GetSubscriberResponse struct {
@@ -405,18 +399,6 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 		if response.Result.Imsi != Imsi {
 			t.Fatalf("expected imsi %s, got %s", Imsi, response.Result.Imsi)
-		}
-
-		if response.Result.OPc != Opc {
-			t.Fatalf("expected opc %s, got %s", Opc, response.Result.OPc)
-		}
-
-		if response.Result.Key != Key {
-			t.Fatalf("expected key %s, got %s", Key, response.Result.Key)
-		}
-
-		if response.Result.SequenceNumber != SequenceNumber {
-			t.Fatalf("expected sequenceNumber %s, got %s", SequenceNumber, response.Result.SequenceNumber)
 		}
 
 		if response.Result.PolicyName != PolicyName {
@@ -809,18 +791,6 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 		if response.Result.Imsi != Imsi {
 			t.Fatalf("expected imsi %s, got %s", Imsi, response.Result.Imsi)
-		}
-
-		if response.Result.OPc != Opc {
-			t.Fatalf("expected opc %s, got %s", Opc, response.Result.OPc)
-		}
-
-		if response.Result.Key != Key {
-			t.Fatalf("expected key %s, got %s", Key, response.Result.Key)
-		}
-
-		if response.Result.SequenceNumber != SequenceNumber {
-			t.Fatalf("expected sequenceNumber %s, got %s", SequenceNumber, response.Result.SequenceNumber)
 		}
 
 		if response.Result.PolicyName != PolicyName {
