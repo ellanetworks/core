@@ -24,11 +24,17 @@ type GetOperatorHomeNetworkResponse struct {
 	PublicKey string `json:"publicKey,omitempty"`
 }
 
+type GetOperatorSecurityResponse struct {
+	CipheringOrder []string `json:"cipheringOrder,omitempty"`
+	IntegrityOrder []string `json:"integrityOrder,omitempty"`
+}
+
 type Operator struct {
 	ID          GetOperatorIDResponse          `json:"id,omitempty"`
 	Slice       GetOperatorSliceResponse       `json:"slice,omitempty"`
 	Tracking    GetOperatorTrackingResponse    `json:"tracking,omitempty"`
 	HomeNetwork GetOperatorHomeNetworkResponse `json:"homeNetwork,omitempty"`
+	Security    GetOperatorSecurityResponse    `json:"security,omitempty"`
 }
 
 type UpdateOperatorIDOptions struct {
@@ -47,6 +53,11 @@ type UpdateOperatorTrackingOptions struct {
 
 type UpdateOperatorHomeNetworkOptions struct {
 	PrivateKey string
+}
+
+type UpdateOperatorSecurityOptions struct {
+	CipheringOrder []string
+	IntegrityOrder []string
 }
 
 // GetOperator retrieves the current operator configuration.
@@ -177,6 +188,36 @@ func (c *Client) UpdateOperatorHomeNetwork(ctx context.Context, opts *UpdateOper
 		Type:   SyncRequest,
 		Method: "PUT",
 		Path:   "api/v1/operator/home-network",
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateOperatorSecurity updates the operator's NAS security algorithm preference order.
+func (c *Client) UpdateOperatorSecurity(ctx context.Context, opts *UpdateOperatorSecurityOptions) error {
+	payload := struct {
+		CipheringOrder []string `json:"cipheringOrder"`
+		IntegrityOrder []string `json:"integrityOrder"`
+	}{
+		CipheringOrder: opts.CipheringOrder,
+		IntegrityOrder: opts.IntegrityOrder,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/operator/security",
 		Body:   &body,
 	})
 	if err != nil {

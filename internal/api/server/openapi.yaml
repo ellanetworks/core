@@ -1020,6 +1020,31 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/v1/operator/security:
+    put:
+      operationId: updateOperatorSecurity
+      tags: [Operator]
+      summary: Update NAS security algorithms
+      description: |
+        Sets the preferred NAS security algorithm order for ciphering and integrity
+        protection. Each list must contain between 1 and 3 unique algorithm names.
+        Allowed ciphering algorithms: NEA0, NEA1, NEA2.
+        Allowed integrity algorithms: NIA0, NIA1, NIA2.
+        The order determines preference during UE security capability negotiation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOperatorSecurityParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   # ── Data Networks ───────────────────────────────────────────────────────
   /api/v1/networking/data-networks:
     get:
@@ -2470,6 +2495,8 @@ components:
           $ref: "#/components/schemas/OperatorTracking"
         homeNetwork:
           $ref: "#/components/schemas/OperatorHomeNetwork"
+        security:
+          $ref: "#/components/schemas/OperatorSecurity"
 
     OperatorResponseEnvelope:
       type: object
@@ -2549,6 +2576,45 @@ components:
           type: string
           pattern: "^[0-9a-fA-F]{64}$"
           description: "64-character hex X25519 private key."
+
+    UpdateOperatorSecurityParams:
+      type: object
+      required: [cipheringOrder, integrityOrder]
+      properties:
+        cipheringOrder:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items:
+            type: string
+            enum: [NEA0, NEA1, NEA2]
+          description: "Preferred ciphering algorithm order."
+        integrityOrder:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items:
+            type: string
+            enum: [NIA0, NIA1, NIA2]
+          description: "Preferred integrity algorithm order."
+
+    OperatorSecurity:
+      type: object
+      properties:
+        cipheringOrder:
+          type: array
+          items:
+            type: string
+            enum: [NEA0, NEA1, NEA2]
+          description: "Current ciphering algorithm preference order."
+        integrityOrder:
+          type: array
+          items:
+            type: string
+            enum: [NIA0, NIA1, NIA2]
+          description: "Current integrity algorithm preference order."
 
     # ── Data Networks ───────────────────────────────────────────────────
     DataNetworkStatus:

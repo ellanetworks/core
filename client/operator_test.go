@@ -209,3 +209,66 @@ func TestUpdateOperatorTracking_Failure(t *testing.T) {
 		t.Fatalf("expected error, got none")
 	}
 }
+
+func TestUpdateOperatorSecurity_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 201,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Operator security algorithms updated successfully"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	updateOperatorSecurityOpts := &client.UpdateOperatorSecurityOptions{
+		CipheringOrder: []string{"NEA2", "NEA1"},
+		IntegrityOrder: []string{"NIA2", "NIA1"},
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorSecurity(ctx, updateOperatorSecurityOpts)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts == nil {
+		t.Fatal("expected request options to be captured")
+	}
+
+	if fake.lastOpts.Method != "PUT" {
+		t.Fatalf("expected method PUT, got %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/operator/security" {
+		t.Fatalf("expected path api/v1/operator/security, got %s", fake.lastOpts.Path)
+	}
+}
+
+func TestUpdateOperatorSecurity_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 400,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Invalid ciphering algorithm"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+	updateOperatorSecurityOpts := &client.UpdateOperatorSecurityOptions{
+		CipheringOrder: []string{"NEA9"},
+		IntegrityOrder: []string{"NIA2"},
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorSecurity(ctx, updateOperatorSecurityOpts)
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}

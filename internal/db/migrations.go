@@ -25,6 +25,7 @@ type migration struct {
 //   - This slice is append-only.
 var migrations = []migration{
 	{1, "baseline schema", migrateV1},
+	{2, "add NAS security algorithm columns to operator", migrateV2},
 }
 
 // latestVersion returns the highest migration version in the registry.

@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	nasLogger "github.com/free5gc/nas/logger"
 	"github.com/free5gc/nas/nasConvert"
-	"github.com/free5gc/nas/security"
 	"go.uber.org/zap"
 )
 
@@ -32,16 +31,6 @@ func Start(ctx context.Context, dbInstance *db.Database, n2Address string, n2Por
 		IwkN26:  0,
 		Mcsi:    0,
 		Mpsi:    0,
-	}
-	self.SecurityAlgorithm.IntegrityOrder = []uint8{
-		security.AlgIntegrity128NIA2,
-		security.AlgIntegrity128NIA1,
-		security.AlgIntegrity128NIA0,
-	}
-	self.SecurityAlgorithm.CipheringOrder = []uint8{
-		security.AlgCiphering128NEA2,
-		security.AlgCiphering128NEA1,
-		security.AlgCiphering128NEA0,
 	}
 	self.NetworkName = amfContext.NetworkName{
 		Full:  "ELLACORE5G",
