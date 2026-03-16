@@ -438,7 +438,7 @@ func (ue *AmfUe) UpdateSecurityContext() error {
 }
 
 func (ue *AmfUe) UpdateNH() error {
-	ue.NCC++
+	ue.NCC = (ue.NCC + 1) % 8
 
 	err := ue.DerivateNH(ue.NH)
 	if err != nil {

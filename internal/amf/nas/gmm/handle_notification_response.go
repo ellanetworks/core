@@ -31,7 +31,7 @@ func handleNotificationResponse(ctx context.Context, amf *amfContext.AMF, ue *am
 		return nil
 	}
 
-	psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
+	psiArray := nasConvert.PSIToBooleanArray(msg.Buffer)
 
 	for psi := 1; psi <= 15; psi++ {
 		pduSessionID := uint8(psi)
