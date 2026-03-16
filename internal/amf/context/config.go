@@ -8,6 +8,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/free5gc/nas/security"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -163,4 +164,61 @@ func (amf *AMF) GetSubscriberBitrate(ctx context.Context, supi etsi.SUPI) (*mode
 		Downlink: policy.BitrateDownlink,
 		Uplink:   policy.BitrateUplink,
 	}, nil
+}
+
+var cipheringNameToAlg = map[string]uint8{
+	"NEA0": security.AlgCiphering128NEA0,
+	"NEA1": security.AlgCiphering128NEA1,
+	"NEA2": security.AlgCiphering128NEA2,
+}
+
+var integrityNameToAlg = map[string]uint8{
+	"NIA0": security.AlgIntegrity128NIA0,
+	"NIA1": security.AlgIntegrity128NIA1,
+	"NIA2": security.AlgIntegrity128NIA2,
+}
+
+// GetSecurityAlgorithms loads the configured NAS security algorithm preference
+// order from the database and returns them as uint8 slices ready for
+// SelectSecurityAlg.
+func (amf *AMF) GetSecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) {
+	ctx, span := tracer.Start(ctx, "AMF GetSecurityAlgorithms")
+	defer span.End()
+
+	operator, err := amf.DBInstance.GetOperator(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get operator: %w", err)
+	}
+
+	cipherNames, err := operator.GetCipheringOrder()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse ciphering order: %w", err)
+	}
+
+	integrityNames, err := operator.GetIntegrityOrder()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse integrity order: %w", err)
+	}
+
+	encOrder := make([]uint8, 0, len(cipherNames))
+	for _, name := range cipherNames {
+		alg, ok := cipheringNameToAlg[name]
+		if !ok {
+			return nil, nil, fmt.Errorf("unknown ciphering algorithm: %s", name)
+		}
+
+		encOrder = append(encOrder, alg)
+	}
+
+	intOrder := make([]uint8, 0, len(integrityNames))
+	for _, name := range integrityNames {
+		alg, ok := integrityNameToAlg[name]
+		if !ok {
+			return nil, nil, fmt.Errorf("unknown integrity algorithm: %s", name)
+		}
+
+		intOrder = append(intOrder, alg)
+	}
+
+	return intOrder, encOrder, nil
 }

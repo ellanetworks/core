@@ -415,8 +415,8 @@ func TestRunMigrations_Incremental(t *testing.T) {
 	}
 
 	got := schemaVersion(t, db)
-	if got != 2 {
-		t.Errorf("schema version = %d, want 2", got)
+	if got != latestVersion() {
+		t.Errorf("schema version = %d, want %d", got, latestVersion())
 	}
 
 	var testCol string
@@ -435,5 +435,70 @@ func TestLatestVersion(t *testing.T) {
 	got := latestVersion()
 	if got != len(migrations) {
 		t.Errorf("latestVersion() = %d, want %d", got, len(migrations))
+	}
+}
+
+func TestMigrateV2_AddsSecurityColumns(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	// Apply V1 baseline first.
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to begin transaction: %v", err)
+	}
+
+	if err := migrateV1(ctx, tx); err != nil {
+		_ = tx.Rollback()
+
+		t.Fatalf("migrateV1 failed: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	// Insert an operator row *before* V2 migration.
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst, homeNetworkPrivateKey) VALUES (1, '001', '01', 'abc123', 1, 'deadbeef')",
+		OperatorTableName))
+	if err != nil {
+		t.Fatalf("failed to insert operator: %v", err)
+	}
+
+	// Apply V2 migration.
+	tx2, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to begin transaction: %v", err)
+	}
+
+	if err := migrateV2(ctx, tx2); err != nil {
+		_ = tx2.Rollback()
+
+		t.Fatalf("migrateV2 failed: %v", err)
+	}
+
+	if err := tx2.Commit(); err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	// Verify default values were applied.
+	var cipheringOrder, integrityOrder string
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT cipheringOrder, integrityOrder FROM %s WHERE id=1", OperatorTableName),
+	).Scan(&cipheringOrder, &integrityOrder)
+	if err != nil {
+		t.Fatalf("failed to query new columns: %v", err)
+	}
+
+	expectedCiphering := `["NEA2","NEA1","NEA0"]`
+	if cipheringOrder != expectedCiphering {
+		t.Errorf("cipheringOrder = %q, want %q", cipheringOrder, expectedCiphering)
+	}
+
+	expectedIntegrity := `["NIA2","NIA1","NIA0"]`
+	if integrityOrder != expectedIntegrity {
+		t.Errorf("integrityOrder = %q, want %q", integrityOrder, expectedIntegrity)
 	}
 }

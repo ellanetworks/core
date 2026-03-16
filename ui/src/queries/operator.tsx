@@ -5,6 +5,10 @@ export interface OperatorData {
   slice: { sst: number; sd?: string | null };
   tracking: { supportedTacs: string[] };
   homeNetwork: { publicKey: string };
+  security: {
+    cipheringOrder: string[];
+    integrityOrder: string[];
+  };
 }
 
 export const getOperator = async (authToken: string): Promise<OperatorData> => {
@@ -68,5 +72,17 @@ export const updateOperatorHomeNetwork = async (
     method: "PUT",
     authToken,
     body: { privateKey },
+  });
+};
+
+export const updateOperatorSecurity = async (
+  authToken: string,
+  cipheringOrder: string[],
+  integrityOrder: string[],
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/operator/security`, {
+    method: "PUT",
+    authToken,
+    body: { cipheringOrder, integrityOrder },
   });
 };

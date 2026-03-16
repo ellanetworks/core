@@ -94,6 +94,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("GET /api/v1/operator/id", Authenticate(jwtSecret, dbInstance, Authorize(PermGetOperatorID, GetOperatorID(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/code", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorCode, UpdateOperatorCode(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/home-network", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorHomeNetwork, UpdateOperatorHomeNetwork(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/security", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSecurityAlgorithms, UpdateOperatorSecurity(dbInstance))).ServeHTTP)
 
 	// Data Networks (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/data-networks", Authenticate(jwtSecret, dbInstance, Authorize(PermListDataNetworks, ListDataNetworks(dbInstance))).ServeHTTP)
