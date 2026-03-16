@@ -181,7 +181,7 @@ var integrityNameToAlg = map[string]uint8{
 // GetSecurityAlgorithms loads the configured NAS security algorithm preference
 // order from the database and returns them as uint8 slices ready for
 // SelectSecurityAlg.
-func (amf *AMF) GetSecurityAlgorithms(ctx context.Context) (intOrder []uint8, encOrder []uint8, err error) {
+func (amf *AMF) GetSecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) {
 	ctx, span := tracer.Start(ctx, "AMF GetSecurityAlgorithms")
 	defer span.End()
 
@@ -200,7 +200,7 @@ func (amf *AMF) GetSecurityAlgorithms(ctx context.Context) (intOrder []uint8, en
 		return nil, nil, fmt.Errorf("failed to parse integrity order: %w", err)
 	}
 
-	encOrder = make([]uint8, 0, len(cipherNames))
+	encOrder := make([]uint8, 0, len(cipherNames))
 	for _, name := range cipherNames {
 		alg, ok := cipheringNameToAlg[name]
 		if !ok {
@@ -210,7 +210,7 @@ func (amf *AMF) GetSecurityAlgorithms(ctx context.Context) (intOrder []uint8, en
 		encOrder = append(encOrder, alg)
 	}
 
-	intOrder = make([]uint8, 0, len(integrityNames))
+	intOrder := make([]uint8, 0, len(integrityNames))
 	for _, name := range integrityNames {
 		alg, ok := integrityNameToAlg[name]
 		if !ok {

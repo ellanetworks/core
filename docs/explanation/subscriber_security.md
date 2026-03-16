@@ -24,10 +24,12 @@ To configure the UE or USIM with SUCI support, you need the home network public 
 
 ## NAS Security
 
-After authentication, NAS signaling between the UE and the network is protected with ciphering and integrity algorithms. Ella Core supports the following algorithms:
+After authentication, the network and the UE negotiate ciphering and integrity algorithms. Once established, these algorithms protect **all NAS signaling** for the lifetime of the connection.
 
-- **Ciphering**: NEA0, NEA1 (SNOW 3G), NEA2 (AES)
-- **Integrity**: NIA0, NIA1 (SNOW 3G), NIA2 (AES)
+Ella Core supports three ciphering algorithms (NEA0, NEA1/SNOW 3G, NEA2/AES) and three integrity algorithms (NIA0, NIA1/SNOW 3G, NIA2/AES). Administrators can configure which algorithms are enabled and their priority order through the [Operator API](../reference/api/operator.md) or the Operator page in the UI.
+
+!!! warning
+    Null algorithms (NEA0/NIA0) provide no security protection. Only enable them for testing or device compatibility.
 
 ## Managing Subscriber Credentials
 

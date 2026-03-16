@@ -1,10 +1,10 @@
 ---
-description: RESTful API reference for managing the Operator Information - ID, Slice, Tracking, and Code.
+description: RESTful API reference for managing the Operator Information - ID, Slice, Tracking, Code, and Security Algorithms.
 ---
 
 # Operator
 
-The Operator API provides endpoints to manage the Operator Information used to identify the operator - Operator ID (MCC, MNC), Slice Information (SST, SD), Tracking Information, and Operator Code (OP).
+The Operator API provides endpoints to manage the Operator Information used to identify the operator - Operator ID (MCC, MNC), Slice Information (SST, SD), Tracking Information, Operator Code (OP), and NAS Security Algorithms.
 
 ## Get Operator Information
 
@@ -39,7 +39,11 @@ None
             ]
         },
         "homeNetwork": {
-            "publicKey": "021bd3c0ba857e6f45b6ecb76ad826fd27fecef441f23d0e418b645829261e16",
+            "publicKey": "021bd3c0ba857e6f45b6ecb76ad826fd27fecef441f23d0e418b645829261e16"
+        },
+        "security": {
+            "cipheringOrder": ["NEA2", "NEA1", "NEA0"],
+            "integrityOrder": ["NIA2", "NIA1", "NIA0"]
         }
     }
 }
@@ -153,6 +157,38 @@ This path updates the Home Network Information. The Home Network Private Key ens
 {
     "result": {
         "message": "Home Network private key updated successfully"
+    }
+}
+```
+
+## Update the NAS Security Algorithms
+
+This path updates the NAS security algorithm preference order for ciphering and integrity protection. The order determines which algorithms the network prefers during UE security capability negotiation. Changes take effect for the next UE registration.
+
+| Method | Path                        |
+| ------ | --------------------------- |
+| PUT    | `/api/v1/operator/security` |
+
+### Parameters
+
+- `cipheringOrder` (array of strings): The preferred ciphering algorithm order. Each entry must be one of `NEA0`, `NEA1`, or `NEA2`. At least one algorithm is required. No duplicates allowed.
+- `integrityOrder` (array of strings): The preferred integrity algorithm order. Each entry must be one of `NIA0`, `NIA1`, or `NIA2`. At least one algorithm is required. No duplicates allowed.
+
+### Sample Request
+
+```json
+{
+    "cipheringOrder": ["NEA2", "NEA1"],
+    "integrityOrder": ["NIA2", "NIA1"]
+}
+```
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Operator security algorithms updated successfully"
     }
 }
 ```

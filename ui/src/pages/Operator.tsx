@@ -13,13 +13,18 @@ import {
   Tooltip,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
-import { ContentCopy as CopyIcon, Edit as EditIcon } from "@mui/icons-material";
+import {
+  ContentCopy as CopyIcon,
+  Edit as EditIcon,
+  Warning as WarningIcon,
+} from "@mui/icons-material";
 import { getOperator, type OperatorData } from "@/queries/operator";
 import EditOperatorIdModal from "@/components/EditOperatorIdModal";
 import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
 import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
 import EditOperatorHomeNetworkModal from "@/components/EditOperatorHomeNetworkModal";
+import EditOperatorSecurityModal from "@/components/EditOperatorSecurityModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 
@@ -49,13 +54,16 @@ const Operator = () => {
     isEditOperatorHomeNetworkModalOpen,
     setEditOperatorHomeNetworkModalOpen,
   ] = useState(false);
+  const [isEditOperatorSecurityModalOpen, setEditOperatorSecurityModalOpen] =
+    useState(false);
 
   const anyModalOpen =
     isEditOperatorIdModalOpen ||
     isEditOperatorCodeModalOpen ||
     isEditOperatorTrackingModalOpen ||
     isEditOperatorSliceModalOpen ||
-    isEditOperatorHomeNetworkModalOpen;
+    isEditOperatorHomeNetworkModalOpen ||
+    isEditOperatorSecurityModalOpen;
 
   const queryClient = useQueryClient();
   const operatorQuery = useQuery<OperatorData>({
@@ -78,6 +86,8 @@ const Operator = () => {
     setEditOperatorSliceModalOpen(true);
   const handleEditOperatorHomeNetworkClick = () =>
     setEditOperatorHomeNetworkModalOpen(true);
+  const handleEditOperatorSecurityClick = () =>
+    setEditOperatorSecurityModalOpen(true);
 
   const handleEditOperatorIdModalClose = () =>
     setEditOperatorIdModalOpen(false);
@@ -89,6 +99,8 @@ const Operator = () => {
     setEditOperatorSliceModalOpen(false);
   const handleEditOperatorHomeNetworkModalClose = () =>
     setEditOperatorHomeNetworkModalOpen(false);
+  const handleEditOperatorSecurityModalClose = () =>
+    setEditOperatorSecurityModalOpen(false);
 
   const handleEditOperatorIdSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
@@ -114,6 +126,10 @@ const Operator = () => {
       "Operator Home Network information updated successfully.",
       "success",
     );
+  };
+  const handleEditOperatorSecuritySuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["operator"] });
+    showSnackbar("NAS security algorithms updated successfully.", "success");
   };
 
   const handleCopyPublicKey = async () => {
@@ -298,7 +314,7 @@ const Operator = () => {
                       key={idx}
                       label={tac}
                       variant="outlined"
-                      color={"primary"}
+                      color="primary"
                     />
                   ))
                 ) : (
@@ -357,19 +373,9 @@ const Operator = () => {
                         label={formatSd(operator.slice.sd)}
                         color="primary"
                         variant="outlined"
-                        sx={{ fontFamily: "monospace" }}
                       />
                     ) : (
-                      <Chip
-                        label="N/A"
-                        variant="outlined"
-                        color="default"
-                        sx={{
-                          fontStyle: "italic",
-                          borderStyle: "dashed",
-                          bgcolor: (theme) => theme.palette.action.hover,
-                        }}
-                      />
+                      <Typography variant="body1">N/A</Typography>
                     )
                   ) : (
                     <Typography variant="body1">N/A</Typography>
@@ -380,7 +386,7 @@ const Operator = () => {
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, sm: 12, md: 12 }}>
+        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
           <Card
             sx={{
               height: "100%",
@@ -460,6 +466,99 @@ const Operator = () => {
             </CardContent>
           </Card>
         </Grid>
+
+        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
+          <Card
+            sx={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 3,
+              boxShadow: 2,
+            }}
+          >
+            <CardHeader
+              title="NAS Security"
+              sx={headerStyles}
+              action={
+                canEdit && (
+                  <IconButton
+                    aria-label="edit"
+                    onClick={handleEditOperatorSecurityClick}
+                  >
+                    <EditIcon color={"primary"} />
+                  </IconButton>
+                )
+              }
+            />
+            <CardContent>
+              <Grid container spacing={1}>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Ciphering Preference
+                  </Typography>
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    {operator?.security?.cipheringOrder?.length ? (
+                      operator.security.cipheringOrder.map((alg, idx) => (
+                        <Chip
+                          key={idx}
+                          label={`${idx + 1}. ${alg}`}
+                          variant="outlined"
+                          color="primary"
+                          icon={
+                            alg === "NEA0" ? (
+                              <WarningIcon fontSize="small" />
+                            ) : undefined
+                          }
+                          sx={
+                            alg === "NEA0"
+                              ? { "& .MuiChip-icon": { color: "warning.main" } }
+                              : undefined
+                          }
+                        />
+                      ))
+                    ) : (
+                      <Typography variant="body1">N/A</Typography>
+                    )}
+                  </Box>
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Integrity Preference
+                  </Typography>
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    {operator?.security?.integrityOrder?.length ? (
+                      operator.security.integrityOrder.map((alg, idx) => (
+                        <Chip
+                          key={idx}
+                          label={`${idx + 1}. ${alg}`}
+                          variant="outlined"
+                          color="primary"
+                          icon={
+                            alg === "NIA0" ? (
+                              <WarningIcon fontSize="small" />
+                            ) : undefined
+                          }
+                          sx={
+                            alg === "NIA0"
+                              ? { "& .MuiChip-icon": { color: "warning.main" } }
+                              : undefined
+                          }
+                        />
+                      ))
+                    ) : (
+                      <Typography variant="body1">N/A</Typography>
+                    )}
+                  </Box>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
 
       {isEditOperatorIdModalOpen && (
@@ -501,6 +600,25 @@ const Operator = () => {
           open
           onClose={handleEditOperatorHomeNetworkModalClose}
           onSuccess={handleEditOperatorHomeNetworkSuccess}
+        />
+      )}
+      {isEditOperatorSecurityModalOpen && (
+        <EditOperatorSecurityModal
+          open
+          onClose={handleEditOperatorSecurityModalClose}
+          onSuccess={handleEditOperatorSecuritySuccess}
+          initialData={{
+            cipheringOrder: operator?.security?.cipheringOrder ?? [
+              "NEA2",
+              "NEA1",
+              "NEA0",
+            ],
+            integrityOrder: operator?.security?.integrityOrder ?? [
+              "NIA2",
+              "NIA1",
+              "NIA0",
+            ],
+          }}
         />
       )}
     </Box>
