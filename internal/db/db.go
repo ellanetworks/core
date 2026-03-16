@@ -89,13 +89,14 @@ type Database struct {
 	upsertFlowAccountingSettingsStmt        *sqlair.Statement
 
 	// Operator statements
-	getOperatorStmt                 *sqlair.Statement
-	initializeOperatorStmt          *sqlair.Statement
-	updateOperatorSliceStmt         *sqlair.Statement
-	updateOperatorTrackingStmt      *sqlair.Statement
-	updateOperatorIDStmt            *sqlair.Statement
-	updateOperatorCodeStmt          *sqlair.Statement
-	updateHomeNetworkPrivateKeyStmt *sqlair.Statement
+	getOperatorStmt                      *sqlair.Statement
+	initializeOperatorStmt               *sqlair.Statement
+	updateOperatorSliceStmt              *sqlair.Statement
+	updateOperatorTrackingStmt           *sqlair.Statement
+	updateOperatorIDStmt                 *sqlair.Statement
+	updateOperatorCodeStmt               *sqlair.Statement
+	updateHomeNetworkPrivateKeyStmt      *sqlair.Statement
+	updateOperatorSecurityAlgorithmsStmt *sqlair.Statement
 
 	// Policies statements
 	listPoliciesStmt  *sqlair.Statement
@@ -353,6 +354,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.updateOperatorIDStmt, fmt.Sprintf(updateOperatorIDStmt, OperatorTableName), []any{Operator{}}},
 		{&db.updateOperatorCodeStmt, fmt.Sprintf(updateOperatorCodeStmt, OperatorTableName), []any{Operator{}}},
 		{&db.updateHomeNetworkPrivateKeyStmt, fmt.Sprintf(updateOperatorHomeNetworkPrivateKeyStmt, OperatorTableName), []any{Operator{}}},
+		{&db.updateOperatorSecurityAlgorithmsStmt, fmt.Sprintf(updateOperatorSecurityAlgorithmsStmtConst, OperatorTableName), []any{Operator{}}},
 
 		// Policies
 		{&db.listPoliciesStmt, fmt.Sprintf(listPoliciesPagedStmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},

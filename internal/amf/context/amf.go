@@ -111,7 +111,6 @@ type AMF struct {
 	RelativeCapacity         int64
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
-	SecurityAlgorithm        SecurityAlgorithm
 	NetworkName              NetworkName
 	T3502Value               time.Duration
 	T3512Value               time.Duration
@@ -123,11 +122,6 @@ type AMF struct {
 	T3560Cfg                 TimerValue
 	T3565Cfg                 TimerValue
 	Smf                      SmfSbi
-}
-
-type SecurityAlgorithm struct {
-	IntegrityOrder []uint8 // slice of security.AlgIntegrityXXX
-	CipheringOrder []uint8 // slice of security.AlgCipheringXXX
 }
 
 func allocateTMSI() (etsi.TMSI, error) {

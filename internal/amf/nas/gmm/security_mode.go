@@ -25,9 +25,14 @@ func securityMode(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe
 		return contextSetup(ctx, amf, ue, ue.RegistrationRequest)
 	}
 
-	ue.SelectSecurityAlg(amf.SecurityAlgorithm.IntegrityOrder, amf.SecurityAlgorithm.CipheringOrder)
+	integrityOrder, cipheringOrder, err := amf.GetSecurityAlgorithms(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting security algorithms: %v", err)
+	}
 
-	err := ue.DerivateAlgKey()
+	ue.SelectSecurityAlg(integrityOrder, cipheringOrder)
+
+	err = ue.DerivateAlgKey()
 	if err != nil {
 		return fmt.Errorf("error deriving algorithm key: %v", err)
 	}

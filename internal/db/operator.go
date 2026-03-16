@@ -22,13 +22,14 @@ import (
 const OperatorTableName = "operator"
 
 const (
-	getOperatorStmt                         = "SELECT &Operator.* FROM %s WHERE id=1"
-	updateOperatorCodeStmt                  = "UPDATE %s SET operatorCode=$Operator.operatorCode WHERE id=1"
-	updateOperatorIDStmt                    = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc WHERE id=1"
-	updateOperatorSliceStmt                 = "UPDATE %s SET sst=$Operator.sst, sd=$Operator.sd WHERE id=1"
-	updateOperatorTrackingStmt              = "UPDATE %s SET supportedTACs=$Operator.supportedTACs WHERE id=1"
-	updateOperatorHomeNetworkPrivateKeyStmt = "UPDATE %s SET homeNetworkPrivateKey=$Operator.homeNetworkPrivateKey WHERE id=1"
-	initializeOperatorStmt                  = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs, sst, sd, homeNetworkPrivateKey) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs, $Operator.sst, $Operator.sd, $Operator.homeNetworkPrivateKey)"
+	getOperatorStmt                           = "SELECT &Operator.* FROM %s WHERE id=1"
+	updateOperatorCodeStmt                    = "UPDATE %s SET operatorCode=$Operator.operatorCode WHERE id=1"
+	updateOperatorIDStmt                      = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc WHERE id=1"
+	updateOperatorSliceStmt                   = "UPDATE %s SET sst=$Operator.sst, sd=$Operator.sd WHERE id=1"
+	updateOperatorTrackingStmt                = "UPDATE %s SET supportedTACs=$Operator.supportedTACs WHERE id=1"
+	updateOperatorHomeNetworkPrivateKeyStmt   = "UPDATE %s SET homeNetworkPrivateKey=$Operator.homeNetworkPrivateKey WHERE id=1"
+	updateOperatorSecurityAlgorithmsStmtConst = "UPDATE %s SET cipheringOrder=$Operator.cipheringOrder, integrityOrder=$Operator.integrityOrder WHERE id=1"
+	initializeOperatorStmt                    = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs, sst, sd, homeNetworkPrivateKey) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs, $Operator.sst, $Operator.sd, $Operator.homeNetworkPrivateKey)"
 )
 
 type Operator struct {
@@ -40,6 +41,8 @@ type Operator struct {
 	Sst                   int32  `db:"sst"`
 	Sd                    []byte `db:"sd"`
 	HomeNetworkPrivateKey string `db:"homeNetworkPrivateKey"`
+	CipheringOrder        string `db:"cipheringOrder"` // JSON-encoded list of algorithm names, e.g. '["NEA2","NEA1"]'
+	IntegrityOrder        string `db:"integrityOrder"` // JSON-encoded list of algorithm names, e.g. '["NIA2","NIA1"]'
 }
 
 func (operator *Operator) GetSupportedTacs() ([]string, error) {
@@ -55,6 +58,58 @@ func (operator *Operator) GetSupportedTacs() ([]string, error) {
 	}
 
 	return supportedTACs, nil
+}
+
+func (operator *Operator) GetCipheringOrder() ([]string, error) {
+	if operator.CipheringOrder == "" {
+		return nil, nil
+	}
+
+	var order []string
+
+	err := json.Unmarshal([]byte(operator.CipheringOrder), &order)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ciphering order: %w", err)
+	}
+
+	return order, nil
+}
+
+func (operator *Operator) SetCipheringOrder(order []string) error {
+	b, err := json.Marshal(order)
+	if err != nil {
+		return fmt.Errorf("failed to marshal ciphering order: %w", err)
+	}
+
+	operator.CipheringOrder = string(b)
+
+	return nil
+}
+
+func (operator *Operator) GetIntegrityOrder() ([]string, error) {
+	if operator.IntegrityOrder == "" {
+		return nil, nil
+	}
+
+	var order []string
+
+	err := json.Unmarshal([]byte(operator.IntegrityOrder), &order)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal integrity order: %w", err)
+	}
+
+	return order, nil
+}
+
+func (operator *Operator) SetIntegrityOrder(order []string) error {
+	b, err := json.Marshal(order)
+	if err != nil {
+		return fmt.Errorf("failed to marshal integrity order: %w", err)
+	}
+
+	operator.IntegrityOrder = string(b)
+
+	return nil
 }
 
 func (operator *Operator) GetHomeNetworkPublicKey() (string, error) {
@@ -453,4 +508,54 @@ func (db *Database) GetHomeNetworkPrivateKey(ctx context.Context) (string, error
 	span.SetStatus(codes.Ok, "")
 
 	return op.HomeNetworkPrivateKey, nil
+}
+
+// UpdateOperatorSecurityAlgorithms updates the NAS security algorithm preference order.
+func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipheringOrder, integrityOrder []string) error {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPDATE", OperatorTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemSqlite,
+			semconv.DBOperationKey.String("UPDATE"),
+			attribute.String("db.collection", OperatorTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
+
+	op := Operator{}
+
+	err := op.SetCipheringOrder(cipheringOrder)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to set ciphering order")
+
+		return fmt.Errorf("failed to set ciphering order: %w", err)
+	}
+
+	err = op.SetIntegrityOrder(integrityOrder)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to set integrity order")
+
+		return fmt.Errorf("failed to set integrity order: %w", err)
+	}
+
+	err = db.conn.Query(ctx, db.updateOperatorSecurityAlgorithmsStmt, op).Run()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
 }

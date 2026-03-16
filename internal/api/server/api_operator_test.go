@@ -16,10 +16,16 @@ const (
 	Sd  = "303132"
 )
 
+type GetOperatorSecurityResponseResult struct {
+	CipheringOrder []string `json:"cipheringOrder,omitempty"`
+	IntegrityOrder []string `json:"integrityOrder,omitempty"`
+}
+
 type GetOperatorResponseResult struct {
 	ID       GetOperatorIDResponseResult       `json:"id,omitempty"`
 	Slice    GetOperatorSliceResponseResult    `json:"slice,omitempty"`
 	Tracking GetOperatorTrackingResponseResult `json:"tracking,omitempty"`
+	Security GetOperatorSecurityResponseResult `json:"security,omitempty"`
 }
 
 type GetOperatorResponse struct {
@@ -1110,6 +1116,272 @@ func TestUpdateOperatorHomeNetwork(t *testing.T) {
 		body := strings.NewReader(`{"invalid": json}`)
 
 		req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/operator/home-network", body)
+		if err != nil {
+			t.Fatalf("couldn't create request: %s", err)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		res, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("couldn't do request: %s", err)
+		}
+
+		defer func() {
+			_ = res.Body.Close()
+		}()
+
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.StatusCode)
+		}
+	})
+}
+
+type UpdateOperatorSecurityParams struct {
+	CipheringOrder []string `json:"cipheringOrder,omitempty"`
+	IntegrityOrder []string `json:"integrityOrder,omitempty"`
+}
+
+type UpdateOperatorSecurityResponseResult struct {
+	Message string `json:"message"`
+}
+
+type UpdateOperatorSecurityResponse struct {
+	Result UpdateOperatorSecurityResponseResult `json:"result"`
+	Error  string                               `json:"error,omitempty"`
+}
+
+func updateOperatorSecurity(url string, client *http.Client, token string, data *UpdateOperatorSecurityParams) (int, *UpdateOperatorSecurityResponse, error) {
+	body, err := json.Marshal(data)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/security", strings.NewReader(string(body)))
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var updateResponse UpdateOperatorSecurityResponse
+	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
+		return 0, nil, err
+	}
+
+	return res.StatusCode, &updateResponse, nil
+}
+
+func TestUpdateOperatorSecurity(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	ts, _, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+
+	client := newTestClient(ts)
+
+	token, err := initializeAndRefresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	t.Run("Default security algorithms returned via GET", func(t *testing.T) {
+		statusCode, response, err := getOperator(ts.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't get operator: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		expectedCiphering := []string{"NEA2", "NEA1", "NEA0"}
+		if len(response.Result.Security.CipheringOrder) != len(expectedCiphering) {
+			t.Fatalf("expected %d ciphering algorithms, got %d", len(expectedCiphering), len(response.Result.Security.CipheringOrder))
+		}
+
+		for i, alg := range expectedCiphering {
+			if response.Result.Security.CipheringOrder[i] != alg {
+				t.Fatalf("expected ciphering[%d] = %q, got %q", i, alg, response.Result.Security.CipheringOrder[i])
+			}
+		}
+
+		expectedIntegrity := []string{"NIA2", "NIA1", "NIA0"}
+		if len(response.Result.Security.IntegrityOrder) != len(expectedIntegrity) {
+			t.Fatalf("expected %d integrity algorithms, got %d", len(expectedIntegrity), len(response.Result.Security.IntegrityOrder))
+		}
+
+		for i, alg := range expectedIntegrity {
+			if response.Result.Security.IntegrityOrder[i] != alg {
+				t.Fatalf("expected integrity[%d] = %q, got %q", i, alg, response.Result.Security.IntegrityOrder[i])
+			}
+		}
+	})
+
+	t.Run("Success - update security algorithms", func(t *testing.T) {
+		params := &UpdateOperatorSecurityParams{
+			CipheringOrder: []string{"NEA1", "NEA0"},
+			IntegrityOrder: []string{"NIA2", "NIA1"},
+		}
+
+		statusCode, response, err := updateOperatorSecurity(ts.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't update operator security: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d, error: %s", http.StatusCreated, statusCode, response.Error)
+		}
+
+		if response.Result.Message == "" {
+			t.Fatal("expected success message")
+		}
+	})
+
+	t.Run("Updated security algorithms visible via GET", func(t *testing.T) {
+		statusCode, response, err := getOperator(ts.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't get operator: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		expectedCiphering := []string{"NEA1", "NEA0"}
+		if len(response.Result.Security.CipheringOrder) != len(expectedCiphering) {
+			t.Fatalf("expected %d ciphering algorithms, got %d", len(expectedCiphering), len(response.Result.Security.CipheringOrder))
+		}
+
+		for i, alg := range expectedCiphering {
+			if response.Result.Security.CipheringOrder[i] != alg {
+				t.Fatalf("expected ciphering[%d] = %q, got %q", i, alg, response.Result.Security.CipheringOrder[i])
+			}
+		}
+
+		expectedIntegrity := []string{"NIA2", "NIA1"}
+		if len(response.Result.Security.IntegrityOrder) != len(expectedIntegrity) {
+			t.Fatalf("expected %d integrity algorithms, got %d", len(expectedIntegrity), len(response.Result.Security.IntegrityOrder))
+		}
+
+		for i, alg := range expectedIntegrity {
+			if response.Result.Security.IntegrityOrder[i] != alg {
+				t.Fatalf("expected integrity[%d] = %q, got %q", i, alg, response.Result.Security.IntegrityOrder[i])
+			}
+		}
+	})
+
+	t.Run("Empty ciphering order", func(t *testing.T) {
+		params := &UpdateOperatorSecurityParams{
+			CipheringOrder: []string{},
+			IntegrityOrder: []string{"NIA2"},
+		}
+
+		statusCode, _, err := updateOperatorSecurity(ts.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't update operator security: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+	})
+
+	t.Run("Empty integrity order", func(t *testing.T) {
+		params := &UpdateOperatorSecurityParams{
+			CipheringOrder: []string{"NEA2"},
+			IntegrityOrder: []string{},
+		}
+
+		statusCode, _, err := updateOperatorSecurity(ts.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't update operator security: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+	})
+
+	t.Run("Invalid ciphering algorithm", func(t *testing.T) {
+		params := &UpdateOperatorSecurityParams{
+			CipheringOrder: []string{"NEA2", "NEA9"},
+			IntegrityOrder: []string{"NIA2"},
+		}
+
+		statusCode, response, err := updateOperatorSecurity(ts.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't update operator security: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if !strings.Contains(response.Error, "NEA9") {
+			t.Fatalf("expected error to mention invalid algorithm NEA9, got: %q", response.Error)
+		}
+	})
+
+	t.Run("Invalid integrity algorithm", func(t *testing.T) {
+		params := &UpdateOperatorSecurityParams{
+			CipheringOrder: []string{"NEA2"},
+			IntegrityOrder: []string{"NIA3"},
+		}
+
+		statusCode, response, err := updateOperatorSecurity(ts.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't update operator security: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if !strings.Contains(response.Error, "NIA3") {
+			t.Fatalf("expected error to mention invalid algorithm NIA3, got: %q", response.Error)
+		}
+	})
+
+	t.Run("Duplicate ciphering algorithm", func(t *testing.T) {
+		params := &UpdateOperatorSecurityParams{
+			CipheringOrder: []string{"NEA2", "NEA2"},
+			IntegrityOrder: []string{"NIA2"},
+		}
+
+		statusCode, response, err := updateOperatorSecurity(ts.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't update operator security: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if !strings.Contains(response.Error, "NEA2") {
+			t.Fatalf("expected error to mention duplicate algorithm NEA2, got: %q", response.Error)
+		}
+	})
+
+	t.Run("Invalid request body", func(t *testing.T) {
+		body := strings.NewReader(`{"invalid": json}`)
+
+		req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/operator/security", body)
 		if err != nil {
 			t.Fatalf("couldn't create request: %s", err)
 		}
