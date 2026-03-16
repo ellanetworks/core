@@ -81,6 +81,11 @@ func HandleInitialContextSetupResponse(ctx context.Context, ran *amfContext.Radi
 		ranUe.Log.Debug("Send PDUSessionResourceSetupResponseTransfer to SMF")
 
 		for _, item := range pDUSessionResourceSetupResponseList.List {
+			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+				ranUe.Log.Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+				continue
+			}
+
 			pduSessionID := uint8(item.PDUSessionID.Value)
 			transfer := item.PDUSessionResourceSetupResponseTransfer
 
@@ -101,6 +106,11 @@ func HandleInitialContextSetupResponse(ctx context.Context, ran *amfContext.Radi
 		ranUe.Log.Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
 
 		for _, item := range pDUSessionResourceFailedToSetupList.List {
+			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+				ranUe.Log.Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+				continue
+			}
+
 			pduSessionID := uint8(item.PDUSessionID.Value)
 			transfer := item.PDUSessionResourceSetupUnsuccessfulTransfer
 

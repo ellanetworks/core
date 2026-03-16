@@ -93,6 +93,11 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amf *amfContext.AMF, 
 
 	if pDUSessionResourceAdmittedList != nil {
 		for _, item := range pDUSessionResourceAdmittedList.List {
+			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+				targetUe.Log.Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+				continue
+			}
+
 			pduSessionID := item.PDUSessionID.Value
 			transfer := item.HandoverRequestAcknowledgeTransfer
 
@@ -114,6 +119,11 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amf *amfContext.AMF, 
 
 	if pDUSessionResourceFailedToSetupListHOAck != nil {
 		for _, item := range pDUSessionResourceFailedToSetupListHOAck.List {
+			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+				targetUe.Log.Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+				continue
+			}
+
 			pduSessionID := item.PDUSessionID.Value
 			transfer := item.HandoverResourceAllocationUnsuccessfulTransfer
 

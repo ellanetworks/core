@@ -79,6 +79,11 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amf *amfContex
 		ranUe.Log.Debug("Send PDUSessionResourceReleaseResponseTransfer to SMF")
 
 		for _, item := range pDUSessionResourceReleasedList.List {
+			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+				ranUe.Log.Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+				continue
+			}
+
 			pduSessionID := uint8(item.PDUSessionID.Value)
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
