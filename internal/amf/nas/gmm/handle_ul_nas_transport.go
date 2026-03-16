@@ -192,6 +192,10 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			return forward5GSMMessageToSMF(ctx, amf, ue, pduSessionID, smContext.Ref, smMessage)
 		}
 	} else { // AMF does not have a PDU session routing context for the PDU session ID and the UE
+		if requestType == nil {
+			return fmt.Errorf("no SM context for PDU session ID %d and no RequestType IE provided", pduSessionID)
+		}
+
 		switch requestType.GetRequestTypeValue() {
 		// case iii) if the AMF does not have a PDU session routing context for the PDU session ID and the UE
 		// and the Request type IE is included and is set to "initial request"

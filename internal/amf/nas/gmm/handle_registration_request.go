@@ -232,8 +232,11 @@ func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 
 	case amfContext.SecurityMode:
 		ue.SecurityContextAvailable = false
-		ue.T3560.Stop()
-		ue.T3560 = nil
+		if ue.T3560 != nil {
+			ue.T3560.Stop()
+			ue.T3560 = nil
+		}
+
 		ue.Deregister()
 
 		return HandleGmmMessage(ctx, amf, ue, msg)

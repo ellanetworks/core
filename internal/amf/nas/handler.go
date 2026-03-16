@@ -164,6 +164,10 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 		}
 	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
 		mobileIdentity5GSContents := msg.DeregistrationRequestUEOriginatingDeregistration.GetMobileIdentity5GSContents()
+		if len(mobileIdentity5GSContents) == 0 {
+			return nil, fmt.Errorf("mobile identity 5GS is empty")
+		}
+
 		if nasMessage.MobileIdentity5GSType5gGuti == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
 			guti, err := etsi.NewGUTIFromBytes(mobileIdentity5GSContents)
 			if err != nil {

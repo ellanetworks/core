@@ -1107,3 +1107,42 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorOn
 		t.Fatalf("expected empty SM context ref, got: %s", smCtx.Ref)
 	}
 }
+
+// TestTransport5GSMMessage_NoSmContext_NilRequestType_Panic reproduces a nil-pointer
+// dereference when a UE sends a ULNASTransport with N1SM payload for a PDU session
+// that has no AMF-side SM context and omits the RequestType IE.
+// The code reaches `switch requestType.GetRequestTypeValue()` with requestType == nil.
+func TestTransport5GSMMessage_NoSmContext_NilRequestType_Panic(t *testing.T) {
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.SetState(amfContext.Registered)
+
+	// Ensure no SM context exists for PDU session 5
+	_, exists := ue.SmContextFindByPDUSessionID(5)
+	if exists {
+		t.Fatal("precondition failed: SM context should not exist for PDU session 5")
+	}
+
+	// Build ULNASTransport with N1SM payload, valid PDU session ID, but NO RequestType
+	pduSessionID := uint8(5)
+	smPayload := []byte{0x2e, 0x05, 0xc1, 0x00, 0x00} // minimal 5GSM header
+	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, &pduSessionID)
+	// msg.RequestType is intentionally left nil
+
+	amf := &amfContext.AMF{
+		Smf:        &FakeSmf{},
+		DBInstance: &FakeDBInstance{},
+	}
+
+	// This should NOT panic — it should return an error gracefully
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("transport5GSMMessage panicked with nil RequestType (no SM context): %v", r)
+		}
+	}()
+
+	_ = transport5GSMMessage(t.Context(), amf, ue, msg)
+}
