@@ -165,12 +165,14 @@ func (ausf *AUSF) CreateAuthData(ctx context.Context, snName string, resyncInfo 
 	)
 	defer span.End()
 
-	hnPrivateKey, err := ausf.dbInstance.GetHomeNetworkPrivateKey(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get home network private key: %w", err)
-	}
+	supi, err := ToSupi(suci, func(scheme string, keyID int) (string, error) {
+		key, err := ausf.dbInstance.GetHomeNetworkKeyBySchemeAndIdentifier(ctx, scheme, keyID)
+		if err != nil {
+			return "", err
+		}
 
-	supi, err := ToSupi(suci, hnPrivateKey)
+		return key.PrivateKey, nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}

@@ -389,7 +389,7 @@ func TestRunMigrations_Incremental(t *testing.T) {
 	}
 
 	_, err := db.ExecContext(ctx, fmt.Sprintf(
-		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst, homeNetworkPrivateKey) VALUES (1, '310', '260', 'testop', 1, 'keyhex')",
+		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst) VALUES (1, '310', '260', 'testop', 1)",
 		OperatorTableName))
 	if err != nil {
 		t.Fatalf("failed to insert test data: %v", err)

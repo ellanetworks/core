@@ -5,20 +5,22 @@
 package ausf
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ecdh"
+	"crypto/elliptic"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math"
+	"math/big"
 	"math/bits"
+	"strconv"
 	"strings"
 
 	"github.com/ellanetworks/core/etsi"
-	"golang.org/x/crypto/curve25519"
 )
 
 // profile A.
@@ -30,18 +32,29 @@ const (
 	ProfileAHashLen   = 32 // octets
 )
 
-// suci-0(SUPI type)-mcc-mnc-routingIndentifier-protectionScheme-homeNetworkPublicKeyIdentifier-schemeOutput.
+// profile B.
+const (
+	ProfileBMacKeyLen = 32
+	ProfileBEncKeyLen = 16
+	ProfileBIcbLen    = 16
+	ProfileBMacLen    = 8
+	ProfileBHashLen   = 32
+)
+
+// suci-0(SUPI type)-mcc-mnc-routingIdentifier-protectionScheme-homeNetworkPublicKeyIdentifier-schemeOutput.
 const (
 	supiTypePlace = 1
 	mccPlace      = 2
 	mncPlace      = 3
 	schemePlace   = 5
+	keyIdPlace    = 6
 )
 
 const (
 	typeIMSI       = "0"
 	nullScheme     = "0"
 	profileAScheme = "1"
+	profileBScheme = "2"
 )
 
 func hmacSha256(input, macKey []byte, macLen int) ([]byte, error) {
@@ -113,58 +126,190 @@ func calcSchemeResult(decryptPlainText []byte, supiType string) string {
 	return schemeResult
 }
 
+// decryptWithKdf runs the shared KDF → MAC-verify → AES-CTR-decrypt pipeline.
+func decryptWithKdf(sharedKey, kdfPubKey, cipherText, providedMac []byte,
+	encKeyLen, macKeyLen, hashLen, icbLen, macLen int, //nolint:unparam
+) ([]byte, error) {
+	kdfKey := ansiX963KDF(sharedKey, kdfPubKey, encKeyLen, macKeyLen, hashLen)
+	encKey := kdfKey[:encKeyLen]
+	icb := kdfKey[encKeyLen : encKeyLen+icbLen]
+	macKey := kdfKey[len(kdfKey)-macKeyLen:]
+
+	computedMac, err := hmacSha256(cipherText, macKey, macLen)
+	if err != nil {
+		return nil, err
+	}
+
+	if !hmac.Equal(computedMac, providedMac) {
+		return nil, fmt.Errorf("decryption MAC failed")
+	}
+
+	return aes128ctr(cipherText, encKey, icb) // #nosec G407
+}
+
+// ecdhX25519 performs X25519 ECDH using the standard library crypto/ecdh.
+func ecdhX25519(privateKeyHex string, peerPubKey []byte) ([]byte, error) {
+	privBytes, err := hex.DecodeString(privateKeyHex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode X25519 private key: %w", err)
+	}
+
+	priv, err := ecdh.X25519().NewPrivateKey(privBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse X25519 private key: %w", err)
+	}
+
+	pub, err := ecdh.X25519().NewPublicKey(peerPubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse X25519 public key: %w", err)
+	}
+
+	return priv.ECDH(pub)
+}
+
+var errPublicKeyUnmarshalling = fmt.Errorf("failed to unmarshal P-256 public key")
+
+// ecdhP256 performs P-256 ECDH, handling both compressed (33 bytes) and
+// uncompressed (65 bytes) ephemeral public keys. It always returns the
+// compressed form for KDF input as required by TS 33.501.
+func ecdhP256(privateKeyHex string, transmittedPubKey []byte) (sharedKey, kdfPubKey []byte, err error) {
+	privBytes, err := hex.DecodeString(privateKeyHex)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to decode P-256 private key: %w", err)
+	}
+
+	priv, err := ecdh.P256().NewPrivateKey(privBytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse P-256 private key: %w", err)
+	}
+
+	var pubKeyForECDH []byte
+
+	switch transmittedPubKey[0] {
+	case 0x02, 0x03:
+		// Compressed format (33 bytes) — decompress for ECDH.
+		x, y := elliptic.UnmarshalCompressed(elliptic.P256(), transmittedPubKey)
+		if x == nil || y == nil {
+			return nil, nil, errPublicKeyUnmarshalling
+		}
+		// Manually construct uncompressed SEC1 (0x04 || x || y) to avoid deprecated elliptic.Marshal.
+		pubKeyForECDH = make([]byte, 65)
+		pubKeyForECDH[0] = 0x04
+		x.FillBytes(pubKeyForECDH[1:33])
+		y.FillBytes(pubKeyForECDH[33:65])
+		// KDF uses the original compressed form.
+		kdfPubKey = transmittedPubKey
+
+	case 0x04:
+		// Uncompressed format (65 bytes) — use directly for ECDH.
+		pubKeyForECDH = transmittedPubKey
+		// KDF needs the compressed form.
+		x := new(big.Int).SetBytes(transmittedPubKey[1:33])
+		y := new(big.Int).SetBytes(transmittedPubKey[33:65])
+		kdfPubKey = elliptic.MarshalCompressed(elliptic.P256(), x, y)
+
+	default:
+		return nil, nil, fmt.Errorf("unknown public key format byte: 0x%02x", transmittedPubKey[0])
+	}
+
+	pub, err := ecdh.P256().NewPublicKey(pubKeyForECDH)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create P-256 public key: %w", err)
+	}
+
+	sharedKey, err = priv.ECDH(pub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to compute ECDH: %w", err)
+	}
+
+	return sharedKey, kdfPubKey, nil
+}
+
 func profileA(input, supiType, privateKey string) (string, error) {
 	s, err := hex.DecodeString(input)
 	if err != nil {
 		return "", fmt.Errorf("error decoding hex string: %w", err)
 	}
 
-	// for X25519(profile A), q (The number of elements in the field Fq) = 2^255 - 19
-	// len(pubkey) is therefore ceil((log2q)/8+1) = 32octets
-	ProfileAPubKeyLen := 32
+	const ProfileAPubKeyLen = 32
 	if len(s) < ProfileAPubKeyLen+ProfileAMacLen {
 		return "", fmt.Errorf("suci input too short")
 	}
 
-	decryptMac := s[len(s)-ProfileAMacLen:]
-	decryptPublicKey := s[:ProfileAPubKeyLen]
-	decryptCipherText := s[ProfileAPubKeyLen : len(s)-ProfileAMacLen]
+	peerPubKey := s[:ProfileAPubKeyLen]
+	cipherText := s[ProfileAPubKeyLen : len(s)-ProfileAMacLen]
+	providedMac := s[len(s)-ProfileAMacLen:]
 
-	// test data from TS33.501 Annex C.4
-
-	aHNPriv, err := hex.DecodeString(privateKey)
+	sharedKey, err := ecdhX25519(privateKey, peerPubKey)
 	if err != nil {
-		return "", fmt.Errorf("decode error: %w", err)
+		return "", err
 	}
 
-	decryptSharedKey, err := curve25519.X25519(aHNPriv, decryptPublicKey)
+	plainText, err := decryptWithKdf(sharedKey, peerPubKey, cipherText, providedMac,
+		ProfileAEncKeyLen, ProfileAMacKeyLen, ProfileAHashLen, ProfileAIcbLen, ProfileAMacLen)
 	if err != nil {
-		return "", fmt.Errorf("could not calculate shared key: %w", err)
+		return "", err
 	}
 
-	kdfKey := ansiX963KDF(decryptSharedKey, decryptPublicKey, ProfileAEncKeyLen, ProfileAMacKeyLen, ProfileAHashLen)
-	decryptEncKey := kdfKey[:ProfileAEncKeyLen]
-	decryptIcb := kdfKey[ProfileAEncKeyLen : ProfileAEncKeyLen+ProfileAIcbLen]
-	decryptMacKey := kdfKey[len(kdfKey)-ProfileAMacKeyLen:]
-
-	decryptMacTag, err := hmacSha256(decryptCipherText, decryptMacKey, ProfileAMacLen)
-	if err != nil {
-		return "", fmt.Errorf("error calculating MAC: %w", err)
-	}
-
-	if !bytes.Equal(decryptMacTag, decryptMac) {
-		return "", fmt.Errorf("decryption MAC failed")
-	}
-
-	decryptPlainText, err := aes128ctr(decryptCipherText, decryptEncKey, decryptIcb) // #nosec G407
-	if err != nil {
-		return "", fmt.Errorf("error decrypting: %w", err)
-	}
-
-	return calcSchemeResult(decryptPlainText, supiType), nil
+	return calcSchemeResult(plainText, supiType), nil
 }
 
-func ToSupi(suci string, privateKey string) (etsi.SUPI, error) {
+func profileB(input, supiType, privateKey string) (string, error) {
+	s, err := hex.DecodeString(input)
+	if err != nil || len(s) < 1 {
+		return "", fmt.Errorf("error decoding hex string: %w", err)
+	}
+
+	// Determine ephemeral public key length from format byte.
+	var pubKeyLen int
+
+	switch s[0] {
+	case 0x02, 0x03:
+		pubKeyLen = 33 // SEC1 compressed
+	case 0x04:
+		pubKeyLen = 65 // SEC1 uncompressed
+	default:
+		return "", fmt.Errorf("suci input error: unknown public key format byte 0x%02x", s[0])
+	}
+
+	if len(s) < pubKeyLen+ProfileBMacLen {
+		return "", fmt.Errorf("suci input too short for Profile B")
+	}
+
+	transmittedPubKey := s[:pubKeyLen]
+	cipherText := s[pubKeyLen : len(s)-ProfileBMacLen]
+	providedMac := s[len(s)-ProfileBMacLen:]
+
+	sharedKey, kdfPubKey, err := ecdhP256(privateKey, transmittedPubKey)
+	if err != nil {
+		return "", err
+	}
+
+	plainText, err := decryptWithKdf(sharedKey, kdfPubKey, cipherText, providedMac,
+		ProfileBEncKeyLen, ProfileBMacKeyLen, ProfileBHashLen, ProfileBIcbLen, ProfileBMacLen)
+	if err != nil {
+		return "", err
+	}
+
+	return calcSchemeResult(plainText, supiType), nil
+}
+
+func schemeIDToLetter(schemeID string) (string, error) {
+	switch schemeID {
+	case profileAScheme: // "1"
+		return "A", nil
+	case profileBScheme: // "2"
+		return "B", nil
+	default:
+		return "", fmt.Errorf("unsupported protection scheme: %s", schemeID)
+	}
+}
+
+// KeyResolver resolves a home network private key by (scheme, keyIdentifier).
+// scheme is "A" or "B". keyIdentifier is 0-255.
+type KeyResolver func(scheme string, keyIdentifier int) (string, error)
+
+func ToSupi(suci string, resolveKey KeyResolver) (etsi.SUPI, error) {
 	suciPart := strings.Split(suci, "-")
 	suciPrefix := suciPart[0]
 
@@ -174,7 +319,7 @@ func ToSupi(suci string, privateKey string) (etsi.SUPI, error) {
 	case "nai":
 		return etsi.InvalidSUPI, fmt.Errorf("NAI SUPI not yet supported")
 	case "suci":
-		if len(suciPart) < 6 {
+		if len(suciPart) < 8 {
 			return etsi.InvalidSUPI, fmt.Errorf("suci with wrong format")
 		}
 	default:
@@ -188,14 +333,41 @@ func ToSupi(suci string, privateKey string) (etsi.SUPI, error) {
 		return etsi.NewSUPIFromIMSI(mccMnc + suciPart[len(suciPart)-1])
 	}
 
-	if scheme != profileAScheme {
-		return etsi.InvalidSUPI, fmt.Errorf("protect Scheme (%s) is not supported", scheme)
-	}
-
-	profileAResult, err := profileA(suciPart[len(suciPart)-1], suciPart[supiTypePlace], privateKey)
+	// Resolve the private key for this (scheme, keyId) pair.
+	schemeLetter, err := schemeIDToLetter(scheme)
 	if err != nil {
-		return etsi.InvalidSUPI, fmt.Errorf("profile A error: %w", err)
+		return etsi.InvalidSUPI, err
 	}
 
-	return etsi.NewSUPIFromIMSI(mccMnc + profileAResult)
+	keyIdStr := suciPart[keyIdPlace]
+
+	keyId, err := strconv.Atoi(keyIdStr)
+	if err != nil {
+		return etsi.InvalidSUPI, fmt.Errorf("invalid key identifier: %s", keyIdStr)
+	}
+
+	privateKey, err := resolveKey(schemeLetter, keyId)
+	if err != nil {
+		return etsi.InvalidSUPI, fmt.Errorf("home network key not found (scheme=%s, keyId=%d): %w", schemeLetter, keyId, err)
+	}
+
+	schemeOutput := suciPart[len(suciPart)-1]
+	supiType := suciPart[supiTypePlace]
+
+	var result string
+
+	switch scheme {
+	case profileAScheme:
+		result, err = profileA(schemeOutput, supiType, privateKey)
+		if err != nil {
+			return etsi.InvalidSUPI, fmt.Errorf("profile A error: %w", err)
+		}
+	case profileBScheme:
+		result, err = profileB(schemeOutput, supiType, privateKey)
+		if err != nil {
+			return etsi.InvalidSUPI, fmt.Errorf("profile B error: %w", err)
+		}
+	}
+
+	return etsi.NewSUPIFromIMSI(mccMnc + result)
 }

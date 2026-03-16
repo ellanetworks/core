@@ -95,8 +95,15 @@ type Database struct {
 	updateOperatorTrackingStmt           *sqlair.Statement
 	updateOperatorIDStmt                 *sqlair.Statement
 	updateOperatorCodeStmt               *sqlair.Statement
-	updateHomeNetworkPrivateKeyStmt      *sqlair.Statement
 	updateOperatorSecurityAlgorithmsStmt *sqlair.Statement
+
+	// Home Network Key statements
+	listHomeNetworkKeysStmt                    *sqlair.Statement
+	getHomeNetworkKeyStmt                      *sqlair.Statement
+	getHomeNetworkKeyBySchemeAndIdentifierStmt *sqlair.Statement
+	createHomeNetworkKeyStmt                   *sqlair.Statement
+	deleteHomeNetworkKeyStmt                   *sqlair.Statement
+	countHomeNetworkKeysStmt                   *sqlair.Statement
 
 	// Policies statements
 	listPoliciesStmt  *sqlair.Statement
@@ -353,8 +360,15 @@ func (db *Database) PrepareStatements() error {
 		{&db.updateOperatorTrackingStmt, fmt.Sprintf(updateOperatorTrackingStmt, OperatorTableName), []any{Operator{}}},
 		{&db.updateOperatorIDStmt, fmt.Sprintf(updateOperatorIDStmt, OperatorTableName), []any{Operator{}}},
 		{&db.updateOperatorCodeStmt, fmt.Sprintf(updateOperatorCodeStmt, OperatorTableName), []any{Operator{}}},
-		{&db.updateHomeNetworkPrivateKeyStmt, fmt.Sprintf(updateOperatorHomeNetworkPrivateKeyStmt, OperatorTableName), []any{Operator{}}},
 		{&db.updateOperatorSecurityAlgorithmsStmt, fmt.Sprintf(updateOperatorSecurityAlgorithmsStmtConst, OperatorTableName), []any{Operator{}}},
+
+		// Home Network Keys
+		{&db.listHomeNetworkKeysStmt, fmt.Sprintf(listHomeNetworkKeysStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
+		{&db.getHomeNetworkKeyStmt, fmt.Sprintf(getHomeNetworkKeyStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
+		{&db.getHomeNetworkKeyBySchemeAndIdentifierStmt, fmt.Sprintf(getHomeNetworkKeyBySchemeAndIdentifierStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
+		{&db.createHomeNetworkKeyStmt, fmt.Sprintf(createHomeNetworkKeyStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
+		{&db.deleteHomeNetworkKeyStmt, fmt.Sprintf(deleteHomeNetworkKeyStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
+		{&db.countHomeNetworkKeysStmt, fmt.Sprintf(countHomeNetworkKeysStmtStr, HomeNetworkKeysTableName), []any{NumItems{}}},
 
 		// Policies
 		{&db.listPoliciesStmt, fmt.Sprintf(listPoliciesPagedStmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},
@@ -448,18 +462,12 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("couldn't generate operator code: %w", err)
 		}
 
-		initialHNPrivateKey, err := generateHomeNetworkPrivateKey()
-		if err != nil {
-			return fmt.Errorf("couldn't generate HN private key: %w", err)
-		}
-
 		initialOperator := &Operator{
-			Mcc:                   InitialMcc,
-			Mnc:                   InitialMnc,
-			OperatorCode:          initialOp,
-			Sst:                   InitialOperatorSst,
-			Sd:                    InitialOperatorSd,
-			HomeNetworkPrivateKey: initialHNPrivateKey,
+			Mcc:          InitialMcc,
+			Mnc:          InitialMnc,
+			OperatorCode: initialOp,
+			Sst:          InitialOperatorSst,
+			Sd:           InitialOperatorSd,
 		}
 
 		err = initialOperator.SetSupportedTacs(InitialSupportedTacs)
@@ -470,6 +478,28 @@ func (db *Database) Initialize(ctx context.Context) error {
 		err = db.InitializeOperator(context.Background(), initialOperator)
 		if err != nil {
 			return fmt.Errorf("failed to initialize network configuration: %v", err)
+		}
+	}
+
+	numKeys, err := db.CountHomeNetworkKeys(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to count home network keys: %w", err)
+	}
+
+	if numKeys == 0 {
+		initialHNPrivateKey, err := generateHomeNetworkPrivateKey()
+		if err != nil {
+			return fmt.Errorf("failed to generate default home network key: %w", err)
+		}
+
+		defaultKey := &HomeNetworkKey{
+			KeyIdentifier: 0,
+			Scheme:        "A",
+			PrivateKey:    initialHNPrivateKey,
+		}
+
+		if err := db.CreateHomeNetworkKey(ctx, defaultKey); err != nil {
+			return fmt.Errorf("failed to create default home network key: %w", err)
 		}
 	}
 

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"crypto/ecdh"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -36,10 +35,6 @@ type UpdateOperatorCodeParams struct {
 	OperatorCode string `json:"operatorCode,omitempty"`
 }
 
-type UpdateOperatorHomeNetworkParams struct {
-	PrivateKey string `json:"privateKey,omitempty"`
-}
-
 type UpdateOperatorSecurityParams struct {
 	CipheringOrder []string `json:"cipheringOrder"`
 	IntegrityOrder []string `json:"integrityOrder"`
@@ -68,7 +63,7 @@ type GetOperatorIDResponse struct {
 }
 
 type GetOperatorHomeNetworkResponse struct {
-	PublicKey string `json:"publicKey,omitempty"`
+	Keys []HomeNetworkKeyResponse `json:"keys"`
 }
 
 type GetOperatorSecurityResponse struct {
@@ -77,12 +72,11 @@ type GetOperatorSecurityResponse struct {
 }
 
 const (
-	UpdateOperatorSliceAction       = "update_operator_slice"
-	UpdateOperatorTrackingAction    = "update_operator_tracking"
-	UpdateOperatorIDAction          = "update_operator_id"
-	UpdateOperatorCodeAction        = "update_operator_code"
-	UpdateOperatorHomeNetworkAction = "update_operator_home_network"
-	UpdateOperatorSecurityAction    = "update_operator_security"
+	UpdateOperatorSliceAction    = "update_operator_slice"
+	UpdateOperatorTrackingAction = "update_operator_tracking"
+	UpdateOperatorIDAction       = "update_operator_id"
+	UpdateOperatorCodeAction     = "update_operator_code"
+	UpdateOperatorSecurityAction = "update_operator_security"
 )
 
 // Mcc is a 3-decimal digit
@@ -125,23 +119,6 @@ func isValidOperatorCode(operatorCode string) bool {
 	_, err := hex.DecodeString(operatorCode)
 	if err != nil {
 		logger.APILog.Warn("Invalid operator code: not valid hex", zap.Error(err))
-		return false
-	}
-
-	return true
-}
-
-// isValidPrivateKey validates whether the provided private key is a valid 32-byte Curve25519 private key.
-func isValidPrivateKey(privateKey string) bool {
-	privateKeyBytes, err := hex.DecodeString(privateKey)
-	if err != nil {
-		logger.EllaLog.Warn("Failed to decode private key from hex", zap.Error(err))
-		return false
-	}
-
-	_, err = ecdh.X25519().NewPrivateKey(privateKeyBytes)
-	if err != nil {
-		logger.EllaLog.Warn("Failed to create X25519 private key", zap.Error(err))
 		return false
 	}
 
@@ -207,12 +184,30 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		hnPublicKey, err := dbOperator.GetHomeNetworkPublicKey()
+		hnKeys, err := dbInstance.ListHomeNetworkKeys(r.Context())
 		if err != nil {
-			logger.APILog.Warn("Failed to get home network public key", zap.Error(err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get home network public key", err, logger.APILog)
+			logger.APILog.Warn("Failed to list home network keys", zap.Error(err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list home network keys", err, logger.APILog)
 
 			return
+		}
+
+		keyResponses := make([]HomeNetworkKeyResponse, 0, len(hnKeys))
+		for _, k := range hnKeys {
+			pubKey, err := k.GetPublicKey()
+			if err != nil {
+				logger.APILog.Warn("Failed to derive public key", zap.Int("id", k.ID), zap.Error(err))
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to derive public key", err, logger.APILog)
+
+				return
+			}
+
+			keyResponses = append(keyResponses, HomeNetworkKeyResponse{
+				ID:            k.ID,
+				KeyIdentifier: k.KeyIdentifier,
+				Scheme:        k.Scheme,
+				PublicKey:     pubKey,
+			})
 		}
 
 		supportedTACs, err := dbOperator.GetSupportedTacs()
@@ -252,7 +247,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 				SupportedTacs: supportedTACs,
 			},
 			HomeNetwork: GetOperatorHomeNetworkResponse{
-				PublicKey: hnPublicKey,
+				Keys: keyResponses,
 			},
 			Security: GetOperatorSecurityResponse{
 				CipheringOrder: cipheringOrder,
@@ -547,51 +542,6 @@ func UpdateOperatorCode(dbInstance *db.Database) http.Handler {
 			email,
 			getClientIP(r),
 			"User updated operator Code",
-		)
-	})
-}
-
-func UpdateOperatorHomeNetwork(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
-			return
-		}
-
-		var params UpdateOperatorHomeNetworkParams
-		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
-			return
-		}
-
-		if params.PrivateKey == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "privateKey is missing", nil, logger.APILog)
-			return
-		}
-
-		if !isValidPrivateKey(params.PrivateKey) {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid private key format. Must be a 32-byte hexadecimal string.", nil, logger.APILog)
-			return
-		}
-
-		if err := dbInstance.UpdateHomeNetworkPrivateKey(r.Context(), params.PrivateKey); err != nil {
-			logger.APILog.Warn("Failed to update home network private key", zap.Error(err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update home network private key", err, logger.APILog)
-
-			return
-		}
-
-		writeResponse(r.Context(), w, SuccessResponse{Message: "Home Network private key updated successfully"}, http.StatusCreated, logger.APILog)
-
-		logger.LogAuditEvent(
-			r.Context(),
-			UpdateOperatorHomeNetworkAction,
-			email,
-			getClientIP(r),
-			"User updated home network private key",
 		)
 	})
 }

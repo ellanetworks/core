@@ -15,7 +15,7 @@ import (
 // ExportSupportData returns a map containing exported data for support bundles.
 // Sensitive fields are redacted at the source immediately after database fetch:
 // - Operator.OperatorCode
-// - Operator.HomeNetworkPrivateKey
+// - HomeNetworkKey.PrivateKey
 func (db *Database) ExportSupportData(ctx context.Context) (map[string]any, error) {
 	ctx, span := tracer.Start(ctx, "ExportSupportData")
 	defer span.End()
@@ -32,22 +32,37 @@ func (db *Database) ExportSupportData(ctx context.Context) (map[string]any, erro
 	} else {
 		// Redact sensitive operator fields immediately after fetch
 		op.OperatorCode = "*"
-		op.HomeNetworkPrivateKey = "*"
 
 		// Convert operator to JSON-friendly map; Sd is emitted as hex string
 		// (3 bytes -> 6 hex chars) to avoid base64 encoding in JSON
 		supportedTACs, _ := op.GetSupportedTacs()
 		operatorMap := map[string]any{
-			"ID":                    op.ID,
-			"Mcc":                   op.Mcc,
-			"Mnc":                   op.Mnc,
-			"OperatorCode":          op.OperatorCode,
-			"SupportedTACs":         supportedTACs,
-			"Sst":                   op.Sst,
-			"Sd":                    op.GetHexSd(),
-			"HomeNetworkPrivateKey": op.HomeNetworkPrivateKey,
+			"ID":            op.ID,
+			"Mcc":           op.Mcc,
+			"Mnc":           op.Mnc,
+			"OperatorCode":  op.OperatorCode,
+			"SupportedTACs": supportedTACs,
+			"Sst":           op.Sst,
+			"Sd":            op.GetHexSd(),
 		}
 		out["operator"] = operatorMap
+	}
+
+	hnKeys, err := db.ListHomeNetworkKeys(ctx)
+	if err != nil {
+		logger.DBLog.Warn("failed to list home network keys for support export", zap.Error(err))
+	} else {
+		redacted := make([]map[string]any, 0, len(hnKeys))
+		for _, k := range hnKeys {
+			redacted = append(redacted, map[string]any{
+				"ID":            k.ID,
+				"KeyIdentifier": k.KeyIdentifier,
+				"Scheme":        k.Scheme,
+				"PrivateKey":    "*",
+			})
+		}
+
+		out["home_network_keys"] = redacted
 	}
 
 	policies, _, err := db.ListPoliciesPage(ctx, 1, 1000)

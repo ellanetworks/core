@@ -53,9 +53,17 @@ func TestExportSupportData_Default(t *testing.T) {
 		if opCode, ok := opm["OperatorCode"].(string); !ok || opCode != "*" {
 			t.Fatalf("operator OperatorCode not redacted; got %#v", opm["OperatorCode"])
 		}
+	}
 
-		if hnKey, ok := opm["HomeNetworkPrivateKey"].(string); !ok || hnKey != "*" {
-			t.Fatalf("operator HomeNetworkPrivateKey not redacted; got %#v", opm["HomeNetworkPrivateKey"])
+	// home_network_keys should be present with redacted private keys
+	if hnKeys, ok := out["home_network_keys"].([]map[string]any); !ok {
+		t.Fatalf("home_network_keys missing or wrong type: %T", out["home_network_keys"])
+	} else if len(hnKeys) == 0 {
+		t.Fatalf("expected at least one home network key")
+	} else {
+		km := hnKeys[0]
+		if pk, ok := km["PrivateKey"].(string); !ok || pk != "*" {
+			t.Fatalf("home network key PrivateKey not redacted; got %#v", km["PrivateKey"])
 		}
 	}
 
@@ -199,8 +207,16 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 		t.Fatalf("operator OperatorCode not redacted; got %#v", opm["OperatorCode"])
 	}
 
-	if hnKey, ok := opm["HomeNetworkPrivateKey"].(string); !ok || hnKey != "*" {
-		t.Fatalf("operator HomeNetworkPrivateKey not redacted; got %#v", opm["HomeNetworkPrivateKey"])
+	// home_network_keys should be present with redacted private keys
+	if hnKeys, ok := out["home_network_keys"].([]map[string]any); !ok {
+		t.Fatalf("home_network_keys missing or wrong type: %T", out["home_network_keys"])
+	} else if len(hnKeys) == 0 {
+		t.Fatalf("expected at least one home network key")
+	} else {
+		km := hnKeys[0]
+		if pk, ok := km["PrivateKey"].(string); !ok || pk != "*" {
+			t.Fatalf("home network key PrivateKey not redacted; got %#v", km["PrivateKey"])
+		}
 	}
 
 	// validate policies and networking content include our created entries

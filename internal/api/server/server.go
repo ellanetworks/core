@@ -93,7 +93,9 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("GET /api/v1/operator/tracking", Authenticate(jwtSecret, dbInstance, Authorize(PermGetOperatorTracking, GetOperatorTracking(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/operator/id", Authenticate(jwtSecret, dbInstance, Authorize(PermGetOperatorID, GetOperatorID(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/code", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorCode, UpdateOperatorCode(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/operator/home-network", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorHomeNetwork, UpdateOperatorHomeNetwork(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/operator/home-network-keys", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOperator, ListHomeNetworkKeys(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/operator/home-network-keys", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorHomeNetwork, CreateHomeNetworkKey(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/operator/home-network-keys/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorHomeNetwork, DeleteHomeNetworkKey(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/security", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSecurityAlgorithms, UpdateOperatorSecurity(dbInstance))).ServeHTTP)
 
 	// Data Networks (Authenticated)
