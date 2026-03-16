@@ -1432,6 +1432,137 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	}
 }
 
+// TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus verifies that a
+// ServiceRequest with UplinkDataStatus does NOT panic when SmContextList contains
+// a PDU session ID >= 16 (outside the [16]bool PSI array bounds).
+// This is a regression test for an index-out-of-range crash (DoS vulnerability).
+func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing.T) {
+	amf := &context.AMF{
+		DBInstance: &FakeDBInstance{
+			Operator: &db.Operator{
+				Mcc:           "001",
+				Mnc:           "01",
+				Sst:           1,
+				SupportedTACs: "[\"000001\"]",
+			},
+		},
+		Ausf: &FakeAusf{
+			AvKgAka: &models.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+			Kseaf: "testkey",
+		},
+		UEs: make(map[etsi.SUPI]*context.AmfUe),
+		Smf: &FakeSmf{},
+	}
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	snssai := models.Snssai{Sst: 1, Sd: "102030"}
+	ue.State = context.Registered
+	ue.Tai = ue.RanUe.Tai
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+	algo := security.AlgCiphering128NEA2
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+
+	// Inject an out-of-range PDU session ID (255) into the UE's SmContextList.
+	// This simulates a malicious UE that previously established a session with
+	// an attacker-controlled PDU session ID that exceeds the [16]bool PSI array.
+	ue.CreateSmContext(255, "malicious-ref", &snssai)
+
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
+	if err != nil {
+		t.Fatalf("could not build service request: %v", err)
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("handleServiceRequest panicked with out-of-range PDU session ID: %v", r)
+		}
+	}()
+
+	err = handleServiceRequest(t.Context(), amf, ue, m.ServiceRequest)
+	if err != nil {
+		t.Logf("handleServiceRequest returned error (acceptable): %v", err)
+	}
+}
+
+// TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus verifies that a
+// ServiceRequest with PDUSessionStatus does NOT panic when SmContextList contains
+// a PDU session ID >= 16 (outside the [16]bool PSI array bounds).
+func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing.T) {
+	amf := &context.AMF{
+		DBInstance: &FakeDBInstance{
+			Operator: &db.Operator{
+				Mcc:           "001",
+				Mnc:           "01",
+				Sst:           1,
+				SupportedTACs: "[\"000001\"]",
+			},
+		},
+		Ausf: &FakeAusf{
+			AvKgAka: &models.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+			Kseaf: "testkey",
+		},
+		UEs: make(map[etsi.SUPI]*context.AmfUe),
+		Smf: &FakeSmf{},
+	}
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	snssai := models.Snssai{Sst: 1, Sd: "102030"}
+	ue.State = context.Registered
+	ue.Tai = ue.RanUe.Tai
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+	algo := security.AlgCiphering128NEA2
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+
+	// Inject an out-of-range PDU session ID (200) into the UE's SmContextList.
+	ue.CreateSmContext(200, "malicious-ref", &snssai)
+
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
+	if err != nil {
+		t.Fatalf("could not build service request: %v", err)
+	}
+
+	// Ensure PDUSessionStatus is set in the inner message (it is by default in
+	// buildTestServiceRequestCiphered). The panic occurs when iterating SmContextList
+	// and indexing into the [16]bool psiArray with pduSessionID >= 16.
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("handleServiceRequest panicked with out-of-range PDU session ID: %v", r)
+		}
+	}()
+
+	err = handleServiceRequest(t.Context(), amf, ue, m.ServiceRequest)
+	if err != nil {
+		t.Logf("handleServiceRequest returned error (acceptable): %v", err)
+	}
+}
+
 func buildTestServiceRequest() *nas.GmmMessage {
 	m := nas.NewGmmMessage()
 
