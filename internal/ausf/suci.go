@@ -201,7 +201,12 @@ func ecdhP256(privateKeyHex string, transmittedPubKey []byte) (sharedKey, kdfPub
 		kdfPubKey = transmittedPubKey
 
 	case 0x04:
-		// Uncompressed format (65 bytes) — use directly for ECDH.
+		// Uncompressed format (65 bytes) — validate point before compressing,
+		// since MarshalCompressed panics on invalid curve points.
+		if _, err := ecdh.P256().NewPublicKey(transmittedPubKey); err != nil {
+			return nil, nil, errPublicKeyUnmarshalling
+		}
+
 		pubKeyForECDH = transmittedPubKey
 		// KDF needs the compressed form.
 		x := new(big.Int).SetBytes(transmittedPubKey[1:33])

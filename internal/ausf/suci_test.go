@@ -1,4 +1,5 @@
 // Copyright 2026 Ella Networks
+// Copyright 2019 free5gc.org
 
 package ausf
 
@@ -690,3 +691,172 @@ func TestAes128ctr(t *testing.T) {
 
 // ------------- unused but ensure we have binary import for kdf test -----------
 var _ = binary.BigEndian
+
+// ------------- Known-good test vectors from free5gc/udm (Apache-2.0) -------------
+// These validate our implementation against independently-computed test data.
+// Source: https://github.com/free5gc/udm/blob/main/pkg/suci/suci_test.go
+
+// TestFree5GCVectors_ProfileDecryption validates our profile-level decryption
+// against known-good test vectors from the free5gc/udm project.
+// This exercises the core cryptographic logic (ECDH, KDF, AES-CTR, HMAC)
+// independently of the SUPI construction layer.
+func TestFree5GCVectors_ProfileDecryption(t *testing.T) {
+	const (
+		profileAKey = "c53c22208b61860b06c62e5406a7b330c2b577aa5558981510d128247d38bd1d"
+		profileBKey = "F1AB1074477EBCC7F554EA1C5FC368B1616730155E0041AC447D6301975FECDA"
+	)
+
+	tests := []struct {
+		name         string
+		profile      string // "A" or "B"
+		schemeOutput string
+		privateKey   string
+		wantMSIN     string // expected decrypted MSIN (empty if error expected)
+		wantErr      bool
+	}{
+		{
+			name:    "Profile A",
+			profile: "A",
+			schemeOutput: "b2e92f836055a255837debf850b528997ce0201cb82a" +
+				"dfe4be1f587d07d8457dcb02352410cddd9e730ef3fa87",
+			privateKey: profileAKey,
+			wantMSIN:   "001002086",
+		},
+		{
+			name:    "Profile B, compressed eph key",
+			profile: "B",
+			schemeOutput: "039aab8376597021e855679a9778ea0b67396e68c66d" +
+				"f32c0f41e9acca2da9b9d146a33fc2716ac7dae96aa30a4d",
+			privateKey: profileBKey,
+			wantMSIN:   "001002086",
+		},
+		{
+			name:    "Profile B, bad uncompressed eph key",
+			profile: "B",
+			schemeOutput: "0434a66778799d52fedd9326db4b690d092e05c9ba0ace5b413da" +
+				"fc0a40aa28ee00a79f790fa4da6a2ece892423adb130dc1b" +
+				"30e270b7d0088bdd716b93894891d5221a74c810d6b9350cc067c76",
+			privateKey: profileBKey,
+			wantErr:    true,
+		},
+		{
+			name:    "Profile B, compressed eph key, different MSIN",
+			profile: "B",
+			schemeOutput: "03a7b1db2a9db9d44112b59d03d8243dc6089fd91d2ecb" +
+				"78f5d16298634682e94373888b22bdc9293d1681922e17",
+			privateKey: profileBKey,
+			wantMSIN:   "0123456789",
+		},
+		{
+			name:    "Profile B, uncompressed eph key",
+			profile: "B",
+			schemeOutput: "049AAB8376597021E855679A9778EA0B67396E68C66DF32C0F41E9ACCA2D" +
+				"A9B9D1D1F44EA1C87AA7478B954537BDE79951E748A43294A4F4CF86EAFF" +
+				"1789C9C81F46A33FC2716AC7DAE96AA30A4D",
+			privateKey: profileBKey,
+			wantMSIN:   "001002086",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				result string
+				err    error
+			)
+
+			switch tt.profile {
+			case "A":
+				result, err = profileA(tt.schemeOutput, typeIMSI, tt.privateKey)
+			case "B":
+				result, err = profileB(tt.schemeOutput, typeIMSI, tt.privateKey)
+			}
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if result != tt.wantMSIN {
+				t.Fatalf("MSIN = %s, want %s", result, tt.wantMSIN)
+			}
+		})
+	}
+}
+
+// TestToSupi_Free5GCVectors validates the full ToSupi pipeline (key resolution,
+// scheme dispatch, SUPI construction) using vectors that produce valid 15-digit IMSIs.
+func TestToSupi_Free5GCVectors(t *testing.T) {
+	const profileBKey = "F1AB1074477EBCC7F554EA1C5FC368B1616730155E0041AC447D6301975FECDA"
+
+	keys := map[string]string{
+		"B-2": profileBKey,
+		"B-3": profileBKey,
+	}
+
+	resolver := func(scheme string, keyID int) (string, error) {
+		if priv, ok := keys[fmt.Sprintf("%s-%d", scheme, keyID)]; ok {
+			return priv, nil
+		}
+
+		return "", fmt.Errorf("key not found: %s-%d", scheme, keyID)
+	}
+
+	tests := []struct {
+		name    string
+		suci    string
+		want    string // expected IMSI
+		wantErr bool
+	}{
+		{
+			name: "Profile B, compressed eph, keyId=2",
+			suci: "suci-0-001-01-0-2-2-" +
+				"03a7b1db2a9db9d44112b59d03d8243dc6089fd91d2ecb" +
+				"78f5d16298634682e94373888b22bdc9293d1681922e17",
+			want: "001010123456789",
+		},
+		{
+			name: "Profile B, compressed eph, keyId=3",
+			suci: "suci-0-001-01-0-2-3-" +
+				"03a7b1db2a9db9d44112b59d03d8243dc6089fd91d2ecb" +
+				"78f5d16298634682e94373888b22bdc9293d1681922e17",
+			want: "001010123456789",
+		},
+		{
+			name: "Profile B, bad uncompressed eph, keyId=2",
+			suci: "suci-0-208-93-0-2-2-" +
+				"0434a66778799d52fedd9326db4b690d092e05c9ba0ace5b413da" +
+				"fc0a40aa28ee00a79f790fa4da6a2ece892423adb130dc1b" +
+				"30e270b7d0088bdd716b93894891d5221a74c810d6b9350cc067c76",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			supi, err := ToSupi(tt.suci, resolver)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if supi.IMSI() != tt.want {
+				t.Fatalf("IMSI = %s, want %s", supi.IMSI(), tt.want)
+			}
+		})
+	}
+}
