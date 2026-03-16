@@ -1475,10 +1475,11 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 	ue.CipheringAlg = algo
 	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	// Inject an out-of-range PDU session ID (255) into the UE's SmContextList.
-	// This simulates a malicious UE that previously established a session with
-	// an attacker-controlled PDU session ID that exceeds the [16]bool PSI array.
-	ue.CreateSmContext(255, "malicious-ref", &snssai)
+	// Inject an out-of-range PDU session ID (255) directly into SmContextList,
+	// bypassing CreateSmContext validation. This simulates a malicious UE that
+	// somehow stored an invalid session ID (e.g., via a hypothetical future bug).
+	// The read-side bounds checks in handleServiceRequest must still prevent a panic.
+	ue.SmContextList[255] = &context.SmContext{Ref: "malicious-ref", Snssai: &snssai}
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
 	if err != nil {
@@ -1539,8 +1540,9 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 	ue.CipheringAlg = algo
 	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 
-	// Inject an out-of-range PDU session ID (200) into the UE's SmContextList.
-	ue.CreateSmContext(200, "malicious-ref", &snssai)
+	// Inject an out-of-range PDU session ID (200) directly into SmContextList,
+	// bypassing CreateSmContext validation to test the read-side safety net.
+	ue.SmContextList[200] = &context.SmContext{Ref: "malicious-ref", Snssai: &snssai}
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
 	if err != nil {
