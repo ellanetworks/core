@@ -265,7 +265,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 				continue
 			}
 
-			if !psiArray[pduSessionID] {
+			if !psiArray[pduSessionID] { // #nosec G602 -- bounds checked above
 				err := amf.Smf.ReleaseSmContext(ctx, smContext.Ref)
 				if err != nil {
 					ue.Log.Error("Release SmContext Error", zap.Error(err))
