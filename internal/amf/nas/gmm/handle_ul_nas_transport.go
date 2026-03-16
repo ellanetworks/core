@@ -92,6 +92,10 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 	pduSessionID := id.GetPduSessionID2Value()
 
+	if pduSessionID < 1 || pduSessionID > 15 {
+		return fmt.Errorf("invalid PDU session ID %d: must be in range 1-15 per TS 24.501", pduSessionID)
+	}
+
 	if ulNasTransport.OldPDUSessionID != nil {
 		return fmt.Errorf("old pdu session id is not supported")
 	}
@@ -237,7 +241,10 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 				return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d", pduSessionID)
 			}
 
-			ue.CreateSmContext(pduSessionID, smContextRef, snssai)
+			if err := ue.CreateSmContext(pduSessionID, smContextRef, snssai); err != nil {
+				return fmt.Errorf("error creating SM context: %w", err)
+			}
+
 			ue.Log.Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
 
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:

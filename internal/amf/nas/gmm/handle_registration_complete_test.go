@@ -291,7 +291,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 	ue.SetOnGoing(context.OnGoingProcedurePaging)
 	ue.RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
 	ue.RegistrationRequest.UplinkDataStatus = nil
-	ue.CreateSmContext(1, "testref1", &models.Snssai{})
+	_ = ue.CreateSmContext(1, "testref1", &models.Snssai{})
 
 	err = handleRegistrationComplete(t.Context(), ue)
 	if err != nil {

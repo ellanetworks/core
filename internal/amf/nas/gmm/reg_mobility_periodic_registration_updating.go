@@ -53,7 +53,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 	}
 
 	if ue.RegistrationRequest.RequestedDRXParameters != nil {
-		ue.UESpecificDRX = ue.RegistrationRequest.GetDRXValue()
+		drx := ue.RegistrationRequest.GetDRXValue()
+		if drx > nasMessage.DRXcycleParameterT256 {
+			ue.Log.Warn("UE requested reserved DRX value, treating as not specified", zap.Uint8("drxValue", drx))
+			drx = nasMessage.DRXValueNotSpecified
+		}
+
+		ue.UESpecificDRX = drx
 	}
 
 	if len(ue.Pei) == 0 {

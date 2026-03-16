@@ -6,6 +6,7 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
+	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
@@ -31,7 +32,13 @@ func HandleInitialRegistration(ctx context.Context, amf *amfContext.AMF, ue *amf
 	}
 
 	if ue.RegistrationRequest.RequestedDRXParameters != nil {
-		ue.UESpecificDRX = ue.RegistrationRequest.GetDRXValue()
+		drx := ue.RegistrationRequest.GetDRXValue()
+		if drx > nasMessage.DRXcycleParameterT256 {
+			ue.Log.Warn("UE requested reserved DRX value, treating as not specified", zap.Uint8("drxValue", drx))
+			drx = nasMessage.DRXValueNotSpecified
+		}
+
+		ue.UESpecificDRX = drx
 	}
 
 	bitRate, err := amf.GetSubscriberBitrate(ctx, ue.Supi)

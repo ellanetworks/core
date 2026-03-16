@@ -145,6 +145,11 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 
 	if pduSessionResourceToBeSwitchedInDLList != nil {
 		for _, item := range pduSessionResourceToBeSwitchedInDLList.List {
+			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+				ranUe.Log.Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+				continue
+			}
+
 			pduSessionID := uint8(item.PDUSessionID.Value)
 			transfer := item.PathSwitchRequestTransfer
 
@@ -169,6 +174,11 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 
 	if pduSessionResourceFailedToSetupList != nil {
 		for _, item := range pduSessionResourceFailedToSetupList.List {
+			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+				ranUe.Log.Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+				continue
+			}
+
 			pduSessionID := uint8(item.PDUSessionID.Value)
 			transfer := item.PathSwitchRequestSetupFailedTransfer
 

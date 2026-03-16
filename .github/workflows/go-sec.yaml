@@ -17,7 +17,7 @@ jobs:
           go-version-file: "go.mod"
 
       - name: Install Gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.11
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.24.7
 
       - name: Run Gosec
-        run: gosec -exclude=G103,G115 ./...
+        run: gosec -exclude=G103,G115,G117 ./...

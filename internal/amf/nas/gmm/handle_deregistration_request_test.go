@@ -58,10 +58,10 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 	}
 
 	ue.State = context.Registered
-	ue.CreateSmContext(1, "testref1", &snssai)
-	ue.CreateSmContext(2, "testref2", &snssai)
-	ue.CreateSmContext(3, "testref3", &snssai)
-	ue.CreateSmContext(4, "testref4", &snssai)
+	_ = ue.CreateSmContext(1, "testref1", &snssai)
+	_ = ue.CreateSmContext(2, "testref2", &snssai)
+	_ = ue.CreateSmContext(3, "testref3", &snssai)
+	_ = ue.CreateSmContext(4, "testref4", &snssai)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 

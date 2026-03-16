@@ -438,7 +438,7 @@ func (ue *AmfUe) UpdateSecurityContext() error {
 }
 
 func (ue *AmfUe) UpdateNH() error {
-	ue.NCC++
+	ue.NCC = (ue.NCC + 1) % 8
 
 	err := ue.DerivateNH(ue.NH)
 	if err != nil {
@@ -530,11 +530,17 @@ func (ue *AmfUe) GetOnGoing() OnGoingProcedure {
 	return ue.OnGoing
 }
 
-func (ue *AmfUe) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai) {
+func (ue *AmfUe) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai) error {
+	if pduSessionID < 1 || pduSessionID > 15 {
+		return fmt.Errorf("invalid PDU session ID %d: must be in range 1-15 per TS 24.501", pduSessionID)
+	}
+
 	ue.SmContextList[pduSessionID] = &SmContext{
 		Ref:    ref,
 		Snssai: snssai,
 	}
+
+	return nil
 }
 
 func (ue *AmfUe) SmContextFindByPDUSessionID(pduSessionID uint8) (*SmContext, bool) {

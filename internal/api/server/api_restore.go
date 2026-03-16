@@ -23,7 +23,11 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 			return
 		}
 
-		err := r.ParseMultipartForm(32 << 20) // 32MB max memory buffer
+		const maxRestoreSize = 32 << 20 // 32MB
+
+		r.Body = http.MaxBytesReader(w, r.Body, maxRestoreSize)
+
+		err := r.ParseMultipartForm(maxRestoreSize)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid multipart form", err, logger.APILog)
 			return

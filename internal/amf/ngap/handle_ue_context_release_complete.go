@@ -140,6 +140,11 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 
 		if pDUSessionResourceList != nil {
 			for _, pduSessionReourceItem := range pDUSessionResourceList.List {
+				if pduSessionReourceItem.PDUSessionID.Value < 1 || pduSessionReourceItem.PDUSessionID.Value > 15 {
+					ranUe.Log.Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", pduSessionReourceItem.PDUSessionID.Value))
+					continue
+				}
+
 				pduSessionID := uint8(pduSessionReourceItem.PDUSessionID.Value)
 
 				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)

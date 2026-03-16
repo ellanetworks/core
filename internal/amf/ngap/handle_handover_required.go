@@ -208,6 +208,11 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 	var pduSessionReqList ngapType.PDUSessionResourceSetupListHOReq
 
 	for _, pDUSessionResourceHoItem := range pDUSessionResourceListHORqd.List {
+		if pDUSessionResourceHoItem.PDUSessionID.Value < 1 || pDUSessionResourceHoItem.PDUSessionID.Value > 15 {
+			sourceUe.Log.Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", pDUSessionResourceHoItem.PDUSessionID.Value))
+			continue
+		}
+
 		pduSessionIDUint8 := uint8(pDUSessionResourceHoItem.PDUSessionID.Value)
 		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
 			n2Rsp, err := pdusession.UpdateSmContextN2HandoverPreparing(smContext.Ref, pDUSessionResourceHoItem.HandoverRequiredTransfer)
