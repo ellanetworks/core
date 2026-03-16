@@ -68,6 +68,7 @@ type SubscriberDetail struct {
 	Imsi       string                 `json:"imsi"`
 	PolicyName string                 `json:"policyName"`
 	Status     SubscriberDetailStatus `json:"status"`
+	Sessions   []SessionInfo          `json:"sessions"`
 }
 
 // SubscriberCredentials is the response for the dedicated credentials endpoint.
@@ -75,6 +76,18 @@ type SubscriberCredentials struct {
 	Key            string `json:"key"`
 	Opc            string `json:"opc"`
 	SequenceNumber string `json:"sequenceNumber"`
+}
+
+// SessionInfo is a minimal representation of a PDU session returned by the API.
+type SessionInfo struct {
+	Status    string `json:"status"`
+	IPAddress string `json:"ipAddress,omitempty"`
+}
+
+// GetSessionsResponse is the response body for the sessions endpoint.
+type GetSessionsResponse struct {
+	Sessions []SessionInfo `json:"sessions"`
+	Count    int           `json:"count"`
 }
 
 const (
@@ -85,6 +98,7 @@ const (
 
 const (
 	MaxNumSubscribers = 1000
+	MaxPDUSessions    = 16
 )
 
 func isImsiValid(ctx context.Context, imsi string, dbInstance *db.Database) bool {
@@ -272,10 +286,30 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			}
 		}
 
+		pduSessions, _ := amfContext.GetUEPDUSessions(supi)
+
+		sessions := make([]SessionInfo, 0, len(pduSessions))
+		for _, pdu := range pduSessions {
+			session := toSessionInfo(pdu)
+			sessions = append(sessions, session)
+		}
+
+		if len(sessions) > MaxPDUSessions {
+			sessions = sessions[:MaxPDUSessions]
+		}
+
+		// Temporary: copy subscriber IP into the first session's IPAddress field so
+		// the UI can show it alongside session information. IP ownership should be
+		// moved to sessions in a future refactor.
+		if ipAddress != "" && len(sessions) > 0 {
+			sessions[0].IPAddress = ipAddress
+		}
+
 		subscriber := SubscriberDetail{
 			Imsi:       dbSubscriber.Imsi,
 			PolicyName: policy.Name,
 			Status:     subscriberStatus,
+			Sessions:   sessions,
 		}
 
 		writeResponse(r.Context(), w, subscriber, http.StatusOK, logger.APILog)
@@ -531,4 +565,15 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 
 		logger.LogAuditEvent(r.Context(), DeleteSubscriberAction, email, getClientIP(r), "User deleted subscriber: "+imsi)
 	})
+}
+
+func toSessionInfo(pdu amfContext.PDUSessionExport) SessionInfo {
+	status := "active"
+	if pdu.Inactive {
+		status = "inactive"
+	}
+
+	return SessionInfo{
+		Status: status,
+	}
 }

@@ -1,12 +1,26 @@
 import React from "react";
-import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
+import {
+  Box,
+  Card,
+  CardContent,
+  Chip,
+  Divider,
+  Typography,
+  CircularProgress,
+} from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Link as RouterLink } from "react-router-dom";
-import type { SubscriberDetailStatus } from "@/queries/subscribers";
+import type {
+  SubscriberDetailStatus,
+  SessionInfo,
+} from "@/queries/subscribers";
 import { formatRelativeTime } from "@/utils/formatters";
 
 interface SubscriberConnectionCardProps {
   status: SubscriberDetailStatus;
+  sessions?: SessionInfo[];
+  loading?: boolean;
+  ipAddress?: string | null;
 }
 
 const InfoRow: React.FC<{
@@ -23,6 +37,7 @@ const InfoRow: React.FC<{
         display: "flex",
         alignItems: "center",
         py: 0.75,
+        minHeight: 40,
         "&:not(:last-child)": {
           borderBottom: "1px solid",
           borderColor: "divider",
@@ -135,6 +150,53 @@ const IpChip: React.FC<{ ip?: string }> = ({ ip }) => {
   );
 };
 
+const StatusChip: React.FC<{ status?: string }> = ({ status }) => {
+  const isActive = status?.toLowerCase() === "active";
+  return (
+    <Chip
+      size="small"
+      label={status || "—"}
+      color={isActive ? "success" : "default"}
+      variant="filled"
+    />
+  );
+};
+
+const SessionRow: React.FC<{
+  label: string;
+  value?: React.ReactNode;
+}> = ({ label, value }) => {
+  const isEmpty = value === undefined || value === "" || value === null;
+  const display = isEmpty ? "—" : value;
+
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        py: 0.75,
+        minHeight: 40,
+        "&:not(:last-child)": {
+          borderBottom: "1px solid",
+          borderColor: "divider",
+        },
+      }}
+    >
+      <Typography
+        variant="body2"
+        sx={{ color: "text.secondary", minWidth: 180, flexShrink: 0, mr: 2 }}
+      >
+        {label}
+      </Typography>
+      {typeof display === "string" || typeof display === "number" ? (
+        <Typography variant="body2">{display}</Typography>
+      ) : (
+        display
+      )}
+    </Box>
+  );
+};
+
 const SecurityAlgorithmsValue: React.FC<{
   ciphering?: string;
   integrity?: string;
@@ -165,10 +227,16 @@ const SecurityAlgorithmsValue: React.FC<{
 
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
   status,
+  sessions = [],
+  loading = false,
+  ipAddress,
 }) => {
   return (
-    <Card variant="outlined" sx={{ height: "100%" }}>
-      <CardContent>
+    <Card
+      variant="outlined"
+      sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+    >
+      <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <Typography variant="h6" sx={{ mb: 1.5 }}>
           Connection
         </Typography>
@@ -176,7 +244,6 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           label="State"
           value={<StateChip registered={status.registered} />}
         />
-        <InfoRow label="IP Address" value={<IpChip ip={status.ipAddress} />} />
         <InfoRow label="IMEI" value={status.imei} />
         <InfoRow
           label="Last Seen"
@@ -221,6 +288,41 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
             />
           }
         />
+
+        <Divider sx={{ my: 2 }} />
+
+        <Typography variant="subtitle1" sx={{ mb: 1 }}>
+          PDU Session
+        </Typography>
+
+        {loading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+            <Chip label={<CircularProgress size={16} />} />
+          </Box>
+        ) : sessions.length === 0 ? (
+          <Typography variant="body2" sx={{ color: "text.secondary", py: 1 }}>
+            No active sessions
+          </Typography>
+        ) : (
+          <Box>
+            {/* Only first session supported; display its fields */}
+            {(() => {
+              const session = sessions[0];
+              return (
+                <Box>
+                  <SessionRow
+                    label="Status"
+                    value={<StatusChip status={session.status} />}
+                  />
+                  <SessionRow
+                    label="IP"
+                    value={session.ipAddress ?? ipAddress ?? "—"}
+                  />
+                </Box>
+              );
+            })()}
+          </Box>
+        )}
       </CardContent>
     </Card>
   );

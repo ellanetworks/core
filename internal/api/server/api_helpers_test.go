@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/supportbundle"
 )
 
@@ -78,6 +79,9 @@ func setupServer(filepath string) (*httptest.Server, []byte, *db.Database, error
 	}
 
 	logger.SetDb(testdb)
+
+	// Initialize SMF context
+	smf.Start(testdb)
 
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}

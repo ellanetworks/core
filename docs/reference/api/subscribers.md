@@ -107,22 +107,31 @@ This path returns the details of a specific network subscriber.
 
 None
 
+Note: `status.ipAddress` is deprecated and will be removed in future versions. Prefer `sessions[0].ipAddress`.
+
 ### Sample Response
 
 ```json
 {
-    "result": {
-        "imsi": "001010100007487",
-        "policyName": "default",
-        "status": {
-            "registered": true,
-            "sessions": [
-                {
-                    "ipAddress": "1.2.3.4"
-                }
-            ]
-        }
-    }
+  "result": {
+    "imsi": "001010100007487",
+    "policyName": "default",
+    "status": {
+      "registered": true,
+      "ipAddress": "1.2.3.4",
+      "imei": "359881234567890",
+      "cipheringAlgorithm": "NEA1",
+      "integrityAlgorithm": "NIA1",
+      "lastSeenAt": "2026-03-16T12:34:56Z",
+      "lastSeenRadio": "gNB-1"
+    },
+    "sessions": [
+      {
+        "status": "active",
+        "ipAddress": "1.2.3.4"
+      }
+    ]
+  }
 }
 ```
 

@@ -54,6 +54,7 @@ const FieldRow: React.FC<{
       display: "flex",
       alignItems: "center",
       py: 0.75,
+      minHeight: 40,
       "&:not(:last-child)": {
         borderBottom: "1px solid",
         borderColor: "divider",
@@ -160,8 +161,11 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   };
 
   return (
-    <Card variant="outlined" sx={{ height: "100%" }}>
-      <CardContent>
+    <Card
+      variant="outlined"
+      sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+    >
+      <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <Box
           sx={{
             display: "flex",
@@ -277,6 +281,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           value={policy?.data_network_name || "—"}
           linkTo="/networking?tab=data-networks"
         />
+        <Box sx={{ flex: 1 }} />
       </CardContent>
     </Card>
   );
