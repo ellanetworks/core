@@ -84,6 +84,11 @@ func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 	case ngapType.EventTypePresentUePresenceInAreaOfInterest:
 		ranUe.Log.Debug("To report UE presence in the area of interest")
 
+		if uEPresenceInAreaOfInterestList == nil {
+			ranUe.Log.Warn("UEPresenceInAreaOfInterestList is nil, skipping area of interest processing")
+			break
+		}
+
 		for _, uEPresenceInAreaOfInterestItem := range uEPresenceInAreaOfInterestList.List {
 			uEPresence := uEPresenceInAreaOfInterestItem.UEPresence.Value
 			referenceID := uEPresenceInAreaOfInterestItem.LocationReportingReferenceID.Value
