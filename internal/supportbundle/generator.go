@@ -206,7 +206,7 @@ func runCommand(ctx context.Context, name string, args ...string) ([]byte, error
 
 	defer cancel()
 
-	cmd := exec.CommandContext(cctx, name, args...)
+	cmd := exec.CommandContext(cctx, name, args...) // #nosec: G204 -- all callers pass hard-coded command strings
 	out, err := cmd.CombinedOutput()
 
 	if cctx.Err() == context.DeadlineExceeded {

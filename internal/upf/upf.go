@@ -159,11 +159,11 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 		ctx:                ctx,
 	}
 
-	go upf.listenForTrafficNotifications()
+	go upf.listenForTrafficNotifications() // #nosec: G118 -- lifecycle goroutine, not request-scoped
 
 	go upf.monitorUsage(30*time.Second, ctx.Done())
 
-	go upf.listenForMissingNeighbours()
+	go upf.listenForMissingNeighbours() // #nosec: G118 -- lifecycle goroutine, not request-scoped
 
 	if masquerade {
 		upf.startGC(ctx)
