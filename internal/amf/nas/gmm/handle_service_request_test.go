@@ -747,7 +747,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.CipheringAlg = algo
 	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
-	ue.CreateSmContext(1, "testref", &snssai)
+	_ = ue.CreateSmContext(1, "testref", &snssai)
 	ue.N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai}
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
@@ -880,8 +880,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.CipheringAlg = algo
 	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
-	ue.CreateSmContext(1, "testref", &snssai)
-	ue.CreateSmContext(12, "testrefuplink", &snssai)
+	_ = ue.CreateSmContext(1, "testref", &snssai)
+	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 	ue.N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
@@ -1018,8 +1018,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.CipheringAlg = algo
 	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
-	ue.CreateSmContext(1, "testref", &snssai)
-	ue.CreateSmContext(12, "testrefuplink", &snssai)
+	_ = ue.CreateSmContext(1, "testref", &snssai)
+	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 	ue.N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
@@ -1164,8 +1164,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	ue.CipheringAlg = algo
 	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
-	ue.CreateSmContext(1, "testref", &snssai)
-	ue.CreateSmContext(12, "testrefuplink", &snssai)
+	_ = ue.CreateSmContext(1, "testref", &snssai)
+	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 	ue.N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
 	ue.RanUe.UeContextRequest = true
 
@@ -1299,8 +1299,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	ue.CipheringAlg = algo
 	ue.IntegrityAlg = security.AlgIntegrity128NIA0
 	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
-	ue.CreateSmContext(1, "testref", &snssai)
-	ue.CreateSmContext(12, "testrefuplink", &snssai)
+	_ = ue.CreateSmContext(1, "testref", &snssai)
+	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 
 	n1msg, err := buildN1PDUSessionModificationCommand()
 	if err != nil {

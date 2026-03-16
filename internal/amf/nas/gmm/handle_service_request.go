@@ -235,6 +235,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 				ue.Log.Warn("Ignoring out-of-range PDU session ID in UplinkDataStatus processing", zap.Uint8("pduSessionID", pduSessionID))
 				continue
 			}
+
 			if pduSessionID != targetPduSessionID {
 				if uplinkDataPsi[pduSessionID] {
 					binaryDataN2SmInformation, err := amf.Smf.ActivateSmContext(smContext.Ref)
@@ -263,6 +264,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 				ue.Log.Warn("Ignoring out-of-range PDU session ID in PDUSessionStatus processing", zap.Uint8("pduSessionID", pduSessionID))
 				continue
 			}
+
 			if !psiArray[pduSessionID] {
 				err := amf.Smf.ReleaseSmContext(ctx, smContext.Ref)
 				if err != nil {

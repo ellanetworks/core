@@ -329,7 +329,8 @@ func TestTransport5GSMMessage_ExistingPduSession_NotAllowedNssai_SendsDLNASTrans
 
 	// Create an SM context with a DIFFERENT NSSAI (SST=2)
 	var pduSessionID uint8 = 5
-	ue.CreateSmContext(pduSessionID, "testref", &models.Snssai{Sst: 2, Sd: "040506"})
+
+	_ = ue.CreateSmContext(pduSessionID, "testref", &models.Snssai{Sst: 2, Sd: "040506"})
 
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
 
@@ -452,7 +453,7 @@ func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCr
 	var pduSessionID uint8 = 3
 
 	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
-	ue.CreateSmContext(pduSessionID, "testref", snssai)
+	_ = ue.CreateSmContext(pduSessionID, "testref", snssai)
 
 	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
 
@@ -673,7 +674,8 @@ func TestTransport5GSMMessage_SmContextExists_NoRequestType_ForwardsToSMF(t *tes
 	}
 
 	var pduSessionID uint8 = 5
-	ue.CreateSmContext(pduSessionID, "test-ref", &models.Snssai{Sst: 1, Sd: "010203"})
+
+	_ = ue.CreateSmContext(pduSessionID, "test-ref", &models.Snssai{Sst: 1, Sd: "010203"})
 
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 
@@ -715,10 +717,10 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 	var pduSessionID uint8 = 3
 
 	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
-	ue.CreateSmContext(pduSessionID, "dup-ref", snssai)
+	_ = ue.CreateSmContext(pduSessionID, "dup-ref", snssai)
 
 	// Also create a second SM context that will NOT be deleted (to ensure the first IS deleted)
-	ue.CreateSmContext(7, "other-ref", snssai)
+	_ = ue.CreateSmContext(7, "other-ref", snssai)
 
 	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
 
@@ -784,7 +786,8 @@ func TestTransport5GSMMessage_SmContextExists_ExistingPduSession_AllowedNssai_Fo
 	ue.AllowedNssai = snssai
 
 	var pduSessionID uint8 = 5
-	ue.CreateSmContext(pduSessionID, "existing-ref", snssai)
+
+	_ = ue.CreateSmContext(pduSessionID, "existing-ref", snssai)
 
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 
@@ -818,7 +821,8 @@ func TestTransport5GSMMessage_SmContextExists_DefaultRequestType_ForwardsToSMF(t
 	}
 
 	var pduSessionID uint8 = 5
-	ue.CreateSmContext(pduSessionID, "default-ref", &models.Snssai{Sst: 1, Sd: "010203"})
+
+	_ = ue.CreateSmContext(pduSessionID, "default-ref", &models.Snssai{Sst: 1, Sd: "010203"})
 
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 

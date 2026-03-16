@@ -244,6 +244,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			if err := ue.CreateSmContext(pduSessionID, smContextRef, snssai); err != nil {
 				return fmt.Errorf("error creating SM context: %w", err)
 			}
+
 			ue.Log.Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
 
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:

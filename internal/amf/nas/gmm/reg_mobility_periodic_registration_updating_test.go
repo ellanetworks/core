@@ -358,7 +358,8 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 
 	// Set up PDU session 2
 	snssai := &models.Snssai{Sst: 1}
-	ue.CreateSmContext(2, "ref-2", snssai)
+
+	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// UplinkDataStatus: PSI 2 has uplink data (bit 2 in byte 0 = 0x04)
 	ue.RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
@@ -396,7 +397,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *test
 	ue, ngapSender, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	ue.RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
 		Len:    2,
@@ -429,7 +430,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
 	ue, ngapSender, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	ue.RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
 		Len:    2,
@@ -462,7 +463,7 @@ func TestMobilityReg_PDUSessionStatus_InactiveSession_ReleaseSmContext(t *testin
 	ue, ngapSender, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// PDUSessionStatus: PSI 2 is NOT active (bit 2 unset = 0x00)
 	ue.RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
@@ -502,7 +503,7 @@ func TestMobilityReg_PDUSessionStatus_ActiveSession_NoRelease(t *testing.T) {
 	ue, ngapSender, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// PDUSessionStatus: PSI 2 IS active (bit 2 set = 0x04)
 	ue.RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
@@ -534,7 +535,7 @@ func TestMobilityReg_PDUSessionStatus_ReleaseError(t *testing.T) {
 	ue, _, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	ue.RegistrationRequest.PDUSessionStatus = &nasType.PDUSessionStatus{
 		Len:    2,
@@ -558,7 +559,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 	ue, ngapSender, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// UplinkDataStatus with PSI 2 + no UeContextRequest → populates suList
 	ue.RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
@@ -695,7 +696,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 	ue, ngapSender, _, amf := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	ue.CreateSmContext(3, "ref-3", snssai)
+	_ = ue.CreateSmContext(3, "ref-3", snssai)
 
 	ue.RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
 		Len:    2,
@@ -756,7 +757,7 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 	ue, ngapSender, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
 	// UplinkDataStatus with PSI 2
 	ue.RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{
