@@ -388,7 +388,7 @@ const Operator = () => {
             borderRadius: 1,
           }}
         >
-          <Table size="small">
+          <Table >
             <TableHead
               sx={{
                 backgroundColor: theme.palette.backgroundSubtle,
