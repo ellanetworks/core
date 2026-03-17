@@ -7,9 +7,6 @@ import {
   IconButton,
   Typography,
   Chip,
-  Card,
-  CardHeader,
-  CardContent,
   Tooltip,
   Table,
   TableBody,
@@ -19,7 +16,7 @@ import {
   TableRow,
   Button,
 } from "@mui/material";
-import Grid from "@mui/material/Grid";
+import { useTheme } from "@mui/material/styles";
 import {
   ContentCopy as CopyIcon,
   Edit as EditIcon,
@@ -53,6 +50,7 @@ const formatSd = (sd?: string | null) => {
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const Operator = () => {
+  const theme = useTheme();
   const { role, accessToken, authReady } = useAuth();
 
   const [isEditOperatorIdModalOpen, setEditOperatorIdModalOpen] =
@@ -175,23 +173,6 @@ const Operator = () => {
     }
   };
 
-  const headerStyles = {
-    backgroundColor: "backgroundSubtle",
-    color: "text.primary",
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    py: 0.5,
-    minHeight: 48,
-    alignItems: "center",
-    "& .MuiCardHeader-action": {
-      marginTop: 0,
-      marginBottom: 0,
-      alignSelf: "center",
-    },
-    "& .MuiCardHeader-title": { color: "text.primary", fontSize: "0.95rem" },
-    "& .MuiIconButton-root": { color: "text.primary" },
-  };
-
   const descriptionText =
     "Review and configure your operator identifiers and core settings.";
 
@@ -217,413 +198,262 @@ const Operator = () => {
         </Alert>
       )}
 
-      <Grid
-        container
-        spacing={4}
-        justifyContent="flex-start"
-        alignItems="stretch"
+      <TableContainer
+        sx={{
+          border: 1,
+          borderColor: "divider",
+          borderRadius: 1,
+          mb: 4,
+        }}
       >
-        <Grid size={{ xs: 12 }}>
-          <Typography variant="h5" sx={{ fontWeight: 600 }}>
-            Network Identity
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Core identifiers and network slice configuration.
-          </Typography>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
-          <Card
+        <Table>
+          <TableHead
             sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 3,
-              boxShadow: 2,
+              backgroundColor: theme.palette.backgroundSubtle,
+              "& .MuiTableCell-head": { fontWeight: 600 },
             }}
           >
-            <CardHeader
-              title="Operator ID"
-              sx={headerStyles}
-              action={
-                canEdit && (
-                  <IconButton
-                    aria-label="edit"
-                    onClick={handleEditOperatorIdClick}
-                  >
-                    <EditIcon color={"primary"} />
+            <TableRow>
+              <TableCell>Setting</TableCell>
+              <TableCell>Value</TableCell>
+              <TableCell align="right">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            <TableRow>
+              <TableCell>Operator ID (MCC/MNC)</TableCell>
+              <TableCell>
+                {operator ? `${operator.id.mcc} / ${operator.id.mnc}` : "N/A"}
+              </TableCell>
+              <TableCell align="right">
+                {canEdit && (
+                  <IconButton size="small" onClick={handleEditOperatorIdClick}>
+                    <EditIcon fontSize="small" color="primary" />
                   </IconButton>
-                )
-              }
-            />
-            <CardContent>
-              <Grid container spacing={1}>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Mobile Country Code (MCC)
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body1">
-                    {operator?.id.mcc || "N/A"}
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Mobile Network Code (MNC)
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body1">
-                    {operator?.id.mnc || "N/A"}
-                  </Typography>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
-          <Card
-            sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 3,
-              boxShadow: 2,
-            }}
-          >
-            <CardHeader
-              title="Operator Code"
-              sx={headerStyles}
-              action={
-                canEdit && (
+                )}
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>Operator Code (OP)</TableCell>
+              <TableCell>{"***************"}</TableCell>
+              <TableCell align="right">
+                {canEdit && (
                   <IconButton
-                    aria-label="edit"
+                    size="small"
                     onClick={handleEditOperatorCodeClick}
                   >
-                    <EditIcon color={"primary"} />
+                    <EditIcon fontSize="small" color="primary" />
                   </IconButton>
-                )
-              }
-            />
-            <CardContent>
-              <Grid container spacing={1}>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Operator Code (OP)
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body1">{"***************"}</Typography>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
-          <Card
-            sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 3,
-              boxShadow: 2,
-            }}
-          >
-            <CardHeader
-              title="Tracking Information"
-              sx={headerStyles}
-              action={
-                canEdit && (
-                  <IconButton
-                    aria-label="edit"
-                    onClick={handleEditOperatorTrackingClick}
-                  >
-                    <EditIcon color={"primary"} />
-                  </IconButton>
-                )
-              }
-            />
-            <CardContent>
-              <Grid container spacing={1}>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Supported TACs
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    {operator?.tracking.supportedTacs?.length ? (
-                      operator.tracking.supportedTacs.map((tac, idx) => (
+                )}
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>Supported TACs</TableCell>
+              <TableCell>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                  {operator?.tracking.supportedTacs?.length
+                    ? operator.tracking.supportedTacs.map((tac, idx) => (
                         <Chip
                           key={idx}
                           label={tac}
                           variant="outlined"
                           color="primary"
+                          size="small"
                         />
                       ))
-                    ) : (
-                      <Typography variant="body1">
-                        No TACs available.
-                      </Typography>
-                    )}
-                  </Box>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
-          <Card
-            sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 3,
-              boxShadow: 2,
-            }}
-          >
-            <CardHeader
-              title="Slice Information"
-              sx={headerStyles}
-              action={
-                canEdit && (
+                    : "N/A"}
+                </Box>
+              </TableCell>
+              <TableCell align="right">
+                {canEdit && (
                   <IconButton
-                    aria-label="edit"
+                    size="small"
+                    onClick={handleEditOperatorTrackingClick}
+                  >
+                    <EditIcon fontSize="small" color="primary" />
+                  </IconButton>
+                )}
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>Slice (SST/SD)</TableCell>
+              <TableCell>
+                {operator
+                  ? `${operator.slice.sst}${isSdSet(operator.slice.sd) ? ` / ${formatSd(operator.slice.sd)}` : ""}`
+                  : "N/A"}
+              </TableCell>
+              <TableCell align="right">
+                {canEdit && (
+                  <IconButton
+                    size="small"
                     onClick={handleEditOperatorSliceClick}
                   >
-                    <EditIcon color={"primary"} />
+                    <EditIcon fontSize="small" color="primary" />
                   </IconButton>
-                )
-              }
-            />
-            <CardContent>
-              <Grid container spacing={1}>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Slice/Service Type (SST)
+                )}
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>NAS Security</TableCell>
+              <TableCell>
+                <Box sx={{ mb: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Ciphering
                   </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body1">
-                    {operator ? `${operator.slice.sst}` : "N/A"}
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    {operator?.security?.cipheringOrder?.length
+                      ? operator.security.cipheringOrder.map((alg, idx) => (
+                          <Chip
+                            key={idx}
+                            label={`${idx + 1}. ${alg}`}
+                            variant="outlined"
+                            color={alg === "NEA0" ? "warning" : "primary"}
+                            size="small"
+                          />
+                        ))
+                      : "N/A"}
+                  </Box>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Integrity
                   </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Slice Differentiator (SD)
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  {operator ? (
-                    isSdSet(operator.slice.sd) ? (
-                      <Chip
-                        label={formatSd(operator.slice.sd)}
-                        color="primary"
-                        variant="outlined"
-                      />
-                    ) : (
-                      <Typography variant="body1">N/A</Typography>
-                    )
-                  ) : (
-                    <Typography variant="body1">N/A</Typography>
-                  )}
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12 }}>
-          <Typography variant="h5" sx={{ fontWeight: 600 }}>
-            Subscriber Security
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Encryption keys and NAS security algorithms for subscriber
-            authentication.
-          </Typography>
-        </Grid>
-
-        <Grid size={{ xs: 12 }}>
-          <Card
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 3,
-              boxShadow: 2,
-            }}
-          >
-            <CardHeader
-              title="Home Network Keys"
-              sx={headerStyles}
-              action={
-                canEdit && (
-                  <Button
-                    variant="contained"
-                    color="success"
-                    size="small"
-                    startIcon={<AddIcon />}
-                    onClick={() => setCreateHomeNetworkKeyModalOpen(true)}
-                  >
-                    Add Key
-                  </Button>
-                )
-              }
-            />
-            <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
-              {operator?.homeNetwork.keys.length === 0 && (
-                <Alert severity="warning" sx={{ m: 2 }}>
-                  No home network keys configured. SUCI de-concealment is
-                  disabled. UEs attempting to register with a concealed identity
-                  (SUCI) will be rejected. Add at least one home network key to
-                  restore normal operation.
-                </Alert>
-              )}
-              {(operator?.homeNetwork.keys.length ?? 0) > 0 && (
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>ID</TableCell>
-                        <TableCell>Profile</TableCell>
-                        <TableCell>Public Key</TableCell>
-                        <TableCell align="right">Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {operator?.homeNetwork.keys.map((key) => (
-                        <TableRow key={key.id}>
-                          <TableCell>
-                            <Typography variant="body2">
-                              {key.keyIdentifier}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={`Profile ${key.scheme}`}
-                              variant="outlined"
-                              color="primary"
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Tooltip title={key.publicKey} arrow>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontFamily: "monospace",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                  maxWidth: 400,
-                                }}
-                              >
-                                {key.publicKey}
-                              </Typography>
-                            </Tooltip>
-                          </TableCell>
-                          <TableCell align="right">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleCopyPublicKey(key.publicKey)}
-                            >
-                              <CopyIcon fontSize="small" color="primary" />
-                            </IconButton>
-                            {canEdit && (
-                              <IconButton
-                                size="small"
-                                onClick={() => handleDeleteKeyClick(key.id)}
-                              >
-                                <DeleteIcon fontSize="small" color="primary" />
-                              </IconButton>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12 }}>
-          <Card
-            sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 3,
-              boxShadow: 2,
-            }}
-          >
-            <CardHeader
-              title="NAS Security"
-              sx={headerStyles}
-              action={
-                canEdit && (
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    {operator?.security?.integrityOrder?.length
+                      ? operator.security.integrityOrder.map((alg, idx) => (
+                          <Chip
+                            key={idx}
+                            label={`${idx + 1}. ${alg}`}
+                            variant="outlined"
+                            color={alg === "NIA0" ? "warning" : "primary"}
+                            size="small"
+                          />
+                        ))
+                      : "N/A"}
+                  </Box>
+                </Box>
+              </TableCell>
+              <TableCell align="right">
+                {canEdit && (
                   <IconButton
-                    aria-label="edit"
+                    size="small"
                     onClick={handleEditOperatorSecurityClick}
                   >
-                    <EditIcon color={"primary"} />
+                    <EditIcon fontSize="small" color="primary" />
                   </IconButton>
-                )
-              }
-            />
-            <CardContent>
-              <Grid container spacing={1}>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Ciphering Preference
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    {operator?.security?.cipheringOrder?.length ? (
-                      operator.security.cipheringOrder.map((alg, idx) => (
-                        <Chip
-                          key={idx}
-                          label={`${idx + 1}. ${alg}`}
-                          variant="outlined"
-                          color={alg === "NEA0" ? "warning" : "primary"}
-                        />
-                      ))
-                    ) : (
-                      <Typography variant="body1">N/A</Typography>
+                )}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <Box sx={{ mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 1,
+          }}
+        >
+          <Typography variant="h5">Home Network Keys</Typography>
+          {canEdit && (
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setCreateHomeNetworkKeyModalOpen(true)}
+            >
+              Add Key
+            </Button>
+          )}
+        </Box>
+      </Box>
+
+      {operator?.homeNetwork.keys.length === 0 && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          No home network keys configured. SUCI de-concealment is disabled. UEs
+          attempting to register with a concealed identity (SUCI) will be
+          rejected. Add at least one home network key to restore normal
+          operation.
+        </Alert>
+      )}
+      {(operator?.homeNetwork.keys.length ?? 0) > 0 && (
+        <TableContainer
+          sx={{
+            border: 1,
+            borderColor: "divider",
+            borderRadius: 1,
+          }}
+        >
+          <Table size="small">
+            <TableHead
+              sx={{
+                backgroundColor: theme.palette.backgroundSubtle,
+                "& .MuiTableCell-head": { fontWeight: 600 },
+              }}
+            >
+              <TableRow>
+                <TableCell>ID</TableCell>
+                <TableCell>Profile</TableCell>
+                <TableCell>Public Key</TableCell>
+                <TableCell align="right">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {operator?.homeNetwork.keys.map((key) => (
+                <TableRow key={key.id}>
+                  <TableCell>
+                    <Typography variant="body2">{key.keyIdentifier}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={`Profile ${key.scheme}`}
+                      variant="outlined"
+                      color="primary"
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Tooltip title={key.publicKey} arrow>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontFamily: "monospace",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          maxWidth: 400,
+                        }}
+                      >
+                        {key.publicKey}
+                      </Typography>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell align="right">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleCopyPublicKey(key.publicKey)}
+                    >
+                      <CopyIcon fontSize="small" color="primary" />
+                    </IconButton>
+                    {canEdit && (
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDeleteKeyClick(key.id)}
+                      >
+                        <DeleteIcon fontSize="small" color="primary" />
+                      </IconButton>
                     )}
-                  </Box>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Integrity Preference
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    {operator?.security?.integrityOrder?.length ? (
-                      operator.security.integrityOrder.map((alg, idx) => (
-                        <Chip
-                          key={idx}
-                          label={`${idx + 1}. ${alg}`}
-                          variant="outlined"
-                          color={alg === "NIA0" ? "warning" : "primary"}
-                        />
-                      ))
-                    ) : (
-                      <Typography variant="body1">N/A</Typography>
-                    )}
-                  </Box>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
       {isEditOperatorIdModalOpen && (
         <EditOperatorIdModal
