@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"crypto/ecdh"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,7 +17,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"golang.org/x/crypto/curve25519"
 )
 
 const OperatorTableName = "operator"
@@ -27,22 +27,20 @@ const (
 	updateOperatorIDStmt                      = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc WHERE id=1"
 	updateOperatorSliceStmt                   = "UPDATE %s SET sst=$Operator.sst, sd=$Operator.sd WHERE id=1"
 	updateOperatorTrackingStmt                = "UPDATE %s SET supportedTACs=$Operator.supportedTACs WHERE id=1"
-	updateOperatorHomeNetworkPrivateKeyStmt   = "UPDATE %s SET homeNetworkPrivateKey=$Operator.homeNetworkPrivateKey WHERE id=1"
-	updateOperatorSecurityAlgorithmsStmtConst = "UPDATE %s SET cipheringOrder=$Operator.cipheringOrder, integrityOrder=$Operator.integrityOrder WHERE id=1"
-	initializeOperatorStmt                    = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs, sst, sd, homeNetworkPrivateKey) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs, $Operator.sst, $Operator.sd, $Operator.homeNetworkPrivateKey)"
+	updateOperatorSecurityAlgorithmsStmtConst = "UPDATE %s SET ciphering=$Operator.ciphering, integrity=$Operator.integrity WHERE id=1"
+	initializeOperatorStmt                    = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs, sst, sd) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs, $Operator.sst, $Operator.sd)"
 )
 
 type Operator struct {
-	ID                    int    `db:"id"`
-	Mcc                   string `db:"mcc"`
-	Mnc                   string `db:"mnc"`
-	OperatorCode          string `db:"operatorCode"`
-	SupportedTACs         string `db:"supportedTACs"` // JSON-encoded list of strings
-	Sst                   int32  `db:"sst"`
-	Sd                    []byte `db:"sd"`
-	HomeNetworkPrivateKey string `db:"homeNetworkPrivateKey"`
-	CipheringOrder        string `db:"cipheringOrder"` // JSON-encoded list of algorithm names, e.g. '["NEA2","NEA1"]'
-	IntegrityOrder        string `db:"integrityOrder"` // JSON-encoded list of algorithm names, e.g. '["NIA2","NIA1"]'
+	ID            int    `db:"id"`
+	Mcc           string `db:"mcc"`
+	Mnc           string `db:"mnc"`
+	OperatorCode  string `db:"operatorCode"`
+	SupportedTACs string `db:"supportedTACs"` // JSON-encoded list of strings
+	Sst           int32  `db:"sst"`
+	Sd            []byte `db:"sd"`
+	Ciphering     string `db:"ciphering"` // JSON-encoded list of algorithm names, e.g. '["NEA2","NEA1"]'
+	Integrity     string `db:"integrity"` // JSON-encoded list of algorithm names, e.g. '["NIA2","NIA1"]'
 }
 
 func (operator *Operator) GetSupportedTacs() ([]string, error) {
@@ -60,14 +58,14 @@ func (operator *Operator) GetSupportedTacs() ([]string, error) {
 	return supportedTACs, nil
 }
 
-func (operator *Operator) GetCipheringOrder() ([]string, error) {
-	if operator.CipheringOrder == "" {
+func (operator *Operator) GetCiphering() ([]string, error) {
+	if operator.Ciphering == "" {
 		return nil, nil
 	}
 
 	var order []string
 
-	err := json.Unmarshal([]byte(operator.CipheringOrder), &order)
+	err := json.Unmarshal([]byte(operator.Ciphering), &order)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal ciphering order: %w", err)
 	}
@@ -75,25 +73,25 @@ func (operator *Operator) GetCipheringOrder() ([]string, error) {
 	return order, nil
 }
 
-func (operator *Operator) SetCipheringOrder(order []string) error {
+func (operator *Operator) SetCiphering(order []string) error {
 	b, err := json.Marshal(order)
 	if err != nil {
 		return fmt.Errorf("failed to marshal ciphering order: %w", err)
 	}
 
-	operator.CipheringOrder = string(b)
+	operator.Ciphering = string(b)
 
 	return nil
 }
 
-func (operator *Operator) GetIntegrityOrder() ([]string, error) {
-	if operator.IntegrityOrder == "" {
+func (operator *Operator) GetIntegrity() ([]string, error) {
+	if operator.Integrity == "" {
 		return nil, nil
 	}
 
 	var order []string
 
-	err := json.Unmarshal([]byte(operator.IntegrityOrder), &order)
+	err := json.Unmarshal([]byte(operator.Integrity), &order)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal integrity order: %w", err)
 	}
@@ -101,39 +99,30 @@ func (operator *Operator) GetIntegrityOrder() ([]string, error) {
 	return order, nil
 }
 
-func (operator *Operator) SetIntegrityOrder(order []string) error {
+func (operator *Operator) SetIntegrity(order []string) error {
 	b, err := json.Marshal(order)
 	if err != nil {
 		return fmt.Errorf("failed to marshal integrity order: %w", err)
 	}
 
-	operator.IntegrityOrder = string(b)
+	operator.Integrity = string(b)
 
 	return nil
 }
 
-func (operator *Operator) GetHomeNetworkPublicKey() (string, error) {
-	return deriveHomeNetworkPublicKey(operator.HomeNetworkPrivateKey)
-}
-
-// deriveHomeNetworkPublicKey derives the public key from a given private key using Curve25519.
+// deriveHomeNetworkPublicKey derives the public key from a given private key using X25519 (Profile A).
 func deriveHomeNetworkPublicKey(privateKeyHex string) (string, error) {
-	privateKey, err := hex.DecodeString(privateKeyHex)
+	privBytes, err := hex.DecodeString(privateKeyHex)
 	if err != nil {
 		return "", fmt.Errorf("failed to decode private key hex: %w", err)
 	}
 
-	if len(privateKey) != 32 {
-		return "", fmt.Errorf("invalid private key length: expected 32 bytes, got %d", len(privateKey))
-	}
-
-	// Compute the public key using Curve25519 base point multiplication
-	publicKey, err := curve25519.X25519(privateKey, curve25519.Basepoint)
+	priv, err := ecdh.X25519().NewPrivateKey(privBytes)
 	if err != nil {
-		return "", fmt.Errorf("failed to derive public key: %w", err)
+		return "", fmt.Errorf("failed to create X25519 private key: %w", err)
 	}
 
-	return hex.EncodeToString(publicKey), nil
+	return hex.EncodeToString(priv.PublicKey().Bytes()), nil
 }
 
 func (operator *Operator) GetHexSd() string {
@@ -442,74 +431,6 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 	return nil
 }
 
-// UpdateHomeNetworkPrivateKey updates the private key.
-func (db *Database) UpdateHomeNetworkPrivateKey(ctx context.Context, privateKey string) error {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", OperatorTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("UPDATE"),
-			attribute.String("db.collection", OperatorTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
-
-	op := Operator{HomeNetworkPrivateKey: privateKey}
-
-	err := db.conn.Query(ctx, db.updateHomeNetworkPrivateKeyStmt, op).Run()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return nil
-}
-
-// GetHomeNetworkPrivateKey retrieves the private key.
-func (db *Database) GetHomeNetworkPrivateKey(ctx context.Context) (string, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s", "SELECT", OperatorTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
-			attribute.String("db.collection", OperatorTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "select").Inc()
-
-	var op Operator
-
-	err := db.conn.Query(ctx, db.getOperatorStmt).Get(&op)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return "", fmt.Errorf("query failed: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return op.HomeNetworkPrivateKey, nil
-}
-
 // UpdateOperatorSecurityAlgorithms updates the NAS security algorithm preference order.
 func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipheringOrder, integrityOrder []string) error {
 	ctx, span := tracer.Start(
@@ -531,7 +452,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 
 	op := Operator{}
 
-	err := op.SetCipheringOrder(cipheringOrder)
+	err := op.SetCiphering(cipheringOrder)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to set ciphering order")
@@ -539,7 +460,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 		return fmt.Errorf("failed to set ciphering order: %w", err)
 	}
 
-	err = op.SetIntegrityOrder(integrityOrder)
+	err = op.SetIntegrity(integrityOrder)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to set integrity order")

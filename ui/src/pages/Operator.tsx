@@ -1,32 +1,46 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Box,
-  CircularProgress,
   IconButton,
   Typography,
   Chip,
-  Card,
-  CardHeader,
-  CardContent,
   Tooltip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableRow,
+  Button,
+  Skeleton,
+  Stack,
 } from "@mui/material";
-import Grid from "@mui/material/Grid";
+import { useTheme } from "@mui/material/styles";
 import {
   ContentCopy as CopyIcon,
   Edit as EditIcon,
-  Warning as WarningIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
 } from "@mui/icons-material";
-import { getOperator, type OperatorData } from "@/queries/operator";
+import {
+  getOperator,
+  deleteHomeNetworkKey,
+  getHomeNetworkKeyPrivateKey,
+  type OperatorData,
+} from "@/queries/operator";
 import EditOperatorIdModal from "@/components/EditOperatorIdModal";
 import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
 import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
-import EditOperatorHomeNetworkModal from "@/components/EditOperatorHomeNetworkModal";
-import EditOperatorSecurityModal from "@/components/EditOperatorSecurityModal";
+import CreateHomeNetworkKeyModal from "@/components/CreateHomeNetworkKeyModal";
+import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+import EditOperatorNASSecurityModal from "@/components/EditOperatorNASSecurityModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const isSdSet = (sd?: string | null) =>
   typeof sd === "string" && sd.trim() !== "";
@@ -37,9 +51,30 @@ const formatSd = (sd?: string | null) => {
   return v.toLowerCase();
 };
 
-import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+const profileDescriptions: Record<string, string> = {
+  A: "ECIES with X25519 (Curve25519)",
+  B: "ECIES with compact P-256 (secp256r1)",
+};
+
+const algTooltips: Record<string, string> = {
+  NEA0: "5G null ciphering (no encryption)",
+  NEA1: "5G NAS encryption with SNOW 3G",
+  NEA2: "5G NAS encryption with AES-CTR",
+  NEA3: "5G NAS encryption with ZUC",
+  NIA0: "5G null integrity (no protection)",
+  NIA1: "5G NAS integrity with SNOW 3G",
+  NIA2: "5G NAS integrity with AES-CMAC",
+  NIA3: "5G NAS integrity with ZUC",
+};
+
+const tableContainerSx = {
+  border: 1,
+  borderColor: "divider",
+  borderRadius: 1,
+} as const;
 
 const Operator = () => {
+  const theme = useTheme();
   const { role, accessToken, authReady } = useAuth();
 
   const [isEditOperatorIdModalOpen, setEditOperatorIdModalOpen] =
@@ -50,20 +85,39 @@ const Operator = () => {
     useState(false);
   const [isEditOperatorSliceModalOpen, setEditOperatorSliceModalOpen] =
     useState(false);
-  const [
-    isEditOperatorHomeNetworkModalOpen,
-    setEditOperatorHomeNetworkModalOpen,
-  ] = useState(false);
-  const [isEditOperatorSecurityModalOpen, setEditOperatorSecurityModalOpen] =
+  const [isCreateHomeNetworkKeyModalOpen, setCreateHomeNetworkKeyModalOpen] =
     useState(false);
+  const [isDeleteKeyConfirmOpen, setDeleteKeyConfirmOpen] = useState(false);
+  const [selectedKeyId, setSelectedKeyId] = useState<number | null>(null);
+  const [
+    isEditOperatorNASSecurityModalOpen,
+    setEditOperatorNASSecurityModalOpen,
+  ] = useState(false);
+  const [visiblePrivateKeys, setVisiblePrivateKeys] = useState<
+    Record<number, string>
+  >({});
+  const [loadingPrivateKeys, setLoadingPrivateKeys] = useState<
+    Record<number, boolean>
+  >({});
+  const privateKeyTimers = useRef<
+    Record<number, ReturnType<typeof setTimeout>>
+  >({});
+
+  useEffect(() => {
+    const timers = privateKeyTimers.current;
+    return () => {
+      Object.values(timers).forEach(clearTimeout);
+    };
+  }, []);
 
   const anyModalOpen =
     isEditOperatorIdModalOpen ||
     isEditOperatorCodeModalOpen ||
     isEditOperatorTrackingModalOpen ||
     isEditOperatorSliceModalOpen ||
-    isEditOperatorHomeNetworkModalOpen ||
-    isEditOperatorSecurityModalOpen;
+    isCreateHomeNetworkKeyModalOpen ||
+    isDeleteKeyConfirmOpen ||
+    isEditOperatorNASSecurityModalOpen;
 
   const queryClient = useQueryClient();
   const operatorQuery = useQuery<OperatorData>({
@@ -73,6 +127,7 @@ const Operator = () => {
     placeholderData: (prev) => prev,
   });
   const operator = operatorQuery.data ?? null;
+  const isLoading = operatorQuery.isLoading && !operator;
 
   const { showSnackbar } = useSnackbar();
 
@@ -84,10 +139,8 @@ const Operator = () => {
     setEditOperatorTrackingModalOpen(true);
   const handleEditOperatorSliceClick = () =>
     setEditOperatorSliceModalOpen(true);
-  const handleEditOperatorHomeNetworkClick = () =>
-    setEditOperatorHomeNetworkModalOpen(true);
-  const handleEditOperatorSecurityClick = () =>
-    setEditOperatorSecurityModalOpen(true);
+  const handleEditOperatorNASSecurityClick = () =>
+    setEditOperatorNASSecurityModalOpen(true);
 
   const handleEditOperatorIdModalClose = () =>
     setEditOperatorIdModalOpen(false);
@@ -97,10 +150,8 @@ const Operator = () => {
     setEditOperatorTrackingModalOpen(false);
   const handleEditOperatorSliceModalClose = () =>
     setEditOperatorSliceModalOpen(false);
-  const handleEditOperatorHomeNetworkModalClose = () =>
-    setEditOperatorHomeNetworkModalOpen(false);
-  const handleEditOperatorSecurityModalClose = () =>
-    setEditOperatorSecurityModalOpen(false);
+  const handleEditOperatorNASSecurityModalClose = () =>
+    setEditOperatorNASSecurityModalOpen(false);
 
   const handleEditOperatorIdSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
@@ -120,20 +171,36 @@ const Operator = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
     showSnackbar("Operator Slice information updated successfully.", "success");
   };
-  const handleEditOperatorHomeNetworkSuccess = () => {
+  const handleCreateHomeNetworkKeySuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
-    showSnackbar(
-      "Operator Home Network information updated successfully.",
-      "success",
-    );
+    showSnackbar("Home network key created successfully.", "success");
   };
-  const handleEditOperatorSecuritySuccess = () => {
+  const handleDeleteKeyClick = (id: number) => {
+    setSelectedKeyId(id);
+    setDeleteKeyConfirmOpen(true);
+  };
+  const handleDeleteKeyConfirm = async () => {
+    if (selectedKeyId === null || !accessToken) return;
+    try {
+      await deleteHomeNetworkKey(accessToken, selectedKeyId);
+      setDeleteKeyConfirmOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["operator"] });
+      showSnackbar("Home network key deleted successfully.", "success");
+    } catch (error) {
+      setDeleteKeyConfirmOpen(false);
+      const msg =
+        error instanceof Error ? error.message : "Unknown error occurred.";
+      showSnackbar(`Failed to delete home network key: ${msg}`, "error");
+    } finally {
+      setSelectedKeyId(null);
+    }
+  };
+  const handleEditOperatorNASSecuritySuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
     showSnackbar("NAS security algorithms updated successfully.", "success");
   };
 
-  const handleCopyPublicKey = async () => {
-    if (!operator?.homeNetwork.publicKey) return;
+  const handleCopyToClipboard = async (publicKey: string) => {
     if (!navigator.clipboard) {
       showSnackbar(
         "Clipboard API not available. Please use HTTPS or try a different browser.",
@@ -142,24 +209,53 @@ const Operator = () => {
       return;
     }
     try {
-      await navigator.clipboard.writeText(operator.homeNetwork.publicKey);
+      await navigator.clipboard.writeText(publicKey);
       showSnackbar("Copied to clipboard.", "success");
     } catch {
-      showSnackbar("Failed to copy public key.", "error");
+      showSnackbar("Failed to copy to clipboard.", "error");
     }
   };
 
-  const headerStyles = {
-    backgroundColor: "backgroundSubtle",
-    color: "text.primary",
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    "& .MuiCardHeader-title": { color: "text.primary" },
-    "& .MuiIconButton-root": { color: "text.primary" },
+  const clearPrivateKey = (keyId: number) => {
+    clearTimeout(privateKeyTimers.current[keyId]);
+    delete privateKeyTimers.current[keyId];
+    setVisiblePrivateKeys((prev) => {
+      const next = { ...prev };
+      delete next[keyId];
+      return next;
+    });
   };
 
-  const descriptionText =
-    "Review and configure your operator identifiers and core settings.";
+  const handleTogglePrivateKey = async (keyId: number) => {
+    if (visiblePrivateKeys[keyId] !== undefined) {
+      clearPrivateKey(keyId);
+      return;
+    }
+    if (!accessToken) return;
+    setLoadingPrivateKeys((prev) => ({ ...prev, [keyId]: true }));
+    try {
+      const result = await getHomeNetworkKeyPrivateKey(accessToken, keyId);
+      setVisiblePrivateKeys((prev) => ({
+        ...prev,
+        [keyId]: result.privateKey,
+      }));
+      // Auto-clear the private key from state after 30 seconds.
+      clearTimeout(privateKeyTimers.current[keyId]);
+      privateKeyTimers.current[keyId] = setTimeout(() => {
+        clearPrivateKey(keyId);
+      }, 30_000);
+    } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : "Unknown error occurred.";
+      showSnackbar(`Failed to retrieve private key: ${msg}`, "error");
+    } finally {
+      setLoadingPrivateKeys((prev) => ({ ...prev, [keyId]: false }));
+    }
+  };
+
+  const valueCellSx = { width: "55%" } as const;
+  const settingCellSx = { fontWeight: 600, width: "35%" } as const;
+  const actionCellSx = { width: "10%", textAlign: "right" } as const;
 
   return (
     <Box sx={{ py: 4, px: PAGE_PADDING_X, maxWidth: MAX_WIDTH, mx: "auto" }}>
@@ -168,14 +264,8 @@ const Operator = () => {
       </Typography>
 
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-        {descriptionText}
+        Review and configure your operator identifiers and core settings.
       </Typography>
-
-      {operatorQuery.isLoading && !operator && (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-          <CircularProgress />
-        </Box>
-      )}
 
       {operatorQuery.isError && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -183,384 +273,537 @@ const Operator = () => {
         </Alert>
       )}
 
-      <Grid
-        container
-        spacing={4}
-        justifyContent="flex-start"
-        alignItems="stretch"
-      >
-        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
-          <Card
-            sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 3,
-              boxShadow: 2,
-            }}
-          >
-            <CardHeader
-              title="Operator ID"
-              sx={headerStyles}
-              action={
-                canEdit && (
-                  <IconButton
-                    aria-label="edit"
-                    onClick={handleEditOperatorIdClick}
-                  >
-                    <EditIcon color={"primary"} />
-                  </IconButton>
-                )
-              }
-            />
-            <CardContent>
-              <Grid container spacing={1}>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    MCC
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body1">
-                    {operator?.id.mcc || "N/A"}
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    MNC
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body1">
-                    {operator?.id.mnc || "N/A"}
-                  </Typography>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
-          <Card
-            sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 3,
-              boxShadow: 2,
-            }}
-          >
-            <CardHeader
-              title="Operator Code"
-              sx={headerStyles}
-              action={
-                canEdit && (
-                  <IconButton
-                    aria-label="edit"
-                    onClick={handleEditOperatorCodeClick}
-                  >
-                    <EditIcon color={"primary"} />
-                  </IconButton>
-                )
-              }
-            />
-            <CardContent>
-              <Grid container spacing={1}>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    OP
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body1">{"***************"}</Typography>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
-          <Card
-            sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 3,
-              boxShadow: 2,
-            }}
-          >
-            <CardHeader
-              title="Tracking Information"
-              sx={headerStyles}
-              action={
-                canEdit && (
-                  <IconButton
-                    aria-label="edit"
-                    onClick={handleEditOperatorTrackingClick}
-                  >
-                    <EditIcon color={"primary"} />
-                  </IconButton>
-                )
-              }
-            />
-            <CardContent>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Supported TACs
-              </Typography>
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                {operator?.tracking.supportedTacs?.length ? (
-                  operator.tracking.supportedTacs.map((tac, idx) => (
-                    <Chip
-                      key={idx}
-                      label={tac}
-                      variant="outlined"
-                      color="primary"
-                    />
-                  ))
-                ) : (
-                  <Typography variant="body1">No TACs available.</Typography>
-                )}
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
-          <Card
-            sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 3,
-              boxShadow: 2,
-            }}
-          >
-            <CardHeader
-              title="Slice Information"
-              sx={headerStyles}
-              action={
-                canEdit && (
-                  <IconButton
-                    aria-label="edit"
-                    onClick={handleEditOperatorSliceClick}
-                  >
-                    <EditIcon color={"primary"} />
-                  </IconButton>
-                )
-              }
-            />
-            <CardContent>
-              <Grid container spacing={1}>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    SST
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body1">
-                    {operator ? `${operator.slice.sst}` : "N/A"}
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    SD
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  {operator ? (
-                    isSdSet(operator.slice.sd) ? (
-                      <Chip
-                        label={formatSd(operator.slice.sd)}
-                        color="primary"
-                        variant="outlined"
-                      />
-                    ) : (
-                      <Typography variant="body1">N/A</Typography>
-                    )
-                  ) : (
-                    <Typography variant="body1">N/A</Typography>
-                  )}
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
-          <Card
-            sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 3,
-              boxShadow: 2,
-            }}
-          >
-            <CardHeader
-              title="Home Network Information"
-              sx={headerStyles}
-              action={
-                canEdit && (
-                  <IconButton
-                    aria-label="edit"
-                    onClick={handleEditOperatorHomeNetworkClick}
-                  >
-                    <EditIcon color={"primary"} />
-                  </IconButton>
-                )
-              }
-            />
-            <CardContent>
-              <Grid container spacing={1}>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Encryption
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body1">ECIES - Profile A</Typography>
-                </Grid>
-
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Public Key
-                  </Typography>
-                </Grid>
-                <Grid
-                  size={{ xs: 6 }}
-                  sx={{ display: "flex", alignItems: "center", minWidth: 0 }}
-                >
+      {/* ═══════════════ Configuration ═══════════════ */}
+      <Box sx={{ mt: 3 }}>
+        <TableContainer sx={tableContainerSx}>
+          <Table>
+            <TableBody>
+              <TableRow>
+                <TableCell sx={settingCellSx}>
                   <Tooltip
-                    title={operator?.homeNetwork.publicKey || "N/A"}
+                    title="Mobile Country Code / Mobile Network Code — uniquely identifies your network"
                     arrow
                   >
-                    <Typography
-                      variant="body1"
-                      sx={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        maxWidth: 280,
-                      }}
-                    >
-                      {operator?.homeNetwork.publicKey || "N/A"}
-                    </Typography>
+                    <span>Operator ID (MCC/MNC)</span>
                   </Tooltip>
-                  <IconButton
-                    onClick={handleCopyPublicKey}
-                    sx={{ ml: 1, my: -0.5 }}
+                </TableCell>
+                <TableCell sx={valueCellSx}>
+                  {isLoading ? (
+                    <Skeleton variant="text" width={100} />
+                  ) : operator ? (
+                    `${operator.id.mcc} / ${operator.id.mnc}`
+                  ) : (
+                    "N/A"
+                  )}
+                </TableCell>
+                <TableCell sx={actionCellSx}>
+                  {canEdit && (
+                    <Tooltip title="Edit operator identity" arrow>
+                      <IconButton
+                        size="small"
+                        onClick={handleEditOperatorIdClick}
+                        aria-label="Edit operator identity"
+                      >
+                        <EditIcon fontSize="small" color="primary" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell sx={settingCellSx}>
+                  <Tooltip
+                    title="Operator variant algorithm configuration key — used for authentication"
+                    arrow
                   >
-                    <CopyIcon fontSize="small" color={"primary"} />
-                  </IconButton>
-                </Grid>
-
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Private Key
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body1">{"***************"}</Typography>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
-          <Card
-            sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 3,
-              boxShadow: 2,
-            }}
-          >
-            <CardHeader
-              title="NAS Security"
-              sx={headerStyles}
-              action={
-                canEdit && (
-                  <IconButton
-                    aria-label="edit"
-                    onClick={handleEditOperatorSecurityClick}
+                    <span>Operator Code (OP)</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell sx={valueCellSx}>
+                  {isLoading ? (
+                    <Skeleton variant="text" width={140} />
+                  ) : (
+                    "***************"
+                  )}
+                </TableCell>
+                <TableCell sx={actionCellSx}>
+                  {canEdit && (
+                    <Tooltip title="Edit operator code" arrow>
+                      <IconButton
+                        size="small"
+                        onClick={handleEditOperatorCodeClick}
+                        aria-label="Edit operator code"
+                      >
+                        <EditIcon fontSize="small" color="primary" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell sx={settingCellSx}>
+                  <Tooltip
+                    title="Tracking Area Codes — used by UEs to register in specific geographic areas"
+                    arrow
                   >
-                    <EditIcon color={"primary"} />
-                  </IconButton>
-                )
-              }
-            />
-            <CardContent>
-              <Grid container spacing={1}>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Ciphering Preference
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    {operator?.security?.cipheringOrder?.length ? (
-                      operator.security.cipheringOrder.map((alg, idx) => (
+                    <span>Supported TACs</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell sx={valueCellSx}>
+                  {isLoading ? (
+                    <Skeleton variant="text" width={160} />
+                  ) : (
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                      {operator?.tracking.supportedTacs?.length
+                        ? operator.tracking.supportedTacs.map((tac, idx) => (
+                            <Chip
+                              key={idx}
+                              label={tac}
+                              variant="outlined"
+                              color="primary"
+                              size="small"
+                            />
+                          ))
+                        : "N/A"}
+                    </Box>
+                  )}
+                </TableCell>
+                <TableCell sx={actionCellSx}>
+                  {canEdit && (
+                    <Tooltip title="Edit supported TACs" arrow>
+                      <IconButton
+                        size="small"
+                        onClick={handleEditOperatorTrackingClick}
+                        aria-label="Edit supported TACs"
+                      >
+                        <EditIcon fontSize="small" color="primary" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell sx={settingCellSx}>
+                  <Tooltip
+                    title="Slice/Service Type and Slice Differentiator — identifies the network slice"
+                    arrow
+                  >
+                    <span>Slice (SST/SD)</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell sx={valueCellSx}>
+                  {isLoading ? (
+                    <Skeleton variant="text" width={80} />
+                  ) : operator ? (
+                    `${operator.slice.sst}${isSdSet(operator.slice.sd) ? ` / ${formatSd(operator.slice.sd)}` : ""}`
+                  ) : (
+                    "N/A"
+                  )}
+                </TableCell>
+                <TableCell sx={actionCellSx}>
+                  {canEdit && (
+                    <Tooltip title="Edit network slice" arrow>
+                      <IconButton
+                        size="small"
+                        onClick={handleEditOperatorSliceClick}
+                        aria-label="Edit network slice"
+                      >
+                        <EditIcon fontSize="small" color="primary" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell sx={settingCellSx}>
+                  <Tooltip
+                    title="Algorithm preference order for NAS ciphering and integrity protection"
+                    arrow
+                  >
+                    <span>NAS Security</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell sx={valueCellSx}>
+                  <Table size="small" sx={{ m: -1 }}>
+                    <TableBody>
+                      <TableRow
+                        sx={{ "& td": { borderBottom: "none", py: 0.5 } }}
+                      >
+                        <TableCell
+                          sx={{ fontWeight: 600, width: "30%", pl: 0 }}
+                        >
+                          Ciphering
+                        </TableCell>
+                        <TableCell sx={{ pl: 0 }}>
+                          {isLoading ? (
+                            <Skeleton variant="text" width={200} />
+                          ) : (
+                            <Box
+                              sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}
+                            >
+                              {operator?.nasSecurity?.ciphering?.length
+                                ? operator.nasSecurity.ciphering.map(
+                                    (alg, idx) => (
+                                      <Tooltip
+                                        key={idx}
+                                        title={algTooltips[alg] ?? alg}
+                                        arrow
+                                      >
+                                        <Chip
+                                          label={`${idx + 1}. ${alg}`}
+                                          variant="outlined"
+                                          color={
+                                            alg === "NEA0"
+                                              ? "warning"
+                                              : "primary"
+                                          }
+                                          size="small"
+                                        />
+                                      </Tooltip>
+                                    ),
+                                  )
+                                : "N/A"}
+                            </Box>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow
+                        sx={{ "& td": { borderBottom: "none", py: 0.5 } }}
+                      >
+                        <TableCell
+                          sx={{ fontWeight: 600, width: "30%", pl: 0 }}
+                        >
+                          Integrity
+                        </TableCell>
+                        <TableCell sx={{ pl: 0 }}>
+                          {isLoading ? (
+                            <Skeleton variant="text" width={200} />
+                          ) : (
+                            <Box
+                              sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}
+                            >
+                              {operator?.nasSecurity?.integrity?.length
+                                ? operator.nasSecurity.integrity.map(
+                                    (alg, idx) => (
+                                      <Tooltip
+                                        key={idx}
+                                        title={algTooltips[alg] ?? alg}
+                                        arrow
+                                      >
+                                        <Chip
+                                          label={`${idx + 1}. ${alg}`}
+                                          variant="outlined"
+                                          color={
+                                            alg === "NIA0"
+                                              ? "warning"
+                                              : "primary"
+                                          }
+                                          size="small"
+                                        />
+                                      </Tooltip>
+                                    ),
+                                  )
+                                : "N/A"}
+                            </Box>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableCell>
+                <TableCell sx={actionCellSx}>
+                  {canEdit && (
+                    <Tooltip title="Edit NAS security algorithms" arrow>
+                      <IconButton
+                        size="small"
+                        onClick={handleEditOperatorNASSecurityClick}
+                        aria-label="Edit NAS security algorithms"
+                      >
+                        <EditIcon fontSize="small" color="primary" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+
+      {/* ═══════════════ Home Network Keys ═══════════════ */}
+      <Box sx={{ mt: 4 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          Home Network Keys
+        </Typography>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ mb: 2 }}
+        >
+          <Typography variant="body2" color="text.secondary">
+            Keys used for SUCI de-concealment. At least one key is required for
+            UE registration with concealed identities.
+          </Typography>
+          {canEdit && (
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setCreateHomeNetworkKeyModalOpen(true)}
+              aria-label="Add home network key"
+              sx={{ ml: 2, flexShrink: 0 }}
+            >
+              Add Key
+            </Button>
+          )}
+        </Stack>
+
+        {!isLoading && operator?.homeNetworkKeys.length === 0 && (
+          <TableContainer sx={tableContainerSx}>
+            <Table sx={{ tableLayout: "fixed" }}>
+              <TableBody
+                sx={{
+                  "& .MuiTableRow-root:first-of-type .MuiTableCell-root": {
+                    fontWeight: 600,
+                    backgroundColor: theme.palette.backgroundSubtle,
+                  },
+                }}
+              >
+                <TableRow>
+                  <TableCell sx={{ width: 50 }}>ID</TableCell>
+                  <TableCell sx={{ width: 110 }}>Profile</TableCell>
+                  <TableCell sx={{ width: "30%" }}>Public Key</TableCell>
+                  <TableCell sx={{ width: "30%" }}>Private Key</TableCell>
+                  <TableCell align="right" sx={{ width: 80 }}>
+                    Actions
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell colSpan={5} sx={{ p: 0, borderBottom: "none" }}>
+                    <Alert severity="warning" sx={{ borderRadius: 0 }}>
+                      No home network keys configured. UEs attempting to
+                      register with a concealed identity (SUCI) will be
+                      rejected.
+                    </Alert>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+
+        {isLoading && (
+          <TableContainer sx={tableContainerSx}>
+            <Table>
+              <TableBody>
+                {[1, 2].map((i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Skeleton variant="text" width={30} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="text" width={80} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="text" width={300} />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Skeleton variant="circular" width={24} height={24} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+
+        {(operator?.homeNetworkKeys.length ?? 0) > 0 && (
+          <TableContainer sx={tableContainerSx}>
+            <Table sx={{ tableLayout: "fixed" }}>
+              <TableBody
+                sx={{
+                  "& .MuiTableRow-root:first-of-type .MuiTableCell-root": {
+                    fontWeight: 600,
+                    backgroundColor: theme.palette.backgroundSubtle,
+                  },
+                }}
+              >
+                <TableRow>
+                  <TableCell sx={{ width: 50 }}>ID</TableCell>
+                  <TableCell sx={{ width: 110 }}>Profile</TableCell>
+                  <TableCell sx={{ width: "30%" }}>Public Key</TableCell>
+                  <TableCell sx={{ width: "30%" }}>Private Key</TableCell>
+                  <TableCell align="right" sx={{ width: 80 }}>
+                    Actions
+                  </TableCell>
+                </TableRow>
+                {operator?.homeNetworkKeys.map((key) => (
+                  <TableRow key={key.id}>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {key.keyIdentifier}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Tooltip
+                        title={
+                          profileDescriptions[key.scheme] ??
+                          `Profile ${key.scheme}`
+                        }
+                        arrow
+                      >
                         <Chip
-                          key={idx}
-                          label={`${idx + 1}. ${alg}`}
+                          label={`Profile ${key.scheme}`}
                           variant="outlined"
                           color="primary"
-                          icon={
-                            alg === "NEA0" ? (
-                              <WarningIcon fontSize="small" />
-                            ) : undefined
-                          }
-                          sx={
-                            alg === "NEA0"
-                              ? { "& .MuiChip-icon": { color: "warning.main" } }
-                              : undefined
-                          }
+                          size="small"
                         />
-                      ))
-                    ) : (
-                      <Typography variant="body1">N/A</Typography>
-                    )}
-                  </Box>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Integrity Preference
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    {operator?.security?.integrityOrder?.length ? (
-                      operator.security.integrityOrder.map((alg, idx) => (
-                        <Chip
-                          key={idx}
-                          label={`${idx + 1}. ${alg}`}
-                          variant="outlined"
-                          color="primary"
-                          icon={
-                            alg === "NIA0" ? (
-                              <WarningIcon fontSize="small" />
-                            ) : undefined
-                          }
-                          sx={
-                            alg === "NIA0"
-                              ? { "& .MuiChip-icon": { color: "warning.main" } }
-                              : undefined
-                          }
-                        />
-                      ))
-                    ) : (
-                      <Typography variant="body1">N/A</Typography>
-                    )}
-                  </Box>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 0.5,
+                        }}
+                      >
+                        <Tooltip title={key.publicKey} arrow>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontFamily: "monospace",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              maxWidth: 300,
+                            }}
+                          >
+                            {key.publicKey}
+                          </Typography>
+                        </Tooltip>
+                        <Tooltip title="Copy public key" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleCopyToClipboard(key.publicKey)}
+                            aria-label="Copy public key"
+                          >
+                            <CopyIcon fontSize="small" color="primary" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 0.5,
+                        }}
+                      >
+                        {visiblePrivateKeys[key.id] !== undefined ? (
+                          <>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontFamily: "monospace",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                flex: 1,
+                                minWidth: 0,
+                              }}
+                            >
+                              {visiblePrivateKeys[key.id]}
+                            </Typography>
+                            <Tooltip title="Copy private key" arrow>
+                              <IconButton
+                                size="small"
+                                onClick={() =>
+                                  handleCopyToClipboard(
+                                    visiblePrivateKeys[key.id],
+                                  )
+                                }
+                                aria-label="Copy private key"
+                              >
+                                <CopyIcon fontSize="small" color="primary" />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        ) : (
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontFamily: "monospace",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              flex: 1,
+                              minWidth: 0,
+                            }}
+                          >
+                            ••••••••••••••••••••••••••••••••••••••
+                          </Typography>
+                        )}
+                        {canEdit && (
+                          <Tooltip
+                            title={
+                              visiblePrivateKeys[key.id] !== undefined
+                                ? "Hide private key"
+                                : "View private key"
+                            }
+                            arrow
+                          >
+                            <IconButton
+                              size="small"
+                              onClick={() => handleTogglePrivateKey(key.id)}
+                              disabled={loadingPrivateKeys[key.id]}
+                              aria-label={
+                                visiblePrivateKeys[key.id] !== undefined
+                                  ? "Hide private key"
+                                  : "View private key"
+                              }
+                            >
+                              {visiblePrivateKeys[key.id] !== undefined ? (
+                                <VisibilityOffIcon
+                                  fontSize="small"
+                                  color="primary"
+                                />
+                              ) : (
+                                <VisibilityIcon
+                                  fontSize="small"
+                                  color="primary"
+                                />
+                              )}
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      {canEdit && (
+                        <Tooltip title="Delete key" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteKeyClick(key.id)}
+                            aria-label={`Delete key ${key.keyIdentifier}`}
+                          >
+                            <DeleteIcon fontSize="small" color="primary" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Box>
 
+      {/* ═══════════════ Modals ═══════════════ */}
       {isEditOperatorIdModalOpen && (
         <EditOperatorIdModal
           open
@@ -595,25 +838,46 @@ const Operator = () => {
           }}
         />
       )}
-      {isEditOperatorHomeNetworkModalOpen && (
-        <EditOperatorHomeNetworkModal
+      {isCreateHomeNetworkKeyModalOpen && (
+        <CreateHomeNetworkKeyModal
           open
-          onClose={handleEditOperatorHomeNetworkModalClose}
-          onSuccess={handleEditOperatorHomeNetworkSuccess}
+          onClose={() => setCreateHomeNetworkKeyModalOpen(false)}
+          onSuccess={handleCreateHomeNetworkKeySuccess}
         />
       )}
-      {isEditOperatorSecurityModalOpen && (
-        <EditOperatorSecurityModal
+      {isDeleteKeyConfirmOpen &&
+        (() => {
+          const selectedKey = operator?.homeNetworkKeys.find(
+            (k) => k.id === selectedKeyId,
+          );
+          const keyLabel = selectedKey
+            ? `Profile ${selectedKey.scheme}, ID ${selectedKey.keyIdentifier}`
+            : "this home network key";
+          return (
+            <DeleteConfirmationModal
+              open
+              onClose={() => {
+                setDeleteKeyConfirmOpen(false);
+                setSelectedKeyId(null);
+              }}
+              onConfirm={handleDeleteKeyConfirm}
+              title="Delete Home Network Key"
+              description={`Are you sure you want to delete ${keyLabel}? UEs provisioned with this key will no longer be able to register.`}
+            />
+          );
+        })()}
+      {isEditOperatorNASSecurityModalOpen && (
+        <EditOperatorNASSecurityModal
           open
-          onClose={handleEditOperatorSecurityModalClose}
-          onSuccess={handleEditOperatorSecuritySuccess}
+          onClose={handleEditOperatorNASSecurityModalClose}
+          onSuccess={handleEditOperatorNASSecuritySuccess}
           initialData={{
-            cipheringOrder: operator?.security?.cipheringOrder ?? [
+            ciphering: operator?.nasSecurity?.ciphering ?? [
               "NEA2",
               "NEA1",
               "NEA0",
             ],
-            integrityOrder: operator?.security?.integrityOrder ?? [
+            integrity: operator?.nasSecurity?.integrity ?? [
               "NIA2",
               "NIA1",
               "NIA0",

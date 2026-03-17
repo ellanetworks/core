@@ -1002,18 +1002,21 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /api/v1/operator/home-network:
-    put:
-      operationId: updateOperatorHomeNetwork
+  /api/v1/operator/home-network-keys:
+    post:
+      operationId: createHomeNetworkKey
       tags: [Operator]
-      summary: Update home network key
-      description: Sets the Curve25519 private key used for SUPI concealment (5G-AKA). The corresponding public key is returned in the operator configuration.
+      summary: Create a home network key
+      description: |
+        Adds a new home network key for SUCI de-concealment. The key is
+        identified by a (keyIdentifier, scheme) pair. Profile A keys use
+        Curve25519 (X25519); Profile B keys use NIST P-256. Maximum 12 keys.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateOperatorHomeNetworkParams"
+              $ref: "#/components/schemas/CreateHomeNetworkKeyParams"
       responses:
         "201":
           $ref: "#/components/responses/Success"
@@ -1021,10 +1024,66 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
-  /api/v1/operator/security:
+  /api/v1/operator/home-network-keys/{id}:
+    delete:
+      operationId: deleteHomeNetworkKey
+      tags: [Operator]
+      summary: Delete a home network key
+      description: Removes a home network key. UEs using this key will no longer be able to register.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/operator/home-network-keys/{id}/private-key:
+    get:
+      operationId: getHomeNetworkKeyPrivateKey
+      tags: [Operator]
+      summary: Get a home network key's private key
+      description: |
+        Returns the private key for a home network key. This is a sensitive
+        operation and is recorded in the audit log. Only administrators and
+        network managers can access this endpoint.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The private key for the home network key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/HomeNetworkKeyPrivateKeyResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/operator/nas-security:
     put:
-      operationId: updateOperatorSecurity
+      operationId: updateOperatorNASSecurity
       tags: [Operator]
       summary: Update NAS security algorithms
       description: |
@@ -1038,7 +1097,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateOperatorSecurityParams"
+              $ref: "#/components/schemas/UpdateOperatorNASSecurityParams"
       responses:
         "201":
           $ref: "#/components/responses/Success"
@@ -2497,13 +2556,6 @@ components:
           description: "List of 6-character hex Tracking Area Codes."
       required: [supportedTacs]
 
-    OperatorHomeNetwork:
-      type: object
-      properties:
-        publicKey:
-          type: string
-          description: Curve25519 public key (hex).
-
     OperatorResponse:
       type: object
       properties:
@@ -2513,10 +2565,12 @@ components:
           $ref: "#/components/schemas/OperatorSlice"
         tracking:
           $ref: "#/components/schemas/OperatorTracking"
-        homeNetwork:
-          $ref: "#/components/schemas/OperatorHomeNetwork"
-        security:
-          $ref: "#/components/schemas/OperatorSecurity"
+        homeNetworkKeys:
+          type: array
+          items:
+            $ref: "#/components/schemas/HomeNetworkKeyResponse"
+        nasSecurity:
+          $ref: "#/components/schemas/OperatorNASSecurity"
 
     OperatorResponseEnvelope:
       type: object
@@ -2588,20 +2642,53 @@ components:
           pattern: "^[0-9a-fA-F]{32}$"
           description: "32-character hex operator code (OP)."
 
-    UpdateOperatorHomeNetworkParams:
+    HomeNetworkKeyResponse:
       type: object
-      required: [privateKey]
       properties:
+        id:
+          type: integer
+          description: Internal database ID.
+        keyIdentifier:
+          type: integer
+          minimum: 0
+          maximum: 255
+          description: Home Network Public Key Identifier (as used in SUCI).
+        scheme:
+          type: string
+          enum: [A, B]
+          description: '"A" for Curve25519 (X25519), "B" for NIST P-256.'
+        publicKey:
+          type: string
+          description: Derived public key in hex. Profile A = 64 chars, Profile B = 66 chars (compressed).
+
+    CreateHomeNetworkKeyParams:
+      type: object
+      required: [keyIdentifier, scheme, privateKey]
+      properties:
+        keyIdentifier:
+          type: integer
+          minimum: 0
+          maximum: 255
+        scheme:
+          type: string
+          enum: [A, B]
         privateKey:
           type: string
           pattern: "^[0-9a-fA-F]{64}$"
-          description: "64-character hex X25519 private key."
+          description: "64-character hex private key. Curve25519 for scheme A, P-256 for scheme B."
 
-    UpdateOperatorSecurityParams:
+    HomeNetworkKeyPrivateKeyResponse:
       type: object
-      required: [cipheringOrder, integrityOrder]
       properties:
-        cipheringOrder:
+        privateKey:
+          type: string
+          description: "64-character hex private key."
+
+    UpdateOperatorNASSecurityParams:
+      type: object
+      required: [ciphering, integrity]
+      properties:
+        ciphering:
           type: array
           minItems: 1
           maxItems: 3
@@ -2610,7 +2697,7 @@ components:
             type: string
             enum: [NEA0, NEA1, NEA2]
           description: "Preferred ciphering algorithm order."
-        integrityOrder:
+        integrity:
           type: array
           minItems: 1
           maxItems: 3
@@ -2620,16 +2707,16 @@ components:
             enum: [NIA0, NIA1, NIA2]
           description: "Preferred integrity algorithm order."
 
-    OperatorSecurity:
+    OperatorNASSecurity:
       type: object
       properties:
-        cipheringOrder:
+        ciphering:
           type: array
           items:
             type: string
             enum: [NEA0, NEA1, NEA2]
           description: "Current ciphering algorithm preference order."
-        integrityOrder:
+        integrity:
           type: array
           items:
             type: string

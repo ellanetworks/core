@@ -214,6 +214,8 @@ func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 
 		pass, err := authenticationProcedure(ctx, amf, ue)
 		if err != nil {
+			ue.Log.Warn("Authentication procedure failed, rejecting registration", zap.Error(err))
+
 			defer ue.Deregister()
 
 			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()

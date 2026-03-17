@@ -210,12 +210,12 @@ func TestUpdateOperatorTracking_Failure(t *testing.T) {
 	}
 }
 
-func TestUpdateOperatorSecurity_Success(t *testing.T) {
+func TestUpdateOperatorNASSecurity_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 201,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Operator security algorithms updated successfully"}`),
+			Result:     []byte(`{"message": "Operator NAS security algorithms updated successfully"}`),
 		},
 		err: nil,
 	}
@@ -223,14 +223,14 @@ func TestUpdateOperatorSecurity_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	updateOperatorSecurityOpts := &client.UpdateOperatorSecurityOptions{
-		CipheringOrder: []string{"NEA2", "NEA1"},
-		IntegrityOrder: []string{"NIA2", "NIA1"},
+	updateOperatorNASSecurityOpts := &client.UpdateOperatorNASSecurityOptions{
+		Ciphering: []string{"NEA2", "NEA1"},
+		Integrity: []string{"NIA2", "NIA1"},
 	}
 
 	ctx := context.Background()
 
-	err := clientObj.UpdateOperatorSecurity(ctx, updateOperatorSecurityOpts)
+	err := clientObj.UpdateOperatorNASSecurity(ctx, updateOperatorNASSecurityOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -243,12 +243,12 @@ func TestUpdateOperatorSecurity_Success(t *testing.T) {
 		t.Fatalf("expected method PUT, got %s", fake.lastOpts.Method)
 	}
 
-	if fake.lastOpts.Path != "api/v1/operator/security" {
-		t.Fatalf("expected path api/v1/operator/security, got %s", fake.lastOpts.Path)
+	if fake.lastOpts.Path != "api/v1/operator/nas-security" {
+		t.Fatalf("expected path api/v1/operator/nas-security, got %s", fake.lastOpts.Path)
 	}
 }
 
-func TestUpdateOperatorSecurity_Failure(t *testing.T) {
+func TestUpdateOperatorNASSecurity_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 400,
@@ -260,15 +260,224 @@ func TestUpdateOperatorSecurity_Failure(t *testing.T) {
 	clientObj := &client.Client{
 		Requester: fake,
 	}
-	updateOperatorSecurityOpts := &client.UpdateOperatorSecurityOptions{
-		CipheringOrder: []string{"NEA9"},
-		IntegrityOrder: []string{"NIA2"},
+	updateOperatorNASSecurityOpts := &client.UpdateOperatorNASSecurityOptions{
+		Ciphering: []string{"NEA9"},
+		Integrity: []string{"NIA2"},
 	}
 
 	ctx := context.Background()
 
-	err := clientObj.UpdateOperatorSecurity(ctx, updateOperatorSecurityOpts)
+	err := clientObj.UpdateOperatorNASSecurity(ctx, updateOperatorNASSecurityOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
+	}
+}
+
+func TestCreateHomeNetworkKey_ProfileA(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 201,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Home network key created"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	opts := &client.CreateHomeNetworkKeyOptions{
+		KeyIdentifier: 0,
+		Scheme:        "A",
+		PrivateKey:    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.CreateHomeNetworkKey(ctx, opts)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "POST" {
+		t.Fatalf("expected method POST, got %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/operator/home-network-keys" {
+		t.Fatalf("expected path api/v1/operator/home-network-keys, got %s", fake.lastOpts.Path)
+	}
+}
+
+func TestCreateHomeNetworkKey_ProfileB(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 201,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Home network key created"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	opts := &client.CreateHomeNetworkKeyOptions{
+		KeyIdentifier: 0,
+		Scheme:        "B",
+		PrivateKey:    "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.CreateHomeNetworkKey(ctx, opts)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "POST" {
+		t.Fatalf("expected method POST, got %s", fake.lastOpts.Method)
+	}
+}
+
+func TestDeleteHomeNetworkKey_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Home network key deleted"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.DeleteHomeNetworkKey(ctx, 42)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "DELETE" {
+		t.Fatalf("expected method DELETE, got %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/operator/home-network-keys/42" {
+		t.Fatalf("expected path api/v1/operator/home-network-keys/42, got %s", fake.lastOpts.Path)
+	}
+}
+
+func TestDeleteHomeNetworkKey_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 404,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "not found"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.DeleteHomeNetworkKey(ctx, 999)
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
+func TestGetHomeNetworkKeyPrivateKey_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"privateKey": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	resp, err := clientObj.GetHomeNetworkKeyPrivateKey(ctx, 7)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if resp.PrivateKey != "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789" {
+		t.Fatalf("unexpected private key: %s", resp.PrivateKey)
+	}
+
+	if fake.lastOpts.Method != "GET" {
+		t.Fatalf("expected method GET, got %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/operator/home-network-keys/7/private-key" {
+		t.Fatalf("expected path api/v1/operator/home-network-keys/7/private-key, got %s", fake.lastOpts.Path)
+	}
+}
+
+func TestGetHomeNetworkKeyPrivateKey_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 404,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "not found"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	_, err := clientObj.GetHomeNetworkKeyPrivateKey(ctx, 999)
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
+func TestGetOperator_IncludesHomeNetworkKeys(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result: []byte(`{
+				"id": {"mcc": "001", "mnc": "01"},
+				"homeNetworkKeys": [
+					{"id": 1, "keyIdentifier": 0, "scheme": "A", "publicKey": "aabb"},
+					{"id": 2, "keyIdentifier": 0, "scheme": "B", "publicKey": "02cc"}
+				]
+			}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	operator, err := clientObj.GetOperator(ctx)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(operator.HomeNetworkKeys) != 2 {
+		t.Fatalf("expected 2 home network keys, got %d", len(operator.HomeNetworkKeys))
+	}
+
+	if operator.HomeNetworkKeys[0].Scheme != "A" {
+		t.Fatalf("expected first key scheme A, got %s", operator.HomeNetworkKeys[0].Scheme)
+	}
+
+	if operator.HomeNetworkKeys[1].Scheme != "B" {
+		t.Fatalf("expected second key scheme B, got %s", operator.HomeNetworkKeys[1].Scheme)
 	}
 }

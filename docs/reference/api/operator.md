@@ -38,12 +38,17 @@ None
                 "003"
             ]
         },
-        "homeNetwork": {
-            "publicKey": "021bd3c0ba857e6f45b6ecb76ad826fd27fecef441f23d0e418b645829261e16"
-        },
-        "security": {
-            "cipheringOrder": ["NEA2", "NEA1", "NEA0"],
-            "integrityOrder": ["NIA2", "NIA1", "NIA0"]
+        "homeNetworkKeys": [
+                {
+                    "id": 1,
+                    "keyIdentifier": 0,
+                    "scheme": "A",
+                    "publicKey": "021bd3c0ba857e6f45b6ecb76ad826fd27fecef441f23d0e418b645829261e16"
+                }
+            ],
+        "nasSecurity": {
+            "ciphering": ["NEA2", "NEA1", "NEA0"],
+            "integrity": ["NIA2", "NIA1", "NIA0"]
         }
     }
 }
@@ -139,24 +144,70 @@ This path updates the Operator Code (OP). The OP is a 32-character hexadecimal s
 }
 ```
 
-## Update the Home Network Information
+## Create a Home Network Key
 
-This path updates the Home Network Information. The Home Network Private Key ensures IMSI privacy. User Equipment (UE) devices will use the public key to encrypt the IMSI before sending it to the network. The network will then use the private key to decrypt the IMSI.
+Adds a new home network key for SUCI de-concealment. The key is identified by a (keyIdentifier, scheme) pair. Profile A keys use Curve25519 (X25519); Profile B keys use NIST P-256. Maximum 12 keys.
 
-| Method | Path                            |
-| ------ | ------------------------------- |
-| PUT    | `/api/v1/operator/home-network` |
+| Method | Path                                    |
+| ------ | --------------------------------------- |
+| POST   | `/api/v1/operator/home-network-keys`    |
 
 ### Parameters
 
-- `privateKey` (string): The Home Network Private Key. Must be a 64-character hexadecimal string.
+- `keyIdentifier` (integer): The key identifier. Must be between 0 and 255. Must match the value provisioned on the SIM/USIM.
+- `scheme` (string): The scheme. Must be `"A"` (Curve25519/X25519) or `"B"` (NIST P-256).
+- `privateKey` (string): The private key. Must be a 64-character hexadecimal string.
 
 ### Sample Response
 
 ```json
 {
     "result": {
-        "message": "Home Network private key updated successfully"
+        "message": "Home network key created successfully"
+    }
+}
+```
+
+## Get a Home Network Key's Private Key
+
+Returns the private key for a home network key. This is a sensitive operation that is recorded in the audit log. Only administrators and network managers can access this endpoint.
+
+| Method | Path                                                      |
+| ------ | --------------------------------------------------------- |
+| GET    | `/api/v1/operator/home-network-keys/{id}/private-key`     |
+
+### Parameters
+
+- `id` (integer, path): The database ID of the home network key.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "privateKey": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+    }
+}
+```
+
+## Delete a Home Network Key
+
+Removes a home network key. UEs using this key will no longer be able to register.
+
+| Method | Path                                        |
+| ------ | ------------------------------------------- |
+| DELETE | `/api/v1/operator/home-network-keys/{id}`   |
+
+### Parameters
+
+- `id` (integer, path): The database ID of the home network key.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Home network key deleted successfully"
     }
 }
 ```
@@ -167,19 +218,19 @@ This path updates the NAS security algorithm preference order for ciphering and 
 
 | Method | Path                        |
 | ------ | --------------------------- |
-| PUT    | `/api/v1/operator/security` |
+| PUT    | `/api/v1/operator/nas-security` |
 
 ### Parameters
 
-- `cipheringOrder` (array of strings): The preferred ciphering algorithm order. Each entry must be one of `NEA0`, `NEA1`, or `NEA2`. At least one algorithm is required. No duplicates allowed.
-- `integrityOrder` (array of strings): The preferred integrity algorithm order. Each entry must be one of `NIA0`, `NIA1`, or `NIA2`. At least one algorithm is required. No duplicates allowed.
+- `ciphering` (array of strings): The preferred ciphering algorithm order. Each entry must be one of `NEA0`, `NEA1`, or `NEA2`. At least one algorithm is required. No duplicates allowed.
+- `integrity` (array of strings): The preferred integrity algorithm order. Each entry must be one of `NIA0`, `NIA1`, or `NIA2`. At least one algorithm is required. No duplicates allowed.
 
 ### Sample Request
 
 ```json
 {
-    "cipheringOrder": ["NEA2", "NEA1"],
-    "integrityOrder": ["NIA2", "NIA1"]
+    "ciphering": ["NEA2", "NEA1"],
+    "integrity": ["NIA2", "NIA1"]
 }
 ```
 
@@ -188,7 +239,7 @@ This path updates the NAS security algorithm preference order for ciphering and 
 ```json
 {
     "result": {
-        "message": "Operator security algorithms updated successfully"
+        "message": "Operator NAS security algorithms updated successfully"
     }
 }
 ```

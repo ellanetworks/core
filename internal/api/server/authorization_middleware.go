@@ -37,7 +37,7 @@ var PermissionsByRole = map[RoleID][]string{
 	RoleNetworkManager: {
 		PermReadUser, PermReadMyUser, PermUpdateMyUserPassword,
 		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
-		PermReadOperator, PermUpdateOperatorSlice, PermGetOperatorSlice, PermUpdateOperatorTracking, PermGetOperatorTracking, PermUpdateOperatorSecurityAlgorithms,
+		PermReadOperator, PermUpdateOperatorSlice, PermGetOperatorSlice, PermUpdateOperatorTracking, PermGetOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey,
 		PermListDataNetworks, PermCreateDataNetwork, PermUpdateDataNetwork, PermReadDataNetwork, PermDeleteDataNetwork,
 		PermListSubscribers, PermCreateSubscriber, PermUpdateSubscriber, PermReadSubscriber, PermDeleteSubscriber, PermReadSubscriberCredentials,
 		PermListPolicies, PermCreatePolicy, PermUpdatePolicy, PermReadPolicy, PermDeletePolicy,
@@ -79,13 +79,14 @@ const (
 	PermDeleteDataNetwork = "data_network:delete"
 
 	// Operator permissions
-	PermReadOperator                     = "operator:read"
-	PermUpdateOperatorSlice              = "operator:update_slice"
-	PermUpdateOperatorTracking           = "operator:update_tracking"
-	PermUpdateOperatorID                 = "operator:update_id"
-	PermUpdateOperatorCode               = "operator:update_code"
-	PermUpdateOperatorHomeNetwork        = "operator:update_home_network"
-	PermUpdateOperatorSecurityAlgorithms = "operator:update_security_algorithms"
+	PermReadOperator              = "operator:read"
+	PermUpdateOperatorSlice       = "operator:update_slice"
+	PermUpdateOperatorTracking    = "operator:update_tracking"
+	PermUpdateOperatorID          = "operator:update_id"
+	PermUpdateOperatorCode        = "operator:update_code"
+	PermUpdateOperatorHomeNetwork = "operator:update_home_network"
+	PermReadHomeNetworkPrivateKey = "operator:read_home_network_private_key"
+	PermUpdateOperatorNASSecurity = "operator:update_nas_security"
 
 	// Deprecated: sub-resource GET permissions. Use operator:read instead.
 	// These will be removed in a future release.

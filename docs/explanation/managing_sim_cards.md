@@ -31,7 +31,7 @@ export ADMIN_CODE=76543210
 ```
 
 !!! note
-    Some devices like iPhones also require the Home Network Public Key to be programmed on the SIM card. If you are using PySim, please refer to the [SUCI Concealement documentation](https://downloads.osmocom.org/docs/pysim/master/html/suci-tutorial.html).
+    Some devices like iPhones also require the Home Network Public Key to be programmed on the SIM card. When provisioning SUCI support, the SIM must be configured with the **protection scheme** (Profile A or Profile B), the **Key Identifier**, and the corresponding **public key** — all of which must match a home network key configured in Ella Core. You can find the public key on the Operator page in the UI or via the Operator API. If you are using PySim, please refer to the [SUCI Concealement documentation](https://downloads.osmocom.org/docs/pysim/master/html/suci-tutorial.html).
 
 ## Using eSIM
 

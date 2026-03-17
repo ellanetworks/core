@@ -1,7 +1,6 @@
 package server
 
 import (
-	"crypto/ecdh"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -36,13 +35,9 @@ type UpdateOperatorCodeParams struct {
 	OperatorCode string `json:"operatorCode,omitempty"`
 }
 
-type UpdateOperatorHomeNetworkParams struct {
-	PrivateKey string `json:"privateKey,omitempty"`
-}
-
-type UpdateOperatorSecurityParams struct {
-	CipheringOrder []string `json:"cipheringOrder"`
-	IntegrityOrder []string `json:"integrityOrder"`
+type UpdateOperatorNASSecurityParams struct {
+	Ciphering []string `json:"ciphering"`
+	Integrity []string `json:"integrity"`
 }
 
 type GetOperatorTrackingResponse struct {
@@ -50,11 +45,11 @@ type GetOperatorTrackingResponse struct {
 }
 
 type GetOperatorResponse struct {
-	ID          GetOperatorIDResponse          `json:"id,omitempty"`
-	Slice       GetOperatorSliceResponse       `json:"slice,omitempty"`
-	Tracking    GetOperatorTrackingResponse    `json:"tracking,omitempty"`
-	HomeNetwork GetOperatorHomeNetworkResponse `json:"homeNetwork,omitempty"`
-	Security    GetOperatorSecurityResponse    `json:"security"`
+	ID              GetOperatorIDResponse          `json:"id,omitempty"`
+	Slice           GetOperatorSliceResponse       `json:"slice,omitempty"`
+	Tracking        GetOperatorTrackingResponse    `json:"tracking,omitempty"`
+	HomeNetworkKeys []HomeNetworkKeyResponse       `json:"homeNetworkKeys"`
+	NASSecurity     GetOperatorNASSecurityResponse `json:"nasSecurity"`
 }
 
 type GetOperatorSliceResponse struct {
@@ -67,13 +62,9 @@ type GetOperatorIDResponse struct {
 	Mnc string `json:"mnc,omitempty"`
 }
 
-type GetOperatorHomeNetworkResponse struct {
-	PublicKey string `json:"publicKey,omitempty"`
-}
-
-type GetOperatorSecurityResponse struct {
-	CipheringOrder []string `json:"cipheringOrder"`
-	IntegrityOrder []string `json:"integrityOrder"`
+type GetOperatorNASSecurityResponse struct {
+	Ciphering []string `json:"ciphering"`
+	Integrity []string `json:"integrity"`
 }
 
 const (
@@ -81,8 +72,7 @@ const (
 	UpdateOperatorTrackingAction    = "update_operator_tracking"
 	UpdateOperatorIDAction          = "update_operator_id"
 	UpdateOperatorCodeAction        = "update_operator_code"
-	UpdateOperatorHomeNetworkAction = "update_operator_home_network"
-	UpdateOperatorSecurityAction    = "update_operator_security"
+	UpdateOperatorNASSecurityAction = "update_operator_nas_security"
 )
 
 // Mcc is a 3-decimal digit
@@ -125,23 +115,6 @@ func isValidOperatorCode(operatorCode string) bool {
 	_, err := hex.DecodeString(operatorCode)
 	if err != nil {
 		logger.APILog.Warn("Invalid operator code: not valid hex", zap.Error(err))
-		return false
-	}
-
-	return true
-}
-
-// isValidPrivateKey validates whether the provided private key is a valid 32-byte Curve25519 private key.
-func isValidPrivateKey(privateKey string) bool {
-	privateKeyBytes, err := hex.DecodeString(privateKey)
-	if err != nil {
-		logger.EllaLog.Warn("Failed to decode private key from hex", zap.Error(err))
-		return false
-	}
-
-	_, err = ecdh.X25519().NewPrivateKey(privateKeyBytes)
-	if err != nil {
-		logger.EllaLog.Warn("Failed to create X25519 private key", zap.Error(err))
 		return false
 	}
 
@@ -207,12 +180,30 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		hnPublicKey, err := dbOperator.GetHomeNetworkPublicKey()
+		hnKeys, err := dbInstance.ListHomeNetworkKeys(r.Context())
 		if err != nil {
-			logger.APILog.Warn("Failed to get home network public key", zap.Error(err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get home network public key", err, logger.APILog)
+			logger.APILog.Warn("Failed to list home network keys", zap.Error(err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list home network keys", err, logger.APILog)
 
 			return
+		}
+
+		keyResponses := make([]HomeNetworkKeyResponse, 0, len(hnKeys))
+		for _, k := range hnKeys {
+			pubKey, err := k.GetPublicKey()
+			if err != nil {
+				logger.APILog.Warn("Failed to derive public key", zap.Int("id", k.ID), zap.Error(err))
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to derive public key", err, logger.APILog)
+
+				return
+			}
+
+			keyResponses = append(keyResponses, HomeNetworkKeyResponse{
+				ID:            k.ID,
+				KeyIdentifier: k.KeyIdentifier,
+				Scheme:        k.Scheme,
+				PublicKey:     pubKey,
+			})
 		}
 
 		supportedTACs, err := dbOperator.GetSupportedTacs()
@@ -223,7 +214,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		cipheringOrder, err := dbOperator.GetCipheringOrder()
+		cipheringOrder, err := dbOperator.GetCiphering()
 		if err != nil {
 			logger.APILog.Warn("Failed to get ciphering order", zap.Error(err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get ciphering order", err, logger.APILog)
@@ -231,7 +222,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		integrityOrder, err := dbOperator.GetIntegrityOrder()
+		integrityOrder, err := dbOperator.GetIntegrity()
 		if err != nil {
 			logger.APILog.Warn("Failed to get integrity order", zap.Error(err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get integrity order", err, logger.APILog)
@@ -251,12 +242,10 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			Tracking: GetOperatorTrackingResponse{
 				SupportedTacs: supportedTACs,
 			},
-			HomeNetwork: GetOperatorHomeNetworkResponse{
-				PublicKey: hnPublicKey,
-			},
-			Security: GetOperatorSecurityResponse{
-				CipheringOrder: cipheringOrder,
-				IntegrityOrder: integrityOrder,
+			HomeNetworkKeys: keyResponses,
+			NASSecurity: GetOperatorNASSecurityResponse{
+				Ciphering: cipheringOrder,
+				Integrity: integrityOrder,
 			},
 		}
 
@@ -551,51 +540,6 @@ func UpdateOperatorCode(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateOperatorHomeNetwork(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
-			return
-		}
-
-		var params UpdateOperatorHomeNetworkParams
-		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
-			return
-		}
-
-		if params.PrivateKey == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "privateKey is missing", nil, logger.APILog)
-			return
-		}
-
-		if !isValidPrivateKey(params.PrivateKey) {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid private key format. Must be a 32-byte hexadecimal string.", nil, logger.APILog)
-			return
-		}
-
-		if err := dbInstance.UpdateHomeNetworkPrivateKey(r.Context(), params.PrivateKey); err != nil {
-			logger.APILog.Warn("Failed to update home network private key", zap.Error(err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update home network private key", err, logger.APILog)
-
-			return
-		}
-
-		writeResponse(r.Context(), w, SuccessResponse{Message: "Home Network private key updated successfully"}, http.StatusCreated, logger.APILog)
-
-		logger.LogAuditEvent(
-			r.Context(),
-			UpdateOperatorHomeNetworkAction,
-			email,
-			getClientIP(r),
-			"User updated home network private key",
-		)
-	})
-}
-
 var validCipheringAlgorithms = map[string]bool{"NEA0": true, "NEA1": true, "NEA2": true}
 
 var validIntegrityAlgorithms = map[string]bool{"NIA0": true, "NIA1": true, "NIA2": true}
@@ -626,7 +570,7 @@ func isValidAlgorithmOrder(order []string, valid map[string]bool) (string, bool)
 	return "", true
 }
 
-func UpdateOperatorSecurity(dbInstance *db.Database) http.Handler {
+func UpdateOperatorNASSecurity(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -636,23 +580,23 @@ func UpdateOperatorSecurity(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		var params UpdateOperatorSecurityParams
+		var params UpdateOperatorNASSecurityParams
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
-		if len(params.CipheringOrder) == 0 {
-			writeError(r.Context(), w, http.StatusBadRequest, "cipheringOrder is required and must not be empty", nil, logger.APILog)
+		if len(params.Ciphering) == 0 {
+			writeError(r.Context(), w, http.StatusBadRequest, "ciphering is required and must not be empty", nil, logger.APILog)
 			return
 		}
 
-		if len(params.IntegrityOrder) == 0 {
-			writeError(r.Context(), w, http.StatusBadRequest, "integrityOrder is required and must not be empty", nil, logger.APILog)
+		if len(params.Integrity) == 0 {
+			writeError(r.Context(), w, http.StatusBadRequest, "integrity is required and must not be empty", nil, logger.APILog)
 			return
 		}
 
-		if badAlg, valid := isValidAlgorithmOrder(params.CipheringOrder, validCipheringAlgorithms); !valid {
+		if badAlg, valid := isValidAlgorithmOrder(params.Ciphering, validCipheringAlgorithms); !valid {
 			if badAlg != "" {
 				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("Invalid or duplicate ciphering algorithm: %s. Allowed: NEA0, NEA1, NEA2", badAlg), nil, logger.APILog)
 			} else {
@@ -662,7 +606,7 @@ func UpdateOperatorSecurity(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if badAlg, valid := isValidAlgorithmOrder(params.IntegrityOrder, validIntegrityAlgorithms); !valid {
+		if badAlg, valid := isValidAlgorithmOrder(params.Integrity, validIntegrityAlgorithms); !valid {
 			if badAlg != "" {
 				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("Invalid or duplicate integrity algorithm: %s. Allowed: NIA0, NIA1, NIA2", badAlg), nil, logger.APILog)
 			} else {
@@ -672,22 +616,22 @@ func UpdateOperatorSecurity(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := dbInstance.UpdateOperatorSecurityAlgorithms(r.Context(), params.CipheringOrder, params.IntegrityOrder); err != nil {
+		if err := dbInstance.UpdateOperatorSecurityAlgorithms(r.Context(), params.Ciphering, params.Integrity); err != nil {
 			logger.APILog.Warn("Failed to update operator security algorithms", zap.Error(err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator security algorithms", err, logger.APILog)
 
 			return
 		}
 
-		resp := SuccessResponse{Message: "Operator security algorithms updated successfully"}
+		resp := SuccessResponse{Message: "Operator NAS security algorithms updated successfully"}
 		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
 			r.Context(),
-			UpdateOperatorSecurityAction,
+			UpdateOperatorNASSecurityAction,
 			email,
 			getClientIP(r),
-			"User updated operator security algorithms",
+			"User updated operator NAS security algorithms",
 		)
 	})
 }

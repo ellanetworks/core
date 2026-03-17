@@ -1,13 +1,20 @@
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
+export interface HomeNetworkKey {
+  id: number;
+  keyIdentifier: number;
+  scheme: "A" | "B";
+  publicKey: string;
+}
+
 export interface OperatorData {
   id: { mcc: string; mnc: string };
   slice: { sst: number; sd?: string | null };
   tracking: { supportedTacs: string[] };
-  homeNetwork: { publicKey: string };
-  security: {
-    cipheringOrder: string[];
-    integrityOrder: string[];
+  homeNetworkKeys: HomeNetworkKey[];
+  nasSecurity: {
+    ciphering: string[];
+    integrity: string[];
   };
 }
 
@@ -64,25 +71,47 @@ export const updateOperatorCode = async (
   });
 };
 
-export const updateOperatorHomeNetwork = async (
+export const createHomeNetworkKey = async (
   authToken: string,
+  keyIdentifier: number,
+  scheme: string,
   privateKey: string,
 ): Promise<void> => {
-  await apiFetchVoid(`/api/v1/operator/home-network`, {
-    method: "PUT",
+  await apiFetchVoid(`/api/v1/operator/home-network-keys`, {
+    method: "POST",
     authToken,
-    body: { privateKey },
+    body: { keyIdentifier, scheme, privateKey },
   });
 };
 
-export const updateOperatorSecurity = async (
+export const deleteHomeNetworkKey = async (
   authToken: string,
-  cipheringOrder: string[],
-  integrityOrder: string[],
+  id: number,
 ): Promise<void> => {
-  await apiFetchVoid(`/api/v1/operator/security`, {
+  await apiFetchVoid(`/api/v1/operator/home-network-keys/${id}`, {
+    method: "DELETE",
+    authToken,
+  });
+};
+
+export const getHomeNetworkKeyPrivateKey = async (
+  authToken: string,
+  id: number,
+): Promise<{ privateKey: string }> => {
+  return apiFetch<{ privateKey: string }>(
+    `/api/v1/operator/home-network-keys/${id}/private-key`,
+    { authToken },
+  );
+};
+
+export const updateOperatorNASSecurity = async (
+  authToken: string,
+  ciphering: string[],
+  integrity: string[],
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/operator/nas-security`, {
     method: "PUT",
     authToken,
-    body: { cipheringOrder, integrityOrder },
+    body: { ciphering, integrity },
   });
 };

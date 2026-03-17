@@ -16,16 +16,17 @@ const (
 	Sd  = "303132"
 )
 
-type GetOperatorSecurityResponseResult struct {
-	CipheringOrder []string `json:"cipheringOrder,omitempty"`
-	IntegrityOrder []string `json:"integrityOrder,omitempty"`
+type GetOperatorNASSecurityResponseResult struct {
+	Ciphering []string `json:"ciphering,omitempty"`
+	Integrity []string `json:"integrity,omitempty"`
 }
 
 type GetOperatorResponseResult struct {
-	ID       GetOperatorIDResponseResult       `json:"id,omitempty"`
-	Slice    GetOperatorSliceResponseResult    `json:"slice,omitempty"`
-	Tracking GetOperatorTrackingResponseResult `json:"tracking,omitempty"`
-	Security GetOperatorSecurityResponseResult `json:"security,omitempty"`
+	ID              GetOperatorIDResponseResult          `json:"id,omitempty"`
+	Slice           GetOperatorSliceResponseResult       `json:"slice,omitempty"`
+	Tracking        GetOperatorTrackingResponseResult    `json:"tracking,omitempty"`
+	NASSecurity     GetOperatorNASSecurityResponseResult `json:"nasSecurity,omitempty"`
+	HomeNetworkKeys []HomeNetworkKeyResponseItem         `json:"homeNetworkKeys,omitempty"`
 }
 
 type GetOperatorResponse struct {
@@ -114,19 +115,6 @@ type UpdateOperatorCodeResponseResult struct {
 type UpdateOperatorCodeResponse struct {
 	Result UpdateOperatorCodeResponseResult `json:"result"`
 	Error  string                           `json:"error,omitempty"`
-}
-
-type UpdateOperatorHomeNetworkParams struct {
-	PrivateKey string `json:"privateKey,omitempty"`
-}
-
-type UpdateOperatorHomeNetworkResponseResult struct {
-	Message string `json:"message"`
-}
-
-type UpdateOperatorHomeNetworkResponse struct {
-	Result UpdateOperatorHomeNetworkResponseResult `json:"result"`
-	Error  string                                  `json:"error,omitempty"`
 }
 
 func getOperator(url string, client *http.Client, token string) (int, *GetOperatorResponse, error) {
@@ -358,38 +346,6 @@ func updateOperatorCode(url string, client *http.Client, token string, data *Upd
 	}()
 
 	var updateResponse UpdateOperatorCodeResponse
-	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &updateResponse, nil
-}
-
-func updateOperatorHomeNetwork(url string, client *http.Client, token string, data *UpdateOperatorHomeNetworkParams) (int, *UpdateOperatorHomeNetworkResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/home-network", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var updateResponse UpdateOperatorHomeNetworkResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
@@ -993,171 +949,27 @@ func TestUpdateOperatorCodeInvalidInput(t *testing.T) {
 	}
 }
 
-func TestUpdateOperatorHomeNetwork(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	ts, _, _, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer ts.Close()
-
-	client := newTestClient(ts)
-
-	token, err := initializeAndRefresh(ts.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
-
-	t.Run("Success - valid private key", func(t *testing.T) {
-		// Valid Curve25519 private key (32 bytes hex)
-		validPrivateKey := "5122250214c33e723a5dd523fc145fc05122250214c33e723a5dd523fc145fc0"
-
-		params := &UpdateOperatorHomeNetworkParams{
-			PrivateKey: validPrivateKey,
-		}
-
-		statusCode, response, err := updateOperatorHomeNetwork(ts.URL, client, token, params)
-		if err != nil {
-			t.Fatalf("couldn't update home network: %s", err)
-		}
-
-		if statusCode != http.StatusCreated {
-			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
-		}
-
-		if response.Error != "" {
-			t.Fatalf("unexpected error: %q", response.Error)
-		}
-
-		if response.Result.Message != "Home Network private key updated successfully" {
-			t.Fatalf("expected message 'Home Network private key updated successfully', got %q", response.Result.Message)
-		}
-	})
-
-	t.Run("Missing private key", func(t *testing.T) {
-		params := &UpdateOperatorHomeNetworkParams{
-			PrivateKey: "",
-		}
-
-		statusCode, response, err := updateOperatorHomeNetwork(ts.URL, client, token, params)
-		if err != nil {
-			t.Fatalf("couldn't update home network: %s", err)
-		}
-
-		if statusCode != http.StatusBadRequest {
-			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
-		}
-
-		if response.Error != "privateKey is missing" {
-			t.Fatalf("expected error 'privateKey is missing', got %q", response.Error)
-		}
-	})
-
-	t.Run("Invalid private key - too short", func(t *testing.T) {
-		params := &UpdateOperatorHomeNetworkParams{
-			PrivateKey: "5122250214c33e723a5dd523fc145fc",
-		}
-
-		statusCode, response, err := updateOperatorHomeNetwork(ts.URL, client, token, params)
-		if err != nil {
-			t.Fatalf("couldn't update home network: %s", err)
-		}
-
-		if statusCode != http.StatusBadRequest {
-			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
-		}
-
-		if response.Error != "Invalid private key format. Must be a 32-byte hexadecimal string." {
-			t.Fatalf("expected error about invalid format, got %q", response.Error)
-		}
-	})
-
-	t.Run("Invalid private key - too long", func(t *testing.T) {
-		params := &UpdateOperatorHomeNetworkParams{
-			PrivateKey: "5122250214c33e723a5dd523fc145fc05122250214c33e723a5dd523fc145fc012",
-		}
-
-		statusCode, response, err := updateOperatorHomeNetwork(ts.URL, client, token, params)
-		if err != nil {
-			t.Fatalf("couldn't update home network: %s", err)
-		}
-
-		if statusCode != http.StatusBadRequest {
-			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
-		}
-
-		if response.Error != "Invalid private key format. Must be a 32-byte hexadecimal string." {
-			t.Fatalf("expected error about invalid format, got %q", response.Error)
-		}
-	})
-
-	t.Run("Invalid private key - non-hex characters", func(t *testing.T) {
-		params := &UpdateOperatorHomeNetworkParams{
-			PrivateKey: "5122250214c33e723a5dd523fc145fc05122250214c33e723a5dd523fc145fZZ",
-		}
-
-		statusCode, response, err := updateOperatorHomeNetwork(ts.URL, client, token, params)
-		if err != nil {
-			t.Fatalf("couldn't update home network: %s", err)
-		}
-
-		if statusCode != http.StatusBadRequest {
-			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
-		}
-
-		if response.Error != "Invalid private key format. Must be a 32-byte hexadecimal string." {
-			t.Fatalf("expected error about invalid format, got %q", response.Error)
-		}
-	})
-
-	t.Run("Invalid request body", func(t *testing.T) {
-		body := strings.NewReader(`{"invalid": json}`)
-
-		req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/operator/home-network", body)
-		if err != nil {
-			t.Fatalf("couldn't create request: %s", err)
-		}
-
-		req.Header.Set("Authorization", "Bearer "+token)
-
-		res, err := client.Do(req)
-		if err != nil {
-			t.Fatalf("couldn't do request: %s", err)
-		}
-
-		defer func() {
-			_ = res.Body.Close()
-		}()
-
-		if res.StatusCode != http.StatusBadRequest {
-			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.StatusCode)
-		}
-	})
+type UpdateOperatorNASSecurityParams struct {
+	Ciphering []string `json:"ciphering,omitempty"`
+	Integrity []string `json:"integrity,omitempty"`
 }
 
-type UpdateOperatorSecurityParams struct {
-	CipheringOrder []string `json:"cipheringOrder,omitempty"`
-	IntegrityOrder []string `json:"integrityOrder,omitempty"`
-}
-
-type UpdateOperatorSecurityResponseResult struct {
+type UpdateOperatorNASSecurityResponseResult struct {
 	Message string `json:"message"`
 }
 
-type UpdateOperatorSecurityResponse struct {
-	Result UpdateOperatorSecurityResponseResult `json:"result"`
-	Error  string                               `json:"error,omitempty"`
+type UpdateOperatorNASSecurityResponse struct {
+	Result UpdateOperatorNASSecurityResponseResult `json:"result"`
+	Error  string                                  `json:"error,omitempty"`
 }
 
-func updateOperatorSecurity(url string, client *http.Client, token string, data *UpdateOperatorSecurityParams) (int, *UpdateOperatorSecurityResponse, error) {
+func updateOperatorNASSecurity(url string, client *http.Client, token string, data *UpdateOperatorNASSecurityParams) (int, *UpdateOperatorNASSecurityResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/security", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/nas-security", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -1175,7 +987,7 @@ func updateOperatorSecurity(url string, client *http.Client, token string, data 
 		}
 	}()
 
-	var updateResponse UpdateOperatorSecurityResponse
+	var updateResponse UpdateOperatorNASSecurityResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
@@ -1183,7 +995,7 @@ func updateOperatorSecurity(url string, client *http.Client, token string, data 
 	return res.StatusCode, &updateResponse, nil
 }
 
-func TestUpdateOperatorSecurity(t *testing.T) {
+func TestUpdateOperatorNASSecurity(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
@@ -1211,37 +1023,37 @@ func TestUpdateOperatorSecurity(t *testing.T) {
 		}
 
 		expectedCiphering := []string{"NEA2", "NEA1", "NEA0"}
-		if len(response.Result.Security.CipheringOrder) != len(expectedCiphering) {
-			t.Fatalf("expected %d ciphering algorithms, got %d", len(expectedCiphering), len(response.Result.Security.CipheringOrder))
+		if len(response.Result.NASSecurity.Ciphering) != len(expectedCiphering) {
+			t.Fatalf("expected %d ciphering algorithms, got %d", len(expectedCiphering), len(response.Result.NASSecurity.Ciphering))
 		}
 
 		for i, alg := range expectedCiphering {
-			if response.Result.Security.CipheringOrder[i] != alg {
-				t.Fatalf("expected ciphering[%d] = %q, got %q", i, alg, response.Result.Security.CipheringOrder[i])
+			if response.Result.NASSecurity.Ciphering[i] != alg {
+				t.Fatalf("expected ciphering[%d] = %q, got %q", i, alg, response.Result.NASSecurity.Ciphering[i])
 			}
 		}
 
 		expectedIntegrity := []string{"NIA2", "NIA1", "NIA0"}
-		if len(response.Result.Security.IntegrityOrder) != len(expectedIntegrity) {
-			t.Fatalf("expected %d integrity algorithms, got %d", len(expectedIntegrity), len(response.Result.Security.IntegrityOrder))
+		if len(response.Result.NASSecurity.Integrity) != len(expectedIntegrity) {
+			t.Fatalf("expected %d integrity algorithms, got %d", len(expectedIntegrity), len(response.Result.NASSecurity.Integrity))
 		}
 
 		for i, alg := range expectedIntegrity {
-			if response.Result.Security.IntegrityOrder[i] != alg {
-				t.Fatalf("expected integrity[%d] = %q, got %q", i, alg, response.Result.Security.IntegrityOrder[i])
+			if response.Result.NASSecurity.Integrity[i] != alg {
+				t.Fatalf("expected integrity[%d] = %q, got %q", i, alg, response.Result.NASSecurity.Integrity[i])
 			}
 		}
 	})
 
-	t.Run("Success - update security algorithms", func(t *testing.T) {
-		params := &UpdateOperatorSecurityParams{
-			CipheringOrder: []string{"NEA1", "NEA0"},
-			IntegrityOrder: []string{"NIA2", "NIA1"},
+	t.Run("Success - update NAS security algorithms", func(t *testing.T) {
+		params := &UpdateOperatorNASSecurityParams{
+			Ciphering: []string{"NEA1", "NEA0"},
+			Integrity: []string{"NIA2", "NIA1"},
 		}
 
-		statusCode, response, err := updateOperatorSecurity(ts.URL, client, token, params)
+		statusCode, response, err := updateOperatorNASSecurity(ts.URL, client, token, params)
 		if err != nil {
-			t.Fatalf("couldn't update operator security: %s", err)
+			t.Fatalf("couldn't update operator NAS security: %s", err)
 		}
 
 		if statusCode != http.StatusCreated {
@@ -1253,7 +1065,7 @@ func TestUpdateOperatorSecurity(t *testing.T) {
 		}
 	})
 
-	t.Run("Updated security algorithms visible via GET", func(t *testing.T) {
+	t.Run("Updated NAS security algorithms visible via GET", func(t *testing.T) {
 		statusCode, response, err := getOperator(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
@@ -1264,37 +1076,37 @@ func TestUpdateOperatorSecurity(t *testing.T) {
 		}
 
 		expectedCiphering := []string{"NEA1", "NEA0"}
-		if len(response.Result.Security.CipheringOrder) != len(expectedCiphering) {
-			t.Fatalf("expected %d ciphering algorithms, got %d", len(expectedCiphering), len(response.Result.Security.CipheringOrder))
+		if len(response.Result.NASSecurity.Ciphering) != len(expectedCiphering) {
+			t.Fatalf("expected %d ciphering algorithms, got %d", len(expectedCiphering), len(response.Result.NASSecurity.Ciphering))
 		}
 
 		for i, alg := range expectedCiphering {
-			if response.Result.Security.CipheringOrder[i] != alg {
-				t.Fatalf("expected ciphering[%d] = %q, got %q", i, alg, response.Result.Security.CipheringOrder[i])
+			if response.Result.NASSecurity.Ciphering[i] != alg {
+				t.Fatalf("expected ciphering[%d] = %q, got %q", i, alg, response.Result.NASSecurity.Ciphering[i])
 			}
 		}
 
 		expectedIntegrity := []string{"NIA2", "NIA1"}
-		if len(response.Result.Security.IntegrityOrder) != len(expectedIntegrity) {
-			t.Fatalf("expected %d integrity algorithms, got %d", len(expectedIntegrity), len(response.Result.Security.IntegrityOrder))
+		if len(response.Result.NASSecurity.Integrity) != len(expectedIntegrity) {
+			t.Fatalf("expected %d integrity algorithms, got %d", len(expectedIntegrity), len(response.Result.NASSecurity.Integrity))
 		}
 
 		for i, alg := range expectedIntegrity {
-			if response.Result.Security.IntegrityOrder[i] != alg {
-				t.Fatalf("expected integrity[%d] = %q, got %q", i, alg, response.Result.Security.IntegrityOrder[i])
+			if response.Result.NASSecurity.Integrity[i] != alg {
+				t.Fatalf("expected integrity[%d] = %q, got %q", i, alg, response.Result.NASSecurity.Integrity[i])
 			}
 		}
 	})
 
 	t.Run("Empty ciphering order", func(t *testing.T) {
-		params := &UpdateOperatorSecurityParams{
-			CipheringOrder: []string{},
-			IntegrityOrder: []string{"NIA2"},
+		params := &UpdateOperatorNASSecurityParams{
+			Ciphering: []string{},
+			Integrity: []string{"NIA2"},
 		}
 
-		statusCode, _, err := updateOperatorSecurity(ts.URL, client, token, params)
+		statusCode, _, err := updateOperatorNASSecurity(ts.URL, client, token, params)
 		if err != nil {
-			t.Fatalf("couldn't update operator security: %s", err)
+			t.Fatalf("couldn't update operator NAS security: %s", err)
 		}
 
 		if statusCode != http.StatusBadRequest {
@@ -1303,14 +1115,14 @@ func TestUpdateOperatorSecurity(t *testing.T) {
 	})
 
 	t.Run("Empty integrity order", func(t *testing.T) {
-		params := &UpdateOperatorSecurityParams{
-			CipheringOrder: []string{"NEA2"},
-			IntegrityOrder: []string{},
+		params := &UpdateOperatorNASSecurityParams{
+			Ciphering: []string{"NEA2"},
+			Integrity: []string{},
 		}
 
-		statusCode, _, err := updateOperatorSecurity(ts.URL, client, token, params)
+		statusCode, _, err := updateOperatorNASSecurity(ts.URL, client, token, params)
 		if err != nil {
-			t.Fatalf("couldn't update operator security: %s", err)
+			t.Fatalf("couldn't update operator NAS security: %s", err)
 		}
 
 		if statusCode != http.StatusBadRequest {
@@ -1319,14 +1131,14 @@ func TestUpdateOperatorSecurity(t *testing.T) {
 	})
 
 	t.Run("Invalid ciphering algorithm", func(t *testing.T) {
-		params := &UpdateOperatorSecurityParams{
-			CipheringOrder: []string{"NEA2", "NEA9"},
-			IntegrityOrder: []string{"NIA2"},
+		params := &UpdateOperatorNASSecurityParams{
+			Ciphering: []string{"NEA2", "NEA9"},
+			Integrity: []string{"NIA2"},
 		}
 
-		statusCode, response, err := updateOperatorSecurity(ts.URL, client, token, params)
+		statusCode, response, err := updateOperatorNASSecurity(ts.URL, client, token, params)
 		if err != nil {
-			t.Fatalf("couldn't update operator security: %s", err)
+			t.Fatalf("couldn't update operator NAS security: %s", err)
 		}
 
 		if statusCode != http.StatusBadRequest {
@@ -1339,14 +1151,14 @@ func TestUpdateOperatorSecurity(t *testing.T) {
 	})
 
 	t.Run("Invalid integrity algorithm", func(t *testing.T) {
-		params := &UpdateOperatorSecurityParams{
-			CipheringOrder: []string{"NEA2"},
-			IntegrityOrder: []string{"NIA3"},
+		params := &UpdateOperatorNASSecurityParams{
+			Ciphering: []string{"NEA2"},
+			Integrity: []string{"NIA3"},
 		}
 
-		statusCode, response, err := updateOperatorSecurity(ts.URL, client, token, params)
+		statusCode, response, err := updateOperatorNASSecurity(ts.URL, client, token, params)
 		if err != nil {
-			t.Fatalf("couldn't update operator security: %s", err)
+			t.Fatalf("couldn't update operator NAS security: %s", err)
 		}
 
 		if statusCode != http.StatusBadRequest {
@@ -1359,14 +1171,14 @@ func TestUpdateOperatorSecurity(t *testing.T) {
 	})
 
 	t.Run("Duplicate ciphering algorithm", func(t *testing.T) {
-		params := &UpdateOperatorSecurityParams{
-			CipheringOrder: []string{"NEA2", "NEA2"},
-			IntegrityOrder: []string{"NIA2"},
+		params := &UpdateOperatorNASSecurityParams{
+			Ciphering: []string{"NEA2", "NEA2"},
+			Integrity: []string{"NIA2"},
 		}
 
-		statusCode, response, err := updateOperatorSecurity(ts.URL, client, token, params)
+		statusCode, response, err := updateOperatorNASSecurity(ts.URL, client, token, params)
 		if err != nil {
-			t.Fatalf("couldn't update operator security: %s", err)
+			t.Fatalf("couldn't update operator NAS security: %s", err)
 		}
 
 		if statusCode != http.StatusBadRequest {
@@ -1381,7 +1193,7 @@ func TestUpdateOperatorSecurity(t *testing.T) {
 	t.Run("Invalid request body", func(t *testing.T) {
 		body := strings.NewReader(`{"invalid": json}`)
 
-		req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/operator/security", body)
+		req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/operator/nas-security", body)
 		if err != nil {
 			t.Fatalf("couldn't create request: %s", err)
 		}

@@ -190,12 +190,12 @@ func (amf *AMF) GetSecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, er
 		return nil, nil, fmt.Errorf("failed to get operator: %w", err)
 	}
 
-	cipherNames, err := operator.GetCipheringOrder()
+	cipherNames, err := operator.GetCiphering()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse ciphering order: %w", err)
 	}
 
-	integrityNames, err := operator.GetIntegrityOrder()
+	integrityNames, err := operator.GetIntegrity()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse integrity order: %w", err)
 	}

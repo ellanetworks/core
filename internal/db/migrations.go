@@ -26,6 +26,7 @@ type migration struct {
 var migrations = []migration{
 	{1, "baseline schema", migrateV1},
 	{2, "add NAS security algorithm columns to operator", migrateV2},
+	{3, "create home_network_keys table and migrate existing key", migrateV3},
 }
 
 // latestVersion returns the highest migration version in the registry.

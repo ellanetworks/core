@@ -18,9 +18,16 @@ The subscriber's Universal Subscriber Identity Module (USIM) stores the identity
 
 ## Subscriber Privacy (SUCI)
 
-Ella Core supports **SUCI** (Subscription Concealed Identifier) to protect subscriber identity over the air. The IMSI is encrypted by the UE before transmission using **ECIES Profile A**.  The network decrypts the SUCI to recover the SUPI. This prevents IMSI-catching attacks.
+Ella Core supports **SUCI** (Subscription Concealed Identifier) to protect subscriber identity over the air. The IMSI is encrypted by the UE before transmission using ECIES (Elliptic Curve Integrated Encryption Scheme). The network decrypts the SUCI to recover the SUPI. This prevents IMSI-catching attacks.
 
-To configure the UE or USIM with SUCI support, you need the home network public key. This key is available through the [Operator API](../reference/api/operator.md) and on the Operator page in the UI.
+Two protection profiles are supported:
+
+| Profile | Curve | SUCI Scheme ID |
+|---------|-------|----------------|
+| **Profile A** | Curve25519 (X25519) | 1 |
+| **Profile B** | NIST P-256 (secp256r1) | 2 |
+
+Home network keys can be managed through the [Operator API](../reference/api/operator.md) or the Operator page in the UI.
 
 ## NAS Security
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 type GetOperatorIDResponse struct {
@@ -20,21 +21,34 @@ type GetOperatorTrackingResponse struct {
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
 
-type GetOperatorHomeNetworkResponse struct {
-	PublicKey string `json:"publicKey,omitempty"`
+type HomeNetworkKeyResponse struct {
+	ID            int    `json:"id"`
+	KeyIdentifier int    `json:"keyIdentifier"`
+	Scheme        string `json:"scheme"`
+	PublicKey     string `json:"publicKey"`
 }
 
-type GetOperatorSecurityResponse struct {
-	CipheringOrder []string `json:"cipheringOrder,omitempty"`
-	IntegrityOrder []string `json:"integrityOrder,omitempty"`
+type HomeNetworkKeyPrivateKeyResponse struct {
+	PrivateKey string `json:"privateKey"`
+}
+
+type GetOperatorNASSecurityResponse struct {
+	Ciphering []string `json:"ciphering,omitempty"`
+	Integrity []string `json:"integrity,omitempty"`
+}
+
+type CreateHomeNetworkKeyOptions struct {
+	KeyIdentifier int
+	Scheme        string
+	PrivateKey    string
 }
 
 type Operator struct {
-	ID          GetOperatorIDResponse          `json:"id,omitempty"`
-	Slice       GetOperatorSliceResponse       `json:"slice,omitempty"`
-	Tracking    GetOperatorTrackingResponse    `json:"tracking,omitempty"`
-	HomeNetwork GetOperatorHomeNetworkResponse `json:"homeNetwork,omitempty"`
-	Security    GetOperatorSecurityResponse    `json:"security,omitempty"`
+	ID              GetOperatorIDResponse          `json:"id,omitempty"`
+	Slice           GetOperatorSliceResponse       `json:"slice,omitempty"`
+	Tracking        GetOperatorTrackingResponse    `json:"tracking,omitempty"`
+	HomeNetworkKeys []HomeNetworkKeyResponse       `json:"homeNetworkKeys,omitempty"`
+	NASSecurity     GetOperatorNASSecurityResponse `json:"nasSecurity,omitempty"`
 }
 
 type UpdateOperatorIDOptions struct {
@@ -51,13 +65,9 @@ type UpdateOperatorTrackingOptions struct {
 	SupportedTacs []string
 }
 
-type UpdateOperatorHomeNetworkOptions struct {
-	PrivateKey string
-}
-
-type UpdateOperatorSecurityOptions struct {
-	CipheringOrder []string
-	IntegrityOrder []string
+type UpdateOperatorNASSecurityOptions struct {
+	Ciphering []string
+	Integrity []string
 }
 
 // GetOperator retrieves the current operator configuration.
@@ -169,12 +179,16 @@ func (c *Client) UpdateOperatorTracking(ctx context.Context, opts *UpdateOperato
 	return nil
 }
 
-// UpdateOperatorHomeNetwork updates the operator's home network information (private key).
-func (c *Client) UpdateOperatorHomeNetwork(ctx context.Context, opts *UpdateOperatorHomeNetworkOptions) error {
+// CreateHomeNetworkKey creates a new home network key.
+func (c *Client) CreateHomeNetworkKey(ctx context.Context, opts *CreateHomeNetworkKeyOptions) error {
 	payload := struct {
-		PrivateKey string `json:"privateKey"`
+		KeyIdentifier int    `json:"keyIdentifier"`
+		Scheme        string `json:"scheme"`
+		PrivateKey    string `json:"privateKey"`
 	}{
-		PrivateKey: opts.PrivateKey,
+		KeyIdentifier: opts.KeyIdentifier,
+		Scheme:        opts.Scheme,
+		PrivateKey:    opts.PrivateKey,
 	}
 
 	var body bytes.Buffer
@@ -186,8 +200,8 @@ func (c *Client) UpdateOperatorHomeNetwork(ctx context.Context, opts *UpdateOper
 
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
-		Method: "PUT",
-		Path:   "api/v1/operator/home-network",
+		Method: "POST",
+		Path:   "api/v1/operator/home-network-keys",
 		Body:   &body,
 	})
 	if err != nil {
@@ -197,14 +211,49 @@ func (c *Client) UpdateOperatorHomeNetwork(ctx context.Context, opts *UpdateOper
 	return nil
 }
 
-// UpdateOperatorSecurity updates the operator's NAS security algorithm preference order.
-func (c *Client) UpdateOperatorSecurity(ctx context.Context, opts *UpdateOperatorSecurityOptions) error {
+// DeleteHomeNetworkKey deletes a home network key by ID.
+func (c *Client) DeleteHomeNetworkKey(ctx context.Context, id int) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "DELETE",
+		Path:   fmt.Sprintf("api/v1/operator/home-network-keys/%d", id),
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetHomeNetworkKeyPrivateKey retrieves the private key for a home network key by ID.
+func (c *Client) GetHomeNetworkKeyPrivateKey(ctx context.Context, id int) (*HomeNetworkKeyPrivateKeyResponse, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   fmt.Sprintf("api/v1/operator/home-network-keys/%d/private-key", id),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var keyResponse HomeNetworkKeyPrivateKeyResponse
+
+	err = resp.DecodeResult(&keyResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return &keyResponse, nil
+}
+
+// UpdateOperatorNASSecurity updates the operator's NAS security algorithm preference order.
+func (c *Client) UpdateOperatorNASSecurity(ctx context.Context, opts *UpdateOperatorNASSecurityOptions) error {
 	payload := struct {
-		CipheringOrder []string `json:"cipheringOrder"`
-		IntegrityOrder []string `json:"integrityOrder"`
+		Ciphering []string `json:"ciphering"`
+		Integrity []string `json:"integrity"`
 	}{
-		CipheringOrder: opts.CipheringOrder,
-		IntegrityOrder: opts.IntegrityOrder,
+		Ciphering: opts.Ciphering,
+		Integrity: opts.Integrity,
 	}
 
 	var body bytes.Buffer
@@ -217,7 +266,7 @@ func (c *Client) UpdateOperatorSecurity(ctx context.Context, opts *UpdateOperato
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   "api/v1/operator/security",
+		Path:   "api/v1/operator/nas-security",
 		Body:   &body,
 	})
 	if err != nil {
