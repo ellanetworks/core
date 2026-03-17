@@ -37,8 +37,7 @@ import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
 import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
 import CreateHomeNetworkKeyModal from "@/components/CreateHomeNetworkKeyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
-import EditOperatorSecurityModal from "@/components/EditOperatorSecurityModal";
-import EmptyState from "@/components/EmptyState";
+import EditOperatorNASSecurityModal from "@/components/EditOperatorNASSecurityModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
@@ -90,8 +89,10 @@ const Operator = () => {
     useState(false);
   const [isDeleteKeyConfirmOpen, setDeleteKeyConfirmOpen] = useState(false);
   const [selectedKeyId, setSelectedKeyId] = useState<number | null>(null);
-  const [isEditOperatorSecurityModalOpen, setEditOperatorSecurityModalOpen] =
-    useState(false);
+  const [
+    isEditOperatorNASSecurityModalOpen,
+    setEditOperatorNASSecurityModalOpen,
+  ] = useState(false);
   const [visiblePrivateKeys, setVisiblePrivateKeys] = useState<
     Record<number, string>
   >({});
@@ -106,7 +107,7 @@ const Operator = () => {
     isEditOperatorSliceModalOpen ||
     isCreateHomeNetworkKeyModalOpen ||
     isDeleteKeyConfirmOpen ||
-    isEditOperatorSecurityModalOpen;
+    isEditOperatorNASSecurityModalOpen;
 
   const queryClient = useQueryClient();
   const operatorQuery = useQuery<OperatorData>({
@@ -128,8 +129,8 @@ const Operator = () => {
     setEditOperatorTrackingModalOpen(true);
   const handleEditOperatorSliceClick = () =>
     setEditOperatorSliceModalOpen(true);
-  const handleEditOperatorSecurityClick = () =>
-    setEditOperatorSecurityModalOpen(true);
+  const handleEditOperatorNASSecurityClick = () =>
+    setEditOperatorNASSecurityModalOpen(true);
 
   const handleEditOperatorIdModalClose = () =>
     setEditOperatorIdModalOpen(false);
@@ -139,8 +140,8 @@ const Operator = () => {
     setEditOperatorTrackingModalOpen(false);
   const handleEditOperatorSliceModalClose = () =>
     setEditOperatorSliceModalOpen(false);
-  const handleEditOperatorSecurityModalClose = () =>
-    setEditOperatorSecurityModalOpen(false);
+  const handleEditOperatorNASSecurityModalClose = () =>
+    setEditOperatorNASSecurityModalOpen(false);
 
   const handleEditOperatorIdSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
@@ -184,7 +185,7 @@ const Operator = () => {
       setSelectedKeyId(null);
     }
   };
-  const handleEditOperatorSecuritySuccess = () => {
+  const handleEditOperatorNASSecuritySuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
     showSnackbar("NAS security algorithms updated successfully.", "success");
   };
@@ -419,8 +420,8 @@ const Operator = () => {
                             <Box
                               sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}
                             >
-                              {operator?.security?.cipheringOrder?.length
-                                ? operator.security.cipheringOrder.map(
+                              {operator?.nasSecurity?.ciphering?.length
+                                ? operator.nasSecurity.ciphering.map(
                                     (alg, idx) => (
                                       <Tooltip
                                         key={idx}
@@ -460,8 +461,8 @@ const Operator = () => {
                             <Box
                               sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}
                             >
-                              {operator?.security?.integrityOrder?.length
-                                ? operator.security.integrityOrder.map(
+                              {operator?.nasSecurity?.integrity?.length
+                                ? operator.nasSecurity.integrity.map(
                                     (alg, idx) => (
                                       <Tooltip
                                         key={idx}
@@ -494,7 +495,7 @@ const Operator = () => {
                     <Tooltip title="Edit NAS security algorithms" arrow>
                       <IconButton
                         size="small"
-                        onClick={handleEditOperatorSecurityClick}
+                        onClick={handleEditOperatorNASSecurityClick}
                         aria-label="Edit NAS security algorithms"
                       >
                         <EditIcon fontSize="small" color="primary" />
@@ -523,7 +524,7 @@ const Operator = () => {
             Keys used for SUCI de-concealment. At least one key is required for
             UE registration with concealed identities.
           </Typography>
-          {canEdit && (operator?.homeNetwork.keys.length ?? 0) > 0 && (
+          {canEdit && (
             <Button
               variant="contained"
               color="success"
@@ -538,20 +539,36 @@ const Operator = () => {
           )}
         </Stack>
 
-        {!isLoading && operator?.homeNetwork.keys.length === 0 && (
-          <EmptyState
-            primaryText="No Home Network Keys"
-            secondaryText="SUCI de-concealment is disabled."
-            extraContent="UEs attempting to register with a concealed identity (SUCI) will be rejected. Add at least one home network key to restore normal operation."
-            button={canEdit}
-            buttonText="Add Key"
-            onCreate={() => setCreateHomeNetworkKeyModalOpen(true)}
-            readOnlyHint={
-              canEdit
-                ? undefined
-                : "An admin or network manager must add a key."
-            }
-          />
+        {!isLoading && operator?.homeNetworkKeys.length === 0 && (
+          <TableContainer sx={tableContainerSx}>
+            <Table sx={{ tableLayout: "fixed" }}>
+              <TableBody
+                sx={{
+                  "& .MuiTableRow-root:first-of-type .MuiTableCell-root": {
+                    fontWeight: 600,
+                    backgroundColor: theme.palette.backgroundSubtle,
+                  },
+                }}
+              >
+                <TableRow>
+                  <TableCell sx={{ width: 50 }}>ID</TableCell>
+                  <TableCell sx={{ width: 110 }}>Profile</TableCell>
+                  <TableCell sx={{ width: "30%" }}>Public Key</TableCell>
+                  <TableCell sx={{ width: "30%" }}>Private Key</TableCell>
+                  <TableCell align="right" sx={{ width: 80 }}>
+                    Actions
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell colSpan={5} sx={{ p: 0, borderBottom: "none" }}>
+                    <Alert severity="warning" sx={{ borderRadius: 0 }}>
+                      No home network keys configured. UEs attempting to register with a concealed identity (SUCI) will be rejected.
+                    </Alert>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
 
         {isLoading && (
@@ -579,7 +596,7 @@ const Operator = () => {
           </TableContainer>
         )}
 
-        {(operator?.homeNetwork.keys.length ?? 0) > 0 && (
+        {(operator?.homeNetworkKeys.length ?? 0) > 0 && (
           <TableContainer sx={tableContainerSx}>
             <Table sx={{ tableLayout: "fixed" }}>
               <TableBody
@@ -599,7 +616,7 @@ const Operator = () => {
                     Actions
                   </TableCell>
                 </TableRow>
-                {operator?.homeNetwork.keys.map((key) => (
+                {operator?.homeNetworkKeys.map((key) => (
                   <TableRow key={key.id}>
                     <TableCell>
                       <Typography variant="body2">
@@ -807,7 +824,7 @@ const Operator = () => {
       )}
       {isDeleteKeyConfirmOpen &&
         (() => {
-          const selectedKey = operator?.homeNetwork.keys.find(
+          const selectedKey = operator?.homeNetworkKeys.find(
             (k) => k.id === selectedKeyId,
           );
           const keyLabel = selectedKey
@@ -826,18 +843,18 @@ const Operator = () => {
             />
           );
         })()}
-      {isEditOperatorSecurityModalOpen && (
-        <EditOperatorSecurityModal
+      {isEditOperatorNASSecurityModalOpen && (
+        <EditOperatorNASSecurityModal
           open
-          onClose={handleEditOperatorSecurityModalClose}
-          onSuccess={handleEditOperatorSecuritySuccess}
+          onClose={handleEditOperatorNASSecurityModalClose}
+          onSuccess={handleEditOperatorNASSecuritySuccess}
           initialData={{
-            cipheringOrder: operator?.security?.cipheringOrder ?? [
+            ciphering: operator?.nasSecurity?.ciphering ?? [
               "NEA2",
               "NEA1",
               "NEA0",
             ],
-            integrityOrder: operator?.security?.integrityOrder ?? [
+            integrity: operator?.nasSecurity?.integrity ?? [
               "NIA2",
               "NIA1",
               "NIA0",

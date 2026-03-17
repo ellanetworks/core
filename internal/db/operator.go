@@ -27,20 +27,20 @@ const (
 	updateOperatorIDStmt                      = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc WHERE id=1"
 	updateOperatorSliceStmt                   = "UPDATE %s SET sst=$Operator.sst, sd=$Operator.sd WHERE id=1"
 	updateOperatorTrackingStmt                = "UPDATE %s SET supportedTACs=$Operator.supportedTACs WHERE id=1"
-	updateOperatorSecurityAlgorithmsStmtConst = "UPDATE %s SET cipheringOrder=$Operator.cipheringOrder, integrityOrder=$Operator.integrityOrder WHERE id=1"
+	updateOperatorSecurityAlgorithmsStmtConst = "UPDATE %s SET ciphering=$Operator.ciphering, integrity=$Operator.integrity WHERE id=1"
 	initializeOperatorStmt                    = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs, sst, sd) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs, $Operator.sst, $Operator.sd)"
 )
 
 type Operator struct {
-	ID             int    `db:"id"`
-	Mcc            string `db:"mcc"`
-	Mnc            string `db:"mnc"`
-	OperatorCode   string `db:"operatorCode"`
-	SupportedTACs  string `db:"supportedTACs"` // JSON-encoded list of strings
-	Sst            int32  `db:"sst"`
-	Sd             []byte `db:"sd"`
-	CipheringOrder string `db:"cipheringOrder"` // JSON-encoded list of algorithm names, e.g. '["NEA2","NEA1"]'
-	IntegrityOrder string `db:"integrityOrder"` // JSON-encoded list of algorithm names, e.g. '["NIA2","NIA1"]'
+	ID            int    `db:"id"`
+	Mcc           string `db:"mcc"`
+	Mnc           string `db:"mnc"`
+	OperatorCode  string `db:"operatorCode"`
+	SupportedTACs string `db:"supportedTACs"` // JSON-encoded list of strings
+	Sst           int32  `db:"sst"`
+	Sd            []byte `db:"sd"`
+	Ciphering     string `db:"ciphering"` // JSON-encoded list of algorithm names, e.g. '["NEA2","NEA1"]'
+	Integrity     string `db:"integrity"` // JSON-encoded list of algorithm names, e.g. '["NIA2","NIA1"]'
 }
 
 func (operator *Operator) GetSupportedTacs() ([]string, error) {
@@ -58,14 +58,14 @@ func (operator *Operator) GetSupportedTacs() ([]string, error) {
 	return supportedTACs, nil
 }
 
-func (operator *Operator) GetCipheringOrder() ([]string, error) {
-	if operator.CipheringOrder == "" {
+func (operator *Operator) GetCiphering() ([]string, error) {
+	if operator.Ciphering == "" {
 		return nil, nil
 	}
 
 	var order []string
 
-	err := json.Unmarshal([]byte(operator.CipheringOrder), &order)
+	err := json.Unmarshal([]byte(operator.Ciphering), &order)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal ciphering order: %w", err)
 	}
@@ -73,25 +73,25 @@ func (operator *Operator) GetCipheringOrder() ([]string, error) {
 	return order, nil
 }
 
-func (operator *Operator) SetCipheringOrder(order []string) error {
+func (operator *Operator) SetCiphering(order []string) error {
 	b, err := json.Marshal(order)
 	if err != nil {
 		return fmt.Errorf("failed to marshal ciphering order: %w", err)
 	}
 
-	operator.CipheringOrder = string(b)
+	operator.Ciphering = string(b)
 
 	return nil
 }
 
-func (operator *Operator) GetIntegrityOrder() ([]string, error) {
-	if operator.IntegrityOrder == "" {
+func (operator *Operator) GetIntegrity() ([]string, error) {
+	if operator.Integrity == "" {
 		return nil, nil
 	}
 
 	var order []string
 
-	err := json.Unmarshal([]byte(operator.IntegrityOrder), &order)
+	err := json.Unmarshal([]byte(operator.Integrity), &order)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal integrity order: %w", err)
 	}
@@ -99,13 +99,13 @@ func (operator *Operator) GetIntegrityOrder() ([]string, error) {
 	return order, nil
 }
 
-func (operator *Operator) SetIntegrityOrder(order []string) error {
+func (operator *Operator) SetIntegrity(order []string) error {
 	b, err := json.Marshal(order)
 	if err != nil {
 		return fmt.Errorf("failed to marshal integrity order: %w", err)
 	}
 
-	operator.IntegrityOrder = string(b)
+	operator.Integrity = string(b)
 
 	return nil
 }
@@ -452,7 +452,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 
 	op := Operator{}
 
-	err := op.SetCipheringOrder(cipheringOrder)
+	err := op.SetCiphering(cipheringOrder)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to set ciphering order")
@@ -460,7 +460,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 		return fmt.Errorf("failed to set ciphering order: %w", err)
 	}
 
-	err = op.SetIntegrityOrder(integrityOrder)
+	err = op.SetIntegrity(integrityOrder)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to set integrity order")

@@ -1081,9 +1081,9 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/v1/operator/security:
+  /api/v1/operator/nas-security:
     put:
-      operationId: updateOperatorSecurity
+      operationId: updateOperatorNASSecurity
       tags: [Operator]
       summary: Update NAS security algorithms
       description: |
@@ -1097,7 +1097,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateOperatorSecurityParams"
+              $ref: "#/components/schemas/UpdateOperatorNASSecurityParams"
       responses:
         "201":
           $ref: "#/components/responses/Success"
@@ -2556,14 +2556,6 @@ components:
           description: "List of 6-character hex Tracking Area Codes."
       required: [supportedTacs]
 
-    OperatorHomeNetwork:
-      type: object
-      properties:
-        keys:
-          type: array
-          items:
-            $ref: "#/components/schemas/HomeNetworkKeyResponse"
-
     OperatorResponse:
       type: object
       properties:
@@ -2573,10 +2565,12 @@ components:
           $ref: "#/components/schemas/OperatorSlice"
         tracking:
           $ref: "#/components/schemas/OperatorTracking"
-        homeNetwork:
-          $ref: "#/components/schemas/OperatorHomeNetwork"
-        security:
-          $ref: "#/components/schemas/OperatorSecurity"
+        homeNetworkKeys:
+          type: array
+          items:
+            $ref: "#/components/schemas/HomeNetworkKeyResponse"
+        nasSecurity:
+          $ref: "#/components/schemas/OperatorNASSecurity"
 
     OperatorResponseEnvelope:
       type: object
@@ -2690,11 +2684,11 @@ components:
           type: string
           description: "64-character hex private key."
 
-    UpdateOperatorSecurityParams:
+    UpdateOperatorNASSecurityParams:
       type: object
-      required: [cipheringOrder, integrityOrder]
+      required: [ciphering, integrity]
       properties:
-        cipheringOrder:
+        ciphering:
           type: array
           minItems: 1
           maxItems: 3
@@ -2703,7 +2697,7 @@ components:
             type: string
             enum: [NEA0, NEA1, NEA2]
           description: "Preferred ciphering algorithm order."
-        integrityOrder:
+        integrity:
           type: array
           minItems: 1
           maxItems: 3
@@ -2713,16 +2707,16 @@ components:
             enum: [NIA0, NIA1, NIA2]
           description: "Preferred integrity algorithm order."
 
-    OperatorSecurity:
+    OperatorNASSecurity:
       type: object
       properties:
-        cipheringOrder:
+        ciphering:
           type: array
           items:
             type: string
             enum: [NEA0, NEA1, NEA2]
           description: "Current ciphering algorithm preference order."
-        integrityOrder:
+        integrity:
           type: array
           items:
             type: string

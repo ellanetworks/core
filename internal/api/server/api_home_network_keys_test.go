@@ -132,8 +132,8 @@ func TestCreateHomeNetworkKey_ProfileA(t *testing.T) {
 		t.Fatalf("expected 200, got %d", statusCode)
 	}
 
-	if len(opResp.Result.HomeNetwork.Keys) != 2 {
-		t.Fatalf("expected 2 keys, got %d", len(opResp.Result.HomeNetwork.Keys))
+	if len(opResp.Result.HomeNetworkKeys) != 2 {
+		t.Fatalf("expected 2 keys, got %d", len(opResp.Result.HomeNetworkKeys))
 	}
 }
 
@@ -180,7 +180,7 @@ func TestCreateHomeNetworkKey_ProfileB(t *testing.T) {
 		t.Fatalf("expected 200, got %d", statusCode)
 	}
 
-	for _, k := range opResp.Result.HomeNetwork.Keys {
+	for _, k := range opResp.Result.HomeNetworkKeys {
 		if k.Scheme == "B" {
 			if len(k.PublicKey) != 66 {
 				t.Fatalf("expected 66-char compressed public key, got %d chars", len(k.PublicKey))
@@ -335,7 +335,7 @@ func TestDeleteHomeNetworkKey(t *testing.T) {
 	// Find the key with identifier 1.
 	var keyID int
 
-	for _, k := range opResp.Result.HomeNetwork.Keys {
+	for _, k := range opResp.Result.HomeNetworkKeys {
 		if k.KeyIdentifier == 1 {
 			keyID = k.ID
 			break
@@ -363,8 +363,8 @@ func TestDeleteHomeNetworkKey(t *testing.T) {
 
 	_ = statusCode
 
-	if len(opResp2.Result.HomeNetwork.Keys) != 1 {
-		t.Fatalf("expected 1 key after deletion, got %d", len(opResp2.Result.HomeNetwork.Keys))
+	if len(opResp2.Result.HomeNetworkKeys) != 1 {
+		t.Fatalf("expected 1 key after deletion, got %d", len(opResp2.Result.HomeNetworkKeys))
 	}
 }
 

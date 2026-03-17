@@ -11,10 +11,10 @@ export interface OperatorData {
   id: { mcc: string; mnc: string };
   slice: { sst: number; sd?: string | null };
   tracking: { supportedTacs: string[] };
-  homeNetwork: { keys: HomeNetworkKey[] };
-  security: {
-    cipheringOrder: string[];
-    integrityOrder: string[];
+  homeNetworkKeys: HomeNetworkKey[];
+  nasSecurity: {
+    ciphering: string[];
+    integrity: string[];
   };
 }
 
@@ -104,14 +104,14 @@ export const getHomeNetworkKeyPrivateKey = async (
   );
 };
 
-export const updateOperatorSecurity = async (
+export const updateOperatorNASSecurity = async (
   authToken: string,
-  cipheringOrder: string[],
-  integrityOrder: string[],
+  ciphering: string[],
+  integrity: string[],
 ): Promise<void> => {
-  await apiFetchVoid(`/api/v1/operator/security`, {
+  await apiFetchVoid(`/api/v1/operator/nas-security`, {
     method: "PUT",
     authToken,
-    body: { cipheringOrder, integrityOrder },
+    body: { ciphering, integrity },
   });
 };

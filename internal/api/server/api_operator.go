@@ -35,9 +35,9 @@ type UpdateOperatorCodeParams struct {
 	OperatorCode string `json:"operatorCode,omitempty"`
 }
 
-type UpdateOperatorSecurityParams struct {
-	CipheringOrder []string `json:"cipheringOrder"`
-	IntegrityOrder []string `json:"integrityOrder"`
+type UpdateOperatorNASSecurityParams struct {
+	Ciphering []string `json:"ciphering"`
+	Integrity []string `json:"integrity"`
 }
 
 type GetOperatorTrackingResponse struct {
@@ -45,11 +45,11 @@ type GetOperatorTrackingResponse struct {
 }
 
 type GetOperatorResponse struct {
-	ID          GetOperatorIDResponse          `json:"id,omitempty"`
-	Slice       GetOperatorSliceResponse       `json:"slice,omitempty"`
-	Tracking    GetOperatorTrackingResponse    `json:"tracking,omitempty"`
-	HomeNetwork GetOperatorHomeNetworkResponse `json:"homeNetwork,omitempty"`
-	Security    GetOperatorSecurityResponse    `json:"security"`
+	ID              GetOperatorIDResponse          `json:"id,omitempty"`
+	Slice           GetOperatorSliceResponse       `json:"slice,omitempty"`
+	Tracking        GetOperatorTrackingResponse    `json:"tracking,omitempty"`
+	HomeNetworkKeys []HomeNetworkKeyResponse       `json:"homeNetworkKeys"`
+	NASSecurity     GetOperatorNASSecurityResponse `json:"nasSecurity"`
 }
 
 type GetOperatorSliceResponse struct {
@@ -62,21 +62,17 @@ type GetOperatorIDResponse struct {
 	Mnc string `json:"mnc,omitempty"`
 }
 
-type GetOperatorHomeNetworkResponse struct {
-	Keys []HomeNetworkKeyResponse `json:"keys"`
-}
-
-type GetOperatorSecurityResponse struct {
-	CipheringOrder []string `json:"cipheringOrder"`
-	IntegrityOrder []string `json:"integrityOrder"`
+type GetOperatorNASSecurityResponse struct {
+	Ciphering []string `json:"ciphering"`
+	Integrity []string `json:"integrity"`
 }
 
 const (
-	UpdateOperatorSliceAction    = "update_operator_slice"
-	UpdateOperatorTrackingAction = "update_operator_tracking"
-	UpdateOperatorIDAction       = "update_operator_id"
-	UpdateOperatorCodeAction     = "update_operator_code"
-	UpdateOperatorSecurityAction = "update_operator_security"
+	UpdateOperatorSliceAction       = "update_operator_slice"
+	UpdateOperatorTrackingAction    = "update_operator_tracking"
+	UpdateOperatorIDAction          = "update_operator_id"
+	UpdateOperatorCodeAction        = "update_operator_code"
+	UpdateOperatorNASSecurityAction = "update_operator_nas_security"
 )
 
 // Mcc is a 3-decimal digit
@@ -218,7 +214,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		cipheringOrder, err := dbOperator.GetCipheringOrder()
+		cipheringOrder, err := dbOperator.GetCiphering()
 		if err != nil {
 			logger.APILog.Warn("Failed to get ciphering order", zap.Error(err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get ciphering order", err, logger.APILog)
@@ -226,7 +222,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		integrityOrder, err := dbOperator.GetIntegrityOrder()
+		integrityOrder, err := dbOperator.GetIntegrity()
 		if err != nil {
 			logger.APILog.Warn("Failed to get integrity order", zap.Error(err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get integrity order", err, logger.APILog)
@@ -246,12 +242,10 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			Tracking: GetOperatorTrackingResponse{
 				SupportedTacs: supportedTACs,
 			},
-			HomeNetwork: GetOperatorHomeNetworkResponse{
-				Keys: keyResponses,
-			},
-			Security: GetOperatorSecurityResponse{
-				CipheringOrder: cipheringOrder,
-				IntegrityOrder: integrityOrder,
+			HomeNetworkKeys: keyResponses,
+			NASSecurity: GetOperatorNASSecurityResponse{
+				Ciphering: cipheringOrder,
+				Integrity: integrityOrder,
 			},
 		}
 
@@ -576,7 +570,7 @@ func isValidAlgorithmOrder(order []string, valid map[string]bool) (string, bool)
 	return "", true
 }
 
-func UpdateOperatorSecurity(dbInstance *db.Database) http.Handler {
+func UpdateOperatorNASSecurity(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -586,23 +580,23 @@ func UpdateOperatorSecurity(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		var params UpdateOperatorSecurityParams
+		var params UpdateOperatorNASSecurityParams
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
-		if len(params.CipheringOrder) == 0 {
-			writeError(r.Context(), w, http.StatusBadRequest, "cipheringOrder is required and must not be empty", nil, logger.APILog)
+		if len(params.Ciphering) == 0 {
+			writeError(r.Context(), w, http.StatusBadRequest, "ciphering is required and must not be empty", nil, logger.APILog)
 			return
 		}
 
-		if len(params.IntegrityOrder) == 0 {
-			writeError(r.Context(), w, http.StatusBadRequest, "integrityOrder is required and must not be empty", nil, logger.APILog)
+		if len(params.Integrity) == 0 {
+			writeError(r.Context(), w, http.StatusBadRequest, "integrity is required and must not be empty", nil, logger.APILog)
 			return
 		}
 
-		if badAlg, valid := isValidAlgorithmOrder(params.CipheringOrder, validCipheringAlgorithms); !valid {
+		if badAlg, valid := isValidAlgorithmOrder(params.Ciphering, validCipheringAlgorithms); !valid {
 			if badAlg != "" {
 				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("Invalid or duplicate ciphering algorithm: %s. Allowed: NEA0, NEA1, NEA2", badAlg), nil, logger.APILog)
 			} else {
@@ -612,7 +606,7 @@ func UpdateOperatorSecurity(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if badAlg, valid := isValidAlgorithmOrder(params.IntegrityOrder, validIntegrityAlgorithms); !valid {
+		if badAlg, valid := isValidAlgorithmOrder(params.Integrity, validIntegrityAlgorithms); !valid {
 			if badAlg != "" {
 				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("Invalid or duplicate integrity algorithm: %s. Allowed: NIA0, NIA1, NIA2", badAlg), nil, logger.APILog)
 			} else {
@@ -622,22 +616,22 @@ func UpdateOperatorSecurity(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := dbInstance.UpdateOperatorSecurityAlgorithms(r.Context(), params.CipheringOrder, params.IntegrityOrder); err != nil {
+		if err := dbInstance.UpdateOperatorSecurityAlgorithms(r.Context(), params.Ciphering, params.Integrity); err != nil {
 			logger.APILog.Warn("Failed to update operator security algorithms", zap.Error(err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator security algorithms", err, logger.APILog)
 
 			return
 		}
 
-		resp := SuccessResponse{Message: "Operator security algorithms updated successfully"}
+		resp := SuccessResponse{Message: "Operator NAS security algorithms updated successfully"}
 		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
 			r.Context(),
-			UpdateOperatorSecurityAction,
+			UpdateOperatorNASSecurityAction,
 			email,
 			getClientIP(r),
-			"User updated operator security algorithms",
+			"User updated operator NAS security algorithms",
 		)
 	})
 }

@@ -18,17 +18,17 @@ import {
   Divider,
 } from "@mui/material";
 import { DragIndicator as DragIcon } from "@mui/icons-material";
-import { updateOperatorSecurity } from "@/queries/operator";
+import { updateOperatorNASSecurity } from "@/queries/operator";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
-interface EditOperatorSecurityModalProps {
+interface EditOperatorNASSecurityModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
   initialData: {
-    cipheringOrder: string[];
-    integrityOrder: string[];
+    ciphering: string[];
+    integrity: string[];
   };
 }
 
@@ -88,12 +88,9 @@ const buildEntries = (enabled: string[], all: string[]): AlgorithmEntry[] => {
   return entries;
 };
 
-const EditOperatorSecurityModal: React.FC<EditOperatorSecurityModalProps> = ({
-  open,
-  onClose,
-  onSuccess,
-  initialData,
-}) => {
+const EditOperatorNASSecurityModal: React.FC<
+  EditOperatorNASSecurityModalProps
+> = ({ open, onClose, onSuccess, initialData }) => {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
@@ -110,8 +107,8 @@ const EditOperatorSecurityModal: React.FC<EditOperatorSecurityModalProps> = ({
 
   useEffect(() => {
     if (open) {
-      setCiphering(buildEntries(initialData.cipheringOrder, ALL_CIPHERING));
-      setIntegrity(buildEntries(initialData.integrityOrder, ALL_INTEGRITY));
+      setCiphering(buildEntries(initialData.ciphering, ALL_CIPHERING));
+      setIntegrity(buildEntries(initialData.integrity, ALL_INTEGRITY));
       setAlert({ message: "" });
     }
   }, [open, initialData]);
@@ -139,11 +136,15 @@ const EditOperatorSecurityModal: React.FC<EditOperatorSecurityModalProps> = ({
     setLoading(true);
     setAlert({ message: "" });
 
-    const cipheringOrder = enabledCiphering.map((a) => a.name);
-    const integrityOrder = enabledIntegrity.map((a) => a.name);
+    const ciphering = enabledCiphering.map((a) => a.name);
+    const integrity = enabledIntegrity.map((a) => a.name);
 
     try {
-      await updateOperatorSecurity(accessToken, cipheringOrder, integrityOrder);
+      await updateOperatorNASSecurity(
+        accessToken,
+        ciphering,
+        integrity,
+      );
       onClose();
       onSuccess();
     } catch (error: unknown) {
@@ -347,4 +348,4 @@ const EditOperatorSecurityModal: React.FC<EditOperatorSecurityModalProps> = ({
   );
 };
 
-export default EditOperatorSecurityModal;
+export default EditOperatorNASSecurityModal;
