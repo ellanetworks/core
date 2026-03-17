@@ -585,8 +585,7 @@ paths:
         IMEI of the connected device, negotiated ciphering/integrity algorithms,
         last-seen radio information, and minimal PDU session information.
         The subscriber `status.ipAddress` is still populated as a temporary
-        compatibility fallback, but is deprecated; prefer the first
-        session's `ipAddress` when present.
+        compatibility fallback, but is deprecated; prefer `pdu_sessions[0].ipAddress` when present.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       responses:
@@ -2214,6 +2213,7 @@ components:
         ipAddress:
           type: string
           description: Assigned IP address (empty if not connected).
+          deprecated: true
       required: [registered, ipAddress]
 
     Subscriber:
@@ -2283,7 +2283,7 @@ components:
           type: string
         status:
           $ref: "#/components/schemas/SubscriberDetailStatus"
-        sessions:
+        pdu_sessions:
           type: array
           description: "List of active PDU sessions for this subscriber."
           items:

@@ -289,11 +289,7 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           }
         />
 
-        <Divider sx={{ my: 2 }} />
-
-        <Typography variant="subtitle1" sx={{ mb: 1 }}>
-          PDU Session
-        </Typography>
+        <InfoRow label="PDU Session" value=" / " />
 
         {loading ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
@@ -315,7 +311,7 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
                     value={<StatusChip status={session.status} />}
                   />
                   <SessionRow
-                    label="IP"
+                    label="IP Address"
                     value={session.ipAddress ?? ipAddress ?? "—"}
                   />
                 </Box>

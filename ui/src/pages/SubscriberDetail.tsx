@@ -230,11 +230,11 @@ const SubscriberDetail: React.FC = () => {
           >
             <SubscriberConnectionCard
               status={subscriber.status}
-              sessions={subscriber.sessions}
+              sessions={subscriber.pdu_sessions}
               loading={isLoading}
               ipAddress={
-                subscriber.sessions && subscriber.sessions.length > 0
-                  ? subscriber.sessions[0].ipAddress
+                subscriber.pdu_sessions && subscriber.pdu_sessions.length > 0
+                  ? subscriber.pdu_sessions[0].ipAddress
                   : subscriber.status.ipAddress
               }
             />

@@ -65,10 +65,10 @@ type SubscriberDetailStatus struct {
 
 // SubscriberDetail is the full representation returned by the get-single endpoint.
 type SubscriberDetail struct {
-	Imsi       string                 `json:"imsi"`
-	PolicyName string                 `json:"policyName"`
-	Status     SubscriberDetailStatus `json:"status"`
-	Sessions   []SessionInfo          `json:"sessions"`
+	Imsi        string                 `json:"imsi"`
+	PolicyName  string                 `json:"policyName"`
+	Status      SubscriberDetailStatus `json:"status"`
+	PDUSessions []SessionInfo          `json:"pdu_sessions"`
 }
 
 // SubscriberCredentials is the response for the dedicated credentials endpoint.
@@ -82,12 +82,6 @@ type SubscriberCredentials struct {
 type SessionInfo struct {
 	Status    string `json:"status"`
 	IPAddress string `json:"ipAddress,omitempty"`
-}
-
-// GetSessionsResponse is the response body for the sessions endpoint.
-type GetSessionsResponse struct {
-	Sessions []SessionInfo `json:"sessions"`
-	Count    int           `json:"count"`
 }
 
 const (
@@ -306,10 +300,10 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		subscriber := SubscriberDetail{
-			Imsi:       dbSubscriber.Imsi,
-			PolicyName: policy.Name,
-			Status:     subscriberStatus,
-			Sessions:   sessions,
+			Imsi:        dbSubscriber.Imsi,
+			PolicyName:  policy.Name,
+			Status:      subscriberStatus,
+			PDUSessions: sessions,
 		}
 
 		writeResponse(r.Context(), w, subscriber, http.StatusOK, logger.APILog)

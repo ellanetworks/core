@@ -36,7 +36,7 @@ export type APISubscriber = {
   imsi: string;
   policyName: string;
   status: SubscriberDetailStatus;
-  sessions: SessionInfo[];
+  pdu_sessions: SessionInfo[];
 };
 
 /** Credentials returned by the dedicated credentials endpoint. */

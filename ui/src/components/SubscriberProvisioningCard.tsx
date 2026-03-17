@@ -281,7 +281,6 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           value={policy?.data_network_name || "—"}
           linkTo="/networking?tab=data-networks"
         />
-        <Box sx={{ flex: 1 }} />
       </CardContent>
     </Card>
   );

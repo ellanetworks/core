@@ -61,11 +61,6 @@ type SubscriberDetailStatus struct {
 	LastSeenRadio      string `json:"lastSeenRadio,omitempty"`
 }
 
-type SnssaiInfo struct {
-	Sst int32  `json:"sst"`
-	Sd  string `json:"sd,omitempty"`
-}
-
 type SessionInfo struct {
 	Status    string `json:"status"`
 	IPAddress string `json:"ipAddress,omitempty"`
@@ -73,10 +68,10 @@ type SessionInfo struct {
 
 // SubscriberDetail matches the full representation in get-single responses.
 type SubscriberDetail struct {
-	Imsi       string                 `json:"imsi"`
-	PolicyName string                 `json:"policyName"`
-	Status     SubscriberDetailStatus `json:"status"`
-	Sessions   []SessionInfo          `json:"sessions"`
+	Imsi        string                 `json:"imsi"`
+	PolicyName  string                 `json:"policyName"`
+	Status      SubscriberDetailStatus `json:"status"`
+	PDUSessions []SessionInfo          `json:"pdu_sessions"`
 }
 
 type GetSubscriberResponse struct {
@@ -469,12 +464,12 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected empty integrityAlgorithm, got %s", response.Result.Status.IntegrityAlgorithm)
 		}
 
-		if response.Result.Sessions == nil {
+		if response.Result.PDUSessions == nil {
 			t.Fatalf("expected sessions field to be present, got nil")
 		}
 
-		if len(response.Result.Sessions) != 0 {
-			t.Fatalf("expected 0 sessions, got %d", len(response.Result.Sessions))
+		if len(response.Result.PDUSessions) != 0 {
+			t.Fatalf("expected 0 sessions, got %d", len(response.Result.PDUSessions))
 		}
 
 		if response.Error != "" {
@@ -865,12 +860,12 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected empty integrityAlgorithm, got %s", response.Result.Status.IntegrityAlgorithm)
 		}
 
-		if response.Result.Sessions == nil {
+		if response.Result.PDUSessions == nil {
 			t.Fatalf("expected sessions field to be present, got nil")
 		}
 
-		if len(response.Result.Sessions) != 0 {
-			t.Fatalf("expected 0 sessions, got %d", len(response.Result.Sessions))
+		if len(response.Result.PDUSessions) != 0 {
+			t.Fatalf("expected 0 sessions, got %d", len(response.Result.PDUSessions))
 		}
 
 		if response.Error != "" {
@@ -892,15 +887,15 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
 
-		if response.Result.Sessions == nil {
+		if response.Result.PDUSessions == nil {
 			t.Fatalf("expected sessions field to be present, got nil")
 		}
 
-		if len(response.Result.Sessions) != 1 {
-			t.Fatalf("expected 1 session, got %d", len(response.Result.Sessions))
+		if len(response.Result.PDUSessions) != 1 {
+			t.Fatalf("expected 1 session, got %d", len(response.Result.PDUSessions))
 		}
 
-		session := response.Result.Sessions[0]
+		session := response.Result.PDUSessions[0]
 
 		if session.Status != "active" {
 			t.Fatalf("expected session status 'active', got %q", session.Status)
