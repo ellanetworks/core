@@ -141,6 +141,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amf *amfContext.AMF, 
 
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
 		ue.PlmnID = plmnIDStringToModels(plmnID)
+		ue.Log.Warn("TO DELETE: SUCI parsing", zap.String("suci", ue.Suci), zap.String("plmnID", plmnID))
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		guti, _ := etsi.NewGUTIFromBytes(mobileIdentity5GSContents)
 		ue.Log.Debug("UE used GUTI identity for registration", zap.String("guti", guti.String()))
