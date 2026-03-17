@@ -54,5 +54,19 @@ func migrateV3(ctx context.Context, tx *sql.Tx) error {
 		return fmt.Errorf("failed to drop homeNetworkPrivateKey column: %w", err)
 	}
 
+	// 4. Rename cipheringOrder → ciphering and integrityOrder → integrity.
+	//    Requires SQLite 3.25.0+ (bundled go-sqlite3 v1.14.34 ships 3.47+).
+	_, err = tx.ExecContext(ctx,
+		fmt.Sprintf("ALTER TABLE %s RENAME COLUMN cipheringOrder TO ciphering", OperatorTableName))
+	if err != nil {
+		return fmt.Errorf("failed to rename cipheringOrder column: %w", err)
+	}
+
+	_, err = tx.ExecContext(ctx,
+		fmt.Sprintf("ALTER TABLE %s RENAME COLUMN integrityOrder TO integrity", OperatorTableName))
+	if err != nil {
+		return fmt.Errorf("failed to rename integrityOrder column: %w", err)
+	}
+
 	return nil
 }

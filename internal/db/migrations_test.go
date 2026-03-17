@@ -483,23 +483,23 @@ func TestMigrateV2_AddsSecurityColumns(t *testing.T) {
 	}
 
 	// Verify default values were applied.
-	var ciphering, integrity string
+	var cipheringOrder, integrityOrder string
 
 	err = db.QueryRowContext(ctx,
-		fmt.Sprintf("SELECT ciphering, integrity FROM %s WHERE id=1", OperatorTableName),
-	).Scan(&ciphering, &integrity)
+		fmt.Sprintf("SELECT cipheringOrder, integrityOrder FROM %s WHERE id=1", OperatorTableName),
+	).Scan(&cipheringOrder, &integrityOrder)
 	if err != nil {
 		t.Fatalf("failed to query new columns: %v", err)
 	}
 
 	expectedCiphering := `["NEA2","NEA1","NEA0"]`
-	if ciphering != expectedCiphering {
-		t.Errorf("ciphering = %q, want %q", ciphering, expectedCiphering)
+	if cipheringOrder != expectedCiphering {
+		t.Errorf("cipheringOrder = %q, want %q", cipheringOrder, expectedCiphering)
 	}
 
 	expectedIntegrity := `["NIA2","NIA1","NIA0"]`
-	if integrity != expectedIntegrity {
-		t.Errorf("integrity = %q, want %q", integrity, expectedIntegrity)
+	if integrityOrder != expectedIntegrity {
+		t.Errorf("integrityOrder = %q, want %q", integrityOrder, expectedIntegrity)
 	}
 }
 
