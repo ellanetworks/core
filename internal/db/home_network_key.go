@@ -5,12 +5,10 @@ package db
 import (
 	"context"
 	"crypto/ecdh"
-	"crypto/elliptic"
 	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -21,6 +19,9 @@ import (
 
 const HomeNetworkKeysTableName = "home_network_keys"
 
+// MaxHomeNetworkKeys is the maximum number of home network keys that can be stored.
+// Key identifiers are 8-bit values (0–255) per 3GPP TS 33.501 §6.12.2, but we
+// cap at 12 to match the maximum number of identifiers defined in the spec (0–11).
 const MaxHomeNetworkKeys = 12
 
 const (
@@ -64,11 +65,18 @@ func deriveHomeNetworkPublicKeyProfileB(privateKeyHex string) (string, error) {
 		return "", fmt.Errorf("failed to create P-256 private key: %w", err)
 	}
 
-	// crypto/ecdh returns uncompressed SEC1 (65 bytes). Compress it to 33 bytes.
-	pubUncompressed := ecdhKey.PublicKey().Bytes()
-	x := new(big.Int).SetBytes(pubUncompressed[1:33])
-	y := new(big.Int).SetBytes(pubUncompressed[33:65])
-	compressed := elliptic.MarshalCompressed(elliptic.P256(), x, y)
+	// crypto/ecdh returns uncompressed SEC1 (65 bytes: 0x04 || x || y).
+	// Compress to 33 bytes (0x02/0x03 || x) without using deprecated elliptic.MarshalCompressed.
+	pub := ecdhKey.PublicKey().Bytes()
+
+	prefix := byte(0x02)
+	if pub[64]%2 != 0 {
+		prefix = 0x03
+	}
+
+	compressed := make([]byte, 33)
+	compressed[0] = prefix
+	copy(compressed[1:], pub[1:33])
 
 	return hex.EncodeToString(compressed), nil
 }

@@ -5,6 +5,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 )
 
@@ -32,7 +33,7 @@ func migrateV3(ctx context.Context, tx *sql.Tx) error {
 	err = tx.QueryRowContext(ctx,
 		fmt.Sprintf("SELECT homeNetworkPrivateKey FROM %s WHERE id=1", OperatorTableName),
 	).Scan(&privateKey)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to read existing home network private key: %w", err)
 	}
 

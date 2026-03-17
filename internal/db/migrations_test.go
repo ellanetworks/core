@@ -483,22 +483,155 @@ func TestMigrateV2_AddsSecurityColumns(t *testing.T) {
 	}
 
 	// Verify default values were applied.
-	var cipheringOrder, integrityOrder string
+	var ciphering, integrity string
 
 	err = db.QueryRowContext(ctx,
-		fmt.Sprintf("SELECT cipheringOrder, integrityOrder FROM %s WHERE id=1", OperatorTableName),
-	).Scan(&cipheringOrder, &integrityOrder)
+		fmt.Sprintf("SELECT ciphering, integrity FROM %s WHERE id=1", OperatorTableName),
+	).Scan(&ciphering, &integrity)
 	if err != nil {
 		t.Fatalf("failed to query new columns: %v", err)
 	}
 
 	expectedCiphering := `["NEA2","NEA1","NEA0"]`
-	if cipheringOrder != expectedCiphering {
-		t.Errorf("cipheringOrder = %q, want %q", cipheringOrder, expectedCiphering)
+	if ciphering != expectedCiphering {
+		t.Errorf("ciphering = %q, want %q", ciphering, expectedCiphering)
 	}
 
 	expectedIntegrity := `["NIA2","NIA1","NIA0"]`
-	if integrityOrder != expectedIntegrity {
-		t.Errorf("integrityOrder = %q, want %q", integrityOrder, expectedIntegrity)
+	if integrity != expectedIntegrity {
+		t.Errorf("integrity = %q, want %q", integrity, expectedIntegrity)
+	}
+}
+
+func TestMigrateV3_MigratesExistingKey(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	// Apply V1 and V2 first.
+	for i, fn := range []func(context.Context, *sql.Tx) error{migrateV1, migrateV2} {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("begin tx for migration %d: %v", i+1, err)
+		}
+
+		if err := fn(ctx, tx); err != nil {
+			_ = tx.Rollback()
+
+			t.Fatalf("migration %d failed: %v", i+1, err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			t.Fatalf("commit migration %d: %v", i+1, err)
+		}
+	}
+
+	// Insert an operator row that has a homeNetworkPrivateKey value.
+	const testPrivateKey = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst, homeNetworkPrivateKey) VALUES (1, '001', '01', 'abc123', 1, ?)",
+		OperatorTableName), testPrivateKey)
+	if err != nil {
+		t.Fatalf("failed to insert operator with private key: %v", err)
+	}
+
+	// Apply V3 migration.
+	tx3, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to begin V3 transaction: %v", err)
+	}
+
+	if err := migrateV3(ctx, tx3); err != nil {
+		_ = tx3.Rollback()
+
+		t.Fatalf("migrateV3 failed: %v", err)
+	}
+
+	if err := tx3.Commit(); err != nil {
+		t.Fatalf("failed to commit V3: %v", err)
+	}
+
+	// Verify the key was migrated into home_network_keys.
+	var scheme, privateKey string
+
+	var keyIdentifier int
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT key_identifier, scheme, private_key FROM %s WHERE id=1", HomeNetworkKeysTableName),
+	).Scan(&keyIdentifier, &scheme, &privateKey)
+	if err != nil {
+		t.Fatalf("failed to query migrated key: %v", err)
+	}
+
+	if keyIdentifier != 0 {
+		t.Errorf("key_identifier = %d, want 0", keyIdentifier)
+	}
+
+	if scheme != "A" {
+		t.Errorf("scheme = %q, want \"A\"", scheme)
+	}
+
+	if privateKey != testPrivateKey {
+		t.Errorf("private_key = %q, want %q", privateKey, testPrivateKey)
+	}
+}
+
+func TestMigrateV3_NoExistingKey(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	// Apply V1 and V2 first.
+	for i, fn := range []func(context.Context, *sql.Tx) error{migrateV1, migrateV2} {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("begin tx for migration %d: %v", i+1, err)
+		}
+
+		if err := fn(ctx, tx); err != nil {
+			_ = tx.Rollback()
+
+			t.Fatalf("migration %d failed: %v", i+1, err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			t.Fatalf("commit migration %d: %v", i+1, err)
+		}
+	}
+
+	// Insert an operator row with an empty private key (column is NOT NULL in V1 schema).
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst, homeNetworkPrivateKey) VALUES (1, '001', '01', 'abc123', 1, '')",
+		OperatorTableName))
+	if err != nil {
+		t.Fatalf("failed to insert operator: %v", err)
+	}
+
+	// Apply V3 migration — should succeed and leave home_network_keys empty.
+	tx3, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to begin V3 transaction: %v", err)
+	}
+
+	if err := migrateV3(ctx, tx3); err != nil {
+		_ = tx3.Rollback()
+
+		t.Fatalf("migrateV3 failed: %v", err)
+	}
+
+	if err := tx3.Commit(); err != nil {
+		t.Fatalf("failed to commit V3: %v", err)
+	}
+
+	var count int
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT COUNT(*) FROM %s", HomeNetworkKeysTableName),
+	).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to count keys: %v", err)
+	}
+
+	if count != 0 {
+		t.Errorf("expected 0 keys after migration with no prior key, got %d", count)
 	}
 }

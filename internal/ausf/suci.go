@@ -15,7 +15,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
-	"math/big"
 	"math/bits"
 	"strconv"
 	"strings"
@@ -169,6 +168,23 @@ func ecdhX25519(privateKeyHex string, peerPubKey []byte) ([]byte, error) {
 
 var errPublicKeyUnmarshalling = fmt.Errorf("failed to unmarshal P-256 public key")
 
+// compressP256Point converts an uncompressed SEC1 P-256 public key (65 bytes:
+// 0x04 || x || y) to compressed form (33 bytes: 0x02/0x03 || x).
+func compressP256Point(uncompressed []byte) []byte {
+	x := uncompressed[1:33]
+
+	prefix := byte(0x02)
+	if uncompressed[64]%2 != 0 {
+		prefix = 0x03
+	}
+
+	compressed := make([]byte, 33)
+	compressed[0] = prefix
+	copy(compressed[1:], x)
+
+	return compressed
+}
+
 // ecdhP256 performs P-256 ECDH, handling both compressed (33 bytes) and
 // uncompressed (65 bytes) ephemeral public keys. It always returns the
 // compressed form for KDF input as required by TS 33.501.
@@ -201,17 +217,14 @@ func ecdhP256(privateKeyHex string, transmittedPubKey []byte) (sharedKey, kdfPub
 		kdfPubKey = transmittedPubKey
 
 	case 0x04:
-		// Uncompressed format (65 bytes) — validate point before compressing,
-		// since MarshalCompressed panics on invalid curve points.
+		// Uncompressed format (65 bytes) — validate point on curve first.
 		if _, err := ecdh.P256().NewPublicKey(transmittedPubKey); err != nil {
 			return nil, nil, errPublicKeyUnmarshalling
 		}
 
 		pubKeyForECDH = transmittedPubKey
 		// KDF needs the compressed form.
-		x := new(big.Int).SetBytes(transmittedPubKey[1:33])
-		y := new(big.Int).SetBytes(transmittedPubKey[33:65])
-		kdfPubKey = elliptic.MarshalCompressed(elliptic.P256(), x, y)
+		kdfPubKey = compressP256Point(transmittedPubKey)
 
 	default:
 		return nil, nil, fmt.Errorf("unknown public key format byte: 0x%02x", transmittedPubKey[0])
@@ -261,8 +274,12 @@ func profileA(input, supiType, privateKey string) (string, error) {
 
 func profileB(input, supiType, privateKey string) (string, error) {
 	s, err := hex.DecodeString(input)
-	if err != nil || len(s) < 1 {
+	if err != nil {
 		return "", fmt.Errorf("error decoding hex string: %w", err)
+	}
+
+	if len(s) < 1 {
+		return "", fmt.Errorf("suci input is empty")
 	}
 
 	// Determine ephemeral public key length from format byte.
@@ -372,6 +389,8 @@ func ToSupi(suci string, resolveKey KeyResolver) (etsi.SUPI, error) {
 		if err != nil {
 			return etsi.InvalidSUPI, fmt.Errorf("profile B error: %w", err)
 		}
+	default:
+		return etsi.InvalidSUPI, fmt.Errorf("unsupported protection scheme: %s", scheme)
 	}
 
 	return etsi.NewSUPIFromIMSI(mccMnc + result)

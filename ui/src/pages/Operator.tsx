@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -99,6 +99,16 @@ const Operator = () => {
   const [loadingPrivateKeys, setLoadingPrivateKeys] = useState<
     Record<number, boolean>
   >({});
+  const privateKeyTimers = useRef<
+    Record<number, ReturnType<typeof setTimeout>>
+  >({});
+
+  useEffect(() => {
+    const timers = privateKeyTimers.current;
+    return () => {
+      Object.values(timers).forEach(clearTimeout);
+    };
+  }, []);
 
   const anyModalOpen =
     isEditOperatorIdModalOpen ||
@@ -190,7 +200,7 @@ const Operator = () => {
     showSnackbar("NAS security algorithms updated successfully.", "success");
   };
 
-  const handleCopyPublicKey = async (publicKey: string) => {
+  const handleCopyToClipboard = async (publicKey: string) => {
     if (!navigator.clipboard) {
       showSnackbar(
         "Clipboard API not available. Please use HTTPS or try a different browser.",
@@ -206,13 +216,19 @@ const Operator = () => {
     }
   };
 
+  const clearPrivateKey = (keyId: number) => {
+    clearTimeout(privateKeyTimers.current[keyId]);
+    delete privateKeyTimers.current[keyId];
+    setVisiblePrivateKeys((prev) => {
+      const next = { ...prev };
+      delete next[keyId];
+      return next;
+    });
+  };
+
   const handleTogglePrivateKey = async (keyId: number) => {
     if (visiblePrivateKeys[keyId] !== undefined) {
-      setVisiblePrivateKeys((prev) => {
-        const next = { ...prev };
-        delete next[keyId];
-        return next;
-      });
+      clearPrivateKey(keyId);
       return;
     }
     if (!accessToken) return;
@@ -223,6 +239,11 @@ const Operator = () => {
         ...prev,
         [keyId]: result.privateKey,
       }));
+      // Auto-clear the private key from state after 30 seconds.
+      clearTimeout(privateKeyTimers.current[keyId]);
+      privateKeyTimers.current[keyId] = setTimeout(() => {
+        clearPrivateKey(keyId);
+      }, 30_000);
     } catch (error) {
       const msg =
         error instanceof Error ? error.message : "Unknown error occurred.";
@@ -562,7 +583,9 @@ const Operator = () => {
                 <TableRow>
                   <TableCell colSpan={5} sx={{ p: 0, borderBottom: "none" }}>
                     <Alert severity="warning" sx={{ borderRadius: 0 }}>
-                      No home network keys configured. UEs attempting to register with a concealed identity (SUCI) will be rejected.
+                      No home network keys configured. UEs attempting to
+                      register with a concealed identity (SUCI) will be
+                      rejected.
                     </Alert>
                   </TableCell>
                 </TableRow>
@@ -664,7 +687,7 @@ const Operator = () => {
                         <Tooltip title="Copy public key" arrow>
                           <IconButton
                             size="small"
-                            onClick={() => handleCopyPublicKey(key.publicKey)}
+                            onClick={() => handleCopyToClipboard(key.publicKey)}
                             aria-label="Copy public key"
                           >
                             <CopyIcon fontSize="small" color="primary" />
@@ -699,7 +722,7 @@ const Operator = () => {
                               <IconButton
                                 size="small"
                                 onClick={() =>
-                                  handleCopyPublicKey(
+                                  handleCopyToClipboard(
                                     visiblePrivateKeys[key.id],
                                   )
                                 }

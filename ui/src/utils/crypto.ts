@@ -44,23 +44,6 @@ function wrapP256PrivateKeyPKCS8(raw: Uint8Array): ArrayBuffer {
 }
 
 /**
- * Derive Profile A (X25519) public key from a 32-byte hex private key.
- * Uses the Web Crypto API.
- */
-export async function derivePublicKeyA(privateKeyHex: string): Promise<string> {
-  const privBytes = hexToBytes(privateKeyHex);
-  const key = await crypto.subtle.importKey(
-    "raw",
-    privBytes.buffer as ArrayBuffer,
-    { name: "X25519" },
-    true,
-    [],
-  );
-  const exported = await crypto.subtle.exportKey("raw", key);
-  return bytesToHex(new Uint8Array(exported));
-}
-
-/**
  * Derive Profile B (P-256) compressed public key from a 32-byte hex private key.
  * Uses the Web Crypto API. Returns SEC1 compressed format (66 hex chars).
  */

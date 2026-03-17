@@ -140,11 +140,7 @@ const EditOperatorNASSecurityModal: React.FC<
     const integrity = enabledIntegrity.map((a) => a.name);
 
     try {
-      await updateOperatorNASSecurity(
-        accessToken,
-        ciphering,
-        integrity,
-      );
+      await updateOperatorNASSecurity(accessToken, ciphering, integrity);
       onClose();
       onSuccess();
     } catch (error: unknown) {

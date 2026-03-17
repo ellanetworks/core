@@ -81,10 +81,6 @@ func GetHomeNetworkKeyPrivateKey(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		writeResponse(r.Context(), w, HomeNetworkKeyPrivateKeyResponse{
-			PrivateKey: existingKey.PrivateKey,
-		}, http.StatusOK, logger.APILog)
-
 		logger.LogAuditEvent(
 			r.Context(),
 			ViewHomeNetworkKeyPrivateKeyAction,
@@ -92,18 +88,16 @@ func GetHomeNetworkKeyPrivateKey(dbInstance *db.Database) http.Handler {
 			getClientIP(r),
 			fmt.Sprintf("Viewed private key for home network key (id=%d, scheme=%s, keyIdentifier=%d)", id, existingKey.Scheme, existingKey.KeyIdentifier),
 		)
+
+		writeResponse(r.Context(), w, HomeNetworkKeyPrivateKeyResponse{
+			PrivateKey: existingKey.PrivateKey,
+		}, http.StatusOK, logger.APILog)
 	})
 }
 
 func CreateHomeNetworkKey(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
-			return
-		}
+		email := getEmailFromContext(r)
 
 		var params CreateHomeNetworkKeyParams
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
@@ -179,13 +173,7 @@ func CreateHomeNetworkKey(dbInstance *db.Database) http.Handler {
 
 func DeleteHomeNetworkKey(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
-			return
-		}
+		email := getEmailFromContext(r)
 
 		idStr := r.PathValue("id")
 
