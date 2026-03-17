@@ -14,7 +14,7 @@ type AuditLog struct {
 	ID        int    `json:"id"`
 	Timestamp string `json:"timestamp"`
 	Level     string `json:"level"`
-	Actor     string `json:"actor"`
+	User      string `json:"user"`
 	Action    string `json:"action"`
 	IP        string `json:"ip"`
 	Details   string `json:"details"`
@@ -175,8 +175,8 @@ func TestAPIAuditLogs(t *testing.T) {
 		t.Fatalf("unexpected error :%q", response.Error)
 	}
 
-	if response.Result.Items[0].Actor != FirstUserEmail {
-		t.Fatalf("expected first audit log actor to be '%s', got %s", FirstUserEmail, response.Result.Items[0].Actor)
+	if response.Result.Items[0].User != FirstUserEmail {
+		t.Fatalf("expected first audit log user to be '%s', got %s", FirstUserEmail, response.Result.Items[0].User)
 	}
 
 	if response.Result.Items[0].Action != "initialize" {

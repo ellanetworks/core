@@ -30,6 +30,7 @@ const listAuditLogsFilteredPageStmt = `
   FROM %s
   WHERE
     ($AuditLogFilters.actor IS NULL OR actor = $AuditLogFilters.actor)
+    AND ($AuditLogFilters.action IS NULL OR action = $AuditLogFilters.action)
     AND ($AuditLogFilters.timestamp_from IS NULL OR timestamp >= $AuditLogFilters.timestamp_from)
     AND ($AuditLogFilters.timestamp_to IS NULL OR timestamp < $AuditLogFilters.timestamp_to)
   ORDER BY id DESC
@@ -40,6 +41,7 @@ const listAuditLogsFilteredPageStmt = `
 // AuditLogFilters holds optional filters for audit log queries.
 type AuditLogFilters struct {
 	Actor         *string `db:"actor"`          // exact match
+	Action        *string `db:"action"`         // exact match
 	TimestampFrom *string `db:"timestamp_from"` // RFC3339 (UTC), inclusive lower bound
 	TimestampTo   *string `db:"timestamp_to"`   // RFC3339 (UTC), exclusive upper bound
 }

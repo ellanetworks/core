@@ -27,7 +27,7 @@ type AuditLog struct {
 	ID        int    `json:"id"`
 	Timestamp string `json:"timestamp"`
 	Level     string `json:"level"`
-	Actor     string `json:"actor"`
+	User      string `json:"user"`
 	Action    string `json:"action"`
 	IP        string `json:"ip"`
 	Details   string `json:"details"`
@@ -109,13 +109,22 @@ func ListAuditLogs(dbInstance *db.Database) http.Handler {
 
 		filters := &db.AuditLogFilters{}
 
-		if v := q.Get("actor"); v != "" {
+		if v := q.Get("user"); v != "" {
 			if len(v) > 254 {
-				writeError(r.Context(), w, http.StatusBadRequest, "actor filter too long (max 254 characters)", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusBadRequest, "user filter too long (max 254 characters)", nil, logger.APILog)
 				return
 			}
 
 			filters.Actor = &v
+		}
+
+		if v := q.Get("action"); v != "" {
+			if len(v) > 254 {
+				writeError(r.Context(), w, http.StatusBadRequest, "action filter too long (max 254 characters)", nil, logger.APILog)
+				return
+			}
+
+			filters.Action = &v
 		}
 
 		if v := q.Get("start"); v != "" {
@@ -146,7 +155,7 @@ func ListAuditLogs(dbInstance *db.Database) http.Handler {
 				ID:        log.ID,
 				Timestamp: log.Timestamp,
 				Level:     log.Level,
-				Actor:     log.Actor,
+				User:      log.Actor,
 				Action:    log.Action,
 				IP:        log.IP,
 				Details:   log.Details,

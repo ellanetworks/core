@@ -64,7 +64,7 @@ const UserDetail: React.FC = () => {
 
   const { data: auditData } = useQuery<ListAuditLogsResponse>({
     queryKey: ["userAuditLogs", email],
-    queryFn: () => listAuditLogs(accessToken!, 1, 10, { actor: email! }),
+    queryFn: () => listAuditLogs(accessToken!, 1, 10, { user: email! }),
     enabled: authReady && !!accessToken && !!email,
     refetchInterval: 5000,
   });

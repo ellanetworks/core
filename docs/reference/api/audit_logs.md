@@ -20,7 +20,8 @@ This path returns the list of audit logs.
 | ---------- | ----- | ------ | ------- | ------- | --------------------------------------------------------------------------- |
 | `page`     | query | int    | `1`     | `>= 1`  | 1-based page index.                                                         |
 | `per_page` | query | int    | `25`    | `1…100` | Number of items per page.                                                   |
-| `actor`    | query | string | —       | —       | Filter audit logs by actor email. When omitted, all audit logs are returned. |
+| `user`     | query | string | —       | —       | Filter audit logs by user email. When omitted, all audit logs are returned.  |
+| `action`   | query | string | —       | —       | Filter audit logs by action identifier (e.g. `create_subscriber`, `auth_login`). When omitted, all actions are returned. |
 | `start`    | query | string | —       | —       | Start date (`YYYY-MM-DD`). Only logs on or after this date are returned.      |
 | `end`      | query | string | —       | —       | End date (`YYYY-MM-DD`). Only logs before (exclusive) the day after are returned. |
 
@@ -34,7 +35,7 @@ This path returns the list of audit logs.
                 "id": 1,
                 "timestamp": "2025-08-12T16:58:00.810-0400",
                 "level": "INFO",
-                "actor": "guillaume@ellanetworks.com",
+                "user": "guillaume@ellanetworks.com",
                 "action": "create_user",
                 "ip": "127.0.0.1",
                 "details": "User created user: newuser@ellanetworks.com with role: 1"

@@ -40,7 +40,7 @@ const UserAuditLogsCard: React.FC<UserAuditLogsCardProps> = ({
           <Typography variant="h6">Recent Audit Logs</Typography>
           <Button
             component={RouterLink}
-            to={`/audit-logs?actor=${encodeURIComponent(email)}`}
+            to={`/audit-logs?user=${encodeURIComponent(email)}`}
             size="small"
             sx={{
               color: (theme) => theme.palette.link,

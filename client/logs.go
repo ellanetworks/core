@@ -12,7 +12,7 @@ type AuditLog struct {
 	ID        int    `json:"id"`
 	Timestamp string `json:"timestamp"`
 	Level     string `json:"level"`
-	Actor     string `json:"actor"`
+	User      string `json:"user"`
 	Action    string `json:"action"`
 	IP        string `json:"ip"`
 	Details   string `json:"details"`
@@ -37,7 +37,8 @@ type ListAuditLogsResponse struct {
 type ListAuditLogsParams struct {
 	Page    int    `json:"page"`
 	PerPage int    `json:"per_page"`
-	Actor   string `json:"actor"`
+	User    string `json:"user"`
+	Action  string `json:"action"`
 	Start   string `json:"start"`
 	End     string `json:"end"`
 }
@@ -53,8 +54,12 @@ func buildAuditLogQuery(p *ListAuditLogsParams) url.Values {
 		query.Set("per_page", fmt.Sprintf("%d", p.PerPage))
 	}
 
-	if p.Actor != "" {
-		query.Set("actor", p.Actor)
+	if p.User != "" {
+		query.Set("user", p.User)
+	}
+
+	if p.Action != "" {
+		query.Set("action", p.Action)
 	}
 
 	if p.Start != "" {
@@ -93,12 +98,12 @@ func (c *Client) ListAuditLogs(ctx context.Context, p *ListAuditLogsParams) (*Li
 }
 
 // ListAuditLogsByActor retrieves a paginated list of audit logs filtered by actor email.
-// Deprecated: Use ListAuditLogs with ListAuditLogsParams.Actor instead.
+// Deprecated: Use ListAuditLogs with ListAuditLogsParams.User instead.
 func (c *Client) ListAuditLogsByActor(ctx context.Context, actor string, p *ListParams) (*ListAuditLogsResponse, error) {
 	return c.ListAuditLogs(ctx, &ListAuditLogsParams{
 		Page:    p.Page,
 		PerPage: p.PerPage,
-		Actor:   actor,
+		User:    actor,
 	})
 }
 
