@@ -66,8 +66,11 @@ const AuditLog: React.FC = () => {
   // ── Filters ─────────────────────────────────────────
   const [{ startDate, endDate }, setDateRange] = useState(getDefaultDateRange);
   const [searchParams] = useSearchParams();
-  const [selectedActor, setSelectedActor] = useState(
-    () => searchParams.get("actor") ?? "",
+  const [selectedUser, setSelectedUser] = useState(
+    () => searchParams.get("user") ?? "",
+  );
+  const [selectedAction, setSelectedAction] = useState(
+    () => searchParams.get("action") ?? "",
   );
 
   const handleStartChange = useCallback(
@@ -111,9 +114,10 @@ const AuditLog: React.FC = () => {
     const f: AuditLogFilters = {};
     if (startDate) f.start = startDate;
     if (endDate) f.end = endDate;
-    if (selectedActor) f.actor = selectedActor;
+    if (selectedUser) f.user = selectedUser;
+    if (selectedAction) f.action = selectedAction;
     return f;
-  }, [startDate, endDate, selectedActor]);
+  }, [startDate, endDate, selectedUser, selectedAction]);
 
   const {
     data: auditLogsData,
@@ -157,14 +161,14 @@ const AuditLog: React.FC = () => {
         valueFormatter: (value: string) => formatDateTime(value),
       },
       {
-        field: "actor",
-        headerName: "Actor",
+        field: "user",
+        headerName: "User",
         flex: 1,
         minWidth: 200,
         sortable: false,
         renderCell: (params) => {
-          const actor = params.value as string;
-          if (!actor) return null;
+          const user = params.value as string;
+          if (!user) return null;
           return (
             <Box
               sx={{
@@ -175,7 +179,7 @@ const AuditLog: React.FC = () => {
               }}
             >
               <Link
-                to={`/users/${encodeURIComponent(actor)}`}
+                to={`/users/${encodeURIComponent(user)}`}
                 style={{ textDecoration: "none" }}
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
               >
@@ -187,7 +191,7 @@ const AuditLog: React.FC = () => {
                     "&:hover": { textDecoration: "underline" },
                   }}
                 >
-                  {actor}
+                  {user}
                 </Typography>
               </Link>
             </Box>
@@ -298,8 +302,8 @@ const AuditLog: React.FC = () => {
           <TextField
             select
             label="User"
-            value={selectedActor}
-            onChange={(e) => setSelectedActor(e.target.value)}
+            value={selectedUser}
+            onChange={(e) => setSelectedUser(e.target.value)}
             size="small"
             sx={{ minWidth: 200 }}
           >
@@ -310,6 +314,14 @@ const AuditLog: React.FC = () => {
               </MenuItem>
             ))}
           </TextField>
+          <TextField
+            label="Action"
+            value={selectedAction}
+            onChange={(e) => setSelectedAction(e.target.value)}
+            size="small"
+            sx={{ minWidth: 200 }}
+            placeholder="e.g. create_subscriber"
+          />
 
           <Box
             sx={{

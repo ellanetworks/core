@@ -1736,12 +1736,18 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
-        - name: actor
+        - name: user
           in: query
           required: false
           schema:
             type: string
-          description: Filter audit logs by actor email. When omitted, all audit logs are returned.
+          description: Filter audit logs by user email. When omitted, all audit logs are returned.
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter audit logs by action identifier (e.g. create_subscriber, auth_login). When omitted, all actions are returned.
         - name: start
           in: query
           schema:
@@ -3260,7 +3266,7 @@ components:
           type: string
         level:
           type: string
-        actor:
+        user:
           type: string
           description: Email of the user who performed the action.
         action:
@@ -3271,7 +3277,7 @@ components:
           description: Client IP address.
         details:
           type: string
-      required: [id, timestamp, level, actor, action, ip, details]
+      required: [id, timestamp, level, user, action, ip, details]
 
     ListAuditLogsResponse:
       type: object

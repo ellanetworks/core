@@ -14,7 +14,7 @@ func TestListAuditLogs_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "level": "info", "actor": "admin@ellanetworks.com", "action": "login", "ip": "1.2.3.4", "details": "User logged in"}], "page": 1, "per_page": 10, "total_count": 1}`),
+			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "level": "info", "user": "admin@ellanetworks.com", "action": "login", "ip": "1.2.3.4", "details": "User logged in"}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}
@@ -50,8 +50,8 @@ func TestListAuditLogs_Success(t *testing.T) {
 		t.Fatalf("expected level 'info', got '%s'", resp.Items[0].Level)
 	}
 
-	if resp.Items[0].Actor != "admin@ellanetworks.com" {
-		t.Fatalf("expected actor 'admin@ellanetworks.com', got '%s'", resp.Items[0].Actor)
+	if resp.Items[0].User != "admin@ellanetworks.com" {
+		t.Fatalf("expected user 'admin@ellanetworks.com', got '%s'", resp.Items[0].User)
 	}
 
 	if resp.Items[0].Action != "login" {
@@ -194,7 +194,7 @@ func TestListAuditLogsByActor_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "level": "info", "actor": "admin@example.com", "action": "create_user", "ip": "1.2.3.4", "details": "Created user"}], "page": 1, "per_page": 10, "total_count": 1}`),
+			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "level": "info", "user": "admin@example.com", "action": "create_user", "ip": "1.2.3.4", "details": "Created user"}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}
@@ -218,8 +218,8 @@ func TestListAuditLogsByActor_Success(t *testing.T) {
 		t.Fatalf("expected 1 audit log, got %d", len(resp.Items))
 	}
 
-	if resp.Items[0].Actor != "admin@example.com" {
-		t.Fatalf("expected actor 'admin@example.com', got '%s'", resp.Items[0].Actor)
+	if resp.Items[0].User != "admin@example.com" {
+		t.Fatalf("expected user 'admin@example.com', got '%s'", resp.Items[0].User)
 	}
 }
 

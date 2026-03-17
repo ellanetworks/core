@@ -8,7 +8,7 @@ export type APIAuditLog = {
   id: number;
   timestamp: string;
   level: string;
-  actor: string;
+  user: string;
   action: string;
   ip: string;
   details: string;
@@ -24,7 +24,8 @@ export type ListAuditLogsResponse = {
 export type AuditLogFilters = {
   start?: string;
   end?: string;
-  actor?: string;
+  user?: string;
+  action?: string;
 };
 
 export async function listAuditLogs(
