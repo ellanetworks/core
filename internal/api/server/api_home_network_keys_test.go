@@ -23,11 +23,6 @@ type HomeNetworkKeyResponseItem struct {
 	PublicKey     string `json:"publicKey"`
 }
 
-type ListHomeNetworkKeysResponse struct {
-	Result []HomeNetworkKeyResponseItem `json:"result"`
-	Error  string                       `json:"error,omitempty"`
-}
-
 type CreateHomeNetworkKeyResponseResult struct {
 	Message string `json:"message"`
 }
@@ -44,28 +39,6 @@ type DeleteHomeNetworkKeyResponseResult struct {
 type DeleteHomeNetworkKeyResponse struct {
 	Result DeleteHomeNetworkKeyResponseResult `json:"result"`
 	Error  string                             `json:"error,omitempty"`
-}
-
-func listHomeNetworkKeys(url string, client *http.Client, token string) (int, *ListHomeNetworkKeysResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/operator/home-network-keys", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-	defer res.Body.Close() //nolint:errcheck
-
-	var resp ListHomeNetworkKeysResponse
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &resp, nil
 }
 
 func createHomeNetworkKey(url string, client *http.Client, token string, data *CreateHomeNetworkKeyParams) (int, *CreateHomeNetworkKeyResponse, error) {
@@ -117,45 +90,6 @@ func deleteHomeNetworkKey(url string, client *http.Client, token string, id int)
 	return res.StatusCode, &resp, nil
 }
 
-func TestListHomeNetworkKeys(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	ts, _, _, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer ts.Close()
-
-	client := newTestClient(ts)
-
-	token, err := initializeAndRefresh(ts.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
-
-	statusCode, resp, err := listHomeNetworkKeys(ts.URL, client, token)
-	if err != nil {
-		t.Fatalf("list failed: %s", err)
-	}
-
-	if statusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", statusCode)
-	}
-	// Default key (A, 0) should exist.
-	if len(resp.Result) != 1 {
-		t.Fatalf("expected 1 key, got %d", len(resp.Result))
-	}
-
-	if resp.Result[0].Scheme != "A" || resp.Result[0].KeyIdentifier != 0 {
-		t.Fatalf("expected default key (A, 0), got (%s, %d)", resp.Result[0].Scheme, resp.Result[0].KeyIdentifier)
-	}
-
-	if resp.Result[0].PublicKey == "" {
-		t.Fatal("expected non-empty public key")
-	}
-}
-
 func TestCreateHomeNetworkKey_ProfileA(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
@@ -189,17 +123,17 @@ func TestCreateHomeNetworkKey_ProfileA(t *testing.T) {
 	}
 
 	// Verify it's listed.
-	statusCode, listResp, err := listHomeNetworkKeys(ts.URL, client, token)
+	statusCode, opResp, err := getOperator(ts.URL, client, token)
 	if err != nil {
-		t.Fatalf("list failed: %s", err)
+		t.Fatalf("get operator failed: %s", err)
 	}
 
 	if statusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", statusCode)
 	}
 
-	if len(listResp.Result) != 2 {
-		t.Fatalf("expected 2 keys, got %d", len(listResp.Result))
+	if len(opResp.Result.HomeNetwork.Keys) != 2 {
+		t.Fatalf("expected 2 keys, got %d", len(opResp.Result.HomeNetwork.Keys))
 	}
 }
 
@@ -237,16 +171,16 @@ func TestCreateHomeNetworkKey_ProfileB(t *testing.T) {
 	}
 
 	// Verify the public key is compressed (66 hex chars = 33 bytes).
-	statusCode, listResp, err := listHomeNetworkKeys(ts.URL, client, token)
+	statusCode, opResp, err := getOperator(ts.URL, client, token)
 	if err != nil {
-		t.Fatalf("list failed: %s", err)
+		t.Fatalf("get operator failed: %s", err)
 	}
 
 	if statusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", statusCode)
 	}
 
-	for _, k := range listResp.Result {
+	for _, k := range opResp.Result.HomeNetwork.Keys {
 		if k.Scheme == "B" {
 			if len(k.PublicKey) != 66 {
 				t.Fatalf("expected 66-char compressed public key, got %d chars", len(k.PublicKey))
@@ -389,9 +323,9 @@ func TestDeleteHomeNetworkKey(t *testing.T) {
 	}
 
 	// List to find the ID.
-	statusCode, listResp, err := listHomeNetworkKeys(ts.URL, client, token)
+	statusCode, opResp, err := getOperator(ts.URL, client, token)
 	if err != nil {
-		t.Fatalf("list failed: %s", err)
+		t.Fatalf("get operator failed: %s", err)
 	}
 
 	if statusCode != http.StatusOK {
@@ -401,7 +335,7 @@ func TestDeleteHomeNetworkKey(t *testing.T) {
 	// Find the key with identifier 1.
 	var keyID int
 
-	for _, k := range listResp.Result {
+	for _, k := range opResp.Result.HomeNetwork.Keys {
 		if k.KeyIdentifier == 1 {
 			keyID = k.ID
 			break
@@ -422,15 +356,15 @@ func TestDeleteHomeNetworkKey(t *testing.T) {
 	}
 
 	// Verify deleted.
-	statusCode, listResp2, err := listHomeNetworkKeys(ts.URL, client, token)
+	statusCode, opResp2, err := getOperator(ts.URL, client, token)
 	if err != nil {
-		t.Fatalf("list failed: %s", err)
+		t.Fatalf("get operator failed: %s", err)
 	}
 
 	_ = statusCode
 
-	if len(listResp2.Result) != 1 {
-		t.Fatalf("expected 1 key after deletion, got %d", len(listResp.Result))
+	if len(opResp2.Result.HomeNetwork.Keys) != 1 {
+		t.Fatalf("expected 1 key after deletion, got %d", len(opResp2.Result.HomeNetwork.Keys))
 	}
 }
 

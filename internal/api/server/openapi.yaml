@@ -1003,29 +1003,6 @@ paths:
           $ref: "#/components/responses/Unauthorized"
 
   /api/v1/operator/home-network-keys:
-    get:
-      operationId: listHomeNetworkKeys
-      tags: [Operator]
-      summary: List home network keys
-      description: |
-        Returns all configured home network keys with their public keys.
-        Private keys are never exposed. Each key is identified by a
-        (keyIdentifier, scheme) pair where scheme is "A" (Curve25519)
-        or "B" (P-256).
-      responses:
-        "200":
-          description: List of home network keys.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  result:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/HomeNetworkKeyResponse"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
     post:
       operationId: createHomeNetworkKey
       tags: [Operator]
@@ -1067,6 +1044,40 @@ paths:
           $ref: "#/components/responses/Success"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/operator/home-network-keys/{id}/private-key:
+    get:
+      operationId: getHomeNetworkKeyPrivateKey
+      tags: [Operator]
+      summary: Get a home network key's private key
+      description: |
+        Returns the private key for a home network key. This is a sensitive
+        operation and is recorded in the audit log. Only administrators and
+        network managers can access this endpoint.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The private key for the home network key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/HomeNetworkKeyPrivateKeyResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -2671,6 +2682,13 @@ components:
           type: string
           pattern: "^[0-9a-fA-F]{64}$"
           description: "64-character hex private key. Curve25519 for scheme A, P-256 for scheme B."
+
+    HomeNetworkKeyPrivateKeyResponse:
+      type: object
+      properties:
+        privateKey:
+          type: string
+          description: "64-character hex private key."
 
     UpdateOperatorSecurityParams:
       type: object

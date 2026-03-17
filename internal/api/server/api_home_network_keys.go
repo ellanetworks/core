@@ -10,7 +10,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 )
 
 type CreateHomeNetworkKeyParams struct {
@@ -26,9 +25,14 @@ type HomeNetworkKeyResponse struct {
 	PublicKey     string `json:"publicKey"`
 }
 
+type HomeNetworkKeyPrivateKeyResponse struct {
+	PrivateKey string `json:"privateKey"`
+}
+
 const (
-	CreateHomeNetworkKeyAction = "create_home_network_key"
-	DeleteHomeNetworkKeyAction = "delete_home_network_key"
+	CreateHomeNetworkKeyAction         = "create_home_network_key"
+	DeleteHomeNetworkKeyAction         = "delete_home_network_key"
+	ViewHomeNetworkKeyPrivateKeyAction = "view_home_network_key_private_key"
 )
 
 func isValidHomeNetworkScheme(scheme string) bool {
@@ -53,33 +57,41 @@ func isValidHomeNetworkPrivateKey(scheme, privateKey string) bool {
 	return err == nil
 }
 
-func ListHomeNetworkKeys(dbInstance *db.Database) http.Handler {
+func GetHomeNetworkKeyPrivateKey(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		keys, err := dbInstance.ListHomeNetworkKeys(r.Context())
+		email := getEmailFromContext(r)
+
+		idStr := r.PathValue("id")
+
+		id, err := strconv.Atoi(idStr)
 		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list home network keys", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid key ID", err, logger.APILog)
 			return
 		}
 
-		responses := make([]HomeNetworkKeyResponse, 0, len(keys))
-		for _, k := range keys {
-			pubKey, err := k.GetPublicKey()
-			if err != nil {
-				logger.APILog.Warn("Failed to derive public key", zap.Int("id", k.ID), zap.Error(err))
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to derive public key", err, logger.APILog)
-
+		existingKey, err := dbInstance.GetHomeNetworkKey(r.Context(), id)
+		if err != nil {
+			if err == db.ErrNotFound {
+				writeError(r.Context(), w, http.StatusNotFound, "Home network key not found", nil, logger.APILog)
 				return
 			}
 
-			responses = append(responses, HomeNetworkKeyResponse{
-				ID:            k.ID,
-				KeyIdentifier: k.KeyIdentifier,
-				Scheme:        k.Scheme,
-				PublicKey:     pubKey,
-			})
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get home network key", err, logger.APILog)
+
+			return
 		}
 
-		writeResponse(r.Context(), w, responses, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, HomeNetworkKeyPrivateKeyResponse{
+			PrivateKey: existingKey.PrivateKey,
+		}, http.StatusOK, logger.APILog)
+
+		logger.LogAuditEvent(
+			r.Context(),
+			ViewHomeNetworkKeyPrivateKeyAction,
+			email,
+			getClientIP(r),
+			fmt.Sprintf("Viewed private key for home network key (id=%d, scheme=%s, keyIdentifier=%d)", id, existingKey.Scheme, existingKey.KeyIdentifier),
+		)
 	})
 }
 

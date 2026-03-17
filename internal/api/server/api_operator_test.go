@@ -21,11 +21,16 @@ type GetOperatorSecurityResponseResult struct {
 	IntegrityOrder []string `json:"integrityOrder,omitempty"`
 }
 
+type GetOperatorHomeNetworkResponseResult struct {
+	Keys []HomeNetworkKeyResponseItem `json:"keys"`
+}
+
 type GetOperatorResponseResult struct {
-	ID       GetOperatorIDResponseResult       `json:"id,omitempty"`
-	Slice    GetOperatorSliceResponseResult    `json:"slice,omitempty"`
-	Tracking GetOperatorTrackingResponseResult `json:"tracking,omitempty"`
-	Security GetOperatorSecurityResponseResult `json:"security,omitempty"`
+	ID          GetOperatorIDResponseResult          `json:"id,omitempty"`
+	Slice       GetOperatorSliceResponseResult       `json:"slice,omitempty"`
+	Tracking    GetOperatorTrackingResponseResult    `json:"tracking,omitempty"`
+	Security    GetOperatorSecurityResponseResult    `json:"security,omitempty"`
+	HomeNetwork GetOperatorHomeNetworkResponseResult `json:"homeNetwork,omitempty"`
 }
 
 type GetOperatorResponse struct {

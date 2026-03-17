@@ -71,14 +71,6 @@ export const updateOperatorCode = async (
   });
 };
 
-export const listHomeNetworkKeys = async (
-  authToken: string,
-): Promise<HomeNetworkKey[]> => {
-  return apiFetch<HomeNetworkKey[]>(`/api/v1/operator/home-network-keys`, {
-    authToken,
-  });
-};
-
 export const createHomeNetworkKey = async (
   authToken: string,
   keyIdentifier: number,
@@ -100,6 +92,16 @@ export const deleteHomeNetworkKey = async (
     method: "DELETE",
     authToken,
   });
+};
+
+export const getHomeNetworkKeyPrivateKey = async (
+  authToken: string,
+  id: number,
+): Promise<{ privateKey: string }> => {
+  return apiFetch<{ privateKey: string }>(
+    `/api/v1/operator/home-network-keys/${id}/private-key`,
+    { authToken },
+  );
 };
 
 export const updateOperatorSecurity = async (

@@ -14,15 +14,11 @@ import {
   Select,
   InputLabel,
   FormControl,
-  IconButton,
-  InputAdornment,
 } from "@mui/material";
-import { ContentCopy as CopyIcon } from "@mui/icons-material";
 import * as yup from "yup";
 import { createHomeNetworkKey } from "@/queries/operator";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSnackbar } from "@/contexts/SnackbarContext";
 
 interface CreateHomeNetworkKeyModalProps {
   open: boolean;
@@ -63,7 +59,6 @@ const CreateHomeNetworkKeyModal: React.FC<CreateHomeNetworkKeyModalProps> = ({
 }) => {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
-  const { showSnackbar } = useSnackbar();
 
   useEffect(() => {
     if (!authReady || !accessToken) {
@@ -248,44 +243,6 @@ const CreateHomeNetworkKeyModal: React.FC<CreateHomeNetworkKeyModalProps> = ({
                 whiteSpace: "nowrap",
               },
             }}
-            slotProps={{
-              input: {
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      size="small"
-                      edge="end"
-                      onClick={() => {
-                        if (!navigator.clipboard) {
-                          showSnackbar("Clipboard API not available.", "error");
-                          return;
-                        }
-                        navigator.clipboard
-                          .writeText(formValues.privateKey)
-                          .then(
-                            () =>
-                              showSnackbar(
-                                "Private key copied to clipboard.",
-                                "success",
-                              ),
-                            () =>
-                              showSnackbar(
-                                "Failed to copy private key.",
-                                "error",
-                              ),
-                          );
-                      }}
-                      disabled={!formValues.privateKey}
-                    >
-                      <CopyIcon
-                        fontSize="small"
-                        color={formValues.privateKey ? "primary" : "disabled"}
-                      />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              },
-            }}
           />
           <Button
             variant="contained"
@@ -303,10 +260,6 @@ const CreateHomeNetworkKeyModal: React.FC<CreateHomeNetworkKeyModalProps> = ({
             Generate
           </Button>
         </Box>
-
-        <Alert severity="warning" sx={{ mt: 1 }}>
-          Save this private key now. It will not be retrievable after creation.
-        </Alert>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
