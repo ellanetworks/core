@@ -36,6 +36,7 @@ export type APISubscriber = {
   imsi: string;
   policyName: string;
   status: SubscriberDetailStatus;
+  pdu_sessions: SessionInfo[];
 };
 
 /** Credentials returned by the dedicated credentials endpoint. */
@@ -109,3 +110,13 @@ export const deleteSubscriber = async (
     authToken,
   });
 };
+
+export interface SnssaiInfo {
+  sst: number;
+  sd?: string;
+}
+
+export interface SessionInfo {
+  status: string;
+  ipAddress?: string;
+}

@@ -197,12 +197,21 @@ const SubscriberDetail: React.FC = () => {
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+            gridTemplateRows: { xs: "auto auto auto", md: "auto auto" },
             gap: 3,
             alignItems: "stretch",
           }}
         >
           {/* Left column */}
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <Box
+            sx={{
+              gridColumn: 1,
+              gridRow: { xs: 1, md: "1 / span 2" },
+              display: "flex",
+              flexDirection: "column",
+              gap: 3,
+            }}
+          >
             <SubscriberProvisioningCard
               subscriber={subscriber}
               onEditPolicy={canEdit ? () => setEditModalOpen(true) : undefined}
@@ -210,8 +219,25 @@ const SubscriberDetail: React.FC = () => {
           </Box>
 
           {/* Right column */}
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            <SubscriberConnectionCard status={subscriber.status} />
+          <Box
+            sx={{
+              gridColumn: { xs: 1, md: 2 },
+              gridRow: { xs: 2, md: "1 / span 2" },
+              display: "flex",
+              flexDirection: "column",
+              gap: 3,
+            }}
+          >
+            <SubscriberConnectionCard
+              status={subscriber.status}
+              sessions={subscriber.pdu_sessions}
+              loading={isLoading}
+              ipAddress={
+                subscriber.pdu_sessions && subscriber.pdu_sessions.length > 0
+                  ? subscriber.pdu_sessions[0].ipAddress
+                  : subscriber.status.ipAddress
+              }
+            />
           </Box>
         </Box>
 

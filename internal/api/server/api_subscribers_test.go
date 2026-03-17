@@ -8,6 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ellanetworks/core/etsi"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	smfContext "github.com/ellanetworks/core/internal/smf/context"
 )
 
 const (
@@ -57,11 +61,17 @@ type SubscriberDetailStatus struct {
 	LastSeenRadio      string `json:"lastSeenRadio,omitempty"`
 }
 
+type SessionInfo struct {
+	Status    string `json:"status"`
+	IPAddress string `json:"ipAddress,omitempty"`
+}
+
 // SubscriberDetail matches the full representation in get-single responses.
 type SubscriberDetail struct {
-	Imsi       string                 `json:"imsi"`
-	PolicyName string                 `json:"policyName"`
-	Status     SubscriberDetailStatus `json:"status"`
+	Imsi        string                 `json:"imsi"`
+	PolicyName  string                 `json:"policyName"`
+	Status      SubscriberDetailStatus `json:"status"`
+	PDUSessions []SessionInfo          `json:"pdu_sessions"`
 }
 
 type GetSubscriberResponse struct {
@@ -294,6 +304,39 @@ func updateSubscriber(url string, client *http.Client, token string, imsi string
 	return res.StatusCode, &updateResponse, nil
 }
 
+// mockSessionForSubscriber creates a mock PDU session for a subscriber in the AMF context.
+func mockSessionForSubscriber(imsi string, dnn string) error {
+	supi, err := etsi.NewSUPIFromIMSI(imsi)
+	if err != nil {
+		return fmt.Errorf("failed to create SUPI from IMSI: %w", err)
+	}
+
+	amf := amfContext.AMFSelf()
+	smf := smfContext.SMFSelf()
+
+	ue, found := amf.FindAMFUEBySupi(supi)
+	if !found {
+		ue = amfContext.NewAmfUe()
+		ue.Supi = supi
+
+		if err := amf.AddAmfUeToUePool(ue); err != nil {
+			return fmt.Errorf("failed to add UE to AMF pool: %w", err)
+		}
+	}
+
+	pduSessionID := uint8(1)
+	smf.NewSMContext(supi, pduSessionID, dnn, nil)
+
+	sessionRef := smfContext.CanonicalName(supi, pduSessionID)
+
+	err = ue.CreateSmContext(pduSessionID, sessionRef, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create SmContext: %w", err)
+	}
+
+	return nil
+}
+
 // This is an end-to-end test for the subscribers handlers.
 // The order of the tests is important, as some tests depend on
 // the state of the server after previous tests.
@@ -419,6 +462,14 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 		if response.Result.Status.IntegrityAlgorithm != "" {
 			t.Fatalf("expected empty integrityAlgorithm, got %s", response.Result.Status.IntegrityAlgorithm)
+		}
+
+		if response.Result.PDUSessions == nil {
+			t.Fatalf("expected sessions field to be present, got nil")
+		}
+
+		if len(response.Result.PDUSessions) != 0 {
+			t.Fatalf("expected 0 sessions, got %d", len(response.Result.PDUSessions))
 		}
 
 		if response.Error != "" {
@@ -807,6 +858,47 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 		if response.Result.Status.IntegrityAlgorithm != "" {
 			t.Fatalf("expected empty integrityAlgorithm, got %s", response.Result.Status.IntegrityAlgorithm)
+		}
+
+		if response.Result.PDUSessions == nil {
+			t.Fatalf("expected sessions field to be present, got nil")
+		}
+
+		if len(response.Result.PDUSessions) != 0 {
+			t.Fatalf("expected 0 sessions, got %d", len(response.Result.PDUSessions))
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	})
+
+	t.Run("18. Get subscriber - with session", func(t *testing.T) {
+		if err := mockSessionForSubscriber(Imsi, "internet"); err != nil {
+			t.Fatalf("couldn't mock session: %s", err)
+		}
+
+		statusCode, response, err := getSubscriber(ts.URL, client, token, Imsi)
+		if err != nil {
+			t.Fatalf("couldn't get subscriber: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Result.PDUSessions == nil {
+			t.Fatalf("expected sessions field to be present, got nil")
+		}
+
+		if len(response.Result.PDUSessions) != 1 {
+			t.Fatalf("expected 1 session, got %d", len(response.Result.PDUSessions))
+		}
+
+		session := response.Result.PDUSessions[0]
+
+		if session.Status != "active" {
+			t.Fatalf("expected session status 'active', got %q", session.Status)
 		}
 
 		if response.Error != "" {

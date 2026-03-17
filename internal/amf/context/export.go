@@ -8,6 +8,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 	smfcontext "github.com/ellanetworks/core/internal/smf/context"
 )
@@ -236,6 +237,40 @@ func ExportUEs(_ context.Context) ([]AmfUeExport, error) {
 	}
 
 	return exports, nil
+}
+
+// GetUEPDUSessions returns the PDU sessions for a single UE identified by SUPI.
+// Returns the PDU session exports and true if the UE exists, false otherwise.
+// Safe to call concurrently with normal AMF operation.
+func GetUEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
+	amf := AMFSelf()
+
+	ue, ok := amf.FindAMFUEBySupi(supi)
+	if !ok {
+		return nil, false
+	}
+
+	ue.Mutex.Lock()
+
+	smCopies := make([]smContextCopy, 0, len(ue.SmContextList))
+	for _, sc := range ue.SmContextList {
+		smCopies = append(smCopies, smContextCopy{
+			ref:      sc.Ref,
+			snssai:   copyPtr(sc.Snssai),
+			inactive: sc.PduSessionInactive,
+		})
+	}
+
+	ue.Mutex.Unlock()
+
+	sessions := buildPDUSessions(smCopies)
+
+	result := make([]PDUSessionExport, 0, len(sessions))
+	for _, s := range sessions {
+		result = append(result, s)
+	}
+
+	return result, true
 }
 
 // smContextCopy is a local copy of AMF SmContext fields used to avoid holding the UE lock while querying SMF.
