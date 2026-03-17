@@ -11,19 +11,32 @@ import {
   CardHeader,
   CardContent,
   Tooltip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Button,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 import {
   ContentCopy as CopyIcon,
   Edit as EditIcon,
-  Warning as WarningIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
 } from "@mui/icons-material";
-import { getOperator, type OperatorData } from "@/queries/operator";
+import {
+  getOperator,
+  deleteHomeNetworkKey,
+  type OperatorData,
+} from "@/queries/operator";
 import EditOperatorIdModal from "@/components/EditOperatorIdModal";
 import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
 import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
-import EditOperatorHomeNetworkModal from "@/components/EditOperatorHomeNetworkModal";
+import CreateHomeNetworkKeyModal from "@/components/CreateHomeNetworkKeyModal";
+import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditOperatorSecurityModal from "@/components/EditOperatorSecurityModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
@@ -50,10 +63,10 @@ const Operator = () => {
     useState(false);
   const [isEditOperatorSliceModalOpen, setEditOperatorSliceModalOpen] =
     useState(false);
-  const [
-    isEditOperatorHomeNetworkModalOpen,
-    setEditOperatorHomeNetworkModalOpen,
-  ] = useState(false);
+  const [isCreateHomeNetworkKeyModalOpen, setCreateHomeNetworkKeyModalOpen] =
+    useState(false);
+  const [isDeleteKeyConfirmOpen, setDeleteKeyConfirmOpen] = useState(false);
+  const [selectedKeyId, setSelectedKeyId] = useState<number | null>(null);
   const [isEditOperatorSecurityModalOpen, setEditOperatorSecurityModalOpen] =
     useState(false);
 
@@ -62,7 +75,8 @@ const Operator = () => {
     isEditOperatorCodeModalOpen ||
     isEditOperatorTrackingModalOpen ||
     isEditOperatorSliceModalOpen ||
-    isEditOperatorHomeNetworkModalOpen ||
+    isCreateHomeNetworkKeyModalOpen ||
+    isDeleteKeyConfirmOpen ||
     isEditOperatorSecurityModalOpen;
 
   const queryClient = useQueryClient();
@@ -84,8 +98,6 @@ const Operator = () => {
     setEditOperatorTrackingModalOpen(true);
   const handleEditOperatorSliceClick = () =>
     setEditOperatorSliceModalOpen(true);
-  const handleEditOperatorHomeNetworkClick = () =>
-    setEditOperatorHomeNetworkModalOpen(true);
   const handleEditOperatorSecurityClick = () =>
     setEditOperatorSecurityModalOpen(true);
 
@@ -97,8 +109,6 @@ const Operator = () => {
     setEditOperatorTrackingModalOpen(false);
   const handleEditOperatorSliceModalClose = () =>
     setEditOperatorSliceModalOpen(false);
-  const handleEditOperatorHomeNetworkModalClose = () =>
-    setEditOperatorHomeNetworkModalOpen(false);
   const handleEditOperatorSecurityModalClose = () =>
     setEditOperatorSecurityModalOpen(false);
 
@@ -120,20 +130,36 @@ const Operator = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
     showSnackbar("Operator Slice information updated successfully.", "success");
   };
-  const handleEditOperatorHomeNetworkSuccess = () => {
+  const handleCreateHomeNetworkKeySuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
-    showSnackbar(
-      "Operator Home Network information updated successfully.",
-      "success",
-    );
+    showSnackbar("Home network key created successfully.", "success");
+  };
+  const handleDeleteKeyClick = (id: number) => {
+    setSelectedKeyId(id);
+    setDeleteKeyConfirmOpen(true);
+  };
+  const handleDeleteKeyConfirm = async () => {
+    if (selectedKeyId === null || !accessToken) return;
+    try {
+      await deleteHomeNetworkKey(accessToken, selectedKeyId);
+      setDeleteKeyConfirmOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["operator"] });
+      showSnackbar("Home network key deleted successfully.", "success");
+    } catch (error) {
+      setDeleteKeyConfirmOpen(false);
+      const msg =
+        error instanceof Error ? error.message : "Unknown error occurred.";
+      showSnackbar(`Failed to delete home network key: ${msg}`, "error");
+    } finally {
+      setSelectedKeyId(null);
+    }
   };
   const handleEditOperatorSecuritySuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
     showSnackbar("NAS security algorithms updated successfully.", "success");
   };
 
-  const handleCopyPublicKey = async () => {
-    if (!operator?.homeNetwork.publicKey) return;
+  const handleCopyPublicKey = async (publicKey: string) => {
     if (!navigator.clipboard) {
       showSnackbar(
         "Clipboard API not available. Please use HTTPS or try a different browser.",
@@ -142,7 +168,7 @@ const Operator = () => {
       return;
     }
     try {
-      await navigator.clipboard.writeText(operator.homeNetwork.publicKey);
+      await navigator.clipboard.writeText(publicKey);
       showSnackbar("Copied to clipboard.", "success");
     } catch {
       showSnackbar("Failed to copy public key.", "error");
@@ -154,7 +180,15 @@ const Operator = () => {
     color: "text.primary",
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
-    "& .MuiCardHeader-title": { color: "text.primary" },
+    py: 0.5,
+    minHeight: 48,
+    alignItems: "center",
+    "& .MuiCardHeader-action": {
+      marginTop: 0,
+      marginBottom: 0,
+      alignSelf: "center",
+    },
+    "& .MuiCardHeader-title": { color: "text.primary", fontSize: "0.95rem" },
     "& .MuiIconButton-root": { color: "text.primary" },
   };
 
@@ -189,6 +223,15 @@ const Operator = () => {
         justifyContent="flex-start"
         alignItems="stretch"
       >
+        <Grid size={{ xs: 12 }}>
+          <Typography variant="h5" sx={{ fontWeight: 600 }}>
+            Network Identity
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Core identifiers and network slice configuration.
+          </Typography>
+        </Grid>
+
         <Grid size={{ xs: 12, sm: 8, md: 6 }}>
           <Card
             sx={{
@@ -217,7 +260,7 @@ const Operator = () => {
               <Grid container spacing={1}>
                 <Grid size={{ xs: 6 }}>
                   <Typography variant="body2" color="text.secondary">
-                    MCC
+                    Mobile Country Code (MCC)
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 6 }}>
@@ -227,7 +270,7 @@ const Operator = () => {
                 </Grid>
                 <Grid size={{ xs: 6 }}>
                   <Typography variant="body2" color="text.secondary">
-                    MNC
+                    Mobile Network Code (MNC)
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 6 }}>
@@ -268,7 +311,7 @@ const Operator = () => {
               <Grid container spacing={1}>
                 <Grid size={{ xs: 6 }}>
                   <Typography variant="body2" color="text.secondary">
-                    OP
+                    Operator Code (OP)
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 6 }}>
@@ -304,23 +347,31 @@ const Operator = () => {
               }
             />
             <CardContent>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Supported TACs
-              </Typography>
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                {operator?.tracking.supportedTacs?.length ? (
-                  operator.tracking.supportedTacs.map((tac, idx) => (
-                    <Chip
-                      key={idx}
-                      label={tac}
-                      variant="outlined"
-                      color="primary"
-                    />
-                  ))
-                ) : (
-                  <Typography variant="body1">No TACs available.</Typography>
-                )}
-              </Box>
+              <Grid container spacing={1}>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Supported TACs
+                  </Typography>
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    {operator?.tracking.supportedTacs?.length ? (
+                      operator.tracking.supportedTacs.map((tac, idx) => (
+                        <Chip
+                          key={idx}
+                          label={tac}
+                          variant="outlined"
+                          color="primary"
+                        />
+                      ))
+                    ) : (
+                      <Typography variant="body1">
+                        No TACs available.
+                      </Typography>
+                    )}
+                  </Box>
+                </Grid>
+              </Grid>
             </CardContent>
           </Card>
         </Grid>
@@ -353,7 +404,7 @@ const Operator = () => {
               <Grid container spacing={1}>
                 <Grid size={{ xs: 6 }}>
                   <Typography variant="body2" color="text.secondary">
-                    SST
+                    Slice/Service Type (SST)
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 6 }}>
@@ -363,7 +414,7 @@ const Operator = () => {
                 </Grid>
                 <Grid size={{ xs: 6 }}>
                   <Typography variant="body2" color="text.secondary">
-                    SD
+                    Slice Differentiator (SD)
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 6 }}>
@@ -386,10 +437,19 @@ const Operator = () => {
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
+        <Grid size={{ xs: 12 }}>
+          <Typography variant="h5" sx={{ fontWeight: 600 }}>
+            Subscriber Security
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Encryption keys and NAS security algorithms for subscriber
+            authentication.
+          </Typography>
+        </Grid>
+
+        <Grid size={{ xs: 12 }}>
           <Card
             sx={{
-              height: "100%",
               display: "flex",
               flexDirection: "column",
               borderRadius: 3,
@@ -397,77 +457,101 @@ const Operator = () => {
             }}
           >
             <CardHeader
-              title="Home Network Information"
+              title="Home Network Keys"
               sx={headerStyles}
               action={
                 canEdit && (
-                  <IconButton
-                    aria-label="edit"
-                    onClick={handleEditOperatorHomeNetworkClick}
+                  <Button
+                    variant="contained"
+                    color="success"
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={() => setCreateHomeNetworkKeyModalOpen(true)}
                   >
-                    <EditIcon color={"primary"} />
-                  </IconButton>
+                    Add Key
+                  </Button>
                 )
               }
             />
-            <CardContent>
-              <Grid container spacing={1}>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Encryption
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body1">ECIES - Profile A</Typography>
-                </Grid>
-
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Public Key
-                  </Typography>
-                </Grid>
-                <Grid
-                  size={{ xs: 6 }}
-                  sx={{ display: "flex", alignItems: "center", minWidth: 0 }}
-                >
-                  <Tooltip
-                    title={operator?.homeNetwork.publicKey || "N/A"}
-                    arrow
-                  >
-                    <Typography
-                      variant="body1"
-                      sx={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        maxWidth: 280,
-                      }}
-                    >
-                      {operator?.homeNetwork.publicKey || "N/A"}
-                    </Typography>
-                  </Tooltip>
-                  <IconButton
-                    onClick={handleCopyPublicKey}
-                    sx={{ ml: 1, my: -0.5 }}
-                  >
-                    <CopyIcon fontSize="small" color={"primary"} />
-                  </IconButton>
-                </Grid>
-
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Private Key
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 6 }}>
-                  <Typography variant="body1">{"***************"}</Typography>
-                </Grid>
-              </Grid>
+            <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
+              {operator?.homeNetwork.keys.length === 0 && (
+                <Alert severity="warning" sx={{ m: 2 }}>
+                  No home network keys configured. SUCI de-concealment is
+                  disabled. UEs attempting to register with a concealed identity
+                  (SUCI) will be rejected. Add at least one home network key to
+                  restore normal operation.
+                </Alert>
+              )}
+              {(operator?.homeNetwork.keys.length ?? 0) > 0 && (
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>ID</TableCell>
+                        <TableCell>Profile</TableCell>
+                        <TableCell>Public Key</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {operator?.homeNetwork.keys.map((key) => (
+                        <TableRow key={key.id}>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {key.keyIdentifier}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={`Profile ${key.scheme}`}
+                              variant="outlined"
+                              color="primary"
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Tooltip title={key.publicKey} arrow>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontFamily: "monospace",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  maxWidth: 400,
+                                }}
+                              >
+                                {key.publicKey}
+                              </Typography>
+                            </Tooltip>
+                          </TableCell>
+                          <TableCell align="right">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleCopyPublicKey(key.publicKey)}
+                            >
+                              <CopyIcon fontSize="small" color="primary" />
+                            </IconButton>
+                            {canEdit && (
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDeleteKeyClick(key.id)}
+                              >
+                                <DeleteIcon fontSize="small" color="primary" />
+                              </IconButton>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
+        <Grid size={{ xs: 12 }}>
           <Card
             sx={{
               height: "100%",
@@ -506,17 +590,7 @@ const Operator = () => {
                           key={idx}
                           label={`${idx + 1}. ${alg}`}
                           variant="outlined"
-                          color="primary"
-                          icon={
-                            alg === "NEA0" ? (
-                              <WarningIcon fontSize="small" />
-                            ) : undefined
-                          }
-                          sx={
-                            alg === "NEA0"
-                              ? { "& .MuiChip-icon": { color: "warning.main" } }
-                              : undefined
-                          }
+                          color={alg === "NEA0" ? "warning" : "primary"}
                         />
                       ))
                     ) : (
@@ -537,17 +611,7 @@ const Operator = () => {
                           key={idx}
                           label={`${idx + 1}. ${alg}`}
                           variant="outlined"
-                          color="primary"
-                          icon={
-                            alg === "NIA0" ? (
-                              <WarningIcon fontSize="small" />
-                            ) : undefined
-                          }
-                          sx={
-                            alg === "NIA0"
-                              ? { "& .MuiChip-icon": { color: "warning.main" } }
-                              : undefined
-                          }
+                          color={alg === "NIA0" ? "warning" : "primary"}
                         />
                       ))
                     ) : (
@@ -595,13 +659,34 @@ const Operator = () => {
           }}
         />
       )}
-      {isEditOperatorHomeNetworkModalOpen && (
-        <EditOperatorHomeNetworkModal
+      {isCreateHomeNetworkKeyModalOpen && (
+        <CreateHomeNetworkKeyModal
           open
-          onClose={handleEditOperatorHomeNetworkModalClose}
-          onSuccess={handleEditOperatorHomeNetworkSuccess}
+          onClose={() => setCreateHomeNetworkKeyModalOpen(false)}
+          onSuccess={handleCreateHomeNetworkKeySuccess}
         />
       )}
+      {isDeleteKeyConfirmOpen &&
+        (() => {
+          const selectedKey = operator?.homeNetwork.keys.find(
+            (k) => k.id === selectedKeyId,
+          );
+          const keyLabel = selectedKey
+            ? `Profile ${selectedKey.scheme}, ID ${selectedKey.keyIdentifier}`
+            : "this home network key";
+          return (
+            <DeleteConfirmationModal
+              open
+              onClose={() => {
+                setDeleteKeyConfirmOpen(false);
+                setSelectedKeyId(null);
+              }}
+              onConfirm={handleDeleteKeyConfirm}
+              title="Delete Home Network Key"
+              description={`Are you sure you want to delete ${keyLabel}? UEs provisioned with this key will no longer be able to register.`}
+            />
+          );
+        })()}
       {isEditOperatorSecurityModalOpen && (
         <EditOperatorSecurityModal
           open

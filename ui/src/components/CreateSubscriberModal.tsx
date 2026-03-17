@@ -314,7 +314,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
           </Alert>
         </Collapse>
 
-        <Box display="flex" gap={2} alignItems="center">
+        <Box display="flex" gap={2} alignItems="flex-start">
           <TextField
             fullWidth
             label="IMSI"
@@ -329,7 +329,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             }}
             onBlur={() => handleBlur("msin")}
             error={(!!errors.msin && touched.msin) || !!imsiMismatch}
-            helperText={(touched.msin && errors.msin) || imsiMismatch}
+            helperText={(touched.msin && errors.msin) || imsiMismatch || " "}
             margin="normal"
             autoFocus
             slotProps={{
@@ -343,14 +343,20 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
           <Button
             variant="contained"
             color="primary"
-            sx={{ flex: "0 0 120px", minWidth: 120, flexShrink: 0 }}
+            sx={{
+              flex: "0 0 120px",
+              minWidth: 120,
+              flexShrink: 0,
+              mt: "16px",
+              height: "56px",
+            }}
             onMouseDown={(e) => e.preventDefault()}
             onClick={generateRandomMSIN}
           >
             Generate
           </Button>
         </Box>
-        <Box display="flex" gap={2} alignItems="center">
+        <Box display="flex" gap={2} alignItems="flex-start">
           <TextField
             fullWidth
             label="Key"
@@ -358,14 +364,20 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             onChange={(e) => handleChange("key", e.target.value)}
             onBlur={() => handleBlur("key")}
             error={!!errors.key && touched.key}
-            helperText={touched.key ? errors.key : ""}
+            helperText={touched.key ? errors.key || " " : " "}
             margin="normal"
             sx={{ flex: 1 }}
           />
           <Button
             variant="contained"
             color="primary"
-            sx={{ flex: "0 0 120px", minWidth: 120, flexShrink: 0 }}
+            sx={{
+              flex: "0 0 120px",
+              minWidth: 120,
+              flexShrink: 0,
+              mt: "16px",
+              height: "56px",
+            }}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               const randomKey = [...Array(32)]

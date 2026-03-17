@@ -1000,18 +1000,44 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /api/v1/operator/home-network:
-    put:
-      operationId: updateOperatorHomeNetwork
+  /api/v1/operator/home-network-keys:
+    get:
+      operationId: listHomeNetworkKeys
       tags: [Operator]
-      summary: Update home network key
-      description: Sets the Curve25519 private key used for SUPI concealment (5G-AKA). The corresponding public key is returned in the operator configuration.
+      summary: List home network keys
+      description: |
+        Returns all configured home network keys with their public keys.
+        Private keys are never exposed. Each key is identified by a
+        (keyIdentifier, scheme) pair where scheme is "A" (Curve25519)
+        or "B" (P-256).
+      responses:
+        "200":
+          description: List of home network keys.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/HomeNetworkKeyResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createHomeNetworkKey
+      tags: [Operator]
+      summary: Create a home network key
+      description: |
+        Adds a new home network key for SUCI de-concealment. The key is
+        identified by a (keyIdentifier, scheme) pair. Profile A keys use
+        Curve25519 (X25519); Profile B keys use NIST P-256. Maximum 12 keys.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateOperatorHomeNetworkParams"
+              $ref: "#/components/schemas/CreateHomeNetworkKeyParams"
       responses:
         "201":
           $ref: "#/components/responses/Success"
@@ -1019,6 +1045,28 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/operator/home-network-keys/{id}:
+    delete:
+      operationId: deleteHomeNetworkKey
+      tags: [Operator]
+      summary: Delete a home network key
+      description: Removes a home network key. UEs using this key will no longer be able to register.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/v1/operator/security:
     put:
@@ -2480,9 +2528,10 @@ components:
     OperatorHomeNetwork:
       type: object
       properties:
-        publicKey:
-          type: string
-          description: Curve25519 public key (hex).
+        keys:
+          type: array
+          items:
+            $ref: "#/components/schemas/HomeNetworkKeyResponse"
 
     OperatorResponse:
       type: object
@@ -2568,14 +2617,40 @@ components:
           pattern: "^[0-9a-fA-F]{32}$"
           description: "32-character hex operator code (OP)."
 
-    UpdateOperatorHomeNetworkParams:
+    HomeNetworkKeyResponse:
       type: object
-      required: [privateKey]
       properties:
+        id:
+          type: integer
+          description: Internal database ID.
+        keyIdentifier:
+          type: integer
+          minimum: 0
+          maximum: 255
+          description: Home Network Public Key Identifier (as used in SUCI).
+        scheme:
+          type: string
+          enum: [A, B]
+          description: '"A" for Curve25519 (X25519), "B" for NIST P-256.'
+        publicKey:
+          type: string
+          description: Derived public key in hex. Profile A = 64 chars, Profile B = 66 chars (compressed).
+
+    CreateHomeNetworkKeyParams:
+      type: object
+      required: [keyIdentifier, scheme, privateKey]
+      properties:
+        keyIdentifier:
+          type: integer
+          minimum: 0
+          maximum: 255
+        scheme:
+          type: string
+          enum: [A, B]
         privateKey:
           type: string
           pattern: "^[0-9a-fA-F]{64}$"
-          description: "64-character hex X25519 private key."
+          description: "64-character hex private key. Curve25519 for scheme A, P-256 for scheme B."
 
     UpdateOperatorSecurityParams:
       type: object

@@ -1,10 +1,17 @@
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
+export interface HomeNetworkKey {
+  id: number;
+  keyIdentifier: number;
+  scheme: "A" | "B";
+  publicKey: string;
+}
+
 export interface OperatorData {
   id: { mcc: string; mnc: string };
   slice: { sst: number; sd?: string | null };
   tracking: { supportedTacs: string[] };
-  homeNetwork: { publicKey: string };
+  homeNetwork: { keys: HomeNetworkKey[] };
   security: {
     cipheringOrder: string[];
     integrityOrder: string[];
@@ -64,14 +71,34 @@ export const updateOperatorCode = async (
   });
 };
 
-export const updateOperatorHomeNetwork = async (
+export const listHomeNetworkKeys = async (
   authToken: string,
+): Promise<HomeNetworkKey[]> => {
+  return apiFetch<HomeNetworkKey[]>(`/api/v1/operator/home-network-keys`, {
+    authToken,
+  });
+};
+
+export const createHomeNetworkKey = async (
+  authToken: string,
+  keyIdentifier: number,
+  scheme: string,
   privateKey: string,
 ): Promise<void> => {
-  await apiFetchVoid(`/api/v1/operator/home-network`, {
-    method: "PUT",
+  await apiFetchVoid(`/api/v1/operator/home-network-keys`, {
+    method: "POST",
     authToken,
-    body: { privateKey },
+    body: { keyIdentifier, scheme, privateKey },
+  });
+};
+
+export const deleteHomeNetworkKey = async (
+  authToken: string,
+  id: number,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/operator/home-network-keys/${id}`, {
+    method: "DELETE",
+    authToken,
   });
 };
 

@@ -17,10 +17,7 @@ import {
   Box,
   Divider,
 } from "@mui/material";
-import {
-  DragIndicator as DragIcon,
-  Warning as WarningIcon,
-} from "@mui/icons-material";
+import { DragIndicator as DragIcon } from "@mui/icons-material";
 import { updateOperatorSecurity } from "@/queries/operator";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -46,30 +43,20 @@ const ALL_INTEGRITY = ["NIA0", "NIA1", "NIA2"];
 const ALGORITHM_DESCRIPTIONS: Record<string, React.ReactNode> = {
   NEA0: (
     <>
-      NEA0 — Null (no encryption{" "}
-      <WarningIcon
-        sx={{
-          fontSize: 14,
-          color: "warning.main",
-          verticalAlign: "text-bottom",
-        }}
-      />
-      )
+      NEA0 — Null{" "}
+      <Box component="span" sx={{ color: "warning.main", fontWeight: 500 }}>
+        (no encryption)
+      </Box>
     </>
   ),
   NEA1: "NEA1 — SNOW 3G",
   NEA2: "NEA2 — AES",
   NIA0: (
     <>
-      NIA0 — Null (no protection{" "}
-      <WarningIcon
-        sx={{
-          fontSize: 14,
-          color: "warning.main",
-          verticalAlign: "text-bottom",
-        }}
-      />
-      )
+      NIA0 — Null{" "}
+      <Box component="span" sx={{ color: "warning.main", fontWeight: 500 }}>
+        (no protection)
+      </Box>
     </>
   ),
   NIA1: "NIA1 — SNOW 3G",
@@ -78,15 +65,25 @@ const ALGORITHM_DESCRIPTIONS: Record<string, React.ReactNode> = {
 
 const isNullAlgorithm = (name: string) => name === "NEA0" || name === "NIA0";
 
+const CANONICAL_ORDER: Record<string, number> = {
+  NEA2: 0,
+  NEA1: 1,
+  NEA0: 2,
+  NIA2: 0,
+  NIA1: 1,
+  NIA0: 2,
+};
+
 const buildEntries = (enabled: string[], all: string[]): AlgorithmEntry[] => {
   const entries: AlgorithmEntry[] = enabled.map((name) => ({
     name,
     enabled: true,
   }));
-  for (const name of all) {
-    if (!enabled.includes(name)) {
-      entries.push({ name, enabled: false });
-    }
+  const disabled = all
+    .filter((name) => !enabled.includes(name))
+    .sort((a, b) => (CANONICAL_ORDER[a] ?? 0) - (CANONICAL_ORDER[b] ?? 0));
+  for (const name of disabled) {
+    entries.push({ name, enabled: false });
   }
   return entries;
 };
