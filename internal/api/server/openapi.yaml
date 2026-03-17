@@ -582,8 +582,10 @@ paths:
       summary: Get subscriber details
       description: |
         Returns full details of a subscriber including connection status,
-        assigned IP address, IMEI of the connected device, negotiated
-        ciphering/integrity algorithms, and last-seen radio information.
+        IMEI of the connected device, negotiated ciphering/integrity algorithms,
+        last-seen radio information, and minimal PDU session information.
+        The subscriber `status.ipAddress` is still populated as a temporary
+        compatibility fallback, but is deprecated; prefer `pdu_sessions[0].ipAddress` when present.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       responses:
@@ -2259,6 +2261,7 @@ components:
         ipAddress:
           type: string
           description: Assigned IP address (empty if not connected).
+          deprecated: true
       required: [registered, ipAddress]
 
     Subscriber:
@@ -2328,6 +2331,11 @@ components:
           type: string
         status:
           $ref: "#/components/schemas/SubscriberDetailStatus"
+        pdu_sessions:
+          type: array
+          description: "List of active PDU sessions for this subscriber."
+          items:
+            $ref: "#/components/schemas/SessionInfo"
       required: [imsi, policyName, status]
 
     SubscriberCredentials:
@@ -2355,6 +2363,18 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/SubscriberDetail"
+
+    SessionInfo:
+      type: object
+      description: "PDU session information returned with a subscriber detail."
+      properties:
+        status:
+          type: string
+          description: "PDU session status (e.g. active, inactive)."
+        ipAddress:
+          type: string
+          description: "Assigned IP address for this PDU session. May be omitted if unknown."
+      required: [status]
 
     CreateSubscriberParams:
       type: object
