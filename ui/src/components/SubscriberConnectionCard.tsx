@@ -289,36 +289,51 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           }
         />
 
-        <InfoRow label="PDU Session" value=" / " />
+        {(() => {
+          if (loading) {
+            return (
+              <InfoRow
+                label="PDU Session"
+                value={
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <Chip label={<CircularProgress size={16} />} />
+                  </Box>
+                }
+              />
+            );
+          }
 
-        {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
-            <Chip label={<CircularProgress size={16} />} />
-          </Box>
-        ) : sessions.length === 0 ? (
-          <Typography variant="body2" sx={{ color: "text.secondary", py: 1 }}>
-            No active sessions
-          </Typography>
-        ) : (
-          <Box>
-            {/* Only first session supported; display its fields */}
-            {(() => {
-              const session = sessions[0];
-              return (
-                <Box>
-                  <SessionRow
-                    label="Status"
-                    value={<StatusChip status={session.status} />}
-                  />
-                  <SessionRow
-                    label="IP Address"
-                    value={session.ipAddress ?? ipAddress ?? "—"}
-                  />
+          if (sessions.length === 0) {
+            return (
+              <InfoRow
+                label="PDU Session"
+                value={
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    No active session
+                  </Typography>
+                }
+              />
+            );
+          }
+
+          const session = sessions[0];
+          const ip = session.ipAddress ?? ipAddress ?? "—";
+
+          return (
+            <InfoRow
+              label="PDU Session"
+              value={
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <StatusChip status={session.status} />
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    /
+                  </Typography>
+                  <Typography variant="body2">{ip}</Typography>
                 </Box>
-              );
-            })()}
-          </Box>
-        )}
+              }
+            />
+          );
+        })()}
       </CardContent>
     </Card>
   );
