@@ -14,7 +14,7 @@ import (
 
 func migrateV4(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx,
-		fmt.Sprintf("ALTER TABLE %s ADD COLUMN spnFull TEXT NOT NULL DEFAULT 'Ella Core'", OperatorTableName))
+		fmt.Sprintf("ALTER TABLE %s ADD COLUMN spnFull TEXT NOT NULL DEFAULT 'Ella Networks'", OperatorTableName))
 	if err != nil {
 		return fmt.Errorf("failed to add spnFull column: %w", err)
 	}
