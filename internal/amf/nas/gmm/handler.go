@@ -40,7 +40,7 @@ func HandleGmmMessage(ctx context.Context, amf *amfContext.AMF, ue *amfContext.A
 	case nas.MsgTypeSecurityModeReject:
 		return handleSecurityModeReject(ctx, ue, msg.SecurityModeReject)
 	case nas.MsgTypeRegistrationComplete:
-		return handleRegistrationComplete(ctx, ue)
+		return handleRegistrationComplete(ctx, amf, ue)
 	case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
 		return handleDeregistrationAccept(ctx, ue)
 	default:

@@ -5,11 +5,12 @@ import (
 	"fmt"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func handleRegistrationComplete(ctx context.Context, ue *amfContext.AmfUe) error {
+func handleRegistrationComplete(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) error {
 	if ue.GetState() != amfContext.ContextSetup {
 		return fmt.Errorf("state mismatch: receive Registration Complete message in state %s", ue.GetState())
 	}
@@ -20,6 +21,9 @@ func handleRegistrationComplete(ctx context.Context, ue *amfContext.AmfUe) error
 		ue.T3550.Stop()
 		ue.T3550 = nil // clear the timer
 	}
+
+	// Send NITZ (network name + timezone) to UE per TS 24.501
+	message.SendConfigurationUpdateCommand(ctx, amf, ue, false)
 
 	forPending := ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestPending
 

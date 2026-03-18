@@ -425,11 +425,8 @@ func BuildRegistrationAccept(
 }
 
 // TS 24.501 - 5.4.4 Generic UE configuration update procedure - 5.4.4.1 General
-func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe) ([]byte, error) {
-	if ue.Guti == etsi.InvalidGUTI {
-		return nil, fmt.Errorf("5G-GUTI is required")
-	}
-
+// includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
+func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe, networkName amfContext.NetworkName, includeGUTI bool) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
@@ -440,13 +437,37 @@ func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe) ([]byte, error) {
 	configurationUpdateCommand.SetSpareHalfOctet(0)
 	configurationUpdateCommand.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
 
-	gutiNas, err := nasConvert.GutiToNasWithError(ue.Guti.String())
-	if err != nil {
-		return nil, fmt.Errorf("encode GUTI failed: %w", err)
+	if includeGUTI {
+		if ue.Guti == etsi.InvalidGUTI {
+			return nil, fmt.Errorf("5G-GUTI is required")
+		}
+
+		gutiNas, err := nasConvert.GutiToNasWithError(ue.Guti.String())
+		if err != nil {
+			return nil, fmt.Errorf("encode GUTI failed: %w", err)
+		}
+
+		configurationUpdateCommand.GUTI5G = &gutiNas
+		configurationUpdateCommand.GUTI5G.SetIei(nasMessage.ConfigurationUpdateCommandGUTI5GType)
 	}
 
-	configurationUpdateCommand.GUTI5G = &gutiNas
-	configurationUpdateCommand.GUTI5G.SetIei(nasMessage.ConfigurationUpdateCommandGUTI5GType)
+	if networkName.Full != "" {
+		fullNameForNetwork := encodeNetworkName(networkName.Full)
+		configurationUpdateCommand.FullNameForNetwork = &nasType.FullNameForNetwork{
+			Iei:    nasMessage.ConfigurationUpdateCommandFullNameForNetworkType,
+			Len:    uint8(len(fullNameForNetwork)),
+			Buffer: fullNameForNetwork,
+		}
+	}
+
+	if networkName.Short != "" {
+		shortNameForNetwork := encodeNetworkName(networkName.Short)
+		configurationUpdateCommand.ShortNameForNetwork = &nasType.ShortNameForNetwork{
+			Iei:    nasMessage.ConfigurationUpdateCommandShortNameForNetworkType,
+			Len:    uint8(len(shortNameForNetwork)),
+			Buffer: shortNameForNetwork,
+		}
+	}
 
 	configurationUpdateCommand.ConfigurationUpdateIndication = nasType.NewConfigurationUpdateIndication(nasMessage.ConfigurationUpdateCommandConfigurationUpdateIndicationType)
 
@@ -465,4 +486,36 @@ func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe) ([]byte, error) {
 	}
 
 	return b, nil
+}
+
+// encodeNetworkName encodes a network name string into the format defined by
+// TS 24.008 §10.5.3.5a (Network Name IE). It uses the GSM 7-bit default
+// alphabet with no CI appended.
+func encodeNetworkName(name string) []byte {
+	chars := len(name)
+	// GSM 7-bit packing: ceil(chars * 7 / 8) bytes for the text
+	packedLen := (chars*7 + 7) / 8
+	spareBits := uint8(packedLen*8 - chars*7)
+
+	buf := make([]byte, 1+packedLen)
+	// Byte 0: ext=1 (bit 7), coding scheme=0 (bits 6-4), addCI=0 (bit 3), spare bits (bits 2-0)
+	buf[0] = 0x80 | (spareBits & 0x07)
+
+	// Pack 7-bit characters into octets (TS 23.038 §6.1.2)
+	bitOffset := 0
+
+	for i := range chars {
+		c := name[i] & 0x7F
+		bytePos := bitOffset / 8
+		bitPos := bitOffset % 8
+
+		buf[1+bytePos] |= c << uint(bitPos)
+		if bitPos > 1 {
+			buf[1+bytePos+1] |= c >> uint(8-bitPos)
+		}
+
+		bitOffset += 7
+	}
+
+	return buf
 }

@@ -427,7 +427,7 @@ func SendRegistrationAccept(
 	return nil
 }
 
-func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, amfUe *amfContext.AmfUe) {
+func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, amfUe *amfContext.AmfUe, includeGUTI bool) {
 	if amfUe == nil {
 		return
 	}
@@ -445,7 +445,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 		return
 	}
 
-	nasMsg, err := BuildConfigurationUpdateCommand(amfUe)
+	nasMsg, err := BuildConfigurationUpdateCommand(amfUe, amf.NetworkName, includeGUTI)
 	if err != nil {
 		amfUe.Log.Error("error building ConfigurationUpdateCommand", zap.Error(err))
 		return

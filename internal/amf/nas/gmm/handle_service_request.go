@@ -343,7 +343,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 		}
 
-		message.SendConfigurationUpdateCommand(ctx, amf, ue)
+		message.SendConfigurationUpdateCommand(ctx, amf, ue, true)
 
 	case nasMessage.ServiceTypeData:
 		err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)
