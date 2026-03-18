@@ -41,8 +41,8 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 	InitMsg:   sctp.InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
 	RtoInfo:   &sctp.RtoInfo{SrtoAssocID: 0, SrtoInitial: 500, SrtoMax: 1500, StroMin: 100},
 	AssocInfo: &sctp.AssocInfo{AsocMaxRxt: 4},
-	// Heartbeat every 10 s; declare a path failed after 3 missed heartbeats (~30 s).
-	// Without this the kernel default is 30 s interval × 5 retries = 150 s to detect a dead gNB.
+	// Heartbeat every 10 s with up to 3 retries before declaring a path failed (~35 s detection).
+	// Without this the kernel default (30 s interval, 5 retries, RTO backoff) takes ~333 s to detect a dead gNB.
 	PeerAddrParams: &sctp.PeerAddrParams{
 		HbInterval: 10000,
 		PathMaxRxt: 3,
