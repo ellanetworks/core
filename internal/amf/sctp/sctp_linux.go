@@ -147,9 +147,9 @@ func parseNotification(b []byte) Notification {
 
 // SCTPRead use syscall.Recvmsg to receive SCTP message and return sctp sndrcvinfo/notification if need
 func (c *SCTPConn) SCTPRead(b []byte) (int, *SndRcvInfo, Notification, error) {
-	oob := make([]byte, 254)
+	var oob [254]byte
 
-	n, oobn, recvflags, _, err := syscall.Recvmsg(c.fd(), b, oob, 0)
+	n, oobn, recvflags, _, err := syscall.Recvmsg(c.fd(), b, oob[:], 0)
 	if err != nil {
 		return n, nil, nil, err
 	}
