@@ -233,7 +233,7 @@ func (c *SCTPConn) SetAssocInfo(info AssocInfo) error {
 }
 
 // listenSCTPExtConfig - start listener on specified address/port with given SCTP options and socket configuration
-func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo, peerAddrParams *PeerAddrParams, control func(network, address string, c syscall.RawConn) error) (*SCTPListener, error) {
+func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo, control func(network, address string, c syscall.RawConn) error) (*SCTPListener, error) {
 	af, ipv6only := favoriteAddrFamily(network, laddr, nil, "listen")
 
 	sock, err := syscall.Socket(
@@ -282,15 +282,6 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 	// set default association parameters (RFC 6458 8.1.2)
 	if assocInfo != nil {
 		err = setAssocInfo(sock, *assocInfo)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if peerAddrParams != nil {
-		optlen := unsafe.Sizeof(*peerAddrParams)
-
-		err = setsockopt(sock, SCTPPeerAddrParams, uintptr(unsafe.Pointer(peerAddrParams)), optlen)
 		if err != nil {
 			return nil, err
 		}

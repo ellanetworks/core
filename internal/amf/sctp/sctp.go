@@ -626,30 +626,6 @@ type SCTPListener struct {
 	epfd int // fd for epoll
 }
 
-const (
-	// SPPHbEnable enables SCTP heartbeat on a peer address (RFC 6458 §8.1.3).
-	SPPHbEnable uint32 = 0x00000001
-)
-
-// PeerAddrParams maps to the kernel's sctp_paddrparams (RFC 6458 §8.1.3).
-// Field layout must match the C struct exactly on 64-bit Linux; the explicit
-// padding fields below mirror the implicit C alignment padding.
-// //go:build linux && !386 is enforced by sctp_linux.go.
-type PeerAddrParams struct {
-	AssocID       int32
-	_             [4]byte   // padding: sockaddr_storage requires 8-byte alignment
-	Address       [128]byte // sockaddr_storage; zero = apply to all peer addresses
-	HbInterval    uint32    // heartbeat interval in milliseconds
-	PathMaxRxt    uint16    // max retransmissions before path is considered failed
-	_             [2]byte   // alignment padding before next uint32
-	PathMtu       uint32
-	SackDelay     uint32
-	Flags         uint32
-	Ipv6Flowlabel uint32
-	Dscp          uint8
-	_             [7]byte // spp_padding (1 byte) + 6 bytes struct alignment padding
-}
-
 // SocketConfig contains options for the SCTP socket.
 type SocketConfig struct {
 	// If Control is not nil it is called after the socket is created but before
@@ -664,11 +640,8 @@ type SocketConfig struct {
 
 	// AssocInfo (RFC 6458)
 	AssocInfo *AssocInfo
-
-	// PeerAddrParams configures heartbeat and path retransmission defaults.
-	PeerAddrParams *PeerAddrParams
 }
 
 func (cfg *SocketConfig) Listen(net string, laddr *SCTPAddr) (*SCTPListener, error) {
-	return listenSCTPExtConfig(net, laddr, cfg.InitMsg, cfg.RtoInfo, cfg.AssocInfo, cfg.PeerAddrParams, cfg.Control)
+	return listenSCTPExtConfig(net, laddr, cfg.InitMsg, cfg.RtoInfo, cfg.AssocInfo, cfg.Control)
 }
