@@ -234,19 +234,20 @@ func (smf *SMF) GetPDUSessionCount() int {
 
 func (smf *SMF) RemoveSMContext(ctx context.Context, ref string) {
 	smf.Mutex.Lock()
-	defer smf.Mutex.Unlock()
 
 	smContext, ok := smf.smContextPool[ref]
 	if !ok {
+		smf.Mutex.Unlock()
 		return
 	}
+
+	delete(smf.smContextPool, ref)
+	smf.Mutex.Unlock()
 
 	err := smf.ReleaseUeIPAddr(ctx, smContext.Supi)
 	if err != nil {
 		logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
 	}
-
-	delete(smf.smContextPool, ref)
 
 	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
 }
