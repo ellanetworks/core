@@ -47,7 +47,7 @@ services:
               com.docker.network.endpoint.ifname: n6
         ipv4_address: 10.6.0.2
   ella-core-tester:
-    image: ghcr.io/ellanetworks/ella-core-tester@sha256:46a31dd653ed3a7186385165976dde1d9b41bd3a9fbae44610f39a2761fc11a1
+    image: ghcr.io/ellanetworks/ella-core-tester@sha256:f7f2aa82da19b5f50fe9f157aeccb87f845ec4b3c6cae1299df05a06c453ae18
     entrypoint:
       - /bin/sh
       - -c

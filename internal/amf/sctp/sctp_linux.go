@@ -356,26 +356,39 @@ func createEpollForSock(sock int) (int, error) {
 	return epfd, nil
 }
 
-// AcceptSCTP waits for and returns the next SCTP connection to the listener.
-// it will use EpollWait to wait for a incoming connection then call syscall.Accept4 to accept
-func (ln *SCTPListener) AcceptSCTP() (*SCTPConn, error) {
-	var events [1]syscall.EpollEvent
+// ListenerFd returns the listener's socket file descriptor.
+func (ln *SCTPListener) ListenerFd() int { return ln.fd }
 
-	n, err := syscall.EpollWait(ln.epfd, events[:], -1)
-	if err != nil {
-		return nil, err
-	}
+// Poll waits for epoll events, returning the number of events and any error.
+// timeoutMs of -1 blocks indefinitely; 0 returns immediately.
+func (ln *SCTPListener) Poll(events []syscall.EpollEvent, timeoutMs int) (int, error) {
+	return syscall.EpollWait(ln.epfd, events, timeoutMs)
+}
 
-	if n == 0 || events[0].Fd != int32(ln.fd) {
-		return nil, syscall.EAGAIN
-	}
-
-	fd, _, err := syscall.Accept4(ln.fd, 0)
+// Accept accepts a new connection from the listener. The caller is responsible
+// for registering the returned connection with the epoll instance via AddConnToEpoll.
+func (ln *SCTPListener) Accept() (*SCTPConn, error) {
+	fd, _, err := syscall.Accept4(ln.fd, syscall.SOCK_NONBLOCK|syscall.SOCK_CLOEXEC)
 	if err != nil {
 		return nil, err
 	}
 
 	return NewSCTPConn(fd, nil), nil
+}
+
+// AddConnToEpoll registers a connection fd with the listener's epoll instance.
+func (ln *SCTPListener) AddConnToEpoll(connFd int) error {
+	event := syscall.EpollEvent{
+		Events: syscall.EPOLLIN | syscall.EPOLLRDHUP,
+		Fd:     int32(connFd),
+	}
+
+	return syscall.EpollCtl(ln.epfd, syscall.EPOLL_CTL_ADD, connFd, &event)
+}
+
+// RemoveConnFromEpoll removes a connection fd from the listener's epoll instance.
+func (ln *SCTPListener) RemoveConnFromEpoll(connFd int) error {
+	return syscall.EpollCtl(ln.epfd, syscall.EPOLL_CTL_DEL, connFd, nil)
 }
 
 func (ln *SCTPListener) Close() error {

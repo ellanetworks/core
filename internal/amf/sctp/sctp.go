@@ -395,6 +395,11 @@ func (c *SCTPConn) fd() int {
 	return int(atomic.LoadInt32(&c._fd))
 }
 
+// Fd returns the underlying socket file descriptor.
+func (c *SCTPConn) Fd() int {
+	return c.fd()
+}
+
 func NewSCTPConn(fd int, handler NotificationHandler) *SCTPConn {
 	conn := &SCTPConn{
 		_fd:                 int32(fd),

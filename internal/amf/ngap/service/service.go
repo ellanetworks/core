@@ -21,19 +21,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// type NGAPHandler struct {
-// 	HandleMessage      func(ctx context.Context, conn *sctp.SCTPConn, msg []byte)
-// 	HandleNotification func(conn *sctp.SCTPConn, notification sctp.Notification)
-// }
-
 const readBufSize uint32 = 131072
-
-// set default read timeout to 2 seconds
-var readTimeout syscall.Timeval = syscall.Timeval{Sec: 2, Usec: 0}
 
 var (
 	sctpListener *sctp.SCTPListener
-	connections  sync.Map
+	connections  sync.Map // key: int (fd), value: *sctp.SCTPConn
 	wg           sync.WaitGroup
 )
 
@@ -70,6 +62,11 @@ func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
 
 	logger.AmfLog.Info("NGAP server started", zap.String("address", addr.String()))
 
+	// Single shared read buffer; safe because the reactor reads one message at a
+	// time and copies bytes into a fresh slice before handing off to a goroutine.
+	buf := make([]byte, readBufSize)
+	events := make([]syscall.EpollEvent, 32)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -77,75 +74,161 @@ func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
 		default:
 		}
 
-		newConn, err := sctpListener.AcceptSCTP()
+		n, err := listener.Poll(events, 100)
 		if err != nil {
 			switch err {
-			case syscall.EINTR, syscall.EAGAIN:
-				logger.AmfLog.Debug("AcceptSCTP", zap.Error(err))
+			case syscall.EINTR:
+				continue
 			case syscall.EBADF, syscall.EINVAL:
-				// listener was closed (e.g. Stop() was called)
-				return
+				return // listener was closed by Stop()
 			default:
-				logger.AmfLog.Error("Failed to accept", zap.Error(err))
+				logger.AmfLog.Error("epoll wait error", zap.Error(err))
+				continue
 			}
-
-			continue
 		}
 
-		events := sctp.SCTPEventDataIO | sctp.SCTPEventShutdown | sctp.SCTPEventAssociation
-		if err := newConn.SubscribeEvents(events); err != nil {
+		for i := 0; i < n; i++ {
+			fd := int(events[i].Fd)
+
+			if fd == listener.ListenerFd() {
+				accept(ctx, listener)
+				continue
+			}
+
+			val, ok := connections.Load(fd)
+			if !ok {
+				continue
+			}
+
+			conn := val.(*sctp.SCTPConn)
+
+			// On hangup, try to drain any last message before closing.
+			if events[i].Events&(syscall.EPOLLRDHUP|syscall.EPOLLHUP|syscall.EPOLLERR) != 0 {
+				if events[i].Events&syscall.EPOLLIN != 0 {
+					readAndDispatch(ctx, conn, buf)
+				}
+
+				closeConn(listener, conn)
+
+				continue
+			}
+
+			if events[i].Events&syscall.EPOLLIN != 0 {
+				if closed := readAndDispatch(ctx, conn, buf); closed {
+					closeConn(listener, conn)
+				}
+			}
+		}
+	}
+}
+
+// accept accepts a new connection and registers it with the epoll instance.
+func accept(_ context.Context, listener *sctp.SCTPListener) {
+	conn, err := listener.Accept()
+	if err != nil {
+		if err != syscall.EAGAIN && err != syscall.EINTR {
 			logger.AmfLog.Error("Failed to accept", zap.Error(err))
-
-			if err = newConn.Close(); err != nil {
-				logger.AmfLog.Error("Close error", zap.Error(err))
-			}
-
-			continue
-		} else {
-			logger.AmfLog.Debug("Subscribe SCTP event[DATA_IO, SHUTDOWN_EVENT, ASSOCIATION_CHANGE]")
 		}
 
-		if err := newConn.SetReadBuffer(int(readBufSize)); err != nil {
-			logger.AmfLog.Error("Set read buffer error", zap.Error(err))
+		return
+	}
 
-			if err = newConn.Close(); err != nil {
-				logger.AmfLog.Error("Close error", zap.Error(err))
-			}
+	sctpEvents := sctp.SCTPEventDataIO | sctp.SCTPEventShutdown | sctp.SCTPEventAssociation
+	if err := conn.SubscribeEvents(sctpEvents); err != nil {
+		logger.AmfLog.Error("Failed to subscribe to SCTP events", zap.Error(err))
 
-			continue
-		} else {
-			logger.AmfLog.Debug("Set read buffer", zap.Any("size", readBufSize))
+		if err := conn.Close(); err != nil {
+			logger.AmfLog.Error("close error", zap.Error(err))
 		}
 
-		if err := newConn.SetReadTimeout(readTimeout); err != nil {
-			logger.AmfLog.Error("Set read timeout error", zap.Error(err))
+		return
+	}
 
-			if err = newConn.Close(); err != nil {
-				logger.AmfLog.Error("Close error", zap.Error(err))
-			}
+	if err := conn.SetReadBuffer(int(readBufSize)); err != nil {
+		logger.AmfLog.Error("Set read buffer error", zap.Error(err))
 
-			continue
-		} else {
-			logger.AmfLog.Debug("Set read timeout", zap.Any("timeout", readTimeout))
+		if err := conn.Close(); err != nil {
+			logger.AmfLog.Error("close error", zap.Error(err))
 		}
 
-		remoteAddress := newConn.RemoteAddr()
-		if remoteAddress == nil {
-			logger.AmfLog.Error("Remote address is nil")
+		return
+	}
 
-			if err = newConn.Close(); err != nil {
-				logger.AmfLog.Error("Close error", zap.Error(err))
-			}
+	remoteAddr := conn.RemoteAddr()
+	if remoteAddr == nil {
+		logger.AmfLog.Error("Remote address is nil")
 
-			continue
+		if err := conn.Close(); err != nil {
+			logger.AmfLog.Error("close error", zap.Error(err))
 		}
 
-		logger.AmfLog.Info("New SCTP connection", zap.String("remote_address", remoteAddress.String()))
-		connections.Store(newConn, newConn)
+		return
+	}
 
-		wg.Add(1)
+	if err := listener.AddConnToEpoll(conn.Fd()); err != nil {
+		logger.AmfLog.Error("Failed to add connection to epoll", zap.Error(err))
 
-		go handleConnection(ctx, newConn, readBufSize)
+		if err := conn.Close(); err != nil {
+			logger.AmfLog.Error("close error", zap.Error(err))
+		}
+
+		return
+	}
+
+	connections.Store(conn.Fd(), conn)
+	logger.AmfLog.Info("New SCTP connection", zap.String("remote_address", remoteAddr.String()))
+}
+
+// readAndDispatch reads one message from conn using the shared buf.
+// Returns true if the connection should be closed.
+func readAndDispatch(ctx context.Context, conn *sctp.SCTPConn, buf []byte) bool {
+	n, info, notification, err := conn.SCTPRead(buf)
+	if err != nil {
+		switch err {
+		case io.EOF, io.ErrUnexpectedEOF:
+			return true
+		case syscall.EAGAIN, syscall.EINTR:
+			return false
+		case syscall.EINVAL, syscall.EBADF:
+			return true
+		default:
+			logger.AmfLog.Error("SCTPRead error", zap.Error(err))
+			return true
+		}
+	}
+
+	if notification != nil {
+		ngap.HandleSCTPNotification(conn, notification)
+		return false
+	}
+
+	if info == nil || networkToNativeEndianness32(info.PPID) != sctp.NGAPPPID {
+		logger.AmfLog.Warn("Received SCTP PPID != 60, discard this packet")
+		return false
+	}
+
+	// Copy before dispatching: buf is shared across all connections.
+	msg := make([]byte, n)
+	copy(msg, buf[:n])
+
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		ngap.Dispatch(ctx, conn, msg)
+	}()
+
+	return false
+}
+
+func closeConn(listener *sctp.SCTPListener, conn *sctp.SCTPConn) {
+	fd := conn.Fd()
+	_ = listener.RemoveConnFromEpoll(fd) // epfd may already be closed during Stop()
+	connections.Delete(fd)
+
+	if err := conn.Close(); err != nil && err != syscall.EBADF {
+		logger.AmfLog.Error("close connection error", zap.Error(err))
 	}
 }
 
@@ -156,7 +239,7 @@ func Stop() {
 
 	connections.Range(func(key, value any) bool {
 		conn := value.(*sctp.SCTPConn)
-		if err := conn.Close(); err != nil {
+		if err := conn.Close(); err != nil && err != syscall.EBADF {
 			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
 
@@ -167,54 +250,7 @@ func Stop() {
 	logger.AmfLog.Info("SCTP server closed")
 }
 
-func handleConnection(ctx context.Context, conn *sctp.SCTPConn, bufsize uint32) {
-	defer wg.Done()
-	defer func() {
-		// if AMF call Stop(), then conn.Close() will return EBADF because conn has been closed inside Stop()
-		if err := conn.Close(); err != nil && err != syscall.EBADF {
-			logger.AmfLog.Error("close connection error", zap.Error(err))
-		}
-
-		connections.Delete(conn)
-	}()
-
-	for {
-		buf := make([]byte, bufsize)
-
-		n, info, notification, err := conn.SCTPRead(buf)
-		if err != nil {
-			switch err {
-			case io.EOF, io.ErrUnexpectedEOF:
-				return
-			case syscall.EAGAIN:
-				continue
-			case syscall.EINTR:
-				logger.AmfLog.Debug("SCTPRead", zap.Error(err))
-				continue
-			case syscall.EINVAL:
-				logger.AmfLog.Error("Couldn't handle remotely closed connection", zap.Error(err))
-				return
-			default:
-				logger.AmfLog.Error("Handle connection error", zap.Error(err))
-				return
-			}
-		}
-
-		if notification != nil {
-			ngap.HandleSCTPNotification(conn, notification)
-		} else {
-			if info == nil || networkToNativeEndianness32(info.PPID) != sctp.NGAPPPID {
-				logger.AmfLog.Warn("Received SCTP PPID != 60, discard this packet")
-				continue
-			}
-
-			ngap.Dispatch(ctx, conn, buf[:n])
-		}
-	}
-}
-
-// Takes a uint32 in Network Byte Order and returns
-// in in Native Byte Order
+// networkToNativeEndianness32 converts a uint32 from network byte order to native byte order.
 func networkToNativeEndianness32(value uint32) uint32 {
 	var b [4]byte
 	binary.BigEndian.PutUint32(b[:], value)
