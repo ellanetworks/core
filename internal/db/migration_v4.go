@@ -20,7 +20,7 @@ func migrateV4(ctx context.Context, tx *sql.Tx) error {
 	}
 
 	_, err = tx.ExecContext(ctx,
-		fmt.Sprintf("ALTER TABLE %s ADD COLUMN spnShort TEXT NOT NULL DEFAULT 'Ella Core'", OperatorTableName))
+		fmt.Sprintf("ALTER TABLE %s ADD COLUMN spnShort TEXT NOT NULL DEFAULT 'Ella'", OperatorTableName))
 	if err != nil {
 		return fmt.Errorf("failed to add spnShort column: %w", err)
 	}

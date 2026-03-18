@@ -16,6 +16,7 @@ export interface OperatorData {
     ciphering: string[];
     integrity: string[];
   };
+  spn: { spnFull: string; spnShort: string };
 }
 
 export const getOperator = async (authToken: string): Promise<OperatorData> => {
@@ -113,5 +114,17 @@ export const updateOperatorNASSecurity = async (
     method: "PUT",
     authToken,
     body: { ciphering, integrity },
+  });
+};
+
+export const updateOperatorSPN = async (
+  authToken: string,
+  spnFull: string,
+  spnShort: string,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/operator/spn`, {
+    method: "PUT",
+    authToken,
+    body: { spnFull, spnShort },
   });
 };

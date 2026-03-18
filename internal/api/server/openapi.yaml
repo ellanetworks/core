@@ -62,7 +62,7 @@ tags:
   - name: Policies
     description: Define QoS policies (bitrate limits, 5QI, ARP) assigned to subscribers.
   - name: Operator
-    description: Configure the mobile network operator identity, slice, tracking areas, and cryptographic keys.
+    description: Configure the mobile network operator identity, slice, tracking areas, cryptographic keys, and network name (SPN).
   - name: Data Networks
     description: Manage data networks (DNNs/APNs) that subscribers connect through.
   - name: Routes
@@ -860,7 +860,7 @@ paths:
       operationId: getOperator
       tags: [Operator]
       summary: Get operator configuration
-      description: Returns the full operator configuration including PLMN ID (MCC/MNC), network slice (SST/SD), tracking area codes, and home network public key.
+      description: Returns the full operator configuration including PLMN ID (MCC/MNC), network slice (SST/SD), tracking area codes, home network public keys, NAS security algorithms, and the Service Provider Name (SPN).
       responses:
         "200":
           description: Operator configuration.
@@ -1098,6 +1098,29 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/UpdateOperatorNASSecurityParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/operator/spn:
+    put:
+      operationId: updateOperatorSPN
+      tags: [Operator]
+      summary: Update Service Provider Name (SPN)
+      description: |
+        Sets the full and short network names (Service Provider Name) displayed on
+        connected devices. Both names are encoded in GSM 7-bit alphabet in the NAS
+        Configuration Update Command. Changes take effect for the next UE registration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOperatorSPNParams"
       responses:
         "201":
           $ref: "#/components/responses/Success"
@@ -2577,6 +2600,8 @@ components:
             $ref: "#/components/schemas/HomeNetworkKeyResponse"
         nasSecurity:
           $ref: "#/components/schemas/OperatorNASSecurity"
+        spn:
+          $ref: "#/components/schemas/OperatorSPN"
 
     OperatorResponseEnvelope:
       type: object
@@ -2728,6 +2753,31 @@ components:
             type: string
             enum: [NIA0, NIA1, NIA2]
           description: "Current integrity algorithm preference order."
+
+    OperatorSPN:
+      type: object
+      properties:
+        spnFull:
+          type: string
+          description: "Full network name shown on UE displays."
+        spnShort:
+          type: string
+          description: "Abbreviated network name shown on UE displays."
+
+    UpdateOperatorSPNParams:
+      type: object
+      required: [spnFull, spnShort]
+      properties:
+        spnFull:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: "Full network name. Must be printable ASCII (GSM 7-bit compatible)."
+        spnShort:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: "Abbreviated network name. Must be printable ASCII (GSM 7-bit compatible)."
 
     # ── Data Networks ───────────────────────────────────────────────────
     DataNetworkStatus:
