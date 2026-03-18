@@ -32,8 +32,8 @@ jobs:
   clang-tidy:
     uses: ./.github/workflows/clang-tidy.yaml
   image-build:
-    needs: [go-unit-test, go-vet, go-lint, clang-format, clang-tidy]
+    needs: [go-unit-test, go-vet, go-lint]
     uses: ./.github/workflows/image-build.yaml
   integration-tests:
-    needs: [go-unit-test, go-vet, go-lint, image-build]
+    needs: [image-build]
     uses: ./.github/workflows/integration-tests.yaml
