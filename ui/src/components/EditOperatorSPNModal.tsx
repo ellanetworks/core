@@ -20,22 +20,22 @@ interface EditOperatorSPNModalProps {
   onClose: () => void;
   onSuccess: () => void;
   initialData: {
-    spnFull: string;
-    spnShort: string;
+    fullName: string;
+    shortName: string;
   };
 }
 
 const MAX_SPN_LENGTH = 50;
 
 const schema = yup.object({
-  spnFull: yup
+  fullName: yup
     .string()
     .required("Full name is required")
     .max(
       MAX_SPN_LENGTH,
       `Full name must be at most ${MAX_SPN_LENGTH} characters`,
     ),
-  spnShort: yup
+  shortName: yup
     .string()
     .required("Short name is required")
     .max(
@@ -60,8 +60,8 @@ const EditOperatorSPNModal: React.FC<EditOperatorSPNModalProps> = ({
   }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState({
-    spnFull: initialData.spnFull,
-    spnShort: initialData.spnShort,
+    fullName: initialData.fullName,
+    shortName: initialData.shortName,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -73,8 +73,8 @@ const EditOperatorSPNModal: React.FC<EditOperatorSPNModalProps> = ({
   useEffect(() => {
     if (open) {
       setFormValues({
-        spnFull: initialData.spnFull,
-        spnShort: initialData.spnShort,
+        fullName: initialData.fullName,
+        shortName: initialData.shortName,
       });
       setErrors({});
       setTouched({});
@@ -82,7 +82,7 @@ const EditOperatorSPNModal: React.FC<EditOperatorSPNModalProps> = ({
     }
   }, [open, initialData]);
 
-  const handleChange = (field: "spnFull" | "spnShort", value: string) => {
+  const handleChange = (field: "fullName" | "shortName", value: string) => {
     setFormValues((prev) => ({
       ...prev,
       [field]: value,
@@ -131,8 +131,8 @@ const EditOperatorSPNModal: React.FC<EditOperatorSPNModalProps> = ({
     try {
       await updateOperatorSPN(
         accessToken,
-        formValues.spnFull.trim(),
-        formValues.spnShort.trim(),
+        formValues.fullName.trim(),
+        formValues.shortName.trim(),
       );
       onClose();
       onSuccess();
@@ -177,12 +177,12 @@ const EditOperatorSPNModal: React.FC<EditOperatorSPNModalProps> = ({
         <TextField
           fullWidth
           label="Full Name"
-          value={formValues.spnFull}
-          onChange={(e) => handleChange("spnFull", e.target.value)}
-          onBlur={() => handleBlur("spnFull")}
-          error={touched.spnFull && !!errors.spnFull}
+          value={formValues.fullName}
+          onChange={(e) => handleChange("fullName", e.target.value)}
+          onBlur={() => handleBlur("fullName")}
+          error={touched.fullName && !!errors.fullName}
           helperText={
-            (touched.spnFull && errors.spnFull) ||
+            (touched.fullName && errors.fullName) ||
             `The full network name shown on UE displays (max ${MAX_SPN_LENGTH} characters).`
           }
           margin="normal"
@@ -193,12 +193,12 @@ const EditOperatorSPNModal: React.FC<EditOperatorSPNModalProps> = ({
         <TextField
           fullWidth
           label="Short Name"
-          value={formValues.spnShort}
-          onChange={(e) => handleChange("spnShort", e.target.value)}
-          onBlur={() => handleBlur("spnShort")}
-          error={touched.spnShort && !!errors.spnShort}
+          value={formValues.shortName}
+          onChange={(e) => handleChange("shortName", e.target.value)}
+          onBlur={() => handleBlur("shortName")}
+          error={touched.shortName && !!errors.shortName}
           helperText={
-            (touched.spnShort && errors.spnShort) ||
+            (touched.shortName && errors.shortName) ||
             `An abbreviated network name (max ${MAX_SPN_LENGTH} characters).`
           }
           margin="normal"

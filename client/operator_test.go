@@ -496,8 +496,8 @@ func TestUpdateOperatorSPN_Success(t *testing.T) {
 	}
 
 	opts := &client.UpdateOperatorSPNOptions{
-		SpnFull:  "My Network",
-		SpnShort: "MyNet",
+		FullName:  "Ella Networks",
+		ShortName: "Ella",
 	}
 
 	ctx := context.Background()
@@ -525,7 +525,7 @@ func TestUpdateOperatorSPN_Failure(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 400,
 			Headers:    http.Header{},
-			Result:     []byte(`{"error": "spnFull is required and must not be empty"}`),
+			Result:     []byte(`{"error": "fullName is required and must not be empty"}`),
 		},
 		err: errors.New("requester error"),
 	}
@@ -534,8 +534,8 @@ func TestUpdateOperatorSPN_Failure(t *testing.T) {
 	}
 
 	opts := &client.UpdateOperatorSPNOptions{
-		SpnFull:  "",
-		SpnShort: "MyNet",
+		FullName:  "",
+		ShortName: "Ella",
 	}
 
 	ctx := context.Background()

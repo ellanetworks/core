@@ -51,8 +51,8 @@ None
             "integrity": ["NIA2", "NIA1", "NIA0"]
         },
         "spn": {
-            "spnFull": "Ella Core",
-            "spnShort": "Ella"
+            "fullName": "Ella Networks",
+            "shortName": "Ella"
         }
     }
 }
@@ -258,15 +258,15 @@ This path updates the network name (Service Provider Name) displayed on connecte
 
 ### Parameters
 
-- `spnFull` (string): The full network name shown on UE displays. Must be between 1 and 50 characters.
-- `spnShort` (string): An abbreviated network name. Must be between 1 and 50 characters.
+- `fullName` (string): The full network name shown on UE displays. Must be between 1 and 50 characters.
+- `shortName` (string): An abbreviated network name. Must be between 1 and 50 characters.
 
 ### Sample Request
 
 ```json
 {
-    "spnFull": "Ella Core",
-    "spnShort": "Ella"
+    "fullName": "Ella Networks",
+    "shortName": "Ella"
 }
 ```
 

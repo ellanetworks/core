@@ -345,7 +345,7 @@ const Operator = () => {
                             Full
                           </TableCell>
                           <TableCell sx={{ pl: 0 }}>
-                            {operator.spn?.spnFull || "N/A"}
+                            {operator.spn?.fullName || "N/A"}
                           </TableCell>
                         </TableRow>
                         <TableRow
@@ -357,7 +357,7 @@ const Operator = () => {
                             Short
                           </TableCell>
                           <TableCell sx={{ pl: 0 }}>
-                            {operator.spn?.spnShort || "N/A"}
+                            {operator.spn?.shortName || "N/A"}
                           </TableCell>
                         </TableRow>
                       </TableBody>
@@ -961,8 +961,8 @@ const Operator = () => {
           onClose={handleEditOperatorSPNModalClose}
           onSuccess={handleEditOperatorSPNSuccess}
           initialData={{
-            spnFull: operator?.spn?.spnFull ?? "Ella Core",
-            spnShort: operator?.spn?.spnShort ?? "Ella",
+            fullName: operator?.spn?.fullName ?? "Ella Networks",
+            shortName: operator?.spn?.shortName ?? "Ella",
           }}
         />
       )}

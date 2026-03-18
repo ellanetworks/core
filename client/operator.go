@@ -77,8 +77,8 @@ type UpdateOperatorNASSecurityOptions struct {
 }
 
 type UpdateOperatorSPNOptions struct {
-	SpnFull  string
-	SpnShort string
+	FullName  string
+	ShortName string
 }
 
 // GetOperator retrieves the current operator configuration.
@@ -290,11 +290,11 @@ func (c *Client) UpdateOperatorNASSecurity(ctx context.Context, opts *UpdateOper
 // UpdateOperatorSPN updates the operator's Service Provider Name (full and short).
 func (c *Client) UpdateOperatorSPN(ctx context.Context, opts *UpdateOperatorSPNOptions) error {
 	payload := struct {
-		SpnFull  string `json:"spnFull"`
-		SpnShort string `json:"spnShort"`
+		FullName  string `json:"fullName"`
+		ShortName string `json:"shortName"`
 	}{
-		SpnFull:  opts.SpnFull,
-		SpnShort: opts.SpnShort,
+		FullName:  opts.FullName,
+		ShortName: opts.ShortName,
 	}
 
 	var body bytes.Buffer
