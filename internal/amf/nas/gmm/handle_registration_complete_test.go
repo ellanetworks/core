@@ -19,8 +19,8 @@ func newTestAMF() *context.AMF {
 	return &context.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
-				SpnFull:  "ELLACORE5G",
-				SpnShort: "ELLACORE",
+				SpnFullName:  "Ella Networks",
+				SpnShortName: "Ella",
 			},
 		},
 		UEs: make(map[etsi.SUPI]*context.AmfUe),

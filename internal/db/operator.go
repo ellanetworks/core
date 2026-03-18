@@ -28,7 +28,7 @@ const (
 	updateOperatorSliceStmt                   = "UPDATE %s SET sst=$Operator.sst, sd=$Operator.sd WHERE id=1"
 	updateOperatorTrackingStmt                = "UPDATE %s SET supportedTACs=$Operator.supportedTACs WHERE id=1"
 	updateOperatorSecurityAlgorithmsStmtConst = "UPDATE %s SET ciphering=$Operator.ciphering, integrity=$Operator.integrity WHERE id=1"
-	updateOperatorSPNStmtConst                = "UPDATE %s SET spnFull=$Operator.spnFull, spnShort=$Operator.spnShort WHERE id=1"
+	updateOperatorSPNStmtConst                = "UPDATE %s SET spnFullName=$Operator.spnFullName, spnShortName=$Operator.spnShortName WHERE id=1"
 	initializeOperatorStmt                    = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs, sst, sd) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs, $Operator.sst, $Operator.sd)"
 )
 
@@ -42,8 +42,8 @@ type Operator struct {
 	Sd            []byte `db:"sd"`
 	Ciphering     string `db:"ciphering"` // JSON-encoded list of algorithm names, e.g. '["NEA2","NEA1"]'
 	Integrity     string `db:"integrity"` // JSON-encoded list of algorithm names, e.g. '["NIA2","NIA1"]'
-	SpnFull       string `db:"spnFull"`
-	SpnShort      string `db:"spnShort"`
+	SpnFullName   string `db:"spnFullName"`
+	SpnShortName  string `db:"spnShortName"`
 }
 
 func (operator *Operator) GetSupportedTacs() ([]string, error) {
@@ -485,7 +485,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 }
 
 // UpdateOperatorSPN updates the Service Provider Name (full and short).
-func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFull, spnShort string) error {
+func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShortName string) error {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", OperatorTableName),
@@ -503,7 +503,7 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFull, spnShort str
 
 	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
-	op := Operator{SpnFull: spnFull, SpnShort: spnShort}
+	op := Operator{SpnFullName: spnFullName, SpnShortName: spnShortName}
 
 	err := db.conn.Query(ctx, db.updateOperatorSPNStmt, op).Run()
 	if err != nil {

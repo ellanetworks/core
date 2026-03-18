@@ -2757,23 +2757,23 @@ components:
     OperatorSPN:
       type: object
       properties:
-        spnFull:
+        fullName:
           type: string
           description: "Full network name shown on UE displays."
-        spnShort:
+        shortName:
           type: string
           description: "Abbreviated network name shown on UE displays."
 
     UpdateOperatorSPNParams:
       type: object
-      required: [spnFull, spnShort]
+      required: [fullName, shortName]
       properties:
-        spnFull:
+        fullName:
           type: string
           minLength: 1
           maxLength: 50
           description: "Full network name. Must be printable ASCII (GSM 7-bit compatible)."
-        spnShort:
+        shortName:
           type: string
           minLength: 1
           maxLength: 50

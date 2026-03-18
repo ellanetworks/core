@@ -41,8 +41,8 @@ type UpdateOperatorNASSecurityParams struct {
 }
 
 type UpdateOperatorSPNParams struct {
-	SpnFull  string `json:"spnFull"`
-	SpnShort string `json:"spnShort"`
+	FullName  string `json:"fullName"`
+	ShortName string `json:"shortName"`
 }
 
 type GetOperatorTrackingResponse struct {
@@ -50,8 +50,8 @@ type GetOperatorTrackingResponse struct {
 }
 
 type GetOperatorSPNResponse struct {
-	SpnFull  string `json:"spnFull"`
-	SpnShort string `json:"spnShort"`
+	FullName  string `json:"fullName"`
+	ShortName string `json:"shortName"`
 }
 
 type GetOperatorResponse struct {
@@ -260,8 +260,8 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 				Integrity: integrityOrder,
 			},
 			SPN: GetOperatorSPNResponse{
-				SpnFull:  dbOperator.SpnFull,
-				SpnShort: dbOperator.SpnShort,
+				FullName:  dbOperator.SpnFullName,
+				ShortName: dbOperator.SpnShortName,
 			},
 		}
 
@@ -672,27 +672,27 @@ func UpdateOperatorSPN(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if params.SpnFull == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "spnFull is required and must not be empty", nil, logger.APILog)
+		if params.FullName == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "fullName is required and must not be empty", nil, logger.APILog)
 			return
 		}
 
-		if params.SpnShort == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "spnShort is required and must not be empty", nil, logger.APILog)
+		if params.ShortName == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "shortName is required and must not be empty", nil, logger.APILog)
 			return
 		}
 
-		if len(params.SpnFull) > maxSPNLength {
-			writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("spnFull must be at most %d characters", maxSPNLength), nil, logger.APILog)
+		if len(params.FullName) > maxSPNLength {
+			writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("fullName must be at most %d characters", maxSPNLength), nil, logger.APILog)
 			return
 		}
 
-		if len(params.SpnShort) > maxSPNLength {
-			writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("spnShort must be at most %d characters", maxSPNLength), nil, logger.APILog)
+		if len(params.ShortName) > maxSPNLength {
+			writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("shortName must be at most %d characters", maxSPNLength), nil, logger.APILog)
 			return
 		}
 
-		if err := dbInstance.UpdateOperatorSPN(r.Context(), params.SpnFull, params.SpnShort); err != nil {
+		if err := dbInstance.UpdateOperatorSPN(r.Context(), params.FullName, params.ShortName); err != nil {
 			logger.APILog.Warn("Failed to update operator SPN", zap.Error(err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator SPN", err, logger.APILog)
 
