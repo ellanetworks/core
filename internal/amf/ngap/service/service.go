@@ -25,8 +25,51 @@ const readBufSize uint32 = 131072
 
 var (
 	sctpListener *sctp.SCTPListener
-	connections  sync.Map // key: int (fd), value: *sctp.SCTPConn
+	connections  sync.Map // key: int (fd), value: *connWorker
+	wg           sync.WaitGroup
 )
+
+// connWorker serialises NGAP dispatch for one SCTP connection, matching the
+// behaviour of the previous goroutine-per-connection model: different gNB
+// connections dispatch concurrently; messages on the same connection are
+// processed in order.
+type connWorker struct {
+	conn  *sctp.SCTPConn
+	msgCh chan connMsg
+}
+
+type connMsg struct {
+	ctx  context.Context
+	data []byte
+}
+
+func newConnWorker(conn *sctp.SCTPConn) *connWorker {
+	w := &connWorker{
+		conn:  conn,
+		msgCh: make(chan connMsg, 256),
+	}
+
+	wg.Add(1)
+
+	go w.run()
+
+	return w
+}
+
+func (w *connWorker) run() {
+	defer wg.Done()
+
+	for msg := range w.msgCh {
+		ngap.Dispatch(msg.ctx, w.conn, msg.data)
+	}
+}
+
+func (w *connWorker) enqueue(ctx context.Context, data []byte) {
+	msg := make([]byte, len(data))
+	copy(msg, data)
+
+	w.msgCh <- connMsg{ctx: ctx, data: msg}
+}
 
 var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 	InitMsg:   sctp.InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
@@ -61,10 +104,8 @@ func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
 
 	logger.AmfLog.Info("NGAP server started", zap.String("address", addr.String()))
 
-	// buf is reused across iterations because this loop is the only goroutine
-	// that calls readAndDispatch; dispatched NGAP messages are copied into their
-	// own slices before being handed to worker goroutines. Do not add concurrent
-	// readers without giving each its own buffer.
+	// buf is reused across iterations; the reactor is the only reader and copies
+	// data into fresh slices before enqueuing to worker goroutines.
 	buf := make([]byte, readBufSize)
 	events := make([]syscall.EpollEvent, 32)
 
@@ -101,22 +142,22 @@ func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
 				continue
 			}
 
-			conn := val.(*sctp.SCTPConn)
+			worker := val.(*connWorker)
 
 			// On hangup, try to drain any last message before closing.
 			if events[i].Events&(syscall.EPOLLRDHUP|syscall.EPOLLHUP|syscall.EPOLLERR) != 0 {
 				if events[i].Events&syscall.EPOLLIN != 0 {
-					readAndDispatch(ctx, conn, buf)
+					readAndEnqueue(ctx, worker, buf)
 				}
 
-				closeConn(listener, conn)
+				closeConn(listener, worker)
 
 				continue
 			}
 
 			if events[i].Events&syscall.EPOLLIN != 0 {
-				if closed := readAndDispatch(ctx, conn, buf); closed {
-					closeConn(listener, conn)
+				if closed := readAndEnqueue(ctx, worker, buf); closed {
+					closeConn(listener, worker)
 				}
 			}
 		}
@@ -176,14 +217,15 @@ func accept(_ context.Context, listener *sctp.SCTPListener) {
 		return
 	}
 
-	connections.Store(conn.Fd(), conn)
+	worker := newConnWorker(conn)
+	connections.Store(conn.Fd(), worker)
 	logger.AmfLog.Info("New SCTP connection", zap.String("remote_address", remoteAddr.String()))
 }
 
-// readAndDispatch reads one message from the connection and dispatches it in a new goroutine.
+// readAndEnqueue reads one message from the connection and enqueues it for dispatch.
 // Returns true if the connection should be closed.
-func readAndDispatch(ctx context.Context, conn *sctp.SCTPConn, buf []byte) bool {
-	n, info, notification, err := conn.SCTPRead(buf)
+func readAndEnqueue(ctx context.Context, worker *connWorker, buf []byte) bool {
+	n, info, notification, err := worker.conn.SCTPRead(buf)
 	if err != nil {
 		switch err {
 		case io.EOF, io.ErrUnexpectedEOF:
@@ -199,7 +241,7 @@ func readAndDispatch(ctx context.Context, conn *sctp.SCTPConn, buf []byte) bool 
 	}
 
 	if notification != nil {
-		ngap.HandleSCTPNotification(conn, notification)
+		ngap.HandleSCTPNotification(worker.conn, notification)
 		return false
 	}
 
@@ -208,20 +250,18 @@ func readAndDispatch(ctx context.Context, conn *sctp.SCTPConn, buf []byte) bool 
 		return false
 	}
 
-	msg := make([]byte, n)
-	copy(msg, buf[:n])
-
-	ngap.Dispatch(ctx, conn, msg)
+	worker.enqueue(ctx, buf[:n])
 
 	return false
 }
 
-func closeConn(listener *sctp.SCTPListener, conn *sctp.SCTPConn) {
-	fd := conn.Fd()
+func closeConn(listener *sctp.SCTPListener, worker *connWorker) {
+	fd := worker.conn.Fd()
 	_ = listener.RemoveConnFromEpoll(fd) // epfd may already be closed during Stop()
 	connections.Delete(fd)
+	close(worker.msgCh)
 
-	if err := conn.Close(); err != nil && err != syscall.EBADF {
+	if err := worker.conn.Close(); err != nil && err != syscall.EBADF {
 		logger.AmfLog.Error("close connection error", zap.Error(err))
 	}
 }
@@ -232,15 +272,17 @@ func Stop() {
 	}
 
 	connections.Range(func(key, value any) bool {
-		conn := value.(*sctp.SCTPConn)
+		worker := value.(*connWorker)
+		close(worker.msgCh)
 
-		if err := conn.Close(); err != nil && err != syscall.EBADF {
+		if err := worker.conn.Close(); err != nil && err != syscall.EBADF {
 			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
 
 		return true
 	})
 
+	wg.Wait()
 	logger.AmfLog.Info("SCTP server closed")
 }
 
