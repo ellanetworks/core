@@ -22,7 +22,7 @@ jobs:
         run: sudo snap install rockcraft --classic --channel stable
 
       - name: Build rock (destructive mode)
-        run: rockcraft pack --destructive-mode
+        run: sudo rockcraft pack --destructive-mode
 
       - name: Save container image to file
         run: |
