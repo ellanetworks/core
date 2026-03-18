@@ -1,0 +1,27 @@
+name: UI Typecheck
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  ui-typecheck:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: use npm
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: |
+          npm install --prefix ui
+
+      - name: Run typecheck
+        run: |
+          npm run typecheck --prefix ui

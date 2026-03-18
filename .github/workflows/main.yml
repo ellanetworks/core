@@ -15,6 +15,8 @@ on:
 jobs:
   ui-lint:
     uses: ./.github/workflows/ui-lint.yaml
+  ui-typecheck:
+    uses: ./.github/workflows/ui-typecheck.yaml
   go-unit-test:
     uses: ./.github/workflows/go-unittest.yaml
   go-race-detection-test:
