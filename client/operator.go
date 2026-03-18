@@ -43,12 +43,18 @@ type CreateHomeNetworkKeyOptions struct {
 	PrivateKey    string
 }
 
+type GetOperatorSPNResponse struct {
+	SpnFull  string `json:"spnFull"`
+	SpnShort string `json:"spnShort"`
+}
+
 type Operator struct {
 	ID              GetOperatorIDResponse          `json:"id,omitempty"`
 	Slice           GetOperatorSliceResponse       `json:"slice,omitempty"`
 	Tracking        GetOperatorTrackingResponse    `json:"tracking,omitempty"`
 	HomeNetworkKeys []HomeNetworkKeyResponse       `json:"homeNetworkKeys,omitempty"`
 	NASSecurity     GetOperatorNASSecurityResponse `json:"nasSecurity,omitempty"`
+	SPN             GetOperatorSPNResponse         `json:"spn,omitempty"`
 }
 
 type UpdateOperatorIDOptions struct {
@@ -68,6 +74,11 @@ type UpdateOperatorTrackingOptions struct {
 type UpdateOperatorNASSecurityOptions struct {
 	Ciphering []string
 	Integrity []string
+}
+
+type UpdateOperatorSPNOptions struct {
+	FullName  string
+	ShortName string
 }
 
 // GetOperator retrieves the current operator configuration.
@@ -267,6 +278,36 @@ func (c *Client) UpdateOperatorNASSecurity(ctx context.Context, opts *UpdateOper
 		Type:   SyncRequest,
 		Method: "PUT",
 		Path:   "api/v1/operator/nas-security",
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateOperatorSPN updates the operator's Service Provider Name (full and short).
+func (c *Client) UpdateOperatorSPN(ctx context.Context, opts *UpdateOperatorSPNOptions) error {
+	payload := struct {
+		FullName  string `json:"fullName"`
+		ShortName string `json:"shortName"`
+	}{
+		FullName:  opts.FullName,
+		ShortName: opts.ShortName,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/operator/spn",
 		Body:   &body,
 	})
 	if err != nil {

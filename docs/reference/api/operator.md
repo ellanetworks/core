@@ -1,10 +1,10 @@
 ---
-description: RESTful API reference for managing the Operator Information - ID, Slice, Tracking, Code, and Security Algorithms.
+description: RESTful API reference for managing the Operator Information - ID, Slice, Tracking, Code, Security Algorithms, and Network Name (SPN).
 ---
 
 # Operator
 
-The Operator API provides endpoints to manage the Operator Information used to identify the operator - Operator ID (MCC, MNC), Slice Information (SST, SD), Tracking Information, Operator Code (OP), and NAS Security Algorithms.
+The Operator API provides endpoints to manage the Operator Information used to identify the operator - Operator ID (MCC, MNC), Slice Information (SST, SD), Tracking Information, Operator Code (OP), NAS Security Algorithms, and the Service Provider Name (SPN).
 
 ## Get Operator Information
 
@@ -49,6 +49,10 @@ None
         "nasSecurity": {
             "ciphering": ["NEA2", "NEA1", "NEA0"],
             "integrity": ["NIA2", "NIA1", "NIA0"]
+        },
+        "spn": {
+            "fullName": "Ella Networks",
+            "shortName": "Ella"
         }
     }
 }
@@ -240,6 +244,38 @@ This path updates the NAS security algorithm preference order for ciphering and 
 {
     "result": {
         "message": "Operator NAS security algorithms updated successfully"
+    }
+}
+```
+
+## Update the Service Provider Name (SPN)
+
+This path updates the network name (Service Provider Name) displayed on connected devices. Both the full and short names are encoded in the GSM 7-bit alphabet and sent to UEs in the NAS Configuration Update Command. Changes take effect for the next UE registration.
+
+| Method | Path                    |
+| ------ | ----------------------- |
+| PUT    | `/api/v1/operator/spn`  |
+
+### Parameters
+
+- `fullName` (string): The full network name shown on UE displays. Must be between 1 and 50 characters.
+- `shortName` (string): An abbreviated network name. Must be between 1 and 50 characters.
+
+### Sample Request
+
+```json
+{
+    "fullName": "Ella Networks",
+    "shortName": "Ella"
+}
+```
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Operator SPN updated successfully"
     }
 }
 ```

@@ -32,10 +32,6 @@ func Start(ctx context.Context, dbInstance *db.Database, n2Address string, n2Por
 		Mcsi:    0,
 		Mpsi:    0,
 	}
-	self.NetworkName = amfContext.NetworkName{
-		Full:  "ELLACORE5G",
-		Short: "ELLACORE",
-	}
 	self.TimeZone = nasConvert.GetTimeZone(time.Now())
 	self.T3502Value = 720 * time.Second
 	self.T3512Value = 3600 * time.Second

@@ -38,6 +38,7 @@ import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
 import CreateHomeNetworkKeyModal from "@/components/CreateHomeNetworkKeyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditOperatorNASSecurityModal from "@/components/EditOperatorNASSecurityModal";
+import EditOperatorSPNModal from "@/components/EditOperatorSPNModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
@@ -93,6 +94,8 @@ const Operator = () => {
     isEditOperatorNASSecurityModalOpen,
     setEditOperatorNASSecurityModalOpen,
   ] = useState(false);
+  const [isEditOperatorSPNModalOpen, setEditOperatorSPNModalOpen] =
+    useState(false);
   const [visiblePrivateKeys, setVisiblePrivateKeys] = useState<
     Record<number, string>
   >({});
@@ -117,7 +120,8 @@ const Operator = () => {
     isEditOperatorSliceModalOpen ||
     isCreateHomeNetworkKeyModalOpen ||
     isDeleteKeyConfirmOpen ||
-    isEditOperatorNASSecurityModalOpen;
+    isEditOperatorNASSecurityModalOpen ||
+    isEditOperatorSPNModalOpen;
 
   const queryClient = useQueryClient();
   const operatorQuery = useQuery<OperatorData>({
@@ -141,6 +145,7 @@ const Operator = () => {
     setEditOperatorSliceModalOpen(true);
   const handleEditOperatorNASSecurityClick = () =>
     setEditOperatorNASSecurityModalOpen(true);
+  const handleEditOperatorSPNClick = () => setEditOperatorSPNModalOpen(true);
 
   const handleEditOperatorIdModalClose = () =>
     setEditOperatorIdModalOpen(false);
@@ -152,6 +157,8 @@ const Operator = () => {
     setEditOperatorSliceModalOpen(false);
   const handleEditOperatorNASSecurityModalClose = () =>
     setEditOperatorNASSecurityModalOpen(false);
+  const handleEditOperatorSPNModalClose = () =>
+    setEditOperatorSPNModalOpen(false);
 
   const handleEditOperatorIdSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
@@ -198,6 +205,10 @@ const Operator = () => {
   const handleEditOperatorNASSecuritySuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
     showSnackbar("NAS security algorithms updated successfully.", "success");
+  };
+  const handleEditOperatorSPNSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["operator"] });
+    showSnackbar("Network name (SPN) updated successfully.", "success");
   };
 
   const handleCopyToClipboard = async (publicKey: string) => {
@@ -303,6 +314,65 @@ const Operator = () => {
                         size="small"
                         onClick={handleEditOperatorIdClick}
                         aria-label="Edit operator identity"
+                      >
+                        <EditIcon fontSize="small" color="primary" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell sx={settingCellSx}>
+                  <Tooltip
+                    title="Service Provider Name — the network name displayed on connected devices"
+                    arrow
+                  >
+                    <span>Network Name (SPN)</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell sx={valueCellSx}>
+                  {isLoading ? (
+                    <Skeleton variant="text" width={160} />
+                  ) : operator ? (
+                    <Table size="small" sx={{ m: -1 }}>
+                      <TableBody>
+                        <TableRow
+                          sx={{ "& td": { borderBottom: "none", py: 0.5 } }}
+                        >
+                          <TableCell
+                            sx={{ fontWeight: 600, width: "30%", pl: 0 }}
+                          >
+                            Full
+                          </TableCell>
+                          <TableCell sx={{ pl: 0 }}>
+                            {operator.spn?.fullName || "N/A"}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow
+                          sx={{ "& td": { borderBottom: "none", py: 0.5 } }}
+                        >
+                          <TableCell
+                            sx={{ fontWeight: 600, width: "30%", pl: 0 }}
+                          >
+                            Short
+                          </TableCell>
+                          <TableCell sx={{ pl: 0 }}>
+                            {operator.spn?.shortName || "N/A"}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    "N/A"
+                  )}
+                </TableCell>
+                <TableCell sx={actionCellSx}>
+                  {canEdit && (
+                    <Tooltip title="Edit network name (SPN)" arrow>
+                      <IconButton
+                        size="small"
+                        onClick={handleEditOperatorSPNClick}
+                        aria-label="Edit network name"
                       >
                         <EditIcon fontSize="small" color="primary" />
                       </IconButton>
@@ -882,6 +952,17 @@ const Operator = () => {
               "NIA1",
               "NIA0",
             ],
+          }}
+        />
+      )}
+      {isEditOperatorSPNModalOpen && (
+        <EditOperatorSPNModal
+          open
+          onClose={handleEditOperatorSPNModalClose}
+          onSuccess={handleEditOperatorSPNSuccess}
+          initialData={{
+            fullName: operator?.spn?.fullName ?? "Ella Networks",
+            shortName: operator?.spn?.shortName ?? "Ella",
           }}
         />
       )}

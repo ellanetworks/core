@@ -37,7 +37,7 @@ var PermissionsByRole = map[RoleID][]string{
 	RoleNetworkManager: {
 		PermReadUser, PermReadMyUser, PermUpdateMyUserPassword,
 		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
-		PermReadOperator, PermUpdateOperatorSlice, PermGetOperatorSlice, PermUpdateOperatorTracking, PermGetOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey,
+		PermReadOperator, PermUpdateOperatorSlice, PermGetOperatorSlice, PermUpdateOperatorTracking, PermGetOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN,
 		PermListDataNetworks, PermCreateDataNetwork, PermUpdateDataNetwork, PermReadDataNetwork, PermDeleteDataNetwork,
 		PermListSubscribers, PermCreateSubscriber, PermUpdateSubscriber, PermReadSubscriber, PermDeleteSubscriber, PermReadSubscriberCredentials,
 		PermListPolicies, PermCreatePolicy, PermUpdatePolicy, PermReadPolicy, PermDeletePolicy,
@@ -87,6 +87,7 @@ const (
 	PermUpdateOperatorHomeNetwork = "operator:update_home_network"
 	PermReadHomeNetworkPrivateKey = "operator:read_home_network_private_key"
 	PermUpdateOperatorNASSecurity = "operator:update_nas_security"
+	PermUpdateOperatorSPN         = "operator:update_spn"
 
 	// Deprecated: sub-resource GET permissions. Use operator:read instead.
 	// These will be removed in a future release.

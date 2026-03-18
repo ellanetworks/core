@@ -427,7 +427,7 @@ func SendRegistrationAccept(
 	return nil
 }
 
-func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, amfUe *amfContext.AmfUe) {
+func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, amfUe *amfContext.AmfUe, includeGUTI bool) {
 	if amfUe == nil {
 		return
 	}
@@ -445,7 +445,13 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 		return
 	}
 
-	nasMsg, err := BuildConfigurationUpdateCommand(amfUe)
+	operator, err := amf.DBInstance.GetOperator(ctx)
+	if err != nil {
+		amfUe.Log.Error("cannot SendConfigurationUpdateCommand: failed to get operator", zap.Error(err))
+		return
+	}
+
+	nasMsg, err := BuildConfigurationUpdateCommand(amfUe, operator.SpnFullName, operator.SpnShortName, includeGUTI)
 	if err != nil {
 		amfUe.Log.Error("error building ConfigurationUpdateCommand", zap.Error(err))
 		return

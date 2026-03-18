@@ -96,6 +96,7 @@ type Database struct {
 	updateOperatorIDStmt                 *sqlair.Statement
 	updateOperatorCodeStmt               *sqlair.Statement
 	updateOperatorSecurityAlgorithmsStmt *sqlair.Statement
+	updateOperatorSPNStmt                *sqlair.Statement
 
 	// Home Network Key statements
 	listHomeNetworkKeysStmt                    *sqlair.Statement
@@ -361,6 +362,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.updateOperatorIDStmt, fmt.Sprintf(updateOperatorIDStmt, OperatorTableName), []any{Operator{}}},
 		{&db.updateOperatorCodeStmt, fmt.Sprintf(updateOperatorCodeStmt, OperatorTableName), []any{Operator{}}},
 		{&db.updateOperatorSecurityAlgorithmsStmt, fmt.Sprintf(updateOperatorSecurityAlgorithmsStmtConst, OperatorTableName), []any{Operator{}}},
+		{&db.updateOperatorSPNStmt, fmt.Sprintf(updateOperatorSPNStmtConst, OperatorTableName), []any{Operator{}}},
 
 		// Home Network Keys
 		{&db.listHomeNetworkKeysStmt, fmt.Sprintf(listHomeNetworkKeysStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},

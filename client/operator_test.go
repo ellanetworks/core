@@ -481,3 +481,99 @@ func TestGetOperator_IncludesHomeNetworkKeys(t *testing.T) {
 		t.Fatalf("expected second key scheme B, got %s", operator.HomeNetworkKeys[1].Scheme)
 	}
 }
+
+func TestUpdateOperatorSPN_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 201,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Operator SPN updated successfully"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	opts := &client.UpdateOperatorSPNOptions{
+		FullName:  "Ella Networks",
+		ShortName: "Ella",
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorSPN(ctx, opts)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts == nil {
+		t.Fatal("expected request options to be captured")
+	}
+
+	if fake.lastOpts.Method != "PUT" {
+		t.Fatalf("expected method PUT, got %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/operator/spn" {
+		t.Fatalf("expected path api/v1/operator/spn, got %s", fake.lastOpts.Path)
+	}
+}
+
+func TestUpdateOperatorSPN_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 400,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "fullName is required and must not be empty"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	opts := &client.UpdateOperatorSPNOptions{
+		FullName:  "",
+		ShortName: "Ella",
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorSPN(ctx, opts)
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
+func TestGetOperator_IncludesSPN(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result: []byte(`{
+				"id": {"mcc": "001", "mnc": "01"},
+				"spn": {"spnFull": "My Network", "spnShort": "MyNet"}
+			}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	operator, err := clientObj.GetOperator(ctx)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if operator.SPN.SpnFull != "My Network" {
+		t.Fatalf("expected spnFull 'My Network', got '%s'", operator.SPN.SpnFull)
+	}
+
+	if operator.SPN.SpnShort != "MyNet" {
+		t.Fatalf("expected spnShort 'MyNet', got '%s'", operator.SPN.SpnShort)
+	}
+}
