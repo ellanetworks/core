@@ -29,16 +29,27 @@ export default defineConfig({
     rolldownOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes("react-router-dom") || (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/"))) {
+          if (
+            id.includes("react-router-dom") ||
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/react-dom/")
+          ) {
             return "vendor";
           }
-          if (id.includes("@mui/x-charts") || id.includes("@mui/x-date-pickers")) {
+          if (
+            id.includes("@mui/x-charts") ||
+            id.includes("@mui/x-date-pickers")
+          ) {
             return "mui-x-charts";
           }
           if (id.includes("@mui/x-data-grid")) {
             return "mui-x";
           }
-          if (id.includes("@mui/material") || id.includes("@mui/icons-material") || id.includes("@emotion/")) {
+          if (
+            id.includes("@mui/material") ||
+            id.includes("@mui/icons-material") ||
+            id.includes("@emotion/")
+          ) {
             return "mui";
           }
         },
