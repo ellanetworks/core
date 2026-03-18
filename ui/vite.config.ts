@@ -26,18 +26,21 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     chunkSizeWarningLimit: 700,
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        manualChunks: {
-          vendor: ["react", "react-dom", "react-router-dom"],
-          mui: [
-            "@mui/material",
-            "@mui/icons-material",
-            "@emotion/react",
-            "@emotion/styled",
-          ],
-          "mui-x": ["@mui/x-data-grid"],
-          "mui-x-charts": ["@mui/x-charts", "@mui/x-date-pickers"],
+        manualChunks(id) {
+          if (id.includes("react-router-dom") || (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/"))) {
+            return "vendor";
+          }
+          if (id.includes("@mui/x-charts") || id.includes("@mui/x-date-pickers")) {
+            return "mui-x-charts";
+          }
+          if (id.includes("@mui/x-data-grid")) {
+            return "mui-x";
+          }
+          if (id.includes("@mui/material") || id.includes("@mui/icons-material") || id.includes("@emotion/")) {
+            return "mui";
+          }
         },
       },
     },
