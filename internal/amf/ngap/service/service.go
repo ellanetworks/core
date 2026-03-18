@@ -26,6 +26,7 @@ const readBufSize uint32 = 131072
 var (
 	sctpListener *sctp.SCTPListener
 	connections  sync.Map // key: int (fd), value: *sctp.SCTPConn
+	wg           sync.WaitGroup
 )
 
 var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
@@ -61,8 +62,6 @@ func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
 
 	logger.AmfLog.Info("NGAP server started", zap.String("address", addr.String()))
 
-	// Single shared read buffer; safe because the reactor reads one message at a
-	// time and copies bytes into a fresh slice before handing off to a goroutine.
 	buf := make([]byte, readBufSize)
 	events := make([]syscall.EpollEvent, 32)
 
@@ -178,7 +177,7 @@ func accept(_ context.Context, listener *sctp.SCTPListener) {
 	logger.AmfLog.Info("New SCTP connection", zap.String("remote_address", remoteAddr.String()))
 }
 
-// readAndDispatch reads one message from conn using the shared buf.
+// readAndDispatch reads one message from the connection and dispatches it in a new goroutine.
 // Returns true if the connection should be closed.
 func readAndDispatch(ctx context.Context, conn *sctp.SCTPConn, buf []byte) bool {
 	n, info, notification, err := conn.SCTPRead(buf)
@@ -206,7 +205,16 @@ func readAndDispatch(ctx context.Context, conn *sctp.SCTPConn, buf []byte) bool 
 		return false
 	}
 
-	ngap.Dispatch(ctx, conn, buf[:n])
+	msg := make([]byte, n)
+	copy(msg, buf[:n])
+
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		ngap.Dispatch(ctx, conn, msg)
+	}()
 
 	return false
 }
@@ -228,6 +236,7 @@ func Stop() {
 
 	connections.Range(func(key, value any) bool {
 		conn := value.(*sctp.SCTPConn)
+
 		if err := conn.Close(); err != nil && err != syscall.EBADF {
 			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
@@ -235,6 +244,7 @@ func Stop() {
 		return true
 	})
 
+	wg.Wait()
 	logger.AmfLog.Info("SCTP server closed")
 }
 

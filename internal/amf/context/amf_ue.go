@@ -567,6 +567,9 @@ func (ue *AmfUe) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 		return nil, fmt.Errorf("nas message is nil")
 	}
 
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
 	// Plain NAS message
 	if !ue.SecurityContextAvailable {
 		return msg.PlainNasEncode()
