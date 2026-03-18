@@ -26,7 +26,6 @@ const readBufSize uint32 = 131072
 var (
 	sctpListener *sctp.SCTPListener
 	connections  sync.Map // key: int (fd), value: *sctp.SCTPConn
-	wg           sync.WaitGroup
 )
 
 var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
@@ -207,17 +206,7 @@ func readAndDispatch(ctx context.Context, conn *sctp.SCTPConn, buf []byte) bool 
 		return false
 	}
 
-	// Copy before dispatching: buf is shared across all connections.
-	msg := make([]byte, n)
-	copy(msg, buf[:n])
-
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-
-		ngap.Dispatch(ctx, conn, msg)
-	}()
+	ngap.Dispatch(ctx, conn, buf[:n])
 
 	return false
 }
@@ -246,7 +235,6 @@ func Stop() {
 		return true
 	})
 
-	wg.Wait()
 	logger.AmfLog.Info("SCTP server closed")
 }
 
