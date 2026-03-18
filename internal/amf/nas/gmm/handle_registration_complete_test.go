@@ -7,6 +7,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
@@ -16,9 +17,11 @@ import (
 
 func newTestAMF() *context.AMF {
 	return &context.AMF{
-		NetworkName: context.NetworkName{
-			Full:  "ELLACORE5G",
-			Short: "ELLACORE",
+		DBInstance: &FakeDBInstance{
+			Operator: &db.Operator{
+				SpnFull:  "ELLACORE5G",
+				SpnShort: "ELLACORE",
+			},
 		},
 		UEs: make(map[etsi.SUPI]*context.AmfUe),
 	}

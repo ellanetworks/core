@@ -40,8 +40,18 @@ type UpdateOperatorNASSecurityParams struct {
 	Integrity []string `json:"integrity"`
 }
 
+type UpdateOperatorSPNParams struct {
+	SpnFull  string `json:"spnFull"`
+	SpnShort string `json:"spnShort"`
+}
+
 type GetOperatorTrackingResponse struct {
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
+}
+
+type GetOperatorSPNResponse struct {
+	SpnFull  string `json:"spnFull"`
+	SpnShort string `json:"spnShort"`
 }
 
 type GetOperatorResponse struct {
@@ -50,6 +60,7 @@ type GetOperatorResponse struct {
 	Tracking        GetOperatorTrackingResponse    `json:"tracking,omitempty"`
 	HomeNetworkKeys []HomeNetworkKeyResponse       `json:"homeNetworkKeys"`
 	NASSecurity     GetOperatorNASSecurityResponse `json:"nasSecurity"`
+	SPN             GetOperatorSPNResponse         `json:"spn"`
 }
 
 type GetOperatorSliceResponse struct {
@@ -73,6 +84,7 @@ const (
 	UpdateOperatorIDAction          = "update_operator_id"
 	UpdateOperatorCodeAction        = "update_operator_code"
 	UpdateOperatorNASSecurityAction = "update_operator_nas_security"
+	UpdateOperatorSPNAction         = "update_operator_spn"
 )
 
 // Mcc is a 3-decimal digit
@@ -246,6 +258,10 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			NASSecurity: GetOperatorNASSecurityResponse{
 				Ciphering: cipheringOrder,
 				Integrity: integrityOrder,
+			},
+			SPN: GetOperatorSPNResponse{
+				SpnFull:  dbOperator.SpnFull,
+				SpnShort: dbOperator.SpnShort,
 			},
 		}
 
@@ -632,6 +648,66 @@ func UpdateOperatorNASSecurity(dbInstance *db.Database) http.Handler {
 			email,
 			getClientIP(r),
 			"User updated operator NAS security algorithms",
+		)
+	})
+}
+
+const (
+	maxSPNLength = 50
+)
+
+func UpdateOperatorSPN(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value(contextKeyEmail)
+
+		email, ok := emailAny.(string)
+		if !ok {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			return
+		}
+
+		var params UpdateOperatorSPNParams
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			return
+		}
+
+		if params.SpnFull == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "spnFull is required and must not be empty", nil, logger.APILog)
+			return
+		}
+
+		if params.SpnShort == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "spnShort is required and must not be empty", nil, logger.APILog)
+			return
+		}
+
+		if len(params.SpnFull) > maxSPNLength {
+			writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("spnFull must be at most %d characters", maxSPNLength), nil, logger.APILog)
+			return
+		}
+
+		if len(params.SpnShort) > maxSPNLength {
+			writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("spnShort must be at most %d characters", maxSPNLength), nil, logger.APILog)
+			return
+		}
+
+		if err := dbInstance.UpdateOperatorSPN(r.Context(), params.SpnFull, params.SpnShort); err != nil {
+			logger.APILog.Warn("Failed to update operator SPN", zap.Error(err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator SPN", err, logger.APILog)
+
+			return
+		}
+
+		resp := SuccessResponse{Message: "Operator SPN updated successfully"}
+		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
+
+		logger.LogAuditEvent(
+			r.Context(),
+			UpdateOperatorSPNAction,
+			email,
+			getClientIP(r),
+			"User updated operator SPN",
 		)
 	})
 }

@@ -83,11 +83,6 @@ type NetworkFeatureSupport5GS struct {
 	Mcsi    uint8
 }
 
-type NetworkName struct {
-	Full  string
-	Short string
-}
-
 type TimerValue struct {
 	Enable        bool
 	ExpireTime    time.Duration
@@ -111,7 +106,6 @@ type AMF struct {
 	RelativeCapacity         int64
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
-	NetworkName              NetworkName
 	T3502Value               time.Duration
 	T3512Value               time.Duration
 	TimeZone                 string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 - 5.2.2 Simple Data Types

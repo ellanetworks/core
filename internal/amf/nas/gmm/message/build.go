@@ -426,7 +426,7 @@ func BuildRegistrationAccept(
 
 // TS 24.501 - 5.4.4 Generic UE configuration update procedure - 5.4.4.1 General
 // includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
-func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe, networkName amfContext.NetworkName, includeGUTI bool) ([]byte, error) {
+func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe, spnFull, spnShort string, includeGUTI bool) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)
@@ -451,8 +451,8 @@ func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe, networkName amfContex
 		configurationUpdateCommand.GUTI5G.SetIei(nasMessage.ConfigurationUpdateCommandGUTI5GType)
 	}
 
-	if networkName.Full != "" {
-		fullNameForNetwork := encodeNetworkName(networkName.Full)
+	if spnFull != "" {
+		fullNameForNetwork := encodeNetworkName(spnFull)
 		configurationUpdateCommand.FullNameForNetwork = &nasType.FullNameForNetwork{
 			Iei:    nasMessage.ConfigurationUpdateCommandFullNameForNetworkType,
 			Len:    uint8(len(fullNameForNetwork)),
@@ -460,8 +460,8 @@ func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe, networkName amfContex
 		}
 	}
 
-	if networkName.Short != "" {
-		shortNameForNetwork := encodeNetworkName(networkName.Short)
+	if spnShort != "" {
+		shortNameForNetwork := encodeNetworkName(spnShort)
 		configurationUpdateCommand.ShortNameForNetwork = &nasType.ShortNameForNetwork{
 			Iei:    nasMessage.ConfigurationUpdateCommandShortNameForNetworkType,
 			Len:    uint8(len(shortNameForNetwork)),

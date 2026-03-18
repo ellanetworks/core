@@ -445,7 +445,13 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 		return
 	}
 
-	nasMsg, err := BuildConfigurationUpdateCommand(amfUe, amf.NetworkName, includeGUTI)
+	operator, err := amf.DBInstance.GetOperator(ctx)
+	if err != nil {
+		amfUe.Log.Error("cannot SendConfigurationUpdateCommand: failed to get operator", zap.Error(err))
+		return
+	}
+
+	nasMsg, err := BuildConfigurationUpdateCommand(amfUe, operator.SpnFull, operator.SpnShort, includeGUTI)
 	if err != nil {
 		amfUe.Log.Error("error building ConfigurationUpdateCommand", zap.Error(err))
 		return

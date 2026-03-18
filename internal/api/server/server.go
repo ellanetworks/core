@@ -91,6 +91,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("DELETE /api/v1/operator/home-network-keys/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorHomeNetwork, DeleteHomeNetworkKey(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/code", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorCode, UpdateOperatorCode(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/nas-security", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorNASSecurity, UpdateOperatorNASSecurity(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/spn", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSPN, UpdateOperatorSPN(dbInstance))).ServeHTTP)
 
 	// Deprecated: sub-resource GETs — use GET /api/v1/operator instead.
 	// These endpoints will be removed in a future release.
