@@ -392,15 +392,14 @@ func (ln *SCTPListener) RemoveConnFromEpoll(connFd int) error {
 }
 
 func (ln *SCTPListener) Close() error {
-	err := syscall.Shutdown(ln.fd, syscall.SHUT_RDWR)
-	if err != nil {
-		return err
+	// best-effort shutdown; always release both fds
+	_ = syscall.Shutdown(ln.fd, syscall.SHUT_RDWR)
+	epErr := syscall.Close(ln.epfd)
+	fdErr := syscall.Close(ln.fd)
+
+	if epErr != nil {
+		return epErr
 	}
 
-	err = syscall.Close(ln.epfd)
-	if err != nil {
-		return err
-	}
-
-	return syscall.Close(ln.fd)
+	return fdErr
 }

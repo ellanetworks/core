@@ -62,6 +62,10 @@ func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
 
 	logger.AmfLog.Info("NGAP server started", zap.String("address", addr.String()))
 
+	// buf is reused across iterations because this loop is the only goroutine
+	// that calls readAndDispatch; dispatched NGAP messages are copied into their
+	// own slices before being handed to worker goroutines. Do not add concurrent
+	// readers without giving each its own buffer.
 	buf := make([]byte, readBufSize)
 	events := make([]syscall.EpollEvent, 32)
 
