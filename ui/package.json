@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 3005",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
+    "typecheck": "tsc -b --noEmit",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
