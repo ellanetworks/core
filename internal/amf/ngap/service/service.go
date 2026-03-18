@@ -34,12 +34,20 @@ var readTimeout syscall.Timeval = syscall.Timeval{Sec: 2, Usec: 0}
 var (
 	sctpListener *sctp.SCTPListener
 	connections  sync.Map
+	wg           sync.WaitGroup
 )
 
 var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 	InitMsg:   sctp.InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
 	RtoInfo:   &sctp.RtoInfo{SrtoAssocID: 0, SrtoInitial: 500, SrtoMax: 1500, StroMin: 100},
 	AssocInfo: &sctp.AssocInfo{AsocMaxRxt: 4},
+	// Heartbeat every 10 s; declare a path failed after 3 missed heartbeats (~30 s).
+	// Without this the kernel default is 30 s interval × 5 retries = 150 s to detect a dead gNB.
+	PeerAddrParams: &sctp.PeerAddrParams{
+		HbInterval: 10000,
+		PathMaxRxt: 3,
+		Flags:      sctp.SPPHbEnable,
+	},
 }
 
 func Run(ctx context.Context, address string, port int) error {
@@ -70,11 +78,20 @@ func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
 	logger.AmfLog.Info("NGAP server started", zap.String("address", addr.String()))
 
 	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		newConn, err := sctpListener.AcceptSCTP()
 		if err != nil {
 			switch err {
 			case syscall.EINTR, syscall.EAGAIN:
 				logger.AmfLog.Debug("AcceptSCTP", zap.Error(err))
+			case syscall.EBADF, syscall.EINVAL:
+				// listener was closed (e.g. Stop() was called)
+				return
 			default:
 				logger.AmfLog.Error("Failed to accept", zap.Error(err))
 			}
@@ -133,6 +150,8 @@ func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
 		logger.AmfLog.Info("New SCTP connection", zap.String("remote_address", remoteAddress.String()))
 		connections.Store(newConn, newConn)
 
+		wg.Add(1)
+
 		go handleConnection(ctx, newConn, readBufSize)
 	}
 }
@@ -151,10 +170,12 @@ func Stop() {
 		return true
 	})
 
+	wg.Wait()
 	logger.AmfLog.Info("SCTP server closed")
 }
 
 func handleConnection(ctx context.Context, conn *sctp.SCTPConn, bufsize uint32) {
+	defer wg.Done()
 	defer func() {
 		// if AMF call Stop(), then conn.Close() will return EBADF because conn has been closed inside Stop()
 		if err := conn.Close(); err != nil && err != syscall.EBADF {

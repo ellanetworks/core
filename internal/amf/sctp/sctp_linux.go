@@ -172,28 +172,20 @@ func (c *SCTPConn) SCTPRead(b []byte) (int, *SndRcvInfo, Notification, error) {
 }
 
 func (c *SCTPConn) Close() error {
-	if c != nil {
-		fd := atomic.SwapInt32(&c._fd, -1)
-		if fd > 0 {
-			info := &SndRcvInfo{
-				Flags: SCTPEof,
-			}
-
-			_, err := c.SCTPWrite(nil, info)
-			if err != nil {
-				return err
-			}
-
-			err = syscall.Shutdown(int(fd), syscall.SHUT_RDWR)
-			if err != nil {
-				return err
-			}
-
-			return syscall.Close(int(fd))
-		}
+	if c == nil {
+		return syscall.EBADF
 	}
 
-	return syscall.EBADF
+	fd := atomic.SwapInt32(&c._fd, -1)
+	if fd <= 0 {
+		return syscall.EBADF
+	}
+
+	// best-effort graceful close; ignore errors so the fd is always released
+	_, _ = c.SCTPWrite(nil, &SndRcvInfo{Flags: SCTPEof})
+	_ = syscall.Shutdown(int(fd), syscall.SHUT_RDWR)
+
+	return syscall.Close(int(fd))
 }
 
 func (c *SCTPConn) SetWriteBuffer(bytes int) error {
@@ -241,7 +233,7 @@ func (c *SCTPConn) SetAssocInfo(info AssocInfo) error {
 }
 
 // listenSCTPExtConfig - start listener on specified address/port with given SCTP options and socket configuration
-func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo, control func(network, address string, c syscall.RawConn) error) (*SCTPListener, error) {
+func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo, peerAddrParams *PeerAddrParams, control func(network, address string, c syscall.RawConn) error) (*SCTPListener, error) {
 	af, ipv6only := favoriteAddrFamily(network, laddr, nil, "listen")
 
 	sock, err := syscall.Socket(
@@ -290,6 +282,15 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 	// set default association parameters (RFC 6458 8.1.2)
 	if assocInfo != nil {
 		err = setAssocInfo(sock, *assocInfo)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if peerAddrParams != nil {
+		optlen := unsafe.Sizeof(*peerAddrParams)
+
+		err = setsockopt(sock, SCTPPeerAddrParams, uintptr(unsafe.Pointer(peerAddrParams)), optlen)
 		if err != nil {
 			return nil, err
 		}
@@ -374,16 +375,16 @@ func (ln *SCTPListener) AcceptSCTP() (*SCTPConn, error) {
 		return nil, err
 	}
 
-	if n == 0 {
+	if n == 0 || events[0].Fd != int32(ln.fd) {
+		return nil, syscall.EAGAIN
+	}
+
+	fd, _, err := syscall.Accept4(ln.fd, 0)
+	if err != nil {
 		return nil, err
 	}
 
-	if events[0].Fd == int32(ln.fd) {
-		fd, _, err := syscall.Accept4(ln.fd, 0)
-		return NewSCTPConn(fd, nil), err
-	} else {
-		return nil, err
-	}
+	return NewSCTPConn(fd, nil), nil
 }
 
 func (ln *SCTPListener) Close() error {
