@@ -1,14 +1,16 @@
 package ngap
 
 import (
+	gocontext "context"
+
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func HandleErrorIndication(ran *context.Radio, msg *ngapType.ErrorIndication) {
+func HandleErrorIndication(ctx gocontext.Context, ran *context.Radio, msg *ngapType.ErrorIndication) {
 	if msg == nil {
-		ran.Log.Error("ErrorIndication is nil")
+		logger.WithTrace(ctx, ran.Log).Error("ErrorIndication is nil")
 		return
 	}
 
@@ -24,12 +26,12 @@ func HandleErrorIndication(ran *context.Radio, msg *ngapType.ErrorIndication) {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
 			if aMFUENGAPID == nil {
-				ran.Log.Error("AmfUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Error("AmfUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
 			if rANUENGAPID == nil {
-				ran.Log.Error("RanUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Error("RanUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDCause:
 			cause = ie.Value.Cause
@@ -39,11 +41,11 @@ func HandleErrorIndication(ran *context.Radio, msg *ngapType.ErrorIndication) {
 	}
 
 	if cause == nil && criticalityDiagnostics == nil {
-		ran.Log.Error("[ErrorIndication] both Cause IE and CriticalityDiagnostics IE are nil, should have at least one")
+		logger.WithTrace(ctx, ran.Log).Error("[ErrorIndication] both Cause IE and CriticalityDiagnostics IE are nil, should have at least one")
 		return
 	}
 
 	if cause != nil {
-		logger.AmfLog.Debug("Error Indication Cause", logger.Cause(causeToString(*cause)))
+		logger.WithTrace(ctx, logger.AmfLog).Debug("Error Indication Cause", logger.Cause(causeToString(*cause)))
 	}
 }

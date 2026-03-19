@@ -3,6 +3,7 @@
 package ngap_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf/ngap"
@@ -14,6 +15,6 @@ func TestHandleErrorIndication_EmptyIEs(t *testing.T) {
 	msg := &ngapType.ErrorIndication{}
 
 	assertNoPanic(t, "HandleErrorIndication(empty IEs)", func() {
-		ngap.HandleErrorIndication(ran, msg)
+		ngap.HandleErrorIndication(context.Background(), ran, msg)
 	})
 }

@@ -3,6 +3,7 @@
 package ngap_test
 
 import (
+	"context"
 	"testing"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
@@ -24,6 +25,6 @@ func TestHandleUEContextModificationFailure_MissingAMFUENGAPID(t *testing.T) {
 	})
 
 	assertNoPanic(t, "HandleUEContextModificationFailure(missing AMFUENGAPID)", func() {
-		ngap.HandleUEContextModificationFailure(amf, ran, msg)
+		ngap.HandleUEContextModificationFailure(context.Background(), amf, ran, msg)
 	})
 }

@@ -4,13 +4,14 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
 func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceModifyIndication) {
 	if msg == nil {
-		ran.Log.Error("NGAP Message is nil")
+		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
 	}
 
@@ -26,7 +27,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 		case ngapType.ProtocolIEIDAMFUENGAPID: // reject
 			aMFUENGAPID = ie.Value.AMFUENGAPID
 			if aMFUENGAPID == nil {
-				ran.Log.Error("AmfUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Error("AmfUeNgapID is nil")
 
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDAMFUENGAPID)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
@@ -34,7 +35,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject
 			rANUENGAPID = ie.Value.RANUENGAPID
 			if rANUENGAPID == nil {
-				ran.Log.Error("RanUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Error("RanUeNgapID is nil")
 
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDRANUENGAPID)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
@@ -42,7 +43,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 		case ngapType.ProtocolIEIDPDUSessionResourceModifyListModInd: // reject
 			pduSessionResourceModifyIndicationList = ie.Value.PDUSessionResourceModifyListModInd
 			if pduSessionResourceModifyIndicationList == nil {
-				ran.Log.Error("PDUSessionResourceModifyListModInd is nil")
+				logger.WithTrace(ctx, ran.Log).Error("PDUSessionResourceModifyListModInd is nil")
 
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDPDUSessionResourceModifyListModInd)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
@@ -51,34 +52,34 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 	}
 
 	if len(iesCriticalityDiagnostics.List) > 0 {
-		ran.Log.Error("Has missing reject IE(s)")
+		logger.WithTrace(ctx, ran.Log).Error("Has missing reject IE(s)")
 
 		criticalityDiagnostics := buildCriticalityDiagnostics(ngapType.ProcedureCodePDUSessionResourceModifyIndication, ngapType.TriggeringMessagePresentInitiatingMessage, ngapType.CriticalityPresentReject, &iesCriticalityDiagnostics)
 
 		err := ran.NGAPSender.SendErrorIndication(ctx, nil, &criticalityDiagnostics)
 		if err != nil {
-			ran.Log.Error("error sending error indication", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
 			return
 		}
 
-		ran.Log.Info("sent error indication")
+		logger.WithTrace(ctx, ran.Log).Info("sent error indication")
 
 		return
 	}
 
 	if aMFUENGAPID == nil {
-		ran.Log.Error("AMFUENGAPID IE (mandatory) is missing in PDUSessionResourceModifyIndication")
+		logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID IE (mandatory) is missing in PDUSessionResourceModifyIndication")
 		return
 	}
 
 	if rANUENGAPID == nil {
-		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in PDUSessionResourceModifyIndication")
+		logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID IE (mandatory) is missing in PDUSessionResourceModifyIndication")
 		return
 	}
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
-		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -88,16 +89,16 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
-			ran.Log.Error("error sending error indication", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
 			return
 		}
 
-		ran.Log.Info("sent error indication")
+		logger.WithTrace(ctx, ran.Log).Info("sent error indication")
 
 		return
 	}
 
-	ran.Log.Debug("UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	logger.WithTrace(ctx, ran.Log).Debug("UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 	ranUe.TouchLastSeen()
 
 	pduSessionResourceModifyListModCfm := ngapType.PDUSessionResourceModifyListModCfm{}
@@ -105,9 +106,9 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 
 	err := ranUe.Radio.NGAPSender.SendPDUSessionResourceModifyConfirm(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, pduSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyListModCfm)
 	if err != nil {
-		ranUe.Log.Error("error sending pdu session resource modify confirm", zap.Error(err))
+		logger.WithTrace(ctx, ranUe.Log).Error("error sending pdu session resource modify confirm", zap.Error(err))
 		return
 	}
 
-	ran.Log.Info("sent pdu session resource modify confirm")
+	logger.WithTrace(ctx, ran.Log).Info("sent pdu session resource modify confirm")
 }

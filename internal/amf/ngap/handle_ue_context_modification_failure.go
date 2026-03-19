@@ -1,15 +1,17 @@
 package ngap
 
 import (
+	gocontext "context"
+
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUEContextModificationFailure(amf *context.AMF, ran *context.Radio, msg *ngapType.UEContextModificationFailure) {
+func HandleUEContextModificationFailure(ctx gocontext.Context, amf *context.AMF, ran *context.Radio, msg *ngapType.UEContextModificationFailure) {
 	if msg == nil {
-		ran.Log.Error("NGAP Message is nil")
+		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
 	}
 
@@ -24,17 +26,17 @@ func HandleUEContextModificationFailure(amf *context.AMF, ran *context.Radio, ms
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID
 			if aMFUENGAPID == nil {
-				ran.Log.Warn("AmfUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Warn("AmfUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID: // ignore
 			rANUENGAPID = ie.Value.RANUENGAPID
 			if rANUENGAPID == nil {
-				ran.Log.Warn("RanUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Warn("RanUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDCause: // ignore
 			cause = ie.Value.Cause
 			if cause == nil {
-				ran.Log.Warn("Cause is nil")
+				logger.WithTrace(ctx, ran.Log).Warn("Cause is nil")
 			}
 		}
 	}
@@ -45,12 +47,12 @@ func HandleUEContextModificationFailure(amf *context.AMF, ran *context.Radio, ms
 		if aMFUENGAPID != nil {
 			ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 			if ranUe == nil {
-				ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value), zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+				logger.WithTrace(ctx, ran.Log).Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value), zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 			}
 		} else {
 			ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 			if ranUe == nil {
-				ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+				logger.WithTrace(ctx, ran.Log).Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 			}
 		}
 	}
@@ -58,17 +60,17 @@ func HandleUEContextModificationFailure(amf *context.AMF, ran *context.Radio, ms
 	if aMFUENGAPID != nil {
 		ranUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 		if ranUe == nil {
-			ran.Log.Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+			logger.WithTrace(ctx, ran.Log).Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 		}
 	}
 
 	if ranUe != nil {
 		ranUe.Radio = ran
 		ranUe.TouchLastSeen()
-		ranUe.Log.Debug("Handle UE Context Modification Failure", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+		logger.WithTrace(ctx, ranUe.Log).Debug("Handle UE Context Modification Failure", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 	}
 
 	if cause != nil {
-		ran.Log.Debug("UE Context Modification Failure Cause", logger.Cause(causeToString(*cause)))
+		logger.WithTrace(ctx, ran.Log).Debug("UE Context Modification Failure Cause", logger.Cause(causeToString(*cause)))
 	}
 }

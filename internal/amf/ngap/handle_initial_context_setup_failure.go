@@ -12,7 +12,7 @@ import (
 
 func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.Radio, msg *ngapType.InitialContextSetupFailure) {
 	if msg == nil {
-		ran.Log.Error("NGAP Message is nil")
+		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
 	}
 
@@ -28,46 +28,46 @@ func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.Radio
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
 			if aMFUENGAPID == nil {
-				ran.Log.Warn("AmfUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Warn("AmfUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
 			if rANUENGAPID == nil {
-				ran.Log.Warn("RanUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Warn("RanUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtFail:
 			pDUSessionResourceFailedToSetupList = ie.Value.PDUSessionResourceFailedToSetupListCxtFail
 			if pDUSessionResourceFailedToSetupList == nil {
-				ran.Log.Warn("PDUSessionResourceFailedToSetupList is nil")
+				logger.WithTrace(ctx, ran.Log).Warn("PDUSessionResourceFailedToSetupList is nil")
 			}
 		case ngapType.ProtocolIEIDCause:
 			cause = ie.Value.Cause
 			if cause == nil {
-				ran.Log.Warn("Cause is nil")
+				logger.WithTrace(ctx, ran.Log).Warn("Cause is nil")
 			}
 		}
 	}
 
 	if aMFUENGAPID == nil {
-		ran.Log.Error("AMFUENGAPID IE (mandatory) is missing in InitialContextSetupFailure")
+		logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID IE (mandatory) is missing in InitialContextSetupFailure")
 		return
 	}
 
 	if rANUENGAPID == nil {
-		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in InitialContextSetupFailure")
+		logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID IE (mandatory) is missing in InitialContextSetupFailure")
 		return
 	}
 
 	if cause == nil {
-		ran.Log.Error("Cause IE (mandatory) is missing in InitialContextSetupFailure")
+		logger.WithTrace(ctx, ran.Log).Error("Cause IE (mandatory) is missing in InitialContextSetupFailure")
 		return
 	}
 
-	ran.Log.Warn("Initial Context Setup Failure received", logger.Cause(causeToString(*cause)))
+	logger.WithTrace(ctx, ran.Log).Warn("Initial Context Setup Failure received", logger.Cause(causeToString(*cause)))
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
-		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		return
 	}
 
@@ -75,7 +75,7 @@ func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.Radio
 
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
-		ran.Log.Error("amfUe is nil")
+		logger.WithTrace(ctx, ran.Log).Error("amfUe is nil")
 		return
 	}
 
@@ -87,11 +87,11 @@ func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.Radio
 	}
 
 	if pDUSessionResourceFailedToSetupList != nil {
-		ranUe.Log.Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
+		logger.WithTrace(ctx, ranUe.Log).Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
 
 		for _, item := range pDUSessionResourceFailedToSetupList.List {
 			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
-				ranUe.Log.Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+				logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 				continue
 			}
 
@@ -100,13 +100,13 @@ func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.Radio
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+				logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 				continue
 			}
 
 			err := pdusession.UpdateSmContextN2InfoPduResSetupFail(smContext.Ref, transfer)
 			if err != nil {
-				ranUe.Log.Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err))
+				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err))
 			}
 		}
 	}

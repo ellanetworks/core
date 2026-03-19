@@ -15,7 +15,7 @@ import (
 
 func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.HandoverRequired) {
 	if msg == nil {
-		ran.Log.Error("NGAP Message is nil")
+		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
 	}
 
@@ -51,49 +51,49 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 	}
 
 	if aMFUENGAPID == nil {
-		ran.Log.Error("AmfUeNgapID is nil")
+		logger.WithTrace(ctx, ran.Log).Error("AmfUeNgapID is nil")
 
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDAMFUENGAPID)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 
 	if rANUENGAPID == nil {
-		ran.Log.Error("RanUeNgapID is nil")
+		logger.WithTrace(ctx, ran.Log).Error("RanUeNgapID is nil")
 
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDRANUENGAPID)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 
 	if handoverType == nil {
-		ran.Log.Error("handoverType is nil")
+		logger.WithTrace(ctx, ran.Log).Error("handoverType is nil")
 
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDHandoverType)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 
 	if cause == nil {
-		ran.Log.Error("cause is nil")
+		logger.WithTrace(ctx, ran.Log).Error("cause is nil")
 
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDCause)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 
 	if targetID == nil {
-		ran.Log.Error("targetID is nil")
+		logger.WithTrace(ctx, ran.Log).Error("targetID is nil")
 
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDTargetID)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 
 	if pDUSessionResourceListHORqd == nil {
-		ran.Log.Error("pDUSessionResourceListHORqd is nil")
+		logger.WithTrace(ctx, ran.Log).Error("pDUSessionResourceListHORqd is nil")
 
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDPDUSessionResourceListHORqd)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 
 	if sourceToTargetTransparentContainer == nil {
-		ran.Log.Error("sourceToTargetTransparentContainer is nil")
+		logger.WithTrace(ctx, ran.Log).Error("sourceToTargetTransparentContainer is nil")
 
 		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDSourceToTargetTransparentContainer)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
@@ -104,18 +104,18 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 		err := ran.NGAPSender.SendErrorIndication(ctx, nil, &criticalityDiagnostics)
 		if err != nil {
-			ran.Log.Error("error sending error indication", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
 			return
 		}
 
-		ran.Log.Info("sent error indication")
+		logger.WithTrace(ctx, ran.Log).Info("sent error indication")
 
 		return
 	}
 
 	sourceUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if sourceUe == nil {
-		ran.Log.Error("Cannot find UE", zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("Cannot find UE", zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -125,17 +125,17 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
-			ran.Log.Error("error sending error indication", zap.Error(err), zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
+			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err), zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
 			return
 		}
 
-		ran.Log.Info("sent error indication to source UE")
+		logger.WithTrace(ctx, ran.Log).Info("sent error indication to source UE")
 
 		return
 	}
 
 	if sourceUe.AmfUeNgapID != aMFUENGAPID.Value {
-		ran.Log.Error("AMF UE NGAP ID mismatch", zap.Int64("expected", sourceUe.AmfUeNgapID), zap.Int64("received", aMFUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("AMF UE NGAP ID mismatch", zap.Int64("expected", sourceUe.AmfUeNgapID), zap.Int64("received", aMFUENGAPID.Value))
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -145,32 +145,32 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
-			ran.Log.Error("error sending error indication", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
 			return
 		}
 
-		ran.Log.Info("sent error indication for AMF UE NGAP ID mismatch")
+		logger.WithTrace(ctx, ran.Log).Info("sent error indication for AMF UE NGAP ID mismatch")
 
 		return
 	}
 
 	amfUe := sourceUe.AmfUe
 	if amfUe == nil {
-		ran.Log.Error("Cannot find amfUE from sourceUE")
+		logger.WithTrace(ctx, ran.Log).Error("Cannot find amfUE from sourceUE")
 		return
 	}
 
 	sourceUe.TouchLastSeen()
 
 	if targetID.Present != ngapType.TargetIDPresentTargetRANNodeID {
-		ran.Log.Error("targetID type is not supported", zap.Int("targetID", targetID.Present))
+		logger.WithTrace(ctx, ran.Log).Error("targetID type is not supported", zap.Int("targetID", targetID.Present))
 		return
 	}
 
 	amfUe.SetOnGoing(amfContext.OnGoingProcedureN2Handover)
 
 	if !amfUe.SecurityContextIsValid() {
-		sourceUe.Log.Info("handle Handover Preparation Failure [Authentication Failure]")
+		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Authentication Failure]")
 
 		cause = &ngapType.Cause{
 			Present: ngapType.CausePresentNas,
@@ -183,11 +183,11 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {
-			sourceUe.Log.Error("error sending handover preparation failure", zap.Error(err))
+			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 			return
 		}
 
-		sourceUe.Log.Info("sent handover preparation failure to source UE")
+		logger.WithTrace(ctx, sourceUe.Log).Info("sent handover preparation failure to source UE")
 
 		return
 	}
@@ -197,7 +197,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 	targetRan, ok := amf.FindRadioByRanID(targetRanNodeID)
 	if !ok {
 		// handover between different AMF
-		sourceUe.Log.Warn("Handover required : cannot find target Ran Node Id in this AMF. Handover between different AMF has not been implemented yet", zap.Any("targetRanNodeID", targetRanNodeID))
+		logger.WithTrace(ctx, sourceUe.Log).Warn("Handover required : cannot find target Ran Node Id in this AMF. Handover between different AMF has not been implemented yet", zap.Any("targetRanNodeID", targetRanNodeID))
 		return
 		// Described in (23.502 4.9.1.3.2) step 3.Namf_Communication_CreateUEContext Request
 	}
@@ -209,7 +209,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 	for _, pDUSessionResourceHoItem := range pDUSessionResourceListHORqd.List {
 		if pDUSessionResourceHoItem.PDUSessionID.Value < 1 || pDUSessionResourceHoItem.PDUSessionID.Value > 15 {
-			sourceUe.Log.Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", pDUSessionResourceHoItem.PDUSessionID.Value))
+			logger.WithTrace(ctx, sourceUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", pDUSessionResourceHoItem.PDUSessionID.Value))
 			continue
 		}
 
@@ -217,7 +217,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
 			n2Rsp, err := pdusession.UpdateSmContextN2HandoverPreparing(smContext.Ref, pDUSessionResourceHoItem.HandoverRequiredTransfer)
 			if err != nil {
-				sourceUe.Log.Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
+				logger.WithTrace(ctx, sourceUe.Log).Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
 				continue
 			}
 
@@ -226,7 +226,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 	}
 
 	if len(pduSessionReqList.List) == 0 {
-		sourceUe.Log.Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
+		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
 
 		cause = &ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
@@ -239,24 +239,24 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {
-			sourceUe.Log.Error("error sending handover preparation failure", zap.Error(err))
+			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 			return
 		}
 
-		sourceUe.Log.Info("sent handover preparation failure to source UE")
+		logger.WithTrace(ctx, sourceUe.Log).Info("sent handover preparation failure to source UE")
 
 		return
 	}
 
 	err := amfUe.UpdateNH()
 	if err != nil {
-		sourceUe.Log.Error("error updating NH", zap.Error(err))
+		logger.WithTrace(ctx, sourceUe.Log).Error("error updating NH", zap.Error(err))
 		return
 	}
 
 	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
-		sourceUe.Log.Error("Could not get operator info", zap.Error(err))
+		logger.WithTrace(ctx, sourceUe.Log).Error("Could not get operator info", zap.Error(err))
 		return
 	}
 
@@ -288,9 +288,9 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		operatorInfo.Guami,
 	)
 	if err != nil {
-		sourceUe.Log.Error("error sending handover request to target UE", zap.Error(err))
+		logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover request to target UE", zap.Error(err))
 		return
 	}
 
-	sourceUe.Log.Info("sent handover request to target UE")
+	logger.WithTrace(ctx, sourceUe.Log).Info("sent handover request to target UE")
 }

@@ -11,7 +11,7 @@ import (
 
 func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.HandoverFailure) {
 	if msg == nil {
-		ran.Log.Error("NGAP Message is nil")
+		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
 	}
 
@@ -34,7 +34,7 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 	}
 
 	if aMFUENGAPID == nil {
-		ran.Log.Error("AMFUENGAPID IE (mandatory) is missing in HandoverFailure")
+		logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID IE (mandatory) is missing in HandoverFailure")
 		return
 	}
 
@@ -44,11 +44,11 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 	var err error
 
 	if cause != nil {
-		ran.Log.Debug("Handover Failure Cause", logger.Cause(causeToString(*cause)))
+		logger.WithTrace(ctx, ran.Log).Debug("Handover Failure Cause", logger.Cause(causeToString(*cause)))
 
 		causePresent, causeValue, err = getCause(cause)
 		if err != nil {
-			ran.Log.Error("Get Cause from Handover Failure Error", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("Get Cause from Handover Failure Error", zap.Error(err))
 			return
 		}
 	}
@@ -56,7 +56,7 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 	targetUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 
 	if targetUe == nil {
-		ran.Log.Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -66,11 +66,11 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
-			ran.Log.Error("error sending error indication", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
 			return
 		}
 
-		ran.Log.Info("sent error indication")
+		logger.WithTrace(ctx, ran.Log).Info("sent error indication")
 
 		return
 	}
@@ -80,7 +80,7 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 
 	sourceUe := targetUe.SourceUe
 	if sourceUe == nil {
-		ran.Log.Error("N2 Handover between AMF has not been implemented yet")
+		logger.WithTrace(ctx, ran.Log).Error("N2 Handover between AMF has not been implemented yet")
 	} else {
 		sourceUe.AmfUe.SetOnGoing(amfContext.OnGoingProcedureNothing)
 
@@ -96,18 +96,18 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 
 		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, failureCause, criticalityDiagnostics)
 		if err != nil {
-			ran.Log.Error("error sending handover preparation failure", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("error sending handover preparation failure", zap.Error(err))
 			return
 		}
 
-		ran.Log.Info("sent handover preparation failure to source UE")
+		logger.WithTrace(ctx, ran.Log).Info("sent handover preparation failure to source UE")
 	}
 
 	targetUe.ReleaseAction = amfContext.UeContextReleaseHandover
 
 	err = targetUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, targetUe.AmfUeNgapID, targetUe.RanUeNgapID, causePresent, causeValue)
 	if err != nil {
-		ran.Log.Error("error sending UE Context Release Command to target UE", zap.Error(err))
+		logger.WithTrace(ctx, ran.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		return
 	}
 }

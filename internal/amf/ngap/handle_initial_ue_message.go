@@ -16,7 +16,7 @@ import (
 
 func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.InitialUEMessage) {
 	if msg == nil {
-		ran.Log.Error("NGAP Message is nil")
+		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
 	}
 
@@ -32,11 +32,11 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, &criticalityDiagnostics)
 		if err != nil {
-			ran.Log.Error("error sending error indication", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
 			return
 		}
 
-		ran.Log.Info("sent error indication")
+		logger.WithTrace(ctx, ran.Log).Info("sent error indication")
 
 		return
 	}
@@ -56,7 +56,7 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject
 			rANUENGAPID = ie.Value.RANUENGAPID
 			if rANUENGAPID == nil {
-				ran.Log.Error("RanUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Error("RanUeNgapID is nil")
 
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDRANUENGAPID)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
@@ -64,7 +64,7 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		case ngapType.ProtocolIEIDNASPDU: // reject
 			nASPDU = ie.Value.NASPDU
 			if nASPDU == nil {
-				ran.Log.Error("NasPdu is nil")
+				logger.WithTrace(ctx, ran.Log).Error("NasPdu is nil")
 
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDNASPDU)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
@@ -72,7 +72,7 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		case ngapType.ProtocolIEIDUserLocationInformation: // reject
 			userLocationInformation = ie.Value.UserLocationInformation
 			if userLocationInformation == nil {
-				ran.Log.Error("UserLocationInformation is nil")
+				logger.WithTrace(ctx, ran.Log).Error("UserLocationInformation is nil")
 
 				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDUserLocationInformation)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
@@ -91,28 +91,28 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 	}
 
 	if len(iesCriticalityDiagnostics.List) > 0 {
-		ran.Log.Debug("has missing reject IE(s)")
+		logger.WithTrace(ctx, ran.Log).Debug("has missing reject IE(s)")
 
 		criticalityDiagnostics := buildCriticalityDiagnostics(ngapType.ProcedureCodeInitialUEMessage, ngapType.TriggeringMessagePresentInitiatingMessage, ngapType.CriticalityPresentIgnore, &iesCriticalityDiagnostics)
 
 		err := ran.NGAPSender.SendErrorIndication(ctx, nil, &criticalityDiagnostics)
 		if err != nil {
-			ran.Log.Error("error sending error indication", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
 			return
 		}
 
-		ran.Log.Info("sent error indication")
+		logger.WithTrace(ctx, ran.Log).Info("sent error indication")
 
 		return
 	}
 
 	if rANUENGAPID == nil {
-		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in InitialUEMessage")
+		logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID IE (mandatory) is missing in InitialUEMessage")
 		return
 	}
 
 	if nASPDU == nil {
-		ran.Log.Error("NASPDU IE (mandatory) is missing in InitialUEMessage")
+		logger.WithTrace(ctx, ran.Log).Error("NASPDU IE (mandatory) is missing in InitialUEMessage")
 		return
 	}
 
@@ -120,7 +120,7 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 	if ranUe != nil && ranUe.AmfUe == nil {
 		err := ranUe.Remove()
 		if err != nil {
-			ran.Log.Error(err.Error())
+			logger.WithTrace(ctx, ran.Log).Error(err.Error())
 		}
 
 		ranUe = nil
@@ -131,17 +131,17 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 		ranUe, err = ran.NewUe(rANUENGAPID.Value)
 		if err != nil {
-			ran.Log.Error("Failed to add Ran UE to the pool", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("Failed to add Ran UE to the pool", zap.Error(err))
 		}
 
-		ran.Log.Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+		logger.WithTrace(ctx, ran.Log).Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 		if fiveGSTMSI != nil {
-			ranUe.Log.Debug("Receive 5G-S-TMSI")
+			logger.WithTrace(ctx, ranUe.Log).Debug("Receive 5G-S-TMSI")
 
 			operatorInfo, err := amf.GetOperatorInfo(ctx)
 			if err != nil {
-				ranUe.Log.Error("Could not get operator info", zap.Error(err))
+				logger.WithTrace(ctx, ranUe.Log).Error("Could not get operator info", zap.Error(err))
 				return
 			}
 
@@ -153,27 +153,27 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 			tmsi, err := etsi.NewTMSI(binary.BigEndian.Uint32(fiveGSTMSI.FiveGTMSI.Value))
 			if err != nil {
-				ranUe.Log.Warn("invalid tmsi", zap.Error(err))
+				logger.WithTrace(ctx, ranUe.Log).Warn("invalid tmsi", zap.Error(err))
 			}
 
 			guti, err := etsi.NewGUTI(operatorInfo.Guami.PlmnID.Mcc, operatorInfo.Guami.PlmnID.Mnc, amfID, tmsi)
 			if err != nil {
-				ranUe.Log.Warn("invalid guti", zap.Error(err))
+				logger.WithTrace(ctx, ranUe.Log).Warn("invalid guti", zap.Error(err))
 			}
 
 			if amfUe, ok := amf.FindAmfUeByGuti(guti); !ok {
-				ranUe.Log.Warn("Unknown UE", logger.GUTI(guti.String()))
+				logger.WithTrace(ctx, ranUe.Log).Warn("Unknown UE", logger.GUTI(guti.String()))
 			} else {
-				ranUe.Log.Debug("find AmfUe", logger.GUTI(guti.String()))
+				logger.WithTrace(ctx, ranUe.Log).Debug("find AmfUe", logger.GUTI(guti.String()))
 				/* checking the guti-ue belongs to this amf instance */
 
 				if amfUe.RanUe != nil {
-					ranUe.Log.Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+					logger.WithTrace(ctx, ranUe.Log).Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 					amfUe.RanUe = nil
 				}
 
-				ranUe.Log.Debug("AmfUe Attach RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+				logger.WithTrace(ctx, ranUe.Log).Debug("AmfUe Attach RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 				amfUe.AttachRanUe(ranUe)
 			}
 		}
@@ -187,12 +187,12 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 	}
 
 	if rRCEstablishmentCause != nil {
-		ranUe.Log.Debug("RRC Establishment Cause", zap.Any("Value", rRCEstablishmentCause.Value))
+		logger.WithTrace(ctx, ranUe.Log).Debug("RRC Establishment Cause", zap.Any("Value", rRCEstablishmentCause.Value))
 		ranUe.RRCEstablishmentCause = strconv.Itoa(int(rRCEstablishmentCause.Value))
 	}
 
 	if uEContextRequest != nil {
-		ran.Log.Debug("Trigger initial Context Setup procedure")
+		logger.WithTrace(ctx, ran.Log).Debug("Trigger initial Context Setup procedure")
 
 		ranUe.UeContextRequest = true
 	} else {
@@ -206,7 +206,7 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 	err := nas.HandleNAS(ctx, amf, ranUe, nASPDU.Value)
 	if err != nil {
-		ran.Log.Error("error handling NAS Message", zap.Error(err))
+		logger.WithTrace(ctx, ran.Log).Error("error handling NAS Message", zap.Error(err))
 		return
 	}
 }

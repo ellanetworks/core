@@ -11,7 +11,7 @@ import (
 
 func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGReset) {
 	if msg == nil {
-		ran.Log.Error("NGAP Message is nil")
+		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
 	}
 
@@ -25,13 +25,13 @@ func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGR
 		case ngapType.ProtocolIEIDCause:
 			cause = ie.Value.Cause
 			if cause == nil {
-				ran.Log.Error("Cause is nil")
+				logger.WithTrace(ctx, ran.Log).Error("Cause is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDResetType:
 			resetType = ie.Value.ResetType
 			if resetType == nil {
-				ran.Log.Error("ResetType is nil")
+				logger.WithTrace(ctx, ran.Log).Error("ResetType is nil")
 				return
 			}
 		}
@@ -51,21 +51,21 @@ func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGR
 
 	switch resetType.Present {
 	case ngapType.ResetTypePresentNGInterface:
-		ran.Log.Debug("ResetType Present: NG Interface")
+		logger.WithTrace(ctx, ran.Log).Debug("ResetType Present: NG Interface")
 		ran.RemoveAllUeInRan()
-		ran.Log.Debug("All UE Context in RAN have been removed")
+		logger.WithTrace(ctx, ran.Log).Debug("All UE Context in RAN have been removed")
 
 		err := ran.NGAPSender.SendNGResetAcknowledge(ctx, nil)
 		if err != nil {
-			ran.Log.Error("error sending NG Reset Acknowledge", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return
 		}
 	case ngapType.ResetTypePresentPartOfNGInterface:
-		ran.Log.Debug("ResetType Present: Part of NG Interface")
+		logger.WithTrace(ctx, ran.Log).Debug("ResetType Present: Part of NG Interface")
 
 		partOfNGInterface := resetType.PartOfNGInterface
 		if partOfNGInterface == nil {
-			ran.Log.Error("PartOfNGInterface is nil")
+			logger.WithTrace(ctx, ran.Log).Error("PartOfNGInterface is nil")
 			return
 		}
 
@@ -73,7 +73,7 @@ func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGR
 
 		for _, ueAssociatedLogicalNGConnectionItem := range partOfNGInterface.List {
 			if ueAssociatedLogicalNGConnectionItem.AMFUENGAPID != nil {
-				ran.Log.Debug("NG Reset with AMFUENGAPID", zap.Int64("AmfUeNgapID", ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value))
+				logger.WithTrace(ctx, ran.Log).Debug("NG Reset with AMFUENGAPID", zap.Int64("AmfUeNgapID", ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value))
 
 				for _, ue := range ran.RanUEs {
 					if ue.AmfUeNgapID == ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value {
@@ -82,34 +82,34 @@ func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGR
 					}
 				}
 			} else if ueAssociatedLogicalNGConnectionItem.RANUENGAPID != nil {
-				ran.Log.Debug("NG Reset with RANUENGAPID", zap.Int64("RanUeNgapID", ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value))
+				logger.WithTrace(ctx, ran.Log).Debug("NG Reset with RANUENGAPID", zap.Int64("RanUeNgapID", ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value))
 				ranUe = ran.FindUEByRanUeNgapID(ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value)
 			}
 
 			if ranUe == nil {
-				ran.Log.Warn("Cannot not find UE Context")
+				logger.WithTrace(ctx, ran.Log).Warn("Cannot not find UE Context")
 
 				if ueAssociatedLogicalNGConnectionItem.AMFUENGAPID != nil {
-					ran.Log.Warn("AMFUENGAPID is not empty", zap.Int64("AmfUeNgapID", ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value))
+					logger.WithTrace(ctx, ran.Log).Warn("AMFUENGAPID is not empty", zap.Int64("AmfUeNgapID", ueAssociatedLogicalNGConnectionItem.AMFUENGAPID.Value))
 				}
 
 				if ueAssociatedLogicalNGConnectionItem.RANUENGAPID != nil {
-					ran.Log.Warn("RANUENGAPID is not empty", zap.Int64("RanUeNgapID", ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value))
+					logger.WithTrace(ctx, ran.Log).Warn("RANUENGAPID is not empty", zap.Int64("RanUeNgapID", ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value))
 				}
 			}
 
 			err := ranUe.Remove()
 			if err != nil {
-				ran.Log.Error(err.Error())
+				logger.WithTrace(ctx, ran.Log).Error(err.Error())
 			}
 		}
 
 		err := ran.NGAPSender.SendNGResetAcknowledge(ctx, partOfNGInterface)
 		if err != nil {
-			ran.Log.Error("error sending NG Reset Acknowledge", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("error sending NG Reset Acknowledge", zap.Error(err))
 			return
 		}
 	default:
-		ran.Log.Warn("Invalid ResetType", zap.Any("ResetType", resetType.Present))
+		logger.WithTrace(ctx, ran.Log).Warn("Invalid ResetType", zap.Any("ResetType", resetType.Present))
 	}
 }

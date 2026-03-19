@@ -121,9 +121,9 @@ func dispatchNgapMsg(ctx context.Context, amf *amfContext.AMF, ran *amfContext.R
 		case ngapType.ProcedureCodeNASNonDeliveryIndication:
 			HandleNasNonDeliveryIndication(ctx, amf, ran, pdu.InitiatingMessage.Value.NASNonDeliveryIndication)
 		case ngapType.ProcedureCodeErrorIndication:
-			HandleErrorIndication(ran, pdu.InitiatingMessage.Value.ErrorIndication)
+			HandleErrorIndication(ctx, ran, pdu.InitiatingMessage.Value.ErrorIndication)
 		case ngapType.ProcedureCodeUERadioCapabilityInfoIndication:
-			HandleUERadioCapabilityInfoIndication(ran, pdu.InitiatingMessage.Value.UERadioCapabilityInfoIndication)
+			HandleUERadioCapabilityInfoIndication(ctx, ran, pdu.InitiatingMessage.Value.UERadioCapabilityInfoIndication)
 		case ngapType.ProcedureCodeHandoverNotification:
 			HandleHandoverNotify(ctx, amf, ran, pdu.InitiatingMessage.Value.HandoverNotify)
 		case ngapType.ProcedureCodeHandoverPreparation:
@@ -179,7 +179,7 @@ func dispatchNgapMsg(ctx context.Context, amf *amfContext.AMF, ran *amfContext.R
 		case ngapType.ProcedureCodeInitialContextSetup:
 			HandleInitialContextSetupFailure(ctx, ran, pdu.UnsuccessfulOutcome.Value.InitialContextSetupFailure)
 		case ngapType.ProcedureCodeUEContextModification:
-			HandleUEContextModificationFailure(amf, ran, pdu.UnsuccessfulOutcome.Value.UEContextModificationFailure)
+			HandleUEContextModificationFailure(ctx, amf, ran, pdu.UnsuccessfulOutcome.Value.UEContextModificationFailure)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
 			HandleHandoverFailure(ctx, amf, ran, pdu.UnsuccessfulOutcome.Value.HandoverFailure)
 		default:
