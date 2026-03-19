@@ -405,7 +405,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		}
 
 		if err := ct_entries.Err(); err != nil {
-			logger.UpfLog.Debug("Error while iterating over conntrack entries", zap.Error(err))
+			logger.UpfLog.Warn("Conntrack iteration failed", zap.Error(err))
 		}
 
 		count, err := u.pfcpConn.BpfObjects.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
@@ -503,7 +503,7 @@ func (u *UPF) pollUsageAndResetCounters() error {
 		for _, pdr := range session.ListPDRs() {
 			urrID := pdr.PdrInfo.UrrID
 			if urrID == 0 {
-				logger.UpfLog.Debug("URR ID is 0, skipping usage report", zap.Uint64("local_seid", localSeid), zap.Uint32("pdr_id", pdr.PdrInfo.PdrID))
+				logger.UpfLog.Debug("URR ID is 0, skipping usage report", logger.SEID(localSeid), logger.PDRID(pdr.PdrInfo.PdrID))
 				continue
 			}
 
@@ -516,29 +516,29 @@ func (u *UPF) pollUsageAndResetCounters() error {
 			if pdr.Ipv4 != nil || pdr.Ipv6 != nil {
 				dvol, err = u.getAndResetUsageForURR(urrID)
 				if err != nil {
-					logger.UpfLog.Warn("could not get usage for URR - downlink", zap.Uint32("urr_id", urrID), zap.Error(err), zap.Uint64("local_seid", localSeid), zap.Uint32("pdr_id", pdr.PdrInfo.PdrID))
+					logger.UpfLog.Warn("could not get usage for URR - downlink", logger.URRID(urrID), zap.Error(err), logger.SEID(localSeid), logger.PDRID(pdr.PdrInfo.PdrID))
 					continue
 				}
 			} else { // Uplink PDR
 				uvol, err = u.getAndResetUsageForURR(urrID)
 				if err != nil {
-					logger.UpfLog.Warn("could not get usage for URR - uplink", zap.Uint32("urr_id", urrID), zap.Error(err), zap.Uint64("local_seid", localSeid))
+					logger.UpfLog.Warn("could not get usage for URR - uplink", logger.URRID(urrID), zap.Error(err), logger.SEID(localSeid))
 					continue
 				}
 			}
 
 			err = core.SendPfcpSessionReportRequestForUsage(context.TODO(), localSeid, urrID, uvol, dvol)
 			if err != nil {
-				logger.UpfLog.Warn("could not send PFCP session report request for usage", zap.Error(err), zap.Uint64("local_seid", localSeid), zap.Uint32("urr_id", urrID))
+				logger.UpfLog.Warn("could not send PFCP session report request for usage", zap.Error(err), logger.SEID(localSeid), logger.URRID(urrID))
 				continue
 			}
 
 			logger.UpfLog.Debug(
 				"Sent usage report",
-				zap.Uint64("local_seid", localSeid),
-				zap.Uint32("urr_id", urrID),
-				zap.Uint64("uplink_volume", uvol),
-				zap.Uint64("downlink_volume", dvol),
+				logger.SEID(localSeid),
+				logger.URRID(urrID),
+				logger.UplinkVolume(uvol),
+				logger.DownlinkVolume(dvol),
 			)
 		}
 	}
@@ -599,7 +599,7 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 	}
 
 	if err := iter.Err(); err != nil {
-		logger.UpfLog.Debug("Error while iterating over flow entries", zap.Error(err))
+		logger.UpfLog.Warn("Flow entry iteration failed", zap.Error(err))
 	}
 
 	if len(expiredKeys) == 0 {
