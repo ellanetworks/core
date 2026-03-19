@@ -163,6 +163,9 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 			err = applyPDR(spdrInfo, bpfObjects)
 			if err != nil {
+				if spdrInfo.Allocated {
+					pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.SEID)
+				}
 				return fmt.Errorf("couldn't apply PDR: %s", err.Error())
 			}
 
@@ -474,6 +477,9 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 			err = applyPDR(spdrInfo, bpfObjects)
 			if err != nil {
+				if spdrInfo.Allocated {
+					pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.SEID)
+				}
 				return fmt.Errorf("couldn't apply PDR: %s", err.Error())
 			}
 
@@ -498,6 +504,9 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 			err = applyPDR(spdrInfo, bpfObjects)
 			if err != nil {
+				if spdrInfo.Allocated {
+					pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.SEID)
+				}
 				return fmt.Errorf("couldn't apply PDR: %s", err.Error())
 			}
 
