@@ -10,6 +10,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -27,6 +28,8 @@ import {
 } from "@mui/x-data-grid";
 import { useQuery } from "@tanstack/react-query";
 import { getRadio, type APIRadioDetail, type Snssai } from "@/queries/radios";
+import EastIcon from "@mui/icons-material/East";
+import WestIcon from "@mui/icons-material/West";
 import {
   listSubscribersByRadio,
   type APISubscriberSummary,
@@ -210,8 +213,36 @@ const RadioDetail: React.FC = () => {
       {
         field: "direction",
         headerName: "Direction",
-        width: 120,
+        width: 90,
         sortable: false,
+        renderCell: (p) => {
+          const val = p.row.direction;
+          if (!val) return null;
+          const Icon = val === "outbound" ? EastIcon : WestIcon;
+          const title =
+            val === "inbound" ? "Receive (inbound)" : "Send (outbound)";
+          const color =
+            val === "inbound"
+              ? theme.palette.success.main
+              : theme.palette.info.main;
+          return (
+            <Tooltip title={title}>
+              <Box
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  lineHeight: 0,
+                  "& svg": { display: "block" },
+                }}
+              >
+                <Icon fontSize="small" sx={{ color }} aria-label={title} />
+              </Box>
+            </Tooltip>
+          );
+        },
       },
     ],
     [],
@@ -381,7 +412,7 @@ const RadioDetail: React.FC = () => {
                     <TableCell sx={valueCellSx}>{subscriberRowCount}</TableCell>
                   </TableRow>
                   {tais.length > 0 && (
-                    <TableRow>
+                    <TableRow sx={{ "& td": { borderBottom: "none" } }}>
                       <TableCell sx={labelCellSx}>Supported TAIs</TableCell>
                       <TableCell sx={valueCellSx}>
                         <Table size="small" sx={{ m: -1 }}>

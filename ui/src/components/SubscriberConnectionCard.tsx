@@ -264,7 +264,7 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
                     <Typography
                       variant="body2"
                       component={RouterLink}
-                      to="/radios"
+                      to={`/radios/${encodeURIComponent(status.lastSeenRadio)}`}
                       sx={{
                         color: (theme) => theme.palette.link,
                         textDecoration: "underline",
