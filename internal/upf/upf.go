@@ -436,10 +436,10 @@ func (u *UPF) listenForTrafficNotifications() {
 			continue
 		}
 
-		logger.UpfLog.Debug("Received notification for", zap.Uint64("SEID", event.LocalSEID), zap.Uint16("PDRID", event.PdrID), zap.Uint8("QFI", event.QFI))
+		logger.UpfLog.Debug("Received notification for", logger.SEID(event.LocalSEID), logger.PDRID(uint32(event.PdrID)), logger.QFI(event.QFI))
 
 		if !u.pfcpConn.BpfObjects.IsAlreadyNotified(event) {
-			logger.UpfLog.Debug("Notifying SMF of downlink data", zap.Uint64("SEID", event.LocalSEID), zap.Uint16("PDRID", event.PdrID), zap.Uint8("QFI", event.QFI))
+			logger.UpfLog.Debug("Notifying SMF of downlink data", logger.SEID(event.LocalSEID), logger.PDRID(uint32(event.PdrID)), logger.QFI(event.QFI))
 
 			err = core.SendPfcpSessionReportRequestForDownlinkData(context.TODO(), event.LocalSEID, event.PdrID, event.QFI)
 			if err != nil {

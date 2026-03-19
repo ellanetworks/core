@@ -60,7 +60,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 	session := NewSession(seid)
 
-	logger.WithTrace(ctx, logger.UpfLog).Debug("Tracking new session", zap.Uint64("SEID", seid))
+	logger.WithTrace(ctx, logger.UpfLog).Debug("Tracking new session", logger.SEID(seid))
 
 	var imsiStr string
 
@@ -98,7 +98,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 			session.NewFar(farid, farInfo)
 			farMap[farid] = farInfo
 
-			logger.WithTrace(ctx, logger.UpfLog).Info("Created Forwarding Action Rule", zap.Uint32("farID", farid), zap.Any("farInfo", farInfo))
+			logger.WithTrace(ctx, logger.UpfLog).Info("Created Forwarding Action Rule", logger.FARID(farid), zap.Any("farInfo", farInfo))
 		}
 
 		for _, qer := range msg.CreateQER {
@@ -114,7 +114,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 			session.NewQer(qerID, qerInfo)
 			qerMap[qerID] = qerInfo
 
-			logger.WithTrace(ctx, logger.UpfLog).Info("Created QoS Enforcement Rule", zap.Uint32("qerID", qerID), zap.Any("qerInfo", qerInfo))
+			logger.WithTrace(ctx, logger.UpfLog).Info("Created QoS Enforcement Rule", logger.QERID(qerID), zap.Any("qerInfo", qerInfo))
 		}
 
 		for _, urr := range msg.CreateURR {
@@ -139,7 +139,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 			logger.WithTrace(ctx, logger.UpfLog).Debug(
 				"Received Usage Reporting Rule create",
-				zap.Uint32("urr_id", urrId),
+				logger.URRID(urrId),
 				zap.String("measurement_method", "Volume"),
 				zap.Duration("measurement_period", measurementPeriod),
 			)
@@ -170,7 +170,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 				return fmt.Errorf("couldn't apply PDR: %s", err.Error())
 			}
 
-			logger.WithTrace(ctx, logger.UpfLog).Info("Applied packet detection rule", zap.Uint32("pdrID", spdrInfo.PdrID))
+			logger.WithTrace(ctx, logger.UpfLog).Info("Applied packet detection rule", logger.PDRID(spdrInfo.PdrID))
 			createdPDRs = append(createdPDRs, spdrInfo)
 			bpfObjects.ClearNotified(seid, pdrID, spdrInfo.PdrInfo.Qer.Qfi)
 		}
@@ -230,7 +230,7 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 
 	conn.DeleteSession(msg.SEID())
 
-	logger.WithTrace(ctx, logger.UpfLog).Info("Deleted session", zap.Uint64("seid", msg.SEID()))
+	logger.WithTrace(ctx, logger.UpfLog).Info("Deleted session", logger.SEID(msg.SEID()))
 
 	conn.ReleaseResources(msg.SEID())
 
@@ -287,7 +287,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 			session.NewFar(farid, farInfo)
 
-			logger.WithTrace(ctx, logger.UpfLog).Info("Created Forwarding Action Rule", zap.Uint32("farID", farid), zap.Any("farInfo", farInfo))
+			logger.WithTrace(ctx, logger.UpfLog).Info("Created Forwarding Action Rule", logger.FARID(farid), zap.Any("farInfo", farInfo))
 		}
 
 		for _, far := range msg.UpdateFAR {
@@ -319,7 +319,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				}
 			}
 
-			logger.WithTrace(ctx, logger.UpfLog).Info("Updated Forwarding Action Rule", zap.Uint32("farID", farid), zap.Any("farInfo", sFarInfo))
+			logger.WithTrace(ctx, logger.UpfLog).Info("Updated Forwarding Action Rule", logger.FARID(farid), zap.Any("farInfo", sFarInfo))
 		}
 
 		for _, far := range msg.RemoveFAR {
@@ -330,7 +330,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 			session.RemoveFar(farid)
 
-			logger.WithTrace(ctx, logger.UpfLog).Debug("Removed Forwarding Action Rule", zap.Uint32("farID", farid))
+			logger.WithTrace(ctx, logger.UpfLog).Debug("Removed Forwarding Action Rule", logger.FARID(farid))
 		}
 
 		for _, qer := range msg.CreateQER {
@@ -357,7 +357,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				}
 			}
 
-			logger.WithTrace(ctx, logger.UpfLog).Info("Created QoS Enforcement Rule", zap.Uint32("qerID", qerID), zap.Any("qerInfo", qerInfo))
+			logger.WithTrace(ctx, logger.UpfLog).Info("Created QoS Enforcement Rule", logger.QERID(qerID), zap.Any("qerInfo", qerInfo))
 		}
 
 		for _, qer := range msg.UpdateQER {
@@ -391,7 +391,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				return fmt.Errorf("QER ID missing: %s", err.Error())
 			}
 
-			logger.WithTrace(ctx, logger.UpfLog).Debug("Received QER remove (no-op for embedded QER)", zap.Uint32("qerID", qerID))
+			logger.WithTrace(ctx, logger.UpfLog).Debug("Received QER remove (no-op for embedded QER)", logger.QERID(qerID))
 		}
 
 		for _, urr := range msg.CreateURR {
@@ -411,7 +411,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 			logger.WithTrace(ctx, logger.UpfLog).Debug(
 				"Received Usage Reporting Rule create",
-				zap.Uint32("urrID", urrId),
+				logger.URRID(urrId),
 				zap.String("measurement_method", "Volume"),
 				zap.Duration("measurementPeriod", measurementPeriod),
 			)
@@ -434,7 +434,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 
 			logger.WithTrace(ctx, logger.UpfLog).Debug(
 				"Received Usage Reporting Rule update - Not yet supported",
-				zap.Uint32("urrID", urrId),
+				logger.URRID(urrId),
 				zap.String("measurement_method", "Volume"),
 				zap.Duration("measurementPeriod", measurementPeriod),
 			)
@@ -446,7 +446,7 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 				return fmt.Errorf("URR ID missing")
 			}
 
-			logger.WithTrace(ctx, logger.UpfLog).Debug("Received Usage Reporting Rule remove - Not yet supported", zap.Uint32("urrID", urrId))
+			logger.WithTrace(ctx, logger.UpfLog).Debug("Received Usage Reporting Rule remove - Not yet supported", logger.URRID(urrId))
 		}
 
 		// Build in-memory FAR and QER maps from the session for PDR injection.
@@ -776,6 +776,6 @@ func addRemoteIPToNeigh(ctx context.Context, remoteIP uint32) {
 	ip := net.IP(ip_bytes)
 
 	if err := kernel.AddNeighbour(ctx, ip); err != nil {
-		logger.UpfLog.Warn("could not add gnb IP to neighbour list", zap.String("IP", ip.String()), zap.Error(err))
+		logger.UpfLog.Warn("could not add gnb IP to neighbour list", logger.IPAddress(ip.String()), zap.Error(err))
 	}
 }

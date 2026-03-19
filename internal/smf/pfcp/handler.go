@@ -131,10 +131,10 @@ func HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionRep
 
 			logger.WithTrace(ctx, logger.SmfLog).Debug(
 				"Processed usage report",
-				zap.String("supi", smContext.Supi.String()),
-				zap.Uint32("urrID", urrId),
-				zap.Uint64("uplink_volume", volumeMeasurement.UplinkVolume),
-				zap.Uint64("downlink_volume", volumeMeasurement.DownlinkVolume),
+				logger.SUPI(smContext.Supi.String()),
+				logger.URRID(urrId),
+				logger.UplinkVolume(volumeMeasurement.UplinkVolume),
+				logger.DownlinkVolume(volumeMeasurement.DownlinkVolume),
 			)
 		}
 	}
@@ -182,9 +182,9 @@ func (s SmfPfcpHandler) SendFlowReport(ctx context.Context, req *pfcp_dispatcher
 	if err != nil {
 		logger.SmfLog.Error(
 			"Failed to insert flow report",
-			zap.String("subscriber_id", req.IMSI),
-			zap.String("source_ip", req.SourceIP),
-			zap.String("destination_ip", req.DestinationIP),
+			logger.IMSI(req.IMSI),
+			logger.SourceIP(req.SourceIP),
+			logger.DestinationIP(req.DestinationIP),
 			zap.Error(err),
 		)
 
@@ -193,11 +193,11 @@ func (s SmfPfcpHandler) SendFlowReport(ctx context.Context, req *pfcp_dispatcher
 
 	logger.SmfLog.Debug(
 		"Flow report persisted",
-		zap.String("subscriber_id", req.IMSI),
-		zap.String("source_ip", req.SourceIP),
-		zap.String("destination_ip", req.DestinationIP),
-		zap.Uint64("packets", req.Packets),
-		zap.Uint64("bytes", req.Bytes),
+		logger.IMSI(req.IMSI),
+		logger.SourceIP(req.SourceIP),
+		logger.DestinationIP(req.DestinationIP),
+		logger.Packets(req.Packets),
+		logger.Bytes(req.Bytes),
 	)
 
 	return nil

@@ -40,15 +40,15 @@ func handlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte) error {
 
 	switch resourceSetupUnsuccessfulTransfer.Cause.Present {
 	case ngapType.CausePresentRadioNetwork:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by RadioNetwork", zap.String("Cause", radioNetworkCauseString(resourceSetupUnsuccessfulTransfer.Cause.RadioNetwork.Value)))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by RadioNetwork", logger.Cause(radioNetworkCauseString(resourceSetupUnsuccessfulTransfer.Cause.RadioNetwork.Value)))
 	case ngapType.CausePresentTransport:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Transport", zap.String("Cause", transportCauseString(resourceSetupUnsuccessfulTransfer.Cause.Transport.Value)))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Transport", logger.Cause(transportCauseString(resourceSetupUnsuccessfulTransfer.Cause.Transport.Value)))
 	case ngapType.CausePresentNas:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by NAS", zap.String("Cause", nasCauseString(resourceSetupUnsuccessfulTransfer.Cause.Nas.Value)))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by NAS", logger.Cause(nasCauseString(resourceSetupUnsuccessfulTransfer.Cause.Nas.Value)))
 	case ngapType.CausePresentProtocol:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Protocol", zap.String("Cause", protocolCauseString(resourceSetupUnsuccessfulTransfer.Cause.Protocol.Value)))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Protocol", logger.Cause(protocolCauseString(resourceSetupUnsuccessfulTransfer.Cause.Protocol.Value)))
 	case ngapType.CausePresentMisc:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Misc", zap.String("Cause", miscCauseString(resourceSetupUnsuccessfulTransfer.Cause.Misc.Value)))
+		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Misc", logger.Cause(miscCauseString(resourceSetupUnsuccessfulTransfer.Cause.Misc.Value)))
 	case ngapType.CausePresentChoiceExtensions:
 		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by ChoiceExtensions", zap.Any("Cause", resourceSetupUnsuccessfulTransfer.Cause.ChoiceExtensions))
 	}
