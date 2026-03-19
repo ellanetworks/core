@@ -40,9 +40,7 @@ type Server struct {
 }
 
 func NewServer() *Server {
-	return &Server{
-		acceptDone: make(chan struct{}),
-	}
+	return &Server{}
 }
 
 func (s *Server) ListenAndServe(ctx context.Context, address string, port int) error {
@@ -62,6 +60,7 @@ func (s *Server) ListenAndServe(ctx context.Context, address string, port int) e
 	}
 
 	s.listener = listener
+	s.acceptDone = make(chan struct{}) // fresh channel each call for restart-safety
 
 	logger.AmfLog.Info("NGAP server started", zap.String("address", addr.String()))
 
@@ -165,6 +164,10 @@ func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
 }
 
 func (s *Server) Shutdown() {
+	if s.listener == nil {
+		return
+	}
+
 	if err := s.listener.Close(); err != nil {
 		logger.AmfLog.Error("could not close sctp listener", zap.Error(err))
 	}
