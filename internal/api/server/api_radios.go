@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
@@ -29,9 +30,10 @@ type SupportedTAI struct {
 }
 
 type Radio struct {
-	Name          string         `json:"name"`
-	ID            string         `json:"id"`
-	Address       string         `json:"address"`
+	Name    string `json:"name"`
+	ID      string `json:"id"`
+	Address string `json:"address"`
+	// Deprecated: Use the GET /api/v1/ran/radios/{name} detail endpoint instead.
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
@@ -40,6 +42,16 @@ type ListRadiosResponse struct {
 	Page       int     `json:"page"`
 	PerPage    int     `json:"per_page"`
 	TotalCount int     `json:"total_count"`
+}
+
+type RadioDetail struct {
+	Name          string         `json:"name"`
+	ID            string         `json:"id"`
+	Address       string         `json:"address"`
+	ConnectedAt   string         `json:"connected_at"`
+	LastSeenAt    string         `json:"last_seen_at"`
+	RanNodeType   string         `json:"ran_node_type"`
+	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
 func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
@@ -104,10 +116,7 @@ func ListRadios() http.HandlerFunc {
 				}
 			}
 
-			radioID := ""
-			if radio.RanID.GNbID != nil {
-				radioID = radio.RanID.GNbID.GNBValue
-			}
+			radioID := radio.NodeID()
 
 			newRadio := Radio{
 				Name:          radio.Name,
@@ -143,32 +152,35 @@ func GetRadio() http.HandlerFunc {
 		_, ranList := amf.ListAmfRan(1, 1000)
 
 		for _, radio := range ranList {
-			if radio.Name == radioName {
-				supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAIs)
-
-				radioAddress := ""
-
-				if radio.Conn != nil {
-					if addr := radio.Conn.RemoteAddr(); addr != nil {
-						radioAddress = addr.String()
-					}
-				}
-
-				radioID := ""
-				if radio.RanID.GNbID != nil {
-					radioID = radio.RanID.GNbID.GNBValue
-				}
-
-				result := Radio{
-					Name:          radio.Name,
-					ID:            radioID,
-					Address:       radioAddress,
-					SupportedTAIs: supportedTais,
-				}
-				writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
-
-				return
+			if radio.Name != radioName {
+				continue
 			}
+
+			supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAIs)
+
+			radioAddress := ""
+
+			if radio.Conn != nil {
+				if addr := radio.Conn.RemoteAddr(); addr != nil {
+					radioAddress = addr.String()
+				}
+			}
+
+			radioID := radio.NodeID()
+
+			result := RadioDetail{
+				Name:          radio.Name,
+				ID:            radioID,
+				Address:       radioAddress,
+				ConnectedAt:   radio.ConnectedAt.UTC().Format(time.RFC3339),
+				LastSeenAt:    radio.LastSeenAt.UTC().Format(time.RFC3339),
+				RanNodeType:   radio.RanNodeTypeName(),
+				SupportedTAIs: supportedTais,
+			}
+
+			writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
+
+			return
 		}
 
 		writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)

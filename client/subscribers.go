@@ -37,6 +37,13 @@ type Subscriber struct {
 	Status     SubscriberStatus `json:"status"`
 }
 
+// ListSubscribersParams holds the parameters for ListSubscribers.
+type ListSubscribersParams struct {
+	Page    int    `json:"page"`
+	PerPage int    `json:"per_page"`
+	Radio   string `json:"radio,omitempty"`
+}
+
 type ListSubscribersResponse struct {
 	Items      []Subscriber `json:"items"`
 	Page       int          `json:"page"`
@@ -145,16 +152,22 @@ func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOpt
 	return nil
 }
 
-// ListSubscribers lists subscribers with pagination.
-func (c *Client) ListSubscribers(ctx context.Context, p *ListParams) (*ListSubscribersResponse, error) {
+// ListSubscribers lists subscribers with pagination and optional filters.
+func (c *Client) ListSubscribers(ctx context.Context, p *ListSubscribersParams) (*ListSubscribersResponse, error) {
+	query := url.Values{
+		"page":     {fmt.Sprintf("%d", p.Page)},
+		"per_page": {fmt.Sprintf("%d", p.PerPage)},
+	}
+
+	if p.Radio != "" {
+		query.Set("radio", p.Radio)
+	}
+
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/subscribers",
-		Query: url.Values{
-			"page":     {fmt.Sprintf("%d", p.Page)},
-			"per_page": {fmt.Sprintf("%d", p.PerPage)},
-		},
+		Query:  query,
 	})
 	if err != nil {
 		return nil, err

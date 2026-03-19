@@ -33,9 +33,20 @@ type SupportedTAI struct {
 }
 
 type Radio struct {
+	Name    string `json:"name"`
+	ID      string `json:"id"`
+	Address string `json:"address"`
+	// Deprecated: Use GetRadio (GET /api/v1/ran/radios/{name}) for supported TAIs.
+	SupportedTAIs []SupportedTAI `json:"supported_tais"`
+}
+
+type RadioDetail struct {
 	Name          string         `json:"name"`
 	ID            string         `json:"id"`
 	Address       string         `json:"address"`
+	ConnectedAt   string         `json:"connected_at"`
+	LastSeenAt    string         `json:"last_seen_at"`
+	RanNodeType   string         `json:"ran_node_type"`
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
@@ -88,7 +99,7 @@ type RadioEventContent struct {
 }
 
 // GetRadio retrieves a radio by name.
-func (c *Client) GetRadio(ctx context.Context, opts *GetRadioOptions) (*Radio, error) {
+func (c *Client) GetRadio(ctx context.Context, opts *GetRadioOptions) (*RadioDetail, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
@@ -98,7 +109,7 @@ func (c *Client) GetRadio(ctx context.Context, opts *GetRadioOptions) (*Radio, e
 		return nil, err
 	}
 
-	var radioResponse Radio
+	var radioResponse RadioDetail
 
 	err = resp.DecodeResult(&radioResponse)
 	if err != nil {

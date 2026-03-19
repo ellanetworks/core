@@ -137,6 +137,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 		q := r.URL.Query()
 		page := atoiDefault(q.Get("page"), 1)
 		perPage := atoiDefault(q.Get("per_page"), 25)
+		radioFilter := q.Get("radio")
 
 		if page < 1 {
 			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
@@ -150,7 +151,49 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 
 		ctx := r.Context()
 
-		dbSubscribers, total, err := dbInstance.ListSubscribersPage(ctx, page, perPage)
+		// When a radio filter is set, we need to fetch all subscribers and
+		// filter by the runtime AMF state, then paginate in memory.
+		var radioIMSIs map[string]struct{}
+
+		if radioFilter != "" {
+			amf := amfContext.AMFSelf()
+
+			_, ranList := amf.ListAmfRan(1, 1000)
+
+			found := false
+
+			for _, radio := range ranList {
+				if radio.Name == radioFilter {
+					supis := radio.ConnectedSubscribers()
+					radioIMSIs = make(map[string]struct{}, len(supis))
+
+					for _, imsi := range supis {
+						radioIMSIs[imsi] = struct{}{}
+					}
+
+					found = true
+
+					break
+				}
+			}
+
+			if !found {
+				writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio %q not found", radioFilter), logger.APILog)
+				return
+			}
+		}
+
+		// When filtering by radio we must load all subscribers and paginate
+		// in memory because the filter is against runtime AMF state, not the DB.
+		dbPage := page
+		dbPerPage := perPage
+
+		if radioIMSIs != nil {
+			dbPage = 1
+			dbPerPage = MaxNumSubscribers
+		}
+
+		dbSubscribers, total, err := dbInstance.ListSubscribersPage(ctx, dbPage, dbPerPage)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list subscribers", err, logger.APILog)
 			return
@@ -173,6 +216,12 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 		}
 
 		for _, dbSubscriber := range dbSubscribers {
+			if radioIMSIs != nil {
+				if _, ok := radioIMSIs[dbSubscriber.Imsi]; !ok {
+					continue
+				}
+			}
+
 			policy, ok := policyByID[dbSubscriber.PolicyID]
 			if !ok {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", fmt.Errorf("policy ID %d not found", dbSubscriber.PolicyID), logger.APILog)
@@ -202,6 +251,23 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 				PolicyName: policy.Name,
 				Status:     subscriberStatus,
 			})
+		}
+
+		// When filtering by radio, apply pagination in memory.
+		if radioIMSIs != nil {
+			total = len(items)
+			start := (page - 1) * perPage
+			end := start + perPage
+
+			if start > len(items) {
+				start = len(items)
+			}
+
+			if end > len(items) {
+				end = len(items)
+			}
+
+			items = items[start:end]
 		}
 
 		subscribers := ListSubscribersResponse{

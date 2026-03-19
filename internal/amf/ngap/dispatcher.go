@@ -59,6 +59,8 @@ func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 		return
 	}
 
+	ran.TouchLastSeen()
+
 	pdu, err := ngap.Decoder(msg)
 	if err != nil {
 		ran.Log.Error("NGAP decode error", zap.Error(err))

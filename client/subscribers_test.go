@@ -198,7 +198,7 @@ func TestListSubscribers_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	params := &client.ListParams{
+	params := &client.ListSubscribersParams{
 		Page:    1,
 		PerPage: 10,
 	}
@@ -228,7 +228,7 @@ func TestListSubscribers_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	params := &client.ListParams{
+	params := &client.ListSubscribersParams{
 		Page:    1,
 		PerPage: 10,
 	}

@@ -10,6 +10,7 @@ package context
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/sctp"
@@ -59,6 +60,8 @@ type Radio struct {
 	NGAPSender    NGAPSender
 	Name          string
 	Conn          *sctp.SCTPConn
+	ConnectedAt   time.Time
+	LastSeenAt    time.Time
 	SupportedTAIs []SupportedTAI
 	RanUEs        map[int64]*RanUe // Key: RanUeNgapID
 	Log           *zap.Logger
@@ -109,4 +112,56 @@ func (r *Radio) SetRanID(ranNodeID *ngapType.GlobalRANNodeID) {
 	ranID := util.RanIDToModels(*ranNodeID)
 	r.RanPresent = ranNodeID.Present
 	r.RanID = &ranID
+}
+
+func (r *Radio) TouchLastSeen() {
+	r.LastSeenAt = time.Now()
+}
+
+func (r *Radio) ConnectedUECount() int {
+	return len(r.RanUEs)
+}
+
+// NodeID returns the RAN node identifier string regardless of radio type.
+func (r *Radio) NodeID() string {
+	if r.RanID == nil {
+		return ""
+	}
+
+	switch r.RanPresent {
+	case RanPresentGNbID:
+		if r.RanID.GNbID != nil {
+			return r.RanID.GNbID.GNBValue
+		}
+	case RanPresentNgeNbID:
+		return r.RanID.NgeNbID
+	case RanPresentN3IwfID:
+		return r.RanID.N3IwfID
+	}
+
+	return ""
+}
+
+func (r *Radio) RanNodeTypeName() string {
+	switch r.RanPresent {
+	case RanPresentGNbID:
+		return "gNB"
+	case RanPresentNgeNbID:
+		return "ng-eNB"
+	case RanPresentN3IwfID:
+		return "N3IWF"
+	default:
+		return "Unknown"
+	}
+}
+
+func (r *Radio) ConnectedSubscribers() []string {
+	supis := make([]string, 0, len(r.RanUEs))
+	for _, ranUe := range r.RanUEs {
+		if ranUe.AmfUe != nil && ranUe.AmfUe.Supi.IsValid() && ranUe.AmfUe.Supi.IsIMSI() {
+			supis = append(supis, ranUe.AmfUe.Supi.IMSI())
+		}
+	}
+
+	return supis
 }

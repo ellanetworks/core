@@ -539,6 +539,11 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
+        - name: radio
+          in: query
+          schema:
+            type: string
+          description: Filter subscribers connected to a specific radio by name.
       responses:
         "200":
           description: Paginated list of subscribers.
@@ -3086,15 +3091,47 @@ components:
           type: string
         supported_tais:
           type: array
+          deprecated: true
+          description: "Deprecated: use GET /api/v1/ran/radios/{name} for full radio details including supported TAIs."
           items:
             $ref: "#/components/schemas/SupportedTAI"
       required: [name, id, address, supported_tais]
+
+    RadioDetail:
+      type: object
+      description: Detailed information about a connected radio base station.
+      properties:
+        name:
+          type: string
+        id:
+          type: string
+          description: GnB ID value.
+        address:
+          type: string
+          description: SCTP remote address (IP:port).
+        connected_at:
+          type: string
+          format: date-time
+          description: Timestamp when the radio connected (RFC 3339).
+        last_seen_at:
+          type: string
+          format: date-time
+          description: Timestamp of the last NGAP message received from the radio (RFC 3339).
+        ran_node_type:
+          type: string
+          enum: [gNB, ng-eNB, N3IWF, Unknown]
+          description: Type of the RAN node.
+        supported_tais:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupportedTAI"
+      required: [name, id, address, connected_at, last_seen_at, ran_node_type, supported_tais]
 
     RadioResponseEnvelope:
       type: object
       properties:
         result:
-          $ref: "#/components/schemas/Radio"
+          $ref: "#/components/schemas/RadioDetail"
 
     ListRadiosResponse:
       type: object
