@@ -24,6 +24,7 @@ export type APIRadio = {
   name: string;
   id: string;
   address: string;
+  ran_node_type: string;
   supported_tais: SupportedTAI[];
 };
 

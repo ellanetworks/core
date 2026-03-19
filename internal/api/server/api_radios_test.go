@@ -41,6 +41,7 @@ type Radio struct {
 	Name          string         `json:"name"`
 	ID            string         `json:"id"`
 	Address       string         `json:"address"`
+	RanNodeType   string         `json:"ran_node_type"`
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 

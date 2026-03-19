@@ -3089,13 +3089,17 @@ components:
           type: string
         address:
           type: string
+        ran_node_type:
+          type: string
+          enum: [gNB, ng-eNB, N3IWF, Unknown]
+          description: Type of the RAN node.
         supported_tais:
           type: array
           deprecated: true
           description: "Deprecated: use GET /api/v1/ran/radios/{name} for full radio details including supported TAIs."
           items:
             $ref: "#/components/schemas/SupportedTAI"
-      required: [name, id, address, supported_tais]
+      required: [name, id, address, ran_node_type, supported_tais]
 
     RadioDetail:
       type: object

@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
+  Chip,
   CircularProgress,
   Tabs,
   Tab,
@@ -705,7 +706,6 @@ const Radio = () => {
 
   const columns: GridColDef<APIRadio>[] = useMemo(
     () => [
-      { field: "id", headerName: "ID", flex: 0.6, minWidth: 160 },
       {
         field: "name",
         headerName: "Name",
@@ -738,6 +738,26 @@ const Radio = () => {
             </Link>
           </Box>
         ),
+      },
+      { field: "id", headerName: "ID", flex: 0.6, minWidth: 160 },
+      {
+        field: "ran_node_type",
+        headerName: "Type",
+        width: 120,
+        renderCell: (params) => {
+          const t = params.row.ran_node_type;
+          const color =
+            t === "gNB"
+              ? "primary"
+              : t === "ng-eNB"
+                ? "secondary"
+                : t === "N3IWF"
+                  ? "warning"
+                  : "default";
+          return (
+            <Chip size="small" label={t} color={color} variant="outlined" />
+          );
+        },
       },
       { field: "address", headerName: "Address", flex: 1, minWidth: 240 },
     ],

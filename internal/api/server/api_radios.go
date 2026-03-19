@@ -30,9 +30,10 @@ type SupportedTAI struct {
 }
 
 type Radio struct {
-	Name    string `json:"name"`
-	ID      string `json:"id"`
-	Address string `json:"address"`
+	Name        string `json:"name"`
+	ID          string `json:"id"`
+	Address     string `json:"address"`
+	RanNodeType string `json:"ran_node_type"`
 	// Deprecated: Use the GET /api/v1/ran/radios/{name} detail endpoint instead.
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
@@ -122,6 +123,7 @@ func ListRadios() http.HandlerFunc {
 				Name:          radio.Name,
 				ID:            radioID,
 				Address:       radioAddress,
+				RanNodeType:   radio.RanNodeTypeName(),
 				SupportedTAIs: supportedTais,
 			}
 

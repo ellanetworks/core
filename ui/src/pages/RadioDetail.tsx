@@ -2,10 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   Skeleton,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableRow,
   Typography,
 } from "@mui/material";
 import {
@@ -22,54 +25,35 @@ import {
   type GridRenderCellParams,
 } from "@mui/x-data-grid";
 import { useQuery } from "@tanstack/react-query";
-import {
-  getRadio,
-  type APIRadioDetail,
-  type SupportedTAI,
-  type Snssai,
-} from "@/queries/radios";
+import { getRadio, type APIRadioDetail, type Snssai } from "@/queries/radios";
 import {
   listSubscribersByRadio,
   type APISubscriberSummary,
 } from "@/queries/subscribers";
 import { listRadioEvents, type APIRadioEvent } from "@/queries/radio_events";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatRelativeTime } from "@/utils/formatters";
+import { formatDateTime } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
-const InfoRow: React.FC<{
-  label: string;
-  value?: React.ReactNode;
-}> = ({ label, value }) => {
-  const isEmpty = value === undefined || value === "" || value === null;
-  const display = isEmpty ? "—" : value;
+const tableContainerSx = {
+  border: 1,
+  borderColor: "divider",
+  borderRadius: 1,
+} as const;
 
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        py: 0.75,
-        minHeight: 40,
-        "&:not(:last-child)": {
-          borderBottom: "1px solid",
-          borderColor: "divider",
-        },
-      }}
-    >
-      <Typography
-        variant="body2"
-        sx={{ color: "text.secondary", minWidth: 180, flexShrink: 0, mr: 2 }}
-      >
-        {label}
-      </Typography>
-      {typeof display === "string" || typeof display === "number" ? (
-        <Typography variant="body2">{display}</Typography>
-      ) : (
-        display
-      )}
-    </Box>
-  );
+const labelCellSx = { fontWeight: 600, width: "35%" } as const;
+const valueCellSx = { width: "65%" } as const;
+
+const ranNodeTypeChip = (t: string) => {
+  const color =
+    t === "gNB"
+      ? "primary"
+      : t === "ng-eNB"
+        ? "secondary"
+        : t === "N3IWF"
+          ? "warning"
+          : "default";
+  return <Chip size="small" label={t} color={color} variant="outlined" />;
 };
 
 const normalizeRfc3339Offset = (s: string) =>
@@ -121,7 +105,7 @@ const RadioDetail: React.FC = () => {
   const { data: eventsData } = useQuery({
     queryKey: ["radio-events", radio?.address],
     queryFn: () =>
-      listRadioEvents(accessToken!, 1, 50, {
+      listRadioEvents(accessToken!, 1, 25, {
         remote_address: radio!.address,
       }),
     enabled: authReady && !!accessToken && !!radio?.address,
@@ -134,7 +118,7 @@ const RadioDetail: React.FC = () => {
         field: "imsi",
         headerName: "IMSI",
         flex: 1,
-        minWidth: 200,
+        minWidth: 180,
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => (
           <Box
             sx={{
@@ -167,7 +151,7 @@ const RadioDetail: React.FC = () => {
       {
         field: "registration",
         headerName: "Registration",
-        width: 140,
+        width: 130,
         valueGetter: (_v, row) => Boolean(row?.status?.registered),
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
           const registered = Boolean(params.row?.status?.registered);
@@ -184,15 +168,24 @@ const RadioDetail: React.FC = () => {
       {
         field: "ipAddress",
         headerName: "IP Address",
-        width: 160,
+        width: 150,
         valueGetter: (_v, row: APISubscriberSummary) =>
           row?.status?.ipAddress ?? "",
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
           const ip = params.row?.status?.ipAddress ?? "";
           return (
-            <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
-              {ip || "—"}
-            </Typography>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                width: "100%",
+                height: "100%",
+              }}
+            >
+              <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+                {ip || "—"}
+              </Typography>
+            </Box>
           );
         },
       },
@@ -257,8 +250,8 @@ const RadioDetail: React.FC = () => {
               gap: 3,
             }}
           >
-            <Skeleton variant="rounded" height={280} />
-            <Skeleton variant="rounded" height={280} />
+            <Skeleton variant="rounded" height={320} />
+            <Skeleton variant="rounded" height={320} />
           </Box>
           <Skeleton variant="rounded" height={200} sx={{ mt: 3 }} />
         </Box>
@@ -291,6 +284,7 @@ const RadioDetail: React.FC = () => {
 
   const subscriberRows = subscribersData?.items ?? [];
   const subscriberRowCount = subscribersData?.total_count ?? 0;
+  const tais = radio.supported_tais ?? [];
 
   return (
     <Box
@@ -334,152 +328,138 @@ const RadioDetail: React.FC = () => {
           </Typography>
         </Box>
 
-        {/* Two-column info cards */}
+        {/* Two-column layout: Radio Info (left) + Connected Subscribers (right) */}
         <Box
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
             gap: 3,
+            alignItems: "start",
           }}
         >
-          {/* Radio Info Card */}
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 1 }}>
-                Radio Info
-              </Typography>
-              <InfoRow label="Radio Name" value={radio.name} />
-              <InfoRow label="Radio ID" value={radio.id} />
-              <InfoRow label="Address" value={radio.address} />
-              <InfoRow label="RAN Node Type" value={radio.ran_node_type} />
-            </CardContent>
-          </Card>
-
-          {/* Connection Card */}
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 1 }}>
-                Connection
-              </Typography>
-              <InfoRow
-                label="Connected At"
-                value={
-                  radio.connected_at
-                    ? `${new Date(radio.connected_at).toLocaleString()} (${formatRelativeTime(radio.connected_at)})`
-                    : undefined
-                }
-              />
-              <InfoRow
-                label="Last Seen At"
-                value={
-                  radio.last_seen_at
-                    ? `${new Date(radio.last_seen_at).toLocaleString()} (${formatRelativeTime(radio.last_seen_at)})`
-                    : undefined
-                }
-              />
-              <InfoRow
-                label="Connected Subscribers"
-                value={subscriberRowCount}
-              />
-            </CardContent>
-          </Card>
-        </Box>
-
-        {/* Supported TAIs Card */}
-        {radio.supported_tais && radio.supported_tais.length > 0 && (
-          <Card variant="outlined" sx={{ mt: 3 }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Supported TAIs
-              </Typography>
-              <ThemeProvider theme={gridTheme}>
-                <DataGrid<SupportedTAI>
-                  rows={radio.supported_tais.map((tai, idx) => ({
-                    ...tai,
-                    _idx: idx,
-                  }))}
-                  columns={[
-                    {
-                      field: "plmn",
-                      headerName: "PLMN ID",
-                      flex: 1,
-                      minWidth: 140,
-                      valueGetter: (_v, row: SupportedTAI) =>
-                        `${row.tai.plmnID.mcc}-${row.tai.plmnID.mnc}`,
-                    },
-                    {
-                      field: "tac",
-                      headerName: "TAC",
-                      flex: 0.6,
-                      minWidth: 100,
-                      valueGetter: (_v, row: SupportedTAI) => row.tai.tac,
-                    },
-                    {
-                      field: "snssais",
-                      headerName: "S-NSSAIs",
-                      flex: 1.5,
-                      minWidth: 200,
-                      renderCell: (
-                        params: GridRenderCellParams<SupportedTAI>,
-                      ) => {
-                        const snssais = params.row.snssais ?? [];
-                        return (
-                          <Box
-                            sx={{
-                              display: "flex",
-                              gap: 0.5,
-                              flexWrap: "wrap",
-                              alignItems: "center",
-                              height: "100%",
-                            }}
-                          >
-                            {snssais.map((s: Snssai, i: number) => (
-                              <Chip
-                                key={i}
-                                size="small"
-                                label={
-                                  s.sd
-                                    ? `SST: ${s.sst} / SD: ${s.sd}`
-                                    : `SST: ${s.sst}`
-                                }
-                              />
+          {/* Radio Info Table */}
+          <Box>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Radio Info
+            </Typography>
+            <TableContainer sx={tableContainerSx}>
+              <Table size="small">
+                <TableBody>
+                  <TableRow>
+                    <TableCell sx={labelCellSx}>Name</TableCell>
+                    <TableCell sx={valueCellSx}>{radio.name}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={labelCellSx}>ID</TableCell>
+                    <TableCell sx={valueCellSx}>{radio.id || "—"}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={labelCellSx}>Address</TableCell>
+                    <TableCell sx={valueCellSx}>
+                      {radio.address || "—"}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={labelCellSx}>RAN Node Type</TableCell>
+                    <TableCell sx={valueCellSx}>
+                      {ranNodeTypeChip(radio.ran_node_type)}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={labelCellSx}>Connected At</TableCell>
+                    <TableCell sx={valueCellSx}>
+                      {radio.connected_at
+                        ? formatDateTime(radio.connected_at)
+                        : "—"}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={labelCellSx}>Last Seen At</TableCell>
+                    <TableCell sx={valueCellSx}>
+                      {radio.last_seen_at
+                        ? formatDateTime(radio.last_seen_at)
+                        : "—"}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={labelCellSx}>
+                      Connected Subscribers
+                    </TableCell>
+                    <TableCell sx={valueCellSx}>{subscriberRowCount}</TableCell>
+                  </TableRow>
+                  {tais.length > 0 && (
+                    <TableRow>
+                      <TableCell sx={labelCellSx}>Supported TAIs</TableCell>
+                      <TableCell sx={valueCellSx}>
+                        <Table size="small" sx={{ m: -1 }}>
+                          <TableBody>
+                            {tais.map((tai, idx) => (
+                              <TableRow
+                                key={idx}
+                                sx={{
+                                  "& td": {
+                                    borderBottom:
+                                      idx < tais.length - 1
+                                        ? undefined
+                                        : "none",
+                                    py: 0.5,
+                                  },
+                                }}
+                              >
+                                <TableCell sx={{ pl: 0, width: "30%" }}>
+                                  {tai.tai.plmnID.mcc}-{tai.tai.plmnID.mnc}
+                                </TableCell>
+                                <TableCell sx={{ width: "20%" }}>
+                                  {tai.tai.tac}
+                                </TableCell>
+                                <TableCell sx={{ pr: 0 }}>
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      gap: 0.5,
+                                      flexWrap: "wrap",
+                                    }}
+                                  >
+                                    {(tai.snssais ?? []).map(
+                                      (s: Snssai, i: number) => (
+                                        <Chip
+                                          key={i}
+                                          size="small"
+                                          label={
+                                            s.sd
+                                              ? `SST: ${s.sst} / SD: ${s.sd}`
+                                              : `SST: ${s.sst}`
+                                          }
+                                        />
+                                      ),
+                                    )}
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
                             ))}
-                          </Box>
-                        );
-                      },
-                    },
-                  ]}
-                  getRowId={(row) =>
-                    (row as SupportedTAI & { _idx: number })._idx
-                  }
-                  disableColumnMenu
-                  disableRowSelectionOnClick
-                  hideFooter
-                  autoHeight
-                  sx={{
-                    border: 1,
-                    borderColor: "divider",
-                    "& .MuiDataGrid-cell": {
-                      borderBottom: "1px solid",
-                      borderColor: "divider",
-                    },
-                  }}
-                />
-              </ThemeProvider>
-            </CardContent>
-          </Card>
-        )}
+                          </TableBody>
+                        </Table>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
 
-        {/* Connected Subscribers Card */}
-        <Card variant="outlined" sx={{ mt: 3 }}>
-          <CardContent>
-            <Typography variant="h6" sx={{ mb: 2 }}>
+          {/* Connected Subscribers */}
+          <Box>
+            <Typography variant="h6" sx={{ mb: 1 }}>
               Connected Subscribers ({subscriberRowCount})
             </Typography>
             {subscriberRowCount === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                No subscribers are currently connected to this radio.
-              </Typography>
+              <TableContainer sx={tableContainerSx}>
+                <Box sx={{ p: 3, textAlign: "center" }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No subscribers are currently connected to this radio.
+                  </Typography>
+                </Box>
+              </TableContainer>
             ) : (
               <ThemeProvider theme={gridTheme}>
                 <DataGrid<APISubscriberSummary>
@@ -505,62 +485,64 @@ const RadioDetail: React.FC = () => {
                 />
               </ThemeProvider>
             )}
-          </CardContent>
-        </Card>
+          </Box>
+        </Box>
 
-        {/* Recent Network Events Card */}
-        <Card variant="outlined" sx={{ mt: 3 }}>
-          <CardContent>
-            <Box
+        {/* Recent Network Events */}
+        <Box sx={{ mt: 3 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 1,
+            }}
+          >
+            <Typography variant="h6">Recent Network Events</Typography>
+            <Button
+              component={RouterLink}
+              to="/radios?tab=events"
+              size="small"
               sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                mb: 2,
+                color: theme.palette.link,
+                textDecoration: "underline",
+                "&:hover": { textDecoration: "underline" },
               }}
             >
-              <Typography variant="h6">Recent Network Events</Typography>
-              <Button
-                component={RouterLink}
-                to="/radios?tab=events"
-                size="small"
+              View all events →
+            </Button>
+          </Box>
+          {eventRows.length === 0 ? (
+            <TableContainer sx={tableContainerSx}>
+              <Box sx={{ p: 3, textAlign: "center" }}>
+                <Typography variant="body2" color="text.secondary">
+                  No recent events for this radio.
+                </Typography>
+              </Box>
+            </TableContainer>
+          ) : (
+            <ThemeProvider theme={gridTheme}>
+              <DataGrid
+                rows={eventRows}
+                columns={eventColumns}
+                getRowId={(row) => row.id}
+                disableColumnMenu
+                disableRowSelectionOnClick
+                hideFooter
+                autoHeight
+                density="compact"
                 sx={{
-                  color: theme.palette.link,
-                  textDecoration: "underline",
-                  "&:hover": { textDecoration: "underline" },
-                }}
-              >
-                View all events →
-              </Button>
-            </Box>
-            {eventRows.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                No recent events for this radio.
-              </Typography>
-            ) : (
-              <ThemeProvider theme={gridTheme}>
-                <DataGrid
-                  rows={eventRows}
-                  columns={eventColumns}
-                  getRowId={(row) => row.id}
-                  disableColumnMenu
-                  disableRowSelectionOnClick
-                  hideFooter
-                  autoHeight
-                  density="compact"
-                  sx={{
-                    border: 1,
+                  border: 1,
+                  borderColor: "divider",
+                  "& .MuiDataGrid-cell": {
+                    borderBottom: "1px solid",
                     borderColor: "divider",
-                    "& .MuiDataGrid-cell": {
-                      borderBottom: "1px solid",
-                      borderColor: "divider",
-                    },
-                  }}
-                />
-              </ThemeProvider>
-            )}
-          </CardContent>
-        </Card>
+                  },
+                }}
+              />
+            </ThemeProvider>
+          )}
+        </Box>
       </Box>
     </Box>
   );

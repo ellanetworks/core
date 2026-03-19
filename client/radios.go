@@ -33,9 +33,10 @@ type SupportedTAI struct {
 }
 
 type Radio struct {
-	Name    string `json:"name"`
-	ID      string `json:"id"`
-	Address string `json:"address"`
+	Name        string `json:"name"`
+	ID          string `json:"id"`
+	Address     string `json:"address"`
+	RanNodeType string `json:"ran_node_type"`
 	// Deprecated: Use GetRadio (GET /api/v1/ran/radios/{name}) for supported TAIs.
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
