@@ -18,14 +18,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install Rockcraft
-        run: |
-          sudo snap wait system seed.loaded
-          sudo snap set system refresh.hold="$(date --date='+2 weeks' +%Y-%m-%dT%H:%M:%S%:z)"
-          sudo snap install rockcraft --classic --channel stable
-
-      - name: Build rock (destructive mode)
-        run: sudo rockcraft pack --destructive-mode
+      - uses: canonical/craft-actions/rockcraft-pack@61c29f28433cce029d2466291c117b995fae72bb # main
+        id: rockcraft
+        with:
+          rockcraft-channel: stable
 
       - name: Save container image to file
         run: |
