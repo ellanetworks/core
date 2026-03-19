@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Subscribers from "./pages/Subscribers";
 import SubscriberDetail from "./pages/SubscriberDetail";
 import Radios from "./pages/Radios";
+import RadioDetail from "./pages/RadioDetail";
 import Policies from "./pages/Policies";
 import Networking from "./pages/Networking";
 import Operator from "./pages/Operator";
@@ -34,6 +35,7 @@ export default function AppRouter() {
         <Route path="subscribers" element={<Subscribers />} />
         <Route path="subscribers/:imsi" element={<SubscriberDetail />} />
         <Route path="radios" element={<Radios />} />
+        <Route path="radios/:name" element={<RadioDetail />} />
         <Route path="policies" element={<Policies />} />
         <Route path="networking" element={<Networking />} />
         <Route path="operator" element={<Operator />} />

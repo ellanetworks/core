@@ -24,7 +24,12 @@ import {
   getGridSingleSelectOperators,
   getGridDateOperators,
 } from "@mui/x-data-grid";
-import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import {
+  useNavigate,
+  useSearchParams,
+  useLocation,
+  Link,
+} from "react-router-dom";
 import EastIcon from "@mui/icons-material/East";
 import WestIcon from "@mui/icons-material/West";
 import CloseIcon from "@mui/icons-material/Close";
@@ -701,10 +706,42 @@ const Radio = () => {
   const columns: GridColDef<APIRadio>[] = useMemo(
     () => [
       { field: "id", headerName: "ID", flex: 0.6, minWidth: 160 },
-      { field: "name", headerName: "Name", flex: 1, minWidth: 200 },
+      {
+        field: "name",
+        headerName: "Name",
+        flex: 1,
+        minWidth: 200,
+        renderCell: (params) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Link
+              to={`/radios/${encodeURIComponent(params.row.name)}`}
+              style={{ textDecoration: "none" }}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  color: theme.palette.link,
+                  textDecoration: "underline",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {params.row.name}
+              </Typography>
+            </Link>
+          </Box>
+        ),
+      },
       { field: "address", headerName: "Address", flex: 1, minWidth: 240 },
     ],
-    [],
+    [theme],
   );
 
   const descriptionText =
