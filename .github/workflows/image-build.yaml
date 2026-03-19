@@ -20,6 +20,7 @@ jobs:
 
       - name: Install Rockcraft
         run: |
+          sudo snap wait system seed.loaded
           sudo snap set system refresh.hold="$(date --date='+2 weeks' +%Y-%m-%dT%H:%M:%S%:z)"
           sudo snap install rockcraft --classic --channel stable
 
