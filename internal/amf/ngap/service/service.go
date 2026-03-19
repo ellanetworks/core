@@ -23,19 +23,26 @@ import (
 
 const readBufSize uint32 = 131072
 
-var (
-	sctpListener *sctp.SCTPListener
-	serverCancel context.CancelFunc = func() {}
-	wg           sync.WaitGroup
-)
-
 var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 	InitMsg:   sctp.InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
 	RtoInfo:   &sctp.RtoInfo{SrtoAssocID: 0, SrtoInitial: 500, SrtoMax: 1500, StroMin: 100},
 	AssocInfo: &sctp.AssocInfo{AsocMaxRxt: 4},
 }
 
-func Run(ctx context.Context, address string, port int) error {
+// Server accepts SCTP connections and dispatches NGAP messages. Create one
+// with NewServer, call ListenAndServe to start accepting, and Shutdown to
+// stop cleanly.
+type Server struct {
+	listener *sctp.SCTPListener
+	conns    sync.Map
+	wg       sync.WaitGroup
+}
+
+func NewServer() *Server {
+	return &Server{}
+}
+
+func (s *Server) ListenAndServe(ctx context.Context, address string, port int) error {
 	netAddr, err := net.ResolveIPAddr("ip", address)
 	if err != nil {
 		return fmt.Errorf("error resolving address '%s': %v", address, err)
@@ -46,30 +53,27 @@ func Run(ctx context.Context, address string, port int) error {
 		Port:    port,
 	}
 
-	ctx, serverCancel = context.WithCancel(ctx)
+	listener, err := sctpConfig.Listen("sctp", addr)
+	if err != nil {
+		return fmt.Errorf("failed to listen on %s: %v", addr, err)
+	}
 
-	go listenAndServe(ctx, addr)
+	s.listener = listener
+
+	logger.AmfLog.Info("NGAP server started", zap.String("address", addr.String()))
+
+	go s.acceptLoop(ctx)
 
 	return nil
 }
 
-func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
-	listener, err := sctpConfig.Listen("sctp", addr)
-	if err != nil {
-		logger.AmfLog.Error("Failed to listen", zap.Error(err))
-		return
-	}
-
-	sctpListener = listener
-
-	logger.AmfLog.Info("NGAP server started", zap.String("address", addr.String()))
-
+func (s *Server) acceptLoop(ctx context.Context) {
 	for {
-		conn, err := listener.Accept()
+		conn, err := s.listener.Accept()
 		if err != nil {
 			switch err {
 			case syscall.EINVAL, syscall.EBADF:
-				return // listener closed by Stop()
+				return // listener closed by Shutdown()
 			default:
 				if ctx.Err() != nil {
 					return
@@ -81,25 +85,22 @@ func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
 			}
 		}
 
-		wg.Add(1)
+		// Store before wg.Add so Shutdown's Range sees every connection
+		// that has a corresponding goroutine in wg.
+		s.conns.Store(conn.Fd(), conn)
+		s.wg.Add(1)
 
-		go serveConn(ctx, conn)
+		go s.serveConn(ctx, conn)
 	}
 }
 
-func serveConn(ctx context.Context, conn *sctp.SCTPConn) {
-	defer wg.Done()
+func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
+	defer s.wg.Done()
+	defer s.conns.Delete(conn.Fd())
 	defer func() {
 		if err := conn.Close(); err != nil && err != syscall.EBADF {
 			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
-	}()
-
-	// Unblock SCTPRead when the server is stopping.
-	go func() {
-		<-ctx.Done()
-
-		_ = conn.Close()
 	}()
 
 	sctpEvents := sctp.SCTPEventDataIO | sctp.SCTPEventShutdown | sctp.SCTPEventAssociation
@@ -154,14 +155,22 @@ func serveConn(ctx context.Context, conn *sctp.SCTPConn) {
 	}
 }
 
-func Stop() {
-	serverCancel()
-
-	if err := sctpListener.Close(); err != nil {
+func (s *Server) Shutdown() {
+	if err := s.listener.Close(); err != nil {
 		logger.AmfLog.Error("could not close sctp listener", zap.Error(err))
 	}
 
-	wg.Wait()
+	s.conns.Range(func(_, value any) bool {
+		conn := value.(*sctp.SCTPConn)
+
+		if err := conn.Close(); err != nil && err != syscall.EBADF {
+			logger.AmfLog.Error("close connection error", zap.Error(err))
+		}
+
+		return true
+	})
+
+	s.wg.Wait()
 	logger.AmfLog.Info("SCTP server closed")
 }
 
@@ -171,4 +180,15 @@ func networkToNativeEndianness32(value uint32) uint32 {
 	binary.BigEndian.PutUint32(b[:], value)
 
 	return binary.NativeEndian.Uint32(b[:])
+}
+
+// Package-level server instance and shim functions to preserve the existing API.
+var server = NewServer()
+
+func Run(ctx context.Context, address string, port int) error {
+	return server.ListenAndServe(ctx, address, port)
+}
+
+func Stop() {
+	server.Shutdown()
 }
