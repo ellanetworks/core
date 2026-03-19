@@ -27,6 +27,7 @@ var (
 	sctpListener *sctp.SCTPListener
 	connections  sync.Map // key: int (fd), value: *connWorker
 	wg           sync.WaitGroup
+	reactorDone  chan struct{}
 )
 
 // connWorker serialises NGAP dispatch for one SCTP connection, matching the
@@ -88,12 +89,16 @@ func Run(ctx context.Context, address string, port int) error {
 		Port:    port,
 	}
 
+	reactorDone = make(chan struct{})
+
 	go listenAndServe(ctx, addr)
 
 	return nil
 }
 
 func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
+	defer close(reactorDone)
+
 	listener, err := sctpConfig.Listen("sctp", addr)
 	if err != nil {
 		logger.AmfLog.Error("Failed to listen", zap.Error(err))
@@ -270,6 +275,11 @@ func Stop() {
 	if err := sctpListener.Close(); err != nil {
 		logger.AmfLog.Error("could not close sctp listener", zap.Error(err))
 	}
+
+	// Wait for the reactor to exit before touching connection state.
+	// This prevents a race where the reactor calls closeConn (closing a
+	// worker channel) concurrently with the Range below.
+	<-reactorDone
 
 	connections.Range(func(key, value any) bool {
 		worker := value.(*connWorker)
