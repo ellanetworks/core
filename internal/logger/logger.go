@@ -233,8 +233,8 @@ func LogNetworkEvent(
 
 	WithTrace(ctx, NetworkLog).Info("network_event",
 		zap.String("protocol", string(protocol)),
-		zap.String("message_type", messageType),
-		zap.String("direction", string(dir)),
+		MessageType(messageType),
+		Direction(string(dir)),
 		zap.String("local_address", localAddress),
 		zap.String("remote_address", remoteAddress),
 	)
