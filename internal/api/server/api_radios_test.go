@@ -130,6 +130,7 @@ func TestListRadios(t *testing.T) {
 			GNBValue: "mcc:001:mnc:01:gnb-001",
 		},
 	}
+	ran1.RanPresent = amfContext.RanPresentGNbID
 	// amf.AmfRanPool.Store("id1", &ran1)
 	conn1 := sctp.NewSCTPConn(1, nil)
 	amf.Radios[conn1] = &ran1
@@ -157,6 +158,7 @@ func TestListRadios(t *testing.T) {
 			GNBValue: "mcc:001:mnc:01:gnb-002",
 		},
 	}
+	ran2.RanPresent = amfContext.RanPresentGNbID
 	conn2 := sctp.NewSCTPConn(1, nil)
 	amf.Radios[conn2] = &ran2
 

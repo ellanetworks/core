@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	amfcontext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
 
@@ -125,5 +126,54 @@ func TestRadioTimestampsSetOnCreation(t *testing.T) {
 
 	if radio.LastSeenAt.IsZero() {
 		t.Fatal("expected LastSeenAt to be non-zero")
+	}
+}
+
+func TestRadioNodeID(t *testing.T) {
+	tests := []struct {
+		name       string
+		radio      *amfcontext.Radio
+		expectedID string
+	}{
+		{
+			name:       "nil RanID",
+			radio:      &amfcontext.Radio{},
+			expectedID: "",
+		},
+		{
+			name: "gNB",
+			radio: &amfcontext.Radio{
+				RanPresent: amfcontext.RanPresentGNbID,
+				RanID: &models.GlobalRanNodeID{
+					GNbID: &models.GNbID{GNBValue: "00102"},
+				},
+			},
+			expectedID: "00102",
+		},
+		{
+			name: "ng-eNB",
+			radio: &amfcontext.Radio{
+				RanPresent: amfcontext.RanPresentNgeNbID,
+				RanID:      &models.GlobalRanNodeID{NgeNbID: "MacroNGeNB-abcdef"},
+			},
+			expectedID: "MacroNGeNB-abcdef",
+		},
+		{
+			name: "N3IWF",
+			radio: &amfcontext.Radio{
+				RanPresent: amfcontext.RanPresentN3IwfID,
+				RanID:      &models.GlobalRanNodeID{N3IwfID: "deadbeef"},
+			},
+			expectedID: "deadbeef",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.radio.NodeID()
+			if got != tt.expectedID {
+				t.Errorf("expected %q, got %q", tt.expectedID, got)
+			}
+		})
 	}
 }
