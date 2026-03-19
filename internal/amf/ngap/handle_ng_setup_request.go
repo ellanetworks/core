@@ -6,13 +6,14 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
 func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.NGSetupRequest) {
 	if msg == nil {
-		ran.Log.Error("NG Setup Request Message is nil")
+		logger.WithTrace(ctx, ran.Log).Error("NG Setup Request Message is nil")
 		return
 	}
 
@@ -29,25 +30,25 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 		case ngapType.ProtocolIEIDGlobalRANNodeID:
 			globalRANNodeID = ie.Value.GlobalRANNodeID
 			if globalRANNodeID == nil {
-				ran.Log.Error("GlobalRANNodeID is nil")
+				logger.WithTrace(ctx, ran.Log).Error("GlobalRANNodeID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDSupportedTAList:
 			supportedTAList = ie.Value.SupportedTAList
 			if supportedTAList == nil {
-				ran.Log.Error("SupportedTAList is nil")
+				logger.WithTrace(ctx, ran.Log).Error("SupportedTAList is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANNodeName:
 			rANNodeName = ie.Value.RANNodeName
 			if rANNodeName == nil {
-				ran.Log.Error("RANNodeName is nil")
+				logger.WithTrace(ctx, ran.Log).Error("RANNodeName is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDDefaultPagingDRX:
 			pagingDRX = ie.Value.DefaultPagingDRX
 			if pagingDRX == nil {
-				ran.Log.Error("DefaultPagingDRX is nil")
+				logger.WithTrace(ctx, ran.Log).Error("DefaultPagingDRX is nil")
 				return
 			}
 		}
@@ -74,11 +75,11 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 			},
 		})
 		if err != nil {
-			ran.Log.Error("error sending NG Setup Failure", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Failure", zap.Error(err))
 			return
 		}
 
-		ran.Log.Warn("NG Setup failure: No supported TA exist in NG Setup request")
+		logger.WithTrace(ctx, ran.Log).Warn("NG Setup failure: No supported TA exist in NG Setup request")
 
 		return
 	}
@@ -105,7 +106,7 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 
 	operatorInfo, err := amf.GetOperatorInfo(ctx)
 	if err != nil {
-		ran.Log.Error("Could not get operator info", zap.Error(err))
+		logger.WithTrace(ctx, ran.Log).Error("Could not get operator info", zap.Error(err))
 		return
 	}
 
@@ -113,7 +114,7 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 
 	for i, tai := range ran.SupportedTAIs {
 		if amfContext.InTaiList(tai.Tai, operatorInfo.Tais) {
-			ran.Log.Debug("Found served TAI in Core", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
+			logger.WithTrace(ctx, ran.Log).Debug("Found served TAI in Core", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
 
 			found = true
 
@@ -129,20 +130,20 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 			},
 		})
 		if err != nil {
-			ran.Log.Error("error sending NG Setup Failure", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Failure", zap.Error(err))
 			return
 		}
 
-		ran.Log.Warn("Could not find Served TAI in Core", zap.Any("gnb_tai_list", ran.SupportedTAIs), zap.Any("core_tai_list", operatorInfo.Tais))
+		logger.WithTrace(ctx, ran.Log).Warn("Could not find Served TAI in Core", zap.Any("gnb_tai_list", ran.SupportedTAIs), zap.Any("core_tai_list", operatorInfo.Tais))
 
 		return
 	}
 
 	err = ran.NGAPSender.SendNGSetupResponse(ctx, operatorInfo.Guami, operatorInfo.SupportedPLMN, amf.Name, amf.RelativeCapacity)
 	if err != nil {
-		ran.Log.Error("error sending NG Setup Response", zap.Error(err))
+		logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Response", zap.Error(err))
 		return
 	}
 
-	ran.Log.Info("Radio completed NG Setup", zap.String("name", ran.Name))
+	logger.WithTrace(ctx, ran.Log).Info("Radio completed NG Setup", zap.String("name", ran.Name))
 }

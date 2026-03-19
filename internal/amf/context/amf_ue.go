@@ -187,7 +187,7 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 		ue.LastSeenRadio = ranUe.Radio.Name
 	}
 
-	ue.Log = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
+	ue.Log = logger.AmfLog.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
 }
 
 func (ue *AmfUe) ReAllocateGuti(supportedGuami *models.Guami) error {
@@ -785,13 +785,13 @@ func (ue *AmfUe) ResetMobileReachableTimer() {
 		ue.implicitDeregistrationTimer = nil
 	}
 
-	ue.Log.Debug("starting mobile reachable timer", zap.String("SUPI", ue.Supi.String()))
+	ue.Log.Debug("starting mobile reachable timer", logger.SUPI(ue.Supi.String()))
 
 	ue.mobileReachableTimer = NewTimer(
 		ue.T3512Value+(4*time.Minute),
 		1,
 		func(expireTimes int32) {
-			ue.Log.Debug("mobile reachable timer expired", zap.String("SUPI", ue.Supi.String()))
+			ue.Log.Debug("mobile reachable timer expired", logger.SUPI(ue.Supi.String()))
 			ue.startImplicitDeregistrationTimer()
 		},
 		func() {},
@@ -849,7 +849,7 @@ func (ue *AmfUe) Deregister() {
 
 	ue.releaseSmContexts()
 
-	ue.Log.Debug("ue deregistered", zap.String("SUPI", ue.Supi.String()))
+	ue.Log.Debug("ue deregistered", logger.SUPI(ue.Supi.String()))
 }
 
 func (ue *AmfUe) releaseSmContexts() {

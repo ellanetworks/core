@@ -3,6 +3,7 @@
 package ngap_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf/ngap"
@@ -14,6 +15,6 @@ func TestHandleUERadioCapabilityInfoIndication_EmptyIEs(t *testing.T) {
 	msg := &ngapType.UERadioCapabilityInfoIndication{}
 
 	assertNoPanic(t, "HandleUERadioCapabilityInfoIndication(empty IEs)", func() {
-		ngap.HandleUERadioCapabilityInfoIndication(ran, msg)
+		ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, msg)
 	})
 }

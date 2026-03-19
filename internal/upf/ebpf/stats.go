@@ -18,7 +18,7 @@ func getUpfN3XdpStatisticField(bpfObjects *BpfObjects, field uint32) uint64 {
 
 	err := bpfObjects.UplinkStatistics.Lookup(uint32(0), &statistics)
 	if err != nil {
-		logger.UpfLog.Info("Failed to fetch UPF N3 stats", zap.Error(err))
+		logger.UpfLog.Warn("failed to fetch UPF N3 stats", zap.Error(err))
 		return 0
 	}
 
@@ -35,7 +35,7 @@ func getUpfN6XdpStatisticField(bpfObjects *BpfObjects, field uint32) uint64 {
 
 	err := bpfObjects.DownlinkStatistics.Lookup(uint32(0), &statistics)
 	if err != nil {
-		logger.UpfLog.Info("Failed to fetch UPF N6 stats", zap.Error(err))
+		logger.UpfLog.Warn("failed to fetch UPF N6 stats", zap.Error(err))
 		return 0
 	}
 
@@ -92,7 +92,7 @@ func GetN3UplinkThroughputStats(bpfObjects *BpfObjects) uint64 {
 
 	err := bpfObjects.UplinkStatistics.Lookup(uint32(0), &n3Statistics)
 	if err != nil {
-		logger.UpfLog.Info("Failed to fetch UPF N3 stats", zap.Error(err))
+		logger.UpfLog.Warn("failed to fetch UPF N3 stats", zap.Error(err))
 		return 0
 	}
 
@@ -109,7 +109,7 @@ func GetN6DownlinkThroughputStats(bpfObjects *BpfObjects) uint64 {
 
 	err := bpfObjects.DownlinkStatistics.Lookup(uint32(0), &n6Statistics)
 	if err != nil {
-		logger.UpfLog.Info("Failed to fetch UPF N6 stats", zap.Error(err))
+		logger.UpfLog.Warn("failed to fetch UPF N6 stats", zap.Error(err))
 		return 0
 	}
 

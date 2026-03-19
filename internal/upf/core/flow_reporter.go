@@ -93,10 +93,10 @@ func SendFlowReport(ctx context.Context, flow ebpf.N3N6EntrypointFlow, stats ebp
 	err := pfcp_dispatcher.Dispatcher.SMF.SendFlowReport(ctx, flowReportReq)
 	if err != nil {
 		logger.UpfLog.Error(
-			"Failed to send flow report to SMF",
-			zap.String("imsi", imsiStr),
-			zap.String("source_ip", flowReportReq.SourceIP),
-			zap.String("destination_ip", flowReportReq.DestinationIP),
+			"failed to send flow report to SMF",
+			logger.IMSI(imsiStr),
+			logger.SourceIP(flowReportReq.SourceIP),
+			logger.DestinationIP(flowReportReq.DestinationIP),
 			zap.Error(err),
 		)
 
@@ -104,16 +104,16 @@ func SendFlowReport(ctx context.Context, flow ebpf.N3N6EntrypointFlow, stats ebp
 	}
 
 	logger.UpfLog.Debug(
-		"Flow expired and sent to SMF",
-		zap.String("IMSI", imsiStr),
-		zap.String("Source", saddr.String()),
-		zap.String("Destination", daddr.String()),
-		zap.Uint16("Source Port", sport),
-		zap.Uint16("Destination Port", dport),
-		zap.Uint8("Protocol", proto),
-		zap.Uint64("Packets", stats.Packets),
-		zap.Uint64("Bytes", stats.Bytes),
-		zap.Time("Start", startTime),
-		zap.Time("End", endTime),
+		"flow expired and sent to SMF",
+		logger.IMSI(imsiStr),
+		logger.SourceIP(saddr.String()),
+		logger.DestinationIP(daddr.String()),
+		logger.SourcePort(sport),
+		logger.DestinationPort(dport),
+		logger.Protocol(proto),
+		logger.Packets(stats.Packets),
+		logger.Bytes(stats.Bytes),
+		zap.Time("start", startTime),
+		zap.Time("end", endTime),
 	)
 }

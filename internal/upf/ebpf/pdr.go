@@ -40,7 +40,7 @@ type PortRange struct {
 }
 
 func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
-	logger.UpfLog.Debug("Put PDR Uplink", zap.Uint32("teid", teid), zap.Any("pdrInfo", pdrInfo))
+	logger.UpfLog.Debug("Put PDR Uplink", logger.TEID(teid), zap.Any("pdrInfo", pdrInfo))
 
 	pdrToStore := ToN3N6EntrypointPdrInfo(pdrInfo)
 
@@ -48,7 +48,7 @@ func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
 }
 
 func (bpfObjects *BpfObjects) PutPdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error {
-	logger.UpfLog.Debug("Put PDR Downlink", zap.String("ipv4", ipv4.String()), zap.Any("pdrInfo", pdrInfo))
+	logger.UpfLog.Debug("Put PDR Downlink", logger.IPAddress(ipv4.String()), zap.Any("pdrInfo", pdrInfo))
 
 	pdrToStore := ToN3N6EntrypointPdrInfo(pdrInfo)
 
@@ -56,17 +56,17 @@ func (bpfObjects *BpfObjects) PutPdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error
 }
 
 func (bpfObjects *BpfObjects) DeletePdrUplink(teid uint32) error {
-	logger.UpfLog.Debug("Delete PDR Uplink", zap.Uint32("teid", teid))
+	logger.UpfLog.Debug("Delete PDR Uplink", logger.TEID(teid))
 	return bpfObjects.PdrsUplink.Delete(teid)
 }
 
 func (bpfObjects *BpfObjects) DeletePdrDownlink(ipv4 net.IP) error {
-	logger.UpfLog.Debug("Delete PDR Downlink", zap.String("ipv4", ipv4.String()))
+	logger.UpfLog.Debug("Delete PDR Downlink", logger.IPAddress(ipv4.String()))
 	return bpfObjects.PdrsDownlinkIp4.Delete(ipv4)
 }
 
 func (bpfObjects *BpfObjects) PutDownlinkPdrIP6(ipv6 net.IP, pdrInfo PdrInfo) error {
-	logger.UpfLog.Debug("EBPF: Put PDR Ipv6 Downlink", zap.String("ipv6", ipv6.String()), zap.Any("pdrInfo", pdrInfo))
+	logger.UpfLog.Debug("EBPF: Put PDR Ipv6 Downlink", logger.IPAddress(ipv6.String()), zap.Any("pdrInfo", pdrInfo))
 
 	pdrToStore := ToN3N6EntrypointPdrInfo(pdrInfo)
 
@@ -74,7 +74,7 @@ func (bpfObjects *BpfObjects) PutDownlinkPdrIP6(ipv6 net.IP, pdrInfo PdrInfo) er
 }
 
 func (bpfObjects *BpfObjects) DeleteDownlinkPdrIP6(ipv6 net.IP) error {
-	logger.UpfLog.Debug("Delete PDR Ipv6 Downlink", zap.String("ipv6", ipv6.String()))
+	logger.UpfLog.Debug("Delete PDR Ipv6 Downlink", logger.IPAddress(ipv6.String()))
 	return bpfObjects.PdrsDownlinkIp6.Delete(ipv6)
 }
 
@@ -131,7 +131,7 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 
 	imsiUint64, err := strconv.ParseUint(defaultPdr.IMSI, 10, 64)
 	if err != nil {
-		logger.UpfLog.Error("failed to parse IMSI", zap.String("imsi", defaultPdr.IMSI), zap.Error(err))
+		logger.UpfLog.Error("failed to parse IMSI", logger.IMSI(defaultPdr.IMSI), zap.Error(err))
 		return pdrToStore
 	}
 

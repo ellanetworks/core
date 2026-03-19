@@ -1,17 +1,19 @@
 package ngap
 
 import (
+	gocontext "context"
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUERadioCapabilityInfoIndication(ran *context.Radio, msg *ngapType.UERadioCapabilityInfoIndication) {
+func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, ran *context.Radio, msg *ngapType.UERadioCapabilityInfoIndication) {
 	if msg == nil {
-		ran.Log.Error("NGAP Message is nil")
+		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
 	}
 
@@ -28,52 +30,52 @@ func HandleUERadioCapabilityInfoIndication(ran *context.Radio, msg *ngapType.UER
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
 			if aMFUENGAPID == nil {
-				ran.Log.Error("AmfUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Error("AmfUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
 			if rANUENGAPID == nil {
-				ran.Log.Error("RanUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Error("RanUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDUERadioCapability:
 			uERadioCapability = ie.Value.UERadioCapability
 			if uERadioCapability == nil {
-				ran.Log.Error("UERadioCapability is nil")
+				logger.WithTrace(ctx, ran.Log).Error("UERadioCapability is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDUERadioCapabilityForPaging:
 			uERadioCapabilityForPaging = ie.Value.UERadioCapabilityForPaging
 			if uERadioCapabilityForPaging == nil {
-				ran.Log.Error("UERadioCapabilityForPaging is nil")
+				logger.WithTrace(ctx, ran.Log).Error("UERadioCapabilityForPaging is nil")
 				return
 			}
 		}
 	}
 
 	if aMFUENGAPID == nil {
-		ran.Log.Error("AMFUENGAPID IE (mandatory) is missing in UERadioCapabilityInfoIndication")
+		logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID IE (mandatory) is missing in UERadioCapabilityInfoIndication")
 		return
 	}
 
 	if rANUENGAPID == nil {
-		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in UERadioCapabilityInfoIndication")
+		logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID IE (mandatory) is missing in UERadioCapabilityInfoIndication")
 		return
 	}
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
-		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 		return
 	}
 
-	ran.Log.Debug("Handle UE Radio Capability Info Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
+	logger.WithTrace(ctx, ran.Log).Debug("Handle UE Radio Capability Info Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
 	ranUe.TouchLastSeen()
 	amfUe := ranUe.AmfUe
 
 	if amfUe == nil {
-		ranUe.Log.Error("amfUe is nil")
+		logger.WithTrace(ctx, ranUe.Log).Error("amfUe is nil")
 		return
 	}
 

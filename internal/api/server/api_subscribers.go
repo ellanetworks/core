@@ -271,7 +271,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 				if converted, err := etsi.IMEIFromPEI(snap.Pei); err == nil {
 					subscriberStatus.Imei = converted
 				} else {
-					logger.APILog.Warn("failed to convert PEI to IMEI", zap.String("pei", snap.Pei), zap.Error(err))
+					logger.APILog.Warn("failed to convert PEI to IMEI", logger.PEI(snap.Pei), zap.Error(err))
 				}
 			}
 

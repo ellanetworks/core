@@ -4,13 +4,14 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
 func HandleUEContextModificationResponse(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.UEContextModificationResponse) {
 	if msg == nil {
-		ran.Log.Error("NGAP Message is nil")
+		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
 	}
 
@@ -26,12 +27,12 @@ func HandleUEContextModificationResponse(ctx context.Context, amf *amfContext.AM
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID
 			if aMFUENGAPID == nil {
-				ran.Log.Warn("AmfUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Warn("AmfUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID: // ignore
 			rANUENGAPID = ie.Value.RANUENGAPID
 			if rANUENGAPID == nil {
-				ran.Log.Warn("RanUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Warn("RanUeNgapID is nil")
 			}
 		case ngapType.ProtocolIEIDRRCState: // optional, ignore
 			rRCState = ie.Value.RRCState
@@ -46,12 +47,12 @@ func HandleUEContextModificationResponse(ctx context.Context, amf *amfContext.AM
 		if aMFUENGAPID != nil {
 			ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 			if ranUe == nil {
-				ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value), zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+				logger.WithTrace(ctx, ran.Log).Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value), zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 			}
 		} else {
 			ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 			if ranUe == nil {
-				ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+				logger.WithTrace(ctx, ran.Log).Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 			}
 		}
 	}
@@ -59,7 +60,7 @@ func HandleUEContextModificationResponse(ctx context.Context, amf *amfContext.AM
 	if aMFUENGAPID != nil {
 		ranUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 		if ranUe == nil {
-			ran.Log.Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+			logger.WithTrace(ctx, ran.Log).Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 			return
 		}
 	}
@@ -67,14 +68,14 @@ func HandleUEContextModificationResponse(ctx context.Context, amf *amfContext.AM
 	if ranUe != nil {
 		ranUe.Radio = ran
 		ranUe.TouchLastSeen()
-		ranUe.Log.Debug("Handle UE Context Modification Response", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+		logger.WithTrace(ctx, ranUe.Log).Debug("Handle UE Context Modification Response", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 		if rRCState != nil {
 			switch rRCState.Value {
 			case ngapType.RRCStatePresentInactive:
-				ranUe.Log.Debug("UE RRC State: Inactive")
+				logger.WithTrace(ctx, ranUe.Log).Debug("UE RRC State: Inactive")
 			case ngapType.RRCStatePresentConnected:
-				ranUe.Log.Debug("UE RRC State: Connected")
+				logger.WithTrace(ctx, ranUe.Log).Debug("UE RRC State: Connected")
 			}
 		}
 

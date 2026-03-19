@@ -131,7 +131,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		if pco.DNSIPv4Request {
 			err := protocolConfigurationOptions.AddDNSServerIPv4Address(dNNInfo.DNS)
 			if err != nil {
-				logger.SmfLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+				logger.SmfLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err), logger.PDUSessionID(pduSessionID))
 			}
 		}
 
@@ -144,7 +144,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		if pco.IPv4LinkMTURequest {
 			err := protocolConfigurationOptions.AddIPv4LinkMTU(dNNInfo.MTU)
 			if err != nil {
-				logger.SmfLog.Warn("Error while adding MTU", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+				logger.SmfLog.Warn("Error while adding MTU", zap.Error(err), logger.PDUSessionID(pduSessionID))
 			}
 		}
 

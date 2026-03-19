@@ -6,6 +6,7 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
@@ -50,7 +51,7 @@ func HandleInitialRegistration(ctx context.Context, amf *amfContext.AMF, ue *amf
 
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
-	ue.Log.Debug("use original GUTI", zap.String("guti", ue.Guti.String()))
+	ue.Log.Debug("use original GUTI", logger.GUTI(ue.Guti.String()))
 
 	err = amf.AddAmfUeToUePool(ue)
 	if err != nil {

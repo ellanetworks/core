@@ -88,7 +88,7 @@ func handlePduSessionContextReplacement(ctx context.Context, smf *smfContext.SMF
 	if smCtxt.Tunnel != nil {
 		err := releaseTunnel(ctx, smf, smCtxt)
 		if err != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("release tunnel failed", zap.Error(err), zap.String("supi", smCtxt.Supi.String()), zap.Uint8("pduSessionID", smCtxt.PDUSessionID))
+			logger.WithTrace(ctx, logger.SmfLog).Error("release tunnel failed", zap.Error(err), logger.SUPI(smCtxt.Supi.String()), logger.PDUSessionID(smCtxt.PDUSessionID))
 		}
 	}
 
@@ -131,7 +131,7 @@ func handlePDUSessionSMContextCreate(
 
 		rsp, err := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		}
 
 		return nil, nil, nil, 0, nil, rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
@@ -139,13 +139,13 @@ func handlePDUSessionSMContextCreate(
 
 	dnnInfo, err := smf.RetrieveDnnInformation(ctx, smContext.Snssai, smContext.Dnn)
 	if err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("error retrieving DNN information", zap.String("SST", fmt.Sprintf("%d", smContext.Snssai.Sst)), zap.String("SD", smContext.Snssai.Sd), zap.String("DNN", smContext.Dnn), zap.Error(err))
+		logger.WithTrace(ctx, logger.SmfLog).Warn("error retrieving DNN information", logger.SST(uint8(smContext.Snssai.Sst)), logger.SD(smContext.Snssai.Sd), logger.DNN(smContext.Dnn), zap.Error(err))
 
 		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
 		rsp, err1 := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
 		if err1 != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		}
 
 		return nil, nil, nil, 0, nil, rsp, fmt.Errorf("failed to retrieve DNN information: %v", err)
@@ -157,25 +157,25 @@ func handlePDUSessionSMContextCreate(
 
 		rsp, err1 := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMInsufficientResources)
 		if err1 != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		}
 
 		return nil, nil, nil, 0, nil, rsp, fmt.Errorf("failed to allocate IP address: %v", err)
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("Successfully allocated IP address", zap.String("IP", pduAddress.String()), zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+	logger.WithTrace(ctx, logger.SmfLog).Info("Successfully allocated IP address", logger.IPAddress(pduAddress.String()), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	smContext.PDUSessionID = m.PDUSessionEstablishmentRequest.GetPDUSessionID()
 
 	pco, err := handlePDUSessionEstablishmentRequest(m.PDUSessionEstablishmentRequest)
 	if err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Error("failed to handle PDU Session Establishment Request", zap.Error(err), zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+		logger.WithTrace(ctx, logger.SmfLog).Error("failed to handle PDU Session Establishment Request", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
 		response, err := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		}
 
 		return nil, nil, nil, 0, nil, response, err
@@ -196,13 +196,13 @@ func handlePDUSessionSMContextCreate(
 
 		response, err := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(err), zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		}
 
 		return nil, nil, nil, 0, nil, response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("Successfully created PDU session context", zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+	logger.WithTrace(ctx, logger.SmfLog).Info("Successfully created PDU session context", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return pco, dnnInfo, pduAddress, pti, subscriberPolicy, nil, nil
 }
@@ -324,7 +324,7 @@ func sendPduSessionEstablishmentReject(ctx context.Context, smContext *smfContex
 		return fmt.Errorf("failed to send n1 message: %v", err)
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Debug("Sent n1 message", zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+	logger.WithTrace(ctx, logger.SmfLog).Debug("Sent n1 message", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	smContext.SetSMPolicyData(smPolicyUpdates)
 
@@ -364,7 +364,7 @@ func sendPduSessionEstablishmentAccept(
 		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Debug("Sent n1 n2 transfer request", zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+	logger.WithTrace(ctx, logger.SmfLog).Debug("Sent n1 n2 transfer request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	smContext.SetSMPolicyData(smPolicyUpdates)
 
