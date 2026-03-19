@@ -7,18 +7,17 @@ import (
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 )
 
 func securityMode(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) error {
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Security Mode Procedure", zap.String("supi", ue.Supi.String()))
+	logger.WithTrace(ctx, logger.AmfLog).Debug("Security Mode Procedure", logger.SUPI(ue.Supi.String()))
 
 	ctx, span := tracer.Start(ctx, "securityMode")
 	defer span.End()
 
 	ue.SetState(amfContext.SecurityMode)
 
-	ue.Log = ue.Log.With(zap.String("supi", ue.Supi.String()))
+	ue.Log = ue.Log.With(logger.SUPI(ue.Supi.String()))
 
 	if ue.SecurityContextIsValid() {
 		ue.Log.Debug("UE has a valid security context - skip security mode control procedure")

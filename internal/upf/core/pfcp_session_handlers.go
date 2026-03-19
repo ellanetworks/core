@@ -558,7 +558,7 @@ func convertErrorToIeCause(err error) *ie.IE {
 	case errNoEstablishedAssociation:
 		return ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)
 	default:
-		logger.UpfLog.Info("Unknown error", zap.Error(err))
+		logger.UpfLog.Error("unknown PFCP error", zap.Error(err))
 		return ie.NewCause(ie.CauseRequestRejected)
 	}
 }

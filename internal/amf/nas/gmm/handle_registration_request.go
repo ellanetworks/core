@@ -8,6 +8,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
@@ -143,7 +144,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amf *amfContext.AMF, 
 		ue.PlmnID = plmnIDStringToModels(plmnID)
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		guti, _ := etsi.NewGUTIFromBytes(mobileIdentity5GSContents)
-		ue.Log.Debug("UE used GUTI identity for registration", zap.String("guti", guti.String()))
+		ue.Log.Debug("UE used GUTI identity for registration", logger.GUTI(guti.String()))
 	case nasMessage.MobileIdentity5GSTypeImei:
 		imei := nasConvert.PeiToString(mobileIdentity5GSContents)
 		ue.Pei = imei

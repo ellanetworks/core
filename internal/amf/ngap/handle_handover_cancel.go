@@ -4,6 +4,7 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -88,7 +89,7 @@ func HandleHandoverCancel(ctx context.Context, ran *amfContext.Radio, msg *ngapT
 	var err error
 
 	if cause != nil {
-		ran.Log.Debug("Handover Cancel Cause", zap.String("Cause", causeToString(*cause)))
+		ran.Log.Debug("Handover Cancel Cause", logger.Cause(causeToString(*cause)))
 
 		causePresent, causeValue, err = getCause(cause)
 		if err != nil {

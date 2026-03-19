@@ -4,6 +4,7 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -62,7 +63,7 @@ func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.Radio
 		return
 	}
 
-	ran.Log.Warn("Initial Context Setup Failure received", zap.String("Cause", causeToString(*cause)))
+	ran.Log.Warn("Initial Context Setup Failure received", logger.Cause(causeToString(*cause)))
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {

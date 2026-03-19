@@ -4,6 +4,7 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -43,7 +44,7 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 	var err error
 
 	if cause != nil {
-		ran.Log.Debug("Handover Failure Cause", zap.String("Cause", causeToString(*cause)))
+		ran.Log.Debug("Handover Failure Cause", logger.Cause(causeToString(*cause)))
 
 		causePresent, causeValue, err = getCause(cause)
 		if err != nil {

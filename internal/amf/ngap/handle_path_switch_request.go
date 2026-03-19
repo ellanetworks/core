@@ -4,6 +4,7 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -98,7 +99,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 	}
 
 	if !amfUe.SecurityContextIsValid() {
-		ranUe.Log.Error("No Security Context", zap.String("supi", amfUe.Supi.String()))
+		ranUe.Log.Error("No Security Context", logger.SUPI(amfUe.Supi.String()))
 
 		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
 		if err != nil {
@@ -106,7 +107,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 			return
 		}
 
-		ranUe.Log.Info("sent path switch request failure", zap.String("supi", amfUe.Supi.String()))
+		ranUe.Log.Info("sent path switch request failure", logger.SUPI(amfUe.Supi.String()))
 
 		return
 	}

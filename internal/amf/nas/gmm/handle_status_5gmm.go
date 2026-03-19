@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
-	"go.uber.org/zap"
 )
 
 func handleStatus5GMM(ue *amfContext.AmfUe, msg *nasMessage.Status5GMM) error {
@@ -17,7 +17,7 @@ func handleStatus5GMM(ue *amfContext.AmfUe, msg *nasMessage.Status5GMM) error {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 
-	ue.Log.Error("Received Status 5GMM with cause", zap.String("Cause", nasMessage.Cause5GMMToString(msg.GetCauseValue())))
+	ue.Log.Error("Received Status 5GMM with cause", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())))
 
 	return nil
 }

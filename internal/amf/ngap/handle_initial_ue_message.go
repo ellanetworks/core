@@ -8,6 +8,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -161,9 +162,9 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 			}
 
 			if amfUe, ok := amf.FindAmfUeByGuti(guti); !ok {
-				ranUe.Log.Warn("Unknown UE", zap.String("GUTI", guti.String()))
+				ranUe.Log.Warn("Unknown UE", logger.GUTI(guti.String()))
 			} else {
-				ranUe.Log.Debug("find AmfUe", zap.String("GUTI", guti.String()))
+				ranUe.Log.Debug("find AmfUe", logger.GUTI(guti.String()))
 				/* checking the guti-ue belongs to this amf instance */
 
 				if amfUe.RanUe != nil {

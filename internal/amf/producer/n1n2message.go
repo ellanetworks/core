@@ -15,6 +15,7 @@ import (
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
@@ -245,7 +246,7 @@ func TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSession
 		return fmt.Errorf("send downlink nas transport error: %v", err)
 	}
 
-	ue.Log.Info("sent downlink nas transport to UE", zap.String("supi", supi.String()))
+	ue.Log.Info("sent downlink nas transport to UE", logger.SUPI(supi.String()))
 
 	return nil
 }

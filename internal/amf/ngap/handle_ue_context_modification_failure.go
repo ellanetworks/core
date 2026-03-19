@@ -2,6 +2,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -68,6 +69,6 @@ func HandleUEContextModificationFailure(amf *context.AMF, ran *context.Radio, ms
 	}
 
 	if cause != nil {
-		ran.Log.Debug("UE Context Modification Failure Cause", zap.String("Cause", causeToString(*cause)))
+		ran.Log.Debug("UE Context Modification Failure Cause", logger.Cause(causeToString(*cause)))
 	}
 }

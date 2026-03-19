@@ -4,6 +4,7 @@ import (
 	"context"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -91,9 +92,9 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 	var err error
 
 	if cause != nil {
-		fields := []zap.Field{zap.String("Cause", causeToString(*cause))}
+		fields := []zap.Field{logger.Cause(causeToString(*cause))}
 		if ranUe.AmfUe != nil {
-			fields = append(fields, zap.String("supi", ranUe.AmfUe.Supi.String()))
+			fields = append(fields, logger.SUPI(ranUe.AmfUe.Supi.String()))
 		}
 
 		ranUe.Log.Info("UE Context Release Cause", fields...)

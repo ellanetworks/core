@@ -47,7 +47,7 @@ func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGR
 		return
 	}
 
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Received NG Reset with Cause", zap.String("Cause", causeToString(*cause)))
+	logger.WithTrace(ctx, logger.AmfLog).Debug("Received NG Reset with Cause", logger.Cause(causeToString(*cause)))
 
 	switch resetType.Present {
 	case ngapType.ResetTypePresentNGInterface:

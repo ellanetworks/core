@@ -4,7 +4,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 func HandleErrorIndication(ran *context.Radio, msg *ngapType.ErrorIndication) {
@@ -45,6 +44,6 @@ func HandleErrorIndication(ran *context.Radio, msg *ngapType.ErrorIndication) {
 	}
 
 	if cause != nil {
-		logger.AmfLog.Debug("Error Indication Cause", zap.String("Cause", causeToString(*cause)))
+		logger.AmfLog.Debug("Error Indication Cause", logger.Cause(causeToString(*cause)))
 	}
 }
