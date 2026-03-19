@@ -627,7 +627,10 @@ func (c *SCTPConn) SetWriteDeadline(t time.Time) error {
 }
 
 type SCTPListener struct {
-	fd int
+	fd    int
+	epfd  int // epoll fd watching ln.fd and wakeR
+	wakeR int // pipe read end — epoll-monitored; readable when Close is called
+	wakeW int // pipe write end — written by Close to unblock Accept
 }
 
 // SocketConfig contains options for the SCTP socket.

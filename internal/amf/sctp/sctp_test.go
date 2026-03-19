@@ -7,6 +7,7 @@ import (
 	"net"
 	"syscall"
 	"testing"
+	"time"
 )
 
 // skipIfNoSCTP skips the test if the SCTP kernel module is not loaded.
@@ -231,6 +232,60 @@ func TestClose_GracefulEOFReachesPeer(t *testing.T) {
 	}
 }
 
+// TestListenerClose_UnblocksAcceptWithActiveConn verifies that Close() unblocks
+// a concurrent Accept even when an established connection already exists. This
+// guards against the regression introduced in PR #1130, where switching from
+// epoll to a plain blocking accept(2) caused Shutdown to hang indefinitely.
+func TestListenerClose_UnblocksAcceptWithActiveConn(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const port = 29304
+
+	ln := newTestListener(t, port)
+
+	// Establish one connection so the server is not idle during shutdown.
+	clientFd, err := connectLoopback(port)
+	if err != nil {
+		t.Fatalf("connectLoopback: %v", err)
+	}
+
+	defer func() { _ = syscall.Close(clientFd) }()
+
+	// Consume the accepted connection so the accept loop blocks waiting for
+	// the next one.
+	serverConn, err := ln.Accept()
+	if err != nil {
+		t.Fatalf("Accept: %v", err)
+	}
+
+	defer func() {
+		if err := serverConn.Close(); err != nil && err != syscall.EBADF {
+			t.Logf("close server conn: %v", err)
+		}
+	}()
+
+	// Now block in Accept waiting for a second connection that will never arrive.
+	errCh := make(chan error, 1)
+
+	go func() {
+		_, err := ln.Accept()
+		errCh <- err
+	}()
+
+	if err := ln.Close(); err != nil {
+		t.Logf("listener close: %v", err)
+	}
+
+	select {
+	case err := <-errCh:
+		if err == nil {
+			t.Error("Accept returned nil after listener close, want error")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Accept did not unblock within 5s after listener close (shutdown hang regression)")
+	}
+}
+
 // TestListenerClose_UnblocksAccept verifies that closing the listener causes a
 // blocked Accept to return an error. This is the mechanism Stop() relies on to
 // shut down the accept loop cleanly.
@@ -252,7 +307,12 @@ func TestListenerClose_UnblocksAccept(t *testing.T) {
 		t.Logf("listener close: %v", err)
 	}
 
-	if err := <-errCh; err == nil {
-		t.Error("Accept returned nil after listener close, want error")
+	select {
+	case err := <-errCh:
+		if err == nil {
+			t.Error("Accept returned nil after listener close, want error")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Accept did not unblock within 5s after listener close")
 	}
 }
