@@ -248,6 +248,7 @@ func TestListenerClose_UnblocksAcceptWithActiveConn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("connectLoopback: %v", err)
 	}
+
 	defer func() { _ = syscall.Close(clientFd) }()
 
 	// Consume the accepted connection so the accept loop blocks waiting for
@@ -256,6 +257,7 @@ func TestListenerClose_UnblocksAcceptWithActiveConn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Accept: %v", err)
 	}
+
 	defer func() {
 		if err := serverConn.Close(); err != nil && err != syscall.EBADF {
 			t.Logf("close server conn: %v", err)
@@ -264,6 +266,7 @@ func TestListenerClose_UnblocksAcceptWithActiveConn(t *testing.T) {
 
 	// Now block in Accept waiting for a second connection that will never arrive.
 	errCh := make(chan error, 1)
+
 	go func() {
 		_, err := ln.Accept()
 		errCh <- err

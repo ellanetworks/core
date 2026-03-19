@@ -336,6 +336,7 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		_ = syscall.Close(epfd)
 		return nil, err
 	}
+
 	wakeR, wakeW := wfds[0], wfds[1]
 
 	// Register the listener socket: fires when a connection is waiting.
@@ -343,6 +344,7 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		_ = syscall.Close(epfd)
 		_ = syscall.Close(wakeR)
 		_ = syscall.Close(wakeW)
+
 		return nil, err
 	}
 
@@ -351,6 +353,7 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		_ = syscall.Close(epfd)
 		_ = syscall.Close(wakeR)
 		_ = syscall.Close(wakeW)
+
 		return nil, err
 	}
 
@@ -363,8 +366,10 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 // a file descriptor from another goroutine does not reliably unblock a
 // concurrent blocking accept(2) call.
 func (ln *SCTPListener) Accept() (*SCTPConn, error) {
-	var events [2]syscall.EpollEvent
-	var oneByte [1]byte
+	var (
+		events  [2]syscall.EpollEvent
+		oneByte [1]byte
+	)
 
 	for {
 		n, err := syscall.EpollWait(ln.epfd, events[:], -1)
@@ -375,6 +380,7 @@ func (ln *SCTPListener) Accept() (*SCTPConn, error) {
 			// epfd was closed by Close() (EBADF) or another unexpected error.
 			return nil, err
 		}
+
 		_ = n
 
 		// Non-blocking drain of the wakeup pipe. A successful read (err == nil)
@@ -391,6 +397,7 @@ func (ln *SCTPListener) Accept() (*SCTPConn, error) {
 				// Spurious wakeup; loop back to EpollWait.
 				continue
 			}
+
 			return nil, err
 		}
 
