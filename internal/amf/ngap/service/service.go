@@ -69,6 +69,11 @@ func (w *connWorker) enqueue(ctx context.Context, data []byte) {
 	msg := make([]byte, len(data))
 	copy(msg, data)
 
+	// Blocking send: if the worker falls behind, the reactor stalls for all
+	// connections until there is space in the channel. The 256-slot buffer
+	// absorbs transient bursts. Sustained overload from a single slow gNB
+	// will block the reactor. A non-blocking drop or per-connection epoll
+	// removal would preserve reactor liveness at the cost of added complexity.
 	w.msgCh <- connMsg{ctx: ctx, data: msg}
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2024 Ella Networks
+// Copyright 2026 Ella Networks
 //go:build linux && !386
 
 // Copyright 2019 Wataru Ishida. All rights reserved.
@@ -181,8 +181,18 @@ func (c *SCTPConn) Close() error {
 		return syscall.EBADF
 	}
 
-	// best-effort graceful close; ignore errors so the fd is always released
-	_, _ = c.SCTPWrite(nil, &SndRcvInfo{Flags: SCTPEof})
+	// Send SCTP EOF using the saved fd directly. c.SCTPWrite() calls c.fd()
+	// which reads the atomic _fd (now -1 after the swap above), so it would
+	// silently fail with EBADF and the peer would never receive the EOF.
+	info := &SndRcvInfo{Flags: SCTPEof}
+	cmsgBuf := toBuf(info)
+	hdr := &syscall.Cmsghdr{
+		Level: syscall.IPPROTO_SCTP,
+		Type:  SCTPCMsgSndRcv,
+	}
+	hdr.SetLen(syscall.CmsgSpace(len(cmsgBuf)))
+	cbuf := append(toBuf(hdr), cmsgBuf...)
+	_, _ = syscall.SendmsgN(int(fd), nil, cbuf, nil, 0)
 	_ = syscall.Shutdown(int(fd), syscall.SHUT_RDWR)
 
 	return syscall.Close(int(fd))
