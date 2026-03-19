@@ -7,8 +7,10 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasMessage"
+	"go.uber.org/zap"
 )
 
 func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.AuthenticationFailure) error {
@@ -23,7 +25,11 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 
 	switch msg.GetCauseValue() {
 	case nasMessage.Cause5GMMMACFailure:
-		ue.Log.Warn("Authentication Failure Cause: Mac Failure")
+		ue.Log.Warn(
+			"Authentication failure cause: Mac Failure",
+			zap.String("cause_5gmm", nasMessage.Cause5GMMToString(msg.GetCauseValue())),
+			logger.ErrorCodeField("nas_auth_failure_mac"),
+		)
 		ue.Deregister()
 
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
@@ -33,7 +39,11 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 
 		return nil
 	case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
-		ue.Log.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
+		ue.Log.Warn(
+			"Authentication failure cause: Non-5G Authentication Unacceptable",
+			zap.String("cause_5gmm", nasMessage.Cause5GMMToString(msg.GetCauseValue())),
+			logger.ErrorCodeField("nas_auth_failure_non_5g_auth_unacceptable"),
+		)
 		ue.Deregister()
 
 		err := message.SendAuthenticationReject(ctx, ue.RanUe)
@@ -43,7 +53,11 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 
 		return nil
 	case nasMessage.Cause5GMMngKSIAlreadyInUse:
-		ue.Log.Warn("Authentication Failure Cause: NgKSI Already In Use")
+		ue.Log.Warn(
+			"Authentication failure cause: NgKSI Already In Use",
+			zap.String("cause_5gmm", nasMessage.Cause5GMMToString(msg.GetCauseValue())),
+			logger.ErrorCodeField("nas_auth_failure_ngksi_already_in_use"),
+		)
 		ue.AuthFailureCauseSynchFailureTimes = 0
 		ue.Log.Warn("Select new NgKsi")
 		// select new ngksi
@@ -60,11 +74,15 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 
 		ue.Log.Info("Sent authentication request")
 	case nasMessage.Cause5GMMSynchFailure: // TS 24.501 5.4.1.3.7 case f
-		ue.Log.Warn("Authentication Failure 5GMM Cause: Synch Failure")
+		ue.Log.Warn(
+			"Authentication failure 5GMM cause: Synch Failure",
+			zap.String("cause_5gmm", nasMessage.Cause5GMMToString(msg.GetCauseValue())),
+			logger.ErrorCodeField("nas_auth_failure_sync_failure"),
+		)
 
 		ue.AuthFailureCauseSynchFailureTimes++
 		if ue.AuthFailureCauseSynchFailureTimes >= 2 {
-			ue.Log.Warn("2 consecutive Synch Failure, terminate authentication procedure")
+			ue.Log.Warn("2 consecutive Synch Failure, terminate authentication procedure", logger.ErrorCodeField("nas_auth_failure_sync_failure_retries_exhausted"))
 			ue.Deregister()
 
 			err := message.SendAuthenticationReject(ctx, ue.RanUe)

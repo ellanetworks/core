@@ -5,6 +5,7 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -67,9 +68,19 @@ func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amf
 		return
 	}
 
+	ranAddr := ""
+	if ran.Conn != nil && ran.Conn.RemoteAddr() != nil {
+		ranAddr = ran.Conn.RemoteAddr().String()
+	}
+
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
-		ran.Log.Error("ran ue is nil", zap.Int64("ranUeNgapID", rANUENGAPID.Value))
+		ran.Log.Error("ran ue is nil",
+			logger.ErrorCodeField("amf_ran_ue_context_nil"),
+			zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value),
+			zap.Int("nas_pdu_len", len(nASPDU.Value)),
+		)
+
 		return
 	}
 
@@ -83,7 +94,12 @@ func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amf
 			ran.Log.Error("error removing ran ue context", zap.Error(err))
 		}
 
-		ran.Log.Error("No UE Context of RanUe", zap.Int64("ranUeNgapID", rANUENGAPID.Value), zap.Int64("amfUeNgapID", aMFUENGAPID.Value))
+		ran.Log.Error("No UE Context of RanUe",
+			logger.ErrorCodeField("amf_ue_context_missing_for_ran_ue"),
+			zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value),
+			zap.Int64("amf_ue_ngap_id", aMFUENGAPID.Value),
+			zap.Int("nas_pdu_len", len(nASPDU.Value)),
+		)
 
 		return
 	}
@@ -94,6 +110,18 @@ func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amf
 
 	err := nas.HandleNAS(ctx, amf, ranUe, nASPDU.Value)
 	if err != nil {
-		ranUe.Log.Error("error handling NAS message", zap.Error(err))
+		fields := logger.UEIdentityFields(
+			amfUe.Supi.String(),
+			amfUe.Guti.String(),
+			ranUe.AmfUeNgapID,
+			ranUe.RanUeNgapID,
+			ranAddr,
+		)
+		fields = append(fields,
+			logger.ErrorCodeField("amf_nas_handling_failed"),
+			zap.Int("nas_pdu_len", len(nASPDU.Value)),
+			zap.Error(err),
+		)
+		ranUe.Log.Error("error handling NAS message", fields...)
 	}
 }

@@ -65,7 +65,7 @@ func HandleInitialContextSetupResponse(ctx context.Context, ran *amfContext.Radi
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
-		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value), zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+		ran.Log.Error("No UE Context", zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value), zap.Int64("amf_ue_ngap_id", aMFUENGAPID.Value))
 		return
 	}
 
@@ -91,7 +91,7 @@ func HandleInitialContextSetupResponse(ctx context.Context, ran *amfContext.Radi
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+				ranUe.Log.Error("SmContext not found", zap.Uint8("pdu_session_id", pduSessionID))
 				return
 			}
 
@@ -116,7 +116,7 @@ func HandleInitialContextSetupResponse(ctx context.Context, ran *amfContext.Radi
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+				ranUe.Log.Error("SmContext not found", zap.Uint8("pdu_session_id", pduSessionID))
 				return
 			}
 

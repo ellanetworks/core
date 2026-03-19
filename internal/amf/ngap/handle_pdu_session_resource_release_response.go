@@ -59,7 +59,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amf *amfContex
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
-		ran.Log.Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		ran.Log.Error("No UE Context", zap.Int64("amf_ue_ngap_id", aMFUENGAPID.Value), zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 		return
 	}
 
@@ -88,7 +88,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amf *amfContex
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+				ranUe.Log.Error("SmContext not found", zap.Uint8("pdu_session_id", pduSessionID))
 				continue
 			}
 

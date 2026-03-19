@@ -60,18 +60,18 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amf *amfContext.AMF, ra
 
 	ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
-		ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		ran.Log.Warn("No UE Context", zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 	}
 
 	ranUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if ranUe == nil {
-		ran.Log.Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+		ran.Log.Warn("UE Context not found", zap.Int64("amf_ue_ngap_id", aMFUENGAPID.Value))
 		return
 	}
 
 	ranUe.Radio = ran
 	ranUe.TouchLastSeen()
-	ranUe.Log.Debug("Handle PDUSessionResourceNotify", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
+	ranUe.Log.Debug("Handle PDUSessionResourceNotify", zap.Int64("amf_ue_ngap_id", ranUe.AmfUeNgapID))
 
 	if userLocationInformation != nil {
 		ranUe.UpdateLocation(ctx, amf, userLocationInformation)

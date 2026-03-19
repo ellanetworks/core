@@ -79,8 +79,10 @@ func (r *Radio) NewUe(ranUeNgapID int64) (*RanUe, error) {
 		AmfUeNgapID: amfUeNgapID,
 		RanUeNgapID: ranUeNgapID,
 		Radio:       r,
-		Log:         r.Log.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("%d", amfUeNgapID))),
+		Log:         logger.AmfLog,
 	}
+
+	ranUE.RefreshLoggers()
 
 	r.RanUEs[ranUeNgapID] = ranUE
 

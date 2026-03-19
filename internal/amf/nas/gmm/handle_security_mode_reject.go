@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -22,7 +23,11 @@ func handleSecurityModeReject(ctx context.Context, ue *amfContext.AmfUe, msg *na
 		ue.T3560 = nil // clear the timer
 	}
 
-	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", zap.String("Cause", nasMessage.Cause5GMMToString(msg.GetCauseValue())), zap.String("supi", ue.Supi.String()))
+	ue.Log.Error(
+		"UE rejected the security mode command, abort the ongoing procedure",
+		zap.String("cause_5gmm", nasMessage.Cause5GMMToString(msg.GetCauseValue())),
+		logger.ErrorCodeField("nas_security_mode_rejected_by_ue"),
+	)
 
 	ue.SecurityContextAvailable = false
 	ue.RanUe.ReleaseAction = amfContext.UeContextReleaseUeContext

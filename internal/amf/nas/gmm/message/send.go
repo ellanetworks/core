@@ -12,6 +12,7 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
@@ -109,15 +110,15 @@ func SendAuthenticationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 	if amf.T3560Cfg.Enable {
 		cfg := amf.T3560Cfg
 		amfUe.T3560 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			amfUe.Log.Warn("T3560 expires, retransmit Authentication Request", zap.Any("expireTimes", expireTimes))
+			amfUe.Log.Debug("T3560 expires, retransmit Authentication Request", zap.Int32("retry", expireTimes))
 
 			err := ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
 			if err != nil {
-				amfUe.Log.Error("could not send downlink NAS transport message", zap.Error(err))
+				amfUe.Log.Error("could not send downlink NAS transport message", zap.Error(err), logger.ErrorCodeField("nas_send_auth_request_retransmit_failed"))
 				return
 			}
 		}, func() {
-			amfUe.Log.Warn("T3560 Expires, abort authentication procedure & ongoing 5GMM procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
+			amfUe.Log.Warn("T3560 Expires, abort authentication procedure & ongoing 5GMM procedure", zap.Int32("max_retries", cfg.MaxRetryTimes), logger.ErrorCodeField("nas_send_auth_request_retries_exhausted"))
 			amf.DeregisterAndRemoveAMFUE(amfUe)
 		})
 	}
@@ -267,17 +268,17 @@ func SendSecurityModeCommand(ctx context.Context, amf *amfContext.AMF, ue *amfCo
 	if amf.T3560Cfg.Enable {
 		cfg := amf.T3560Cfg
 		amfUe.T3560 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			amfUe.Log.Warn("T3560 expires, retransmit Security Mode Command", zap.Any("expireTimes", expireTimes))
+			amfUe.Log.Debug("T3560 expires, retransmit Security Mode Command", zap.Int32("retry", expireTimes))
 
 			err = ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
 			if err != nil {
-				amfUe.Log.Error("could not send downlink NAS transport message", zap.Error(err))
+				amfUe.Log.Error("could not send downlink NAS transport message", zap.Error(err), logger.ErrorCodeField("nas_send_security_mode_retransmit_failed"))
 				return
 			}
 
 			amfUe.Log.Info("sent security mode command")
 		}, func() {
-			amfUe.Log.Warn("T3560 Expires, abort security mode control procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
+			amfUe.Log.Warn("T3560 Expires, abort security mode control procedure", zap.Int32("max_retries", cfg.MaxRetryTimes), logger.ErrorCodeField("nas_send_security_mode_retries_exhausted"))
 			// amfUe.Remove()
 			amf.DeregisterAndRemoveAMFUE(amfUe)
 		})
@@ -306,7 +307,7 @@ func SendDeregistrationAccept(ctx context.Context, ue *amfContext.RanUe) error {
 
 	err = ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
 	if err != nil {
-		ue.AmfUe.Log.Error("could not send downlink NAS transport message", zap.Error(err))
+		ue.AmfUe.Log.Error("could not send downlink NAS transport message", zap.Error(err), logger.ErrorCodeField("nas_send_deregistration_accept_failed"))
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
 
@@ -378,7 +379,7 @@ func SendRegistrationAccept(
 		cfg := amf.T3550Cfg
 		ue.T3550 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			if ue.RanUe == nil {
-				ue.Log.Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
+				ue.Log.Warn("UE context released, abort retransmission of Registration Accept", logger.ErrorCodeField("nas_send_registration_accept_context_released"))
 				ue.T3550 = nil
 			} else {
 				if ue.RanUe.UeContextRequest && !ue.RanUe.RecvdInitialContextSetupResponse {
@@ -399,24 +400,24 @@ func SendRegistrationAccept(
 						supportedGUAMI,
 					)
 					if err != nil {
-						ue.Log.Error("could not send initial context setup request", zap.Error(err))
+						ue.Log.Error("could not send initial context setup request", zap.Error(err), logger.ErrorCodeField("nas_send_registration_accept_initial_context_setup_failed"))
 					}
 
 					ue.RanUe.SentInitialContextSetupRequest = true
 					ue.Log.Info("Sent NGAP initial context setup request")
 				} else {
-					ue.Log.Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
+					ue.Log.Debug("T3550 expires, retransmit Registration Accept", zap.Int32("retry", expireTimes))
 
 					err = ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasMsg, nil)
 					if err != nil {
-						ue.Log.Error("could not send downlink NAS transport message", zap.Error(err))
+						ue.Log.Error("could not send downlink NAS transport message", zap.Error(err), logger.ErrorCodeField("nas_send_registration_accept_retransmit_failed"))
 					}
 
 					ue.Log.Info("Sent GMM registration accept")
 				}
 			}
 		}, func() {
-			ue.Log.Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
+			ue.Log.Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Int32("max_retries", cfg.MaxRetryTimes), logger.ErrorCodeField("nas_send_registration_accept_retries_exhausted"))
 			ue.T3550 = nil // clear the timer
 			// TS 24.501 5.5.1.2.8 case c, 5.5.1.3.8 case c
 			ue.SetState(amfContext.Registered)
@@ -441,19 +442,19 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 	defer span.End()
 
 	if amfUe.RanUe == nil {
-		amfUe.Log.Error("cannot SendConfigurationUpdateCommand: RanUe is nil")
+		amfUe.Log.Error("cannot SendConfigurationUpdateCommand: RanUe is nil", logger.ErrorCodeField("nas_send_configuration_update_missing_ran_ue"))
 		return
 	}
 
 	operator, err := amf.DBInstance.GetOperator(ctx)
 	if err != nil {
-		amfUe.Log.Error("cannot SendConfigurationUpdateCommand: failed to get operator", zap.Error(err))
+		amfUe.Log.Error("cannot SendConfigurationUpdateCommand: failed to get operator", zap.Error(err), logger.ErrorCodeField("nas_send_configuration_update_get_operator_failed"))
 		return
 	}
 
 	nasMsg, err := BuildConfigurationUpdateCommand(amfUe, operator.SpnFullName, operator.SpnShortName, includeGUTI)
 	if err != nil {
-		amfUe.Log.Error("error building ConfigurationUpdateCommand", zap.Error(err))
+		amfUe.Log.Error("error building ConfigurationUpdateCommand", zap.Error(err), logger.ErrorCodeField("nas_send_configuration_update_build_failed"))
 		return
 	}
 
@@ -461,13 +462,13 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 
 	mobilityRestrictionList, err := send.BuildIEMobilityRestrictionList(amfUe.PlmnID)
 	if err != nil {
-		amfUe.Log.Error("could not build Mobility Restriction List IE", zap.Error(err))
+		amfUe.Log.Error("could not build Mobility Restriction List IE", zap.Error(err), logger.ErrorCodeField("nas_send_configuration_update_mobility_restriction_build_failed"))
 		return
 	}
 
 	err = amfUe.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, amfUe.RanUe.AmfUeNgapID, amfUe.RanUe.RanUeNgapID, nasMsg, mobilityRestrictionList)
 	if err != nil {
-		amfUe.Log.Error("could not send configuration update command", zap.Error(err))
+		amfUe.Log.Error("could not send configuration update command", zap.Error(err), logger.ErrorCodeField("nas_send_configuration_update_failed"))
 		return
 	}
 
@@ -476,26 +477,26 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 
 		amfUe.Log.Info("start T3555 timer")
 		amfUe.T3555 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			amfUe.Log.Warn("timer T3555 expired, retransmit Configuration Update Command", zap.Int32("retry", expireTimes))
+			amfUe.Log.Debug("timer T3555 expired, retransmit Configuration Update Command", zap.Int32("retry", expireTimes))
 
 			if amfUe.RanUe == nil {
-				amfUe.Log.Warn("UE Context released, abort retransmission of Configuration Update Command")
+				amfUe.Log.Warn("UE Context released, abort retransmission of Configuration Update Command", logger.ErrorCodeField("nas_send_configuration_update_context_released"))
 				amfUe.T3555 = nil
 
 				return
 			}
 
 			if amfUe.RanUe.Radio == nil {
-				amfUe.Log.Warn("Radio is nil, abort retransmission of Configuration Update Command")
+				amfUe.Log.Warn("Radio is nil, abort retransmission of Configuration Update Command", logger.ErrorCodeField("nas_send_configuration_update_missing_radio"))
 				return
 			}
 
 			err = amfUe.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, amfUe.RanUe.AmfUeNgapID, amfUe.RanUe.RanUeNgapID, nasMsg, mobilityRestrictionList)
 			if err != nil {
-				amfUe.Log.Error("could not send configuration update command", zap.Error(err))
+				amfUe.Log.Error("could not send configuration update command", zap.Error(err), logger.ErrorCodeField("nas_send_configuration_update_retransmit_failed"))
 			}
 		}, func() {
-			amfUe.Log.Warn("timer T3555 expired too many times, aborting configuration update procedure", zap.Int32("maximum retries", cfg.MaxRetryTimes))
+			amfUe.Log.Warn("timer T3555 expired too many times, aborting configuration update procedure", zap.Int32("max_retries", cfg.MaxRetryTimes), logger.ErrorCodeField("nas_send_configuration_update_retries_exhausted"))
 		},
 		)
 	}

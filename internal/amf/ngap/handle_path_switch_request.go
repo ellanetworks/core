@@ -80,7 +80,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 
 	ranUe.Radio = ran
 	ranUe.TouchLastSeen()
-	ranUe.Log.Debug("Handle Path Switch Request", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	ranUe.Log.Debug("Handle Path Switch Request", zap.Int64("amf_ue_ngap_id", ranUe.AmfUeNgapID), zap.Int64("ran_ue_ngap_id", ranUe.RanUeNgapID))
 
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
@@ -155,7 +155,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+				ranUe.Log.Error("SmContext not found", zap.Uint8("pdu_session_id", pduSessionID))
 				continue
 			}
 
@@ -184,7 +184,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+				ranUe.Log.Error("SmContext not found", zap.Uint8("pdu_session_id", pduSessionID))
 				continue
 			}
 

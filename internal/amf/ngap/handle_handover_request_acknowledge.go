@@ -66,7 +66,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amf *amfContext.AMF, 
 
 	targetUe := amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if targetUe == nil {
-		ran.Log.Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+		ran.Log.Error("No UE Context", zap.Int64("amf_ue_ngap_id", aMFUENGAPID.Value))
 		return
 	}
 
@@ -76,7 +76,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amf *amfContext.AMF, 
 
 	targetUe.Radio = ran
 	targetUe.TouchLastSeen()
-	ran.Log.Debug("Handle Handover Request Acknowledge", zap.Any("RanUeNgapID", targetUe.RanUeNgapID), zap.Any("AmfUeNgapID", targetUe.AmfUeNgapID))
+	ran.Log.Debug("Handle Handover Request Acknowledge", zap.Any("ran_ue_ngap_id", targetUe.RanUeNgapID), zap.Any("amf_ue_ngap_id", targetUe.AmfUeNgapID))
 
 	amfUe := targetUe.AmfUe
 	if amfUe == nil {

@@ -64,11 +64,11 @@ func HandleUERadioCapabilityInfoIndication(ran *context.Radio, msg *ngapType.UER
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
-		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		ran.Log.Error("No UE Context", zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 		return
 	}
 
-	ran.Log.Debug("Handle UE Radio Capability Info Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
+	ran.Log.Debug("Handle UE Radio Capability Info Indication", zap.Int64("ran_ue_ngap_id", ranUe.RanUeNgapID), zap.Int64("amf_ue_ngap_id", ranUe.AmfUeNgapID))
 	ranUe.TouchLastSeen()
 	amfUe := ranUe.AmfUe
 

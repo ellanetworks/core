@@ -57,7 +57,7 @@ func HandleHandoverNotify(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 	targetUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 
 	if targetUe == nil {
-		ran.Log.Error("No RanUe Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		ran.Log.Error("No RanUe Context", zap.Int64("amf_ue_ngap_id", aMFUENGAPID.Value), zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -71,7 +71,7 @@ func HandleHandoverNotify(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 			return
 		}
 
-		ran.Log.Info("sent error indication", zap.Int64("AMFUENGAPID", aMFUENGAPID.Value))
+		ran.Log.Info("sent error indication", zap.Int64("amf_ue_ngap_id", aMFUENGAPID.Value))
 
 		return
 	}

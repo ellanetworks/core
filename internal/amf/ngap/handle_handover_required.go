@@ -115,7 +115,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 	sourceUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if sourceUe == nil {
-		ran.Log.Error("Cannot find UE", zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
+		ran.Log.Error("Cannot find UE", zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -125,7 +125,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
-			ran.Log.Error("error sending error indication", zap.Error(err), zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
+			ran.Log.Error("error sending error indication", zap.Error(err), zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 			return
 		}
 
@@ -217,7 +217,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
 			n2Rsp, err := pdusession.UpdateSmContextN2HandoverPreparing(smContext.Ref, pDUSessionResourceHoItem.HandoverRequiredTransfer)
 			if err != nil {
-				sourceUe.Log.Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
+				sourceUe.Log.Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionIDUint8))
 				continue
 			}
 

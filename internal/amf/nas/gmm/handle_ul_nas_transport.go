@@ -8,6 +8,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
@@ -34,7 +35,7 @@ func forward5GSMMessageToSMF(
 	}
 
 	if response == nil {
-		ue.Log.Warn("SMF did not return any N1/N2 message", zap.Uint8("pduSessionID", pduSessionID))
+		ue.Log.Warn("SMF did not return any N1/N2 message", zap.Uint8("pdu_session_id", pduSessionID), logger.ErrorCodeField("nas_ul_transport_smf_empty_response"))
 		return nil
 	}
 
@@ -134,11 +135,11 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	if !smContextExist {
 		msg := new(nas.Message)
 		if err := msg.PlainNasDecode(&smMessage); err != nil {
-			ue.Log.Error("Could not decode Nas message", zap.Error(err))
+			ue.Log.Error("Could not decode Nas message", zap.Error(err), logger.ErrorCodeField("nas_ul_transport_decode_failed"))
 		}
 
 		if msg.GsmMessage != nil && msg.Status5GSM != nil {
-			ue.Log.Warn("SmContext doesn't exist, 5GSM Status message received from UE", zap.Any("cause", msg.Status5GSM.Cause5GSM))
+			ue.Log.Warn("SmContext doesn't exist, 5GSM Status message received from UE", zap.Any("cause_5gsm", msg.Status5GSM.Cause5GSM), logger.ErrorCodeField("nas_ul_transport_missing_sm_context"))
 			return nil
 		}
 	}
@@ -153,7 +154,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		case nasMessage.ULNASTransportRequestTypeInitialRequest:
 			//  perform a local release of the PDU session identified by the PDU session ID and shall request
 			// the SMF to perform a local release of the PDU session
-			ue.Log.Warn("Duplicated PDU session ID", zap.Uint8("pduSessionID", pduSessionID))
+			ue.Log.Warn("Duplicated PDU session ID", zap.Uint8("pdu_session_id", pduSessionID), logger.ErrorCodeField("nas_ul_transport_duplicate_pdu_session"))
 
 			n2Rsp, err := amf.Smf.UpdateSmContextCauseDuplicatePDUSessionID(ctx, smContext.Ref)
 			if err != nil {
@@ -178,7 +179,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 				return forward5GSMMessageToSMF(ctx, amf, ue, pduSessionID, smContext.Ref, smMessage)
 			}
 
-			ue.Log.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai), zap.Uint8("pduSessionID", pduSessionID))
+			ue.Log.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai), zap.Uint8("pdu_session_id", pduSessionID), logger.ErrorCodeField("nas_ul_transport_snssai_not_allowed"))
 
 			err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 			if err != nil {
@@ -233,7 +234,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 			smContextRef, errResponse, err := amf.Smf.CreateSmContext(ctx, ue.Supi, pduSessionID, dnn, snssai, smMessage)
 			if err != nil {
-				ue.Log.Error("couldn't send create sm context request", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+				ue.Log.Error("couldn't send create sm context request", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID), logger.ErrorCodeField("nas_ul_transport_create_sm_context_failed"))
 			}
 
 			if errResponse != nil {
@@ -249,7 +250,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 				return fmt.Errorf("error creating SM context: %w", err)
 			}
 
-			ue.Log.Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
+			ue.Log.Debug("Created sm context for pdu session", zap.Uint8("pdu_session_id", pduSessionID))
 
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:
 			fallthrough
@@ -296,7 +297,7 @@ func handleULNASTransport(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			return fmt.Errorf("failed to convert UPU ACK to models: %v", err)
 		}
 
-		ue.Log.Debug("UpuMac in UPU ACK NAS Msg", zap.String("UpuMac", upuMac))
+		ue.Log.Debug("UpuMac in UPU ACK NAS Msg", zap.String("upu_mac", upuMac))
 	case nasMessage.PayloadContainerTypeMultiplePayload:
 		return fmt.Errorf("PayloadContainerTypeMultiplePayload has not been implemented yet in UL NAS TRANSPORT")
 	}

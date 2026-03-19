@@ -38,14 +38,14 @@ func HandlePDUSessionResourceModifyResponse(ctx context.Context, amf *amfContext
 	if rANUENGAPID != nil {
 		ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 		if ranUe == nil {
-			ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+			ran.Log.Warn("No UE Context", zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 		}
 	}
 
 	if aMFUENGAPID != nil {
 		ranUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 		if ranUe == nil {
-			ran.Log.Warn("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+			ran.Log.Warn("No UE Context", zap.Int64("amf_ue_ngap_id", aMFUENGAPID.Value))
 			return
 		}
 	}
@@ -53,7 +53,7 @@ func HandlePDUSessionResourceModifyResponse(ctx context.Context, amf *amfContext
 	if ranUe != nil {
 		ranUe.Radio = ran
 		ranUe.TouchLastSeen()
-		ranUe.Log.Debug("Handle PDUSessionResourceModifyResponse", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
+		ranUe.Log.Debug("Handle PDUSessionResourceModifyResponse", zap.Int64("amf_ue_ngap_id", ranUe.AmfUeNgapID))
 
 		if userLocationInformation != nil {
 			ranUe.UpdateLocation(ctx, amf, userLocationInformation)

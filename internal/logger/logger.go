@@ -115,6 +115,38 @@ func WithTrace(ctx context.Context, l *zap.Logger) *zap.Logger {
 	)
 }
 
+// UEIdentityFields returns standardized identity fields for AMF/NGAP logs.
+// Empty values are omitted to reduce log noise.
+func UEIdentityFields(supi, guti string, amfUeNgapID, ranUeNgapID int64, ranAddr string) []zap.Field {
+	fields := make([]zap.Field, 0, 5)
+
+	if supi != "" {
+		fields = append(fields, zap.String("supi", supi))
+	}
+
+	if guti != "" {
+		fields = append(fields, zap.String("guti", guti))
+	}
+
+	if amfUeNgapID > 0 {
+		fields = append(fields, zap.Int64("amf_ue_ngap_id", amfUeNgapID))
+	}
+
+	if ranUeNgapID > 0 {
+		fields = append(fields, zap.Int64("ran_ue_ngap_id", ranUeNgapID))
+	}
+
+	if ranAddr != "" {
+		fields = append(fields, zap.String("ran_addr", ranAddr))
+	}
+
+	return fields
+}
+
+func ErrorCodeField(code string) zap.Field {
+	return zap.String("error_code", code)
+}
+
 // makeCores returns JSON cores for stdout and optional file output.
 func makeCores(mode, filePath string, enc zapcore.Encoder) ([]zapcore.Core, error) {
 	cores := []zapcore.Core{

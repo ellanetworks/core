@@ -44,12 +44,12 @@ func HandleUEContextModificationFailure(amf *context.AMF, ran *context.Radio, ms
 		if aMFUENGAPID != nil {
 			ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 			if ranUe == nil {
-				ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value), zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+				ran.Log.Warn("No UE Context", zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value), zap.Int64("amf_ue_ngap_id", aMFUENGAPID.Value))
 			}
 		} else {
 			ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 			if ranUe == nil {
-				ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+				ran.Log.Warn("No UE Context", zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 			}
 		}
 	}
@@ -57,14 +57,14 @@ func HandleUEContextModificationFailure(amf *context.AMF, ran *context.Radio, ms
 	if aMFUENGAPID != nil {
 		ranUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 		if ranUe == nil {
-			ran.Log.Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+			ran.Log.Warn("UE Context not found", zap.Int64("amf_ue_ngap_id", aMFUENGAPID.Value))
 		}
 	}
 
 	if ranUe != nil {
 		ranUe.Radio = ran
 		ranUe.TouchLastSeen()
-		ranUe.Log.Debug("Handle UE Context Modification Failure", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+		ranUe.Log.Debug("Handle UE Context Modification Failure", zap.Int64("amf_ue_ngap_id", ranUe.AmfUeNgapID), zap.Int64("ran_ue_ngap_id", ranUe.RanUeNgapID))
 	}
 
 	if cause != nil {

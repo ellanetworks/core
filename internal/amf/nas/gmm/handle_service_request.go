@@ -134,7 +134,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	if procedure := ue.GetOnGoing(); procedure == amfContext.OnGoingProcedurePaging {
 		ue.SetOnGoing(amfContext.OnGoingProcedureNothing)
 	} else if procedure != amfContext.OnGoingProcedureNothing {
-		ue.Log.Warn("UE should not in OnGoing", zap.Any("procedure", procedure))
+		ue.Log.Warn("UE should not in OnGoing", zap.Any("ongoing_procedure", procedure))
 	}
 
 	// TS 24.501 8.2.6.21: if the UE is sending a REGISTRATION REQUEST message as an initial NAS message,
@@ -171,7 +171,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 	// Service Reject if the SecurityContext is invalid or the UE is Deregistered
 	if !ue.SecurityContextIsValid() || ue.GetState() == amfContext.Deregistered {
-		ue.Log.Warn("No security context", zap.String("supi", ue.Supi.String()))
+		ue.Log.Warn("No security context", logger.ErrorCodeField("nas_service_no_security_context"))
 		ue.SecurityContextAvailable = false
 
 		err := message.SendServiceReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
@@ -192,7 +192,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 	serviceType := msg.GetServiceTypeValue()
 
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Handle Service Request", zap.String("supi", ue.Supi.String()), zap.String("serviceType", serviceTypeToString(serviceType)))
+	logger.WithTrace(ctx, ue.Log).Debug("Handle Service Request", zap.String("service_type", serviceTypeToString(serviceType)))
 
 	var (
 		reactivationResult, acceptPduSessionPsi *[16]bool
@@ -232,7 +232,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 		for pduSessionID, smContext := range ue.SmContextList {
 			if int(pduSessionID) >= len(uplinkDataPsi) {
-				ue.Log.Warn("Ignoring out-of-range PDU session ID in UplinkDataStatus processing", zap.Uint8("pduSessionID", pduSessionID))
+				ue.Log.Warn("Ignoring out-of-range PDU session ID in UplinkDataStatus processing", zap.Uint8("pdu_session_id", pduSessionID), logger.ErrorCodeField("nas_service_uplink_status_out_of_range"))
 				continue
 			}
 
@@ -240,7 +240,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 				if uplinkDataPsi[pduSessionID] {
 					binaryDataN2SmInformation, err := amf.Smf.ActivateSmContext(smContext.Ref)
 					if err != nil {
-						ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+						ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID), logger.ErrorCodeField("nas_service_activate_sm_context_failed"))
 						reactivationResult[pduSessionID] = true
 						errPduSessionID = append(errPduSessionID, pduSessionID)
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
@@ -261,14 +261,14 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
 		for pduSessionID, smContext := range ue.SmContextList {
 			if int(pduSessionID) >= len(psiArray) {
-				ue.Log.Warn("Ignoring out-of-range PDU session ID in PDUSessionStatus processing", zap.Uint8("pduSessionID", pduSessionID))
+				ue.Log.Warn("Ignoring out-of-range PDU session ID in PDUSessionStatus processing", zap.Uint8("pdu_session_id", pduSessionID), logger.ErrorCodeField("nas_service_pdu_session_status_out_of_range"))
 				continue
 			}
 
 			if !psiArray[pduSessionID] { // #nosec: G602 -- bounds checked above
 				err := amf.Smf.ReleaseSmContext(ctx, smContext.Ref)
 				if err != nil {
-					ue.Log.Error("Release SmContext Error", zap.Error(err))
+					ue.Log.Error("Release SmContext Error", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID), logger.ErrorCodeField("nas_service_release_sm_context_failed"))
 				}
 			} else {
 				acceptPduSessionPsi[pduSessionID] = true
@@ -355,7 +355,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	}
 
 	if len(errPduSessionID) != 0 {
-		ue.Log.Info("", zap.Any("errPduSessionID", errPduSessionID), zap.Any("errCause", errCause))
+		ue.Log.Info("service accept had partial pdu session failures", zap.Any("err_pdu_session_ids", errPduSessionID), zap.Any("err_causes", errCause))
 	}
 
 	ue.N1N2Message = nil

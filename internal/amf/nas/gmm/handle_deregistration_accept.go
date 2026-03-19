@@ -7,7 +7,6 @@ import (
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 // TS 23.502 4.2.2.3
@@ -20,7 +19,7 @@ func handleDeregistrationAccept(ctx context.Context, ue *amfContext.AmfUe) error
 	defer ue.Deregister()
 
 	if ue.RanUe == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Warn("RanUe is nil, cannot send UE Context Release Command", zap.String("supi", ue.Supi.String()))
+		logger.WithTrace(ctx, ue.Log).Warn("RanUe is nil, cannot send UE Context Release Command", logger.ErrorCodeField("nas_deregistration_accept_missing_ran_ue"))
 		return nil
 	}
 

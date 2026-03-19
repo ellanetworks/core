@@ -133,7 +133,7 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 			ran.Log.Error("Failed to add Ran UE to the pool", zap.Error(err))
 		}
 
-		ran.Log.Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+		ran.Log.Debug("Added Ran UE to the pool", zap.Int64("ran_ue_ngap_id", ranUe.RanUeNgapID))
 
 		if fiveGSTMSI != nil {
 			ranUe.Log.Debug("Receive 5G-S-TMSI")
@@ -161,18 +161,18 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 			}
 
 			if amfUe, ok := amf.FindAmfUeByGuti(guti); !ok {
-				ranUe.Log.Warn("Unknown UE", zap.String("GUTI", guti.String()))
+				ranUe.Log.Warn("Unknown UE", zap.String("guti", guti.String()))
 			} else {
-				ranUe.Log.Debug("find AmfUe", zap.String("GUTI", guti.String()))
+				ranUe.Log.Debug("find AmfUe", zap.String("guti", guti.String()))
 				/* checking the guti-ue belongs to this amf instance */
 
 				if amfUe.RanUe != nil {
-					ranUe.Log.Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+					ranUe.Log.Debug("Implicit Deregistration", zap.Int64("ran_ue_ngap_id", ranUe.RanUeNgapID))
 
 					amfUe.RanUe = nil
 				}
 
-				ranUe.Log.Debug("AmfUe Attach RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+				ranUe.Log.Debug("AmfUe Attach RanUe", zap.Int64("ran_ue_ngap_id", ranUe.RanUeNgapID))
 				amfUe.AttachRanUe(ranUe)
 			}
 		}

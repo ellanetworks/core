@@ -5,6 +5,7 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapConvert"
@@ -62,9 +63,19 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 		return
 	}
 
+	ranAddr := ""
+	if ran.Conn != nil && ran.Conn.RemoteAddr() != nil {
+		ranAddr = ran.Conn.RemoteAddr().String()
+	}
+
 	ranUe := amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if ranUe == nil {
-		ran.Log.Error("No RanUe Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		ran.Log.Error("No RanUe Context",
+			logger.ErrorCodeField("amf_ran_ue_context_missing"),
+			zap.Int64("amf_ue_ngap_id", aMFUENGAPID.Value),
+			zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value),
+			zap.String("ran_addr", ranAddr),
+		)
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -92,7 +103,12 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
-		ran.Log.Info("Release UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		ran.Log.Info("Release UE Context",
+			logger.ErrorCodeField("amf_release_without_amf_ue"),
+			zap.Int64("amf_ue_ngap_id", ranUe.AmfUeNgapID),
+			zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value),
+			zap.String("ran_addr", ranAddr),
+		)
 
 		err := ranUe.Remove()
 		if err != nil {
@@ -149,12 +165,29 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 
 				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 				if !ok {
-					ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+					ranUe.Log.Warn("SmContext not found",
+						logger.ErrorCodeField("amf_sm_context_not_found"),
+						zap.Uint8("pdu_session_id", pduSessionID),
+						zap.Int("sm_context_count", len(amfUe.SmContextList)),
+						zap.Int64("amf_ue_ngap_id", ranUe.AmfUeNgapID),
+						zap.Int64("ran_ue_ngap_id", ranUe.RanUeNgapID),
+						zap.String("ran_addr", ranAddr),
+					)
+
+					continue
 				}
 
 				err := pdusession.DeactivateSmContext(ctx, smContext.Ref)
 				if err != nil {
-					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
+					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error",
+						logger.ErrorCodeField("amf_smcontext_deactivate_failed"),
+						zap.Uint8("pdu_session_id", pduSessionID),
+						zap.String("sm_context_ref", smContext.Ref),
+						zap.Int64("amf_ue_ngap_id", ranUe.AmfUeNgapID),
+						zap.Int64("ran_ue_ngap_id", ranUe.RanUeNgapID),
+						zap.String("ran_addr", ranAddr),
+						zap.Error(err),
+					)
 				}
 			}
 		} else {
@@ -164,7 +197,14 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 			for _, smContext := range amfUe.SmContextList {
 				err := pdusession.DeactivateSmContext(ctx, smContext.Ref)
 				if err != nil {
-					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
+					ran.Log.Error("Send Update SmContextDeactivate UpCnxState Error",
+						logger.ErrorCodeField("amf_smcontext_deactivate_failed"),
+						zap.String("sm_context_ref", smContext.Ref),
+						zap.Int64("amf_ue_ngap_id", ranUe.AmfUeNgapID),
+						zap.Int64("ran_ue_ngap_id", ranUe.RanUeNgapID),
+						zap.String("ran_addr", ranAddr),
+						zap.Error(err),
+					)
 				}
 			}
 

@@ -64,7 +64,7 @@ func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
-		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		ran.Log.Error("No UE Context", zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 		return
 	}
 
@@ -72,7 +72,7 @@ func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 	ranUe.TouchLastSeen()
 
 	// ranUe.Log.Debugf("Report Area[%d]", locationReportingRequestType.ReportArea.Value)
-	ranUe.Log.Debug("Handle Location Report", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Any("ReportArea", locationReportingRequestType.ReportArea))
+	ranUe.Log.Debug("Handle Location Report", zap.Int64("ran_ue_ngap_id", ranUe.RanUeNgapID), zap.Int64("amf_ue_ngap_id", ranUe.AmfUeNgapID), zap.Any("ReportArea", locationReportingRequestType.ReportArea))
 
 	switch locationReportingRequestType.EventType.Value {
 	case ngapType.EventTypePresentDirect:

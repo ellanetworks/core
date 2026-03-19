@@ -75,10 +75,9 @@ func HandleNAS(ctx context.Context, amf *amfContext.AMF, ue *amfContext.RanUe, n
 	)
 	defer span.End()
 
-	logger.WithTrace(ctx, logger.AmfLog).Info(
+	logger.WithTrace(ctx, ue.AmfUe.Log).Info(
 		"Received NAS message",
-		zap.String("MessageType", msgTypeName),
-		zap.String("SUPI", ue.AmfUe.Supi.String()),
+		zap.String("message_type", msgTypeName),
 	)
 
 	err = gmm.HandleGmmMessage(ctx, amf, ue.AmfUe, msg.GmmMessage)

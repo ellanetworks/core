@@ -56,7 +56,7 @@ func HandleHandoverCancel(ctx context.Context, ran *amfContext.Radio, msg *ngapT
 
 	sourceUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if sourceUe == nil {
-		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		ran.Log.Error("No UE Context", zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -66,7 +66,7 @@ func HandleHandoverCancel(ctx context.Context, ran *amfContext.Radio, msg *ngapT
 
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
-			ran.Log.Error("error sending error indication", zap.Error(err), zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
+			ran.Log.Error("error sending error indication", zap.Error(err), zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 			return
 		}
 

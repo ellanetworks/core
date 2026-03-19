@@ -87,7 +87,7 @@ func (ranUe *RanUe) Remove() error {
 	}
 
 	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapID)
-	logger.AmfLog.Info("ran ue removed", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	ranUe.ScopedLog().Info("ran ue removed")
 
 	return nil
 }
@@ -117,8 +117,9 @@ func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
 	// switch to newRan
 	ranUe.Radio = newRan
 	ranUe.RanUeNgapID = ranUeNgapID
+	ranUe.RefreshLoggers()
 
-	logger.AmfLog.Info("ran ue switch to new Ran", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	ranUe.ScopedLog().Info("ran ue switch to new ran")
 
 	return nil
 }

@@ -40,14 +40,14 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 	if rANUENGAPID != nil {
 		ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 		if ranUe == nil {
-			ran.Log.Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+			ran.Log.Warn("No UE Context", zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 		}
 	}
 
 	if aMFUENGAPID != nil {
 		ranUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 		if ranUe == nil {
-			ran.Log.Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+			ran.Log.Warn("UE Context not found", zap.Int64("amf_ue_ngap_id", aMFUENGAPID.Value))
 			return
 		}
 	}
@@ -76,7 +76,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 
 				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 				if !ok {
-					ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+					ranUe.Log.Error("SmContext not found", zap.Uint8("pdu_session_id", pduSessionID))
 					continue
 				}
 
@@ -101,7 +101,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 
 				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 				if !ok {
-					ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+					ranUe.Log.Error("SmContext not found", zap.Uint8("pdu_session_id", pduSessionID))
 					continue
 				}
 

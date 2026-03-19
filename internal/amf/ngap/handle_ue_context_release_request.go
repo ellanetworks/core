@@ -62,7 +62,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 	}
 
 	if ranUe == nil {
-		ran.Log.Error("No RanUe Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		ran.Log.Error("No RanUe Context", zap.Int64("amf_ue_ngap_id", aMFUENGAPID.Value), zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 		cause = &ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -83,7 +83,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 
 	ranUe.Radio = ran
 	ranUe.TouchLastSeen()
-	ranUe.Log.Debug("Handle UE Context Release Request", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	ranUe.Log.Debug("Handle UE Context Release Request", zap.Int64("amf_ue_ngap_id", ranUe.AmfUeNgapID), zap.Int64("ran_ue_ngap_id", ranUe.RanUeNgapID))
 
 	causeGroup := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentUnspecified
@@ -120,7 +120,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 
 					smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 					if !ok {
-						ranUe.Log.Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+						ranUe.Log.Error("SmContext not found", zap.Uint8("pdu_session_id", pduSessionID))
 						continue
 					}
 

@@ -8,6 +8,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
@@ -214,7 +215,7 @@ func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 
 		pass, err := authenticationProcedure(ctx, amf, ue)
 		if err != nil {
-			ue.Log.Warn("Authentication procedure failed, rejecting registration", zap.Error(err))
+			ue.Log.Warn("Authentication procedure failed, rejecting registration", zap.Error(err), logger.ErrorCodeField("nas_registration_auth_procedure_failed"))
 
 			defer ue.Deregister()
 

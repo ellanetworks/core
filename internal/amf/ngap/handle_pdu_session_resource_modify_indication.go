@@ -78,7 +78,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
-		ran.Log.Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		ran.Log.Error("No UE Context", zap.Int64("ran_ue_ngap_id", rANUENGAPID.Value))
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -97,7 +97,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 		return
 	}
 
-	ran.Log.Debug("UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	ran.Log.Debug("UE Context", zap.Int64("amf_ue_ngap_id", ranUe.AmfUeNgapID), zap.Int64("ran_ue_ngap_id", ranUe.RanUeNgapID))
 	ranUe.TouchLastSeen()
 
 	pduSessionResourceModifyListModCfm := ngapType.PDUSessionResourceModifyListModCfm{}

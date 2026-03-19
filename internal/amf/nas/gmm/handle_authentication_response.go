@@ -43,7 +43,7 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 	hResStar := hex.EncodeToString(hResStarBytes[16:])
 
 	if subtle.ConstantTimeCompare([]byte(hResStar), []byte(ue.AuthenticationCtx.HxresStar)) != 1 {
-		ue.Log.Error("HRES* Validation Failure")
+		ue.Log.Error("HRES* Validation Failure", logger.ErrorCodeField("nas_auth_response_hres_validation_failed"))
 
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 			err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
@@ -68,7 +68,7 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 
 	supi, kseaf, err := amf.Ausf.Auth5gAkaComfirmRequestProcedure(hex.EncodeToString(resStar[:]), ue.Suci)
 	if err != nil {
-		logger.WithTrace(ctx, logger.AmfLog).Error("5G AKA Confirmation Request Procedure failed", zap.Error(err))
+		logger.WithTrace(ctx, ue.Log).Error("5G AKA Confirmation Request Procedure failed", zap.Error(err), logger.ErrorCodeField("nas_auth_response_5g_aka_confirmation_failed"))
 
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 			err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
