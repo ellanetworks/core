@@ -233,7 +233,7 @@ export default function DrawerLayout({
               <ListItemButton
                 component={Link}
                 to="/radios"
-                selected={pathname === "/radios"}
+                selected={pathname.startsWith("/radios")}
                 onClick={handleNavClick}
                 sx={drawerSelectedSx}
               >

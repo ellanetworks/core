@@ -8,6 +8,7 @@ import {
   TableBody,
   TableCell,
   TableContainer,
+  TableHead,
   TableRow,
   Typography,
 } from "@mui/material";
@@ -43,6 +44,9 @@ const tableContainerSx = {
 
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%" } as const;
+
+// 10 compact DataGrid rows (33px) + header (36px) + pagination footer (52px)
+const PANEL_HEIGHT = 421;
 
 const ranNodeTypeChip = (t: string) => {
   const color =
@@ -147,23 +151,6 @@ const RadioDetail: React.FC = () => {
             </Link>
           </Box>
         ),
-      },
-      {
-        field: "registration",
-        headerName: "Registration",
-        width: 130,
-        valueGetter: (_v, row) => Boolean(row?.status?.registered),
-        renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const registered = Boolean(params.row?.status?.registered);
-          return (
-            <Chip
-              size="small"
-              label={registered ? "Registered" : "Deregistered"}
-              color={registered ? "success" : "default"}
-              variant="filled"
-            />
-          );
-        },
       },
       {
         field: "ipAddress",
@@ -342,7 +329,13 @@ const RadioDetail: React.FC = () => {
             <Typography variant="h6" sx={{ mb: 1 }}>
               Radio Info
             </Typography>
-            <TableContainer sx={tableContainerSx}>
+            <TableContainer
+              sx={{
+                ...tableContainerSx,
+                height: PANEL_HEIGHT,
+                overflow: "auto",
+              }}
+            >
               <Table size="small">
                 <TableBody>
                   <TableRow>
@@ -392,6 +385,24 @@ const RadioDetail: React.FC = () => {
                       <TableCell sx={labelCellSx}>Supported TAIs</TableCell>
                       <TableCell sx={valueCellSx}>
                         <Table size="small" sx={{ m: -1 }}>
+                          <TableHead>
+                            <TableRow
+                              sx={{
+                                "& th": {
+                                  py: 0.5,
+                                  fontWeight: 600,
+                                  fontSize: "0.75rem",
+                                  color: "text.secondary",
+                                },
+                              }}
+                            >
+                              <TableCell sx={{ pl: 0, width: "30%" }}>
+                                PLMN ID
+                              </TableCell>
+                              <TableCell sx={{ width: "20%" }}>TAC</TableCell>
+                              <TableCell sx={{ pr: 0 }}>S-NSSAIs</TableCell>
+                            </TableRow>
+                          </TableHead>
                           <TableBody>
                             {tais.map((tai, idx) => (
                               <TableRow
@@ -453,7 +464,9 @@ const RadioDetail: React.FC = () => {
               Connected Subscribers ({subscriberRowCount})
             </Typography>
             {subscriberRowCount === 0 ? (
-              <TableContainer sx={tableContainerSx}>
+              <TableContainer
+                sx={{ ...tableContainerSx, height: PANEL_HEIGHT }}
+              >
                 <Box sx={{ p: 3, textAlign: "center" }}>
                   <Typography variant="body2" color="text.secondary">
                     No subscribers are currently connected to this radio.
@@ -470,11 +483,12 @@ const RadioDetail: React.FC = () => {
                   rowCount={subscriberRowCount}
                   paginationModel={subsPaginationModel}
                   onPaginationModelChange={setSubsPaginationModel}
-                  pageSizeOptions={[10, 25, 50]}
+                  pageSizeOptions={[10]}
                   disableColumnMenu
                   disableRowSelectionOnClick
-                  autoHeight
+                  density="compact"
                   sx={{
+                    height: PANEL_HEIGHT,
                     border: 1,
                     borderColor: "divider",
                     "& .MuiDataGrid-cell": {
