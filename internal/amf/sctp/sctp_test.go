@@ -9,8 +9,6 @@ import (
 	"testing"
 )
 
-const pollTimeoutMs = 2000
-
 // skipIfNoSCTP skips the test if the SCTP kernel module is not loaded.
 func skipIfNoSCTP(t *testing.T) {
 	t.Helper()
@@ -74,24 +72,6 @@ func connectLoopback(port int) (int, error) {
 	return fd, nil
 }
 
-// pollOne waits up to pollTimeoutMs for at least one epoll event and returns them.
-func pollOne(t *testing.T, ln *SCTPListener) []syscall.EpollEvent {
-	t.Helper()
-
-	events := make([]syscall.EpollEvent, 8)
-
-	n, err := ln.Poll(events, pollTimeoutMs)
-	if err != nil {
-		t.Fatalf("Poll: %v", err)
-	}
-
-	if n == 0 {
-		t.Fatal("Poll timed out")
-	}
-
-	return events[:n]
-}
-
 // TestClose_Idempotent verifies that Close() releases the fd exactly once.
 // A second Close must return EBADF, not panic or silently succeed.
 func TestClose_Idempotent(t *testing.T) {
@@ -101,28 +81,21 @@ func TestClose_Idempotent(t *testing.T) {
 
 	ln := newTestListener(t, port)
 
-	clientFdCh := make(chan int, 1)
+	connCh := make(chan *SCTPConn, 1)
 
 	go func() {
-		fd, err := connectLoopback(port)
+		conn, err := ln.Accept()
 		if err != nil {
-			clientFdCh <- -1
+			connCh <- nil
 			return
 		}
 
-		clientFdCh <- fd
+		connCh <- conn
 	}()
 
-	pollOne(t, ln)
-
-	serverConn, err := ln.Accept()
+	clientFd, err := connectLoopback(port)
 	if err != nil {
-		t.Fatalf("Accept: %v", err)
-	}
-
-	clientFd := <-clientFdCh
-	if clientFd < 0 {
-		t.Fatal("client connect failed")
+		t.Fatalf("connectLoopback: %v", err)
 	}
 
 	defer func() {
@@ -130,6 +103,11 @@ func TestClose_Idempotent(t *testing.T) {
 			t.Logf("close client fd: %v", err)
 		}
 	}()
+
+	serverConn := <-connCh
+	if serverConn == nil {
+		t.Fatal("Accept failed")
+	}
 
 	// First Close should succeed (may return EBADF if peer reset first).
 	if err := serverConn.Close(); err != nil && err != syscall.EBADF {
@@ -168,8 +146,6 @@ func TestSendReceive(t *testing.T) {
 		errCh <- err
 	}()
 
-	pollOne(t, ln)
-
 	serverConn, err := ln.Accept()
 	if err != nil {
 		t.Fatalf("Accept: %v", err)
@@ -180,13 +156,6 @@ func TestSendReceive(t *testing.T) {
 			t.Logf("close server conn: %v", err)
 		}
 	}()
-
-	if err := ln.AddConnToEpoll(serverConn.Fd()); err != nil {
-		t.Fatalf("AddConnToEpoll: %v", err)
-	}
-
-	// Poll for incoming data on the registered connection.
-	pollOne(t, ln)
 
 	buf := make([]byte, 256)
 
@@ -204,28 +173,6 @@ func TestSendReceive(t *testing.T) {
 	}
 }
 
-// TestPoll_ListenerFdOnConnect verifies that Poll returns the listener fd when a
-// new client connects.
-func TestPoll_ListenerFdOnConnect(t *testing.T) {
-	skipIfNoSCTP(t)
-
-	const port = 29302
-
-	ln := newTestListener(t, port)
-
-	go func() {
-		fd, err := connectLoopback(port)
-		if err == nil {
-			_ = syscall.Close(fd)
-		}
-	}()
-
-	events := pollOne(t, ln)
-	if int(events[0].Fd) != ln.ListenerFd() {
-		t.Errorf("Poll returned fd %d, want listener fd %d", events[0].Fd, ln.ListenerFd())
-	}
-}
-
 // TestClose_GracefulEOFReachesPeer verifies that Close() sends a graceful SCTP
 // EOF so the peer observes an orderly shutdown (read returns 0 bytes / EOF)
 // rather than a connection reset. This exercises the fix where we pass the
@@ -234,7 +181,7 @@ func TestPoll_ListenerFdOnConnect(t *testing.T) {
 func TestClose_GracefulEOFReachesPeer(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29304
+	const port = 29302
 
 	ln := newTestListener(t, port)
 
@@ -249,8 +196,6 @@ func TestClose_GracefulEOFReachesPeer(t *testing.T) {
 
 		clientFdCh <- fd
 	}()
-
-	pollOne(t, ln)
 
 	serverConn, err := ln.Accept()
 	if err != nil {
@@ -286,141 +231,28 @@ func TestClose_GracefulEOFReachesPeer(t *testing.T) {
 	}
 }
 
-// TestRemoveConnFromEpoll verifies that once a connection fd is removed from the
-// epoll instance, subsequent data sent by the peer is no longer reported by Poll.
-func TestRemoveConnFromEpoll_NoDataEvent(t *testing.T) {
-	skipIfNoSCTP(t)
-
-	const port = 29305
-
-	ln := newTestListener(t, port)
-
-	ready := make(chan struct{})
-	errCh := make(chan error, 1)
-
-	go func() {
-		fd, err := connectLoopback(port)
-		if err != nil {
-			errCh <- err
-			return
-		}
-
-		defer func() { _ = syscall.Close(fd) }()
-
-		<-ready
-
-		client := NewSCTPConn(fd, nil)
-
-		_, err = client.SCTPWrite([]byte("should not appear"), &SndRcvInfo{Stream: 0})
-		errCh <- err
-	}()
-
-	pollOne(t, ln)
-
-	serverConn, err := ln.Accept()
-	if err != nil {
-		t.Fatalf("Accept: %v", err)
-	}
-
-	defer func() {
-		if err := serverConn.Close(); err != nil && err != syscall.EBADF {
-			t.Logf("close server conn: %v", err)
-		}
-	}()
-
-	if err := ln.AddConnToEpoll(serverConn.Fd()); err != nil {
-		t.Fatalf("AddConnToEpoll: %v", err)
-	}
-
-	if err := ln.RemoveConnFromEpoll(serverConn.Fd()); err != nil {
-		t.Fatalf("RemoveConnFromEpoll: %v", err)
-	}
-
-	close(ready) // signal client to send data
-
-	if err := <-errCh; err != nil {
-		t.Fatalf("client SCTPWrite: %v", err)
-	}
-
-	// Poll with a short timeout: no event should fire for the removed fd.
-	events := make([]syscall.EpollEvent, 8)
-
-	n, err := ln.Poll(events, 300)
-	if err != nil {
-		t.Fatalf("Poll: %v", err)
-	}
-
-	for i := range n {
-		if int(events[i].Fd) == serverConn.Fd() {
-			t.Errorf("Poll reported fd %d after RemoveConnFromEpoll", serverConn.Fd())
-		}
-	}
-}
-
-// TestAddConnToEpoll_DataEvent verifies that after registering a connection with
-// AddConnToEpoll, Poll returns that connection's fd when data arrives.
-func TestAddConnToEpoll_DataEvent(t *testing.T) {
+// TestListenerClose_UnblocksAccept verifies that closing the listener causes a
+// blocked Accept to return an error. This is the mechanism Stop() relies on to
+// shut down the accept loop cleanly.
+func TestListenerClose_UnblocksAccept(t *testing.T) {
 	skipIfNoSCTP(t)
 
 	const port = 29303
 
 	ln := newTestListener(t, port)
 
-	// ready signals to the client that the server has registered the conn with epoll.
-	ready := make(chan struct{})
 	errCh := make(chan error, 1)
 
 	go func() {
-		fd, err := connectLoopback(port)
-		if err != nil {
-			errCh <- err
-			return
-		}
-
-		defer func() { _ = syscall.Close(fd) }()
-
-		<-ready
-
-		client := NewSCTPConn(fd, nil)
-
-		_, err = client.SCTPWrite([]byte("ping"), &SndRcvInfo{Stream: 0})
+		_, err := ln.Accept()
 		errCh <- err
 	}()
 
-	pollOne(t, ln)
-
-	serverConn, err := ln.Accept()
-	if err != nil {
-		t.Fatalf("Accept: %v", err)
+	if err := ln.Close(); err != nil {
+		t.Logf("listener close: %v", err)
 	}
 
-	defer func() {
-		if err := serverConn.Close(); err != nil && err != syscall.EBADF {
-			t.Logf("close server conn: %v", err)
-		}
-	}()
-
-	if err := ln.AddConnToEpoll(serverConn.Fd()); err != nil {
-		t.Fatalf("AddConnToEpoll: %v", err)
-	}
-
-	close(ready) // signal client to send data
-
-	// Poll should return the connection fd, not the listener fd.
-	events := pollOne(t, ln)
-	found := false
-
-	for _, ev := range events {
-		if int(ev.Fd) == serverConn.Fd() {
-			found = true
-		}
-	}
-
-	if !found {
-		t.Errorf("server conn fd %d not in poll events; got %v", serverConn.Fd(), events)
-	}
-
-	if err := <-errCh; err != nil {
-		t.Errorf("client SCTPWrite: %v", err)
+	if err := <-errCh; err == nil {
+		t.Error("Accept returned nil after listener close, want error")
 	}
 }

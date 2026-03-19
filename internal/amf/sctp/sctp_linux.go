@@ -242,13 +242,15 @@ func (c *SCTPConn) SetAssocInfo(info AssocInfo) error {
 	return setAssocInfo(c.fd(), info)
 }
 
-// listenSCTPExtConfig - start listener on specified address/port with given SCTP options and socket configuration
+// listenSCTPExtConfig starts a listener on the specified address/port with the
+// given SCTP options. The listening socket is blocking; Accept will block until
+// a connection arrives.
 func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo, control func(network, address string, c syscall.RawConn) error) (*SCTPListener, error) {
 	af, ipv6only := favoriteAddrFamily(network, laddr, nil, "listen")
 
 	sock, err := syscall.Socket(
 		af,
-		syscall.SOCK_STREAM|syscall.SOCK_NONBLOCK|syscall.SOCK_CLOEXEC,
+		syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC,
 		syscall.IPPROTO_SCTP,
 	)
 	if err != nil {
@@ -324,61 +326,14 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		return nil, err
 	}
 
-	// epoll will be used in Accept() to avoid busy waiting because of non-blocking socket
-	epfd, err := createEpollForSock(sock)
-	if err != nil {
-		return nil, err
-	}
-
-	return &SCTPListener{
-		fd:   sock,
-		epfd: epfd,
-	}, nil
+	return &SCTPListener{fd: sock}, nil
 }
 
-// createEpollForSock - create an epoll for sock; return an epoll fd if no error
-func createEpollForSock(sock int) (int, error) {
-	epfd, err := syscall.EpollCreate1(syscall.EPOLL_CLOEXEC)
-	if err != nil {
-		return -1, err
-	}
-
-	// close epfd on error
-	defer func() {
-		if err != nil {
-			err := syscall.Close(epfd)
-			if err != nil {
-				logger.AmfLog.Warn("failed to close epoll", zap.Error(err))
-			}
-		}
-	}()
-
-	event := syscall.EpollEvent{
-		Events: syscall.EPOLLIN,
-		Fd:     int32(sock),
-	}
-
-	err = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, sock, &event)
-	if err != nil {
-		return -1, err
-	}
-
-	return epfd, nil
-}
-
-// ListenerFd returns the listener's socket file descriptor.
-func (ln *SCTPListener) ListenerFd() int { return ln.fd }
-
-// Poll waits for epoll events, returning the number of events and any error.
-// timeoutMs of -1 blocks indefinitely; 0 returns immediately.
-func (ln *SCTPListener) Poll(events []syscall.EpollEvent, timeoutMs int) (int, error) {
-	return syscall.EpollWait(ln.epfd, events, timeoutMs)
-}
-
-// Accept accepts a new connection from the listener. The caller is responsible
-// for registering the returned connection with the epoll instance via AddConnToEpoll.
+// Accept blocks until a new connection arrives, then returns it. The accepted
+// connection's socket is blocking; reads on it will park the goroutine on the
+// OS thread until data arrives.
 func (ln *SCTPListener) Accept() (*SCTPConn, error) {
-	fd, _, err := syscall.Accept4(ln.fd, syscall.SOCK_NONBLOCK|syscall.SOCK_CLOEXEC)
+	fd, _, err := syscall.Accept4(ln.fd, syscall.SOCK_CLOEXEC)
 	if err != nil {
 		return nil, err
 	}
@@ -386,30 +341,9 @@ func (ln *SCTPListener) Accept() (*SCTPConn, error) {
 	return NewSCTPConn(fd, nil), nil
 }
 
-// AddConnToEpoll registers a connection fd with the listener's epoll instance.
-func (ln *SCTPListener) AddConnToEpoll(connFd int) error {
-	event := syscall.EpollEvent{
-		Events: syscall.EPOLLIN | syscall.EPOLLRDHUP,
-		Fd:     int32(connFd),
-	}
-
-	return syscall.EpollCtl(ln.epfd, syscall.EPOLL_CTL_ADD, connFd, &event)
-}
-
-// RemoveConnFromEpoll removes a connection fd from the listener's epoll instance.
-func (ln *SCTPListener) RemoveConnFromEpoll(connFd int) error {
-	return syscall.EpollCtl(ln.epfd, syscall.EPOLL_CTL_DEL, connFd, nil)
-}
-
 func (ln *SCTPListener) Close() error {
-	// best-effort shutdown; always release both fds
+	// best-effort shutdown; always release the fd
 	_ = syscall.Shutdown(ln.fd, syscall.SHUT_RDWR)
-	epErr := syscall.Close(ln.epfd)
-	fdErr := syscall.Close(ln.fd)
 
-	if epErr != nil {
-		return epErr
-	}
-
-	return fdErr
+	return syscall.Close(ln.fd)
 }

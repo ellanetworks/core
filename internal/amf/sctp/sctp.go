@@ -627,8 +627,7 @@ func (c *SCTPConn) SetWriteDeadline(t time.Time) error {
 }
 
 type SCTPListener struct {
-	fd   int
-	epfd int // fd for epoll
+	fd int
 }
 
 // SocketConfig contains options for the SCTP socket.

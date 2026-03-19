@@ -25,57 +25,9 @@ const readBufSize uint32 = 131072
 
 var (
 	sctpListener *sctp.SCTPListener
-	connections  sync.Map // key: int (fd), value: *connWorker
+	serverCancel context.CancelFunc = func() {}
 	wg           sync.WaitGroup
-	reactorDone  chan struct{}
 )
-
-// connWorker serialises NGAP dispatch for one SCTP connection, matching the
-// behaviour of the previous goroutine-per-connection model: different gNB
-// connections dispatch concurrently; messages on the same connection are
-// processed in order.
-type connWorker struct {
-	conn  *sctp.SCTPConn
-	msgCh chan connMsg
-}
-
-type connMsg struct {
-	ctx  context.Context
-	data []byte
-}
-
-func newConnWorker(conn *sctp.SCTPConn) *connWorker {
-	w := &connWorker{
-		conn:  conn,
-		msgCh: make(chan connMsg, 256),
-	}
-
-	wg.Add(1)
-
-	go w.run()
-
-	return w
-}
-
-func (w *connWorker) run() {
-	defer wg.Done()
-
-	for msg := range w.msgCh {
-		ngap.Dispatch(msg.ctx, w.conn, msg.data)
-	}
-}
-
-func (w *connWorker) enqueue(ctx context.Context, data []byte) {
-	msg := make([]byte, len(data))
-	copy(msg, data)
-
-	// Blocking send: if the worker falls behind, the reactor stalls for all
-	// connections until there is space in the channel. The 256-slot buffer
-	// absorbs transient bursts. Sustained overload from a single slow gNB
-	// will block the reactor. A non-blocking drop or per-connection epoll
-	// removal would preserve reactor liveness at the cost of added complexity.
-	w.msgCh <- connMsg{ctx: ctx, data: msg}
-}
 
 var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 	InitMsg:   sctp.InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
@@ -94,7 +46,7 @@ func Run(ctx context.Context, address string, port int) error {
 		Port:    port,
 	}
 
-	reactorDone = make(chan struct{})
+	ctx, serverCancel = context.WithCancel(ctx)
 
 	go listenAndServe(ctx, addr)
 
@@ -102,8 +54,6 @@ func Run(ctx context.Context, address string, port int) error {
 }
 
 func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
-	defer close(reactorDone)
-
 	listener, err := sctpConfig.Listen("sctp", addr)
 	if err != nil {
 		logger.AmfLog.Error("Failed to listen", zap.Error(err))
@@ -114,188 +64,102 @@ func listenAndServe(ctx context.Context, addr *sctp.SCTPAddr) {
 
 	logger.AmfLog.Info("NGAP server started", zap.String("address", addr.String()))
 
-	// buf is reused across iterations; the reactor is the only reader and copies
-	// data into fresh slices before enqueuing to worker goroutines.
-	buf := make([]byte, readBufSize)
-	events := make([]syscall.EpollEvent, 32)
-
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-
-		n, err := listener.Poll(events, 100)
+		conn, err := listener.Accept()
 		if err != nil {
 			switch err {
-			case syscall.EINTR:
-				continue
-			case syscall.EBADF, syscall.EINVAL:
-				return // listener was closed by Stop()
+			case syscall.EINVAL, syscall.EBADF:
+				return // listener closed by Stop()
 			default:
-				logger.AmfLog.Error("epoll wait error", zap.Error(err))
+				if ctx.Err() != nil {
+					return
+				}
+
+				logger.AmfLog.Error("Failed to accept", zap.Error(err))
+
 				continue
 			}
 		}
 
-		for i := 0; i < n; i++ {
-			fd := int(events[i].Fd)
+		wg.Add(1)
 
-			if fd == listener.ListenerFd() {
-				accept(ctx, listener)
-				continue
-			}
-
-			val, ok := connections.Load(fd)
-			if !ok {
-				continue
-			}
-
-			worker := val.(*connWorker)
-
-			// On hangup, try to drain any last message before closing.
-			if events[i].Events&(syscall.EPOLLRDHUP|syscall.EPOLLHUP|syscall.EPOLLERR) != 0 {
-				if events[i].Events&syscall.EPOLLIN != 0 {
-					readAndEnqueue(ctx, worker, buf)
-				}
-
-				closeConn(listener, worker)
-
-				continue
-			}
-
-			if events[i].Events&syscall.EPOLLIN != 0 {
-				if closed := readAndEnqueue(ctx, worker, buf); closed {
-					closeConn(listener, worker)
-				}
-			}
-		}
+		go serveConn(ctx, conn)
 	}
 }
 
-// accept accepts a new connection and registers it with the epoll instance.
-func accept(_ context.Context, listener *sctp.SCTPListener) {
-	conn, err := listener.Accept()
-	if err != nil {
-		if err != syscall.EAGAIN && err != syscall.EINTR {
-			logger.AmfLog.Error("Failed to accept", zap.Error(err))
+func serveConn(ctx context.Context, conn *sctp.SCTPConn) {
+	defer wg.Done()
+	defer func() {
+		if err := conn.Close(); err != nil && err != syscall.EBADF {
+			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
+	}()
 
-		return
-	}
+	// Unblock SCTPRead when the server is stopping.
+	go func() {
+		<-ctx.Done()
+
+		_ = conn.Close()
+	}()
 
 	sctpEvents := sctp.SCTPEventDataIO | sctp.SCTPEventShutdown | sctp.SCTPEventAssociation
 	if err := conn.SubscribeEvents(sctpEvents); err != nil {
 		logger.AmfLog.Error("Failed to subscribe to SCTP events", zap.Error(err))
-
-		if err := conn.Close(); err != nil {
-			logger.AmfLog.Error("close error", zap.Error(err))
-		}
-
 		return
 	}
 
 	if err := conn.SetReadBuffer(int(readBufSize)); err != nil {
 		logger.AmfLog.Error("Set read buffer error", zap.Error(err))
-
-		if err := conn.Close(); err != nil {
-			logger.AmfLog.Error("close error", zap.Error(err))
-		}
-
 		return
 	}
 
 	remoteAddr := conn.RemoteAddr()
 	if remoteAddr == nil {
 		logger.AmfLog.Error("Remote address is nil")
-
-		if err := conn.Close(); err != nil {
-			logger.AmfLog.Error("close error", zap.Error(err))
-		}
-
 		return
 	}
 
-	if err := listener.AddConnToEpoll(conn.Fd()); err != nil {
-		logger.AmfLog.Error("Failed to add connection to epoll", zap.Error(err))
-
-		if err := conn.Close(); err != nil {
-			logger.AmfLog.Error("close error", zap.Error(err))
-		}
-
-		return
-	}
-
-	worker := newConnWorker(conn)
-	connections.Store(conn.Fd(), worker)
 	logger.AmfLog.Info("New SCTP connection", zap.String("remote_address", remoteAddr.String()))
-}
 
-// readAndEnqueue reads one message from the connection and enqueues it for dispatch.
-// Returns true if the connection should be closed.
-func readAndEnqueue(ctx context.Context, worker *connWorker, buf []byte) bool {
-	n, info, notification, err := worker.conn.SCTPRead(buf)
-	if err != nil {
-		switch err {
-		case io.EOF, io.ErrUnexpectedEOF:
-			return true
-		case syscall.EAGAIN, syscall.EINTR:
-			return false
-		case syscall.EINVAL, syscall.EBADF:
-			return true
-		default:
-			logger.AmfLog.Error("SCTPRead error", zap.Error(err))
-			return true
+	buf := make([]byte, readBufSize)
+
+	for {
+		n, info, notification, err := conn.SCTPRead(buf)
+		if err != nil {
+			switch err {
+			case io.EOF, io.ErrUnexpectedEOF, syscall.EBADF, syscall.EINVAL:
+				return
+			case syscall.EAGAIN, syscall.EINTR:
+				continue
+			default:
+				logger.AmfLog.Error("SCTPRead error", zap.Error(err))
+				return
+			}
 		}
-	}
 
-	if notification != nil {
-		ngap.HandleSCTPNotification(worker.conn, notification)
-		return false
-	}
+		if notification != nil {
+			ngap.HandleSCTPNotification(conn, notification)
+			continue
+		}
 
-	if info == nil || networkToNativeEndianness32(info.PPID) != sctp.NGAPPPID {
-		logger.AmfLog.Warn("Received SCTP PPID != 60, discard this packet")
-		return false
-	}
+		if info == nil || networkToNativeEndianness32(info.PPID) != sctp.NGAPPPID {
+			logger.AmfLog.Warn("Received SCTP PPID != 60, discard this packet")
+			continue
+		}
 
-	worker.enqueue(ctx, buf[:n])
+		msg := make([]byte, n)
+		copy(msg, buf[:n])
 
-	return false
-}
-
-func closeConn(listener *sctp.SCTPListener, worker *connWorker) {
-	fd := worker.conn.Fd()
-	_ = listener.RemoveConnFromEpoll(fd) // epfd may already be closed during Stop()
-	connections.Delete(fd)
-	close(worker.msgCh)
-
-	if err := worker.conn.Close(); err != nil && err != syscall.EBADF {
-		logger.AmfLog.Error("close connection error", zap.Error(err))
+		ngap.Dispatch(ctx, conn, msg)
 	}
 }
 
 func Stop() {
+	serverCancel()
+
 	if err := sctpListener.Close(); err != nil {
 		logger.AmfLog.Error("could not close sctp listener", zap.Error(err))
 	}
-
-	// Wait for the reactor to exit before touching connection state.
-	// This prevents a race where the reactor calls closeConn (closing a
-	// worker channel) concurrently with the Range below.
-	<-reactorDone
-
-	connections.Range(func(key, value any) bool {
-		worker := value.(*connWorker)
-		close(worker.msgCh)
-
-		if err := worker.conn.Close(); err != nil && err != syscall.EBADF {
-			logger.AmfLog.Error("close connection error", zap.Error(err))
-		}
-
-		return true
-	})
 
 	wg.Wait()
 	logger.AmfLog.Info("SCTP server closed")
