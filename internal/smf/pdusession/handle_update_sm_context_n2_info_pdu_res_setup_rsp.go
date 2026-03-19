@@ -12,7 +12,6 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 func UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef string, n2Data []byte) error {
@@ -53,13 +52,13 @@ func UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef strin
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
-	logger.SmfLog.Info("Sent PFCP session modification request", zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return nil
 }
 
 func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smContext *smfContext.SMContext) ([]*smfContext.PDR, []*smfContext.FAR, error) {
-	logger.SmfLog.Debug("received n2 sm info type", zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+	logger.SmfLog.Debug("received n2 sm info type", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	pdrList := []*smfContext.PDR{}
 	farList := []*smfContext.FAR{}

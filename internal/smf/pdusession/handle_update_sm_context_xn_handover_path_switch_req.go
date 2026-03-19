@@ -14,7 +14,6 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 func UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
@@ -55,13 +54,13 @@ func UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef st
 		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
-	logger.SmfLog.Info("Sent PFCP session modification request", zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return n2buf, nil
 }
 
 func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *smfContext.SMContext) ([]*smfContext.PDR, []*smfContext.FAR, []byte, error) {
-	logger.SmfLog.Debug("handle Path Switch Request", zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+	logger.SmfLog.Debug("handle Path Switch Request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	if err := handlePathSwitchRequestTransfer(n2Data, smContext); err != nil {
 		return nil, nil, nil, fmt.Errorf("handle PathSwitchRequestTransfer failed: %v", err)

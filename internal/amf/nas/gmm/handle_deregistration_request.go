@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
-	"go.uber.org/zap"
 )
 
 // TS 23.502 4.2.2.3
@@ -21,7 +20,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	ue.Deregister()
 
 	if ue.RanUe == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Warn("RanUe is nil, cannot send UE Context Release Command", zap.String("supi", ue.Supi.String()))
+		logger.WithTrace(ctx, logger.AmfLog).Warn("RanUe is nil, cannot send UE Context Release Command", logger.SUPI(ue.Supi.String()))
 		return nil
 	}
 

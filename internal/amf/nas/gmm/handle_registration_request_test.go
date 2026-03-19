@@ -18,7 +18,6 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
-	"go.uber.org/zap"
 )
 
 func TestGetRegistrationType5GSName(t *testing.T) {
@@ -966,7 +965,7 @@ func buildUeAndRadio() (*amfContext.AmfUe, *FakeNGAPSender, error) {
 	radio := amfContext.Radio{
 		RanUEs:     make(map[int64]*amfContext.RanUe),
 		Conn:       nil,
-		Log:        logger.AmfLog.With(zap.String("ran_addr", "test_localhost")),
+		Log:        logger.AmfLog.With(logger.RanAddr("test_localhost")),
 		NGAPSender: &ngapSender,
 	}
 

@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 )
 
 type N2Interface struct {
@@ -133,7 +132,7 @@ func UpdateN3Interface(dbInstance *db.Database, upf UPFUpdater, cfg config.Confi
 
 		upf.UpdateAdvertisedN3Address(net.ParseIP(n3Address))
 
-		logger.APILog.Info("N3 interface updated", zap.String("n3_address", n3Address))
+		logger.APILog.Info("N3 interface updated", logger.N3Address(n3Address))
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "N3 interface updated"}, http.StatusOK, logger.APILog)
 

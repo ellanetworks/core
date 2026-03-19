@@ -258,7 +258,7 @@ func (smf *SMF) ReleaseUeIPAddr(ctx context.Context, supi etsi.SUPI) error {
 		return fmt.Errorf("failed to release IP Address, %v", err)
 	}
 
-	logger.SmfLog.Info("Released IP Address", zap.String("supi", supi.String()))
+	logger.SmfLog.Info("Released IP Address", logger.SUPI(supi.String()))
 
 	return nil
 }

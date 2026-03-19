@@ -32,7 +32,7 @@ func ReleaseSmContext(ctx context.Context, smContextRef string) error {
 
 	err := smf.ReleaseUeIPAddr(ctx, smContext.Supi)
 	if err != nil {
-		logger.SmfLog.Error("release UE IP address failed", zap.Error(err), zap.String("supi", smContext.Supi.String()), zap.Uint8("pduSessionID", smContext.PDUSessionID))
+		logger.SmfLog.Error("release UE IP address failed", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 	}
 
 	err = releaseTunnel(ctx, smf, smContext)

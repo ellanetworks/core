@@ -5,13 +5,14 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
 func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.UplinkNASTransport) {
 	if msg == nil {
-		ran.Log.Error("NGAP Message is nil")
+		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
 	}
 
@@ -28,48 +29,48 @@ func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amf
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
 			if aMFUENGAPID == nil {
-				ran.Log.Error("AmfUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Error("AmfUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID:
 			rANUENGAPID = ie.Value.RANUENGAPID
 			if rANUENGAPID == nil {
-				ran.Log.Error("RanUeNgapID is nil")
+				logger.WithTrace(ctx, ran.Log).Error("RanUeNgapID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDNASPDU:
 			nASPDU = ie.Value.NASPDU
 			if nASPDU == nil {
-				ran.Log.Error("nASPDU is nil")
+				logger.WithTrace(ctx, ran.Log).Error("nASPDU is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDUserLocationInformation:
 			userLocationInformation = ie.Value.UserLocationInformation
 			if userLocationInformation == nil {
-				ran.Log.Error("UserLocationInformation is nil")
+				logger.WithTrace(ctx, ran.Log).Error("UserLocationInformation is nil")
 				return
 			}
 		}
 	}
 
 	if aMFUENGAPID == nil {
-		ran.Log.Error("AMFUENGAPID IE (mandatory) is missing in UplinkNASTransport")
+		logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID IE (mandatory) is missing in UplinkNASTransport")
 		return
 	}
 
 	if rANUENGAPID == nil {
-		ran.Log.Error("RANUENGAPID IE (mandatory) is missing in UplinkNASTransport")
+		logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID IE (mandatory) is missing in UplinkNASTransport")
 		return
 	}
 
 	if nASPDU == nil {
-		ran.Log.Error("NASPDU IE (mandatory) is missing in UplinkNASTransport")
+		logger.WithTrace(ctx, ran.Log).Error("NASPDU IE (mandatory) is missing in UplinkNASTransport")
 		return
 	}
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
-		ran.Log.Error("ran ue is nil", zap.Int64("ranUeNgapID", rANUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("ran ue is nil", zap.Int64("ranUeNgapID", rANUENGAPID.Value))
 		return
 	}
 
@@ -80,10 +81,10 @@ func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amf
 	if amfUe == nil {
 		err := ranUe.Remove()
 		if err != nil {
-			ran.Log.Error("error removing ran ue context", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("error removing ran ue context", zap.Error(err))
 		}
 
-		ran.Log.Error("No UE Context of RanUe", zap.Int64("ranUeNgapID", rANUENGAPID.Value), zap.Int64("amfUeNgapID", aMFUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context of RanUe", zap.Int64("ranUeNgapID", rANUENGAPID.Value), zap.Int64("amfUeNgapID", aMFUENGAPID.Value))
 
 		return
 	}
@@ -94,6 +95,6 @@ func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amf
 
 	err := nas.HandleNAS(ctx, amf, ranUe, nASPDU.Value)
 	if err != nil {
-		ranUe.Log.Error("error handling NAS message", zap.Error(err))
+		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS message", zap.Error(err))
 	}
 }

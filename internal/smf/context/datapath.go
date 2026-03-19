@@ -12,7 +12,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"go.uber.org/zap"
 )
 
 type GTPTunnel struct {
@@ -58,7 +57,7 @@ func (dp *DataPath) DeactivateDownLinkTunnel(smf *SMF) {
 		return
 	}
 
-	logger.SmfLog.Info("deactivated DownLinkTunnel PDR", zap.Uint16("pdrId", dp.DownLinkTunnel.PDR.PDRID))
+	logger.SmfLog.Info("deactivated DownLinkTunnel PDR", logger.PDRID(uint32(dp.DownLinkTunnel.PDR.PDRID)))
 
 	smf.RemovePDR(dp.DownLinkTunnel.PDR)
 

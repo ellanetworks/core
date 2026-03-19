@@ -8,7 +8,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
-	"go.uber.org/zap"
 )
 
 // TS 24501 5.6.3.2
@@ -27,7 +26,7 @@ func handleNotificationResponse(ctx context.Context, amf *amfContext.AMF, ue *am
 	}
 
 	if msg.PDUSessionStatus == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Debug("PDUSessionStatus IE is not present in Notification Response message, no PDU session to release", zap.String("supi", ue.Supi.String()))
+		logger.WithTrace(ctx, logger.AmfLog).Debug("PDUSessionStatus IE is not present in Notification Response message, no PDU session to release", logger.SUPI(ue.Supi.String()))
 		return nil
 	}
 

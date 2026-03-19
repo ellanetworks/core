@@ -171,7 +171,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 	// Service Reject if the SecurityContext is invalid or the UE is Deregistered
 	if !ue.SecurityContextIsValid() || ue.GetState() == amfContext.Deregistered {
-		ue.Log.Warn("No security context", zap.String("supi", ue.Supi.String()))
+		ue.Log.Warn("No security context", logger.SUPI(ue.Supi.String()))
 		ue.SecurityContextAvailable = false
 
 		err := message.SendServiceReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
@@ -192,7 +192,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 	serviceType := msg.GetServiceTypeValue()
 
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Handle Service Request", zap.String("supi", ue.Supi.String()), zap.String("serviceType", serviceTypeToString(serviceType)))
+	logger.WithTrace(ctx, logger.AmfLog).Debug("Handle Service Request", logger.SUPI(ue.Supi.String()), zap.String("serviceType", serviceTypeToString(serviceType)))
 
 	var (
 		reactivationResult, acceptPduSessionPsi *[16]bool
