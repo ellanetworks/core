@@ -158,19 +158,13 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 		if radioFilter != "" {
 			amf := amfContext.AMFSelf()
 
+			// Verify the radio exists.
 			_, ranList := amf.ListAmfRan(1, 1000)
 
 			found := false
 
 			for _, radio := range ranList {
 				if radio.Name == radioFilter {
-					supis := radio.ConnectedSubscribers()
-					radioIMSIs = make(map[string]struct{}, len(supis))
-
-					for _, imsi := range supis {
-						radioIMSIs[imsi] = struct{}{}
-					}
-
 					found = true
 
 					break
@@ -180,6 +174,15 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 			if !found {
 				writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio %q not found", radioFilter), logger.APILog)
 				return
+			}
+
+			// Use the authoritative registration state to find subscribers
+			// connected through this radio.
+			imsis := amf.RegisteredSubscribersForRadio(radioFilter)
+			radioIMSIs = make(map[string]struct{}, len(imsis))
+
+			for _, imsi := range imsis {
+				radioIMSIs[imsi] = struct{}{}
 			}
 		}
 
