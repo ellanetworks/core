@@ -33,13 +33,16 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 // with NewServer, call ListenAndServe to start accepting, and Shutdown to
 // stop cleanly.
 type Server struct {
-	listener *sctp.SCTPListener
-	conns    sync.Map
-	wg       sync.WaitGroup
+	listener   *sctp.SCTPListener
+	conns      sync.Map
+	wg         sync.WaitGroup
+	acceptDone chan struct{}
 }
 
 func NewServer() *Server {
-	return &Server{}
+	return &Server{
+		acceptDone: make(chan struct{}),
+	}
 }
 
 func (s *Server) ListenAndServe(ctx context.Context, address string, port int) error {
@@ -68,6 +71,8 @@ func (s *Server) ListenAndServe(ctx context.Context, address string, port int) e
 }
 
 func (s *Server) acceptLoop(ctx context.Context) {
+	defer close(s.acceptDone)
+
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
@@ -95,8 +100,12 @@ func (s *Server) acceptLoop(ctx context.Context) {
 }
 
 func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
+	// Capture fd before any defers: conn.Close() swaps _fd to -1, so
+	// conn.Fd() called after Close returns -1, not the original key.
+	fd := conn.Fd()
+
 	defer s.wg.Done()
-	defer s.conns.Delete(conn.Fd())
+	defer s.conns.Delete(fd)
 	defer func() {
 		if err := conn.Close(); err != nil && err != syscall.EBADF {
 			logger.AmfLog.Error("close connection error", zap.Error(err))
@@ -159,6 +168,11 @@ func (s *Server) Shutdown() {
 	if err := s.listener.Close(); err != nil {
 		logger.AmfLog.Error("could not close sctp listener", zap.Error(err))
 	}
+
+	// Wait for acceptLoop to exit before ranging over conns and calling
+	// wg.Wait(). This prevents a race where acceptLoop calls wg.Add after
+	// wg.Wait returns with a zero count.
+	<-s.acceptDone
 
 	s.conns.Range(func(_, value any) bool {
 		conn := value.(*sctp.SCTPConn)
