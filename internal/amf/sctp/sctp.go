@@ -1,4 +1,4 @@
-// Copyright 2024 Ella Networks
+// Copyright 2026 Ella Networks
 // Copyright 2019 Wataru Ishida. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -395,6 +395,11 @@ func (c *SCTPConn) fd() int {
 	return int(atomic.LoadInt32(&c._fd))
 }
 
+// Fd returns the underlying socket file descriptor.
+func (c *SCTPConn) Fd() int {
+	return c.fd()
+}
+
 func NewSCTPConn(fd int, handler NotificationHandler) *SCTPConn {
 	conn := &SCTPConn{
 		_fd:                 int32(fd),
@@ -622,8 +627,7 @@ func (c *SCTPConn) SetWriteDeadline(t time.Time) error {
 }
 
 type SCTPListener struct {
-	fd   int
-	epfd int // fd for epoll
+	fd int
 }
 
 // SocketConfig contains options for the SCTP socket.

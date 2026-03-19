@@ -1,4 +1,4 @@
-// Copyright 2024 Ella Networks
+// Copyright 2026 Ella Networks
 //go:build linux && !386
 
 // Copyright 2019 Wataru Ishida. All rights reserved.
@@ -147,9 +147,9 @@ func parseNotification(b []byte) Notification {
 
 // SCTPRead use syscall.Recvmsg to receive SCTP message and return sctp sndrcvinfo/notification if need
 func (c *SCTPConn) SCTPRead(b []byte) (int, *SndRcvInfo, Notification, error) {
-	oob := make([]byte, 254)
+	var oob [254]byte
 
-	n, oobn, recvflags, _, err := syscall.Recvmsg(c.fd(), b, oob, 0)
+	n, oobn, recvflags, _, err := syscall.Recvmsg(c.fd(), b, oob[:], 0)
 	if err != nil {
 		return n, nil, nil, err
 	}
@@ -172,28 +172,30 @@ func (c *SCTPConn) SCTPRead(b []byte) (int, *SndRcvInfo, Notification, error) {
 }
 
 func (c *SCTPConn) Close() error {
-	if c != nil {
-		fd := atomic.SwapInt32(&c._fd, -1)
-		if fd > 0 {
-			info := &SndRcvInfo{
-				Flags: SCTPEof,
-			}
-
-			_, err := c.SCTPWrite(nil, info)
-			if err != nil {
-				return err
-			}
-
-			err = syscall.Shutdown(int(fd), syscall.SHUT_RDWR)
-			if err != nil {
-				return err
-			}
-
-			return syscall.Close(int(fd))
-		}
+	if c == nil {
+		return syscall.EBADF
 	}
 
-	return syscall.EBADF
+	fd := atomic.SwapInt32(&c._fd, -1)
+	if fd <= 0 {
+		return syscall.EBADF
+	}
+
+	// Send SCTP EOF using the saved fd directly. c.SCTPWrite() calls c.fd()
+	// which reads the atomic _fd (now -1 after the swap above), so it would
+	// silently fail with EBADF and the peer would never receive the EOF.
+	info := &SndRcvInfo{Flags: SCTPEof}
+	cmsgBuf := toBuf(info)
+	hdr := &syscall.Cmsghdr{
+		Level: syscall.IPPROTO_SCTP,
+		Type:  SCTPCMsgSndRcv,
+	}
+	hdr.SetLen(syscall.CmsgSpace(len(cmsgBuf)))
+	cbuf := append(toBuf(hdr), cmsgBuf...)
+	_, _ = syscall.SendmsgN(int(fd), nil, cbuf, nil, 0)
+	_ = syscall.Shutdown(int(fd), syscall.SHUT_RDWR)
+
+	return syscall.Close(int(fd))
 }
 
 func (c *SCTPConn) SetWriteBuffer(bytes int) error {
@@ -240,13 +242,15 @@ func (c *SCTPConn) SetAssocInfo(info AssocInfo) error {
 	return setAssocInfo(c.fd(), info)
 }
 
-// listenSCTPExtConfig - start listener on specified address/port with given SCTP options and socket configuration
+// listenSCTPExtConfig starts a listener on the specified address/port with the
+// given SCTP options. The listening socket is blocking; Accept will block until
+// a connection arrives.
 func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo, control func(network, address string, c syscall.RawConn) error) (*SCTPListener, error) {
 	af, ipv6only := favoriteAddrFamily(network, laddr, nil, "listen")
 
 	sock, err := syscall.Socket(
 		af,
-		syscall.SOCK_STREAM|syscall.SOCK_NONBLOCK|syscall.SOCK_CLOEXEC,
+		syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC,
 		syscall.IPPROTO_SCTP,
 	)
 	if err != nil {
@@ -322,80 +326,24 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		return nil, err
 	}
 
-	// epoll will be used in Accept() to avoid busy waiting because of non-blocking socket
-	epfd, err := createEpollForSock(sock)
-	if err != nil {
-		return nil, err
-	}
-
-	return &SCTPListener{
-		fd:   sock,
-		epfd: epfd,
-	}, nil
+	return &SCTPListener{fd: sock}, nil
 }
 
-// createEpollForSock - create an epoll for sock; return an epoll fd if no error
-func createEpollForSock(sock int) (int, error) {
-	epfd, err := syscall.EpollCreate1(syscall.EPOLL_CLOEXEC)
-	if err != nil {
-		return -1, err
-	}
-
-	// close epfd on error
-	defer func() {
-		if err != nil {
-			err := syscall.Close(epfd)
-			if err != nil {
-				logger.AmfLog.Warn("failed to close epoll", zap.Error(err))
-			}
-		}
-	}()
-
-	event := syscall.EpollEvent{
-		Events: syscall.EPOLLIN,
-		Fd:     int32(sock),
-	}
-
-	err = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, sock, &event)
-	if err != nil {
-		return -1, err
-	}
-
-	return epfd, nil
-}
-
-// AcceptSCTP waits for and returns the next SCTP connection to the listener.
-// it will use EpollWait to wait for a incoming connection then call syscall.Accept4 to accept
-func (ln *SCTPListener) AcceptSCTP() (*SCTPConn, error) {
-	var events [1]syscall.EpollEvent
-
-	n, err := syscall.EpollWait(ln.epfd, events[:], -1)
+// Accept blocks until a new connection arrives, then returns it. The accepted
+// connection's socket is blocking; reads on it will park the goroutine on the
+// OS thread until data arrives.
+func (ln *SCTPListener) Accept() (*SCTPConn, error) {
+	fd, _, err := syscall.Accept4(ln.fd, syscall.SOCK_CLOEXEC)
 	if err != nil {
 		return nil, err
 	}
 
-	if n == 0 {
-		return nil, err
-	}
-
-	if events[0].Fd == int32(ln.fd) {
-		fd, _, err := syscall.Accept4(ln.fd, 0)
-		return NewSCTPConn(fd, nil), err
-	} else {
-		return nil, err
-	}
+	return NewSCTPConn(fd, nil), nil
 }
 
 func (ln *SCTPListener) Close() error {
-	err := syscall.Shutdown(ln.fd, syscall.SHUT_RDWR)
-	if err != nil {
-		return err
-	}
-
-	err = syscall.Close(ln.epfd)
-	if err != nil {
-		return err
-	}
+	// best-effort shutdown; always release the fd
+	_ = syscall.Shutdown(ln.fd, syscall.SHUT_RDWR)
 
 	return syscall.Close(ln.fd)
 }

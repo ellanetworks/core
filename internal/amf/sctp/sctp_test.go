@@ -1,0 +1,258 @@
+// Copyright 2026 Ella Networks
+//go:build linux && !386
+
+package sctp
+
+import (
+	"net"
+	"syscall"
+	"testing"
+)
+
+// skipIfNoSCTP skips the test if the SCTP kernel module is not loaded.
+func skipIfNoSCTP(t *testing.T) {
+	t.Helper()
+
+	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_SCTP)
+	if err != nil {
+		t.Skipf("SCTP not available: %v", err)
+	}
+
+	if err := syscall.Close(fd); err != nil {
+		t.Fatalf("close probe socket: %v", err)
+	}
+}
+
+// newTestListener starts an SCTP listener on 127.0.0.1:port and registers cleanup.
+func newTestListener(t *testing.T, port int) *SCTPListener {
+	t.Helper()
+
+	netAddr, err := net.ResolveIPAddr("ip", "127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := SocketConfig{
+		InitMsg: InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
+	}
+
+	ln, err := cfg.Listen("sctp", &SCTPAddr{
+		IPAddrs: []net.IPAddr{*netAddr},
+		Port:    port,
+	})
+	if err != nil {
+		t.Fatalf("listen :%d: %v", port, err)
+	}
+
+	t.Cleanup(func() {
+		if err := ln.Close(); err != nil {
+			t.Logf("listener close: %v", err)
+		}
+	})
+
+	return ln
+}
+
+// connectLoopback opens a blocking SCTP socket connected to 127.0.0.1:port.
+// The caller owns the returned fd.
+func connectLoopback(port int) (int, error) {
+	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, syscall.IPPROTO_SCTP)
+	if err != nil {
+		return -1, err
+	}
+
+	sa := &syscall.SockaddrInet4{Port: port}
+	copy(sa.Addr[:], net.ParseIP("127.0.0.1").To4())
+
+	if err := syscall.Connect(fd, sa); err != nil {
+		_ = syscall.Close(fd)
+		return -1, err
+	}
+
+	return fd, nil
+}
+
+// TestClose_Idempotent verifies that Close() releases the fd exactly once.
+// A second Close must return EBADF, not panic or silently succeed.
+func TestClose_Idempotent(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const port = 29300
+
+	ln := newTestListener(t, port)
+
+	connCh := make(chan *SCTPConn, 1)
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			connCh <- nil
+			return
+		}
+
+		connCh <- conn
+	}()
+
+	clientFd, err := connectLoopback(port)
+	if err != nil {
+		t.Fatalf("connectLoopback: %v", err)
+	}
+
+	defer func() {
+		if err := syscall.Close(clientFd); err != nil {
+			t.Logf("close client fd: %v", err)
+		}
+	}()
+
+	serverConn := <-connCh
+	if serverConn == nil {
+		t.Fatal("Accept failed")
+	}
+
+	// First Close should succeed (may return EBADF if peer reset first).
+	if err := serverConn.Close(); err != nil && err != syscall.EBADF {
+		t.Errorf("first Close() = %v, want nil or EBADF", err)
+	}
+
+	// Second Close must return EBADF: the fd was released on the first call.
+	if err := serverConn.Close(); err != syscall.EBADF {
+		t.Errorf("second Close() = %v, want EBADF", err)
+	}
+}
+
+// TestSendReceive verifies end-to-end data transmission over a loopback SCTP connection.
+func TestSendReceive(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const port = 29301
+
+	ln := newTestListener(t, port)
+
+	want := []byte("hello sctp")
+	errCh := make(chan error, 1)
+
+	go func() {
+		fd, err := connectLoopback(port)
+		if err != nil {
+			errCh <- err
+			return
+		}
+
+		defer func() { _ = syscall.Close(fd) }()
+
+		client := NewSCTPConn(fd, nil)
+
+		_, err = client.SCTPWrite(want, &SndRcvInfo{PPID: NGAPPPID, Stream: 0})
+		errCh <- err
+	}()
+
+	serverConn, err := ln.Accept()
+	if err != nil {
+		t.Fatalf("Accept: %v", err)
+	}
+
+	defer func() {
+		if err := serverConn.Close(); err != nil && err != syscall.EBADF {
+			t.Logf("close server conn: %v", err)
+		}
+	}()
+
+	buf := make([]byte, 256)
+
+	nr, _, _, err := serverConn.SCTPRead(buf)
+	if err != nil {
+		t.Fatalf("SCTPRead: %v", err)
+	}
+
+	if got := string(buf[:nr]); got != string(want) {
+		t.Errorf("received %q, want %q", got, want)
+	}
+
+	if err := <-errCh; err != nil {
+		t.Errorf("client SCTPWrite: %v", err)
+	}
+}
+
+// TestClose_GracefulEOFReachesPeer verifies that Close() sends a graceful SCTP
+// EOF so the peer observes an orderly shutdown (read returns 0 bytes / EOF)
+// rather than a connection reset. This exercises the fix where we pass the
+// saved fd directly to SendmsgN instead of going through c.SCTPWrite(), which
+// would use c.fd() == -1 after the atomic swap and silently drop the EOF.
+func TestClose_GracefulEOFReachesPeer(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const port = 29302
+
+	ln := newTestListener(t, port)
+
+	clientFdCh := make(chan int, 1)
+
+	go func() {
+		fd, err := connectLoopback(port)
+		if err != nil {
+			clientFdCh <- -1
+			return
+		}
+
+		clientFdCh <- fd
+	}()
+
+	serverConn, err := ln.Accept()
+	if err != nil {
+		t.Fatalf("Accept: %v", err)
+	}
+
+	clientFd := <-clientFdCh
+	if clientFd < 0 {
+		t.Fatal("client connect failed")
+	}
+
+	defer func() {
+		if err := syscall.Close(clientFd); err != nil {
+			t.Logf("close client fd: %v", err)
+		}
+	}()
+
+	if err := serverConn.Close(); err != nil && err != syscall.EBADF {
+		t.Fatalf("server Close() = %v, want nil or EBADF", err)
+	}
+
+	// The client should observe EOF: a blocking recvmsg on the client fd
+	// should return 0 bytes once the server's graceful EOF arrives.
+	buf := make([]byte, 256)
+
+	n, _, err := syscall.Recvfrom(clientFd, buf, 0)
+	if err != nil {
+		t.Fatalf("client Recvfrom after server Close: %v", err)
+	}
+
+	if n != 0 {
+		t.Errorf("client read %d bytes after server Close, want 0 (EOF)", n)
+	}
+}
+
+// TestListenerClose_UnblocksAccept verifies that closing the listener causes a
+// blocked Accept to return an error. This is the mechanism Stop() relies on to
+// shut down the accept loop cleanly.
+func TestListenerClose_UnblocksAccept(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const port = 29303
+
+	ln := newTestListener(t, port)
+
+	errCh := make(chan error, 1)
+
+	go func() {
+		_, err := ln.Accept()
+		errCh <- err
+	}()
+
+	if err := ln.Close(); err != nil {
+		t.Logf("listener close: %v", err)
+	}
+
+	if err := <-errCh; err == nil {
+		t.Error("Accept returned nil after listener close, want error")
+	}
+}
