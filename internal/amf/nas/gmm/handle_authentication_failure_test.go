@@ -397,3 +397,25 @@ func TestHandleAuthenticationFailure_SynchFailure_SecondTime_DeregistersAndSends
 		t.Fatalf("expected AuthenticationReject message, got: %v", nm.GmmHeader.GetMessageType())
 	}
 }
+
+func TestHandleAuthenticationFailure_SynchFailure_NilAuthenticationFailureParameter(t *testing.T) {
+	amfSelf := amfContext.AMFSelf()
+	amfSelf.Smf = &FakeSmf{}
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.State = amfContext.Authentication
+	ue.AuthFailureCauseSynchFailureTimes = 0
+
+	// Build message with SynchFailure cause but nil AuthenticationFailureParameter
+	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMSynchFailure, nil)
+
+	// This must not panic — before the fix it caused a nil pointer dereference
+	err = handleAuthenticationFailure(t.Context(), &amfContext.AMF{}, ue, msg)
+	if err == nil {
+		t.Fatal("expected error when AuthenticationFailureParameter is nil, got nil")
+	}
+}

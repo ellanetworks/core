@@ -75,6 +75,10 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 			return nil
 		}
 
+		if msg.AuthenticationFailureParameter == nil {
+			return fmt.Errorf("missing AuthenticationFailureParameter IE for SynchFailure")
+		}
+
 		auts := msg.GetAuthenticationFailureParameter()
 		resynchronizationInfo := &models.ResynchronizationInfo{
 			Auts: hex.EncodeToString(auts[:]),
