@@ -10,31 +10,36 @@ import (
 	"go.uber.org/zap"
 )
 
-func StartDataRetentionWorker(database *db.Database) {
-	go func() {
+func StartDataRetentionWorker(ctx context.Context, database *db.Database) {
+	go func() { // #nosec: G118 -- Background context is intentional — retention operations must not be cancelled by shutdown
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 
 		for {
-			ctx := context.Background()
+			bgCtx := context.Background()
 
-			if err := enforceAuditDataRetention(ctx, database); err != nil {
+			if err := enforceAuditDataRetention(bgCtx, database); err != nil {
 				logger.EllaLog.Error("error enforcing audit log retention", zap.Error(err))
 			}
 
-			if err := enforceRadioDataRetention(ctx, database); err != nil {
+			if err := enforceRadioDataRetention(bgCtx, database); err != nil {
 				logger.EllaLog.Error("error enforcing radio log retention", zap.Error(err))
 			}
 
-			if err := enforceSubscriberUsageDataRetention(ctx, database); err != nil {
+			if err := enforceSubscriberUsageDataRetention(bgCtx, database); err != nil {
 				logger.EllaLog.Error("error enforcing subscriber usage data retention", zap.Error(err))
 			}
 
-			if err := enforceFlowReportsDataRetention(ctx, database); err != nil {
+			if err := enforceFlowReportsDataRetention(bgCtx, database); err != nil {
 				logger.EllaLog.Error("error enforcing flow reports retention", zap.Error(err))
 			}
 
-			<-ticker.C
+			select {
+			case <-ctx.Done():
+				logger.EllaLog.Info("Data retention worker stopped")
+				return
+			case <-ticker.C:
+			}
 		}
 	}()
 }

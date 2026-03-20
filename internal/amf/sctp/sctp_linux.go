@@ -19,9 +19,10 @@
 package sctp
 
 import (
+	"fmt"
 	"io"
 	"net"
-	"sync/atomic"
+	"os"
 	"syscall"
 	"unsafe"
 
@@ -59,24 +60,34 @@ func getsockopt(fd int, optname, optval, optlen uintptr) error {
 	return nil
 }
 
-type rawConn struct {
+// listenRawConn is a minimal syscall.RawConn used only during listener socket
+// setup (before the socket is wrapped in os.File). Read and Write panic
+// because they should never be called during setup.
+type listenRawConn struct {
 	sockfd int
 }
 
-func (r rawConn) Control(f func(fd uintptr)) error {
+func (r listenRawConn) Control(f func(fd uintptr)) error {
 	f(uintptr(r.sockfd))
 	return nil
 }
 
-func (r rawConn) Read(f func(fd uintptr) (done bool)) error {
-	panic("not implemented")
+func (r listenRawConn) Read(func(fd uintptr) (done bool)) error {
+	panic("listenRawConn: Read not supported")
 }
 
-func (r rawConn) Write(f func(fd uintptr) (done bool)) error {
-	panic("not implemented")
+func (r listenRawConn) Write(func(fd uintptr) (done bool)) error {
+	panic("listenRawConn: Write not supported")
 }
 
-func (c *SCTPConn) SCTPWrite(b []byte, info *SndRcvInfo) (int, error) {
+// WriteMsg sends data with optional SCTP ancillary info. Uses Go's runtime
+// poller: the goroutine parks efficiently when the socket is not ready for
+// writing, rather than pinning an OS thread.
+func (c *SCTPConn) WriteMsg(b []byte, info *SndRcvInfo) (int, error) {
+	if c.rc == nil {
+		return 0, syscall.EBADF
+	}
+
 	var cbuf []byte
 
 	if info != nil {
@@ -85,14 +96,23 @@ func (c *SCTPConn) SCTPWrite(b []byte, info *SndRcvInfo) (int, error) {
 			Level: syscall.IPPROTO_SCTP,
 			Type:  SCTPCMsgSndRcv,
 		}
-
-		// bitwidth of hdr.Len is platform-specific,
-		// so we use hdr.SetLen() rather than directly setting hdr.Len
 		hdr.SetLen(syscall.CmsgSpace(len(cmsgBuf)))
 		cbuf = append(toBuf(hdr), cmsgBuf...)
 	}
 
-	return syscall.SendmsgN(c.fd(), b, cbuf, nil, 0)
+	var n int
+
+	var err error
+
+	werr := c.rc.Write(func(fd uintptr) bool {
+		n, err = syscall.SendmsgN(int(fd), b, cbuf, nil, 0)
+		return err != syscall.EAGAIN
+	})
+	if werr != nil {
+		return 0, werr
+	}
+
+	return n, err
 }
 
 func parseSndRcvInfo(b []byte) (*SndRcvInfo, error) {
@@ -145,11 +165,28 @@ func parseNotification(b []byte) Notification {
 	}
 }
 
-// SCTPRead use syscall.Recvmsg to receive SCTP message and return sctp sndrcvinfo/notification if need
-func (c *SCTPConn) SCTPRead(b []byte) (int, *SndRcvInfo, Notification, error) {
+// ReadMsg receives an SCTP message and returns the data, optional SndRcvInfo,
+// and any notification. Uses Go's runtime poller: the goroutine parks
+// efficiently when the socket has no data, rather than blocking an OS thread.
+func (c *SCTPConn) ReadMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
+	if c.rc == nil {
+		return 0, nil, nil, syscall.EBADF
+	}
+
 	var oob [254]byte
 
-	n, oobn, recvflags, _, err := syscall.Recvmsg(c.fd(), b, oob[:], 0)
+	var n, oobn, recvflags int
+
+	var err error
+
+	rerr := c.rc.Read(func(fd uintptr) bool {
+		n, oobn, recvflags, _, err = syscall.Recvmsg(int(fd), b, oob[:], 0)
+		return err != syscall.EAGAIN
+	})
+	if rerr != nil {
+		return 0, nil, nil, rerr
+	}
+
 	if err != nil {
 		return n, nil, nil, err
 	}
@@ -161,90 +198,134 @@ func (c *SCTPConn) SCTPRead(b []byte) (int, *SndRcvInfo, Notification, error) {
 	if recvflags&MsgNotification > 0 {
 		notification := parseNotification(b[:n])
 		return n, nil, notification, nil
-	} else {
-		var info *SndRcvInfo
-		if oobn > 0 {
-			info, err = parseSndRcvInfo(oob[:oobn])
-		}
-
-		return n, info, nil, err
 	}
+
+	var info *SndRcvInfo
+
+	if oobn > 0 {
+		info, err = parseSndRcvInfo(oob[:oobn])
+	}
+
+	return n, info, nil, err
 }
 
+// Close sends a graceful SCTP EOF to the peer and closes the underlying file
+// descriptor. Any goroutine blocked in ReadMsg or WriteMsg is safely unparked
+// by the runtime poller. Close is safe for concurrent use; the second and
+// subsequent calls return syscall.EBADF.
 func (c *SCTPConn) Close() error {
-	if c == nil {
-		return syscall.EBADF
+	if c == nil || c.file == nil {
+		return net.ErrClosed
 	}
 
-	fd := atomic.SwapInt32(&c._fd, -1)
-	if fd <= 0 {
-		return syscall.EBADF
+	if !c.closed.CompareAndSwap(false, true) {
+		return net.ErrClosed
 	}
 
-	// Send SCTP EOF using the saved fd directly. c.SCTPWrite() calls c.fd()
-	// which reads the atomic _fd (now -1 after the swap above), so it would
-	// silently fail with EBADF and the peer would never receive the EOF.
-	info := &SndRcvInfo{Flags: SCTPEof}
-	cmsgBuf := toBuf(info)
-	hdr := &syscall.Cmsghdr{
-		Level: syscall.IPPROTO_SCTP,
-		Type:  SCTPCMsgSndRcv,
-	}
-	hdr.SetLen(syscall.CmsgSpace(len(cmsgBuf)))
-	cbuf := append(toBuf(hdr), cmsgBuf...)
-	_, _ = syscall.SendmsgN(int(fd), nil, cbuf, nil, 0)
-	_ = syscall.Shutdown(int(fd), syscall.SHUT_RDWR)
+	// Send SCTP EOF to notify the peer of graceful shutdown. Control() holds
+	// a reference to the fd, preventing the actual close(2) until it returns.
+	_ = c.rc.Control(func(fd uintptr) {
+		info := &SndRcvInfo{Flags: SCTPEof}
+		cmsgBuf := toBuf(info)
+		hdr := &syscall.Cmsghdr{
+			Level: syscall.IPPROTO_SCTP,
+			Type:  SCTPCMsgSndRcv,
+		}
+		hdr.SetLen(syscall.CmsgSpace(len(cmsgBuf)))
+		cbuf := append(toBuf(hdr), cmsgBuf...)
+		_, _ = syscall.SendmsgN(int(fd), nil, cbuf, nil, 0)
+		_ = syscall.Shutdown(int(fd), syscall.SHUT_RDWR)
+	})
 
-	return syscall.Close(int(fd))
+	// Close the file. The runtime poller evicts all waiters first, unparking
+	// any goroutines blocked in ReadMsg/WriteMsg, before the fd is closed.
+	return c.file.Close()
 }
 
 func (c *SCTPConn) SetWriteBuffer(bytes int) error {
-	return syscall.SetsockoptInt(c.fd(), syscall.SOL_SOCKET, syscall.SO_SNDBUF, bytes)
+	return c.controlFd(func(fd int) error {
+		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, bytes)
+	})
 }
 
 func (c *SCTPConn) GetWriteBuffer() (int, error) {
-	return syscall.GetsockoptInt(c.fd(), syscall.SOL_SOCKET, syscall.SO_SNDBUF)
+	var val int
+
+	err := c.controlFd(func(fd int) error {
+		var e error
+
+		val, e = syscall.GetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF)
+
+		return e
+	})
+
+	return val, err
 }
 
 func (c *SCTPConn) SetReadBuffer(bytes int) error {
-	return syscall.SetsockoptInt(c.fd(), syscall.SOL_SOCKET, syscall.SO_RCVBUF, bytes)
+	return c.controlFd(func(fd int) error {
+		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, bytes)
+	})
 }
 
 func (c *SCTPConn) GetReadBuffer() (int, error) {
-	return syscall.GetsockoptInt(c.fd(), syscall.SOL_SOCKET, syscall.SO_RCVBUF)
-}
+	var val int
 
-func (c *SCTPConn) SetWriteTimeout(tv syscall.Timeval) error {
-	return syscall.SetsockoptTimeval(c.fd(), syscall.SOL_SOCKET, syscall.SO_SNDTIMEO, &tv)
-}
+	err := c.controlFd(func(fd int) error {
+		var e error
 
-func (c *SCTPConn) SetReadTimeout(tv syscall.Timeval) error {
-	return syscall.SetsockoptTimeval(c.fd(), syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &tv)
-}
+		val, e = syscall.GetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF)
 
-func (c *SCTPConn) SetNonBlock(nonBlock bool) error {
-	return syscall.SetNonblock(c.fd(), nonBlock)
+		return e
+	})
+
+	return val, err
 }
 
 func (c *SCTPConn) GetRtoInfo() (*RtoInfo, error) {
-	return getRtoInfo(c.fd())
+	var info *RtoInfo
+
+	err := c.controlFd(func(fd int) error {
+		var e error
+
+		info, e = getRtoInfo(fd)
+
+		return e
+	})
+
+	return info, err
 }
 
 func (c *SCTPConn) SetRtoInfo(rtoInfo RtoInfo) error {
-	return setRtoInfo(c.fd(), rtoInfo)
+	return c.controlFd(func(fd int) error {
+		return setRtoInfo(fd, rtoInfo)
+	})
 }
 
 func (c *SCTPConn) GetAssocInfo() (*AssocInfo, error) {
-	return getAssocInfo(c.fd())
+	var info *AssocInfo
+
+	err := c.controlFd(func(fd int) error {
+		var e error
+
+		info, e = getAssocInfo(fd)
+
+		return e
+	})
+
+	return info, err
 }
 
 func (c *SCTPConn) SetAssocInfo(info AssocInfo) error {
-	return setAssocInfo(c.fd(), info)
+	return c.controlFd(func(fd int) error {
+		return setAssocInfo(fd, info)
+	})
 }
 
-// listenSCTPExtConfig starts a listener on the specified address/port with the
-// given SCTP options. The listening socket is blocking; Accept will block until
-// a connection arrives.
+// listenSCTPExtConfig starts an SCTP listener on the specified address/port
+// with the given SCTP options. The listener integrates with Go's runtime
+// poller via os.NewFile, enabling safe concurrent Accept/Close without manual
+// epoll or wakeup pipes.
 func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo, control func(network, address string, c syscall.RawConn) error) (*SCTPListener, error) {
 	af, ipv6only := favoriteAddrFamily(network, laddr, nil, "listen")
 
@@ -260,9 +341,8 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 	// close socket on error
 	defer func() {
 		if err != nil {
-			err := syscall.Close(sock)
-			if err != nil {
-				logger.AmfLog.Warn("failed to close socket", zap.Error(err))
+			if cerr := syscall.Close(sock); cerr != nil {
+				logger.AmfLog.Warn("failed to close socket", zap.Error(cerr))
 			}
 		}
 	}()
@@ -271,41 +351,34 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		return nil, err
 	}
 
-	// enable REUSEADDR option
 	if err = syscall.SetsockoptInt(sock, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
 		return nil, err
 	}
 
 	if control != nil {
-		rc := rawConn{sockfd: sock}
+		rc := listenRawConn{sockfd: sock}
 		if err = control(network, laddr.String(), rc); err != nil {
 			return nil, err
 		}
 	}
 
-	// RTO
 	if rtoInfo != nil {
-		err = setRtoInfo(sock, *rtoInfo)
-		if err != nil {
+		if err = setRtoInfo(sock, *rtoInfo); err != nil {
 			return nil, err
 		}
 	}
 
-	// set default association parameters (RFC 6458 8.1.2)
 	if assocInfo != nil {
-		err = setAssocInfo(sock, *assocInfo)
-		if err != nil {
+		if err = setAssocInfo(sock, *assocInfo); err != nil {
 			return nil, err
 		}
 	}
 
-	err = setInitOpts(sock, options)
-	if err != nil {
+	if err = setInitOpts(sock, options); err != nil {
 		return nil, err
 	}
 
 	if laddr != nil {
-		// If IP address and/or port was not provided so far, let's use the unspecified IPv4 or IPv6 address
 		if len(laddr.IPAddrs) == 0 {
 			switch af {
 			case syscall.AF_INET:
@@ -315,109 +388,83 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 			}
 		}
 
-		err := SCTPBind(sock, laddr, SCTPBindxAddAddr)
-		if err != nil {
+		if err = SCTPBind(sock, laddr, SCTPBindxAddAddr); err != nil {
 			return nil, err
 		}
 	}
 
-	err = syscall.Listen(sock, syscall.SOMAXCONN)
+	if err = syscall.Listen(sock, syscall.SOMAXCONN); err != nil {
+		return nil, err
+	}
+
+	// Wrap the listener socket in os.File. Because the socket was created with
+	// SOCK_NONBLOCK, os.NewFile detects the non-blocking flag and registers the
+	// fd with Go's runtime poller. This enables Accept to park the goroutine
+	// efficiently and Close to safely wake it up.
+	f := os.NewFile(uintptr(sock), "sctp-listener")
+	if f == nil {
+		return nil, fmt.Errorf("os.NewFile returned nil for fd %d", sock)
+	}
+
+	rc, err := f.SyscallConn()
 	if err != nil {
-		return nil, err
+		_ = f.Close()
+
+		return nil, fmt.Errorf("SyscallConn: %w", err)
 	}
 
-	epfd, err := syscall.EpollCreate1(syscall.EPOLL_CLOEXEC)
-	if err != nil {
-		return nil, err
-	}
+	// The fd is now owned by f; prevent the deferred cleanup from closing it.
+	sock = -1
 
-	var wfds [2]int
-	if err = syscall.Pipe2(wfds[:], syscall.O_NONBLOCK|syscall.O_CLOEXEC); err != nil {
-		_ = syscall.Close(epfd)
-		return nil, err
-	}
-
-	wakeR, wakeW := wfds[0], wfds[1]
-
-	// Register the listener socket: fires when a connection is waiting.
-	if err = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, sock, &syscall.EpollEvent{Events: syscall.EPOLLIN}); err != nil {
-		_ = syscall.Close(epfd)
-		_ = syscall.Close(wakeR)
-		_ = syscall.Close(wakeW)
-
-		return nil, err
-	}
-
-	// Register the wakeup pipe: fires when Close writes to wakeW.
-	if err = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, wakeR, &syscall.EpollEvent{Events: syscall.EPOLLIN}); err != nil {
-		_ = syscall.Close(epfd)
-		_ = syscall.Close(wakeR)
-		_ = syscall.Close(wakeW)
-
-		return nil, err
-	}
-
-	return &SCTPListener{fd: sock, epfd: epfd, wakeR: wakeR, wakeW: wakeW}, nil
+	return &SCTPListener{file: f, rc: rc}, nil
 }
 
-// Accept waits for an incoming connection using epoll and a wakeup pipe.
-// It returns promptly with syscall.EBADF when Close is called, mirroring the
-// behaviour of Go's net.Listener and avoiding the OS-level race where closing
-// a file descriptor from another goroutine does not reliably unblock a
-// concurrent blocking accept(2) call.
+// Accept waits for an incoming SCTP connection. It uses Go's runtime poller:
+// the goroutine parks efficiently until a connection is ready. When Close is
+// called, the poller wakes Accept which returns an error wrapping
+// net.ErrClosed, mirroring the behaviour of Go's net.Listener.
 func (ln *SCTPListener) Accept() (*SCTPConn, error) {
-	var (
-		events  [2]syscall.EpollEvent
-		oneByte [1]byte
-	)
+	var newFd int
 
-	for {
-		n, err := syscall.EpollWait(ln.epfd, events[:], -1)
-		if err != nil {
-			if err == syscall.EINTR {
-				continue
-			}
-			// epfd was closed by Close() (EBADF) or another unexpected error.
-			return nil, err
+	var err error
+
+	rerr := ln.rc.Read(func(fd uintptr) bool {
+		newFd, _, err = syscall.Accept4(int(fd), syscall.SOCK_CLOEXEC|syscall.SOCK_NONBLOCK)
+		if err == syscall.EAGAIN {
+			return false // not ready; tell poller to park and retry
 		}
 
-		_ = n
-
-		// Non-blocking drain of the wakeup pipe. A successful read (err == nil)
-		// or any error other than EAGAIN means Close() has been called.
-		_, pipeErr := syscall.Read(ln.wakeR, oneByte[:])
-		if pipeErr != syscall.EAGAIN {
-			return nil, syscall.EBADF
-		}
-
-		// Wakeup pipe was empty — a connection must be ready on the listener.
-		fd, _, err := syscall.Accept4(ln.fd, syscall.SOCK_CLOEXEC)
-		if err != nil {
-			if err == syscall.EAGAIN || err == syscall.EINTR {
-				// Spurious wakeup; loop back to EpollWait.
-				continue
-			}
-
-			return nil, err
-		}
-
-		return NewSCTPConn(fd, nil), nil
+		return true
+	})
+	if rerr != nil {
+		return nil, rerr
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	conn := NewSCTPConn(newFd)
+	if conn == nil {
+		_ = syscall.Close(newFd)
+		return nil, fmt.Errorf("failed to wrap accepted fd %d", newFd)
+	}
+
+	return conn, nil
 }
 
+// Close closes the listener and unblocks any concurrent Accept call. The
+// runtime poller safely wakes all parked goroutines before the file descriptor
+// is closed, avoiding the race that existed with manual epoll.
 func (ln *SCTPListener) Close() error {
-	// Write to the wakeup pipe first so that any goroutine blocked in
-	// EpollWait sees wakeR become readable and returns immediately.
-	_, _ = syscall.Write(ln.wakeW, []byte{1})
+	if !ln.closed.CompareAndSwap(false, true) {
+		return net.ErrClosed
+	}
+	// Shutdown the socket so any in-flight associations are cleanly aborted,
+	// then close the file which unparks Accept via the runtime poller.
+	_ = ln.rc.Control(func(fd uintptr) {
+		_ = syscall.Shutdown(int(fd), syscall.SHUT_RDWR)
+	})
 
-	_ = syscall.Shutdown(ln.fd, syscall.SHUT_RDWR)
-	listenerErr := syscall.Close(ln.fd)
-
-	// Close the epoll fd and both pipe ends. Any concurrent EpollWait will
-	// return EBADF, which Accept treats identically to the wakeup-pipe signal.
-	_ = syscall.Close(ln.epfd)
-	_ = syscall.Close(ln.wakeR)
-	_ = syscall.Close(ln.wakeW)
-
-	return listenerErr
+	return ln.file.Close()
 }

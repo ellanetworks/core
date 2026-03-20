@@ -82,10 +82,14 @@ func TestStartServerStandup(t *testing.T) {
 	dummyFS := dummyFS{}
 
 	cctx, cancel := context.WithCancel(t.Context())
-	if err := Start(cctx, testdb, cfg, nil, dummyFS, nil); err != nil {
+
+	srv, err := Start(cctx, testdb, cfg, nil, dummyFS, nil)
+	if err != nil {
 		t.Fatalf("Start returned error: %v", err)
 	}
+
 	defer cancel()
+	defer func() { _ = srv.Close() }()
 
 	// Poll the server until it responds or timeout occurs.
 	baseURL := "http://127.0.0.1:" + strconv.Itoa(port)

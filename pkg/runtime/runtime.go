@@ -98,7 +98,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return os.ReadFile(rc.ConfigPath)
 	}
 
-	jobs.StartDataRetentionWorker(dbInstance)
+	jobs.StartDataRetentionWorker(ctx, dbInstance)
 
 	go sessions.CleanUp(ctx, dbInstance)
 
@@ -164,21 +164,23 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smf.RegisterMetrics()
 	upf.RegisterMetrics()
 
-	if err := api.Start(
+	apiServer, err := api.Start(
 		ctx,
 		dbInstance,
 		cfg,
 		upfInstance,
 		rc.EmbedFS,
 		rc.RegisterExtraRoutes,
-	); err != nil {
+	)
+	if err != nil {
 		return fmt.Errorf("couldn't start API: %w", err)
 	}
 
 	smf.Start(dbInstance)
 	ausf.Start(ctx, dbInstance)
 
-	if err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, &pdusession.EllaSmfSbi{}); err != nil {
+	sctpServer, err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, &pdusession.EllaSmfSbi{})
+	if err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}
 
@@ -187,13 +189,25 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		amf.Close(shutdownCtx)
+		logger.EllaLog.Info("Shutting down API server")
+
+		if err := apiServer.Shutdown(shutdownCtx); err != nil {
+			logger.EllaLog.Error("API server shutdown error", zap.Error(err))
+		}
+
+		logger.EllaLog.Info("Shutting down AMF")
+		amf.Close(shutdownCtx, sctpServer)
+
+		logger.EllaLog.Info("Shutting down UPF")
 		upfInstance.Close()
 
+		logger.EllaLog.Info("Flushing buffered writer")
 		bufferedWriter.Stop()
+
+		logger.EllaLog.Info("Closing database")
 
 		err := dbInstance.Close()
 		if err != nil {
@@ -203,6 +217,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		if tp == nil {
 			return
 		}
+
+		logger.EllaLog.Info("Shutting down tracer")
 
 		err = tp.Shutdown(shutdownCtx)
 		if err != nil {

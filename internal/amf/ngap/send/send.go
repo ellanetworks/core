@@ -64,7 +64,7 @@ func (s *RealNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType N
 		Stream: sid,
 		PPID:   nativeToNetworkEndianness32(sctp.NGAPPPID),
 	}
-	if _, err := s.Conn.SCTPWrite(packet, &info); err != nil {
+	if _, err := s.Conn.WriteMsg(packet, &info); err != nil {
 		return fmt.Errorf("send write to sctp connection: %s", err.Error())
 	}
 

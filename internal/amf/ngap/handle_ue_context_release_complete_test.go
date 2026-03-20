@@ -48,7 +48,7 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 	ran.RanUEs[1] = ranUe
 
 	// Register the radio with the AMF so FindRanUeByAmfUeNgapID can find it.
-	amf.Radios = map[*sctp.SCTPConn]*amfContext.Radio{nil: ran}
+	amf.Radios = map[*sctp.SCTPConn]*amfContext.Radio{new(sctp.SCTPConn): ran}
 
 	msg := &ngapType.UEContextReleaseComplete{}
 

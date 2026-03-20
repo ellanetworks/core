@@ -132,9 +132,7 @@ func TestListRadios(t *testing.T) {
 		},
 	}
 	ran1.RanPresent = amfContext.RanPresentGNbID
-	// amf.AmfRanPool.Store("id1", &ran1)
-	conn1 := sctp.NewSCTPConn(1, nil)
-	amf.Radios[conn1] = &ran1
+	amf.Radios[new(sctp.SCTPConn)] = &ran1
 	ran2 := amfContext.Radio{}
 	ran2.Name = "gnb-002"
 	ran2.SupportedTAIs = []amfContext.SupportedTAI{
@@ -160,8 +158,7 @@ func TestListRadios(t *testing.T) {
 		},
 	}
 	ran2.RanPresent = amfContext.RanPresentGNbID
-	conn2 := sctp.NewSCTPConn(1, nil)
-	amf.Radios[conn2] = &ran2
+	amf.Radios[new(sctp.SCTPConn)] = &ran2
 
 	// Set up the Gin router
 	statusCode, response, err := listRadios(ts.URL, client, token, 1, 10)
