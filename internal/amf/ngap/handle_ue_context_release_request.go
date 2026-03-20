@@ -151,23 +151,28 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 			}
 		} else {
 			logger.WithTrace(ctx, ranUe.Log).Info("Ue Context in Non GMM-Registered")
-			amfUe.Mutex.Lock()
-
-			for _, smContext := range amfUe.SmContextList {
-				err := pdusession.ReleaseSmContext(ctx, smContext.Ref)
-				if err != nil {
-					logger.WithTrace(ctx, ranUe.Log).Error("error sending release sm context request", zap.Error(err))
-				}
-			}
-
-			amfUe.Mutex.Unlock()
-
 			ranUe.ReleaseAction = amfContext.UeContextReleaseUeContext
 
 			err := ran.NGAPSender.SendUEContextReleaseCommand(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, causeGroup, causeValue)
 			if err != nil {
 				logger.WithTrace(ctx, ranUe.Log).Error("error sending ue context release command", zap.Error(err))
 				return
+			}
+
+			amfUe.Mutex.Lock()
+
+			smContextRefs := make([]string, 0, len(amfUe.SmContextList))
+			for _, smContext := range amfUe.SmContextList {
+				smContextRefs = append(smContextRefs, smContext.Ref)
+			}
+
+			amfUe.Mutex.Unlock()
+
+			for _, smContextRef := range smContextRefs {
+				err := pdusession.ReleaseSmContext(ctx, smContextRef)
+				if err != nil {
+					logger.WithTrace(ctx, ranUe.Log).Error("error sending release sm context request", zap.Error(err))
+				}
 			}
 
 			return
