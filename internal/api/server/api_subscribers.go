@@ -120,9 +120,13 @@ func isImsiValid(ctx context.Context, imsi string, dbInstance *db.Database) bool
 	return true
 }
 
-func isHexString(input string) bool {
-	_, err := hex.DecodeString(input)
-	return err == nil
+func isHexOfLength(input string, byteLength int) bool {
+	b, err := hex.DecodeString(input)
+	if err != nil {
+		return false
+	}
+
+	return len(b) == byteLength
 }
 
 func isSequenceNumberValid(sequenceNumber string) bool {
@@ -462,13 +466,13 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if !isHexString(params.Key) {
+		if !isHexOfLength(params.Key, 16) {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid key format. Must be a 32-character hexadecimal string.", errors.New("validation error"), logger.APILog)
 			return
 		}
 
-		if params.Opc != "" && !isHexString(params.Opc) {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid OPC format. Must be a 32-character hex string.", errors.New("validation error"), logger.APILog)
+		if params.Opc != "" && !isHexOfLength(params.Opc, 16) {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid OPC format. Must be a 32-character hexadecimal string.", errors.New("validation error"), logger.APILog)
 			return
 		}
 
