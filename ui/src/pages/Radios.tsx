@@ -270,7 +270,7 @@ const EventsTab: React.FC = () => {
   // Fetch radios list for filter dropdown
   const radiosQuery = useQuery<ListRadiosResponse>({
     queryKey: ["radios-for-filter"],
-    queryFn: () => listRadios(accessToken!, 1, 1000),
+    queryFn: () => listRadios(accessToken!, 1, 100),
     enabled: authReady && !!accessToken,
     refetchInterval: 10_000,
   });
@@ -369,10 +369,11 @@ const EventsTab: React.FC = () => {
         filterable: false,
         renderCell: (p) => {
           const radioName = p.row.radio;
+          const address = p.row.address || "";
           if (!radioName) {
             return (
               <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
-                {p.row.address || "—"}
+                {address || "—"}
               </Typography>
             );
           }
@@ -399,6 +400,7 @@ const EventsTab: React.FC = () => {
                   }}
                 >
                   {radioName}
+                  {address ? ` (${address})` : ""}
                 </Typography>
               </Link>
             </Box>
@@ -499,11 +501,12 @@ const EventsTab: React.FC = () => {
                 </Typography>
               </Box>
 
-              {/* Filters row */}
+              {/* Filters + actions row */}
               <Box
                 sx={{
                   display: "flex",
                   flexDirection: { xs: "column", sm: "row" },
+                  flexWrap: "wrap",
                   gap: 2,
                   alignItems: { xs: "flex-start", sm: "center" },
                   flexShrink: 0,
@@ -520,7 +523,7 @@ const EventsTab: React.FC = () => {
                   <MenuItem value="">All radios</MenuItem>
                   {radioOptions.map((r) => (
                     <MenuItem key={r.name} value={r.name}>
-                      {r.name}
+                      {r.name} ({r.address})
                     </MenuItem>
                   ))}
                 </TextField>
@@ -533,8 +536,24 @@ const EventsTab: React.FC = () => {
                   sx={{ minWidth: 160 }}
                 >
                   <MenuItem value="">All</MenuItem>
-                  <MenuItem value="inbound">Inbound</MenuItem>
-                  <MenuItem value="outbound">Outbound</MenuItem>
+                  <MenuItem value="inbound">
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      Inbound
+                      <WestIcon
+                        fontSize="small"
+                        sx={{ color: theme.palette.success.main }}
+                      />
+                    </Box>
+                  </MenuItem>
+                  <MenuItem value="outbound">
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      Outbound
+                      <EastIcon
+                        fontSize="small"
+                        sx={{ color: theme.palette.info.main }}
+                      />
+                    </Box>
+                  </MenuItem>
                 </TextField>
                 <TextField
                   select
@@ -551,18 +570,9 @@ const EventsTab: React.FC = () => {
                     </MenuItem>
                   ))}
                 </TextField>
-              </Box>
 
-              {/* Action bar */}
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "flex-end",
-                  gap: 2,
-                  flexShrink: 0,
-                }}
-              >
+                <Box sx={{ flex: 1 }} />
+
                 {canEdit && (
                   <Button
                     variant="outlined"

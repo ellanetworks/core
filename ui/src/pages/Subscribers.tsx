@@ -105,9 +105,18 @@ const SubscriberPage: React.FC = () => {
           const radioName = params.row.radio;
           if (!radioName) {
             return (
-              <Typography variant="body2" color="text.secondary">
-                —
-              </Typography>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  width: "100%",
+                  height: "100%",
+                }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  —
+                </Typography>
+              </Box>
             );
           }
           return (
