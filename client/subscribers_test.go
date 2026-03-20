@@ -188,7 +188,7 @@ func TestListSubscribers_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"imsi": "001010100000022", "policyName": "default"}], "page": 1, "per_page": 10, "total_count": 1}`),
+			Result:     []byte(`{"items": [{"imsi": "001010100000022", "policyName": "default", "radio": "gnb-01", "status": {"registered": true, "lastSeenAt": "2025-01-01T00:00:00Z"}}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}
@@ -210,6 +210,15 @@ func TestListSubscribers_Success(t *testing.T) {
 
 	if len(resp.Items) != 1 {
 		t.Fatalf("expected 1 subscriber, got %d", len(resp.Items))
+	}
+
+	sub := resp.Items[0]
+	if sub.Radio != "gnb-01" {
+		t.Fatalf("expected radio %q, got %q", "gnb-01", sub.Radio)
+	}
+
+	if sub.Status.LastSeenAt != "2025-01-01T00:00:00Z" {
+		t.Fatalf("expected lastSeenAt %q, got %q", "2025-01-01T00:00:00Z", sub.Status.LastSeenAt)
 	}
 }
 
