@@ -24,6 +24,15 @@ This path returns the list of radios in the inventory.
 | `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
 | `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 
+### Response Fields
+
+| Field            | Type   | Description |
+| ---------------- | ------ | ----------- |
+| `name`           | string | Radio name. |
+| `id`             | string | Radio identifier. |
+| `address`        | string | Radio address. |
+| `supported_tais` | array  | **Deprecated.** Use [Get a Radio](#get-a-radio) for supported TAIs. This field will be removed in a future release. |
+
 ### Sample Response
 
 ```json
@@ -34,38 +43,7 @@ This path returns the list of radios in the inventory.
                 "name": "gnb1",
                 "id": "001:01:000102",
                 "address": "10.1.107.203/192.168.251.5:9487",
-                "supported_tais": [
-                    {
-                        "tai": {
-                            "plmnID": {
-                                "mcc": "001",
-                                "mnc": "01"
-                            },
-                            "tac": "000001"
-                        },
-                        "snssais": [
-                            {
-                                "sst": 1,
-                                "sd": "102030"
-                            }
-                        ]
-                    },
-                    {
-                        "tai": {
-                            "plmnID": {
-                                "mcc": "123",
-                                "mnc": "12"
-                            },
-                            "tac": "000002"
-                        },
-                        "snssais": [
-                            {
-                                "sst": 1,
-                                "sd": "102031"
-                            }
-                        ]
-                    }
-                ]
+                "supported_tais": []
             }
         ],
         "page": 1,
@@ -77,15 +55,17 @@ This path returns the list of radios in the inventory.
 
 ## Get a Radio
 
-This path returns the details of a specific radio in the inventory.
+This path returns the details of a specific radio, including connection timestamps, RAN node type, and supported tracking areas. To list subscribers connected to this radio, use `GET /api/v1/subscribers?radio={name}`.
 
 | Method | Path                    |
 | ------ | ----------------------- |
 | GET    | `/api/v1/ran/radios/{name}` |
 
-### Parameters
+### Path Parameters
 
-None
+| Name   | Type   | Description |
+| ------ | ------ | ----------- |
+| `name` | string | Radio name. |
 
 ### Sample Response
 
@@ -95,6 +75,9 @@ None
         "name": "gnb1",
         "id": "001:01:000102",
         "address": "10.1.107.203/192.168.251.5:9487",
+        "connected_at": "2025-08-12T16:58:00Z",
+        "last_seen_at": "2025-08-12T17:02:30Z",
+        "ran_node_type": "gNB",
         "supported_tais": [
             {
                 "tai": {

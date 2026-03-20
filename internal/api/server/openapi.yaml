@@ -539,6 +539,11 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
+        - name: radio
+          in: query
+          schema:
+            type: string
+          description: Filter subscribers connected to a specific radio by name.
       responses:
         "200":
           description: Paginated list of subscribers.
@@ -1480,16 +1485,11 @@ paths:
             type: string
             enum: [inbound, outbound]
           description: Filter by message direction.
-        - name: local_address
+        - name: radio
           in: query
           schema:
             type: string
-          description: Filter by local address.
-        - name: remote_address
-          in: query
-          schema:
-            type: string
-          description: Filter by remote address.
+          description: Filter by radio name.
         - name: message_type
           in: query
           schema:
@@ -2302,6 +2302,10 @@ components:
           type: string
           description: Assigned IP address (empty if not connected).
           deprecated: true
+        lastSeenAt:
+          type: string
+          format: date-time
+          description: Timestamp when the subscriber was last seen (RFC 3339). Omitted if never seen.
       required: [registered, ipAddress]
 
     Subscriber:
@@ -2313,6 +2317,9 @@ components:
         policyName:
           type: string
           description: Name of the assigned QoS policy.
+        radio:
+          type: string
+          description: Radio name the subscriber is connected through (empty if not connected).
         status:
           $ref: "#/components/schemas/SubscriberStatus"
       required: [imsi, policyName, status]
@@ -3084,17 +3091,53 @@ components:
           type: string
         address:
           type: string
+        ran_node_type:
+          type: string
+          enum: [gNB, ng-eNB, N3IWF, Unknown]
+          description: Type of the RAN node.
+        supported_tais:
+          type: array
+          deprecated: true
+          description: "Deprecated: use GET /api/v1/ran/radios/{name} for full radio details including supported TAIs."
+          items:
+            $ref: "#/components/schemas/SupportedTAI"
+      required: [name, id, address, ran_node_type, supported_tais]
+
+    RadioDetail:
+      type: object
+      description: Detailed information about a connected radio base station.
+      properties:
+        name:
+          type: string
+        id:
+          type: string
+          description: GnB ID value.
+        address:
+          type: string
+          description: SCTP remote address (IP:port).
+        connected_at:
+          type: string
+          format: date-time
+          description: Timestamp when the radio connected (RFC 3339).
+        last_seen_at:
+          type: string
+          format: date-time
+          description: Timestamp of the last NGAP message received from the radio (RFC 3339).
+        ran_node_type:
+          type: string
+          enum: [gNB, ng-eNB, N3IWF, Unknown]
+          description: Type of the RAN node.
         supported_tais:
           type: array
           items:
             $ref: "#/components/schemas/SupportedTAI"
-      required: [name, id, address, supported_tais]
+      required: [name, id, address, connected_at, last_seen_at, ran_node_type, supported_tais]
 
     RadioResponseEnvelope:
       type: object
       properties:
         result:
-          $ref: "#/components/schemas/Radio"
+          $ref: "#/components/schemas/RadioDetail"
 
     ListRadiosResponse:
       type: object
@@ -3132,17 +3175,19 @@ components:
         direction:
           type: string
           enum: [inbound, outbound]
-        local_address:
+        radio:
           type: string
-        remote_address:
+          description: Name of the radio base station.
+        address:
           type: string
+          description: Network address of the radio.
         raw:
           type: string
           format: byte
           description: Base64-encoded raw message bytes.
         details:
           type: string
-      required: [id, timestamp, protocol, message_type, direction, local_address, remote_address]
+      required: [id, timestamp, protocol, message_type, direction, radio, address]
 
     ListRadioEventsResponse:
       type: object

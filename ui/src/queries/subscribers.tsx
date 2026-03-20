@@ -4,12 +4,14 @@ import { apiFetch, apiFetchVoid } from "@/queries/utils";
 export type SubscriberListStatus = {
   registered?: boolean;
   ipAddress?: string;
+  lastSeenAt?: string;
 };
 
 /** Summary representation returned by the list endpoint. */
 export type APISubscriberSummary = {
   imsi: string;
   policyName: string;
+  radio?: string;
   status: SubscriberListStatus;
 };
 
@@ -53,6 +55,18 @@ export async function listSubscribers(
 ): Promise<ListSubscribersResponse> {
   return apiFetch<ListSubscribersResponse>(
     `/api/v1/subscribers?page=${page}&per_page=${perPage}`,
+    { authToken },
+  );
+}
+
+export async function listSubscribersByRadio(
+  authToken: string,
+  radioName: string,
+  page: number,
+  perPage: number,
+): Promise<ListSubscribersResponse> {
+  return apiFetch<ListSubscribersResponse>(
+    `/api/v1/subscribers?radio=${encodeURIComponent(radioName)}&page=${page}&per_page=${perPage}`,
     { authToken },
   );
 }

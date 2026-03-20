@@ -214,6 +214,7 @@ func LogNetworkEvent(
 	dir LogDirection,
 	localAddress string,
 	remoteAddress string,
+	radioName string,
 	rawBytes []byte,
 ) {
 	if NetworkLog == nil {
@@ -237,6 +238,7 @@ func LogNetworkEvent(
 		Direction(string(dir)),
 		zap.String("local_address", localAddress),
 		zap.String("remote_address", remoteAddress),
+		zap.String("radio_name", radioName),
 	)
 
 	if dbInstance == nil {
@@ -251,6 +253,7 @@ func LogNetworkEvent(
 		Direction:     string(dir),
 		LocalAddress:  localAddress,
 		RemoteAddress: remoteAddress,
+		RadioName:     radioName,
 		Raw:           rawBytes,
 	})
 	if err != nil {

@@ -10,6 +10,7 @@ type RadioEvent struct {
 	Direction     string `db:"direction"`
 	LocalAddress  string `db:"local_address"`
 	RemoteAddress string `db:"remote_address"`
+	RadioName     string `db:"radio_name"`
 	Raw           []byte `db:"raw"`
 	Details       string `db:"details"` // JSON or plain text (we store a string)
 }

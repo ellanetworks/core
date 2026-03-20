@@ -10,8 +10,8 @@ export type APIRadioEvent = {
   protocol: string;
   message_type: string;
   direction: string;
-  local_address: string;
-  remote_address: string;
+  radio: string;
+  address: string;
   details?: string;
 };
 

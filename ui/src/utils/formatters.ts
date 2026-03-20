@@ -206,7 +206,10 @@ export const PROTOCOL_CHIP_COLORS: Record<number, string> = {
  * Human-readable date-time format used across the UI.
  * Example: "Mar 8, 14:32"   (same day) or "Mar 8, 14:32" (always)
  */
-export const formatDateTime = (value: string): string => {
+export const formatDateTime = (
+  value: string,
+  opts?: { seconds?: boolean },
+): string => {
   if (!value) return "";
   const d = new Date(value);
   if (isNaN(d.getTime())) {
@@ -221,6 +224,7 @@ export const formatDateTime = (value: string): string => {
     ...(includeYear && { year: "numeric" }),
     hour: "2-digit",
     minute: "2-digit",
+    ...(opts?.seconds && { second: "2-digit" }),
     hour12: false,
   });
 };

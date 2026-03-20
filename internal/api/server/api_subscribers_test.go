@@ -41,12 +41,14 @@ type CreateSubscriberSuccessResponse struct {
 type ListSubscriberStatus struct {
 	Registered bool   `json:"registered"`
 	IPAddress  string `json:"ipAddress"`
+	LastSeenAt string `json:"lastSeenAt,omitempty"`
 }
 
 // ListSubscriber matches the summary representation in list responses.
 type ListSubscriber struct {
 	Imsi       string               `json:"imsi"`
 	PolicyName string               `json:"policyName"`
+	Radio      string               `json:"radio,omitempty"`
 	Status     ListSubscriberStatus `json:"status"`
 }
 

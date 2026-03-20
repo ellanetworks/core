@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
@@ -60,6 +61,10 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 
 	if rANNodeName != nil {
 		ran.Name = rANNodeName.Value
+
+		if realSender, ok := ran.NGAPSender.(*send.RealNGAPSender); ok {
+			realSender.RadioName = ran.Name
+		}
 	}
 
 	// Clearing any existing contents of ran.SupportedTAList

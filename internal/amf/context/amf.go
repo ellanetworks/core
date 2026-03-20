@@ -231,6 +231,7 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 		return nil, fmt.Errorf("remote address is not available")
 	}
 
+	now := time.Now()
 	radio := Radio{
 		NGAPSender: &send.RealNGAPSender{
 			Conn: conn,
@@ -238,6 +239,8 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 		RanUEs:        make(map[int64]*RanUe),
 		SupportedTAIs: make([]SupportedTAI, 0),
 		Conn:          conn,
+		ConnectedAt:   now,
+		LastSeenAt:    now,
 		Log:           logger.AmfLog.With(logger.RanAddr(remoteAddr.String())),
 	}
 

@@ -33,9 +33,21 @@ type SupportedTAI struct {
 }
 
 type Radio struct {
+	Name        string `json:"name"`
+	ID          string `json:"id"`
+	Address     string `json:"address"`
+	RanNodeType string `json:"ran_node_type"`
+	// Deprecated: Use GetRadio (GET /api/v1/ran/radios/{name}) for supported TAIs.
+	SupportedTAIs []SupportedTAI `json:"supported_tais"`
+}
+
+type RadioDetail struct {
 	Name          string         `json:"name"`
 	ID            string         `json:"id"`
 	Address       string         `json:"address"`
+	ConnectedAt   string         `json:"connected_at"`
+	LastSeenAt    string         `json:"last_seen_at"`
+	RanNodeType   string         `json:"ran_node_type"`
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
@@ -57,10 +69,11 @@ type UpdateRadioEventsRetentionPolicyOptions struct {
 type RadioEvent struct {
 	ID          int    `json:"id"`
 	Timestamp   string `json:"timestamp"`
-	Level       string `json:"level"`
 	Protocol    string `json:"protocol"`
 	MessageType string `json:"message_type"`
 	Direction   string `json:"direction"`
+	Radio       string `json:"radio"`
+	Address     string `json:"address"`
 	Raw         string `json:"raw"`
 	Details     string `json:"details"`
 }
@@ -77,6 +90,7 @@ type ListRadioEventsParams struct {
 	PerPage       int    `json:"per_page"`
 	Protocol      string `json:"protocol"`
 	Direction     string `json:"direction"`
+	Radio         string `json:"radio"`
 	MessageType   string `json:"message_type"`
 	TimestampFrom string `json:"timestamp_from"`
 	TimestampTo   string `json:"timestamp_to"`
@@ -88,7 +102,7 @@ type RadioEventContent struct {
 }
 
 // GetRadio retrieves a radio by name.
-func (c *Client) GetRadio(ctx context.Context, opts *GetRadioOptions) (*Radio, error) {
+func (c *Client) GetRadio(ctx context.Context, opts *GetRadioOptions) (*RadioDetail, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
@@ -98,7 +112,7 @@ func (c *Client) GetRadio(ctx context.Context, opts *GetRadioOptions) (*Radio, e
 		return nil, err
 	}
 
-	var radioResponse Radio
+	var radioResponse RadioDetail
 
 	err = resp.DecodeResult(&radioResponse)
 	if err != nil {
@@ -150,6 +164,10 @@ func (c *Client) ListRadioEvents(ctx context.Context, p *ListRadioEventsParams) 
 
 	if p.Direction != "" {
 		query.Set("direction", p.Direction)
+	}
+
+	if p.Radio != "" {
+		query.Set("radio", p.Radio)
 	}
 
 	if p.MessageType != "" {

@@ -1,12 +1,16 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   Box,
+  Button,
   Typography,
+  Chip,
   CircularProgress,
   Tabs,
   Tab,
   Tooltip,
   IconButton,
+  TextField,
+  MenuItem,
 } from "@mui/material";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
@@ -15,20 +19,17 @@ import {
   DataGrid,
   type GridColDef,
   type GridPaginationModel,
-  type GridFilterModel,
-  type GridFilterOperator,
   type GridRowParams,
   type GridRowId,
   type GridRowSelectionModel,
-  getGridStringOperators,
-  getGridSingleSelectOperators,
-  getGridDateOperators,
 } from "@mui/x-data-grid";
-import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import EastIcon from "@mui/icons-material/East";
 import WestIcon from "@mui/icons-material/West";
 import CloseIcon from "@mui/icons-material/Close";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import { Edit as EditIcon } from "@mui/icons-material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import {
@@ -40,11 +41,6 @@ import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
-import {
-  EventToolbar,
-  EventToolbarContext,
-  type EventToolbarState,
-} from "@/components/EventToolbar";
 import {
   listRadioEvents,
   clearRadioEvents,
@@ -58,18 +54,11 @@ import EditRadioEventRetentionPolicyModal from "@/components/EditRadioEventReten
 import EventDetails from "@/components/EventDetails";
 import type { LogRow } from "@/components/EventDetails";
 import { MAX_WIDTH, PAGE_PADDING_X as PAGE_PAD } from "@/utils/layout";
+import { formatDateTime } from "@/utils/formatters";
 
 type TabKey = "radios" | "events";
 
 // -------- Helpers & small components from old Events page --------
-
-const STRING_EQ = getGridStringOperators().filter(
-  (op) => op.value === "equals",
-);
-const DIR_EQ = getGridSingleSelectOperators().filter((op) => op.value === "is");
-const MESSAGE_TYPE_EQ = getGridSingleSelectOperators().filter(
-  (op) => op.value === "is",
-);
 
 const NGAP_MESSAGE_TYPES = [
   "AMFConfigurationUpdate",
@@ -152,74 +141,6 @@ const NGAP_MESSAGE_TYPES = [
   "WriteReplaceWarningRequest",
   "WriteReplaceWarningResponse",
 ];
-const normalizeRfc3339Offset = (s: string) =>
-  s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
-
-type GridRadioEvent = APIRadioEvent & { timestamp_dt: Date | null };
-const DATE_AFTER_BEFORE_ONLY = getGridDateOperators(true).filter(
-  (op) => op.value === "after" || op.value === "before",
-) as unknown as readonly GridFilterOperator[];
-
-function formatRfc3339WithOffset(d: Date): string {
-  const pad = (n: number, len = 2) => String(Math.abs(n)).padStart(len, "0");
-  const y = d.getFullYear();
-  const m = pad(d.getMonth() + 1);
-  const day = pad(d.getDate());
-  const hh = pad(d.getHours());
-  const mm = pad(d.getMinutes());
-  const ss = pad(d.getSeconds());
-  const ms = pad(d.getMilliseconds(), 3);
-  const tzMin = -d.getTimezoneOffset();
-  const sign = tzMin >= 0 ? "+" : "-";
-  const tzH = pad(Math.trunc(Math.abs(tzMin) / 60));
-  const tzM = pad(Math.abs(tzMin) % 60);
-  return `${y}-${m}-${day}T${hh}:${mm}:${ss}.${ms}${sign}${tzH}:${tzM}`;
-}
-
-function toBackendTimestamp(v: unknown): string | undefined {
-  if (v instanceof Date) return formatRfc3339WithOffset(v);
-  if (typeof v === "string" || typeof v === "number") {
-    const d = new Date(v);
-    return Number.isNaN(d.getTime()) ? undefined : formatRfc3339WithOffset(d);
-  }
-  return undefined;
-}
-
-function filtersToParams(
-  model: GridFilterModel,
-): Record<string, string | string[]> {
-  const items = model?.items ?? [];
-  const bucket: Record<string, string[]> = {};
-  let timestampFromISO: string | undefined;
-  let timestampToISO: string | undefined;
-  const ms = (iso: string) => new Date(iso).getTime();
-
-  for (const { field, operator, value } of items) {
-    if (!field || value == null || value === "") continue;
-    if (field === "timestamp" || field === "timestamp_dt") {
-      const iso = toBackendTimestamp(value);
-      if (!iso) continue;
-      if (operator === "after") {
-        if (!timestampFromISO || ms(iso) > ms(timestampFromISO))
-          timestampFromISO = iso;
-      } else if (operator === "before") {
-        if (!timestampToISO || ms(iso) < ms(timestampToISO))
-          timestampToISO = iso;
-      }
-      continue;
-    }
-    const arr = Array.isArray(value) ? value.map(String) : [String(value)];
-    bucket[field] = (bucket[field] ?? []).concat(arr);
-  }
-
-  const params: Record<string, string | string[]> = {};
-  for (const k of Object.keys(bucket)) {
-    params[k] = bucket[k].length === 1 ? bucket[k][0] : bucket[k];
-  }
-  if (timestampFromISO) params.timestamp_from = timestampFromISO;
-  if (timestampToISO) params.timestamp_to = timestampToISO;
-  return params;
-}
 
 const DirectionCell: React.FC<{ value?: string }> = ({ value }) => {
   const theme = useTheme();
@@ -306,6 +227,7 @@ const ResizeHandle: React.FC = React.memo(function ResizeHandle() {
 const EventsTab: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin";
+  const theme = useTheme();
 
   const { showSnackbar } = useSnackbar();
   const [viewEventDrawerOpen, setViewEventDrawerOpen] = useState(false);
@@ -327,62 +249,80 @@ const EventsTab: React.FC = () => {
   const [isNetworkEditModalOpen, setNetworkEditModalOpen] = useState(false);
   const [isNetworkClearModalOpen, setNetworkClearModalOpen] = useState(false);
 
+  // URL params for deep-linking
+  const [searchParams] = useSearchParams();
+  const radioParam = searchParams.get("radio") ?? "";
+  const eventIdParam = searchParams.get("event");
+
+  // Explicit filter state (replaces DataGrid built-in filter model)
+  const [radioFilter, setRadioFilter] = useState(radioParam);
+  const [directionFilter, setDirectionFilter] = useState("");
+  const [messageTypeFilter, setMessageTypeFilter] = useState("");
+
+  // Re-sync radio filter when URL param changes
+  useEffect(() => {
+    setRadioFilter(radioParam);
+  }, [radioParam]);
+
+  // Fetch radios list for filter dropdown
+  const radiosQuery = useQuery<ListRadiosResponse>({
+    queryKey: ["radios-for-filter"],
+    queryFn: () => listRadios(accessToken!, 1, 100),
+    enabled: authReady && !!accessToken,
+    refetchInterval: 10_000,
+  });
+  const radioOptions: APIRadio[] = radiosQuery.data?.items ?? [];
+
   const retentionQuery = useQuery<RadioEventRetentionPolicy>({
     queryKey: ["networkLogRetention"],
     enabled: authReady && !!accessToken && !isNetworkEditModalOpen,
     queryFn: () => getRadioEventRetentionPolicy(accessToken!),
   });
 
-  const subToolbarValue = useMemo<EventToolbarState>(
-    () => ({
-      canEdit,
-      retentionDays: retentionQuery.data?.days ?? "…",
-      onEditRetention: () => setNetworkEditModalOpen(true),
-      onClearAll: () => setNetworkClearModalOpen(true),
-      isLive: autoRefresh,
-      onToggleLive: () => setAutoRefresh((v) => !v),
-    }),
-    [canEdit, retentionQuery.data?.days, autoRefresh],
-  );
-
-  const [networkFilterModel, setSubFilterModel] = useState<GridFilterModel>({
-    items: [],
-  });
-  const onSubFilterModelChange = useCallback(
-    (m: GridFilterModel) => setSubFilterModel(m),
-    [],
-  );
-
   const pageOneBased = paginationModel.page + 1;
   const perPage = paginationModel.pageSize;
 
+  // Build query params from explicit filters
+  const filterParams = useMemo(() => {
+    const params: Record<string, string> = {};
+    if (radioFilter) params.radio = radioFilter;
+    if (directionFilter) params.direction = directionFilter;
+    if (messageTypeFilter) params.message_type = messageTypeFilter;
+    return params;
+  }, [radioFilter, directionFilter, messageTypeFilter]);
+
   const networkLogsQuery = useQuery<ListRadioEventsResponse>({
-    queryKey: [
-      "networkLogs",
-      pageOneBased,
-      perPage,
-      filtersToParams(networkFilterModel),
-    ],
+    queryKey: ["networkLogs", pageOneBased, perPage, filterParams],
     enabled: authReady && !!accessToken,
     refetchInterval: autoRefresh && visible ? 3000 : false,
     placeholderData: keepPreviousData,
-    queryFn: async () => {
-      const filterParams = filtersToParams(networkFilterModel);
-      return listRadioEvents(accessToken!, pageOneBased, perPage, filterParams);
-    },
+    queryFn: () =>
+      listRadioEvents(accessToken!, pageOneBased, perPage, filterParams),
   });
 
-  const networkRows: GridRadioEvent[] = useMemo(() => {
-    const items = networkLogsQuery.data?.items ?? [];
-    return items.map<GridRadioEvent>((r) => ({
-      ...r,
-      timestamp_dt: r.timestamp
-        ? new Date(normalizeRfc3339Offset(r.timestamp))
-        : null,
-    }));
-  }, [networkLogsQuery.data?.items]);
+  const networkRows = networkLogsQuery.data?.items ?? [];
 
   const subRowCount = networkLogsQuery.data?.total_count ?? 0;
+
+  // Deep-link: when event param is present, find and select matching row
+  useEffect(() => {
+    if (!eventIdParam || !networkLogsQuery.data?.items) return;
+    const eventId = Number(eventIdParam);
+    const match = networkLogsQuery.data.items.find((r) => r.id === eventId);
+    if (match) {
+      setSelectionModel(makeSelection([match.id]));
+      setSelectedRow({
+        id: String(match.id),
+        timestamp: match.timestamp,
+        protocol: match.protocol,
+        messageType: match.message_type,
+        direction: match.direction,
+        radio: match.radio,
+        address: match.address,
+      });
+      setViewEventDrawerOpen(true);
+    }
+  }, [eventIdParam, networkLogsQuery.data?.items]);
 
   const handleConfirmDeleteRadioEvents = async () => {
     if (!accessToken) return;
@@ -400,31 +340,80 @@ const EventsTab: React.FC = () => {
   const networkColumns: GridColDef<APIRadioEvent>[] = useMemo(() => {
     return [
       {
-        field: "timestamp_dt",
+        field: "timestamp",
         headerName: "Timestamp",
-        type: "dateTime",
         flex: 1,
         minWidth: 180,
         sortable: false,
-        renderCell: (p) => (p.value ? p.value.toLocaleString() : ""),
-        filterOperators: DATE_AFTER_BEFORE_ONLY,
+        filterable: false,
+        renderCell: (p) => {
+          const ts = p.row.timestamp;
+          return ts ? formatDateTime(ts, { seconds: true }) : "";
+        },
+      },
+      {
+        field: "radio",
+        headerName: "Radio",
+        flex: 1,
+        minWidth: 160,
+        sortable: false,
+        filterable: false,
+        renderCell: (p) => {
+          const radioName = p.row.radio;
+          const address = p.row.address || "";
+          if (!radioName) {
+            return (
+              <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+                {address || "—"}
+              </Typography>
+            );
+          }
+          return (
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                width: "100%",
+                height: "100%",
+              }}
+            >
+              <Link
+                to={`/radios/${encodeURIComponent(radioName)}`}
+                style={{ textDecoration: "none" }}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+              >
+                <Typography
+                  component="span"
+                  variant="body2"
+                  sx={{
+                    color: theme.palette.link,
+                    textDecoration: "underline",
+                    "&:hover": { textDecoration: "underline" },
+                  }}
+                >
+                  {radioName}
+                </Typography>
+              </Link>
+              {address && (
+                <Typography
+                  component="span"
+                  variant="body2"
+                  sx={{ ml: 0.5, color: "text.secondary" }}
+                >
+                  ({address})
+                </Typography>
+              )}
+            </Box>
+          );
+        },
       },
       {
         field: "message_type",
         headerName: "Message Type",
-        type: "singleSelect",
-        valueOptions: NGAP_MESSAGE_TYPES,
         flex: 1,
         minWidth: 220,
         sortable: false,
-        filterOperators: MESSAGE_TYPE_EQ,
-      },
-      {
-        field: "local_address",
-        headerName: "Local Address",
-        width: 180,
-        sortable: false,
-        filterOperators: STRING_EQ,
+        filterable: false,
       },
       {
         field: "direction",
@@ -433,23 +422,11 @@ const EventsTab: React.FC = () => {
         align: "center",
         headerAlign: "center",
         sortable: false,
-        type: "singleSelect",
-        valueOptions: [
-          { value: "inbound", label: "Inbound" },
-          { value: "outbound", label: "Outbound" },
-        ],
-        filterOperators: DIR_EQ,
+        filterable: false,
         renderCell: (p) => <DirectionCell value={p.row.direction} />,
       },
-      {
-        field: "remote_address",
-        headerName: "Remote Address",
-        width: 180,
-        sortable: false,
-        filterOperators: STRING_EQ,
-      },
     ];
-  }, []);
+  }, [theme]);
 
   const handleRowClick = useCallback((params: GridRowParams<APIRadioEvent>) => {
     const r = params.row;
@@ -460,8 +437,8 @@ const EventsTab: React.FC = () => {
       protocol: r.protocol,
       messageType: r.message_type,
       direction: r.direction,
-      local_address: r.local_address,
-      remote_address: r.remote_address,
+      radio: r.radio,
+      address: r.address,
     });
     setViewEventDrawerOpen(true);
   }, []);
@@ -524,60 +501,156 @@ const EventsTab: React.FC = () => {
                 </Typography>
               </Box>
 
+              {/* Filters + actions row */}
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: { xs: "column", sm: "row" },
+                  flexWrap: "wrap",
+                  gap: 2,
+                  alignItems: { xs: "flex-start", sm: "center" },
+                  flexShrink: 0,
+                }}
+              >
+                <TextField
+                  select
+                  label="Radio"
+                  value={radioFilter}
+                  onChange={(e) => setRadioFilter(e.target.value)}
+                  size="small"
+                  sx={{ minWidth: 180 }}
+                >
+                  <MenuItem value="">All radios</MenuItem>
+                  {radioOptions.map((r) => (
+                    <MenuItem key={r.name} value={r.name}>
+                      {r.name} ({r.address})
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  label="Direction"
+                  value={directionFilter}
+                  onChange={(e) => setDirectionFilter(e.target.value)}
+                  size="small"
+                  sx={{ minWidth: 160 }}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  <MenuItem value="inbound">
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      Inbound
+                      <WestIcon
+                        fontSize="small"
+                        sx={{ color: theme.palette.success.main }}
+                      />
+                    </Box>
+                  </MenuItem>
+                  <MenuItem value="outbound">
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      Outbound
+                      <EastIcon
+                        fontSize="small"
+                        sx={{ color: theme.palette.info.main }}
+                      />
+                    </Box>
+                  </MenuItem>
+                </TextField>
+                <TextField
+                  select
+                  label="Message Type"
+                  value={messageTypeFilter}
+                  onChange={(e) => setMessageTypeFilter(e.target.value)}
+                  size="small"
+                  sx={{ minWidth: 220 }}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {NGAP_MESSAGE_TYPES.map((mt) => (
+                    <MenuItem key={mt} value={mt}>
+                      {mt}
+                    </MenuItem>
+                  ))}
+                </TextField>
+
+                <Box sx={{ flex: 1 }} />
+
+                {canEdit && (
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    startIcon={<DeleteOutlineIcon />}
+                    onClick={() => setNetworkClearModalOpen(true)}
+                  >
+                    Clear All
+                  </Button>
+                )}
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                >
+                  Retention: <strong>{retentionQuery.data?.days ?? "…"}</strong>{" "}
+                  days
+                  {canEdit && (
+                    <IconButton
+                      aria-label="edit radio event retention"
+                      size="small"
+                      color="primary"
+                      onClick={() => setNetworkEditModalOpen(true)}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </Typography>
+              </Box>
+
               <Box sx={{ flex: 1, minHeight: 0 }}>
-                <EventToolbarContext.Provider value={subToolbarValue}>
-                  <DataGrid<APIRadioEvent>
-                    rows={networkRows}
-                    columns={networkColumns}
-                    getRowId={(row) => row.id}
-                    loading={
-                      networkLogsQuery.isLoading ||
-                      networkLogsQuery.isPlaceholderData
-                    }
-                    paginationMode="server"
-                    rowCount={subRowCount}
-                    paginationModel={paginationModel}
-                    onPaginationModelChange={setPaginationModel}
-                    disableColumnMenu
-                    sortingMode="server"
-                    filterMode="server"
-                    onFilterModelChange={onSubFilterModelChange}
-                    pageSizeOptions={[10, 25, 50, 100]}
-                    slots={{ toolbar: EventToolbar }}
-                    onRowClick={handleRowClick}
-                    rowSelectionModel={selectionModel}
-                    disableRowSelectionOnClick
-                    onRowSelectionModelChange={(model) =>
-                      setSelectionModel(model)
-                    }
-                    showToolbar
-                    density="compact"
-                    autoHeight
-                    sx={{
-                      border: 1,
+                <DataGrid<APIRadioEvent>
+                  rows={networkRows}
+                  columns={networkColumns}
+                  getRowId={(row) => row.id}
+                  loading={
+                    networkLogsQuery.isLoading ||
+                    networkLogsQuery.isPlaceholderData
+                  }
+                  paginationMode="server"
+                  rowCount={subRowCount}
+                  paginationModel={paginationModel}
+                  onPaginationModelChange={setPaginationModel}
+                  disableColumnMenu
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  onRowClick={handleRowClick}
+                  rowSelectionModel={selectionModel}
+                  disableRowSelectionOnClick
+                  onRowSelectionModelChange={(model) =>
+                    setSelectionModel(model)
+                  }
+                  density="compact"
+                  autoHeight
+                  sx={{
+                    border: 1,
+                    borderColor: "divider",
+                    height: "100%",
+                    "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
+                    "& .MuiDataGrid-footerContainer": {
+                      borderTop: "1px solid",
                       borderColor: "divider",
-                      height: "100%",
-                      "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
-                      "& .MuiDataGrid-footerContainer": {
-                        borderTop: "1px solid",
-                        borderColor: "divider",
-                      },
-                      "& .MuiDataGrid-row:hover": { cursor: "pointer" },
-                      "& .MuiDataGrid-row.Mui-selected": {
+                    },
+                    "& .MuiDataGrid-row:hover": { cursor: "pointer" },
+                    "& .MuiDataGrid-row.Mui-selected": {
+                      backgroundColor: (t) => t.palette.action.selected,
+                      "&:hover": {
                         backgroundColor: (t) => t.palette.action.selected,
-                        "&:hover": {
-                          backgroundColor: (t) => t.palette.action.selected,
-                        },
-                        "& .MuiDataGrid-cell": { fontWeight: 500 },
-                        "&::before": { display: "none" },
                       },
-                      "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
-                        { outline: "none" },
-                      "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
-                        { outline: "none" },
-                    }}
-                  />
-                </EventToolbarContext.Provider>
+                      "& .MuiDataGrid-cell": { fontWeight: 500 },
+                      "&::before": { display: "none" },
+                    },
+                    "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
+                      { outline: "none" },
+                    "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
+                      { outline: "none" },
+                  }}
+                />
               </Box>
             </Box>
           </Box>
@@ -655,9 +728,7 @@ const Radio = () => {
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
 
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { pathname } = useLocation();
 
   const tab = (searchParams.get("tab") as TabKey) || "radios";
 
@@ -700,11 +771,62 @@ const Radio = () => {
 
   const columns: GridColDef<APIRadio>[] = useMemo(
     () => [
+      {
+        field: "name",
+        headerName: "Name",
+        flex: 1,
+        minWidth: 200,
+        renderCell: (params) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Link
+              to={`/radios/${encodeURIComponent(params.row.name)}`}
+              style={{ textDecoration: "none" }}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  color: theme.palette.link,
+                  textDecoration: "underline",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {params.row.name}
+              </Typography>
+            </Link>
+          </Box>
+        ),
+      },
       { field: "id", headerName: "ID", flex: 0.6, minWidth: 160 },
-      { field: "name", headerName: "Name", flex: 1, minWidth: 200 },
+      {
+        field: "ran_node_type",
+        headerName: "Type",
+        width: 120,
+        renderCell: (params) => {
+          const t = params.row.ran_node_type;
+          const color =
+            t === "gNB"
+              ? "primary"
+              : t === "ng-eNB"
+                ? "secondary"
+                : t === "N3IWF"
+                  ? "warning"
+                  : "default";
+          return (
+            <Chip size="small" label={t} color={color} variant="outlined" />
+          );
+        },
+      },
       { field: "address", headerName: "Address", flex: 1, minWidth: 240 },
     ],
-    [],
+    [theme],
   );
 
   const descriptionText =

@@ -18,6 +18,9 @@ import {
   Tooltip,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
+import { useTheme } from "@mui/material/styles";
+import EastIcon from "@mui/icons-material/East";
+import WestIcon from "@mui/icons-material/West";
 import { PieChart } from "@mui/x-charts/PieChart";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -222,6 +225,7 @@ const getDefaultDateRange = () => {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
   const { accessToken, authReady } = useAuth();
   const { startDate, endDate } = getDefaultDateRange();
 
@@ -580,39 +584,99 @@ const Dashboard = () => {
                       </TableCell>
 
                       <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>
-                        Protocol
+                        Radio
                       </TableCell>
 
                       <TableCell sx={{ fontWeight: 600, minWidth: 220 }}>
                         Message Type
                       </TableCell>
+
+                      <TableCell
+                        sx={{
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                          width: 90,
+                          textAlign: "center",
+                        }}
+                      >
+                        Direction
+                      </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(networkLogs ?? []).slice(0, 10).map((row) => (
-                      <TableRow key={row.id} hover>
-                        <TableCell sx={{ whiteSpace: "nowrap" }}>
-                          {formatDateTime(row.timestamp)}
-                        </TableCell>
+                    {(networkLogs ?? []).slice(0, 10).map((row) => {
+                      const dirIcon =
+                        row.direction === "outbound" ? (
+                          <EastIcon
+                            fontSize="small"
+                            sx={{ color: theme.palette.info.main }}
+                          />
+                        ) : row.direction === "inbound" ? (
+                          <WestIcon
+                            fontSize="small"
+                            sx={{ color: theme.palette.success.main }}
+                          />
+                        ) : null;
+                      const dirTitle =
+                        row.direction === "inbound"
+                          ? "Receive (inbound)"
+                          : row.direction === "outbound"
+                            ? "Send (outbound)"
+                            : "";
+                      return (
+                        <TableRow key={row.id} hover>
+                          <TableCell sx={{ whiteSpace: "nowrap" }}>
+                            {formatDateTime(row.timestamp, { seconds: true })}
+                          </TableCell>
 
-                        <TableCell sx={{ whiteSpace: "nowrap" }}>
-                          {row.protocol}
-                        </TableCell>
+                          <TableCell sx={{ whiteSpace: "nowrap" }}>
+                            {row.radio ? (
+                              <Link
+                                to={`/radios/${encodeURIComponent(row.radio)}`}
+                                style={{ textDecoration: "none" }}
+                              >
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    color: theme.palette.link,
+                                    textDecoration: "underline",
+                                    "&:hover": { textDecoration: "underline" },
+                                  }}
+                                >
+                                  {row.radio}
+                                </Typography>
+                              </Link>
+                            ) : (
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                —
+                              </Typography>
+                            )}
+                          </TableCell>
 
-                        <TableCell
-                          sx={{
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                          title={row.message_type}
-                        >
-                          {row.message_type}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          <TableCell
+                            sx={{
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                            title={row.message_type}
+                          >
+                            {row.message_type}
+                          </TableCell>
+
+                          <TableCell sx={{ textAlign: "center" }}>
+                            {dirIcon && (
+                              <Tooltip title={dirTitle}>{dirIcon}</Tooltip>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                     {(!networkLogs || networkLogs.length === 0) && (
                       <TableRow>
-                        <TableCell colSpan={3}>
+                        <TableCell colSpan={4}>
                           <Typography variant="body2" color="text.secondary">
                             No network events.
                           </Typography>
@@ -746,7 +810,24 @@ const Dashboard = () => {
                   <TableBody>
                     {topUsers.map((row) => (
                       <TableRow key={row.id} hover>
-                        <TableCell>{row.subscriber}</TableCell>
+                        <TableCell>
+                          <Link
+                            to={`/subscribers/${encodeURIComponent(row.subscriber)}`}
+                            style={{ textDecoration: "none" }}
+                          >
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontFamily: "monospace",
+                                color: theme.palette.link,
+                                textDecoration: "underline",
+                                "&:hover": { textDecoration: "underline" },
+                              }}
+                            >
+                              {row.subscriber}
+                            </Typography>
+                          </Link>
+                        </TableCell>
                         <TableCell align="right">
                           {formatBytesAutoUnit(row.downlink_bytes)}
                         </TableCell>

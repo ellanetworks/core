@@ -36,12 +36,14 @@ type UpdateSubscriberParams struct {
 type SubscriberStatus struct {
 	Registered bool   `json:"registered"`
 	IPAddress  string `json:"ipAddress"`
+	LastSeenAt string `json:"lastSeenAt,omitempty"`
 }
 
 // Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
 	Imsi       string           `json:"imsi"`
 	PolicyName string           `json:"policyName"`
+	Radio      string           `json:"radio,omitempty"`
 	Status     SubscriberStatus `json:"status"`
 }
 
@@ -137,6 +139,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 		q := r.URL.Query()
 		page := atoiDefault(q.Get("page"), 1)
 		perPage := atoiDefault(q.Get("per_page"), 25)
+		radioFilter := q.Get("radio")
 
 		if page < 1 {
 			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
@@ -150,7 +153,54 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 
 		ctx := r.Context()
 
-		dbSubscribers, total, err := dbInstance.ListSubscribersPage(ctx, page, perPage)
+		// When a radio filter is set, we need to fetch all subscribers and
+		// filter by the runtime AMF state, then paginate in memory.
+		var radioIMSIs map[string]struct{}
+
+		if radioFilter != "" {
+			amf := amfContext.AMFSelf()
+
+			// Verify the radio exists.
+			_, ranList := amf.ListAmfRan(1, 1000)
+
+			found := false
+
+			for _, radio := range ranList {
+				if radio.Name == radioFilter {
+					found = true
+
+					break
+				}
+			}
+
+			if !found {
+				writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio %q not found", radioFilter), logger.APILog)
+				return
+			}
+
+			// Use the authoritative registration state to find subscribers
+			// connected through this radio.
+			imsis := amf.RegisteredSubscribersForRadio(radioFilter)
+			radioIMSIs = make(map[string]struct{}, len(imsis))
+
+			for _, imsi := range imsis {
+				radioIMSIs[imsi] = struct{}{}
+			}
+		}
+
+		// When filtering by radio we must load all subscribers and paginate
+		// in memory because the filter is against runtime AMF state, not the DB.
+		// Future improvement: if the subscriber count grows large, push this
+		// filter into a DB-side join or maintain a radio→subscriber mapping.
+		dbPage := page
+		dbPerPage := perPage
+
+		if radioIMSIs != nil {
+			dbPage = 1
+			dbPerPage = MaxNumSubscribers
+		}
+
+		dbSubscribers, total, err := dbInstance.ListSubscribersPage(ctx, dbPage, dbPerPage)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list subscribers", err, logger.APILog)
 			return
@@ -173,6 +223,12 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 		}
 
 		for _, dbSubscriber := range dbSubscribers {
+			if radioIMSIs != nil {
+				if _, ok := radioIMSIs[dbSubscriber.Imsi]; !ok {
+					continue
+				}
+			}
+
 			policy, ok := policyByID[dbSubscriber.PolicyID]
 			if !ok {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", fmt.Errorf("policy ID %d not found", dbSubscriber.PolicyID), logger.APILog)
@@ -197,11 +253,33 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 				IPAddress:  ipAddress,
 			}
 
+			if lastSeen := amf.LastSeenAtForSubscriber(supi); !lastSeen.IsZero() {
+				subscriberStatus.LastSeenAt = lastSeen.UTC().Format(time.RFC3339)
+			}
+
 			items = append(items, Subscriber{
 				Imsi:       dbSubscriber.Imsi,
 				PolicyName: policy.Name,
+				Radio:      amf.RadioNameForSubscriber(supi),
 				Status:     subscriberStatus,
 			})
+		}
+
+		// When filtering by radio, apply pagination in memory.
+		if radioIMSIs != nil {
+			total = len(items)
+			start := (page - 1) * perPage
+			end := start + perPage
+
+			if start > len(items) {
+				start = len(items)
+			}
+
+			if end > len(items) {
+				end = len(items)
+			}
+
+			items = items[start:end]
 		}
 
 		subscribers := ListSubscribersResponse{
