@@ -98,3 +98,120 @@ func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 		ngap.HandleLocationReport(context.Background(), amf, ran, msg)
 	})
 }
+
+// TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled verifies
+// that a LocationReport with EventType=StopUePresenceInAreaOfInterest but
+// without LocationReportingReferenceIDToBeCancelled does NOT panic.
+// Reproduces GHSA-f2f3-9cx3-wcmf Bug 1.
+func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *testing.T) {
+	ran := newTestRadio()
+	amf := newTestAMF()
+	ranUe := &amfContext.RanUe{
+		RanUeNgapID: 1,
+		AmfUeNgapID: 1,
+		Radio:       ran,
+		Log:         logger.AmfLog,
+	}
+	ran.RanUEs[1] = ranUe
+
+	msg := &ngapType.LocationReport{}
+
+	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.LocationReportIEs{
+		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDRANUENGAPID},
+		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentReject},
+		Value: ngapType.LocationReportIEsValue{
+			Present:     ngapType.LocationReportIEsPresentRANUENGAPID,
+			RANUENGAPID: &ngapType.RANUENGAPID{Value: 1},
+		},
+	})
+
+	// EventType = StopUePresenceInAreaOfInterest, but
+	// LocationReportingReferenceIDToBeCancelled is nil (optional, omitted).
+	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.LocationReportIEs{
+		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDLocationReportingRequestType},
+		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
+		Value: ngapType.LocationReportIEsValue{
+			Present: ngapType.LocationReportIEsPresentLocationReportingRequestType,
+			LocationReportingRequestType: &ngapType.LocationReportingRequestType{
+				EventType: ngapType.EventType{
+					Value: ngapType.EventTypePresentStopUePresenceInAreaOfInterest,
+				},
+				ReportArea: ngapType.ReportArea{
+					Value: ngapType.ReportAreaPresentCell,
+				},
+				// LocationReportingReferenceIDToBeCancelled deliberately nil
+			},
+		},
+	})
+
+	assertNoPanic(t, "HandleLocationReport(StopUePresence with nil ReferenceIDToBeCancelled)", func() {
+		ngap.HandleLocationReport(context.Background(), amf, ran, msg)
+	})
+}
+
+// TestHandleLocationReport_UePresence_NilAreaOfInterestList verifies that
+// a LocationReport with EventType=UePresenceInAreaOfInterest and a non-nil
+// UEPresenceInAreaOfInterestList but nil AreaOfInterestList does NOT panic.
+// Reproduces GHSA-f2f3-9cx3-wcmf Bug 2.
+func TestHandleLocationReport_UePresence_NilAreaOfInterestList(t *testing.T) {
+	ran := newTestRadio()
+	amf := newTestAMF()
+	ranUe := &amfContext.RanUe{
+		RanUeNgapID: 1,
+		AmfUeNgapID: 1,
+		Radio:       ran,
+		Log:         logger.AmfLog,
+	}
+	ran.RanUEs[1] = ranUe
+
+	msg := &ngapType.LocationReport{}
+
+	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.LocationReportIEs{
+		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDRANUENGAPID},
+		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentReject},
+		Value: ngapType.LocationReportIEsValue{
+			Present:     ngapType.LocationReportIEsPresentRANUENGAPID,
+			RANUENGAPID: &ngapType.RANUENGAPID{Value: 1},
+		},
+	})
+
+	// EventType = UePresenceInAreaOfInterest with AreaOfInterestList nil (omitted).
+	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.LocationReportIEs{
+		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDLocationReportingRequestType},
+		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
+		Value: ngapType.LocationReportIEsValue{
+			Present: ngapType.LocationReportIEsPresentLocationReportingRequestType,
+			LocationReportingRequestType: &ngapType.LocationReportingRequestType{
+				EventType: ngapType.EventType{
+					Value: ngapType.EventTypePresentUePresenceInAreaOfInterest,
+				},
+				ReportArea: ngapType.ReportArea{
+					Value: ngapType.ReportAreaPresentCell,
+				},
+				// AreaOfInterestList deliberately nil
+			},
+		},
+	})
+
+	// Provide a non-nil UEPresenceInAreaOfInterestList so the outer loop
+	// executes and the inner loop hits the nil AreaOfInterestList.
+	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.LocationReportIEs{
+		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDUEPresenceInAreaOfInterestList},
+		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
+		Value: ngapType.LocationReportIEsValue{
+			Present: ngapType.LocationReportIEsPresentUEPresenceInAreaOfInterestList,
+			UEPresenceInAreaOfInterestList: &ngapType.UEPresenceInAreaOfInterestList{
+				List: []ngapType.UEPresenceInAreaOfInterestItem{
+					{
+						LocationReportingReferenceID: ngapType.LocationReportingReferenceID{Value: 1},
+						UEPresence:                   ngapType.UEPresence{Value: ngapType.UEPresencePresentIn},
+					},
+				},
+			},
+		},
+	})
+
+	assertNoPanic(t, "HandleLocationReport(UePresence with nil AreaOfInterestList)", func() {
+		ngap.HandleLocationReport(context.Background(), amf, ran, msg)
+	})
+}

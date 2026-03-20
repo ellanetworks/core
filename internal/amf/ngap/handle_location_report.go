@@ -90,6 +90,11 @@ func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 			break
 		}
 
+		if locationReportingRequestType.AreaOfInterestList == nil {
+			logger.WithTrace(ctx, ranUe.Log).Warn("AreaOfInterestList is nil, skipping area matching")
+			break
+		}
+
 		for _, uEPresenceInAreaOfInterestItem := range uEPresenceInAreaOfInterestList.List {
 			uEPresence := uEPresenceInAreaOfInterestItem.UEPresence.Value
 			referenceID := uEPresenceInAreaOfInterestItem.LocationReportingReferenceID.Value
@@ -109,6 +114,11 @@ func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 
 		logger.WithTrace(ctx, ranUe.Log).Info("sent location reporting control ngap message")
 	case ngapType.EventTypePresentStopUePresenceInAreaOfInterest:
+		if locationReportingRequestType.LocationReportingReferenceIDToBeCancelled == nil {
+			logger.WithTrace(ctx, ranUe.Log).Warn("LocationReportingReferenceIDToBeCancelled is nil, skipping")
+			break
+		}
+
 		logger.WithTrace(ctx, ranUe.Log).Debug("To stop reporting UE presence in the area of interest", zap.Int64("ReferenceID", locationReportingRequestType.LocationReportingReferenceIDToBeCancelled.Value))
 
 	case ngapType.EventTypePresentCancelLocationReportingForTheUe:

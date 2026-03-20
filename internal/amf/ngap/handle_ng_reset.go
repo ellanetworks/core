@@ -96,6 +96,8 @@ func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGR
 				if ueAssociatedLogicalNGConnectionItem.RANUENGAPID != nil {
 					logger.WithTrace(ctx, ran.Log).Warn("RANUENGAPID is not empty", zap.Int64("RanUeNgapID", ueAssociatedLogicalNGConnectionItem.RANUENGAPID.Value))
 				}
+
+				continue
 			}
 
 			err := ranUe.Remove()
