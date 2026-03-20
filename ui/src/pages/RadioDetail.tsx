@@ -13,11 +13,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import {
-  Link as RouterLink,
-  useNavigate,
-  useParams,
-} from "react-router-dom";
+import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import {
   DataGrid,

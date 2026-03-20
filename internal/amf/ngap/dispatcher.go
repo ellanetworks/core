@@ -83,7 +83,14 @@ func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 	)
 	defer span.End()
 
-	dispatchNgapMsg(ctx, amf, ran, pdu)
+	// For NGSetupRequest the radio name is embedded in the message IEs and
+	// hasn't been applied to ran.Name yet (that happens inside
+	// HandleNGSetupRequest).  Peek at the decoded PDU so the inbound event
+	// is logged with the correct radio name *before* dispatch — preserving
+	// correct chronological ordering with the outbound NGSetupResponse.
+	if name := ngSetupRadioName(pdu); name != "" {
+		ran.Name = name
+	}
 
 	logger.LogNetworkEvent(
 		ctx,
@@ -95,6 +102,31 @@ func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 		ran.Name,
 		msg,
 	)
+
+	dispatchNgapMsg(ctx, amf, ran, pdu)
+}
+
+// ngSetupRadioName extracts the RANNodeName from an NGSetupRequest PDU.
+// Returns "" for any other message type or if the name IE is absent.
+func ngSetupRadioName(pdu *ngapType.NGAPPDU) string {
+	if pdu.Present != ngapType.NGAPPDUPresentInitiatingMessage ||
+		pdu.InitiatingMessage == nil ||
+		pdu.InitiatingMessage.ProcedureCode.Value != ngapType.ProcedureCodeNGSetup {
+		return ""
+	}
+
+	req := pdu.InitiatingMessage.Value.NGSetupRequest
+	if req == nil {
+		return ""
+	}
+
+	for _, ie := range req.ProtocolIEs.List {
+		if ie.Id.Value == ngapType.ProtocolIEIDRANNodeName && ie.Value.RANNodeName != nil {
+			return ie.Value.RANNodeName.Value
+		}
+	}
+
+	return ""
 }
 
 func dispatchNgapMsg(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, pdu *ngapType.NGAPPDU) {
