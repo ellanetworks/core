@@ -63,9 +63,6 @@ const ranNodeTypeChip = (t: string) => {
   return <Chip size="small" label={t} color={color} variant="outlined" />;
 };
 
-const normalizeRfc3339Offset = (s: string) =>
-  s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
-
 const RadioDetail: React.FC = () => {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
@@ -112,7 +109,7 @@ const RadioDetail: React.FC = () => {
   const { data: eventsData } = useQuery({
     queryKey: ["radio-events", name],
     queryFn: () =>
-      listRadioEvents(accessToken!, 1, 25, {
+      listRadioEvents(accessToken!, 1, 12, {
         radio: name!,
       }),
     enabled: authReady && !!accessToken && !!name,
@@ -172,7 +169,13 @@ const RadioDetail: React.FC = () => {
                 height: "100%",
               }}
             >
-              <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontFamily: "monospace",
+                  ...(ip ? {} : { color: "text.secondary" }),
+                }}
+              >
                 {ip || "—"}
               </Typography>
             </Box>
@@ -188,9 +191,21 @@ const RadioDetail: React.FC = () => {
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
           const ts = params.row?.status?.lastSeenAt;
           return (
-            <Typography variant="body2">
-              {ts ? formatDateTime(ts) : "—"}
-            </Typography>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                width: "100%",
+                height: "100%",
+              }}
+            >
+              <Typography
+                variant="body2"
+                sx={ts ? {} : { color: "text.secondary" }}
+              >
+                {ts ? formatDateTime(ts) : "—"}
+              </Typography>
+            </Box>
           );
         },
       },
@@ -198,25 +213,33 @@ const RadioDetail: React.FC = () => {
     [theme],
   );
 
-  const eventRows = useMemo(() => {
-    const items = eventsData?.items ?? [];
-    return items.map((r) => ({
-      ...r,
-      timestamp_dt: r.timestamp
-        ? new Date(normalizeRfc3339Offset(r.timestamp))
-        : null,
-    }));
-  }, [eventsData?.items]);
+  const eventRows = eventsData?.items ?? [];
 
   const eventColumns: GridColDef<APIRadioEvent>[] = useMemo(
     () => [
       {
-        field: "timestamp_dt",
+        field: "timestamp",
         headerName: "Timestamp",
         flex: 1,
         minWidth: 180,
         sortable: false,
-        renderCell: (p) => (p.value ? p.value.toLocaleString() : ""),
+        renderCell: (p) => {
+          const ts = p.row.timestamp;
+          return (
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                width: "100%",
+                height: "100%",
+              }}
+            >
+              <Typography variant="body2">
+                {ts ? formatDateTime(ts) : ""}
+              </Typography>
+            </Box>
+          );
+        },
       },
       {
         field: "message_type",
@@ -260,7 +283,7 @@ const RadioDetail: React.FC = () => {
         },
       },
     ],
-    [],
+    [theme],
   );
 
   if (!authReady || isLoading) {

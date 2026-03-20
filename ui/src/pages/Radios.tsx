@@ -392,6 +392,7 @@ const EventsTab: React.FC = () => {
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
               >
                 <Typography
+                  component="span"
                   variant="body2"
                   sx={{
                     color: theme.palette.link,
@@ -400,9 +401,17 @@ const EventsTab: React.FC = () => {
                   }}
                 >
                   {radioName}
-                  {address ? ` (${address})` : ""}
                 </Typography>
               </Link>
+              {address && (
+                <Typography
+                  component="span"
+                  variant="body2"
+                  sx={{ ml: 0.5, color: "text.secondary" }}
+                >
+                  ({address})
+                </Typography>
+              )}
             </Box>
           );
         },

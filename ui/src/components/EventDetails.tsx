@@ -18,7 +18,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { getRadioEvent, type RadioEventContent } from "@/queries/radio_events";
 import { useSnackbar } from "@/contexts/SnackbarContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { GenericMessageView } from "@/components/EventMessageRender";
 
@@ -260,7 +260,34 @@ export default function EventDetails({
         <Stack spacing={1.25} sx={{ my: 1.25 }}>
           <MetaRow label="Timestamp" value={log?.timestamp} />
           <MetaRow label="Protocol" value={log?.protocol} />
-          <MetaRow label="Radio" value={log?.radio} />
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "180px 1fr",
+              alignItems: "baseline",
+              gap: 1,
+            }}
+          >
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              Radio
+            </Typography>
+            {log?.radio ? (
+              <Typography
+                variant="subtitle2"
+                component={RouterLink}
+                to={`/radios/${encodeURIComponent(log.radio)}`}
+                sx={{
+                  color: "link",
+                  textDecoration: "underline",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {log.radio}
+              </Typography>
+            ) : (
+              <Typography variant="subtitle2">{"\u2014"}</Typography>
+            )}
+          </Box>
           <MetaRow label="Address" value={log?.address} />
           <MetaRow label="Direction" value={log?.direction} />
           <MetaRow label="Message Type" value={log?.messageType} full />
