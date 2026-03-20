@@ -47,7 +47,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermGetFlowAccountingInfo, PermUpdateFlowAccountingInfo,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermSetRadioEventRetentionPolicy, PermClearRadioEvents, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermSetFlowReportsRetentionPolicy, PermListFlowReports, PermClearFlowReports,
-		PermBackup, PermRestore, PermSupportBundle,
+		PermSupportBundle,
 	},
 }
 
