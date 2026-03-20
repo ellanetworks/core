@@ -15,6 +15,7 @@ import (
 	"sync"
 	"syscall"
 
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
@@ -105,6 +106,13 @@ func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
 
 	defer s.wg.Done()
 	defer s.conns.Delete(fd)
+	defer func() {
+		amf := amfContext.AMFSelf()
+		if ran, ok := amf.FindRadioByConn(conn); ok {
+			amf.RemoveRadio(ran)
+			logger.AmfLog.Info("removed radio on connection close", zap.Int("fd", fd))
+		}
+	}()
 	defer func() {
 		if err := conn.Close(); err != nil && err != syscall.EBADF {
 			logger.AmfLog.Error("close connection error", zap.Error(err))

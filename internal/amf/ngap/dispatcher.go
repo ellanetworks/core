@@ -9,7 +9,6 @@ package ngap
 
 import (
 	"context"
-	"reflect"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/sctp"
@@ -231,18 +230,6 @@ func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification)
 		logger.AmfLog.Debug("couldn't find RAN context", zap.Any("address", conn.RemoteAddr()))
 		return
 	}
-
-	amf.Mutex.Lock()
-
-	for _, amfRan := range amf.Radios {
-		errorConn := sctp.NewSCTPConn(-1, nil)
-		if reflect.DeepEqual(amfRan.Conn, errorConn) {
-			amf.RemoveRadio(ran)
-			ran.Log.Info("removed stale entry in AmfRan pool")
-		}
-	}
-
-	amf.Mutex.Unlock()
 
 	switch notification.Type() {
 	case sctp.SCTPAssocChange:
