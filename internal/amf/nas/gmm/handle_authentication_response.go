@@ -29,6 +29,10 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 		return fmt.Errorf("ue Authentication Context is nil")
 	}
 
+	if msg.AuthenticationResponseParameter == nil {
+		return fmt.Errorf("missing AuthenticationResponseParameter IE")
+	}
+
 	resStar := msg.GetRES()
 
 	// Calculate HRES* (TS 33.501 Annex A.5)

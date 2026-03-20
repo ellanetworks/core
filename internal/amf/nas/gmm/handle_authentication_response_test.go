@@ -17,6 +17,22 @@ import (
 	"github.com/free5gc/nas/security"
 )
 
+func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *testing.T) {
+	ue := &amfContext.AmfUe{
+		State:             amfContext.Authentication,
+		AuthenticationCtx: &models.Av5gAka{Rand: "DEADBEEF"},
+	}
+
+	msg := &nasMessage.AuthenticationResponse{
+		AuthenticationResponseParameter: nil,
+	}
+
+	err := handleAuthenticationResponse(context.TODO(), &amfContext.AMF{}, ue, msg)
+	if err == nil {
+		t.Fatal("expected error when AuthenticationResponseParameter is nil, got nil")
+	}
+}
+
 func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 	type TestCase struct {
 		name string
