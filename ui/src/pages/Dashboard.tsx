@@ -626,7 +626,7 @@ const Dashboard = () => {
                       return (
                         <TableRow key={row.id} hover>
                           <TableCell sx={{ whiteSpace: "nowrap" }}>
-                            {formatDateTime(row.timestamp)}
+                            {formatDateTime(row.timestamp, { seconds: true })}
                           </TableCell>
 
                           <TableCell sx={{ whiteSpace: "nowrap" }}>

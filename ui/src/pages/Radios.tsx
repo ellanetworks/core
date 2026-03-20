@@ -54,6 +54,7 @@ import EditRadioEventRetentionPolicyModal from "@/components/EditRadioEventReten
 import EventDetails from "@/components/EventDetails";
 import type { LogRow } from "@/components/EventDetails";
 import { MAX_WIDTH, PAGE_PADDING_X as PAGE_PAD } from "@/utils/layout";
+import { formatDateTime } from "@/utils/formatters";
 
 type TabKey = "radios" | "events";
 
@@ -140,10 +141,6 @@ const NGAP_MESSAGE_TYPES = [
   "WriteReplaceWarningRequest",
   "WriteReplaceWarningResponse",
 ];
-const normalizeRfc3339Offset = (s: string) =>
-  s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
-
-type GridRadioEvent = APIRadioEvent & { timestamp_dt: Date | null };
 
 const DirectionCell: React.FC<{ value?: string }> = ({ value }) => {
   const theme = useTheme();
@@ -303,15 +300,7 @@ const EventsTab: React.FC = () => {
       listRadioEvents(accessToken!, pageOneBased, perPage, filterParams),
   });
 
-  const networkRows: GridRadioEvent[] = useMemo(() => {
-    const items = networkLogsQuery.data?.items ?? [];
-    return items.map<GridRadioEvent>((r) => ({
-      ...r,
-      timestamp_dt: r.timestamp
-        ? new Date(normalizeRfc3339Offset(r.timestamp))
-        : null,
-    }));
-  }, [networkLogsQuery.data?.items]);
+  const networkRows = networkLogsQuery.data?.items ?? [];
 
   const subRowCount = networkLogsQuery.data?.total_count ?? 0;
 
@@ -351,14 +340,16 @@ const EventsTab: React.FC = () => {
   const networkColumns: GridColDef<APIRadioEvent>[] = useMemo(() => {
     return [
       {
-        field: "timestamp_dt",
+        field: "timestamp",
         headerName: "Timestamp",
-        type: "dateTime",
         flex: 1,
         minWidth: 180,
         sortable: false,
         filterable: false,
-        renderCell: (p) => (p.value ? p.value.toLocaleString() : ""),
+        renderCell: (p) => {
+          const ts = p.row.timestamp;
+          return ts ? formatDateTime(ts, { seconds: true }) : "";
+        },
       },
       {
         field: "radio",

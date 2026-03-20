@@ -235,7 +235,7 @@ const RadioDetail: React.FC = () => {
               }}
             >
               <Typography variant="body2">
-                {ts ? formatDateTime(ts) : ""}
+                {ts ? formatDateTime(ts, { seconds: true }) : ""}
               </Typography>
             </Box>
           );
