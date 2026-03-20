@@ -244,3 +244,37 @@ func TestHandleNGReset_EmptyIEs(t *testing.T) {
 		ngap.HandleNGReset(context.Background(), ran, msg)
 	})
 }
+
+// TestHandleNGReset_PartOfNGInterface_UnknownUE verifies that a PartOfNGInterface
+// reset referencing a RANUENGAPID that does not match any UE context does NOT
+// panic or remove the wrong UE. This exercises the missing-continue bug where
+// ranUe is nil after the lookup but Remove() is called anyway.
+func TestHandleNGReset_PartOfNGInterface_UnknownUE(t *testing.T) {
+	fakeNGAPSender := &FakeNGAPSender{}
+
+	ran := &amfContext.Radio{
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		RanUEs:        map[int64]*amfContext.RanUe{},
+		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+	}
+
+	// Build an NGReset referencing a RANUENGAPID that doesn't exist.
+	msg, err := buildNGReset(&NGResetOpts{
+		ResetType: ResetTypePresentPartOfNGInterface,
+		PartOfNGInterface: []NGInterface{
+			{RanUENgapID: 999, AmfUENgapID: 999},
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to build NGReset: %v", err)
+	}
+
+	assertNoPanic(t, "HandleNGReset(PartOfNGInterface with unknown UE)", func() {
+		ngap.HandleNGReset(context.Background(), ran, msg.InitiatingMessage.Value.NGReset)
+	})
+
+	if len(fakeNGAPSender.SentNGResetAcknowledges) != 1 {
+		t.Fatalf("expected 1 NGResetAcknowledge, got %d", len(fakeNGAPSender.SentNGResetAcknowledges))
+	}
+}
