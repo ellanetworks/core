@@ -18,6 +18,8 @@ type RadioEvent struct {
 	Protocol    string `json:"protocol"`
 	MessageType string `json:"message_type"`
 	Direction   string `json:"direction"`
+	Radio       string `json:"radio"`
+	Address     string `json:"address"`
 	Details     string `json:"details"`
 }
 
@@ -652,6 +654,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 			Direction:     "inbound",
 			LocalAddress:  "192.168.1.1:38412",
 			RemoteAddress: "192.168.1.100:12345",
+			RadioName:     "gnb-alpha",
 			Details:       "Event 1",
 			Raw:           []byte("data1"),
 		},
@@ -662,6 +665,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 			Direction:     "outbound",
 			LocalAddress:  "192.168.1.1:38412",
 			RemoteAddress: "192.168.1.101:12346",
+			RadioName:     "gnb-alpha",
 			Details:       "Event 2",
 			Raw:           []byte("data2"),
 		},
@@ -672,6 +676,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 			Direction:     "inbound",
 			LocalAddress:  "192.168.1.1:38412",
 			RemoteAddress: "192.168.1.102:12347",
+			RadioName:     "gnb-beta",
 			Details:       "Event 3",
 			Raw:           []byte("data3"),
 		},
@@ -682,6 +687,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 			Direction:     "inbound",
 			LocalAddress:  "192.168.1.2:38412",
 			RemoteAddress: "192.168.1.103:12348",
+			RadioName:     "gnb-beta",
 			Details:       "Event 4",
 			Raw:           []byte("data4"),
 		},
@@ -720,15 +726,9 @@ func TestListRadioEventsFilters(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:           "Filter by local_address",
-			filters:        map[string]string{"local_address": "192.168.1.2:38412"},
-			expectedCount:  1,
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:           "Filter by remote_address",
-			filters:        map[string]string{"remote_address": "192.168.1.100:12345"},
-			expectedCount:  1,
+			name:           "Filter by radio name",
+			filters:        map[string]string{"radio": "gnb-beta"},
+			expectedCount:  2,
 			expectedStatus: http.StatusOK,
 		},
 		{

@@ -26,8 +26,8 @@ export interface LogRow {
   id: string;
   timestamp: string;
   protocol: string;
-  local_address: string;
-  remote_address: string;
+  radio: string;
+  address: string;
   messageType: string;
   direction: string;
 }
@@ -260,8 +260,8 @@ export default function EventDetails({
         <Stack spacing={1.25} sx={{ my: 1.25 }}>
           <MetaRow label="Timestamp" value={log?.timestamp} />
           <MetaRow label="Protocol" value={log?.protocol} />
-          <MetaRow label="Local Address" value={log?.local_address} />
-          <MetaRow label="Remote Address" value={log?.remote_address} />
+          <MetaRow label="Radio" value={log?.radio} />
+          <MetaRow label="Address" value={log?.address} />
           <MetaRow label="Direction" value={log?.direction} />
           <MetaRow label="Message Type" value={log?.messageType} full />
         </Stack>

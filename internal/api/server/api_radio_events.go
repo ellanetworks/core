@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -28,15 +27,15 @@ type UpdateRadioEventsRetentionPolicyParams struct {
 }
 
 type RadioEvent struct {
-	ID            int    `json:"id"`
-	Timestamp     string `json:"timestamp"`
-	Protocol      string `json:"protocol"`
-	MessageType   string `json:"message_type"`
-	Direction     string `json:"direction"`
-	LocalAddress  string `json:"local_address"`
-	RemoteAddress string `json:"remote_address"`
-	Raw           []byte `json:"raw"`
-	Details       string `json:"details"`
+	ID          int    `json:"id"`
+	Timestamp   string `json:"timestamp"`
+	Protocol    string `json:"protocol"`
+	MessageType string `json:"message_type"`
+	Direction   string `json:"direction"`
+	Radio       string `json:"radio"`
+	Address     string `json:"address"`
+	Raw         []byte `json:"raw"`
+	Details     string `json:"details"`
 }
 
 type ListRadioEventsResponse struct {
@@ -57,20 +56,6 @@ func isRFC3339(s string) bool {
 	}
 
 	return true
-}
-
-// isValidAddress checks that s is either a valid IP address or a valid IP:port pair.
-func isValidAddress(s string) bool {
-	if net.ParseIP(s) != nil {
-		return true
-	}
-
-	host, _, err := net.SplitHostPort(s)
-	if err != nil {
-		return false
-	}
-
-	return net.ParseIP(host) != nil
 }
 
 func parseRadioEventFilters(r *http.Request) (*db.RadioEventFilters, error) {
@@ -94,20 +79,12 @@ func parseRadioEventFilters(r *http.Request) (*db.RadioEventFilters, error) {
 		f.Direction = &v
 	}
 
-	if v := strings.TrimSpace(q.Get("local_address")); v != "" {
-		if !isValidAddress(v) {
-			return f, fmt.Errorf("invalid local_address: must be a valid IP or IP:port")
+	if v := strings.TrimSpace(q.Get("radio")); v != "" {
+		if len(v) > 256 {
+			return f, fmt.Errorf("radio filter too long (max 256 characters)")
 		}
 
-		f.LocalAddress = &v
-	}
-
-	if v := strings.TrimSpace(q.Get("remote_address")); v != "" {
-		if !isValidAddress(v) {
-			return f, fmt.Errorf("invalid remote_address: must be a valid IP or IP:port")
-		}
-
-		f.RemoteAddress = &v
+		f.RadioName = &v
 	}
 
 	if v := strings.TrimSpace(q.Get("message_type")); v != "" {
@@ -220,15 +197,15 @@ func ListRadioEvents(dbInstance *db.Database) http.Handler {
 		items := make([]RadioEvent, len(logs))
 		for i, log := range logs {
 			items[i] = RadioEvent{
-				ID:            log.ID,
-				Timestamp:     log.Timestamp,
-				Protocol:      log.Protocol,
-				MessageType:   log.MessageType,
-				Direction:     log.Direction,
-				LocalAddress:  log.LocalAddress,
-				RemoteAddress: log.RemoteAddress,
-				Raw:           log.Raw,
-				Details:       log.Details,
+				ID:          log.ID,
+				Timestamp:   log.Timestamp,
+				Protocol:    log.Protocol,
+				MessageType: log.MessageType,
+				Direction:   log.Direction,
+				Radio:       log.RadioName,
+				Address:     log.RemoteAddress,
+				Raw:         log.Raw,
+				Details:     log.Details,
 			}
 		}
 

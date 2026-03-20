@@ -1,6 +1,10 @@
 package context
 
-import "github.com/ellanetworks/core/etsi"
+import (
+	"time"
+
+	"github.com/ellanetworks/core/etsi"
+)
 
 func (amf *AMF) IsSubscriberRegistered(supi etsi.SUPI) bool {
 	amf.Mutex.Lock()
@@ -12,6 +16,37 @@ func (amf *AMF) IsSubscriberRegistered(supi etsi.SUPI) bool {
 	}
 
 	return amfUE.GetState() == Registered
+}
+
+// RadioNameForSubscriber returns the radio name for a registered subscriber,
+// or an empty string if the subscriber is not registered or has no radio.
+func (amf *AMF) RadioNameForSubscriber(supi etsi.SUPI) string {
+	amf.Mutex.Lock()
+	defer amf.Mutex.Unlock()
+
+	ue, ok := amf.UEs[supi]
+	if !ok || ue.GetState() != Registered || ue.RanUe == nil || ue.RanUe.Radio == nil {
+		return ""
+	}
+
+	return ue.RanUe.Radio.Name
+}
+
+// LastSeenAtForSubscriber returns the last-seen timestamp for a registered
+// subscriber, or the zero time if not available.
+func (amf *AMF) LastSeenAtForSubscriber(supi etsi.SUPI) time.Time {
+	amf.Mutex.Lock()
+	ue, ok := amf.UEs[supi]
+	amf.Mutex.Unlock()
+
+	if !ok {
+		return time.Time{}
+	}
+
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	return ue.LastSeenAt
 }
 
 // RegisteredSubscribersForRadio returns the IMSIs of all subscribers that are

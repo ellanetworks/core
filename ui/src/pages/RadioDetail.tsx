@@ -110,12 +110,12 @@ const RadioDetail: React.FC = () => {
   });
 
   const { data: eventsData } = useQuery({
-    queryKey: ["radio-events", radio?.address],
+    queryKey: ["radio-events", name],
     queryFn: () =>
       listRadioEvents(accessToken!, 1, 25, {
-        remote_address: radio!.address,
+        radio: name!,
       }),
-    enabled: authReady && !!accessToken && !!radio?.address,
+    enabled: authReady && !!accessToken && !!name,
     refetchInterval: 5000,
   });
 
@@ -179,6 +179,21 @@ const RadioDetail: React.FC = () => {
           );
         },
       },
+      {
+        field: "lastSeenAt",
+        headerName: "Last Seen",
+        width: 160,
+        valueGetter: (_v, row: APISubscriberSummary) =>
+          row?.status?.lastSeenAt ?? "",
+        renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
+          const ts = params.row?.status?.lastSeenAt;
+          return (
+            <Typography variant="body2">
+              {ts ? formatDateTime(ts) : "—"}
+            </Typography>
+          );
+        },
+      },
     ],
     [theme],
   );
@@ -213,7 +228,7 @@ const RadioDetail: React.FC = () => {
       {
         field: "direction",
         headerName: "Direction",
-        width: 90,
+        width: 120,
         sortable: false,
         renderCell: (p) => {
           const val = p.row.direction;
@@ -405,12 +420,6 @@ const RadioDetail: React.FC = () => {
                         : "—"}
                     </TableCell>
                   </TableRow>
-                  <TableRow>
-                    <TableCell sx={labelCellSx}>
-                      Connected Subscribers
-                    </TableCell>
-                    <TableCell sx={valueCellSx}>{subscriberRowCount}</TableCell>
-                  </TableRow>
                   {tais.length > 0 && (
                     <TableRow sx={{ "& td": { borderBottom: "none" } }}>
                       <TableCell sx={labelCellSx}>Supported TAIs</TableCell>
@@ -546,7 +555,7 @@ const RadioDetail: React.FC = () => {
             <Typography variant="h6">Recent Network Events</Typography>
             <Button
               component={RouterLink}
-              to="/radios?tab=events"
+              to={`/radios?tab=events&radio=${encodeURIComponent(radio.name)}`}
               size="small"
               sx={{
                 color: theme.palette.link,
@@ -554,7 +563,7 @@ const RadioDetail: React.FC = () => {
                 "&:hover": { textDecoration: "underline" },
               }}
             >
-              View all events →
+              View all events for {radio.name} →
             </Button>
           </Box>
           {eventRows.length === 0 ? (
@@ -576,6 +585,11 @@ const RadioDetail: React.FC = () => {
                 hideFooter
                 autoHeight
                 density="compact"
+                onRowClick={(params) => {
+                  navigate(
+                    `/radios?tab=events&radio=${encodeURIComponent(radio.name)}&event=${params.row.id}`,
+                  );
+                }}
                 sx={{
                   border: 1,
                   borderColor: "divider",
@@ -583,6 +597,7 @@ const RadioDetail: React.FC = () => {
                     borderBottom: "1px solid",
                     borderColor: "divider",
                   },
+                  "& .MuiDataGrid-row": { cursor: "pointer" },
                 }}
               />
             </ThemeProvider>

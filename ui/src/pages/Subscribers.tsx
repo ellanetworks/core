@@ -97,6 +97,49 @@ const SubscriberPage: React.FC = () => {
       },
       { field: "policyName", headerName: "Policy", flex: 0.8, minWidth: 140 },
       {
+        field: "radio",
+        headerName: "Radio",
+        flex: 0.8,
+        minWidth: 140,
+        renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
+          const radioName = params.row.radio;
+          if (!radioName) {
+            return (
+              <Typography variant="body2" color="text.secondary">
+                —
+              </Typography>
+            );
+          }
+          return (
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                width: "100%",
+                height: "100%",
+              }}
+            >
+              <Link
+                to={`/radios/${encodeURIComponent(radioName)}`}
+                style={{ textDecoration: "none" }}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: theme.palette.link,
+                    textDecoration: "underline",
+                    "&:hover": { textDecoration: "underline" },
+                  }}
+                >
+                  {radioName}
+                </Typography>
+              </Link>
+            </Box>
+          );
+        },
+      },
+      {
         field: "registration",
         headerName: "Registration",
         width: 140,

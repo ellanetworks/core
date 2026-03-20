@@ -69,10 +69,11 @@ type UpdateRadioEventsRetentionPolicyOptions struct {
 type RadioEvent struct {
 	ID          int    `json:"id"`
 	Timestamp   string `json:"timestamp"`
-	Level       string `json:"level"`
 	Protocol    string `json:"protocol"`
 	MessageType string `json:"message_type"`
 	Direction   string `json:"direction"`
+	Radio       string `json:"radio"`
+	Address     string `json:"address"`
 	Raw         string `json:"raw"`
 	Details     string `json:"details"`
 }
@@ -89,6 +90,7 @@ type ListRadioEventsParams struct {
 	PerPage       int    `json:"per_page"`
 	Protocol      string `json:"protocol"`
 	Direction     string `json:"direction"`
+	Radio         string `json:"radio"`
 	MessageType   string `json:"message_type"`
 	TimestampFrom string `json:"timestamp_from"`
 	TimestampTo   string `json:"timestamp_to"`
@@ -162,6 +164,10 @@ func (c *Client) ListRadioEvents(ctx context.Context, p *ListRadioEventsParams) 
 
 	if p.Direction != "" {
 		query.Set("direction", p.Direction)
+	}
+
+	if p.Radio != "" {
+		query.Set("radio", p.Radio)
 	}
 
 	if p.MessageType != "" {

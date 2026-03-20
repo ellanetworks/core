@@ -4,12 +4,14 @@ import { apiFetch, apiFetchVoid } from "@/queries/utils";
 export type SubscriberListStatus = {
   registered?: boolean;
   ipAddress?: string;
+  lastSeenAt?: string;
 };
 
 /** Summary representation returned by the list endpoint. */
 export type APISubscriberSummary = {
   imsi: string;
   policyName: string;
+  radio?: string;
   status: SubscriberListStatus;
 };
 

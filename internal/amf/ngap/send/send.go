@@ -20,7 +20,8 @@ import (
 var tracer = otel.Tracer("ella-core/amf/ngap/send")
 
 type RealNGAPSender struct {
-	Conn *sctp.SCTPConn
+	Conn      *sctp.SCTPConn
+	RadioName string
 }
 
 func (s *RealNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType NGAPProcedure) error {
@@ -74,6 +75,7 @@ func (s *RealNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType N
 		logger.DirectionOutbound,
 		s.Conn.LocalAddr().String(),
 		s.Conn.RemoteAddr().String(),
+		s.RadioName,
 		packet,
 	)
 

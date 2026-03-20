@@ -143,7 +143,7 @@ func TestListRadioEvents_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "level": "info", "protocol": "ngap", "message_type": "PDU Session Establishment Request", "direction": "inbound", "raw": "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA", "details": "{\"pduSessionID\":1}"}], "page": 1, "per_page": 10, "total_count": 1}`),
+			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "protocol": "ngap", "message_type": "PDU Session Establishment Request", "direction": "inbound", "radio": "my-gnb", "address": "10.0.0.5:38412", "raw": "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA", "details": "{\"pduSessionID\":1}"}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}
@@ -179,8 +179,12 @@ func TestListRadioEvents_Success(t *testing.T) {
 		t.Fatalf("expected protocol 'ngap', got '%s'", resp.Items[0].Protocol)
 	}
 
-	if resp.Items[0].Level != "info" {
-		t.Fatalf("expected level 'info', got '%s'", resp.Items[0].Level)
+	if resp.Items[0].Radio != "my-gnb" {
+		t.Fatalf("expected radio 'my-gnb', got '%s'", resp.Items[0].Radio)
+	}
+
+	if resp.Items[0].Address != "10.0.0.5:38412" {
+		t.Fatalf("expected address '10.0.0.5:38412', got '%s'", resp.Items[0].Address)
 	}
 
 	if resp.Items[0].MessageType != "PDU Session Establishment Request" {

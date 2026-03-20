@@ -580,6 +580,10 @@ const Dashboard = () => {
                       </TableCell>
 
                       <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+                        Radio
+                      </TableCell>
+
+                      <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>
                         Protocol
                       </TableCell>
 
@@ -593,6 +597,29 @@ const Dashboard = () => {
                       <TableRow key={row.id} hover>
                         <TableCell sx={{ whiteSpace: "nowrap" }}>
                           {formatDateTime(row.timestamp)}
+                        </TableCell>
+
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
+                          {row.radio ? (
+                            <Link
+                              to={`/radios/${encodeURIComponent(row.radio)}`}
+                              style={{
+                                textDecoration: "none",
+                                color: "inherit",
+                              }}
+                            >
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  "&:hover": { textDecoration: "underline" },
+                                }}
+                              >
+                                {row.radio}
+                              </Typography>
+                            </Link>
+                          ) : (
+                            "—"
+                          )}
                         </TableCell>
 
                         <TableCell sx={{ whiteSpace: "nowrap" }}>
@@ -612,7 +639,7 @@ const Dashboard = () => {
                     ))}
                     {(!networkLogs || networkLogs.length === 0) && (
                       <TableRow>
-                        <TableCell colSpan={3}>
+                        <TableCell colSpan={4}>
                           <Typography variant="body2" color="text.secondary">
                             No network events.
                           </Typography>
@@ -746,7 +773,21 @@ const Dashboard = () => {
                   <TableBody>
                     {topUsers.map((row) => (
                       <TableRow key={row.id} hover>
-                        <TableCell>{row.subscriber}</TableCell>
+                        <TableCell>
+                          <Link
+                            to={`/subscribers/${encodeURIComponent(row.subscriber)}`}
+                            style={{ textDecoration: "none", color: "inherit" }}
+                          >
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                "&:hover": { textDecoration: "underline" },
+                              }}
+                            >
+                              {row.subscriber}
+                            </Typography>
+                          </Link>
+                        </TableCell>
                         <TableCell align="right">
                           {formatBytesAutoUnit(row.downlink_bytes)}
                         </TableCell>

@@ -90,6 +90,7 @@ func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 		logger.DirectionInbound,
 		localAddress.String(),
 		remoteAddress.String(),
+		ran.Name,
 		msg,
 	)
 

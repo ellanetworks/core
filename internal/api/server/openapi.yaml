@@ -1485,16 +1485,11 @@ paths:
             type: string
             enum: [inbound, outbound]
           description: Filter by message direction.
-        - name: local_address
+        - name: radio
           in: query
           schema:
             type: string
-          description: Filter by local address.
-        - name: remote_address
-          in: query
-          schema:
-            type: string
-          description: Filter by remote address.
+          description: Filter by radio name.
         - name: message_type
           in: query
           schema:
@@ -2307,6 +2302,10 @@ components:
           type: string
           description: Assigned IP address (empty if not connected).
           deprecated: true
+        lastSeenAt:
+          type: string
+          format: date-time
+          description: Timestamp when the subscriber was last seen (RFC 3339). Omitted if never seen.
       required: [registered, ipAddress]
 
     Subscriber:
@@ -2318,6 +2317,9 @@ components:
         policyName:
           type: string
           description: Name of the assigned QoS policy.
+        radio:
+          type: string
+          description: Radio name the subscriber is connected through (empty if not connected).
         status:
           $ref: "#/components/schemas/SubscriberStatus"
       required: [imsi, policyName, status]
@@ -3173,17 +3175,19 @@ components:
         direction:
           type: string
           enum: [inbound, outbound]
-        local_address:
+        radio:
           type: string
-        remote_address:
+          description: Name of the radio base station.
+        address:
           type: string
+          description: Network address of the radio.
         raw:
           type: string
           format: byte
           description: Base64-encoded raw message bytes.
         details:
           type: string
-      required: [id, timestamp, protocol, message_type, direction, local_address, remote_address]
+      required: [id, timestamp, protocol, message_type, direction, radio, address]
 
     ListRadioEventsResponse:
       type: object

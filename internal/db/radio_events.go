@@ -18,7 +18,7 @@ import (
 const RadioEventsTableName = "network_logs"
 
 const (
-	insertRadioEventStmt     = "INSERT INTO %s (timestamp, protocol, message_type, direction, local_address, remote_address, raw, details) VALUES ($RadioEvent.timestamp, $RadioEvent.protocol, $RadioEvent.message_type, $RadioEvent.direction, $RadioEvent.local_address, $RadioEvent.remote_address, $RadioEvent.raw, $RadioEvent.details)"
+	insertRadioEventStmt     = "INSERT INTO %s (timestamp, protocol, message_type, direction, local_address, remote_address, radio_name, raw, details) VALUES ($RadioEvent.timestamp, $RadioEvent.protocol, $RadioEvent.message_type, $RadioEvent.direction, $RadioEvent.local_address, $RadioEvent.remote_address, $RadioEvent.radio_name, $RadioEvent.raw, $RadioEvent.details)"
 	getRadioEventByIDStmt    = "SELECT &RadioEvent.* FROM %s WHERE id = $RadioEvent.id"
 	deleteOldRadioEventsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
 	deleteAllRadioEventsStmt = "DELETE FROM %s"
@@ -30,8 +30,7 @@ const listRadioEventsPagedFilteredStmt = `
   WHERE
     ($RadioEventFilters.protocol      IS NULL OR protocol      = $RadioEventFilters.protocol)
     AND ($RadioEventFilters.direction IS NULL OR direction = $RadioEventFilters.direction)
-    AND ($RadioEventFilters.local_address IS NULL OR local_address = $RadioEventFilters.local_address)
-    AND ($RadioEventFilters.remote_address IS NULL OR remote_address = $RadioEventFilters.remote_address)
+    AND ($RadioEventFilters.radio_name IS NULL OR radio_name = $RadioEventFilters.radio_name)
     AND ($RadioEventFilters.message_type IS NULL OR message_type     = $RadioEventFilters.message_type)
     AND ($RadioEventFilters.timestamp_from  IS NULL OR timestamp >= $RadioEventFilters.timestamp_from)
     AND ($RadioEventFilters.timestamp_to    IS NULL OR timestamp <  $RadioEventFilters.timestamp_to)
@@ -46,8 +45,7 @@ const countRadioEventsFilteredStmt = `
   WHERE
     ($RadioEventFilters.protocol      IS NULL OR protocol      = $RadioEventFilters.protocol)
     AND ($RadioEventFilters.direction IS NULL OR direction = $RadioEventFilters.direction)
-    AND ($RadioEventFilters.local_address IS NULL OR local_address = $RadioEventFilters.local_address)
-    AND ($RadioEventFilters.remote_address IS NULL OR remote_address = $RadioEventFilters.remote_address)
+    AND ($RadioEventFilters.radio_name IS NULL OR radio_name = $RadioEventFilters.radio_name)
     AND ($RadioEventFilters.message_type IS NULL OR message_type     = $RadioEventFilters.message_type)
     AND ($RadioEventFilters.timestamp_from  IS NULL OR timestamp >= $RadioEventFilters.timestamp_from)
     AND ($RadioEventFilters.timestamp_to    IS NULL OR timestamp <  $RadioEventFilters.timestamp_to)
@@ -56,8 +54,7 @@ const countRadioEventsFilteredStmt = `
 type RadioEventFilters struct {
 	Protocol      *string `db:"protocol"`       // exact match
 	Direction     *string `db:"direction"`      // "inbound" | "outbound"
-	LocalAddress  *string `db:"local_address"`  // exact match
-	RemoteAddress *string `db:"remote_address"` // exact match
+	RadioName     *string `db:"radio_name"`     // exact match
 	MessageType   *string `db:"message_type"`   // exact match
 	TimestampFrom *string `db:"timestamp_from"` // RFC3339 (UTC)
 	TimestampTo   *string `db:"timestamp_to"`   // RFC3339 (UTC), exclusive upper bound

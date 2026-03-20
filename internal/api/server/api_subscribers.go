@@ -36,12 +36,14 @@ type UpdateSubscriberParams struct {
 type SubscriberStatus struct {
 	Registered bool   `json:"registered"`
 	IPAddress  string `json:"ipAddress"`
+	LastSeenAt string `json:"lastSeenAt,omitempty"`
 }
 
 // Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
 	Imsi       string           `json:"imsi"`
 	PolicyName string           `json:"policyName"`
+	Radio      string           `json:"radio,omitempty"`
 	Status     SubscriberStatus `json:"status"`
 }
 
@@ -249,9 +251,14 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 				IPAddress:  ipAddress,
 			}
 
+			if lastSeen := amf.LastSeenAtForSubscriber(supi); !lastSeen.IsZero() {
+				subscriberStatus.LastSeenAt = lastSeen.UTC().Format(time.RFC3339)
+			}
+
 			items = append(items, Subscriber{
 				Imsi:       dbSubscriber.Imsi,
 				PolicyName: policy.Name,
+				Radio:      amf.RadioNameForSubscriber(supi),
 				Status:     subscriberStatus,
 			})
 		}

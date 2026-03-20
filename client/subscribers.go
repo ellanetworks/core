@@ -28,12 +28,14 @@ type DeleteSubscriberOptions struct {
 type SubscriberStatus struct {
 	Registered bool   `json:"registered"`
 	IPAddress  string `json:"ipAddress"`
+	LastSeenAt string `json:"lastSeenAt,omitempty"`
 }
 
 // Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
 	Imsi       string           `json:"imsi"`
 	PolicyName string           `json:"policyName"`
+	Radio      string           `json:"radio,omitempty"`
 	Status     SubscriberStatus `json:"status"`
 }
 
