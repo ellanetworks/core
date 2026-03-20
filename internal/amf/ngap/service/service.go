@@ -9,11 +9,11 @@ package service
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"sync"
-	"syscall"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap"
@@ -76,23 +76,21 @@ func (s *Server) acceptLoop(ctx context.Context) {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			switch err {
-			case syscall.EINVAL, syscall.EBADF:
-				return // listener closed by Shutdown()
-			default:
-				if ctx.Err() != nil {
-					return
-				}
-
-				logger.AmfLog.Error("Failed to accept", zap.Error(err))
-
-				continue
+			// When the listener is closed (by Shutdown), Accept returns a
+			// "use of closed file" error from the runtime poller, or EBADF.
+			if errors.Is(err, net.ErrClosed) || ctx.Err() != nil {
+				logger.AmfLog.Debug("Accept loop exiting", zap.Error(err))
+				return
 			}
+
+			logger.AmfLog.Error("Failed to accept", zap.Error(err))
+
+			continue
 		}
 
 		// Store before wg.Add so Shutdown's Range sees every connection
 		// that has a corresponding goroutine in wg.
-		s.conns.Store(conn.Fd(), conn)
+		s.conns.Store(conn, struct{}{})
 		s.wg.Add(1)
 
 		go s.serveConn(ctx, conn)
@@ -100,21 +98,17 @@ func (s *Server) acceptLoop(ctx context.Context) {
 }
 
 func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
-	// Capture fd before any defers: conn.Close() swaps _fd to -1, so
-	// conn.Fd() called after Close returns -1, not the original key.
-	fd := conn.Fd()
-
 	defer s.wg.Done()
-	defer s.conns.Delete(fd)
+	defer s.conns.Delete(conn)
 	defer func() {
 		amf := amfContext.AMFSelf()
 		if ran, ok := amf.FindRadioByConn(conn); ok {
 			amf.RemoveRadio(ran)
-			logger.AmfLog.Info("removed radio on connection close", zap.Int("fd", fd))
+			logger.AmfLog.Info("removed radio on connection close", zap.Int("fd", conn.Fd()))
 		}
 	}()
 	defer func() {
-		if err := conn.Close(); err != nil && err != syscall.EBADF {
+		if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
 	}()
@@ -141,17 +135,13 @@ func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
 	buf := make([]byte, readBufSize)
 
 	for {
-		n, info, notification, err := conn.SCTPRead(buf)
+		n, info, notification, err := conn.ReadMsg(buf)
 		if err != nil {
-			switch err {
-			case io.EOF, io.ErrUnexpectedEOF, syscall.EBADF, syscall.EINVAL:
-				return
-			case syscall.EAGAIN, syscall.EINTR:
-				continue
-			default:
-				logger.AmfLog.Error("SCTPRead error", zap.Error(err))
-				return
+			if err != io.EOF && !errors.Is(err, net.ErrClosed) {
+				logger.AmfLog.Debug("ReadMsg terminated", zap.Error(err))
 			}
+
+			return
 		}
 
 		if notification != nil {
@@ -171,32 +161,56 @@ func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
 	}
 }
 
-func (s *Server) Shutdown() {
+func (s *Server) Shutdown(ctx context.Context) {
 	if s.listener == nil {
 		return
 	}
 
-	if err := s.listener.Close(); err != nil {
+	logger.AmfLog.Info("Signaling SCTP listener to stop")
+
+	if err := s.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 		logger.AmfLog.Error("could not close sctp listener", zap.Error(err))
 	}
 
-	// Wait for acceptLoop to exit before ranging over conns and calling
-	// wg.Wait(). This prevents a race where acceptLoop calls wg.Add after
-	// wg.Wait returns with a zero count.
-	<-s.acceptDone
+	// Wait for acceptLoop to exit. Close() unparks any goroutine blocked in
+	// Accept via the runtime poller — no manual wakeup pipe needed.
+	select {
+	case <-s.acceptDone:
+		logger.AmfLog.Info("Accept loop exited")
+	case <-ctx.Done():
+		logger.AmfLog.Warn("Timed out waiting for accept loop to exit")
+	}
 
-	s.conns.Range(func(_, value any) bool {
-		conn := value.(*sctp.SCTPConn)
+	logger.AmfLog.Info("Closing SCTP connections")
 
-		if err := conn.Close(); err != nil && err != syscall.EBADF {
+	// Close all connections. Each Close() sends SCTP EOF, shuts down the
+	// socket, and wakes up any goroutine blocked in ReadMsg via the runtime
+	// poller. No manual read timeout hack needed.
+	s.conns.Range(func(key, _ any) bool {
+		conn := key.(*sctp.SCTPConn)
+
+		if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
 
 		return true
 	})
 
-	s.wg.Wait()
-	logger.AmfLog.Info("SCTP server closed")
+	logger.AmfLog.Info("All connections closed, waiting for serve goroutines")
+
+	done := make(chan struct{})
+
+	go func() {
+		s.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		logger.AmfLog.Info("SCTP server closed")
+	case <-ctx.Done():
+		logger.AmfLog.Warn("SCTP server shutdown timed out, some connections may not have closed cleanly")
+	}
 }
 
 // networkToNativeEndianness32 converts a uint32 from network byte order to native byte order.
@@ -205,15 +219,4 @@ func networkToNativeEndianness32(value uint32) uint32 {
 	binary.BigEndian.PutUint32(b[:], value)
 
 	return binary.NativeEndian.Uint32(b[:])
-}
-
-// Package-level server instance and shim functions to preserve the existing API.
-var server = NewServer()
-
-func Run(ctx context.Context, address string, port int) error {
-	return server.ListenAndServe(ctx, address, port)
-}
-
-func Stop() {
-	server.Shutdown()
 }

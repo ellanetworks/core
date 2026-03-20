@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"sync/atomic"
 	"syscall"
@@ -106,8 +107,6 @@ const (
 	SCTPAuthenticationIndication
 	SCTPSenderDryEvent
 )
-
-type NotificationHandler func([]byte) error
 
 type EventSubscribe struct {
 	DataIO          uint8
@@ -387,26 +386,57 @@ func SCTPBind(fd int, addr *SCTPAddr, flags int) error {
 }
 
 type SCTPConn struct {
-	_fd                 int32
-	notificationHandler NotificationHandler
+	fd     int
+	file   *os.File
+	rc     syscall.RawConn
+	closed atomic.Bool
 }
 
-func (c *SCTPConn) fd() int {
-	return int(atomic.LoadInt32(&c._fd))
-}
-
-// Fd returns the underlying socket file descriptor.
-func (c *SCTPConn) Fd() int {
-	return c.fd()
-}
-
-func NewSCTPConn(fd int, handler NotificationHandler) *SCTPConn {
-	conn := &SCTPConn{
-		_fd:                 int32(fd),
-		notificationHandler: handler,
+// controlFd runs fn with the raw file descriptor held by the runtime poller.
+// The fd is guaranteed valid for the duration of fn.
+func (c *SCTPConn) controlFd(fn func(fd int) error) error {
+	if c.rc == nil {
+		return syscall.EBADF
 	}
 
-	return conn
+	var err error
+
+	cerr := c.rc.Control(func(f uintptr) {
+		err = fn(int(f))
+	})
+	if cerr != nil {
+		return cerr
+	}
+
+	return err
+}
+
+// Fd returns the underlying socket file descriptor. The value is cached at
+// construction time, so it remains valid even after Close.
+func (c *SCTPConn) Fd() int {
+	return c.fd
+}
+
+// NewSCTPConn wraps an existing SCTP socket file descriptor. The fd is set
+// to non-blocking mode and registered with Go's runtime poller, enabling
+// deadline support and safe concurrent Close. NewSCTPConn takes ownership
+// of fd; callers must not close it separately.
+func NewSCTPConn(fd int) *SCTPConn {
+	// Set non-blocking before os.NewFile so the runtime poller manages the fd.
+	_ = syscall.SetNonblock(fd, true)
+
+	f := os.NewFile(uintptr(fd), "sctp")
+	if f == nil {
+		return nil
+	}
+
+	rc, err := f.SyscallConn()
+	if err != nil {
+		_ = f.Close()
+		return nil
+	}
+
+	return &SCTPConn{fd: fd, file: f, rc: rc}
 }
 
 func (c *SCTPConn) SubscribeEvents(flags int) error {
@@ -464,17 +494,19 @@ func (c *SCTPConn) SubscribeEvents(flags int) error {
 		SenderDry:       se,
 	}
 	optlen := unsafe.Sizeof(param)
-	err := setsockopt(c.fd(), SCTPEvents, uintptr(unsafe.Pointer(&param)), optlen)
 
-	return err
+	return c.controlFd(func(fd int) error {
+		return setsockopt(fd, SCTPEvents, uintptr(unsafe.Pointer(&param)), optlen)
+	})
 }
 
 func (c *SCTPConn) SubscribedEvents() (int, error) {
 	param := EventSubscribe{}
 	optlen := unsafe.Sizeof(param)
 
-	err := getsockopt(c.fd(), SCTPEvents, uintptr(unsafe.Pointer(&param)), uintptr(unsafe.Pointer(&optlen)))
-	if err != nil {
+	if err := c.controlFd(func(fd int) error {
+		return getsockopt(fd, SCTPEvents, uintptr(unsafe.Pointer(&param)), uintptr(unsafe.Pointer(&optlen)))
+	}); err != nil {
 		return 0, err
 	}
 
@@ -524,15 +556,19 @@ func (c *SCTPConn) SubscribedEvents() (int, error) {
 
 func (c *SCTPConn) SetDefaultSentParam(info *SndRcvInfo) error {
 	optlen := unsafe.Sizeof(*info)
-	err := setsockopt(c.fd(), SCTPDefaultSentParam, uintptr(unsafe.Pointer(info)), optlen)
 
-	return err
+	return c.controlFd(func(fd int) error {
+		return setsockopt(fd, SCTPDefaultSentParam, uintptr(unsafe.Pointer(info)), optlen)
+	})
 }
 
 func (c *SCTPConn) GetDefaultSentParam() (*SndRcvInfo, error) {
 	info := &SndRcvInfo{}
 	optlen := unsafe.Sizeof(*info)
-	err := getsockopt(c.fd(), SCTPDefaultSentParam, uintptr(unsafe.Pointer(info)), uintptr(unsafe.Pointer(&optlen)))
+
+	err := c.controlFd(func(fd int) error {
+		return getsockopt(fd, SCTPDefaultSentParam, uintptr(unsafe.Pointer(info)), uintptr(unsafe.Pointer(&optlen)))
+	})
 
 	return info, err
 }
@@ -596,41 +632,64 @@ func sctpGetAddrs(fd, id, optname int) (*SCTPAddr, error) {
 	return resolveFromRawAddr(unsafe.Pointer(&param.addrs), int(param.addrNum))
 }
 
-func (c *SCTPConn) LocalAddr() net.Addr {
-	addr, err := sctpGetAddrs(c.fd(), 0, SCTPGetLocalAddrs)
-	if err != nil {
-		return nil
-	}
+func (c *SCTPConn) getAddrs(optname int) *SCTPAddr {
+	var addr *SCTPAddr
+
+	_ = c.controlFd(func(fd int) error {
+		var err error
+
+		addr, err = sctpGetAddrs(fd, 0, optname)
+
+		return err
+	})
 
 	return addr
+}
+
+func (c *SCTPConn) LocalAddr() net.Addr {
+	if addr := c.getAddrs(SCTPGetLocalAddrs); addr != nil {
+		return addr
+	}
+
+	return nil
 }
 
 func (c *SCTPConn) RemoteAddr() net.Addr {
-	addr, err := sctpGetAddrs(c.fd(), 0, SCTPGetPeerAddrs)
-	if err != nil {
-		return nil
+	if addr := c.getAddrs(SCTPGetPeerAddrs); addr != nil {
+		return addr
 	}
 
-	return addr
+	return nil
 }
 
 func (c *SCTPConn) SetDeadline(t time.Time) error {
-	return syscall.EOPNOTSUPP
+	if c.file == nil {
+		return syscall.EBADF
+	}
+
+	return c.file.SetDeadline(t)
 }
 
 func (c *SCTPConn) SetReadDeadline(t time.Time) error {
-	return syscall.EOPNOTSUPP
+	if c.file == nil {
+		return syscall.EBADF
+	}
+
+	return c.file.SetReadDeadline(t)
 }
 
 func (c *SCTPConn) SetWriteDeadline(t time.Time) error {
-	return syscall.EOPNOTSUPP
+	if c.file == nil {
+		return syscall.EBADF
+	}
+
+	return c.file.SetWriteDeadline(t)
 }
 
 type SCTPListener struct {
-	fd    int
-	epfd  int // epoll fd watching ln.fd and wakeR
-	wakeR int // pipe read end — epoll-monitored; readable when Close is called
-	wakeW int // pipe write end — written by Close to unblock Accept
+	file   *os.File
+	rc     syscall.RawConn
+	closed atomic.Bool
 }
 
 // SocketConfig contains options for the SCTP socket.

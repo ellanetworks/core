@@ -46,10 +46,10 @@ func GenerateJWTSecret() ([]byte, error) {
 	return bytes, nil
 }
 
-func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) error {
+func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) (*http.Server, error) {
 	jwtSecret, err := GenerateJWTSecret()
 	if err != nil {
-		return fmt.Errorf("couldn't generate jwt secret: %v", err)
+		return nil, fmt.Errorf("couldn't generate jwt secret: %v", err)
 	}
 
 	kernelInt := kernel.NewRealKernel(cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
@@ -63,33 +63,35 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 
 	router := server.NewHandler(dbInstance, cfg, upf, kernelInt, jwtSecret, secureCookie, embedFS, registerExtraRoutes)
 
+	httpAddr := fmt.Sprintf("%s:%d", cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
+
+	h2Server := &http2.Server{
+		IdleTimeout: 1 * time.Millisecond,
+	}
+
+	srv := &http.Server{
+		Addr:              httpAddr,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       1 * time.Minute,
+		WriteTimeout:      5 * time.Minute,
+	}
+
 	go func() {
-		httpAddr := fmt.Sprintf("%s:%d", cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
+		var serveErr error
 
-		h2Server := &http2.Server{
-			IdleTimeout: 1 * time.Millisecond,
-		}
-
-		srv := &http.Server{
-			Addr:              httpAddr,
-			ReadHeaderTimeout: 5 * time.Second,
-			ReadTimeout:       1 * time.Minute,
-			WriteTimeout:      5 * time.Minute,
-		}
 		if scheme == HTTPS {
 			srv.Handler = router
-
 			srv.TLSConfig = &tls.Config{
 				MinVersion: tls.VersionTLS12,
 			}
-			if err := srv.ListenAndServeTLS(cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key); err != nil {
-				logger.APILog.Fatal("couldn't start API server", zap.Error(err))
-			}
+			serveErr = srv.ListenAndServeTLS(cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
 		} else {
 			srv.Handler = h2c.NewHandler(router, h2Server)
-			if err := srv.ListenAndServe(); err != nil {
-				logger.APILog.Fatal("couldn't start API server", zap.Error(err))
-			}
+			serveErr = srv.ListenAndServe()
+		}
+
+		if serveErr != nil && serveErr != http.ErrServerClosed {
+			logger.APILog.Fatal("couldn't start API server", zap.Error(serveErr))
 		}
 	}()
 
@@ -112,7 +114,7 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 		}
 	}()
 
-	return nil
+	return srv, nil
 }
 
 func ReconcileKernelRouting(dbInstance *db.Database, kernelInt kernel.Kernel) error {
