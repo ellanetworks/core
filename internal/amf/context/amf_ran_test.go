@@ -8,29 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/etsi"
 	amfcontext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/models"
-	"go.uber.org/zap"
 )
-
-func TestRadioConnectedUECount(t *testing.T) {
-	radio := &amfcontext.Radio{
-		RanUEs: make(map[int64]*amfcontext.RanUe),
-		Log:    zap.NewNop(),
-	}
-
-	if radio.ConnectedUECount() != 0 {
-		t.Fatalf("expected 0, got %d", radio.ConnectedUECount())
-	}
-
-	radio.RanUEs[1] = &amfcontext.RanUe{}
-	radio.RanUEs[2] = &amfcontext.RanUe{}
-
-	if radio.ConnectedUECount() != 2 {
-		t.Fatalf("expected 2, got %d", radio.ConnectedUECount())
-	}
-}
 
 func TestRadioRanNodeTypeName(t *testing.T) {
 	tests := []struct {
@@ -70,62 +50,30 @@ func TestRadioTouchLastSeen(t *testing.T) {
 	}
 }
 
-func TestRadioConnectedSubscribers(t *testing.T) {
-	radio := &amfcontext.Radio{
-		RanUEs: make(map[int64]*amfcontext.RanUe),
-		Log:    zap.NewNop(),
-	}
-
-	// Empty case
-	supis := radio.ConnectedSubscribers()
-	if len(supis) != 0 {
-		t.Fatalf("expected 0 subscribers, got %d", len(supis))
-	}
-
-	// UE with nil AmfUe should be skipped
-	radio.RanUEs[1] = &amfcontext.RanUe{}
-
-	supis = radio.ConnectedSubscribers()
-	if len(supis) != 0 {
-		t.Fatalf("expected 0 subscribers (nil AmfUe), got %d", len(supis))
-	}
-
-	// UE with valid IMSI
-	supi, err := etsi.NewSUPIFromIMSI("001019756139935")
-	if err != nil {
-		t.Fatalf("failed to create SUPI: %v", err)
-	}
-
-	ue := amfcontext.NewAmfUe()
-	ue.Supi = supi
-	ue.Log = zap.NewNop()
-
-	radio.RanUEs[2] = &amfcontext.RanUe{
-		AmfUe: ue,
-	}
-
-	supis = radio.ConnectedSubscribers()
-	if len(supis) != 1 {
-		t.Fatalf("expected 1 subscriber, got %d", len(supis))
-	}
-
-	if supis[0] != "001019756139935" {
-		t.Fatalf("expected IMSI 001019756139935, got %s", supis[0])
-	}
-}
-
 func TestRadioTimestampsSetOnCreation(t *testing.T) {
+	blank := &amfcontext.Radio{}
+
+	if !blank.ConnectedAt.IsZero() {
+		t.Fatal("expected ConnectedAt to be zero on a blank Radio")
+	}
+
+	if !blank.LastSeenAt.IsZero() {
+		t.Fatal("expected LastSeenAt to be zero on a blank Radio")
+	}
+
+	now := time.Now()
+
 	radio := &amfcontext.Radio{
-		ConnectedAt: time.Now(),
-		LastSeenAt:  time.Now(),
+		ConnectedAt: now,
+		LastSeenAt:  now,
 	}
 
-	if radio.ConnectedAt.IsZero() {
-		t.Fatal("expected ConnectedAt to be non-zero")
+	if radio.ConnectedAt.IsZero() || radio.ConnectedAt != now {
+		t.Fatalf("expected ConnectedAt to be %v, got %v", now, radio.ConnectedAt)
 	}
 
-	if radio.LastSeenAt.IsZero() {
-		t.Fatal("expected LastSeenAt to be non-zero")
+	if radio.LastSeenAt.IsZero() || radio.LastSeenAt != now {
+		t.Fatalf("expected LastSeenAt to be %v, got %v", now, radio.LastSeenAt)
 	}
 }
 

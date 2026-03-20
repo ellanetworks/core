@@ -118,10 +118,6 @@ func (r *Radio) TouchLastSeen() {
 	r.LastSeenAt = time.Now()
 }
 
-func (r *Radio) ConnectedUECount() int {
-	return len(r.RanUEs)
-}
-
 // NodeID returns the RAN node identifier string regardless of radio type.
 func (r *Radio) NodeID() string {
 	if r.RanID == nil {

@@ -17,7 +17,6 @@ import {
   Link as RouterLink,
   useNavigate,
   useParams,
-  Link,
 } from "react-router-dom";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import {
@@ -132,7 +131,7 @@ const RadioDetail: React.FC = () => {
               height: "100%",
             }}
           >
-            <Link
+            <RouterLink
               to={`/subscribers/${params.row.imsi}`}
               style={{ textDecoration: "none" }}
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
@@ -148,7 +147,7 @@ const RadioDetail: React.FC = () => {
               >
                 {params.row.imsi}
               </Typography>
-            </Link>
+            </RouterLink>
           </Box>
         ),
       },

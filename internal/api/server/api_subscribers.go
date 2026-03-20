@@ -190,6 +190,8 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 
 		// When filtering by radio we must load all subscribers and paginate
 		// in memory because the filter is against runtime AMF state, not the DB.
+		// Future improvement: if the subscriber count grows large, push this
+		// filter into a DB-side join or maintain a radio→subscriber mapping.
 		dbPage := page
 		dbPerPage := perPage
 

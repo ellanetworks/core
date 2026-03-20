@@ -83,6 +83,8 @@ func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 	)
 	defer span.End()
 
+	dispatchNgapMsg(ctx, amf, ran, pdu)
+
 	logger.LogNetworkEvent(
 		ctx,
 		logger.NGAPNetworkProtocol,
@@ -93,8 +95,6 @@ func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 		ran.Name,
 		msg,
 	)
-
-	dispatchNgapMsg(ctx, amf, ran, pdu)
 }
 
 func dispatchNgapMsg(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, pdu *ngapType.NGAPPDU) {
