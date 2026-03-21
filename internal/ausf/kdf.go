@@ -13,7 +13,9 @@ import (
 // deriveXresStar computes XRES* per TS 33.501 §A.4.
 // Returns the last 128 bits of KDF(CK||IK, FC=0x6B, SN, RAND, RES).
 func deriveXresStar(ck, ik []byte, snName string, rand, res []byte) ([]byte, error) {
-	key := append(ck, ik...)
+	key := make([]byte, 0, len(ck)+len(ik))
+	key = append(key, ck...)
+	key = append(key, ik...)
 	P0 := []byte(snName)
 
 	kdfVal, err := ueauth.GetKDFValue(
@@ -32,7 +34,9 @@ func deriveXresStar(ck, ik []byte, snName string, rand, res []byte) ([]byte, err
 
 // deriveKausf computes Kausf per TS 33.501 §A.2.
 func deriveKausf(ck, ik []byte, snName string, sqnXorAK []byte) ([]byte, error) {
-	key := append(ck, ik...)
+	key := make([]byte, 0, len(ck)+len(ik))
+	key = append(key, ck...)
+	key = append(key, ik...)
 	P0 := []byte(snName)
 
 	return ueauth.GetKDFValue(

@@ -188,6 +188,8 @@ func (a *AUSF) Authenticate(ctx context.Context, suci, servingNetwork string, re
 	sqnStr := strictHex(sub.SequenceNumber, 12)
 
 	// Handle SQN re-synchronization
+	var nextSQN string
+
 	if resync != nil {
 		auts, err := hex.DecodeString(resyncAuts)
 		if err != nil {
@@ -199,21 +201,28 @@ func (a *AUSF) Authenticate(ctx context.Context, suci, servingNetwork string, re
 			return nil, fmt.Errorf("could not decode rand: %w", err)
 		}
 
-		_, nextSQN, err := resyncSQN(opc, k, auts, randBytes)
+		sqnMsHex, err := resyncSQN(opc, k, auts, randBytes)
 		if err != nil {
 			return nil, fmt.Errorf("SQN resync failed for %s: %w", supi, err)
 		}
 
-		sqnStr = nextSQN
+		// TS 33.102 §C.3.4: after resync, advance by IND+1 (=33) to
+		// move to the next IND slot.
+		nextSQN, err = advanceSQN(sqnMsHex, indStep+1)
+		if err != nil {
+			return nil, fmt.Errorf("SQN advance failed: %w", err)
+		}
+	} else {
+		var err error
+
+		nextSQN, err = advanceSQN(sqnStr, indStep)
+		if err != nil {
+			return nil, fmt.Errorf("SQN increment failed: %w", err)
+		}
 	}
 
-	// Increment SQN
-	nextSQN, err := incrementSQN(sqnStr)
-	if err != nil {
-		return nil, fmt.Errorf("SQN increment failed: %w", err)
-	}
-
-	sqn, err := hex.DecodeString(sqnStr)
+	// Use the incremented SQN for the authentication vector.
+	sqn, err := hex.DecodeString(nextSQN)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding sqn: %w", err)
 	}

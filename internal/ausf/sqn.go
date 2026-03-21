@@ -14,6 +14,10 @@ import (
 // aucSQN recovers the UE's SQN from AUTS using Milenage and returns
 // the recovered SQN bytes and MAC-S for verification.
 func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
+	if len(auts) < 14 {
+		return nil, nil, fmt.Errorf("AUTS too short: need 14 bytes, got %d", len(auts))
+	}
+
 	AK, SQNms := make([]byte, 6), make([]byte, 6)
 	macS := make([]byte, 8)
 	ConcSQNms := auts[:6]
@@ -40,39 +44,41 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
 	return SQNms, macS, nil
 }
 
-const sqnMax uint64 = 0x7FFFFFFFFFF // 2^43 - 1 (48-bit counter)
+const sqnMax uint64 = 0x7FFFFFFFFFF // 2^43 - 1; bitwise AND mask
 
-// incrementSQN adds 1 to sqn (mod sqnMax) and returns the new value as a
-// zero-padded 12-character hex string.
-func incrementSQN(sqnHex string) (string, error) {
+// indStep is 2^IND_LEN (IND_LEN = 5 per TS 33.102 Annex C) — the number
+// of IND slots. Incrementing SQN by this value advances SEQ by 1 while
+// keeping the same IND, which is the standard scheme for HE-side
+// sequence-number management.
+const indStep uint64 = 32
+
+// advanceSQN adds delta to sqn, masked to 43 bits, and returns the
+// new value as a zero-padded 12-character hex string.
+func advanceSQN(sqnHex string, delta uint64) (string, error) {
 	n, err := strconv.ParseUint(sqnHex, 16, 64)
 	if err != nil {
 		return "", fmt.Errorf("invalid SQN hex %q: %w", sqnHex, err)
 	}
 
-	n = (n + 1) % sqnMax
+	n = (n + delta) & sqnMax
 
 	return fmt.Sprintf("%012x", n), nil
 }
 
-// resyncSQN recovers the UE's SQN from an AUTS, verifies MAC-S, and increments.
-// It returns the recovered SQN bytes (for Milenage re-run) and the next SQN hex to persist.
-func resyncSQN(opc, k, auts, rand []byte) (recovered []byte, next string, err error) {
+// resyncSQN recovers the UE's SQN from an AUTS and verifies MAC-S.
+// It returns the recovered SQN_MS as a hex string. The caller is
+// responsible for incrementing before use.
+func resyncSQN(opc, k, auts, rand []byte) (string, error) {
 	sqnMs, macS, err := aucSQN(opc, k, auts, rand)
 	if err != nil {
-		return nil, "", err
+		return "", err
 	}
 
 	if !hmac.Equal(macS, auts[6:]) {
-		return nil, "", fmt.Errorf("AUTS MAC verification failed")
+		return "", fmt.Errorf("AUTS MAC verification failed")
 	}
 
-	nextHex, err := incrementSQN(hex.EncodeToString(sqnMs))
-	if err != nil {
-		return nil, "", err
-	}
-
-	return sqnMs, nextHex, nil
+	return hex.EncodeToString(sqnMs), nil
 }
 
 // strictHex pads or truncates a hex string to exactly n characters.

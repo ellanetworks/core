@@ -71,7 +71,6 @@ const (
 	testMSIN = "0000000001"
 	testSN   = "5G:mnc001.mcc001.3gppnetwork.org"
 	testK    = "465b5ce8b199b49faa5f0a2ee238a6bc" // TS 33.102 test set 1
-	testOP   = "cdc202d5123e20f62b6d676ac72cb318"
 	testOPc  = "cd63cb71954a9f4e48a5994e37a02baf" // precomputed OPc for test set 1
 )
 
@@ -288,7 +287,7 @@ func TestAuthenticate_SQNIncrementsOnEachCall(t *testing.T) {
 	ctx := context.Background()
 	suci := testSUCI
 
-	// First authenticate
+	// First authenticate — SQN should advance from 0 to 0+32 = 0x20.
 	_, err := a.Authenticate(ctx, suci, testSN, nil)
 	if err != nil {
 		t.Fatalf("first Authenticate failed: %v", err)
@@ -298,7 +297,11 @@ func TestAuthenticate_SQNIncrementsOnEachCall(t *testing.T) {
 	sqn1 := store.subs[testIMSI].SequenceNumber
 	store.mu.Unlock()
 
-	// Second authenticate
+	if sqn1 != "000000000020" {
+		t.Fatalf("after first auth: want SQN 000000000020, got %s", sqn1)
+	}
+
+	// Second authenticate — SQN should advance from 0x20 to 0x40.
 	_, err = a.Authenticate(ctx, suci, testSN, nil)
 	if err != nil {
 		t.Fatalf("second Authenticate failed: %v", err)
@@ -308,8 +311,8 @@ func TestAuthenticate_SQNIncrementsOnEachCall(t *testing.T) {
 	sqn2 := store.subs[testIMSI].SequenceNumber
 	store.mu.Unlock()
 
-	if sqn1 == sqn2 {
-		t.Fatalf("SQN should differ between calls, got %s both times", sqn1)
+	if sqn2 != "000000000040" {
+		t.Fatalf("after second auth: want SQN 000000000040, got %s", sqn2)
 	}
 }
 
@@ -340,7 +343,7 @@ func TestAuthenticate_DifferentRANDEachCall(t *testing.T) {
 	}
 }
 
-func TestExpiry_ContextEvicted(t *testing.T) {
+func TestWithClockAndTTL_NoPanic(t *testing.T) {
 	store := newFakeStore()
 	store.Add(testIMSI, &ausf.Subscriber{
 		PermanentKey:   testK,
@@ -359,8 +362,7 @@ func TestExpiry_ContextEvicted(t *testing.T) {
 
 	a := newTestAUSF(store, ausf.WithClock(clock), ausf.WithTTL(10*time.Second))
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	go a.Run(ctx)
 
@@ -510,5 +512,32 @@ func TestWithClock(t *testing.T) {
 	a := ausf.New(store, noopKeyResolver, ausf.WithClock(func() time.Time { return fixedTime }))
 	if a == nil {
 		t.Fatal("expected non-nil AUSF")
+	}
+}
+
+func TestAuthenticate_SQNWrapsAt43BitBoundary(t *testing.T) {
+	store := newFakeStore()
+	// Set SQN just below the 43-bit max so the next +32 wraps.
+	store.Add(testIMSI, &ausf.Subscriber{
+		PermanentKey:   testK,
+		Opc:            testOPc,
+		SequenceNumber: "07ffffffffe0", // sqnMax - 31
+	})
+
+	a := newTestAUSF(store)
+	ctx := context.Background()
+
+	_, err := a.Authenticate(ctx, testSUCI, testSN, nil)
+	if err != nil {
+		t.Fatalf("Authenticate failed: %v", err)
+	}
+
+	store.mu.Lock()
+	sqn := store.subs[testIMSI].SequenceNumber
+	store.mu.Unlock()
+
+	// 0x07ffffffffe0 + 32 = 0x0800000000000, masked to 43 bits = 0x000000000000
+	if sqn != "000000000000" {
+		t.Fatalf("expected SQN to wrap to 000000000000, got %s", sqn)
 	}
 }
