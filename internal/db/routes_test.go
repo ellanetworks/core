@@ -42,7 +42,7 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		Metric:      1,
 	}
 
-	tx, err := database.BeginTransaction()
+	tx, err := database.BeginTransaction(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete BeginTransaction: %s", err)
 	}
@@ -102,7 +102,7 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		t.Fatalf("The OPC value from the database doesn't match the OPC value that was given")
 	}
 
-	tx, err = database.BeginTransaction()
+	tx, err = database.BeginTransaction(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete BeginTransaction: %s", err)
 	}

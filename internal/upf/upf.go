@@ -455,7 +455,7 @@ func (u *UPF) listenForTrafficNotifications() {
 		if !u.pfcpConn.BpfObjects.IsAlreadyNotified(event) {
 			logger.UpfLog.Debug("Notifying SMF of downlink data", logger.SEID(event.LocalSEID), logger.PDRID(uint32(event.PdrID)), logger.QFI(event.QFI))
 
-			err = core.SendPfcpSessionReportRequestForDownlinkData(context.TODO(), event.LocalSEID, event.PdrID, event.QFI)
+			err = core.SendPfcpSessionReportRequestForDownlinkData(u.ctx, event.LocalSEID, event.PdrID, event.QFI)
 			if err != nil {
 				logger.UpfLog.Warn("Failed to send downlink data notification", zap.Error(err))
 			} else {
@@ -541,7 +541,7 @@ func (u *UPF) pollUsageAndResetCounters() error {
 				}
 			}
 
-			err = core.SendPfcpSessionReportRequestForUsage(context.TODO(), localSeid, urrID, uvol, dvol)
+			err = core.SendPfcpSessionReportRequestForUsage(u.ctx, localSeid, urrID, uvol, dvol)
 			if err != nil {
 				logger.UpfLog.Warn("could not send PFCP session report request for usage", zap.Error(err), logger.SEID(localSeid), logger.URRID(urrID))
 				continue
@@ -574,7 +574,7 @@ func (u *UPF) listenForMissingNeighbours() {
 			continue
 		}
 
-		if err := kernel.AddNeighbour(context.TODO(), ip.AsSlice()); err != nil {
+		if err := kernel.AddNeighbour(u.ctx, ip.AsSlice()); err != nil {
 			logger.UpfLog.Warn("could not add neighbour", zap.String("destination", ip.String()), zap.Error(err))
 			continue
 		}

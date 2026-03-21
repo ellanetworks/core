@@ -477,7 +477,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to set supported TACs: %w", err)
 		}
 
-		err = db.InitializeOperator(context.Background(), initialOperator)
+		err = db.InitializeOperator(ctx, initialOperator)
 		if err != nil {
 			return fmt.Errorf("failed to initialize network configuration: %v", err)
 		}
@@ -505,59 +505,59 @@ func (db *Database) Initialize(ctx context.Context) error {
 		}
 	}
 
-	if !db.IsRetentionPolicyInitialized(context.Background(), CategoryAuditLogs) {
+	if !db.IsRetentionPolicyInitialized(ctx, CategoryAuditLogs) {
 		initialPolicy := &RetentionPolicy{
 			Category: CategoryAuditLogs,
 			Days:     DefaultLogRetentionDays,
 		}
 
-		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
+		if err := db.SetRetentionPolicy(ctx, initialPolicy); err != nil {
 			return fmt.Errorf("failed to initialize log retention policy: %v", err)
 		}
 
 		logger.WithTrace(ctx, logger.DBLog).Info("Initialized audit log retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
-	if !db.IsRetentionPolicyInitialized(context.Background(), CategoryRadioLogs) {
+	if !db.IsRetentionPolicyInitialized(ctx, CategoryRadioLogs) {
 		initialPolicy := &RetentionPolicy{
 			Category: CategoryRadioLogs,
 			Days:     DefaultLogRetentionDays,
 		}
 
-		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
+		if err := db.SetRetentionPolicy(ctx, initialPolicy); err != nil {
 			return fmt.Errorf("failed to initialize radio event retention policy: %v", err)
 		}
 
 		logger.WithTrace(ctx, logger.DBLog).Info("Initialized radio event retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
-	if !db.IsRetentionPolicyInitialized(context.Background(), CategorySubscriberUsage) {
+	if !db.IsRetentionPolicyInitialized(ctx, CategorySubscriberUsage) {
 		initialPolicy := &RetentionPolicy{
 			Category: CategorySubscriberUsage,
 			Days:     DefaultSubscriberUsageRetentionDays,
 		}
 
-		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
+		if err := db.SetRetentionPolicy(ctx, initialPolicy); err != nil {
 			return fmt.Errorf("failed to initialize subscriber usage retention policy: %v", err)
 		}
 
 		logger.WithTrace(ctx, logger.DBLog).Info("Initialized subscriber usage retention policy", zap.Int("days", DefaultSubscriberUsageRetentionDays))
 	}
 
-	if !db.IsRetentionPolicyInitialized(context.Background(), CategoryFlowReports) {
+	if !db.IsRetentionPolicyInitialized(ctx, CategoryFlowReports) {
 		initialPolicy := &RetentionPolicy{
 			Category: CategoryFlowReports,
 			Days:     DefaultFlowReportsRetentionDays,
 		}
 
-		if err := db.SetRetentionPolicy(context.Background(), initialPolicy); err != nil {
+		if err := db.SetRetentionPolicy(ctx, initialPolicy); err != nil {
 			return fmt.Errorf("failed to initialize flow reports retention policy: %v", err)
 		}
 
 		logger.DBLog.Info("Initialized flow reports retention policy", zap.Int("days", DefaultFlowReportsRetentionDays))
 	}
 
-	numDataNetworks, err := db.CountDataNetworks(context.Background())
+	numDataNetworks, err := db.CountDataNetworks(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get number of data networks: %v", err)
 	}
@@ -569,11 +569,11 @@ func (db *Database) Initialize(ctx context.Context) error {
 			DNS:    InitialDataNetworkDNS,
 			MTU:    InitialDataNetworkMTU,
 		}
-		if err := db.CreateDataNetwork(context.Background(), initialDataNetwork); err != nil {
+		if err := db.CreateDataNetwork(ctx, initialDataNetwork); err != nil {
 			return fmt.Errorf("failed to create default data network: %v", err)
 		}
 
-		dataNetwork, err := db.GetDataNetwork(context.Background(), InitialDataNetworkName)
+		dataNetwork, err := db.GetDataNetwork(ctx, InitialDataNetworkName)
 		if err != nil {
 			return fmt.Errorf("failed to get default data network: %v", err)
 		}
@@ -587,7 +587,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 			DataNetworkID:   dataNetwork.ID,
 		}
 
-		if err := db.CreatePolicy(context.Background(), initialPolicy); err != nil {
+		if err := db.CreatePolicy(ctx, initialPolicy); err != nil {
 			return fmt.Errorf("failed to create default policy: %v", err)
 		}
 	}
@@ -595,8 +595,8 @@ func (db *Database) Initialize(ctx context.Context) error {
 	return nil
 }
 
-func (db *Database) BeginTransaction() (*Transaction, error) {
-	tx, err := db.conn.Begin(context.Background(), nil)
+func (db *Database) BeginTransaction(ctx context.Context) (*Transaction, error) {
+	tx, err := db.conn.Begin(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
